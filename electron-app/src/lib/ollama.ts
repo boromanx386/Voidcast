@@ -1,6 +1,30 @@
 import { normalizeBaseUrl } from './settings'
 
-export type ChatMessage = { role: 'user' | 'assistant' | 'system'; content: string }
+/** Tool call fragment from Ollama stream (merged across chunks) */
+export type OllamaToolCall = {
+  id?: string
+  type?: string
+  index?: number
+  function?: {
+    name?: string
+    /** Stream may send string fragments or a full object (never use String(object)). */
+    arguments?: string | Record<string, unknown>
+  }
+}
+
+/** Messages for Ollama /api/chat (includes tool turns) */
+export type OllamaApiMessage =
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | {
+      role: 'assistant'
+      content: string
+      tool_calls?: OllamaToolCall[]
+    }
+  | { role: 'tool'; content: string; tool_name: string }
+
+/** @deprecated use OllamaApiMessage — kept for imports expecting short name */
+export type ChatMessage = OllamaApiMessage
 
 /** Ollama List models — GET /api/tags (https://docs.ollama.com/api/tags) */
 export type OllamaModelTag = {
@@ -35,15 +59,11 @@ export type OllamaModelOptions = {
 export type StreamOllamaChatParams = {
   baseUrl: string
   model: string
-  messages: ChatMessage[]
+  messages: OllamaApiMessage[]
   signal?: AbortSignal
   onDelta: (fullText: string) => void
   /** Sent as request `options` (temperature, num_ctx, …). */
   modelOptions?: OllamaModelOptions
-  /**
-   * Future: Ollama tools (e.g. function calling). When set, included in the
-   * body with messages/stream.
-   */
   tools?: unknown
 }
 
@@ -120,7 +140,10 @@ export async function streamOllamaChat(
   const tail = buffer.trim()
   if (tail) {
     try {
-      const last = JSON.parse(tail) as { message?: { content?: string }; error?: string }
+      const last = JSON.parse(tail) as {
+        message?: { content?: string }
+        error?: string
+      }
       if (last.error) throw new Error(last.error)
       const piece = last.message?.content
       if (piece) {

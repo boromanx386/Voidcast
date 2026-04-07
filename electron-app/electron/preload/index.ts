@@ -1,6 +1,24 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
 // --------- Expose some API to the Renderer process ---------
+contextBridge.exposeInMainWorld('voidcast', {
+  webSearch: (query: string) => ipcRenderer.invoke('voidcast:web-search', query),
+  getWeather: (payload: { city: string; forecast: boolean }) =>
+    ipcRenderer.invoke('voidcast:get-weather', payload),
+  scrapeUrl: (payload: { url: string; max_chars?: number }) =>
+    ipcRenderer.invoke('voidcast:scrape-url', payload),
+  savePdf: (payload: {
+    content: string
+    title?: string
+    filename?: string
+    outputDir: string
+  }) => ipcRenderer.invoke('voidcast:save-pdf', payload),
+  pickDirectory: () =>
+    ipcRenderer.invoke('voidcast:pick-directory') as Promise<
+      { ok: true; path: string } | { ok: false }
+    >,
+})
+
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args

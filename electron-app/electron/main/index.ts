@@ -1,9 +1,19 @@
-import { app, BrowserWindow, shell, ipcMain, Menu } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  shell,
+  ipcMain,
+  Menu,
+  type OpenDialogOptions,
+} from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
 import { update } from './update'
+import { scrapePublicUrlToText } from './scrape'
+import { savePdfToFolder } from './pdf'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -109,6 +119,139 @@ app.on('activate', () => {
     createWindow()
   }
 })
+
+ipcMain.handle(
+  'voidcast:web-search',
+  async (_evt, query: string) => {
+    try {
+      const q = String(query ?? '').trim()
+      if (!q) return { ok: false, text: 'Empty query' }
+      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
+      const res = await fetch(url)
+      if (!res.ok) return { ok: false, text: `HTTP ${res.status}` }
+      const data = (await res.json()) as {
+        AbstractText?: string
+        AbstractURL?: string
+        Answer?: string
+        RelatedTopics?: { Text?: string }[]
+      }
+      const parts: string[] = []
+      if (data.Answer) parts.push(data.Answer)
+      if (data.AbstractText) parts.push(data.AbstractText)
+      if (data.AbstractURL) parts.push(`Source: ${data.AbstractURL}`)
+      const topics = (data.RelatedTopics ?? [])
+        .slice(0, 5)
+        .map((t) => t.Text)
+        .filter(Boolean) as string[]
+      if (topics.length) parts.push(`Related: ${topics.join('; ')}`)
+      if (parts.length === 0) {
+        return {
+          ok: true,
+          text: 'No instant results from DuckDuckGo. Try rephrasing the query.',
+        }
+      }
+      return { ok: true, text: parts.join('\n\n') }
+    } catch (e) {
+      return {
+        ok: false,
+        text: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
+
+type WttrJson = {
+  current_condition?: Array<{
+    temp_C?: string
+    humidity?: string
+    windspeedKmph?: string
+    weatherDesc?: Array<{ value?: string }>
+  }>
+  weather?: Array<{
+    date?: string
+    maxtempC?: string
+    mintempC?: string
+    hourly?: Array<{ weatherDesc?: Array<{ value?: string }> }>
+  }>
+}
+
+function formatWttrText(data: WttrJson, city: string, forecast: boolean): string {
+  const curr = data.current_condition?.[0]
+  if (!curr) return 'No weather data returned for this location.'
+  const desc = curr.weatherDesc?.[0]?.value ?? ''
+  let res = `Weather for ${city}: ${curr.temp_C ?? '?'}°C, ${desc}\n`
+  res += `Humidity: ${curr.humidity ?? '?'}%, Wind: ${curr.windspeedKmph ?? '?'} km/h`
+  if (forecast && data.weather && data.weather.length > 0) {
+    res += '\n\nForecast (3 days):'
+    for (const day of data.weather.slice(0, 3)) {
+      const d = day.date ?? '?'
+      const mx = day.maxtempC ?? '?'
+      const mn = day.mintempC ?? '?'
+      const hourlyDesc = day.hourly?.[0]?.weatherDesc?.[0]?.value ?? ''
+      res += `\n- ${d}: ${mx}°C / ${mn}°C — ${hourlyDesc}`
+    }
+  }
+  return res
+}
+
+ipcMain.handle(
+  'voidcast:scrape-url',
+  async (_evt, payload: { url?: string; max_chars?: number }) => {
+    const url = String(payload?.url ?? '').trim()
+    return scrapePublicUrlToText(url, payload?.max_chars)
+  },
+)
+
+ipcMain.handle(
+  'voidcast:save-pdf',
+  async (
+    _evt,
+    payload: {
+      content?: string
+      title?: string
+      filename?: string
+      outputDir?: string
+    },
+  ) => {
+    return savePdfToFolder(payload)
+  },
+)
+
+ipcMain.handle('voidcast:pick-directory', async () => {
+  const opts: OpenDialogOptions = {
+    title: 'Choose folder for PDFs',
+    properties: ['openDirectory'],
+  }
+  const result = win
+    ? await dialog.showOpenDialog(win, opts)
+    : await dialog.showOpenDialog(opts)
+  if (result.canceled || !result.filePaths?.[0]) {
+    return { ok: false as const }
+  }
+  return { ok: true as const, path: result.filePaths[0] }
+})
+
+ipcMain.handle(
+  'voidcast:get-weather',
+  async (_evt, payload: { city?: string; forecast?: boolean }) => {
+    try {
+      const city = String(payload?.city ?? '').trim()
+      if (!city) return { ok: false, text: 'Empty city' }
+      const forecast = Boolean(payload?.forecast)
+      const path = encodeURIComponent(city)
+      const url = `https://wttr.in/${path}?format=j1`
+      const res = await fetch(url)
+      if (!res.ok) return { ok: false, text: `HTTP ${res.status}` }
+      const data = (await res.json()) as WttrJson
+      return { ok: true, text: formatWttrText(data, city, forecast) }
+    } catch (e) {
+      return {
+        ok: false,
+        text: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
 
 // New window example arg: new windows url
 ipcMain.handle('open-win', (_, arg) => {

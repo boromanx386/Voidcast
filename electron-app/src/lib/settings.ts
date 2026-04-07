@@ -1,5 +1,15 @@
 export type VoiceMode = 'auto' | 'design' | 'clone'
 
+/** Per-tool toggles; extend with new keys as tools are added */
+export type ToolsEnabled = {
+  webSearch: boolean
+  weather: boolean
+  /** Fetch public URL in main process → plain text (HTML stripped) */
+  scrape: boolean
+  /** Save text as PDF into `pdfOutputDir` (main process) */
+  pdf: boolean
+}
+
 export type AppSettings = {
   ollamaBaseUrl: string
   ollamaModel: string
@@ -30,6 +40,10 @@ export type AppSettings = {
   ttsDurationSec: number | null
   /** Long text split into chunks; approximate chars per chunk */
   ttsChunkMaxChars: number
+  /** Which LLM tools are registered with Ollama (see Tools settings tab) */
+  toolsEnabled: ToolsEnabled
+  /** Where `save_pdf` writes files (no dialog). Empty = tool returns an error until set. */
+  pdfOutputDir: string
 }
 
 const STORAGE_KEY = 'voidcast-settings-v1'
@@ -52,10 +66,27 @@ const defaults: AppSettings = {
   ttsNumStep: 32,
   ttsDurationSec: null,
   ttsChunkMaxChars: 380,
+  toolsEnabled: { webSearch: false, weather: false, scrape: false, pdf: false },
+  pdfOutputDir: '',
 }
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
+}
+
+function normalizeTools(s: AppSettings): AppSettings {
+  const te = s.toolsEnabled
+  return {
+    ...s,
+    toolsEnabled: {
+      webSearch:
+        typeof te?.webSearch === 'boolean' ? te.webSearch : defaults.toolsEnabled.webSearch,
+      weather:
+        typeof te?.weather === 'boolean' ? te.weather : defaults.toolsEnabled.weather,
+      scrape: typeof te?.scrape === 'boolean' ? te.scrape : defaults.toolsEnabled.scrape,
+      pdf: typeof te?.pdf === 'boolean' ? te.pdf : defaults.toolsEnabled.pdf,
+    },
+  }
 }
 
 function normalizeLlm(s: AppSettings): AppSettings {
@@ -76,6 +107,15 @@ function normalizeLlm(s: AppSettings): AppSettings {
   }
 }
 
+function normalizePdfDir(s: AppSettings): AppSettings {
+  const dir = typeof s.pdfOutputDir === 'string' ? s.pdfOutputDir.trim() : ''
+  return { ...s, pdfOutputDir: dir }
+}
+
+function normalizeAll(s: AppSettings): AppSettings {
+  return normalizePdfDir(normalizeTools(normalizeLlm(s)))
+}
+
 export function loadSettings(): AppSettings {
   try {
     const rawNew = localStorage.getItem(STORAGE_KEY)
@@ -83,7 +123,7 @@ export function loadSettings(): AppSettings {
     const raw = rawNew ?? rawLegacy
     if (!raw) return { ...defaults }
     const parsed = JSON.parse(raw) as Partial<AppSettings>
-    const merged = normalizeLlm({ ...defaults, ...parsed })
+    const merged = normalizeAll({ ...defaults, ...parsed })
     if (!rawNew && rawLegacy) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
     }

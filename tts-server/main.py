@@ -10,7 +10,9 @@ import base64
 import io
 import logging
 import os
+import re
 import tempfile
+from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -30,6 +32,23 @@ _model: Any = None
 _sampling_rate: int = 24000
 _load_error: str | None = None
 _infer_lock = asyncio.Lock()
+
+try:
+    from duckduckgo_search import DDGS
+
+    _HAS_DDGS = True
+except ImportError:
+    try:
+        from ddgs import DDGS  # type: ignore
+
+        _HAS_DDGS = True
+    except ImportError:
+        DDGS = None  # type: ignore
+        _HAS_DDGS = False
+
+
+class SearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=2000)
 
 
 class TtsRequest(BaseModel):
@@ -192,7 +211,50 @@ async def health():
         "device": DEVICE,
         "sampling_rate": _sampling_rate,
         "error": _load_error,
+        "tools_search": _HAS_DDGS,
     }
+
+
+def _search_web_ddgs(query: str) -> str:
+    """Same idea as locAI search_web: real DDG results via duckduckgo-search."""
+    if not _HAS_DDGS or DDGS is None:
+        raise RuntimeError("duckduckgo-search is not installed (pip install duckduckgo-search)")
+    q = query.strip()
+    if not q:
+        return "Empty query."
+    current_year = datetime.now().year
+    q = re.sub(r"\b(20\d{2})\b", str(current_year), q)
+    with DDGS(timeout=20) as ddgs:  # type: ignore[misc]
+        results = list(ddgs.text(q, max_results=10))
+    if not results:
+        return "No results found."
+    out: list[str] = []
+    for r in results:
+        body = (r.get("body") or "").strip()
+        if len(body) < 15:
+            continue
+        title = r.get("title") or ""
+        link = r.get("href") or r.get("url") or ""
+        out.append(f"{title}\n{body[:400]}\n{link}")
+        if len(out) >= 7:
+            break
+    if not out:
+        return "No usable text snippets in results."
+    return "\n\n---\n\n".join(out)
+
+
+@app.post("/tools/search")
+async def tools_search(req: SearchRequest):
+    """Full web search via DuckDuckGo (HTML results); requires duckduckgo-search."""
+    try:
+        text = await asyncio.to_thread(_search_web_ddgs, req.query)
+        return {"ok": True, "text": text}
+    except Exception as e:
+        logger.exception("tools/search failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "Search failed",
+        ) from e
 
 
 @app.post("/tts")

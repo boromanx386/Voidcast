@@ -20,7 +20,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "@fontsource/noto-sans": "^5.2.10",
+    "@pdf-lib/fontkit": "^1.1.1",
+    "cheerio": "^1.2.0",
+    "electron-updater": "^6.3.9",
+    "pdf-lib": "^1.17.1",
+    "react-markdown": "^10.1.0",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",

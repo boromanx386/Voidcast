@@ -1,0 +1,122 @@
+import type { ToolsEnabled } from '@/lib/settings'
+
+/** Ollama /api/chat `tools` entry (OpenAI-style function tool) */
+export type OllamaToolDefinition = {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: {
+      type: 'object'
+      properties: Record<string, { type: string; description?: string }>
+      required?: string[]
+    }
+  }
+}
+
+const GET_WEATHER_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'get_weather',
+    description:
+      'Get current weather and optionally a short multi-day forecast for a city or town (wttr.in).',
+    parameters: {
+      type: 'object',
+      properties: {
+        city: {
+          type: 'string',
+          description: 'City or location name (e.g. Belgrade, London)',
+        },
+        forecast: {
+          type: 'boolean',
+          description: 'If true, include a brief 3-day outlook. Default false.',
+        },
+      },
+      required: ['city'],
+    },
+  },
+}
+
+const SCRAPE_URL_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'scrape_url',
+    description:
+      'Fetch a public web page over HTTP(S) and return its main text content (HTML stripped). Use when the user gives a URL or needs article/page content. Only public internet URLs; local/private hosts are blocked.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'Full http(s) URL to fetch',
+        },
+        max_chars: {
+          type: 'number',
+          description:
+            'Max characters of text to return (default ~40000; larger pages are truncated).',
+        },
+      },
+      required: ['url'],
+    },
+  },
+}
+
+const SAVE_PDF_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'save_pdf',
+    description:
+      'Save plain text as a PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename.',
+    parameters: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description: 'Full text body to put in the PDF',
+        },
+        title: {
+          type: 'string',
+          description: 'Optional document title shown at the top (default: Document)',
+        },
+        filename: {
+          type: 'string',
+          description:
+            'Optional suggested file name without path (e.g. report); .pdf is added if missing',
+        },
+      },
+      required: ['content'],
+    },
+  },
+}
+
+const WEB_SEARCH_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'web_search',
+    description:
+      'Search the public web (news, facts, URLs, current events). Call this whenever the user wants information that may be online or time-sensitive. Pass a short `query` string.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query in concise natural language',
+        },
+      },
+      required: ['query'],
+    },
+  },
+}
+
+export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
+  const out: OllamaToolDefinition[] = []
+  if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
+  if (enabled.weather) out.push(GET_WEATHER_TOOL)
+  if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
+  if (enabled.pdf) out.push(SAVE_PDF_TOOL)
+  return out
+}
+
+export function anyToolEnabled(enabled: ToolsEnabled): boolean {
+  return enabled.webSearch || enabled.weather || enabled.scrape || enabled.pdf
+}

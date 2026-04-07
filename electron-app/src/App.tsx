@@ -7,9 +7,20 @@ import {
   type ChangeEvent,
 } from 'react'
 import './App.css'
+import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
+import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
-import { buildOllamaMessages } from '@/lib/chatMessages'
+import {
+  buildOllamaMessages,
+  TOOLS_WEB_SEARCH_HINT,
+  TOOLS_WEATHER_HINT,
+  TOOLS_SCRAPE_HINT,
+  TOOLS_PDF_HINT,
+  TOOLS_TRUTH_HINT,
+} from '@/lib/chatMessages'
+import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
+import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
 import { checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
@@ -28,7 +39,7 @@ import type { UiMessage } from '@/types/chat'
 const APP_NAME = 'Voidcast'
 
 type Screen = 'chat' | 'options'
-type OptionsTab = 'llm' | 'tts'
+type OptionsTab = 'llm' | 'tts' | 'tools'
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -49,6 +60,11 @@ export default function App() {
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
+  const [toolPhase, setToolPhase] = useState<
+    'search' | 'weather' | 'scrape' | 'pdf' | null
+  >(null)
+  /** Actual save_pdf tool result (path or error); model text alone can be wrong */
+  const [toolResultBanner, setToolResultBanner] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   /** Voice clone: reference audio (IndexedDB + memory) */
   const [cloneRef, setCloneRef] = useState<{
@@ -145,6 +161,7 @@ export default function App() {
     setMessages([])
     setInput('')
     setError(null)
+    setToolResultBanner(null)
     setMenuOpen(false)
   }
 
@@ -164,13 +181,26 @@ export default function App() {
     const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
     setMessages((m) => [...m, userMsg, asstMsg])
     setBusy(true)
+    setToolPhase(null)
+    setToolResultBanner(null)
 
+    const useTools = anyToolEnabled(settings.toolsEnabled)
+    const toolsHintParts: string[] = []
+    if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
+    if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
+    if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
+    if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
+    if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     const history = buildOllamaMessages(
       messages.map((x) => ({ role: x.role, content: x.content })),
       text,
       {
         systemPrompt: settings.llmSystemPrompt,
         maxHistoryMessages: settings.llmMaxHistoryMessages,
+        toolsSystemHint:
+          useTools && toolsHintParts.length > 0
+            ? toolsHintParts.join('\n\n')
+            : undefined,
       },
     )
 
@@ -178,21 +208,52 @@ export default function App() {
     abortRef.current = ac
     let replyText = ''
     try {
-      replyText = await streamOllamaChat({
-        baseUrl: settings.ollamaBaseUrl,
-        model: settings.ollamaModel,
-        messages: history,
-        modelOptions: {
-          temperature: settings.llmTemperature,
-          num_ctx: settings.llmNumCtx,
-        },
-        signal: ac.signal,
-        onDelta: (full) => {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
-          )
-        },
-      })
+      if (useTools) {
+        replyText = await runOllamaChatWithTools({
+          baseUrl: settings.ollamaBaseUrl,
+          model: settings.ollamaModel,
+          initialMessages: history,
+          modelOptions: {
+            temperature: settings.llmTemperature,
+            num_ctx: settings.llmNumCtx,
+          },
+          toolsEnabled: settings.toolsEnabled,
+          ttsBaseUrl: settings.ttsBaseUrl,
+          pdfOutputDir: settings.pdfOutputDir,
+          signal: ac.signal,
+          onDelta: (full) => {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
+            )
+          },
+          onToolPhase: (phase) => {
+            if (phase === 'search') setToolPhase('search')
+            else if (phase === 'weather') setToolPhase('weather')
+            else if (phase === 'scrape') setToolPhase('scrape')
+            else if (phase === 'pdf') setToolPhase('pdf')
+            else setToolPhase(null)
+          },
+          onToolResult: ({ name, result }) => {
+            if (name === 'save_pdf') setToolResultBanner(result)
+          },
+        })
+      } else {
+        replyText = await streamOllamaChat({
+          baseUrl: settings.ollamaBaseUrl,
+          model: settings.ollamaModel,
+          messages: history,
+          modelOptions: {
+            temperature: settings.llmTemperature,
+            num_ctx: settings.llmNumCtx,
+          },
+          signal: ac.signal,
+          onDelta: (full) => {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
+            )
+          },
+        })
+      }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       const msg = e instanceof Error ? e.message : String(e)
@@ -205,6 +266,7 @@ export default function App() {
         ),
       )
     } finally {
+      setToolPhase(null)
       setBusy(false)
       abortRef.current = null
     }
@@ -385,7 +447,7 @@ export default function App() {
           <div className='flex gap-0 border-t border-zinc-800 px-2'>
             <button
               type='button'
-              className={`min-w-0 flex-1 rounded-t-lg px-4 py-3 text-sm font-medium ${
+              className={`min-w-0 flex-1 rounded-t-lg px-3 py-3 text-sm font-medium ${
                 optionsTab === 'llm'
                   ? 'border-b-2 border-indigo-500 bg-zinc-900/80 text-zinc-100'
                   : 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
@@ -396,7 +458,7 @@ export default function App() {
             </button>
             <button
               type='button'
-              className={`min-w-0 flex-1 rounded-t-lg px-4 py-3 text-sm font-medium ${
+              className={`min-w-0 flex-1 rounded-t-lg px-3 py-3 text-sm font-medium ${
                 optionsTab === 'tts'
                   ? 'border-b-2 border-indigo-500 bg-zinc-900/80 text-zinc-100'
                   : 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
@@ -404,6 +466,17 @@ export default function App() {
               onClick={() => setOptionsTab('tts')}
             >
               TTS
+            </button>
+            <button
+              type='button'
+              className={`min-w-0 flex-1 rounded-t-lg px-3 py-3 text-sm font-medium ${
+                optionsTab === 'tools'
+                  ? 'border-b-2 border-indigo-500 bg-zinc-900/80 text-zinc-100'
+                  : 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+              }`}
+              onClick={() => setOptionsTab('tools')}
+            >
+              Tools
             </button>
           </div>
         </header>
@@ -418,7 +491,7 @@ export default function App() {
                 ollamaModels={ollamaModels}
                 modelsError={modelsError}
               />
-            ) : (
+            ) : optionsTab === 'tts' ? (
               <TtsOptionsPanel
                 settings={settings}
                 setSettings={setSettings}
@@ -427,6 +500,8 @@ export default function App() {
                 onPickCloneFile={onPickCloneFile}
                 onClearClone={onClearClone}
               />
+            ) : (
+              <ToolsOptionsPanel settings={settings} setSettings={setSettings} />
             )}
           </div>
         </main>
@@ -510,19 +585,26 @@ export default function App() {
               >
                 Settings (TTS / clone)
               </button>
+              <button
+                type='button'
+                className='rounded-lg px-4 py-3 text-left text-sm hover:bg-zinc-900'
+                onClick={() => openOptions('tools')}
+              >
+                Settings (Tools)
+              </button>
             </div>
           </nav>
         </>
       )}
 
-      <main className='min-h-0 flex-1 overflow-y-auto px-4 py-4'>
+      <main className='chat-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4'>
         <div className='mx-auto flex max-w-3xl flex-col gap-3'>
           {messages.length === 0 && (
             <p className='rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 p-6 text-center text-sm text-zinc-500'>
               Send a message — Ollama streams the reply. Menu:{' '}
               <strong className='text-zinc-300'>New chat</strong>,{' '}
-              <strong className='text-zinc-300'>Settings</strong> — LLM, TTS, voice
-              clone.
+              <strong className='text-zinc-300'>Settings</strong> — LLM, TTS, Tools,
+              voice clone.
             </p>
           )}
           {messages.map((m) => (
@@ -531,13 +613,17 @@ export default function App() {
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   m.role === 'user'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-zinc-800 text-zinc-100'
+                    ? 'max-w-[85%] bg-indigo-600 text-white'
+                    : 'max-w-[min(92%,36rem)] bg-zinc-800 text-zinc-100'
                 }`}
               >
-                <div className='whitespace-pre-wrap break-words'>{m.content}</div>
+                {m.role === 'assistant' ? (
+                  <ChatMarkdown content={m.content} className='break-words' />
+                ) : (
+                  <div className='whitespace-pre-wrap break-words'>{m.content}</div>
+                )}
                 {m.role === 'assistant' && m.content.trim().length > 0 && (
                   <div className='mt-2 flex flex-wrap gap-2 border-t border-zinc-700/50 pt-2'>
                     <button
@@ -554,11 +640,49 @@ export default function App() {
             </div>
           ))}
           {busy && (
-            <div className='text-xs text-zinc-500'>Assistant is typing…</div>
+            <div className='text-xs text-zinc-500'>
+              {toolPhase === 'search'
+                ? 'Searching the web…'
+                : toolPhase === 'weather'
+                  ? 'Checking weather…'
+                  : toolPhase === 'scrape'
+                    ? 'Fetching page…'
+                    : toolPhase === 'pdf'
+                      ? 'Saving PDF…'
+                      : 'Assistant is typing…'}
+            </div>
           )}
           <div ref={listEndRef} />
         </div>
       </main>
+
+      {toolResultBanner && (
+        <div
+          className={`shrink-0 border-t px-4 py-2 text-sm ${
+            toolResultBanner.startsWith('PDF saved')
+              ? 'border-emerald-900/50 bg-emerald-950/50 text-emerald-100'
+              : 'border-amber-900/50 bg-amber-950/40 text-amber-100'
+          }`}
+        >
+          <div className='mx-auto flex max-w-3xl items-start justify-between gap-3'>
+            <div>
+              <div className='text-xs font-medium uppercase tracking-wide text-zinc-400'>
+                save_pdf (actual result)
+              </div>
+              <div className='mt-1 whitespace-pre-wrap break-all font-mono text-xs leading-relaxed'>
+                {toolResultBanner}
+              </div>
+            </div>
+            <button
+              type='button'
+              className='shrink-0 rounded-lg border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800'
+              onClick={() => setToolResultBanner(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className='border-t border-red-900/50 bg-red-950/40 px-4 py-2 text-center text-sm text-red-200'>
