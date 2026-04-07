@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Electron / Vite build outputs
+electron-app/dist/
+electron-app/dist-electron/
+electron-app/release/
+
+# IDE / local
+.cursor/
+.idea/
+*.local
+
+# Generated audio (local tests)
+*.wav
+
+# Logs & env
+*.log
+.env
+.env.*

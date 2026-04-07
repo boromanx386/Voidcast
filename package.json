@@ -1,0 +1,12 @@
+{
+  "name": "vst-omnivoice-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n tts,ui -c blue,green \"npm run dev:tts\" \"npm run dev:electron\"",
+    "dev:tts": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8765",
+    "dev:electron": "cd electron-app && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
