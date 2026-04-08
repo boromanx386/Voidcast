@@ -34,7 +34,13 @@ import {
   loadCloneRef,
   saveCloneRef,
 } from '@/lib/cloneRefStorage'
-import type { UiMessage } from '@/types/chat'
+import {
+  deleteSessionById,
+  loadChatSessions,
+  saveChatSessions,
+  upsertSession,
+} from '@/lib/chatSessionsStorage'
+import type { ChatSession, UiMessage } from '@/types/chat'
 
 const APP_NAME = 'Voidcast'
 
@@ -45,12 +51,48 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function deriveSessionTitle(messages: UiMessage[]): string {
+  const firstUser = messages.find((m) => m.role === 'user')?.content.trim()
+  if (!firstUser) return 'Untitled'
+  const single = firstUser.replace(/\s+/g, ' ')
+  return single.length > 60 ? `${single.slice(0, 60)}…` : single
+}
+
+function isToday(ts: number): boolean {
+  const d = new Date(ts)
+  const n = new Date()
+  return (
+    d.getFullYear() === n.getFullYear() &&
+    d.getMonth() === n.getMonth() &&
+    d.getDate() === n.getDate()
+  )
+}
+
+function sanitizeForTts(input: string): string {
+  return input
+    .replace(/[*_`#~]+/g, '')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
   const [screen, setScreen] = useState<Screen>('chat')
   const [optionsTab, setOptionsTab] = useState<OptionsTab>('llm')
   const [menuOpen, setMenuOpen] = useState(false)
   const [messages, setMessages] = useState<UiMessage[]>([])
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [sessionDirty, setSessionDirty] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState({
+    today: false,
+    older: false,
+  })
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [sessionsHydrated, setSessionsHydrated] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,6 +122,23 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  useEffect(() => {
+    const state = loadChatSessions()
+    setSessions(state.sessions)
+    setActiveSessionId(state.activeSessionId)
+    const active = state.activeSessionId
+      ? state.sessions.find((s) => s.id === state.activeSessionId)
+      : null
+    setMessages(active?.messages ?? [])
+    setSessionDirty(false)
+    setSessionsHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!sessionsHydrated) return
+    saveChatSessions({ sessions, activeSessionId })
+  }, [sessions, activeSessionId, sessionsHydrated])
 
   const refreshTts = useCallback(async () => {
     const h = await checkTtsHealth(settings.ttsBaseUrl)
@@ -154,15 +213,106 @@ export default function App() {
   )
 
   const canStop = busy || playingId !== null
+  const canSaveSession = messages.length > 0 && !busy
+  const todaySessions = useMemo(
+    () => sessions.filter((s) => isToday(s.updatedAt)),
+    [sessions],
+  )
+  const olderSessions = useMemo(
+    () => sessions.filter((s) => !isToday(s.updatedAt)),
+    [sessions],
+  )
 
   const newChat = () => {
     abortRef.current?.abort()
     ttsAbortRef.current?.abort()
     setMessages([])
+    setActiveSessionId(null)
+    setSessionDirty(false)
+    setPendingDeleteId(null)
+    setRenamingSessionId(null)
+    setRenameValue('')
     setInput('')
     setError(null)
     setToolResultBanner(null)
     setMenuOpen(false)
+  }
+
+  const openSession = (session: ChatSession) => {
+    abortRef.current?.abort()
+    ttsAbortRef.current?.abort()
+    setMessages(session.messages)
+    setActiveSessionId(session.id)
+    setSessionDirty(false)
+    setToolResultBanner(null)
+    setPendingDeleteId(null)
+    setRenamingSessionId(null)
+    setRenameValue('')
+    setMenuOpen(false)
+  }
+
+  const saveOrUpdateSession = () => {
+    if (messages.length === 0) return
+    const now = Date.now()
+    const existing = activeSessionId
+      ? sessions.find((s) => s.id === activeSessionId)
+      : null
+    const next: ChatSession = {
+      id: existing?.id ?? uid(),
+      title: existing?.title || deriveSessionTitle(messages),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      messages,
+    }
+    const nextState = upsertSession({ sessions, activeSessionId }, next)
+    setSessions(nextState.sessions)
+    setActiveSessionId(nextState.activeSessionId)
+    saveChatSessions(nextState)
+    setSessionDirty(false)
+  }
+
+  const deleteSession = (sessionId: string) => {
+    const state = deleteSessionById({ sessions, activeSessionId }, sessionId)
+    setSessions(state.sessions)
+    setActiveSessionId(state.activeSessionId)
+    if (state.activeSessionId) {
+      const next = state.sessions.find((s) => s.id === state.activeSessionId)
+      setMessages(next?.messages ?? [])
+    } else {
+      setMessages([])
+    }
+    saveChatSessions(state)
+    setSessionDirty(false)
+    setPendingDeleteId(null)
+    if (renamingSessionId === sessionId) {
+      setRenamingSessionId(null)
+      setRenameValue('')
+    }
+  }
+
+  const startRenameSession = (session: ChatSession) => {
+    setPendingDeleteId(null)
+    setRenamingSessionId(session.id)
+    setRenameValue(session.title)
+  }
+
+  const cancelRenameSession = () => {
+    setRenamingSessionId(null)
+    setRenameValue('')
+  }
+
+  const commitRenameSession = (sessionId: string) => {
+    const nextTitle = renameValue.trim().replace(/\s+/g, ' ')
+    if (!nextTitle) return
+    const updated = sessions.map((s) =>
+      s.id === sessionId
+        ? { ...s, title: nextTitle, updatedAt: Date.now() }
+        : s,
+    )
+    setSessions(updated)
+    saveChatSessions({ sessions: updated, activeSessionId })
+    setRenamingSessionId(null)
+    setRenameValue('')
   }
 
   const openOptions = (tab: OptionsTab = 'llm') => {
@@ -180,6 +330,7 @@ export default function App() {
     const asstId = uid()
     const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
     setMessages((m) => [...m, userMsg, asstMsg])
+    setSessionDirty(true)
     setBusy(true)
     setToolPhase(null)
     setToolResultBanner(null)
@@ -331,6 +482,8 @@ export default function App() {
 
   const onRead = async (msg: UiMessage) => {
     if (msg.role !== 'assistant' || !msg.content.trim()) return
+    const spoken = sanitizeForTts(msg.content)
+    if (!spoken) return
     if (
       settings.voiceMode === 'clone' &&
       (!cloneRef?.blob || cloneRef.blob.size === 0)
@@ -354,7 +507,7 @@ export default function App() {
         2000,
         Math.max(80, Math.round(settings.ttsChunkMaxChars) || 380),
       )
-      const chunks = splitIntoTtsChunks(msg.content, maxC)
+      const chunks = splitIntoTtsChunks(spoken, maxC)
       const multi = chunks.length > 1
       const durationForChunk = multi ? null : settings.ttsDurationSec
 
@@ -538,8 +691,18 @@ export default function App() {
               </span>
             )}
             {ttsOk == null && <span>Checking TTS…</span>}
+            {sessionDirty && <span className='ml-2 text-amber-400'>Unsaved</span>}
           </p>
         </div>
+        {canSaveSession && (
+          <button
+            type='button'
+            className='shrink-0 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs hover:bg-zinc-800'
+            onClick={saveOrUpdateSession}
+          >
+            {activeSessionId ? 'Update chat' : 'Save chat'}
+          </button>
+        )}
         {canStop && (
           <button
             type='button'
@@ -592,6 +755,258 @@ export default function App() {
               >
                 Settings (Tools)
               </button>
+            </div>
+            <div className='min-h-0 flex-1 border-t border-zinc-800 p-2'>
+              <div className='mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-zinc-500'>
+                Saved chats
+              </div>
+              <div className='space-y-2 overflow-y-auto pr-1'>
+                <div>
+                  <button
+                    type='button'
+                    className='flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-zinc-400 hover:bg-zinc-900'
+                    onClick={() =>
+                      setSidebarCollapsed((p) => ({ ...p, today: !p.today }))
+                    }
+                  >
+                    <span>Today ({todaySessions.length})</span>
+                    <span>{sidebarCollapsed.today ? '+' : '-'}</span>
+                  </button>
+                  {!sidebarCollapsed.today && (
+                    <div className='mt-1 space-y-1'>
+                      {todaySessions.length === 0 && (
+                        <div className='px-2 py-1 text-xs text-zinc-600'>No chats</div>
+                      )}
+                      {todaySessions.map((s) => (
+                        <div
+                          key={s.id}
+                          className={`rounded-md border px-2 py-1.5 ${
+                            s.id === activeSessionId
+                              ? 'border-indigo-600/70 bg-indigo-950/30'
+                              : 'border-zinc-800 bg-zinc-900/50'
+                          }`}
+                        >
+                          {renamingSessionId === s.id ? (
+                            <div className='space-y-1'>
+                              <input
+                                type='text'
+                                className='w-full rounded border border-zinc-700 bg-zinc-950 px-1.5 py-1 text-xs text-zinc-100'
+                                value={renameValue}
+                                maxLength={100}
+                                autoFocus
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    commitRenameSession(s.id)
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault()
+                                    cancelRenameSession()
+                                  }
+                                }}
+                              />
+                              <div className='mt-0.5 text-[11px] text-zinc-500'>
+                                {new Date(s.updatedAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type='button'
+                              className='w-full text-left'
+                              onClick={() => openSession(s)}
+                            >
+                              <div className='truncate text-xs text-zinc-200'>{s.title}</div>
+                              <div className='mt-0.5 text-[11px] text-zinc-500'>
+                                {new Date(s.updatedAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </div>
+                            </button>
+                          )}
+                          <div className='mt-1 flex justify-end'>
+                            {renamingSessionId === s.id ? (
+                              <div className='flex gap-1'>
+                                <button
+                                  type='button'
+                                  className='rounded bg-emerald-900/70 px-1.5 py-0.5 text-[10px]'
+                                  onClick={() => commitRenameSession(s.id)}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px]'
+                                  onClick={cancelRenameSession}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : pendingDeleteId === s.id ? (
+                              <div className='flex gap-1'>
+                                <button
+                                  type='button'
+                                  className='rounded bg-red-900/70 px-1.5 py-0.5 text-[10px]'
+                                  onClick={() => deleteSession(s.id)}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px]'
+                                  onClick={() => setPendingDeleteId(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <div className='flex gap-1'>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:text-zinc-200'
+                                  onClick={() => startRenameSession(s)}
+                                >
+                                  Rename
+                                </button>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:text-red-300'
+                                  onClick={() => setPendingDeleteId(s.id)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <button
+                    type='button'
+                    className='flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-zinc-400 hover:bg-zinc-900'
+                    onClick={() =>
+                      setSidebarCollapsed((p) => ({ ...p, older: !p.older }))
+                    }
+                  >
+                    <span>Older ({olderSessions.length})</span>
+                    <span>{sidebarCollapsed.older ? '+' : '-'}</span>
+                  </button>
+                  {!sidebarCollapsed.older && (
+                    <div className='mt-1 space-y-1'>
+                      {olderSessions.length === 0 && (
+                        <div className='px-2 py-1 text-xs text-zinc-600'>No chats</div>
+                      )}
+                      {olderSessions.map((s) => (
+                        <div
+                          key={s.id}
+                          className={`rounded-md border px-2 py-1.5 ${
+                            s.id === activeSessionId
+                              ? 'border-indigo-600/70 bg-indigo-950/30'
+                              : 'border-zinc-800 bg-zinc-900/50'
+                          }`}
+                        >
+                          {renamingSessionId === s.id ? (
+                            <div className='space-y-1'>
+                              <input
+                                type='text'
+                                className='w-full rounded border border-zinc-700 bg-zinc-950 px-1.5 py-1 text-xs text-zinc-100'
+                                value={renameValue}
+                                maxLength={100}
+                                autoFocus
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    commitRenameSession(s.id)
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault()
+                                    cancelRenameSession()
+                                  }
+                                }}
+                              />
+                              <div className='mt-0.5 text-[11px] text-zinc-500'>
+                                {new Date(s.updatedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type='button'
+                              className='w-full text-left'
+                              onClick={() => openSession(s)}
+                            >
+                              <div className='truncate text-xs text-zinc-200'>{s.title}</div>
+                              <div className='mt-0.5 text-[11px] text-zinc-500'>
+                                {new Date(s.updatedAt).toLocaleDateString()}
+                              </div>
+                            </button>
+                          )}
+                          <div className='mt-1 flex justify-end'>
+                            {renamingSessionId === s.id ? (
+                              <div className='flex gap-1'>
+                                <button
+                                  type='button'
+                                  className='rounded bg-emerald-900/70 px-1.5 py-0.5 text-[10px]'
+                                  onClick={() => commitRenameSession(s.id)}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px]'
+                                  onClick={cancelRenameSession}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : pendingDeleteId === s.id ? (
+                              <div className='flex gap-1'>
+                                <button
+                                  type='button'
+                                  className='rounded bg-red-900/70 px-1.5 py-0.5 text-[10px]'
+                                  onClick={() => deleteSession(s.id)}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px]'
+                                  onClick={() => setPendingDeleteId(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <div className='flex gap-1'>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:text-zinc-200'
+                                  onClick={() => startRenameSession(s)}
+                                >
+                                  Rename
+                                </button>
+                                <button
+                                  type='button'
+                                  className='rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:text-red-300'
+                                  onClick={() => setPendingDeleteId(s.id)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </nav>
         </>
