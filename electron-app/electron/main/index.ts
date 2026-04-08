@@ -1,10 +1,12 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
-  shell,
+  globalShortcut,
   ipcMain,
   Menu,
+  shell,
   type OpenDialogOptions,
 } from 'electron'
 import { createRequire } from 'node:module'
@@ -94,7 +96,27 @@ async function createWindow() {
 
   // Auto update
   update(win)
+
+  /** Read aloud from clipboard (any app): user copies selection, then hits this shortcut. */
+  const readClipboardTtsShortcut = 'CommandOrControl+Alt+Shift+V'
+  win.webContents.once('did-finish-load', () => {
+    const ok = globalShortcut.register(readClipboardTtsShortcut, () => {
+      if (!win) return
+      const text = clipboard.readText().trim()
+      if (!text) return
+      win.webContents.send('voidcast:read-clipboard-tts', text)
+    })
+    if (!ok) {
+      console.warn(
+        `Voidcast: could not register global shortcut ${readClipboardTtsShortcut}`,
+      )
+    }
+  })
 }
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
+})
 
 app.whenReady().then(createWindow)
 

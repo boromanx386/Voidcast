@@ -5,6 +5,40 @@
   padding: 0;
 }
 
+/* Subtle depth + noise-free gradient shell */
+.voidcast-app-shell {
+  background:
+    radial-gradient(1200px 600px at 50% -20%, rgba(99, 102, 241, 0.08), transparent 55%),
+    radial-gradient(800px 400px at 100% 100%, rgba(139, 92, 246, 0.06), transparent 50%),
+    #09090b;
+}
+
+/* Ambient typing indicator */
+@keyframes voidcast-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.voidcast-typing-dot {
+  animation: voidcast-dot 1.2s ease-in-out infinite;
+}
+
+.voidcast-typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.voidcast-typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
 /* Thinner, theme-aligned scrollbar for chat */
 .chat-scroll {
   scrollbar-width: thin;

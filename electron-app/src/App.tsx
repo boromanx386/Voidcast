@@ -116,6 +116,7 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null)
   /** Aborts TTS synthesis / playback (chunked) */
   const ttsAbortRef = useRef<AbortController | null>(null)
+  const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -561,6 +562,26 @@ export default function App() {
     }
   }
 
+  onReadRef.current = onRead
+
+  useEffect(() => {
+    const ipc = window.ipcRenderer
+    if (!ipc) return
+    const listener = (_e: unknown, text: unknown) => {
+      const t = String(text ?? '').trim()
+      if (!t) return
+      void onReadRef.current({
+        id: '_clipboard-tts',
+        role: 'assistant',
+        content: t,
+      })
+    }
+    ipc.on('voidcast:read-clipboard-tts', listener)
+    return () => {
+      void ipc.off('voidcast:read-clipboard-tts', listener)
+    }
+  }, [])
+
   const onPickCloneFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     e.target.value = ''
@@ -585,19 +606,21 @@ export default function App() {
 
   if (screen === 'options') {
     return (
-      <div className='flex h-screen w-screen flex-col bg-zinc-950 text-zinc-100'>
-        <header className='shrink-0 border-b border-zinc-800'>
+      <div className='voidcast-app-shell flex h-screen w-screen flex-col text-zinc-100'>
+        <header className='shrink-0 border-b border-white/5 bg-zinc-950/70 backdrop-blur-md'>
           <div className='flex items-center gap-2 px-3 py-3'>
             <button
               type='button'
-              className='rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800'
+              className='rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-200 shadow-sm transition hover:border-zinc-600 hover:bg-zinc-800'
               onClick={() => setScreen('chat')}
             >
               ← Back
             </button>
-            <h1 className='text-lg font-semibold'>Settings</h1>
+            <h1 className='text-lg font-semibold tracking-tight text-zinc-50'>
+              Settings
+            </h1>
           </div>
-          <div className='flex gap-0 border-t border-zinc-800 px-2'>
+          <div className='flex gap-0 border-t border-zinc-800/80 px-2'>
             <button
               type='button'
               className={`min-w-0 flex-1 rounded-t-lg px-3 py-3 text-sm font-medium ${
@@ -664,40 +687,68 @@ export default function App() {
   }
 
   return (
-    <div className='flex h-screen w-screen flex-col bg-zinc-950 text-zinc-100'>
-      <header className='flex shrink-0 items-center gap-3 border-b border-zinc-800 px-3 py-2.5'>
+    <div className='voidcast-app-shell flex h-screen w-screen flex-col text-zinc-100'>
+      <header className='flex shrink-0 items-center gap-3 border-b border-white/5 bg-zinc-950/75 px-3 py-2.5 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5)] backdrop-blur-md'>
         <button
           type='button'
           aria-label='Menu'
           aria-expanded={menuOpen}
-          className='flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+          className='flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900/90 shadow-sm transition hover:border-zinc-600 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500/60'
           onClick={() => setMenuOpen((v) => !v)}
         >
-          <span className='h-0.5 w-5 rounded bg-zinc-200' />
-          <span className='h-0.5 w-5 rounded bg-zinc-200' />
-          <span className='h-0.5 w-5 rounded bg-zinc-200' />
+          <span className='h-0.5 w-5 rounded-full bg-zinc-200' />
+          <span className='h-0.5 w-5 rounded-full bg-zinc-200' />
+          <span className='h-0.5 w-5 rounded-full bg-zinc-200' />
         </button>
-        <div className='min-w-0 flex-1'>
-          <h1 className='truncate text-lg font-semibold tracking-tight'>
-            {APP_NAME}
-          </h1>
-          <p className='truncate text-xs text-zinc-500'>
-            {ttsOk === true && (
-              <span className='text-emerald-400'>TTS ready</span>
-            )}
-            {ttsOk === false && (
-              <span className='text-amber-400' title={ttsDetail}>
-                TTS unavailable
-              </span>
-            )}
-            {ttsOk == null && <span>Checking TTS…</span>}
-            {sessionDirty && <span className='ml-2 text-amber-400'>Unsaved</span>}
-          </p>
+        <div className='flex min-w-0 flex-1 items-center gap-2.5'>
+          <div
+            className='flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-indigo-600 to-indigo-900 shadow-lg shadow-indigo-950/50 ring-1 ring-white/15'
+            aria-hidden
+          >
+            <svg
+              className='h-5 w-5 text-white/95'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+            >
+              <path d='M12 3c-1.2 0-2 1-2 2v14c0 1 .8 2 2 2s2-1 2-2V5c0-1-.8-2-2-2z' />
+              <path d='M19 10v4a7 7 0 01-14 0v-4' />
+            </svg>
+          </div>
+          <div className='min-w-0'>
+            <h1 className='truncate bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-lg font-semibold tracking-tight text-transparent'>
+              {APP_NAME}
+            </h1>
+            <p className='flex flex-wrap items-center gap-x-2 gap-y-0.5 truncate text-xs text-zinc-500'>
+              {ttsOk === true && (
+                <span className='inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 ring-1 ring-emerald-500/20'>
+                  <span className='h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' />
+                  TTS ready
+                </span>
+              )}
+              {ttsOk === false && (
+                <span
+                  className='inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400 ring-1 ring-amber-500/25'
+                  title={ttsDetail}
+                >
+                  TTS unavailable
+                </span>
+              )}
+              {ttsOk == null && (
+                <span className='text-zinc-500'>Checking TTS…</span>
+              )}
+              {sessionDirty && (
+                <span className='text-amber-400/90'>Unsaved changes</span>
+              )}
+            </p>
+          </div>
         </div>
         {canSaveSession && (
           <button
             type='button'
-            className='shrink-0 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs hover:bg-zinc-800'
+            className='shrink-0 rounded-xl border border-zinc-700/80 bg-zinc-900/90 px-3 py-2 text-xs font-medium text-zinc-200 shadow-sm transition hover:border-zinc-600 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500/50'
             onClick={saveOrUpdateSession}
           >
             {activeSessionId ? 'Update chat' : 'Save chat'}
@@ -706,7 +757,7 @@ export default function App() {
         {canStop && (
           <button
             type='button'
-            className='shrink-0 rounded-lg border border-red-900/60 bg-red-950/50 px-3 py-2 text-sm font-medium text-red-100 hover:bg-red-950/80'
+            className='shrink-0 rounded-xl border border-red-500/35 bg-red-950/55 px-3 py-2 text-sm font-medium text-red-100 shadow-sm shadow-red-950/40 transition hover:bg-red-950/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500/50'
             onClick={onStop}
           >
             Stop
@@ -722,41 +773,43 @@ export default function App() {
             className='fixed inset-0 z-40 bg-black/55'
             onClick={() => setMenuOpen(false)}
           />
-          <nav className='fixed left-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col border-r border-zinc-800 bg-zinc-950 shadow-xl'>
-            <div className='border-b border-zinc-800 px-4 py-3'>
-              <h2 className='text-sm font-semibold text-zinc-400'>Menu</h2>
+          <nav className='fixed left-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col border-r border-white/5 bg-zinc-950/95 shadow-2xl shadow-black/60 backdrop-blur-xl'>
+            <div className='border-b border-white/5 px-4 py-3'>
+              <h2 className='text-xs font-semibold uppercase tracking-wider text-zinc-500'>
+                Menu
+              </h2>
             </div>
-            <div className='flex flex-col p-2'>
+            <div className='flex flex-col gap-0.5 p-2'>
               <button
                 type='button'
-                className='rounded-lg px-4 py-3 text-left text-sm hover:bg-zinc-900'
+                className='rounded-xl px-4 py-3 text-left text-sm text-zinc-200 transition hover:bg-white/5'
                 onClick={newChat}
               >
                 New chat
               </button>
               <button
                 type='button'
-                className='rounded-lg px-4 py-3 text-left text-sm hover:bg-zinc-900'
+                className='rounded-xl px-4 py-3 text-left text-sm text-zinc-200 transition hover:bg-white/5'
                 onClick={() => openOptions('llm')}
               >
                 Settings (LLM)
               </button>
               <button
                 type='button'
-                className='rounded-lg px-4 py-3 text-left text-sm hover:bg-zinc-900'
+                className='rounded-xl px-4 py-3 text-left text-sm text-zinc-200 transition hover:bg-white/5'
                 onClick={() => openOptions('tts')}
               >
                 Settings (TTS / clone)
               </button>
               <button
                 type='button'
-                className='rounded-lg px-4 py-3 text-left text-sm hover:bg-zinc-900'
+                className='rounded-xl px-4 py-3 text-left text-sm text-zinc-200 transition hover:bg-white/5'
                 onClick={() => openOptions('tools')}
               >
                 Settings (Tools)
               </button>
             </div>
-            <div className='min-h-0 flex-1 border-t border-zinc-800 p-2'>
+            <div className='min-h-0 flex-1 border-t border-white/5 p-2'>
               <div className='mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-zinc-500'>
                 Saved chats
               </div>
@@ -1012,15 +1065,47 @@ export default function App() {
         </>
       )}
 
-      <main className='chat-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4'>
-        <div className='mx-auto flex max-w-3xl flex-col gap-3'>
+      <main className='chat-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5'>
+        <div className='mx-auto flex max-w-3xl flex-col gap-4'>
           {messages.length === 0 && (
-            <p className='rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 p-6 text-center text-sm text-zinc-500'>
-              Send a message — Ollama streams the reply. Menu:{' '}
-              <strong className='text-zinc-300'>New chat</strong>,{' '}
-              <strong className='text-zinc-300'>Settings</strong> — LLM, TTS, Tools,
-              voice clone.
-            </p>
+            <div className='relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-b from-zinc-900/90 to-zinc-950/80 p-8 shadow-2xl shadow-indigo-950/20 ring-1 ring-white/5'>
+              <div
+                className='pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-indigo-500/15 blur-3xl'
+                aria-hidden
+              />
+              <div className='relative text-center'>
+                <p className='text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400/90'>
+                  Voidcast
+                </p>
+                <h2 className='mt-2 text-xl font-semibold tracking-tight text-zinc-50'>
+                  Start a conversation
+                </h2>
+                <p className='mx-auto mt-2 max-w-md text-sm leading-relaxed text-zinc-400'>
+                  Messages stream from Ollama. Open the menu for{' '}
+                  <span className='text-zinc-300'>New chat</span>,{' '}
+                  <span className='text-zinc-300'>Settings</span> — LLM, TTS, tools,
+                  and voice clone.
+                </p>
+                <ul className='mx-auto mt-6 max-w-sm space-y-2 text-left text-sm text-zinc-500'>
+                  <li className='flex gap-3 rounded-lg bg-zinc-900/60 px-3 py-2 ring-1 ring-zinc-800/80'>
+                    <span className='font-mono text-indigo-400/90'>↵</span>
+                    <span>
+                      <span className='text-zinc-300'>Enter</span> to send ·{' '}
+                      <span className='text-zinc-300'>Shift+Enter</span> for new line
+                    </span>
+                  </li>
+                  <li className='flex gap-3 rounded-lg bg-zinc-900/60 px-3 py-2 ring-1 ring-zinc-800/80'>
+                    <span className='text-indigo-400/90'>◇</span>
+                    <span>
+                      TTS shortcut: copy text elsewhere, then{' '}
+                      <kbd className='rounded border border-zinc-600 bg-zinc-950 px-1.5 py-0.5 font-mono text-[11px] text-zinc-300'>
+                        Ctrl+Alt+Shift+V
+                      </kbd>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
           )}
           {messages.map((m) => (
             <div
@@ -1028,26 +1113,36 @@ export default function App() {
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                className={`rounded-2xl px-4 py-3 ${
                   m.role === 'user'
-                    ? 'max-w-[85%] bg-indigo-600 text-white'
-                    : 'max-w-[min(92%,36rem)] bg-zinc-800 text-zinc-100'
+                    ? 'max-w-[85%] bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-xl shadow-indigo-950/40 ring-1 ring-white/15'
+                    : 'max-w-[min(92%,36rem)] border border-zinc-800/90 bg-zinc-900/85 text-zinc-100 shadow-2xl shadow-black/35 ring-1 ring-zinc-700/35 backdrop-blur-sm'
                 }`}
               >
                 {m.role === 'assistant' ? (
-                  <ChatMarkdown content={m.content} className='break-words' />
+                  <ChatMarkdown content={m.content} />
                 ) : (
-                  <div className='whitespace-pre-wrap break-words'>{m.content}</div>
+                  <div className='text-[15px] leading-relaxed whitespace-pre-wrap break-words'>
+                    {m.content}
+                  </div>
                 )}
                 {m.role === 'assistant' && m.content.trim().length > 0 && (
-                  <div className='mt-2 flex flex-wrap gap-2 border-t border-zinc-700/50 pt-2'>
+                  <div className='mt-3 flex flex-wrap gap-2 border-t border-zinc-700/40 pt-3'>
                     <button
                       type='button'
                       disabled={ttsOk === false || playingId === m.id}
-                      className='rounded-lg bg-zinc-700 px-2 py-1 text-xs text-white hover:bg-zinc-600 disabled:opacity-40'
+                      className='inline-flex items-center gap-2 rounded-xl border border-indigo-500/35 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-200 shadow-sm transition hover:border-indigo-400/45 hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-40'
                       onClick={() => void onRead(m)}
                     >
-                      {playingId === m.id ? '…' : 'Read aloud'}
+                      <svg
+                        className='h-3.5 w-3.5 shrink-0 opacity-90'
+                        viewBox='0 0 24 24'
+                        fill='currentColor'
+                        aria-hidden
+                      >
+                        <path d='M8.25 5.25v13.5c0 .62.72.96 1.2.56l7.5-6.75a.75.75 0 000-1.12l-7.5-6.75a.75.75 0 00-1.2.56z' />
+                      </svg>
+                      {playingId === m.id ? 'Playing…' : 'Read aloud'}
                     </button>
                   </div>
                 )}
@@ -1055,16 +1150,23 @@ export default function App() {
             </div>
           ))}
           {busy && (
-            <div className='text-xs text-zinc-500'>
-              {toolPhase === 'search'
-                ? 'Searching the web…'
-                : toolPhase === 'weather'
-                  ? 'Checking weather…'
-                  : toolPhase === 'scrape'
-                    ? 'Fetching page…'
-                    : toolPhase === 'pdf'
-                      ? 'Saving PDF…'
-                      : 'Assistant is typing…'}
+            <div className='flex items-center gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 text-sm text-zinc-400 ring-1 ring-zinc-800/60'>
+              <div className='flex gap-1' aria-hidden>
+                <span className='voidcast-typing-dot h-2 w-2 rounded-full bg-indigo-400/90' />
+                <span className='voidcast-typing-dot h-2 w-2 rounded-full bg-indigo-400/90' />
+                <span className='voidcast-typing-dot h-2 w-2 rounded-full bg-indigo-400/90' />
+              </div>
+              <span>
+                {toolPhase === 'search'
+                  ? 'Searching the web…'
+                  : toolPhase === 'weather'
+                    ? 'Checking weather…'
+                    : toolPhase === 'scrape'
+                      ? 'Fetching page…'
+                      : toolPhase === 'pdf'
+                        ? 'Saving PDF…'
+                        : 'Assistant is typing…'}
+              </span>
             </div>
           )}
           <div ref={listEndRef} />
@@ -1100,15 +1202,15 @@ export default function App() {
       )}
 
       {error && (
-        <div className='border-t border-red-900/50 bg-red-950/40 px-4 py-2 text-center text-sm text-red-200'>
+        <div className='border-t border-red-500/25 bg-red-950/50 px-4 py-3 text-center text-sm text-red-100 shadow-[inset_0_1px_0_0_rgba(248,113,113,0.12)]'>
           {error}
         </div>
       )}
 
-      <footer className='shrink-0 border-t border-zinc-800 bg-zinc-950 px-4 py-3'>
-        <div className='mx-auto flex max-w-3xl gap-2'>
+      <footer className='shrink-0 border-t border-white/5 bg-zinc-950/90 px-4 py-4 shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.45)] backdrop-blur-md'>
+        <div className='mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-end'>
           <textarea
-            className='min-h-[44px] flex-1 resize-y rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600'
+            className='min-h-[52px] flex-1 resize-y rounded-2xl border border-zinc-700/80 bg-zinc-900/90 px-4 py-3 text-sm leading-relaxed text-zinc-100 shadow-inner shadow-black/20 placeholder:text-zinc-600 transition focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/25'
             rows={2}
             placeholder='Message…'
             value={input}
@@ -1121,10 +1223,10 @@ export default function App() {
               }
             }}
           />
-          <div className='flex flex-col gap-2'>
+          <div className='flex shrink-0 flex-row gap-2 sm:flex-col sm:justify-end'>
             <button
               type='button'
-              className='rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40'
+              className='flex-1 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:from-indigo-500 hover:to-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none'
               disabled={!canSend}
               onClick={() => void onSend()}
             >
@@ -1132,7 +1234,7 @@ export default function App() {
             </button>
             <button
               type='button'
-              className='rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm hover:bg-zinc-800 disabled:opacity-40'
+              className='flex-1 rounded-2xl border border-zinc-700/90 bg-zinc-900/90 px-5 py-3 text-sm font-medium text-zinc-200 shadow-sm transition hover:border-zinc-600 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500/40 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none'
               disabled={!canStop}
               onClick={onStop}
             >

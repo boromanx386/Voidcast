@@ -38,6 +38,17 @@ export function TtsOptionsPanel({
         Refresh TTS status
       </button>
 
+      <p className='rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-2 text-xs text-zinc-400'>
+        <span className='font-medium text-zinc-300'>Read aloud outside Voidcast:</span>{' '}
+        select text in any app, copy it (Ctrl+C), then press{' '}
+        <kbd className='rounded border border-zinc-600 bg-zinc-900 px-1.5 py-0.5 font-mono text-zinc-200'>
+          Ctrl+Alt+Shift+V
+        </kbd>{' '}
+        while Voidcast is running. (A true “right‑click → Read aloud” in other apps would
+        need a separate Windows shell extension; this shortcut is the reliable built‑in
+        alternative.)
+      </p>
+
       <div className='rounded-lg border border-zinc-800 bg-zinc-900/50 p-3'>
         <p className='mb-2 text-xs font-medium text-zinc-400'>
           Voice mode

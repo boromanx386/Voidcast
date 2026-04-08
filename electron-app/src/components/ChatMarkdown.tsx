@@ -94,7 +94,9 @@ type Props = {
 
 export function ChatMarkdown({ content, className }: Props) {
   return (
-    <div className={className}>
+    <div
+      className={`break-words text-[15px] leading-[1.65] text-zinc-200/95 ${className ?? ''}`}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={components}
