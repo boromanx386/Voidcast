@@ -21,6 +21,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from youtube_tools import (
+    HAS_YOUTUBE_TRANSCRIPT,
+    HAS_YTDLP,
+    youtube_tool_run,
+)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
 
@@ -33,22 +39,33 @@ _sampling_rate: int = 24000
 _load_error: str | None = None
 _infer_lock = asyncio.Lock()
 
+# Prefer `ddgs` — the `duckduckgo_search` package was renamed and its DDGS often returns no results.
 try:
-    from duckduckgo_search import DDGS
-
-    _HAS_DDGS = True
+    from ddgs import DDGS  # type: ignore
 except ImportError:
     try:
-        from ddgs import DDGS  # type: ignore
+        from duckduckgo_search import DDGS  # type: ignore
 
-        _HAS_DDGS = True
     except ImportError:
         DDGS = None  # type: ignore
         _HAS_DDGS = False
+    else:
+        _HAS_DDGS = True
+else:
+    _HAS_DDGS = True
 
 
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000)
+
+
+class YoutubeToolRequest(BaseModel):
+    """search_youtube: YouTube search via ddgs, or metadata/transcript for a URL (yt-dlp + transcript API)."""
+
+    query: str | None = Field(None, max_length=2000)
+    video_url: str | None = Field(None, max_length=2048)
+    get_transcript: bool = False
+    max_results: int = Field(default=5, ge=1, le=20)
 
 
 class TtsRequest(BaseModel):
@@ -212,13 +229,41 @@ async def health():
         "sampling_rate": _sampling_rate,
         "error": _load_error,
         "tools_search": _HAS_DDGS,
+        "tools_youtube": {
+            "ddgs": _HAS_DDGS,
+            "yt_dlp": HAS_YTDLP,
+            "youtube_transcript_api": HAS_YOUTUBE_TRANSCRIPT,
+        },
     }
 
 
-def _search_web_ddgs(query: str) -> str:
-    """Same idea as locAI search_web: real DDG results via duckduckgo-search."""
+def _ddgs_text_for_youtube(query: str, max_results: int) -> list:
     if not _HAS_DDGS or DDGS is None:
-        raise RuntimeError("duckduckgo-search is not installed (pip install duckduckgo-search)")
+        return []
+    with DDGS(timeout=25) as ddgs:  # type: ignore[misc]
+        return list(ddgs.text(query, max_results=max_results))
+
+
+def _run_youtube_tool(
+    query: str | None,
+    video_url: str | None,
+    get_transcript: bool,
+    max_results: int,
+) -> str:
+    return youtube_tool_run(
+        query=query,
+        video_url=video_url,
+        get_transcript=get_transcript,
+        max_results=max_results,
+        has_ddgs=_HAS_DDGS,
+        ddgs_text_fn=_ddgs_text_for_youtube if _HAS_DDGS else None,
+    )
+
+
+def _search_web_ddgs(query: str) -> str:
+    """Same idea as locAI search_web: text search via ddgs (metasearch)."""
+    if not _HAS_DDGS or DDGS is None:
+        raise RuntimeError("ddgs is not installed (pip install ddgs)")
     q = query.strip()
     if not q:
         return "Empty query."
@@ -245,7 +290,7 @@ def _search_web_ddgs(query: str) -> str:
 
 @app.post("/tools/search")
 async def tools_search(req: SearchRequest):
-    """Full web search via DuckDuckGo (HTML results); requires duckduckgo-search."""
+    """Web search via ddgs (multiple backends); requires `pip install ddgs`."""
     try:
         text = await asyncio.to_thread(_search_web_ddgs, req.query)
         return {"ok": True, "text": text}
@@ -254,6 +299,33 @@ async def tools_search(req: SearchRequest):
         raise HTTPException(
             status_code=503,
             detail=str(e) or "Search failed",
+        ) from e
+
+
+@app.post("/tools/youtube")
+async def tools_youtube(req: YoutubeToolRequest):
+    """YouTube search (ddgs) and/or video info + optional captions (yt-dlp, youtube-transcript-api)."""
+    q = (req.query or "").strip()
+    u = (req.video_url or "").strip()
+    if not q and not u:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide query (search) or video_url (video details / transcript).",
+        )
+    try:
+        text = await asyncio.to_thread(
+            _run_youtube_tool,
+            q or None,
+            u or None,
+            req.get_transcript,
+            req.max_results,
+        )
+        return {"ok": True, "text": text}
+    except Exception as e:
+        logger.exception("tools/youtube failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "YouTube tool failed",
         ) from e
 
 

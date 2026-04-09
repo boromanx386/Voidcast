@@ -9,14 +9,41 @@ const require = createRequire(import.meta.url)
 const MAX_CONTENT_CHARS = 400_000
 const PAGE_W = 595.28
 const PAGE_H = 841.89
-const MARGIN = 50
-const BODY_SIZE = 11
-const TITLE_SIZE = 14
-const LINE_HEIGHT = BODY_SIZE * 1.35
-const TITLE_LINE_HEIGHT = TITLE_SIZE * 1.35
-const PARA_GAP = 6
+const MARGIN_L = 54
+const MARGIN_R = 54
+const MARGIN_T = 72
+const MARGIN_B = 65
 
-type FontPair = { latin: PDFFont; cyr: PDFFont }
+/** A4 content width */
+const CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R
+
+const COL_TITLE = rgb(0.1, 0.21, 0.36)
+const COL_H2 = rgb(0.18, 0.22, 0.28)
+const COL_H34 = rgb(0.29, 0.33, 0.4)
+const COL_BODY = rgb(0.1, 0.1, 0.1)
+const COL_MUTED = rgb(0.45, 0.51, 0.58)
+const COL_RULE = rgb(0.63, 0.68, 0.75)
+const COL_TABLE_HEAD_BG = rgb(0.89, 0.91, 0.94)
+const COL_TABLE_GRID = rgb(0.8, 0.84, 0.88)
+
+const SIZE_TITLE = 18
+const SIZE_H2 = 13
+const SIZE_H3 = 11
+const SIZE_H4 = 10
+const SIZE_BODY = 10
+const SIZE_TABLE = 9
+const SIZE_DATE = 9
+
+const LEADING = (s: number) => s * 1.4
+const PARA_AFTER = 8
+const BLOCK_GAP = 6
+
+type FontQuad = {
+  latin: PDFFont
+  cyr: PDFFont
+  latinBold: PDFFont
+  cyrBold: PDFFont
+}
 
 function segmentRuns(s: string): { kind: 'cyr' | 'lat'; text: string }[] {
   const runs: { kind: 'cyr' | 'lat'; text: string }[] = []
@@ -30,15 +57,26 @@ function segmentRuns(s: string): { kind: 'cyr' | 'lat'; text: string }[] {
   return runs
 }
 
+function pickFont(
+  fonts: FontQuad,
+  kind: 'cyr' | 'lat',
+  bold: boolean,
+): PDFFont {
+  if (bold) {
+    return kind === 'cyr' ? fonts.cyrBold : fonts.latinBold
+  }
+  return kind === 'cyr' ? fonts.cyr : fonts.latin
+}
+
 function measureLine(
   text: string,
-  fontLat: PDFFont,
-  fontCyr: PDFFont,
+  fonts: FontQuad,
   size: number,
+  bold = false,
 ): number {
   let w = 0
   for (const seg of segmentRuns(text)) {
-    const font = seg.kind === 'cyr' ? fontCyr : fontLat
+    const font = pickFont(fonts, seg.kind, bold)
     w += font.widthOfTextAtSize(seg.text, size)
   }
   return w
@@ -50,12 +88,13 @@ function drawLineMixed(
   x: number,
   y: number,
   size: number,
-  fonts: FontPair,
-  color = rgb(0.1, 0.1, 0.1),
+  fonts: FontQuad,
+  color = COL_BODY,
+  bold = false,
 ): void {
   let cx = x
   for (const seg of segmentRuns(text)) {
-    const font = seg.kind === 'cyr' ? fonts.cyr : fonts.latin
+    const font = pickFont(fonts, seg.kind, bold)
     page.drawText(seg.text, {
       x: cx,
       y,
@@ -67,17 +106,43 @@ function drawLineMixed(
   }
 }
 
+function drawRichLine(
+  page: PDFPage,
+  parts: { text: string; bold: boolean }[],
+  x: number,
+  y: number,
+  size: number,
+  fonts: FontQuad,
+  color = COL_BODY,
+): void {
+  let cx = x
+  for (const p of parts) {
+    for (const seg of segmentRuns(p.text)) {
+      const font = pickFont(fonts, seg.kind, p.bold)
+      page.drawText(seg.text, {
+        x: cx,
+        y,
+        size,
+        font,
+        color,
+      })
+      cx += font.widthOfTextAtSize(seg.text, size)
+    }
+  }
+}
+
 function breakLongToken(
   token: string,
   maxWidth: number,
-  fonts: FontPair,
+  fonts: FontQuad,
   size: number,
+  bold: boolean,
 ): string[] {
   const out: string[] = []
   let chunk = ''
   for (const ch of token) {
     const trial = chunk + ch
-    if (measureLine(trial, fonts.latin, fonts.cyr, size) <= maxWidth) {
+    if (measureLine(trial, fonts, size, bold) <= maxWidth) {
       chunk = trial
     } else {
       if (chunk) out.push(chunk)
@@ -88,25 +153,95 @@ function breakLongToken(
   return out
 }
 
-function wrapParagraph(
+/** Split on **…** — even chunks are normal, odd are bold */
+function splitBoldParts(s: string): { text: string; bold: boolean }[] {
+  const parts = s.split(/\*\*/)
+  return parts.map((t, i) => ({ text: t, bold: i % 2 === 1 }))
+}
+
+function wordsFromBoldParts(
+  parts: { text: string; bold: boolean }[],
+): { text: string; bold: boolean }[] {
+  const words: { text: string; bold: boolean }[] = []
+  for (const p of parts) {
+    if (!p.text) continue
+    const bits = p.text.split(/(\s+)/)
+    for (const b of bits) {
+      if (!b) continue
+      words.push({ text: b, bold: p.bold })
+    }
+  }
+  return words
+}
+
+function wrapRichParagraph(
+  para: string,
+  maxWidth: number,
+  fonts: FontQuad,
+  size: number,
+): { text: string; bold: boolean }[][] {
+  const words = wordsFromBoldParts(splitBoldParts(para))
+  const lines: { text: string; bold: boolean }[][] = []
+  let cur: { text: string; bold: boolean }[] = []
+  let curW = 0
+
+  const flush = () => {
+    if (cur.length) {
+      lines.push(cur)
+      cur = []
+      curW = 0
+    }
+  }
+
+  for (const w of words) {
+    const isSpace = /^\s+$/.test(w.text)
+    const pieceW = measureLine(w.text, fonts, size, w.bold)
+    const trialW = curW + pieceW
+
+    if (!isSpace && trialW > maxWidth && cur.length) {
+      flush()
+    }
+
+    if (!isSpace && pieceW > maxWidth) {
+      for (const piece of breakLongToken(w.text, maxWidth, fonts, size, w.bold)) {
+        const pw = measureLine(piece, fonts, size, w.bold)
+        if (curW + pw > maxWidth && cur.length) flush()
+        cur.push({ text: piece, bold: w.bold })
+        curW += pw
+      }
+      continue
+    }
+
+    cur.push(w)
+    curW += pieceW
+    if (isSpace && curW > maxWidth) {
+      flush()
+    }
+  }
+  flush()
+  return lines
+}
+
+function wrapPlainParagraph(
   paragraph: string,
   maxWidth: number,
-  fonts: FontPair,
+  fonts: FontQuad,
   size: number,
+  bold = false,
 ): string[] {
   const words = paragraph.split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let cur = ''
   for (const word of words) {
     const trial = cur ? `${cur} ${word}` : word
-    if (measureLine(trial, fonts.latin, fonts.cyr, size) <= maxWidth) {
+    if (measureLine(trial, fonts, size, bold) <= maxWidth) {
       cur = trial
     } else {
       if (cur) lines.push(cur)
-      if (measureLine(word, fonts.latin, fonts.cyr, size) <= maxWidth) {
+      if (measureLine(word, fonts, size, bold) <= maxWidth) {
         cur = word
       } else {
-        lines.push(...breakLongToken(word, maxWidth, fonts, size))
+        lines.push(...breakLongToken(word, maxWidth, fonts, size, bold))
         cur = ''
       }
     }
@@ -115,9 +250,294 @@ function wrapParagraph(
   return lines
 }
 
+function normalizeForPdf(text: string): string {
+  const replacements: Record<string, string> = {
+    '\u00A0': ' ',
+    '\u200B': '',
+    '\u200C': '',
+    '\u200D': '',
+    '\uFEFF': '',
+    '\u2018': "'",
+    '\u2019': "'",
+    '\u201C': '"',
+    '\u201D': '"',
+    '\u2026': '...',
+    '\u2022': '•',
+  }
+  let t = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  for (const [a, b] of Object.entries(replacements)) {
+    t = t.replaceAll(a, b)
+  }
+  for (const c of '\u2500\u2501\u2502\u2503\u2550\u2551\u2014\u2015') {
+    t = t.replaceAll(c, '-')
+  }
+  t = t.replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
+  t = t.replace(/[\u2600-\u27BF]/g, '')
+  return t
+}
+
+function isAsciiRule(line: string): boolean {
+  const s = line.trim()
+  if (s.length < 8) return false
+  const compact = s.replace(/\s/g, '')
+  return compact.length > 0 && /^[=\-_]+$/.test(compact)
+}
+
+function parseMdTable(para: string): string[][] | null {
+  const lines = para.split('\n').map((l) => l.trim()).filter(Boolean)
+  if (lines.length < 1 || !lines[0].includes('|')) return null
+  const rows: string[][] = []
+  for (const line of lines) {
+    if (!line.includes('|')) return null
+    let raw = line.split('|').map((c) => c.trim())
+    if (raw.length >= 2 && raw[0] === '' && raw[raw.length - 1] === '') {
+      raw = raw.slice(1, -1)
+    }
+    if (!raw.length) continue
+    if (raw.every((c) => /^[-:\s]+$/)) continue
+    rows.push(raw.map((c) => c || ' '))
+  }
+  if (!rows.length) return null
+  const maxCols = Math.max(...rows.map((r) => r.length))
+  for (const r of rows) {
+    while (r.length < maxCols) r.push(' ')
+  }
+  return rows
+}
+
+type RenderCtx = {
+  pdfDoc: PDFDocument
+  page: PDFPage
+  y: number
+  fonts: FontQuad
+}
+
+function ensureSpace(ctx: RenderCtx, need: number): void {
+  if (ctx.y - need >= MARGIN_B) return
+  ctx.page = ctx.pdfDoc.addPage([PAGE_W, PAGE_H])
+  ctx.y = PAGE_H - MARGIN_T
+}
+
+function drawHr(ctx: RenderCtx): void {
+  ensureSpace(ctx, 14)
+  ctx.y -= 4
+  const yLine = ctx.y
+  ctx.page.drawLine({
+    start: { x: MARGIN_L, y: yLine },
+    end: { x: PAGE_W - MARGIN_R, y: yLine },
+    thickness: 1,
+    color: COL_RULE,
+    opacity: 0.9,
+  })
+  ctx.y = yLine - 10
+}
+
+function drawParagraphRich(
+  ctx: RenderCtx,
+  para: string,
+  size: number,
+  color = COL_BODY,
+  lineGap = 0,
+): void {
+  const lines = wrapRichParagraph(
+    para,
+    CONTENT_W,
+    ctx.fonts,
+    size,
+  )
+  const lh = LEADING(size)
+  for (const lineParts of lines) {
+    ensureSpace(ctx, lh + 2)
+    ctx.y -= lh
+    drawRichLine(
+      ctx.page,
+      lineParts,
+      MARGIN_L,
+      ctx.y,
+      size,
+      ctx.fonts,
+      color,
+    )
+  }
+  ctx.y -= lineGap
+}
+
+function drawParagraphPlain(
+  ctx: RenderCtx,
+  para: string,
+  size: number,
+  color = COL_BODY,
+  bold = false,
+  lineGap = 0,
+): void {
+  const lines = wrapPlainParagraph(para, CONTENT_W, ctx.fonts, size, bold)
+  const lh = LEADING(size)
+  for (const line of lines) {
+    ensureSpace(ctx, lh + 2)
+    ctx.y -= lh
+    drawLineMixed(ctx.page, line, MARGIN_L, ctx.y, size, ctx.fonts, color, bold)
+  }
+  ctx.y -= lineGap
+}
+
+function classifyAndRenderBlock(ctx: RenderCtx, rawBlock: string): void {
+  let block = rawBlock.trim()
+  if (!block) return
+
+  if (isAsciiRule(block)) {
+    drawHr(ctx)
+    return
+  }
+
+  const lines = block.split('\n').map((l) => l.trim())
+  if (
+    lines.length >= 3 &&
+    isAsciiRule(lines[0] ?? '') &&
+    isAsciiRule(lines[2] ?? '') &&
+    lines[1]
+  ) {
+    drawHr(ctx)
+    drawParagraphPlain(ctx, lines[1], SIZE_H3, COL_H2, true, 4)
+    drawHr(ctx)
+    const rest = lines.slice(3).join('\n').trim()
+    if (rest) classifyAndRenderBlock(ctx, rest)
+    return
+  }
+
+  if (/^-{2,}$/.test(block)) {
+    ctx.y -= 12
+    return
+  }
+
+  if (block.startsWith('---')) {
+    const rest = block.replace(/^---+/, '').trim()
+    ctx.y -= 12
+    if (rest) classifyAndRenderBlock(ctx, rest)
+    return
+  }
+
+  const firstLine = lines[0] ?? ''
+  const restBlock = lines.slice(1).join('\n').trim()
+
+  const heading = (
+    prefix: string,
+    size: number,
+    color: ReturnType<typeof rgb>,
+  ): boolean => {
+    if (!firstLine.startsWith(prefix)) return false
+    const title = firstLine.slice(prefix.length).trim()
+    ensureSpace(ctx, size + 8)
+    ctx.y -= size + 4
+    drawParagraphPlain(ctx, title, size, color, true, 6)
+    if (restBlock) classifyAndRenderBlock(ctx, restBlock)
+    return true
+  }
+
+  if (heading('# ', SIZE_TITLE, COL_TITLE)) return
+  if (heading('#### ', SIZE_H4, COL_H34)) return
+  if (heading('### ', SIZE_H3, COL_H2)) return
+  if (heading('## ', SIZE_H2, COL_H2)) return
+
+  if (firstLine.startsWith('- ') || firstLine.startsWith('• ')) {
+    const items = lines.filter((l) => l.length)
+    for (const item of items) {
+      const clean = item.replace(/^[-•]\s+/, '').trim()
+      if (!clean) continue
+      const bullet = `• ${clean}`
+      drawParagraphRich(ctx, bullet, SIZE_BODY, COL_BODY, 4)
+    }
+    ctx.y -= PARA_AFTER
+    return
+  }
+
+  const table = parseMdTable(block)
+  if (table && table.length) {
+    drawTable(ctx, table)
+    ctx.y -= BLOCK_GAP
+    return
+  }
+
+  drawParagraphRich(ctx, block, SIZE_BODY, COL_BODY, PARA_AFTER)
+}
+
+function drawTable(ctx: RenderCtx, rows: string[][]): void {
+  const ncols = rows[0]?.length ?? 0
+  if (!ncols) return
+  const weights = Array.from({ length: ncols }, (_, i) =>
+    i === ncols - 1 ? 2 : 1,
+  )
+  const tw = weights.reduce((a, b) => a + b, 0)
+  const colWidths = weights.map((w) =>
+    Math.max(50, (CONTENT_W * w) / tw),
+  )
+
+  const cellStyle = SIZE_TABLE
+  const pad = 4
+  const lh = LEADING(cellStyle)
+
+  for (let ri = 0; ri < rows.length; ri++) {
+    const row = rows[ri]
+    const isHeader = ri === 0
+    const cellLines: string[][] = row.map((cell, ci) =>
+      wrapPlainParagraph(
+        cell.replace(/\|/g, ' '),
+        Math.max(20, (colWidths[ci] ?? 0) - pad * 2),
+        ctx.fonts,
+        cellStyle,
+        false,
+      ),
+    )
+    const rowHeight =
+      Math.max(...cellLines.map((cl) => cl.length), 1) * lh + pad * 2
+
+    ensureSpace(ctx, rowHeight + 2)
+
+    let x = MARGIN_L
+    for (let ci = 0; ci < ncols; ci++) {
+      const cw = colWidths[ci] ?? 0
+      const lines = cellLines[ci] ?? ['']
+      if (isHeader) {
+        ctx.page.drawRectangle({
+          x,
+          y: ctx.y - rowHeight + pad,
+          width: cw,
+          height: rowHeight,
+          color: COL_TABLE_HEAD_BG,
+        })
+      }
+      ctx.page.drawRectangle({
+        x,
+        y: ctx.y - rowHeight,
+        width: cw,
+        height: rowHeight,
+        borderColor: COL_TABLE_GRID,
+        borderWidth: 0.5,
+      })
+      let ly = ctx.y - pad - cellStyle
+      for (const line of lines) {
+        drawLineMixed(
+          ctx.page,
+          line,
+          x + pad,
+          ly,
+          cellStyle,
+          ctx.fonts,
+          isHeader ? COL_TITLE : COL_BODY,
+          isHeader,
+        )
+        ly -= lh
+      }
+      x += cw
+    }
+    ctx.y -= rowHeight
+  }
+}
+
 function safeDefaultFilename(title: string, suggested?: string): string {
   const base = (suggested || title || 'voidcast-document').trim().slice(0, 120)
-  const cleaned = base.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_') || 'voidcast-document'
+  const cleaned =
+    base.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_') ||
+    'voidcast-document'
   return cleaned.toLowerCase().endsWith('.pdf') ? cleaned : `${cleaned}.pdf`
 }
 
@@ -133,54 +553,88 @@ function uniqueFilePath(dir: string, fileName: string): string {
   return path.join(dir, `${stem}-${Date.now()}${ext}`)
 }
 
+function resolveFontPath(rel: string): string | null {
+  try {
+    const p = require.resolve(`@fontsource/noto-sans/files/${rel}`)
+    if (fs.existsSync(p)) return p
+  } catch {
+    /* missing weight */
+  }
+  return null
+}
+
+async function embedFonts(pdfDoc: PDFDocument): Promise<FontQuad> {
+  pdfDoc.registerFontkit(fontkit)
+
+  const latin400 =
+    resolveFontPath('noto-sans-latin-400-normal.woff2') ??
+    require.resolve('@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff2')
+  const cyr400 =
+    resolveFontPath('noto-sans-cyrillic-400-normal.woff2') ??
+    require.resolve('@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff2')
+  const latin700 = resolveFontPath('noto-sans-latin-700-normal.woff2')
+  const cyr700 = resolveFontPath('noto-sans-cyrillic-700-normal.woff2')
+
+  const l400 = fs.readFileSync(latin400)
+  const c400 = fs.readFileSync(cyr400)
+  const l700 = latin700 ? fs.readFileSync(latin700) : l400
+  const c700 = cyr700 ? fs.readFileSync(cyr700) : c400
+
+  const [latin, cyr, latinBold, cyrBold] = await Promise.all([
+    pdfDoc.embedFont(l400),
+    pdfDoc.embedFont(c400),
+    pdfDoc.embedFont(l700),
+    pdfDoc.embedFont(c700),
+  ])
+  return { latin, cyr, latinBold, cyrBold }
+}
+
 async function buildPdfBytes(opts: {
   title: string
   body: string
 }): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create()
-  pdfDoc.registerFontkit(fontkit)
-  const latinBytes = fs.readFileSync(
-    require.resolve('@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff2'),
-  )
-  const cyrBytes = fs.readFileSync(
-    require.resolve('@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff2'),
-  )
-  const [latin, cyr] = await Promise.all([
-    pdfDoc.embedFont(latinBytes),
-    pdfDoc.embedFont(cyrBytes),
-  ])
-  const fonts: FontPair = { latin, cyr }
+  const fonts = await embedFonts(pdfDoc)
 
-  const maxW = PAGE_W - 2 * MARGIN
-  const paragraphs = opts.body
-    .replace(/\r\n/g, '\n')
-    .split(/\n{2,}/)
-    .map((p) => p.replace(/\n/g, ' ').trim())
-    .filter(Boolean)
+  const raw = normalizeForPdf(opts.body)
+  const blocks = raw.split(/\n\n+/).map((b) => b.trim()).filter(Boolean)
 
-  let page = pdfDoc.addPage([PAGE_W, PAGE_H])
-  /** Baseline Y for the next line (PDF coords: origin bottom-left). */
-  let y = PAGE_H - MARGIN
+  const page = pdfDoc.addPage([PAGE_W, PAGE_H])
+  const ctx: RenderCtx = {
+    pdfDoc,
+    page,
+    y: PAGE_H - MARGIN_T,
+    fonts,
+  }
 
   const titleText = opts.title.trim()
   if (titleText) {
-    y -= TITLE_SIZE
-    drawLineMixed(page, titleText, MARGIN, y, TITLE_SIZE, fonts)
-    y -= TITLE_LINE_HEIGHT + PARA_GAP
+    ensureSpace(ctx, SIZE_TITLE + 24)
+    ctx.y -= SIZE_TITLE
+    drawLineMixed(ctx.page, titleText, MARGIN_L, ctx.y, SIZE_TITLE, fonts, COL_TITLE, true)
+    ctx.y -= LEADING(SIZE_TITLE)
+
+    const dateStr = new Date().toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    ctx.y -= 2
+    drawLineMixed(
+      ctx.page,
+      dateStr,
+      MARGIN_L,
+      ctx.y,
+      SIZE_DATE,
+      fonts,
+      COL_MUTED,
+      false,
+    )
+    ctx.y -= LEADING(SIZE_DATE) + 16
   }
 
-  for (const para of paragraphs) {
-    const lines = wrapParagraph(para, maxW, fonts, BODY_SIZE)
-    for (const line of lines) {
-      if (y < MARGIN + LINE_HEIGHT) {
-        page = pdfDoc.addPage([PAGE_W, PAGE_H])
-        y = PAGE_H - MARGIN - BODY_SIZE
-      } else {
-        y -= LINE_HEIGHT
-      }
-      drawLineMixed(page, line, MARGIN, y, BODY_SIZE, fonts)
-    }
-    y -= PARA_GAP
+  for (const block of blocks) {
+    classifyAndRenderBlock(ctx, block)
   }
 
   return pdfDoc.save()

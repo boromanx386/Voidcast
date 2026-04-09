@@ -49,9 +49,36 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
           <span className='font-medium text-zinc-200'>Web search</span>
           <span className='mt-1 block text-xs text-zinc-500'>
             Uses the local TTS server <code className='text-zinc-400'>POST /tools/search</code>{' '}
-            (DuckDuckGo via <code className='text-zinc-400'>duckduckgo-search</code>) when it
+            (Python <code className='text-zinc-400'>ddgs</code>) when it
             is running; otherwise falls back to a lighter DuckDuckGo API in the
             desktop app.
+          </span>
+        </span>
+      </label>
+
+      <label className='flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-3'>
+        <input
+          type='checkbox'
+          className='mt-1 h-4 w-4 rounded border-zinc-600'
+          checked={settings.toolsEnabled.youtube}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              toolsEnabled: {
+                ...s.toolsEnabled,
+                youtube: e.target.checked,
+              },
+            }))
+          }
+        />
+        <span>
+          <span className='font-medium text-zinc-200'>YouTube</span>
+          <span className='mt-1 block text-xs text-zinc-500'>
+            <code className='text-zinc-400'>search_youtube</code> on the TTS server:{' '}
+            <code className='text-zinc-400'>POST /tools/youtube</code> — video search (ddgs), metadata
+            and optional captions via <code className='text-zinc-400'>yt-dlp</code> and{' '}
+            <code className='text-zinc-400'>youtube-transcript-api</code>. Install those on the server
+            if missing.
           </span>
         </span>
       </label>
@@ -99,8 +126,9 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
           <span>
             <span className='font-medium text-zinc-200'>Save as PDF</span>
             <span className='mt-1 block text-xs text-zinc-500'>
-              Model calls <code className='text-zinc-400'>save_pdf</code> to write a text PDF
-              (Noto Sans, Latin + Cyrillic) into the folder below — no popup.
+              Model calls <code className='text-zinc-400'>save_pdf</code> to write a PDF (Noto Sans,
+              Latin + Cyrillic) with headings, lists, simple pipe tables, rules, and{' '}
+              <code className='text-zinc-400'>**bold**</code> — no popup.
             </span>
           </span>
         </label>

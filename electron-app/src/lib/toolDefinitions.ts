@@ -66,7 +66,7 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
   function: {
     name: 'save_pdf',
     description:
-      'Save plain text as a PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename.',
+      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, - bullets, | tables |, --- rules, **bold**.',
     parameters: {
       type: 'object',
       properties: {
@@ -108,9 +108,43 @@ const WEB_SEARCH_TOOL: OllamaToolDefinition = {
   },
 }
 
+const SEARCH_YOUTUBE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'search_youtube',
+    description:
+      'Search YouTube for videos, or get details and optional transcript for a specific YouTube URL. Use when the user asks for videos on a topic, or wants a summary/transcript of a YouTube video. For transcript, pass the watch URL and get_transcript: true.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            'Search phrase to find YouTube videos (e.g. "rust tutorial"). Omit if video_url is set.',
+        },
+        video_url: {
+          type: 'string',
+          description:
+            'Full YouTube watch or youtu.be URL when you need metadata or captions for one video.',
+        },
+        get_transcript: {
+          type: 'boolean',
+          description:
+            'If true, fetch captions when video_url is set (English preferred, then other languages). Default false.',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Max search hits when using query (default 5, max 20).',
+        },
+      },
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
+  if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
   if (enabled.pdf) out.push(SAVE_PDF_TOOL)
@@ -118,5 +152,11 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
 }
 
 export function anyToolEnabled(enabled: ToolsEnabled): boolean {
-  return enabled.webSearch || enabled.weather || enabled.scrape || enabled.pdf
+  return (
+    enabled.webSearch ||
+    enabled.youtube ||
+    enabled.weather ||
+    enabled.scrape ||
+    enabled.pdf
+  )
 }

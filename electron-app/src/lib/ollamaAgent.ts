@@ -5,6 +5,7 @@ import { invokeWebSearch } from '@/lib/webSearch'
 import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
 import { invokeSavePdf } from '@/lib/savePdf'
+import { invokeYoutubeTool } from '@/lib/youtubeTool'
 import type {
   OllamaApiMessage,
   OllamaModelOptions,
@@ -127,6 +128,37 @@ async function executeToolCall(
     if (!q) return 'Error: missing query parameter for web_search.'
     try {
       return await invokeWebSearch(q, ctx.ttsBaseUrl, ctx.signal)
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+  if (name === 'search_youtube') {
+    if (!toolsEnabled.youtube) {
+      return 'Error: search_youtube tool is disabled in settings.'
+    }
+    const query = typeof args.query === 'string' ? args.query.trim() : ''
+    const videoUrl =
+      typeof args.video_url === 'string' ? args.video_url.trim() : ''
+    if (!query && !videoUrl) {
+      return 'Error: provide query (search) or video_url (video details / transcript).'
+    }
+    const getTranscript = Boolean(args.get_transcript)
+    const maxRaw = args.max_results
+    const maxResults =
+      typeof maxRaw === 'number' && Number.isFinite(maxRaw)
+        ? Math.min(20, Math.max(1, Math.round(maxRaw)))
+        : undefined
+    try {
+      return await invokeYoutubeTool(
+        {
+          query: query || undefined,
+          video_url: videoUrl || undefined,
+          get_transcript: getTranscript,
+          max_results: maxResults,
+        },
+        ctx.ttsBaseUrl,
+        ctx.signal,
+      )
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }
@@ -299,7 +331,14 @@ export type RunChatWithToolsParams = {
   onDelta: (fullText: string) => void
   /** Called when a tool phase starts; pass null to clear (e.g. before next model stream). */
   onToolPhase?: (
-    phase: 'search' | 'weather' | 'scrape' | 'pdf' | 'other' | null,
+    phase:
+      | 'search'
+      | 'youtube'
+      | 'weather'
+      | 'scrape'
+      | 'pdf'
+      | 'other'
+      | null,
   ) => void
   /** Folder for `save_pdf` (from app settings). */
   pdfOutputDir?: string
@@ -355,6 +394,7 @@ export async function runOllamaChatWithTools(
     for (const call of validCalls) {
       const name = call.function!.name!
       if (name === 'web_search') params.onToolPhase?.('search')
+      else if (name === 'search_youtube') params.onToolPhase?.('youtube')
       else if (name === 'get_weather') params.onToolPhase?.('weather')
       else if (name === 'scrape_url') params.onToolPhase?.('scrape')
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')

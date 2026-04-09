@@ -14,6 +14,7 @@ import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
 import {
   buildOllamaMessages,
   TOOLS_WEB_SEARCH_HINT,
+  TOOLS_YOUTUBE_HINT,
   TOOLS_WEATHER_HINT,
   TOOLS_SCRAPE_HINT,
   TOOLS_PDF_HINT,
@@ -103,7 +104,7 @@ export default function App() {
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
   const [toolPhase, setToolPhase] = useState<
-    'search' | 'weather' | 'scrape' | 'pdf' | null
+    'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | null
   >(null)
   /** Actual save_pdf tool result (path or error); model text alone can be wrong */
   const [toolResultBanner, setToolResultBanner] = useState<string | null>(null)
@@ -339,6 +340,7 @@ export default function App() {
     const useTools = anyToolEnabled(settings.toolsEnabled)
     const toolsHintParts: string[] = []
     if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
+    if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
     if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
     if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
     if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
@@ -380,6 +382,7 @@ export default function App() {
           },
           onToolPhase: (phase) => {
             if (phase === 'search') setToolPhase('search')
+            else if (phase === 'youtube') setToolPhase('youtube')
             else if (phase === 'weather') setToolPhase('weather')
             else if (phase === 'scrape') setToolPhase('scrape')
             else if (phase === 'pdf') setToolPhase('pdf')
@@ -1159,7 +1162,9 @@ export default function App() {
               <span>
                 {toolPhase === 'search'
                   ? 'Searching the web…'
-                  : toolPhase === 'weather'
+                  : toolPhase === 'youtube'
+                    ? 'YouTube…'
+                    : toolPhase === 'weather'
                     ? 'Checking weather…'
                     : toolPhase === 'scrape'
                       ? 'Fetching page…'

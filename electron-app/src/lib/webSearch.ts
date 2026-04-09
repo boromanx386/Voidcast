@@ -6,7 +6,7 @@ async function invokeWebSearchIpc(query: string): Promise<string> {
   const vc = window.voidcast
   if (!vc?.webSearch) {
     throw new Error(
-      'Run Voidcast in Electron, or start the TTS server with duckduckgo-search for POST /tools/search.',
+      'Run Voidcast in Electron, or start the TTS server with `pip install ddgs` for POST /tools/search.',
     )
   }
   const r: unknown = await vc.webSearch(query)
@@ -19,8 +19,8 @@ async function invokeWebSearchIpc(query: string): Promise<string> {
 }
 
 /**
- * Prefer DDGS on the TTS server (`POST /tools/search`), then DuckDuckGo Instant
- * Answer via Electron main.
+ * Prefer `ddgs` on the TTS server (`POST /tools/search`), then DuckDuckGo Instant
+ * Answer API via Electron main (weaker fallback).
  */
 export async function invokeWebSearch(
   query: string,

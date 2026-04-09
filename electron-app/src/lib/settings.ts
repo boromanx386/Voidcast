@@ -8,6 +8,8 @@ export type ToolsEnabled = {
   scrape: boolean
   /** Save text as PDF into `pdfOutputDir` (main process) */
   pdf: boolean
+  /** YouTube search / video info / transcript (TTS server: yt-dlp + transcript API) */
+  youtube: boolean
 }
 
 export type AppSettings = {
@@ -66,7 +68,13 @@ const defaults: AppSettings = {
   ttsNumStep: 32,
   ttsDurationSec: null,
   ttsChunkMaxChars: 380,
-  toolsEnabled: { webSearch: false, weather: false, scrape: false, pdf: false },
+  toolsEnabled: {
+    webSearch: false,
+    weather: false,
+    scrape: false,
+    pdf: false,
+    youtube: false,
+  },
   pdfOutputDir: '',
 }
 
@@ -85,6 +93,8 @@ function normalizeTools(s: AppSettings): AppSettings {
         typeof te?.weather === 'boolean' ? te.weather : defaults.toolsEnabled.weather,
       scrape: typeof te?.scrape === 'boolean' ? te.scrape : defaults.toolsEnabled.scrape,
       pdf: typeof te?.pdf === 'boolean' ? te.pdf : defaults.toolsEnabled.pdf,
+      youtube:
+        typeof te?.youtube === 'boolean' ? te.youtube : defaults.toolsEnabled.youtube,
     },
   }
 }
