@@ -102,11 +102,16 @@ export async function checkTtsHealth(ttsBaseUrl: string): Promise<{
 }> {
   try {
     const root = normalizeBaseUrl(ttsBaseUrl)
-    const res = await fetch(`${root}/health`)
+    const url = `${root}/health`
+    console.log('[TTS] Health check URL:', url)
+    const res = await fetch(url)
+    console.log('[TTS] Health check response status:', res.status)
     if (!res.ok) return { ok: false, detail: `HTTP ${res.status}` }
     const data = (await res.json()) as { ok?: boolean; error?: string }
+    console.log('[TTS] Health check data:', data)
     return { ok: Boolean(data.ok), detail: data.error }
   } catch (e) {
+    console.error('[TTS] Health check error:', e)
     return { ok: false, detail: e instanceof Error ? e.message : String(e) }
   }
 }

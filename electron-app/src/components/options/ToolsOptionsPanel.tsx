@@ -22,171 +22,198 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
       setPickBusy(false)
     }
   }, [setSettings])
+
   return (
-    <div className='grid gap-4 text-sm'>
-      <p className='text-xs text-zinc-500'>
-        Enable tools the model can call during chat. Use a{' '}
-        <span className='text-zinc-400'>tool-capable</span> model (e.g. Llama 3.1+,
-        Qwen2.5+, Mistral with tools) for reliable results.
-      </p>
+    <div className="grid gap-4 text-sm">
+      {/* Header */}
+      <div className="border-b border-void-muted/30 pb-3">
+        <p className="text-xs font-mono text-void-dim">
+          <span className="text-neon-yellow mr-2">⬡</span>
+          Enable tools for the model to use during conversation.
+          Requires a tool-capable model (Llama 3.1+, Qwen2.5+, Mistral).
+        </p>
+      </div>
 
-      <label className='flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-3'>
-        <input
-          type='checkbox'
-          className='mt-1 h-4 w-4 rounded border-zinc-600'
-          checked={settings.toolsEnabled.webSearch}
-          onChange={(e) =>
+      {/* Web Search */}
+      <ToolToggle
+        checked={settings.toolsEnabled.webSearch}
+        onChange={(v) =>
+          setSettings((s) => ({
+            ...s,
+            toolsEnabled: { ...s.toolsEnabled, webSearch: v },
+          }))
+        }
+        label="WEB_SEARCH"
+        icon="⌕"
+        iconColor="text-neon-cyan"
+        description={
+          <>
+            Uses <code className="text-neon-cyan">POST /tools/search</code> on TTS server (ddgs).
+            Falls back to DuckDuckGo API in Electron if server unavailable.
+          </>
+        }
+      />
+
+      {/* YouTube */}
+      <ToolToggle
+        checked={settings.toolsEnabled.youtube}
+        onChange={(v) =>
+          setSettings((s) => ({
+            ...s,
+            toolsEnabled: { ...s.toolsEnabled, youtube: v },
+          }))
+        }
+        label="YOUTUBE"
+        icon="▶"
+        iconColor="text-neon-red"
+        description={
+          <>
+            <code className="text-neon-red">search_youtube</code> via TTS server.
+            Requires <code className="text-void-light">yt-dlp</code> and{' '}
+            <code className="text-void-light">youtube-transcript-api</code>.
+          </>
+        }
+      />
+
+      {/* Scrape URL */}
+      <ToolToggle
+        checked={settings.toolsEnabled.scrape}
+        onChange={(v) =>
+          setSettings((s) => ({
+            ...s,
+            toolsEnabled: { ...s.toolsEnabled, scrape: v },
+          }))
+        }
+        label="SCRAPE_URL"
+        icon="⬡"
+        iconColor="text-neon-green"
+        description={
+          <>
+            Fetch public pages in Electron, strip HTML to text (~2MB limit).
+            Blocks SSRF to local/private hosts.
+          </>
+        }
+      />
+
+      {/* Save PDF */}
+      <div className="bg-void-black/50 border border-void-muted/30 p-4">
+        <ToolToggle
+          checked={settings.toolsEnabled.pdf}
+          onChange={(v) =>
             setSettings((s) => ({
               ...s,
-              toolsEnabled: {
-                ...s.toolsEnabled,
-                webSearch: e.target.checked,
-              },
+              toolsEnabled: { ...s.toolsEnabled, pdf: v },
             }))
           }
-        />
-        <span>
-          <span className='font-medium text-zinc-200'>Web search</span>
-          <span className='mt-1 block text-xs text-zinc-500'>
-            Uses the local TTS server <code className='text-zinc-400'>POST /tools/search</code>{' '}
-            (Python <code className='text-zinc-400'>ddgs</code>) when it
-            is running; otherwise falls back to a lighter DuckDuckGo API in the
-            desktop app.
-          </span>
-        </span>
-      </label>
-
-      <label className='flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-3'>
-        <input
-          type='checkbox'
-          className='mt-1 h-4 w-4 rounded border-zinc-600'
-          checked={settings.toolsEnabled.youtube}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              toolsEnabled: {
-                ...s.toolsEnabled,
-                youtube: e.target.checked,
-              },
-            }))
+          label="SAVE_PDF"
+          icon="◈"
+          iconColor="text-neon-purple"
+          description={
+            <>
+              <code className="text-neon-purple">save_pdf</code> generates PDF with headings,
+              lists, tables, and <code className="text-void-light">**bold**</code>.
+            </>
           }
+          noBorder
         />
-        <span>
-          <span className='font-medium text-zinc-200'>YouTube</span>
-          <span className='mt-1 block text-xs text-zinc-500'>
-            <code className='text-zinc-400'>search_youtube</code> on the TTS server:{' '}
-            <code className='text-zinc-400'>POST /tools/youtube</code> — video search (ddgs), metadata
-            and optional captions via <code className='text-zinc-400'>yt-dlp</code> and{' '}
-            <code className='text-zinc-400'>youtube-transcript-api</code>. Install those on the server
-            if missing.
-          </span>
-        </span>
-      </label>
 
-      <label className='flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-3'>
-        <input
-          type='checkbox'
-          className='mt-1 h-4 w-4 rounded border-zinc-600'
-          checked={settings.toolsEnabled.scrape}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              toolsEnabled: {
-                ...s.toolsEnabled,
-                scrape: e.target.checked,
-              },
-            }))
-          }
-        />
-        <span>
-          <span className='font-medium text-zinc-200'>Scrape URL</span>
-          <span className='mt-1 block text-xs text-zinc-500'>
-            Loads a public page in the desktop app, strips HTML to plain text (up to ~2&nbsp;MB
-            download). Local and private hosts are blocked (SSRF protection).
-          </span>
-        </span>
-      </label>
-
-      <div className='rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-3'>
-        <label className='flex cursor-pointer items-start gap-3'>
-          <input
-            type='checkbox'
-            className='mt-1 h-4 w-4 shrink-0 rounded border-zinc-600'
-            checked={settings.toolsEnabled.pdf}
-            onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                toolsEnabled: {
-                  ...s.toolsEnabled,
-                  pdf: e.target.checked,
-                },
-              }))
-            }
-          />
-          <span>
-            <span className='font-medium text-zinc-200'>Save as PDF</span>
-            <span className='mt-1 block text-xs text-zinc-500'>
-              Model calls <code className='text-zinc-400'>save_pdf</code> to write a PDF (Noto Sans,
-              Latin + Cyrillic) with headings, lists, simple pipe tables, rules, and{' '}
-              <code className='text-zinc-400'>**bold**</code> — no popup.
-            </span>
-          </span>
-        </label>
         {settings.toolsEnabled.pdf && (
-          <div className='mt-3 border-t border-zinc-800 pt-3 pl-7'>
-            <div className='text-xs font-medium text-zinc-400'>PDF output folder</div>
-            <div className='mt-2 flex flex-wrap gap-2'>
+          <div className="mt-4 border-t border-void-muted/20 pt-4">
+            <label className="form-label text-void-dim">
+              <span className="mr-2">▸</span>PDF_OUTPUT_DIR
+            </label>
+            <div className="flex flex-wrap gap-2">
               <input
-                type='text'
+                type="text"
                 spellCheck={false}
-                className='min-w-[12rem] flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-mono text-xs text-zinc-200 placeholder:text-zinc-600'
-                placeholder='C:\\Users\\…\\Documents\\VoidcastPDF'
+                className="cyber-input flex-1 min-w-[12rem]"
+                placeholder="C:\Users\...\Documents\VoidcastPDF"
                 value={settings.pdfOutputDir}
                 onChange={(e) =>
                   setSettings((s) => ({ ...s, pdfOutputDir: e.target.value }))
                 }
               />
               <button
-                type='button'
+                type="button"
                 disabled={pickBusy}
-                className='shrink-0 rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-50'
+                className="cyber-btn text-xs"
                 onClick={() => void browsePdfFolder()}
               >
-                {pickBusy ? '…' : 'Browse…'}
+                {pickBusy ? '...' : 'BROWSE'}
               </button>
             </div>
-            <p className='mt-2 text-xs text-zinc-500'>
-              Required for <code className='text-zinc-400'>save_pdf</code>. You can paste a path
-              or use Browse (Electron only).
+            <p className="text-xs text-void-dim mt-2">
+              Required for PDF export. Accepts path or browse dialog.
             </p>
           </div>
         )}
       </div>
 
-      <label className='flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-3'>
-        <input
-          type='checkbox'
-          className='mt-1 h-4 w-4 rounded border-zinc-600'
-          checked={settings.toolsEnabled.weather}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              toolsEnabled: {
-                ...s.toolsEnabled,
-                weather: e.target.checked,
-              },
-            }))
-          }
-        />
-        <span>
-          <span className='font-medium text-zinc-200'>Weather</span>
-          <span className='mt-1 block text-xs text-zinc-500'>
-            Fetches current conditions (and optional 3-day outlook) from{' '}
-            <code className='text-zinc-400'>wttr.in</code> via the desktop app. Requires
-            network access from Electron.
-          </span>
-        </span>
-      </label>
+      {/* Weather */}
+      <ToolToggle
+        checked={settings.toolsEnabled.weather}
+        onChange={(v) =>
+          setSettings((s) => ({
+            ...s,
+            toolsEnabled: { ...s.toolsEnabled, weather: v },
+          }))
+        }
+        label="WEATHER"
+        icon="◐"
+        iconColor="text-neon-yellow"
+        description={
+          <>
+            Fetches from <code className="text-neon-yellow">wttr.in</code> via Electron.
+            Includes 3-day forecast when enabled.
+          </>
+        }
+      />
     </div>
+  )
+}
+
+// Tool Toggle Sub-Component
+function ToolToggle({
+  checked,
+  onChange,
+  label,
+  icon,
+  iconColor,
+  description,
+  noBorder = false,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+  icon: string
+  iconColor: string
+  description: React.ReactNode
+  noBorder?: boolean
+}) {
+  return (
+    <label
+      className={`flex items-start gap-3 p-4 transition-all cursor-pointer ${
+        noBorder
+          ? ''
+          : checked
+            ? 'bg-neon-cyan/5 border border-neon-cyan/30'
+            : 'bg-void-black/50 border border-void-muted/30 hover:border-void-dim/50'
+      }`}
+    >
+      <input
+        type="checkbox"
+        className="mt-1 h-4 w-4 accent-neon-cyan"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="flex-1">
+        <span className={`font-mono text-sm ${checked ? 'text-neon-cyan' : 'text-void-light'}`}>
+          <span className={`${iconColor} mr-2`}>{icon}</span>
+          {label}
+          {checked && <span className="ml-2 text-xs opacity-70">[ACTIVE]</span>}
+        </span>
+        <span className="mt-1 block text-xs text-void-dim">{description}</span>
+      </span>
+    </label>
   )
 }
