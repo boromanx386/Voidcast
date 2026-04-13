@@ -955,11 +955,7 @@ export default function App() {
               <div className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-neon-magenta/10 blur-3xl" aria-hidden />
               
               <div className="relative">
-                <div className="mb-4 animate-pulse-glow" style={{ color: '#00f5ff' }}>
-                  <span className="text-5xl">◈</span>
-                </div>
-                
-                <GlitchText className="font-display text-2xl tracking-widest neon-text-cyan mb-4">
+                <GlitchText className="font-display text-3xl tracking-widest neon-text-cyan mb-4">
                   VOIDCAST
                 </GlitchText>
                 
