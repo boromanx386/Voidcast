@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }
     >,
+  showWindow: () => ipcRenderer.invoke('voidcast:show-window'),
+  hideWindow: () => ipcRenderer.invoke('voidcast:hide-window'),
+  quitApp: () => ipcRenderer.invoke('voidcast:quit-app'),
+  onNewChat: (callback: () => void) => {
+    ipcRenderer.on('voidcast:new-chat', callback)
+    return () => ipcRenderer.removeListener('voidcast:new-chat', callback)
+  },
 })
 
 contextBridge.exposeInMainWorld('ipcRenderer', {

@@ -22,5 +22,9 @@ interface Window {
       outputDir: string
     }) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
+    showWindow: () => Promise<void>
+    hideWindow: () => Promise<void>
+    quitApp: () => Promise<void>
+    onNewChat: (callback: () => void) => () => void
   }
 }

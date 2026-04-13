@@ -7,6 +7,8 @@ import {
   ipcMain,
   Menu,
   shell,
+  Tray,
+  nativeImage,
   type OpenDialogOptions,
 } from 'electron'
 import { createRequire } from 'node:module'
@@ -52,8 +54,137 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null
+let tray: Tray | null = null
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
+
+// Create tray icon
+function createTray() {
+  // Create a simple tray icon (16x16 cyan triangle)
+  const iconSize = 16
+  const icon = nativeImage.createEmpty()
+  
+  // Try to load favicon first, fallback to a simple icon
+  const iconPath = path.join(process.env.VITE_PUBLIC, 'favicon.ico')
+  
+  try {
+    const loadedIcon = nativeImage.createFromPath(iconPath)
+    if (!loadedIcon.isEmpty()) {
+      tray = new Tray(loadedIcon.resize({ width: 16, height: 16 }))
+    } else {
+      // Create a simple colored icon programmatically
+      tray = new Tray(createDefaultIcon())
+    }
+  } catch {
+    tray = new Tray(createDefaultIcon())
+  }
+  
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show Voidcast',
+      click: () => {
+        if (win) {
+          win.show()
+          win.focus()
+        }
+      },
+    },
+    {
+      label: 'New Chat',
+      click: () => {
+        if (win) {
+          win.show()
+          win.focus()
+          win.webContents.send('voidcast:new-chat')
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.isQuitting = true
+        app.quit()
+      },
+    },
+  ])
+  
+  tray.setToolTip('Voidcast - Neural Interface')
+  tray.setContextMenu(contextMenu)
+  
+  // Double-click to show window
+  tray.on('double-click', () => {
+    if (win) {
+      win.show()
+      win.focus()
+    }
+  })
+}
+
+// Create a simple default icon (cyan triangle)
+function createDefaultIcon(): nativeImage {
+  // Create a 16x16 PNG icon
+  const size = 16
+  const canvas = Buffer.alloc(size * size * 4)
+  
+  // Fill with transparent and draw a cyan triangle
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const idx = (y * size + x) * 4
+      
+      // Calculate if pixel is inside triangle
+      const cx = size / 2
+      const cy = size / 2
+      const margin = 2
+      const height = size - margin * 2
+      
+      // Triangle: top center to bottom left and bottom right
+      const topY = margin
+      const bottomY = size - margin
+      const leftX = margin
+      const rightX = size - margin
+      
+      // Check if inside triangle
+      const relY = (y - topY) / (bottomY - topY)
+      if (relY < 0 || relY > 1) {
+        canvas[idx] = 0     // R
+        canvas[idx + 1] = 0 // G
+        canvas[idx + 2] = 0 // B
+        canvas[idx + 3] = 0 // A (transparent)
+        continue
+      }
+      
+      const halfWidth = (leftX + (rightX - leftX) * relY) / 2
+      const leftEdge = cx - halfWidth
+      const rightEdge = cx + halfWidth
+      
+      if (x >= leftEdge && x <= rightEdge) {
+        // Cyan color #00f5ff
+        canvas[idx] = 0       // R
+        canvas[idx + 1] = 245 // G
+        canvas[idx + 2] = 255 // B
+        canvas[idx + 3] = 255 // A
+      } else {
+        canvas[idx] = 0
+        canvas[idx + 1] = 0
+        canvas[idx + 2] = 0
+        canvas[idx + 3] = 0
+      }
+    }
+  }
+  
+  return nativeImage.createFromBuffer(canvas, {
+    width: size,
+    height: size,
+  })
+}
+
+// Track if app is quitting
+declare module 'electron' {
+  interface App {
+    isQuitting?: boolean
+  }
+}
 
 async function createWindow() {
   if (process.platform !== 'darwin') {
@@ -64,6 +195,7 @@ async function createWindow() {
     title: 'Voidcast',
     autoHideMenuBar: true,
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
+    show: false, // Start hidden until ready
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
@@ -83,6 +215,11 @@ async function createWindow() {
     win.loadFile(indexHtml)
   }
 
+  // Show window when ready
+  win.once('ready-to-show', () => {
+    win?.show()
+  })
+
   // Test actively push message to the Electron-Renderer
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString())
@@ -94,16 +231,28 @@ async function createWindow() {
     return { action: 'deny' }
   })
 
+  // Minimize to tray instead of closing
+  win.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault()
+      win?.hide()
+    }
+  })
+
   // Auto update
   update(win)
 
-  /** Read aloud from clipboard (any app): user copies selection, then hits this shortcut. */
+  // Register clipboard TTS shortcut
   const readClipboardTtsShortcut = 'CommandOrControl+Alt+Shift+V'
   win.webContents.once('did-finish-load', () => {
     const ok = globalShortcut.register(readClipboardTtsShortcut, () => {
       if (!win) return
       const text = clipboard.readText().trim()
       if (!text) return
+      // Show window if hidden, then send clipboard text
+      if (!win.isVisible()) {
+        win.show()
+      }
       win.webContents.send('voidcast:read-clipboard-tts', text)
     })
     if (!ok) {
@@ -118,17 +267,23 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  createTray()
+})
 
 app.on('window-all-closed', () => {
-  win = null
-  if (process.platform !== 'darwin') app.quit()
+  // On macOS, don't quit when all windows closed (menu bar app style)
+  if (process.platform !== 'darwin') {
+    // Don't quit, stay in tray
+  }
 })
 
 app.on('second-instance', () => {
   if (win) {
     // Focus on the main window if the user tried to open another
     if (win.isMinimized()) win.restore()
+    win.show()
     win.focus()
   }
 })
@@ -140,6 +295,11 @@ app.on('activate', () => {
   } else {
     createWindow()
   }
+})
+
+// Handle before-quit to set isQuitting flag
+app.on('before-quit', () => {
+  app.isQuitting = true
 })
 
 ipcMain.handle(
@@ -259,7 +419,7 @@ ipcMain.handle(
     try {
       const city = String(payload?.city ?? '').trim()
       if (!city) return { ok: false, text: 'Empty city' }
-      const forecast = Boolean(payload?.forecast)
+      const forecast = Boolean(payload.forecast)
       const path = encodeURIComponent(city)
       const url = `https://wttr.in/${path}?format=j1`
       const res = await fetch(url)
@@ -291,4 +451,23 @@ ipcMain.handle('open-win', (_, arg) => {
   } else {
     childWindow.loadFile(indexHtml, { hash: arg })
   }
+})
+
+// IPC to show/hide window
+ipcMain.handle('voidcast:show-window', () => {
+  if (win) {
+    win.show()
+    win.focus()
+  }
+})
+
+ipcMain.handle('voidcast:hide-window', () => {
+  if (win) {
+    win.hide()
+  }
+})
+
+ipcMain.handle('voidcast:quit-app', () => {
+  app.isQuitting = true
+  app.quit()
 })
