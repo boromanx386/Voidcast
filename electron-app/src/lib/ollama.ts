@@ -56,6 +56,16 @@ export type OllamaModelOptions = {
   num_ctx?: number
 }
 
+/** Usage counters from Ollama chat response chunks/final object. */
+export type OllamaChatUsage = {
+  prompt_eval_count?: number
+  eval_count?: number
+  total_duration?: number
+  load_duration?: number
+  prompt_eval_duration?: number
+  eval_duration?: number
+}
+
 export type StreamOllamaChatParams = {
   baseUrl: string
   model: string
@@ -77,12 +87,69 @@ function compactModelOptions(
   return Object.keys(out).length ? out : undefined
 }
 
+function pickUsageNumber(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
+}
+
+/**
+ * Extract usage counters from one Ollama chunk/object.
+ * Usage fields usually arrive on the final chunk (`done: true`), but we
+ * tolerate any chunk carrying counters.
+ */
+export function parseChatStreamUsage(obj: unknown): OllamaChatUsage | undefined {
+  if (!obj || typeof obj !== 'object') return undefined
+  const o = obj as Record<string, unknown>
+  const usage: OllamaChatUsage = {
+    prompt_eval_count: pickUsageNumber(o.prompt_eval_count),
+    eval_count: pickUsageNumber(o.eval_count),
+    total_duration: pickUsageNumber(o.total_duration),
+    load_duration: pickUsageNumber(o.load_duration),
+    prompt_eval_duration: pickUsageNumber(o.prompt_eval_duration),
+    eval_duration: pickUsageNumber(o.eval_duration),
+  }
+  return Object.values(usage).some((v) => v !== undefined) ? usage : undefined
+}
+
+function choosePreferredNumber(
+  prev: number | undefined,
+  next: number | undefined,
+): number | undefined {
+  if (next === undefined) return prev
+  if (prev === undefined) return next
+  // Preserve existing positive values; some servers emit 0 from cache paths.
+  if (next === 0 && prev > 0) return prev
+  return next
+}
+
+/** Merge usage objects while preserving known-good counters. */
+export function mergeOllamaUsage(
+  prev: OllamaChatUsage | undefined,
+  next: OllamaChatUsage | undefined,
+): OllamaChatUsage | undefined {
+  if (!prev) return next
+  if (!next) return prev
+  return {
+    prompt_eval_count: choosePreferredNumber(
+      prev.prompt_eval_count,
+      next.prompt_eval_count,
+    ),
+    eval_count: choosePreferredNumber(prev.eval_count, next.eval_count),
+    total_duration: choosePreferredNumber(prev.total_duration, next.total_duration),
+    load_duration: choosePreferredNumber(prev.load_duration, next.load_duration),
+    prompt_eval_duration: choosePreferredNumber(
+      prev.prompt_eval_duration,
+      next.prompt_eval_duration,
+    ),
+    eval_duration: choosePreferredNumber(prev.eval_duration, next.eval_duration),
+  }
+}
+
 /**
  * Stream Ollama chat completion; calls onDelta with accumulated assistant text.
  */
 export async function streamOllamaChat(
   options: StreamOllamaChatParams,
-): Promise<string> {
+): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const root = normalizeBaseUrl(options.baseUrl)
   const opts = compactModelOptions(options.modelOptions)
   const body: Record<string, unknown> = {
@@ -109,6 +176,7 @@ export async function streamOllamaChat(
   const decoder = new TextDecoder()
   let buffer = ''
   let full = ''
+  let usage: OllamaChatUsage | undefined
 
   while (true) {
     const { value, done } = await reader.read()
@@ -130,6 +198,7 @@ export async function streamOllamaChat(
         error?: string
       }
       if (chunk.error) throw new Error(chunk.error)
+      usage = mergeOllamaUsage(usage, parseChatStreamUsage(obj))
       const piece = chunk.message?.content
       if (piece) {
         full += piece
@@ -145,6 +214,7 @@ export async function streamOllamaChat(
         error?: string
       }
       if (last.error) throw new Error(last.error)
+      usage = mergeOllamaUsage(usage, parseChatStreamUsage(last))
       const piece = last.message?.content
       if (piece) {
         full += piece
@@ -154,5 +224,5 @@ export async function streamOllamaChat(
       /* ignore trailing parse noise */
     }
   }
-  return full
+  return { content: full, usage }
 }

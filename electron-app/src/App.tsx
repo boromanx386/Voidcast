@@ -23,6 +23,8 @@ import {
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
+import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
+import { compressConversationContext } from '@/lib/contextCompress'
 import { checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import {
@@ -85,6 +87,12 @@ export default function App() {
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [hiddenContextSummary, setHiddenContextSummary] = useState('')
+  const [contextUsageInfo, setContextUsageInfo] = useState<ContextUsageInfo | null>(
+    null,
+  )
+  const [contextWarnDismissed, setContextWarnDismissed] = useState(false)
+  const [contextCompressBusy, setContextCompressBusy] = useState(false)
   const [sessionDirty, setSessionDirty] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState({
     today: false,
@@ -133,6 +141,9 @@ export default function App() {
       ? state.sessions.find((s) => s.id === state.activeSessionId)
       : null
     setMessages(active?.messages ?? [])
+    setHiddenContextSummary(active?.hiddenContextSummary ?? '')
+    setContextUsageInfo(null)
+    setContextWarnDismissed(false)
     setSessionDirty(false)
     setSessionsHydrated(true)
   }, [])
@@ -229,6 +240,9 @@ export default function App() {
     abortRef.current?.abort()
     ttsAbortRef.current?.abort()
     setMessages([])
+    setHiddenContextSummary('')
+    setContextUsageInfo(null)
+    setContextWarnDismissed(false)
     setActiveSessionId(null)
     setSessionDirty(false)
     setPendingDeleteId(null)
@@ -244,6 +258,9 @@ export default function App() {
     abortRef.current?.abort()
     ttsAbortRef.current?.abort()
     setMessages(session.messages)
+    setHiddenContextSummary(session.hiddenContextSummary ?? '')
+    setContextUsageInfo(null)
+    setContextWarnDismissed(false)
     setActiveSessionId(session.id)
     setSessionDirty(false)
     setToolResultBanner(null)
@@ -265,6 +282,7 @@ export default function App() {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       messages,
+      hiddenContextSummary: hiddenContextSummary.trim() || undefined,
     }
     const nextState = upsertSession({ sessions, activeSessionId }, next)
     setSessions(nextState.sessions)
@@ -280,8 +298,14 @@ export default function App() {
     if (state.activeSessionId) {
       const next = state.sessions.find((s) => s.id === state.activeSessionId)
       setMessages(next?.messages ?? [])
+      setHiddenContextSummary(next?.hiddenContextSummary ?? '')
+      setContextUsageInfo(null)
+      setContextWarnDismissed(false)
     } else {
       setMessages([])
+      setHiddenContextSummary('')
+      setContextUsageInfo(null)
+      setContextWarnDismissed(false)
     }
     saveChatSessions(state)
     setSessionDirty(false)
@@ -323,6 +347,65 @@ export default function App() {
     setMenuOpen(false)
   }
 
+  const summarizeContextNow = useCallback(async () => {
+    if (busy || contextCompressBusy) return
+    const turns = messages
+      .map((m) => ({ role: m.role, content: m.content }))
+      .filter(
+        (t): t is { role: 'user' | 'assistant'; content: string } =>
+          (t.role === 'user' || t.role === 'assistant') && t.content.trim().length > 0,
+      )
+    if (turns.length === 0) return
+
+    setContextCompressBusy(true)
+    setError(null)
+    try {
+      const compressed = await compressConversationContext({
+        baseUrl: settings.ollamaBaseUrl,
+        model: settings.ollamaModel,
+        turns,
+        existingSummary: hiddenContextSummary,
+        modelOptions: {
+          temperature: settings.llmTemperature,
+          num_ctx: settings.llmNumCtx,
+        },
+      })
+      const nextSummary = compressed.trim()
+      if (!nextSummary) return
+      setHiddenContextSummary(nextSummary)
+      setContextWarnDismissed(true)
+      if (activeSessionId) {
+        setSessions((prev) => {
+          const updated = prev.map((s) =>
+            s.id === activeSessionId
+              ? {
+                  ...s,
+                  hiddenContextSummary: nextSummary,
+                  updatedAt: Date.now(),
+                }
+              : s,
+          )
+          saveChatSessions({ sessions: updated, activeSessionId })
+          return updated
+        })
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setContextCompressBusy(false)
+    }
+  }, [
+    activeSessionId,
+    busy,
+    contextCompressBusy,
+    hiddenContextSummary,
+    messages,
+    settings.llmNumCtx,
+    settings.llmTemperature,
+    settings.ollamaBaseUrl,
+    settings.ollamaModel,
+  ])
+
   const onSend = async () => {
     const text = input.trim()
     if (!text || busy) return
@@ -351,6 +434,7 @@ export default function App() {
       {
         systemPrompt: settings.llmSystemPrompt,
         maxHistoryMessages: settings.llmMaxHistoryMessages,
+        hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         toolsSystemHint:
           useTools && toolsHintParts.length > 0
             ? toolsHintParts.join('\n\n')
@@ -361,9 +445,15 @@ export default function App() {
     const ac = new AbortController()
     abortRef.current = ac
     let replyText = ''
+    let usage:
+      | {
+          prompt_eval_count?: number
+          eval_count?: number
+        }
+      | undefined
     try {
       if (useTools) {
-        replyText = await runOllamaChatWithTools({
+        const out = await runOllamaChatWithTools({
           baseUrl: settings.ollamaBaseUrl,
           model: settings.ollamaModel,
           initialMessages: history,
@@ -392,8 +482,10 @@ export default function App() {
             if (name === 'save_pdf') setToolResultBanner(result)
           },
         })
+        replyText = out.content
+        usage = out.usage
       } else {
-        replyText = await streamOllamaChat({
+        const out = await streamOllamaChat({
           baseUrl: settings.ollamaBaseUrl,
           model: settings.ollamaModel,
           messages: history,
@@ -408,7 +500,13 @@ export default function App() {
             )
           },
         })
+        replyText = out.content
+        usage = out.usage
       }
+
+      const usageInfo = estimateContextUsage(usage, settings.llmNumCtx)
+      setContextUsageInfo(usageInfo)
+      if (usageInfo?.shouldWarn) setContextWarnDismissed(false)
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       const msg = e instanceof Error ? e.message : String(e)
@@ -1209,6 +1307,35 @@ export default function App() {
       {error && (
         <div className='border-t border-red-500/25 bg-red-950/50 px-4 py-3 text-center text-sm text-red-100 shadow-[inset_0_1px_0_0_rgba(248,113,113,0.12)]'>
           {error}
+        </div>
+      )}
+
+      {contextUsageInfo?.shouldWarn && !contextWarnDismissed && (
+        <div className='border-t border-amber-500/25 bg-amber-950/40 px-4 py-3 text-sm text-amber-100 shadow-[inset_0_1px_0_0_rgba(251,191,36,0.12)]'>
+          <div className='mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3'>
+            <div>
+              Context usage is near the limit ({Math.round(contextUsageInfo.ratio * 100)}%
+              , {contextUsageInfo.usedTokens}/{contextUsageInfo.maxTokens} tokens).
+              Summarize now to keep long-chat continuity.
+            </div>
+            <div className='flex items-center gap-2'>
+              <button
+                type='button'
+                className='rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50'
+                disabled={busy || contextCompressBusy}
+                onClick={() => void summarizeContextNow()}
+              >
+                {contextCompressBusy ? 'Summarizing…' : 'Summarize now'}
+              </button>
+              <button
+                type='button'
+                className='rounded-lg border border-zinc-600 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800'
+                onClick={() => setContextWarnDismissed(true)}
+              >
+                Later
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

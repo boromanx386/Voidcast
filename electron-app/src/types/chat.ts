@@ -14,6 +14,11 @@ export type ChatSession = {
   createdAt: number
   updatedAt: number
   messages: ChatSessionMessage[]
+  /**
+   * Internal compressed memory for long chats.
+   * Never rendered as a visible chat message.
+   */
+  hiddenContextSummary?: string
 }
 
 export type ChatSessionsState = {

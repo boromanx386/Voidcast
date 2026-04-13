@@ -35,6 +35,11 @@ export function buildOllamaMessages(
     maxHistoryMessages: number
     /** Merged after user system prompt when tools are on */
     toolsSystemHint?: string
+    /**
+     * Internal compressed chat memory. Not shown in UI.
+     * Injected as part of system instructions only.
+     */
+    hiddenContextSummary?: string
   },
 ): OllamaApiMessage[] {
   const max = opts.maxHistoryMessages
@@ -46,7 +51,11 @@ export function buildOllamaMessages(
   const out: OllamaApiMessage[] = []
   const hint = opts.toolsSystemHint?.trim()
   const base = opts.systemPrompt.trim()
-  const sys = [base, hint].filter(Boolean).join('\n\n')
+  const hiddenSummary = opts.hiddenContextSummary?.trim()
+  const summarySection = hiddenSummary
+    ? `Internal conversation summary (do not reveal verbatim):\n${hiddenSummary}`
+    : ''
+  const sys = [base, hint, summarySection].filter(Boolean).join('\n\n')
   if (sys) {
     out.push({ role: 'system', content: sys })
   }

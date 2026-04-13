@@ -8,9 +8,11 @@ import { invokeSavePdf } from '@/lib/savePdf'
 import { invokeYoutubeTool } from '@/lib/youtubeTool'
 import type {
   OllamaApiMessage,
+  OllamaChatUsage,
   OllamaModelOptions,
   OllamaToolCall,
 } from '@/lib/ollama'
+import { mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 
 const MAX_TOOL_ROUNDS = 5
 
@@ -224,7 +226,7 @@ export async function streamOllamaChatOnce(options: {
   tools: unknown[] | undefined
   signal?: AbortSignal
   onDelta: (fullText: string) => void
-}): Promise<{ content: string; tool_calls: OllamaToolCall[] }> {
+}): Promise<{ content: string; tool_calls: OllamaToolCall[]; usage?: OllamaChatUsage }> {
   const root = normalizeBaseUrl(options.baseUrl)
   const opts = compactModelOptions(options.modelOptions)
   const body: Record<string, unknown> = {
@@ -254,6 +256,7 @@ export async function streamOllamaChatOnce(options: {
   let buffer = ''
   let fullContent = ''
   const toolCalls: OllamaToolCall[] = []
+  let usage: OllamaChatUsage | undefined
 
   while (true) {
     const { value, done } = await reader.read()
@@ -278,6 +281,7 @@ export async function streamOllamaChatOnce(options: {
         error?: string
       }
       if (chunk.error) throw new Error(chunk.error)
+      usage = mergeOllamaUsage(usage, parseChatStreamUsage(obj))
       const msg = chunk.message
       if (msg?.tool_calls?.length) {
         mergeToolCallDeltas(toolCalls, msg.tool_calls)
@@ -300,6 +304,7 @@ export async function streamOllamaChatOnce(options: {
         error?: string
       }
       if (last.error) throw new Error(last.error)
+      usage = mergeOllamaUsage(usage, parseChatStreamUsage(last))
       if (last.message?.tool_calls?.length) {
         mergeToolCallDeltas(toolCalls, last.message.tool_calls)
       }
@@ -316,6 +321,7 @@ export async function streamOllamaChatOnce(options: {
   return {
     content: fullContent,
     tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
+    usage,
   }
 }
 
@@ -351,7 +357,7 @@ export type RunChatWithToolsParams = {
  */
 export async function runOllamaChatWithTools(
   params: RunChatWithToolsParams,
-): Promise<string> {
+): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const tools = buildOllamaToolsList(params.toolsEnabled)
   if (tools.length === 0) {
     throw new Error('runOllamaChatWithTools called with no tools enabled')
@@ -359,6 +365,7 @@ export async function runOllamaChatWithTools(
 
   const messages: OllamaApiMessage[] = [...params.initialMessages]
   let lastAssistantText = ''
+  let lastUsage: OllamaChatUsage | undefined
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (params.signal?.aborted) {
@@ -367,7 +374,7 @@ export async function runOllamaChatWithTools(
       throw err
     }
 
-    const { content, tool_calls } = await streamOllamaChatOnce({
+    const { content, tool_calls, usage } = await streamOllamaChatOnce({
       baseUrl: params.baseUrl,
       model: params.model,
       messages,
@@ -379,10 +386,11 @@ export async function runOllamaChatWithTools(
         params.onDelta(full)
       },
     })
+    lastUsage = mergeOllamaUsage(lastUsage, usage)
 
     const validCalls = tool_calls.filter((t) => t.function?.name)
     if (validCalls.length === 0) {
-      return content
+      return { content, usage: lastUsage }
     }
 
     messages.push({
@@ -423,5 +431,5 @@ export async function runOllamaChatWithTools(
     params.onDelta('')
   }
 
-  return lastAssistantText
+  return { content: lastAssistantText, usage: lastUsage }
 }

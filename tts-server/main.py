@@ -1,8 +1,21 @@
 """
 OmniVoice TTS HTTP API for the Electron chat app.
-Run from repo root venv:  python -m uvicorn main:app --host 127.0.0.1 --port 8765 --app-dir tts-server
-Or: cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8765
+
+Run:  python -m uvicorn main:app --host 127.0.0.1 --port 8765 --app-dir tts-server
+
+Hugging Face cache (zašto "Fetching N files" ponovo):
+  - Prvi put skida ~13 fajlova. Posle bi trebalo da koristi keš.
+  - Svako pokretanje može da kratko kontaktira Hub (metadata), ne mora da skida GB.
+  - Na Windows bez symlinkova (npr. Q:) keš radi u "degraded" modu — može više mesta
+    ili čudno ponašanje; preporuka: `HF_HOME` na NTFS disk sa dev mode symlinkovima,
+    ili `HF_HUB_DISABLE_SYMLINKS_WARNING=1` samo da utiša upozorenje.
+  - Kad je jednom sve u kešu: `OMNIVOICE_LOCAL_ONLY=1` — samo lokalni fajlovi, bez
+    download skidanja (kao `HF_HUB_OFFLINE=1` za model, ali za ovaj load).
+  - Brže rate limit: `HF_TOKEN` (ili `HUGGING_FACE_HUB_TOKEN`).
+
+Server se podigne odmah; model se učitava u pozadini (ne blokira uvicorn).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,6 +42,14 @@ from youtube_tools import (
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
+
+# Tiho: symlink na nekim NTFS/mount putevima nije podržan (npr. Q:)
+if os.environ.get("HF_HUB_DISABLE_SYMLINKS_WARNING") is None:
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+# Brži fallback na keš kad HF Hub ne odgovara brzo (default: 10s → 3s)
+if os.environ.get("HF_HUB_ETAG_TIMEOUT") is None:
+    os.environ["HF_HUB_ETAG_TIMEOUT"] = "3"
 
 MODEL_ID = os.environ.get("OMNIVOICE_MODEL", "k2-fsa/OmniVoice")
 DEVICE = os.environ.get("OMNIVOICE_DEVICE", "cuda:0")
@@ -96,7 +117,9 @@ def _load_model() -> None:
     from omnivoice import OmniVoice
 
     dtype = torch.float16 if DTYPE_ENV == "float16" else torch.float32
-    logger.info("Loading OmniVoice model=%s device=%s dtype=%s", MODEL_ID, DEVICE, dtype)
+    logger.info(
+        "Loading OmniVoice model=%s device=%s dtype=%s", MODEL_ID, DEVICE, dtype
+    )
     model = OmniVoice.from_pretrained(
         MODEL_ID,
         device_map=DEVICE,
@@ -105,7 +128,6 @@ def _load_model() -> None:
     _model = model
     _sampling_rate = int(getattr(model, "sampling_rate", 24000))
     _load_error = None
-    # Warm import paths used on first save
     _ = torchaudio  # noqa: F841
 
 
