@@ -82,9 +82,7 @@ function sanitizeForTts(input: string): string {
 // CRT Overlay Component
 function CrtOverlay() {
   return (
-    <div className="crt-overlay" aria-hidden="true">
-      <div className="scanline-effect absolute inset-0" />
-    </div>
+    <div className="crt-overlay" aria-hidden="true" />
   )
 }
 
@@ -946,7 +944,7 @@ export default function App() {
         <div className="mx-auto max-w-3xl flex flex-col gap-4">
           {/* Empty State */}
           {messages.length === 0 && (
-            <div className="relative overflow-hidden rounded-lg border border-neon-cyan/20 bg-void-dark/80 p-8 text-center">
+            <div className="relative overflow-hidden rounded-lg border border-neon-cyan/20 bg-void-dark/80 p-8 text-center animate-fade-in-up">
               <div className="corner-tl" />
               <div className="corner-tr" />
               <div className="corner-bl" />
@@ -957,19 +955,20 @@ export default function App() {
               <div className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-neon-magenta/10 blur-3xl" aria-hidden />
               
               <div className="relative">
-                <div className="mb-4">
-                  <span className="text-4xl neon-text-cyan">◈</span>
+                <div className="mb-4 animate-pulse-glow" style={{ color: '#00f5ff' }}>
+                  <span className="text-5xl">◈</span>
                 </div>
                 
                 <GlitchText className="font-display text-2xl tracking-widest neon-text-cyan mb-4">
                   VOIDCAST
                 </GlitchText>
                 
-                <p className="text-void-text text-sm mb-6 font-mono">
+                <p className="text-void-text text-sm mb-6 font-mono animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                   NEURAL INTERFACE READY. AWAITING INPUT.
+                  <span className="animate-cursor-blink ml-1">_</span>
                 </p>
                 
-                <div className="flex flex-col gap-2 text-left max-w-sm mx-auto">
+                <div className="flex flex-col gap-2 text-left max-w-sm mx-auto stagger-children">
                   <div className="flex items-center gap-3 px-3 py-2 bg-void-black/50 rounded border border-void-muted/30">
                     <span className="text-neon-cyan font-mono">↵</span>
                     <span className="text-void-light text-sm font-mono">
@@ -989,8 +988,12 @@ export default function App() {
           )}
 
           {/* Messages */}
-          {messages.map((m) => (
-            <div key={m.id} className={`message-container ${m.role === 'user' ? 'user' : 'assistant'}`}>
+          {messages.map((m, index) => (
+            <div 
+              key={m.id} 
+              className={`message-container ${m.role === 'user' ? 'user' : 'assistant'} animate-message-in`}
+              style={{ animationDelay: `${index * 0.05}s` }}
+            >
               <div className={`message-bubble ${m.role === 'user' ? 'message-user' : 'message-assistant'}`}>
                 {/* Role indicator */}
                 <div className="message-meta">
