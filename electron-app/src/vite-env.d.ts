@@ -31,6 +31,11 @@ interface Window {
       outputDir: string
     }) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
+    /** Electron: native dialog + base64; absent in web build. */
+    pickImages: () => Promise<
+      | { ok: true; files: { base64: string; mime: string; name: string }[] }
+      | { ok: false; error?: string }
+    >
     getLanNetworkInfo: () => Promise<{ ips: string[] }>
     showWindow: () => Promise<void>
     hideWindow: () => Promise<void>

@@ -4,6 +4,10 @@ export type UiMessage = {
   id: string
   role: ChatRole
   content: string
+  /** Raw base64 for Ollama `images` (no data-URL prefix). User messages only. */
+  images?: string[]
+  /** Parallel MIME types for rendering (e.g. image/png). Not persisted (see chatSessionsStorage). */
+  imageMimes?: string[]
 }
 
 export type ChatSessionMessage = UiMessage

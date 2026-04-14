@@ -20,7 +20,15 @@ import {
   TOOLS_SCRAPE_HINT,
   TOOLS_PDF_HINT,
   TOOLS_TRUTH_HINT,
+  type HistoryTurn,
 } from '@/lib/chatMessages'
+import {
+  MAX_CHAT_IMAGES,
+  MAX_IMAGE_BYTES,
+  readImageFileAsBase64,
+  imageDataUrl,
+  looksLikeImageFile,
+} from '@/lib/imageAttachment'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
@@ -59,10 +67,16 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+type PendingChatImage = { base64: string; mime: string }
+
 function deriveSessionTitle(messages: UiMessage[]): string {
-  const firstUser = messages.find((m) => m.role === 'user')?.content.trim()
+  const firstUser = messages.find((m) => m.role === 'user')
   if (!firstUser) return 'UNTITLED_SESSION'
-  const single = firstUser.replace(/\s+/g, ' ')
+  const raw =
+    firstUser.content.trim() ||
+    (firstUser.images?.length ? '[image]' : '')
+  if (!raw) return 'UNTITLED_SESSION'
+  const single = raw.replace(/\s+/g, ' ')
   return single.length > 60 ? `${single.slice(0, 60)}…` : single
 }
 
@@ -172,6 +186,7 @@ export default function App() {
   const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | null>(null)
   const [toolResultBanner, setToolResultBanner] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -179,6 +194,7 @@ export default function App() {
   const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const chatImageInputRef = useRef<HTMLInputElement | null>(null)
 
   // Save settings on change
   useEffect(() => {
@@ -283,7 +299,10 @@ export default function App() {
     return () => { if (audioUrl) URL.revokeObjectURL(audioUrl) }
   }, [audioUrl])
 
-  const canSend = useMemo(() => input.trim().length > 0 && !busy, [input, busy])
+  const canSend = useMemo(
+    () => (!!input.trim() || pendingImages.length > 0) && !busy,
+    [input, pendingImages.length, busy],
+  )
   const canStop = busy || playingId !== null
   const canSaveSession = messages.length > 0 && !busy
   const todaySessions = useMemo(() => sessions.filter((s) => isToday(s.updatedAt)), [sessions])
@@ -303,6 +322,7 @@ export default function App() {
     setRenamingSessionId(null)
     setRenameValue('')
     setInput('')
+    setPendingImages([])
     setError(null)
     setToolResultBanner(null)
     setMenuOpen(false)
@@ -322,6 +342,7 @@ export default function App() {
     setRenamingSessionId(null)
     setRenameValue('')
     setMenuOpen(false)
+    setPendingImages([])
   }
 
   const saveOrUpdateSession = () => {
@@ -399,9 +420,15 @@ export default function App() {
   const summarizeContextNow = useCallback(async () => {
     if (busy || contextCompressBusy) return
     const turns = messages
-      .map((m) => ({ role: m.role, content: m.content }))
+      .map((m) => {
+        let c = m.content
+        if (m.role === 'user' && !c.trim() && m.images?.length) {
+          c = '[user attached image]'
+        }
+        return { role: m.role, content: c }
+      })
       .filter((t): t is { role: 'user' | 'assistant'; content: string } =>
-        (t.role === 'user' || t.role === 'assistant') && t.content.trim().length > 0
+        (t.role === 'user' || t.role === 'assistant') && t.content.trim().length > 0,
       )
     if (turns.length === 0) return
 
@@ -438,10 +465,28 @@ export default function App() {
   // === Send Message ===
   const onSend = async () => {
     const text = input.trim()
-    if (!text || busy) return
+    const queued = pendingImages
+    if ((!text && queued.length === 0) || busy) return
     setError(null)
+    setPendingImages([])
     setInput('')
-    const userMsg: UiMessage = { id: uid(), role: 'user', content: text }
+
+    const imagesBase64 = queued.map((q) => q.base64)
+    const imageMimes = queued.map((q) => q.mime)
+    /** Some vision stacks ignore empty user text even when `images` is set — keep UI caption empty but send a hint to the API. */
+    const ollamaUserText =
+      text ||
+      (imagesBase64.length > 0
+        ? 'Reply based on the attached image(s).'
+        : '')
+    const userMsg: UiMessage = {
+      id: uid(),
+      role: 'user',
+      content: text,
+      ...(imagesBase64.length > 0
+        ? { images: imagesBase64, imageMimes }
+        : {}),
+    }
     const asstId = uid()
     const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
     setMessages((m) => [...m, userMsg, asstMsg])
@@ -449,6 +494,20 @@ export default function App() {
     setBusy(true)
     setToolPhase(null)
     setToolResultBanner(null)
+
+    const priorHistory: HistoryTurn[] = messages.map((x) => {
+      if (x.role === 'user') {
+        const t: HistoryTurn = {
+          role: 'user',
+          content:
+            x.content ||
+            (x.images?.length ? 'Reply based on the attached image(s).' : ''),
+        }
+        if (x.images?.length) t.images = x.images
+        return t
+      }
+      return { role: 'assistant', content: x.content }
+    })
 
     const useTools = anyToolEnabled(settings.toolsEnabled)
     const toolsHintParts: string[] = []
@@ -459,14 +518,15 @@ export default function App() {
     if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
     if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     const history = buildOllamaMessages(
-      messages.map((x) => ({ role: x.role, content: x.content })),
-      text,
+      priorHistory,
+      ollamaUserText,
       {
         systemPrompt: settings.llmSystemPrompt,
         maxHistoryMessages: settings.llmMaxHistoryMessages,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         toolsSystemHint: useTools && toolsHintParts.length > 0 ? toolsHintParts.join('\n\n') : undefined,
-      }
+        newUserImages: imagesBase64.length > 0 ? imagesBase64 : undefined,
+      },
     )
 
     const ac = new AbortController()
@@ -526,6 +586,93 @@ export default function App() {
   const onStop = () => {
     abortRef.current?.abort()
     ttsAbortRef.current?.abort()
+  }
+
+  /** Prefer Electron native dialog (`voidcast.pickImages`); hidden `<input type=file>` is unreliable on some Windows builds. */
+  const openChatImagePicker = useCallback(async () => {
+    if (busy) return
+    const native = window.voidcast?.pickImages
+    if (native) {
+      try {
+        const res = await native()
+        if (!res.ok) {
+          if ('error' in res && res.error) setError(res.error)
+          return
+        }
+        const added: PendingChatImage[] = res.files.map((f) => ({
+          base64: f.base64.replace(/\s+/g, ''),
+          mime: f.mime,
+        }))
+        if (added.some((x) => !x.base64.length)) {
+          setError('Could not read image data.')
+          return
+        }
+        setError(null)
+        setPendingImages((prev) => {
+          const merged = [...prev]
+          for (const item of added) {
+            if (merged.length >= MAX_CHAT_IMAGES) break
+            merged.push(item)
+          }
+          return merged
+        })
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+      return
+    }
+    chatImageInputRef.current?.click()
+  }, [busy])
+
+  const onPickChatImages = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    e.target.value = ''
+    if (!files?.length) return
+    const rawList = Array.from(files)
+    const incoming = rawList.filter(looksLikeImageFile)
+    if (rawList.length > 0 && incoming.length === 0) {
+      setError(
+        'No image file recognized. On Windows, file types are sometimes empty — use PNG or JPEG, or rename to .png/.jpg. Not supported here: PDF, Word, arbitrary "no extension" files.',
+      )
+      return
+    }
+
+    const added: PendingChatImage[] = []
+    for (const file of incoming) {
+      if (file.size > MAX_IMAGE_BYTES) {
+        setError(
+          `Image too large (max ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB): ${file.name}`,
+        )
+        continue
+      }
+      try {
+        const { base64, mime } = await readImageFileAsBase64(file)
+        if (!base64.trim()) {
+          setError(`Empty image data: ${file.name}`)
+          continue
+        }
+        added.push({ base64, mime })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
+    }
+    if (added.length === 0) {
+      setError('Could not load image data (file may be corrupt or unsupported).')
+      return
+    }
+    setError(null)
+    setPendingImages((prev) => {
+      const merged = [...prev]
+      for (const item of added) {
+        if (merged.length >= MAX_CHAT_IMAGES) continue
+        merged.push(item)
+      }
+      return merged
+    })
+  }
+
+  const removePendingImage = (index: number) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }
 
   // === Audio Playback ===
@@ -840,6 +987,7 @@ export default function App() {
         </div>
       </header>
 
+      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
       {/* Sidebar Menu */}
       {menuOpen && (
         <>
@@ -998,7 +1146,7 @@ export default function App() {
       )}
 
       {/* Chat Messages */}
-      <main className="voidcast-messages flex-1 overflow-y-auto">
+      <main className="voidcast-messages min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl flex flex-col gap-4">
           {/* Empty State */}
           {messages.length === 0 && (
@@ -1056,8 +1204,28 @@ export default function App() {
                 {m.role === 'assistant' ? (
                   <ChatMarkdown content={m.content} />
                 ) : (
-                  <div className="text-void-white whitespace-pre-wrap break-words">
-                    {m.content}
+                  <div className="text-void-white whitespace-pre-wrap break-words space-y-2">
+                    {m.images && m.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {m.images.map((b64, i) => (
+                          <img
+                            key={`${m.id}-img-${i}`}
+                            src={imageDataUrl(b64, m.imageMimes?.[i] ?? 'image/png')}
+                            alt=""
+                            className="max-h-48 max-w-full rounded border border-void-muted/40 object-contain"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {m.content.length > 0 ? (
+                      m.content
+                    ) : m.images?.length ? (
+                      <span className="text-void-dim text-xs font-mono">(no caption)</span>
+                    ) : (
+                      <span className="text-void-dim text-xs font-mono">
+                        (images not persisted after reload)
+                      </span>
+                    )}
                   </div>
                 )}
                 
@@ -1178,7 +1346,54 @@ export default function App() {
       {/* Input Area */}
       <footer className="voidcast-input-area">
         <div className="mx-auto max-w-3xl">
+          <input
+            ref={chatImageInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif"
+            multiple
+            className="hidden"
+            aria-hidden
+            onChange={(e) => void onPickChatImages(e)}
+          />
+          {pendingImages.length > 0 && (
+            <div className="mb-2 flex flex-wrap items-center gap-2" aria-live="polite">
+              {pendingImages.map((p, i) => (
+                <div
+                  key={`pending-${i}-${p.base64.slice(0, 8)}`}
+                  className="relative shrink-0"
+                >
+                  <img
+                    src={imageDataUrl(p.base64, p.mime)}
+                    alt=""
+                    className="h-12 w-12 rounded border border-void-muted/60 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePendingImage(i)}
+                    className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded border border-void-muted bg-void-black text-[9px] text-void-dim hover:border-neon-red/50 hover:text-neon-red"
+                    aria-label="Remove image"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="input-wrapper">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void openChatImagePicker()}
+              className="shrink-0 px-3 py-3 mb-px text-xs font-mono border border-void-muted bg-void-black/80 text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5 transition-colors disabled:opacity-40"
+              style={{
+                clipPath:
+                  'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))',
+              }}
+              title={`Attach images (max ${MAX_CHAT_IMAGES}). Vision-capable Ollama model required.`}
+              aria-label="Attach images"
+            >
+              IMG
+            </button>
             <textarea
               className="voidcast-textarea"
               rows={2}
@@ -1209,8 +1424,18 @@ export default function App() {
           </div>
           
           {/* Input hints */}
-          <div className="mt-2 flex items-center justify-between text-xs font-mono text-void-dim">
-            <span>SHIFT+ENTER for newline</span>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
+            <span>
+              ENTER <span className="text-void-dim/80">send</span>
+              {' · '}
+              SHIFT+ENTER <span className="text-void-dim/80">newline</span>
+              {pendingImages.length > 0 && (
+                <>
+                  {' · '}
+                  <span className="text-neon-cyan/70">{pendingImages.length} image{pendingImages.length === 1 ? '' : 's'} attached</span>
+                </>
+              )}
+            </span>
             <span className="flex items-center gap-2">
               <span className="text-neon-cyan/50">{ollamaModels.length > 0 ? `${ollamaModels.length} MODELS` : 'NO_MODELS'}</span>
               {sessionDirty && <span className="text-neon-yellow/70 animate-pulse">UNSAVED</span>}
@@ -1218,6 +1443,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+      </div>
 
       {/* System Status */}
       <div className="system-status">

@@ -17,6 +17,14 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }
     >,
+  pickImages: () =>
+    ipcRenderer.invoke('voidcast:pick-images') as Promise<
+      | {
+          ok: true
+          files: { base64: string; mime: string; name: string }[]
+        }
+      | { ok: false; error?: string }
+    >,
   /** LAN IPv4 addresses of this machine (for mobile web UI URLs). */
   getLanNetworkInfo: () =>
     ipcRenderer.invoke('voidcast:get-lan-network-info') as Promise<{ ips: string[] }>,

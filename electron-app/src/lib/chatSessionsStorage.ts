@@ -1,4 +1,13 @@
-import type { ChatSession, ChatSessionsState } from '@/types/chat'
+import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
+
+/** Drop image payloads before localStorage — avoids quota blowups (MVP). */
+function stripImagesForPersistence(msg: UiMessage): UiMessage {
+  if (msg.role !== 'user' || (!msg.images?.length && !msg.imageMimes?.length)) {
+    return msg
+  }
+  const { images: _i, imageMimes: _m, ...rest } = msg
+  return rest
+}
 
 const STORAGE_KEY = 'voidcast-chat-sessions-v1'
 
@@ -43,7 +52,14 @@ export function loadChatSessions(): ChatSessionsState {
 }
 
 export function saveChatSessions(state: ChatSessionsState): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  const payload: ChatSessionsState = {
+    ...state,
+    sessions: state.sessions.map((s) => ({
+      ...s,
+      messages: s.messages.map(stripImagesForPersistence),
+    })),
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
 }
 
 export function upsertSession(

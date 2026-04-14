@@ -16,6 +16,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
+import { readFile, stat } from 'node:fs/promises'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
 import { savePdfToFolder } from './pdf'
@@ -404,6 +405,89 @@ ipcMain.handle('voidcast:pick-directory', async () => {
     return { ok: false as const }
   }
   return { ok: true as const, path: result.filePaths[0] }
+})
+
+const MAX_CHAT_IMAGE_BYTES = 4 * 1024 * 1024
+const MAX_CHAT_IMAGE_FILES = 4
+
+function mimeFromImagePath(filePath: string): string {
+  const e = path.extname(filePath).replace(/^\./, '').toLowerCase()
+  const map: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    avif: 'image/avif',
+    ico: 'image/x-icon',
+    svg: 'image/svg+xml',
+    tif: 'image/tiff',
+    tiff: 'image/tiff',
+    heic: 'image/heic',
+    heif: 'image/heif',
+  }
+  return map[e] ?? 'image/png'
+}
+
+/** Native file dialog + fs.readFile — avoids hidden `<input type=file>` + `.click()` issues on some Windows/Electron builds. */
+ipcMain.handle('voidcast:pick-images', async () => {
+  const opts: OpenDialogOptions = {
+    title: 'Choose image(s) for chat',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      {
+        name: 'Images',
+        extensions: [
+          'png',
+          'jpg',
+          'jpeg',
+          'webp',
+          'gif',
+          'bmp',
+          'avif',
+          'tif',
+          'tiff',
+          'svg',
+          'heic',
+          'heif',
+        ],
+      },
+    ],
+  }
+  const result = win
+    ? await dialog.showOpenDialog(win, opts)
+    : await dialog.showOpenDialog(opts)
+  if (result.canceled || !result.filePaths?.length) {
+    return { ok: false as const }
+  }
+  const paths = result.filePaths.slice(0, MAX_CHAT_IMAGE_FILES)
+  for (const fp of paths) {
+    try {
+      const st = await stat(fp)
+      if (st.size > MAX_CHAT_IMAGE_BYTES) {
+        return {
+          ok: false as const,
+          error: `Too large (max 4 MB): ${path.basename(fp)}`,
+        }
+      }
+    } catch (e) {
+      return {
+        ok: false as const,
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
+  }
+  const files: { base64: string; mime: string; name: string }[] = []
+  for (const fp of paths) {
+    const buf = await readFile(fp)
+    files.push({
+      base64: buf.toString('base64'),
+      mime: mimeFromImagePath(fp),
+      name: path.basename(fp),
+    })
+  }
+  return { ok: true as const, files }
 })
 
 ipcMain.handle(

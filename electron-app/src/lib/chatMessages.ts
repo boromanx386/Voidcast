@@ -1,6 +1,11 @@
 import type { OllamaApiMessage } from '@/lib/ollama'
 
-export type HistoryTurn = { role: 'user' | 'assistant'; content: string }
+export type HistoryTurn = {
+  role: 'user' | 'assistant'
+  content: string
+  /** User turns only; raw base64 for Ollama. */
+  images?: string[]
+}
 
 /**
  * Build Ollama messages: optional system, trimmed history, new user turn.
@@ -40,6 +45,8 @@ export function buildOllamaMessages(
      * Injected as part of system instructions only.
      */
     hiddenContextSummary?: string
+    /** Raw base64 strings for the latest user message (vision). */
+    newUserImages?: string[]
   },
 ): OllamaApiMessage[] {
   const max = opts.maxHistoryMessages
@@ -60,8 +67,16 @@ export function buildOllamaMessages(
     out.push({ role: 'system', content: sys })
   }
   for (const m of slice) {
-    out.push({ role: m.role, content: m.content })
+    if (m.role === 'user' && m.images?.length) {
+      out.push({ role: 'user', content: m.content, images: m.images })
+    } else {
+      out.push({ role: m.role, content: m.content })
+    }
   }
-  out.push({ role: 'user', content: newUserContent })
+  const nextUser: OllamaApiMessage =
+    opts.newUserImages && opts.newUserImages.length > 0
+      ? { role: 'user', content: newUserContent, images: opts.newUserImages }
+      : { role: 'user', content: newUserContent }
+  out.push(nextUser)
   return out
 }
