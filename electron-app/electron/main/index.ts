@@ -245,10 +245,7 @@ async function createWindow() {
       if (!win) return
       const text = clipboard.readText().trim()
       if (!text) return
-      // Show window if hidden, then send clipboard text
-      if (!win.isVisible()) {
-        win.show()
-      }
+      // TTS can run in the tray: do not show/focus the window
       win.webContents.send('voidcast:read-clipboard-tts', text)
     })
     if (!ok) {
