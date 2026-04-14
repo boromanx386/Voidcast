@@ -1,3 +1,5 @@
+import { normalizeBaseUrl } from '@/lib/settings'
+
 export type WeatherResult = { ok: boolean; text: string }
 
 async function invokeGetWeatherIpc(
@@ -7,7 +9,7 @@ async function invokeGetWeatherIpc(
   const vc = window.voidcast
   if (!vc?.getWeather) {
     throw new Error(
-      'Run Voidcast in Electron for get_weather (wttr.in is fetched from the desktop app).',
+      'Run Voidcast in Electron for get_weather without the TTS server tool.',
     )
   }
   const r: unknown = await vc.getWeather({ city, forecast })
@@ -20,14 +22,37 @@ async function invokeGetWeatherIpc(
 }
 
 /**
- * Current conditions (and optional short forecast) via Electron main → wttr.in `format=j1`.
- * (IPC invoke is not aborted mid-flight; `signal` reserved for future use.)
+ * Prefer `POST /tools/weather` on the TTS server, then Electron main → wttr.in `format=j1`.
  */
 export async function invokeGetWeather(
   city: string,
   forecast: boolean,
-  _signal?: AbortSignal,
+  ttsBaseUrl: string,
+  signal?: AbortSignal,
 ): Promise<string> {
-  void _signal
-  return invokeGetWeatherIpc(city, forecast)
+  const root = normalizeBaseUrl(ttsBaseUrl || 'http://127.0.0.1:8765')
+  try {
+    const res = await fetch(`${root}/tools/weather`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city, forecast }),
+      signal,
+    })
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean
+      text?: string
+      detail?: string
+    }
+    if (res.ok && data.ok && typeof data.text === 'string' && data.text.length > 0) {
+      return data.text
+    }
+  } catch {
+    /* TTS off or unreachable */
+  }
+
+  try {
+    return await invokeGetWeatherIpc(city, forecast)
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e))
+  }
 }

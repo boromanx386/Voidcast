@@ -12,6 +12,7 @@ __pycache__/
 electron-app/dist/
 electron-app/dist-electron/
 electron-app/release/
+tts-server/web-ui/
 
 # IDE / local
 .cursor/

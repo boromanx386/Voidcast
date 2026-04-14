@@ -1,3 +1,5 @@
+import { isElectron } from '@/lib/platform'
+
 export type SavePdfResult = { ok: boolean; text: string }
 
 export async function invokeSavePdf(opts: {
@@ -6,6 +8,11 @@ export async function invokeSavePdf(opts: {
   filename?: string
   outputDir: string
 }): Promise<string> {
+  if (!isElectron()) {
+    throw new Error(
+      'save_pdf is only available in the desktop app (Electron). Open Voidcast on your PC to export PDFs.',
+    )
+  }
   const vc = window.voidcast?.savePdf
   if (!vc) {
     throw new Error('Run Voidcast in Electron to save PDF files.')

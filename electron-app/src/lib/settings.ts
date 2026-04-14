@@ -50,6 +50,12 @@ export type AppSettings = {
   pdfOutputDir: string
 }
 
+import {
+  defaultOllamaBaseUrlForRuntime,
+  defaultTtsBaseUrlForRuntime,
+  isWebStandalone,
+} from '@/lib/platform'
+
 const STORAGE_KEY = 'voidcast-settings-v1'
 /** Previous key; read once to migrate */
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
@@ -129,21 +135,48 @@ function normalizeAll(s: AppSettings): AppSettings {
   return normalizePdfDir(normalizeTools(normalizeLlm(s)))
 }
 
+/** On phone browser, localhost / 127.0.0.1 point at the device — never reach the desktop server. */
+function ollamaUrlShouldUseDesktopProxy(url: string): boolean {
+  const u = url.trim()
+  if (!u) return true
+  try {
+    const parsed = new URL(u.includes('://') ? u : `http://${u}`)
+    const h = parsed.hostname.toLowerCase()
+    return h === 'localhost' || h === '127.0.0.1'
+  } catch {
+    return true
+  }
+}
+
 export function loadSettings(): AppSettings {
+  let merged: AppSettings
   try {
     const rawNew = localStorage.getItem(STORAGE_KEY)
     const rawLegacy = localStorage.getItem(LEGACY_STORAGE_KEY)
     const raw = rawNew ?? rawLegacy
-    if (!raw) return { ...defaults }
-    const parsed = JSON.parse(raw) as Partial<AppSettings>
-    const merged = normalizeAll({ ...defaults, ...parsed })
-    if (!rawNew && rawLegacy) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+    if (!raw) {
+      merged = { ...defaults }
+    } else {
+      const parsed = JSON.parse(raw) as Partial<AppSettings>
+      merged = normalizeAll({ ...defaults, ...parsed })
+      if (!rawNew && rawLegacy) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+      }
     }
-    return merged
   } catch {
-    return { ...defaults }
+    merged = { ...defaults }
   }
+
+  if (typeof window !== 'undefined' && isWebStandalone()) {
+    merged = {
+      ...merged,
+      ttsBaseUrl: defaultTtsBaseUrlForRuntime(),
+      ollamaBaseUrl: ollamaUrlShouldUseDesktopProxy(merged.ollamaBaseUrl)
+        ? defaultOllamaBaseUrlForRuntime()
+        : merged.ollamaBaseUrl,
+    }
+  }
+  return merged
 }
 
 export function saveSettings(s: AppSettings): void {

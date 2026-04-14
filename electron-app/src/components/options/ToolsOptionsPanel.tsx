@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { isElectron, isWebStandalone } from '@/lib/platform'
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react'
 
 type Props = {
@@ -10,7 +11,7 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
 
   const browsePdfFolder = useCallback(async () => {
-    const vc = window.voidcast?.pickDirectory
+    const vc = isElectron() ? window.voidcast?.pickDirectory : undefined
     if (!vc) return
     setPickBusy(true)
     try {
@@ -89,13 +90,13 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
         iconColor="text-neon-green"
         description={
           <>
-            Fetch public pages in Electron, strip HTML to text (~2MB limit).
-            Blocks SSRF to local/private hosts.
+            Fetch public pages via TTS <code className="text-neon-green">POST /tools/scrape</code> or
+            Electron; strip HTML to text (~2MB). Blocks SSRF to local/private hosts.
           </>
         }
       />
 
-      {/* Save PDF */}
+      {/* Save PDF — desktop only */}
       <div className="bg-void-black/50 border border-void-muted/30 p-4">
         <ToolToggle
           checked={settings.toolsEnabled.pdf}
@@ -108,16 +109,22 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
           label="SAVE_PDF"
           icon="◈"
           iconColor="text-neon-purple"
+          disabled={isWebStandalone()}
           description={
             <>
               <code className="text-neon-purple">save_pdf</code> generates PDF with headings,
               lists, tables, and <code className="text-void-light">**bold**</code>.
+              {isWebStandalone() && (
+                <span className="block mt-1 text-neon-yellow/90">
+                  Desktop (Electron) only — not available in the mobile web client.
+                </span>
+              )}
             </>
           }
           noBorder
         />
 
-        {settings.toolsEnabled.pdf && (
+        {settings.toolsEnabled.pdf && isElectron() && (
           <div className="mt-4 border-t border-void-muted/20 pt-4">
             <label className="form-label text-void-dim">
               <span className="mr-2">▸</span>PDF_OUTPUT_DIR
@@ -163,8 +170,8 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
         iconColor="text-neon-yellow"
         description={
           <>
-            Fetches from <code className="text-neon-yellow">wttr.in</code> via Electron.
-            Includes 3-day forecast when enabled.
+            <code className="text-neon-yellow">POST /tools/weather</code> on TTS server or Electron →{' '}
+            <code className="text-void-light">wttr.in</code>. Includes 3-day forecast when enabled.
           </>
         }
       />
@@ -181,6 +188,7 @@ function ToolToggle({
   iconColor,
   description,
   noBorder = false,
+  disabled = false,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
@@ -189,10 +197,13 @@ function ToolToggle({
   iconColor: string
   description: React.ReactNode
   noBorder?: boolean
+  disabled?: boolean
 }) {
   return (
     <label
-      className={`flex items-start gap-3 p-4 transition-all cursor-pointer ${
+      className={`flex items-start gap-3 p-4 transition-all ${
+        disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+      } ${
         noBorder
           ? ''
           : checked
@@ -204,6 +215,7 @@ function ToolToggle({
         type="checkbox"
         className="mt-1 h-4 w-4 accent-neon-cyan"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
       />
       <span className="flex-1">

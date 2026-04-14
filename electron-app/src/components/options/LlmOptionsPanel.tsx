@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { isWebStandalone } from '@/lib/platform'
 import type { Dispatch, SetStateAction } from 'react'
 
 type Props = {
@@ -30,12 +31,19 @@ export function LlmOptionsPanel({
           <span className="text-neon-purple mr-2">◇</span> OLLAMA_BASE_URL
         </label>
         <input
-          className="cyber-input"
+          className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+          readOnly={isWebStandalone()}
           value={settings.ollamaBaseUrl}
           onChange={(e) =>
             setSettings((s) => ({ ...s, ollamaBaseUrl: e.target.value }))
           }
         />
+        {isWebStandalone() && (
+          <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+            Proxied through the TTS host at <code className="text-neon-purple">/api/ollama/*</code> to the
+            desktop&apos;s Ollama. Same LAN as the phone browser.
+          </p>
+        )}
       </div>
 
       {/* Model Selection */}

@@ -546,3 +546,37 @@
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* Mobile / touch (web client on phone) */
+@media (max-width: 640px) {
+  .voidcast-app {
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .voidcast-header {
+    @apply px-2 py-2.5 gap-2;
+  }
+
+  .voidcast-messages {
+    @apply px-2 py-3;
+  }
+
+  .message-container {
+    @apply max-w-[min(95%,36rem)];
+  }
+
+  .voidcast-sidebar {
+    @apply w-full min-w-0;
+  }
+
+  .cyber-input,
+  .option-tab {
+    @apply min-h-[44px];
+  }
+
+  nav.fixed.left-0 {
+    padding-top: env(safe-area-inset-top);
+  }
+}

@@ -1,6 +1,15 @@
 import type { AppSettings } from '@/lib/settings'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
-import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
+import { isElectron, isWebStandalone } from '@/lib/platform'
+import QRCode from 'qrcode'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 
 const OMNIVOICE_VOICE_DESIGN_DOCS =
   'https://github.com/k2-fsa/OmniVoice/blob/master/docs/voice-design.md'
@@ -97,6 +106,42 @@ export function TtsOptionsPanel({
   onClearVoiceAnchor,
 }: Props) {
   const [bakeBusy, setBakeBusy] = useState(false)
+  const [mobileLanUrls, setMobileLanUrls] = useState<string[]>([])
+  const [mobileQrDataUrl, setMobileQrDataUrl] = useState<string | null>(null)
+
+  const ttsPort = useMemo(() => {
+    try {
+      const raw = settings.ttsBaseUrl.trim()
+      const u = new URL(raw.includes('://') ? raw : `http://${raw}`)
+      return u.port || (u.protocol === 'https:' ? '443' : '80')
+    } catch {
+      return '8765'
+    }
+  }, [settings.ttsBaseUrl])
+
+  useEffect(() => {
+    if (!isElectron() || !window.voidcast?.getLanNetworkInfo) return
+    let cancelled = false
+    void window.voidcast.getLanNetworkInfo().then((r) => {
+      if (cancelled) return
+      const urls = r.ips.map((ip) => `http://${ip}:${ttsPort}`)
+      setMobileLanUrls(urls)
+      const primary = urls[0]
+      if (primary) {
+        void QRCode.toDataURL(primary, { width: 168, margin: 1, color: { dark: '#0a0a0f', light: '#00f5ff80' } }).then(
+          (dataUrl) => {
+            if (!cancelled) setMobileQrDataUrl(dataUrl)
+          },
+        )
+      } else {
+        setMobileQrDataUrl(null)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [ttsPort])
+
   const instructStale =
     voiceAnchor &&
     settings.voiceMode === 'design' &&
@@ -111,13 +156,63 @@ export function TtsOptionsPanel({
           <span className="text-neon-cyan">◈</span> TTS_SERVER_URL
         </label>
         <input
-          className="cyber-input"
+          className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+          readOnly={isWebStandalone()}
           value={settings.ttsBaseUrl}
           onChange={(e) =>
             setSettings((s) => ({ ...s, ttsBaseUrl: e.target.value }))
           }
         />
+        {isWebStandalone() && (
+          <p className="text-xs text-void-dim mt-1 font-mono">
+            Served from this host; TTS and tools use the same origin.
+          </p>
+        )}
       </div>
+
+      {isElectron() && (
+        <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
+          <p className="text-xs font-mono text-neon-green uppercase tracking-wider mb-2">
+            <span className="mr-2">📱</span>MOBILE_WEB_UI
+          </p>
+          <p className="text-xs text-void-dim mb-3">
+            With TTS listening on <code className="text-neon-cyan">0.0.0.0</code> (see workspace{' '}
+            <code className="text-void-light">npm run dev:tts</code>), open the same UI on your phone
+            on the LAN. Port matches TTS_SERVER_URL ({ttsPort}).
+          </p>
+          {mobileLanUrls.length === 0 ? (
+            <p className="text-xs text-void-dim font-mono">NO_LAN_IPV4_FOUND</p>
+          ) : (
+            <div className="flex flex-wrap gap-4 items-start">
+              {mobileQrDataUrl && (
+                <img
+                  src={mobileQrDataUrl}
+                  alt="QR code for mobile URL"
+                  className="w-[168px] h-[168px] rounded border border-void-muted/40 bg-white p-1"
+                />
+              )}
+              <ul className="text-xs font-mono text-void-text space-y-1 min-w-0 flex-1">
+                {mobileLanUrls.map((u) => (
+                  <li key={u} className="break-all">
+                    <a
+                      href={u}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-neon-cyan underline decoration-neon-cyan/30"
+                    >
+                      {u}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="text-[11px] text-void-dim mt-3">
+            Run <code className="text-void-light">cd electron-app && npm run build:web</code> once so
+            the server can serve the web UI from <code className="text-void-light">/</code>.
+          </p>
+        </div>
+      )}
 
       {/* Refresh Button */}
       <button
@@ -128,17 +223,19 @@ export function TtsOptionsPanel({
         <span className="mr-2">↻</span> CHECK_TTS_STATUS
       </button>
 
-      {/* Clipboard TTS Info */}
-      <div className="bg-void-black/50 border border-void-muted/30 p-3 rounded">
-        <p className="text-xs font-mono text-void-text">
-          <span className="text-neon-magenta font-semibold">CLIPBOARD_TTS:</span>{' '}
-          Copy text anywhere → press{' '}
-          <kbd className="mx-1 px-2 py-0.5 bg-void-mid border border-void-dim text-neon-cyan font-mono text-xs">
-            CTRL+ALT+SHIFT+V
-          </kbd>{' '}
-          while Voidcast is running.
-        </p>
-      </div>
+      {/* Clipboard TTS Info (Electron only) */}
+      {isElectron() && (
+        <div className="bg-void-black/50 border border-void-muted/30 p-3 rounded">
+          <p className="text-xs font-mono text-void-text">
+            <span className="text-neon-magenta font-semibold">CLIPBOARD_TTS:</span>{' '}
+            Copy text anywhere → press{' '}
+            <kbd className="mx-1 px-2 py-0.5 bg-void-mid border border-void-dim text-neon-cyan font-mono text-xs">
+              CTRL+ALT+SHIFT+V
+            </kbd>{' '}
+            while Voidcast is running.
+          </p>
+        </div>
+      )}
 
       {/* Voice Mode Selection */}
       <div className="bg-void-black/50 border border-neon-magenta/20 p-4">

@@ -173,7 +173,7 @@ async function executeToolCall(
     if (!city) return 'Error: missing city parameter for get_weather.'
     const forecast = Boolean(args.forecast)
     try {
-      return await invokeGetWeather(city, forecast, ctx.signal)
+      return await invokeGetWeather(city, forecast, ctx.ttsBaseUrl, ctx.signal)
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }
@@ -189,7 +189,7 @@ async function executeToolCall(
         ? args.max_chars
         : undefined
     try {
-      return await invokeScrapeUrl(url, maxChars)
+      return await invokeScrapeUrl(url, maxChars, ctx.ttsBaseUrl, ctx.signal)
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }

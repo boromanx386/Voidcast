@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder --win",
+    "build:web": "tsc && vite build --config vite.config.web.ts",
     "build:dir": "tsc && vite build && electron-builder --win --dir",
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
@@ -26,12 +27,14 @@
     "cheerio": "^1.2.0",
     "electron-updater": "^6.3.9",
     "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",

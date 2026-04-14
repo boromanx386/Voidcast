@@ -467,3 +467,18 @@ ipcMain.handle('voidcast:quit-app', () => {
   isQuitting = true
   app.quit()
 })
+
+ipcMain.handle('voidcast:get-lan-network-info', () => {
+  const nets = os.networkInterfaces()
+  const ips: string[] = []
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] ?? []) {
+      const fam = net.family
+      const isV4 = fam === 'IPv4'
+      if (isV4 && !net.internal) {
+        ips.push(net.address)
+      }
+    }
+  }
+  return { ips: [...new Set(ips)] }
+})

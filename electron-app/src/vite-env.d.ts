@@ -1,7 +1,16 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_BUILD_TARGET?: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
+
 interface Window {
-  ipcRenderer: import('electron').IpcRenderer
+  /** Present in Electron; absent in the standalone web build. */
+  ipcRenderer?: import('electron').IpcRenderer
   voidcast?: {
     webSearch: (query: string) => Promise<
       | { ok: boolean; text: string }
@@ -22,6 +31,7 @@ interface Window {
       outputDir: string
     }) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
+    getLanNetworkInfo: () => Promise<{ ips: string[] }>
     showWindow: () => Promise<void>
     hideWindow: () => Promise<void>
     quitApp: () => Promise<void>

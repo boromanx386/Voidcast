@@ -1,7 +1,7 @@
 """
 OmniVoice TTS HTTP API for the Electron chat app.
 
-Run:  python -m uvicorn main:app --host 127.0.0.1 --port 8765 --app-dir tts-server
+Run:  python -m uvicorn main:app --host 0.0.0.0 --port 8765 --app-dir tts-server
 
 Hugging Face cache (zašto "Fetching N files" ponovo):
   - Prvi put skida ~13 fajlova. Posle bi trebalo da koristi keš.
@@ -27,12 +27,18 @@ import re
 import tempfile
 from datetime import datetime
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException
+import httpx
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+from scrape_tool import scrape_public_url_to_text
 
 from youtube_tools import (
     HAS_YOUTUBE_TRANSCRIPT,
@@ -42,6 +48,18 @@ from youtube_tools import (
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
+
+WEB_UI_DIR = Path(__file__).resolve().parent / "web-ui"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+
+
+def _web_index_file() -> Path | None:
+    """Vite web build emits `index.web.html` (multi-page) or `index.html`."""
+    for name in ("index.html", "index.web.html"):
+        p = WEB_UI_DIR / name
+        if p.is_file():
+            return p
+    return None
 
 # Tiho: symlink na nekim NTFS/mount putevima nije podržan (npr. Q:)
 if os.environ.get("HF_HUB_DISABLE_SYMLINKS_WARNING") is None:
@@ -87,6 +105,16 @@ class YoutubeToolRequest(BaseModel):
     video_url: str | None = Field(None, max_length=2048)
     get_transcript: bool = False
     max_results: int = Field(default=5, ge=1, le=20)
+
+
+class ScrapeRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2048)
+    max_chars: int | None = Field(default=None, ge=2000, le=120_000)
+
+
+class WeatherRequest(BaseModel):
+    city: str = Field(..., min_length=1, max_length=200)
+    forecast: bool = False
 
 
 class TtsRequest(BaseModel):
@@ -256,6 +284,10 @@ async def health():
             "yt_dlp": HAS_YTDLP,
             "youtube_transcript_api": HAS_YOUTUBE_TRANSCRIPT,
         },
+        "tools_scrape": True,
+        "tools_weather": True,
+        "ollama_proxy": OLLAMA_BASE_URL,
+        "web_ui": _web_index_file() is not None,
     }
 
 
@@ -351,6 +383,147 @@ async def tools_youtube(req: YoutubeToolRequest):
         ) from e
 
 
+def _format_wttr_text(data: dict[str, Any], city: str, forecast: bool) -> str:
+    curr_list = data.get("current_condition")
+    curr = curr_list[0] if isinstance(curr_list, list) and curr_list else None
+    if not curr:
+        return "No weather data returned for this location."
+    desc = ""
+    wd = curr.get("weatherDesc")
+    if isinstance(wd, list) and wd:
+        d0 = wd[0]
+        if isinstance(d0, dict):
+            desc = str(d0.get("value") or "")
+    res = f"Weather for {city}: {curr.get('temp_C', '?')}°C, {desc}\n"
+    res += f"Humidity: {curr.get('humidity', '?')}%, Wind: {curr.get('windspeedKmph', '?')} km/h"
+    if forecast and data.get("weather"):
+        res += "\n\nForecast (3 days):"
+        for day in (data.get("weather") or [])[:3]:
+            if not isinstance(day, dict):
+                continue
+            d = day.get("date") or "?"
+            mx = day.get("maxtempC") or "?"
+            mn = day.get("mintempC") or "?"
+            hourly = day.get("hourly") or []
+            h0 = hourly[0] if isinstance(hourly, list) and hourly else {}
+            hourly_desc = ""
+            if isinstance(h0, dict):
+                hd = h0.get("weatherDesc")
+                if isinstance(hd, list) and hd and isinstance(hd[0], dict):
+                    hourly_desc = str(hd[0].get("value") or "")
+            res += f"\n- {d}: {mx}°C / {mn}°C — {hourly_desc}"
+    return res
+
+
+def _fetch_wttr_json(city: str) -> dict[str, Any]:
+    path = quote(city.strip(), safe="")
+    url = f"https://wttr.in/{path}?format=j1"
+    r = httpx.get(url, timeout=25.0)
+    r.raise_for_status()
+    return r.json()
+
+
+@app.post("/tools/scrape")
+async def tools_scrape(req: ScrapeRequest):
+    """Fetch public http(s) URL, strip HTML → plain text (SSRF-safe)."""
+    try:
+        result = await scrape_public_url_to_text(req.url, req.max_chars)
+        if result.get("ok"):
+            return {"ok": True, "text": result["text"]}
+        return {"ok": False, "text": result.get("text", "Scrape failed")}
+    except Exception as e:
+        logger.exception("tools/scrape failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "Scrape failed",
+        ) from e
+
+
+@app.post("/tools/weather")
+async def tools_weather(req: WeatherRequest):
+    """wttr.in JSON → same text format as Electron main."""
+    try:
+        data = await asyncio.to_thread(_fetch_wttr_json, req.city)
+        text = _format_wttr_text(data, req.city.strip(), req.forecast)
+        return {"ok": True, "text": text}
+    except Exception as e:
+        logger.exception("tools/weather failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "Weather failed",
+        ) from e
+
+
+@app.api_route(
+    "/api/ollama/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+)
+async def ollama_proxy(request: Request, full_path: str):
+    """Reverse proxy to Ollama (default http://127.0.0.1:11434). Set OLLAMA_BASE_URL."""
+    target = f"{OLLAMA_BASE_URL}/{full_path}"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+
+    body = await request.body()
+    fwd_headers = {
+        k: v
+        for k, v in request.headers.items()
+        if k.lower()
+        not in (
+            "host",
+            "connection",
+            "content-length",
+            "transfer-encoding",
+        )
+    }
+
+    client = httpx.AsyncClient(
+        timeout=httpx.Timeout(600.0, connect=60.0),
+        follow_redirects=False,
+    )
+    try:
+        upstream_req = client.build_request(
+            request.method,
+            target,
+            headers=fwd_headers,
+            content=body if body else None,
+        )
+        upstream = await client.send(upstream_req, stream=True)
+    except Exception:
+        await client.aclose()
+        raise
+
+    hop_by_hop = {
+        "connection",
+        "transfer-encoding",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "upgrade",
+    }
+    out_headers = {
+        k: v
+        for k, v in upstream.headers.items()
+        if k.lower() not in hop_by_hop and k.lower() != "content-length"
+    }
+
+    async def body_iter() -> Any:
+        try:
+            async for chunk in upstream.aiter_raw():
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        body_iter(),
+        status_code=upstream.status_code,
+        headers=out_headers,
+    )
+
+
 @app.post("/tts")
 async def tts(req: TtsRequest):
     """JSON: auto / design, ili voice clone preko ref_audio_base64 + opciono ref_text."""
@@ -372,3 +545,40 @@ async def tts(req: TtsRequest):
             logger.exception("TTS failed: %s", e)
             raise HTTPException(status_code=500, detail=str(e)) from e
     return Response(content=data, media_type="audio/wav")
+
+
+_assets_dir = WEB_UI_DIR / "assets"
+if _assets_dir.is_dir():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(_assets_dir)),
+        name="web_assets",
+    )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def web_favicon():
+    p = WEB_UI_DIR / "favicon.ico"
+    if p.is_file():
+        return FileResponse(p)
+    raise HTTPException(status_code=404, detail="Not found")
+
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+async def web_manifest():
+    p = WEB_UI_DIR / "manifest.webmanifest"
+    if p.is_file():
+        return FileResponse(p, media_type="application/manifest+json")
+    raise HTTPException(status_code=404, detail="Not found")
+
+
+@app.get("/", include_in_schema=False)
+async def web_ui_root():
+    """Serve the Vite web build (`npm run build:web` in electron-app) for phone / LAN browsers."""
+    index = _web_index_file()
+    if index is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Web UI not built. Run: cd electron-app && npm run build:web",
+        )
+    return FileResponse(index)
