@@ -51,8 +51,6 @@ import {
 } from '@/lib/chatSessionsStorage'
 import type { ChatSession, UiMessage } from '@/types/chat'
 
-const APP_NAME = 'VOIDCAST'
-
 type Screen = 'chat' | 'options'
 type OptionsTab = 'llm' | 'tts' | 'tools'
 
@@ -757,7 +755,7 @@ export default function App() {
       <AmbientParticles />
 
       {/* Header */}
-      <header className="voidcast-header">
+      <header className="voidcast-header min-w-0">
         {/* Menu Button */}
         <button
           type="button"
@@ -776,37 +774,29 @@ export default function App() {
           </span>
         </button>
 
-        {/* Logo */}
-        <div className="flex items-center gap-4">
-          <GlitchText className="voidcast-logo">
-            {APP_NAME}
-          </GlitchText>
-          <div className="hidden sm:block w-px h-6 bg-gradient-to-b from-neon-cyan/50 via-neon-magenta/50 to-transparent" />
-          <div className="hidden sm:flex items-center gap-3 text-xs font-mono text-void-dim">
-            <span>v2.2.0</span>
-          </div>
-        </div>
-
         {/* Status & Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
           {/* TTS Status */}
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2">
             {ttsOk === true && (
-              <span className="cyber-badge success">
+              <span className="cyber-badge success text-[10px] sm:text-xs whitespace-nowrap">
                 <span className="status-dot online" />
-                TTS_ONLINE
+                <span className="hidden sm:inline">TTS_ONLINE</span>
+                <span className="sm:hidden">TTS</span>
               </span>
             )}
             {ttsOk === false && (
-              <span className="cyber-badge danger" title={ttsDetail}>
+              <span className="cyber-badge danger text-[10px] sm:text-xs whitespace-nowrap" title={ttsDetail}>
                 <span className="status-dot offline" />
-                TTS_DOWN
+                <span className="hidden sm:inline">TTS_DOWN</span>
+                <span className="sm:hidden">!</span>
               </span>
             )}
             {ttsOk == null && (
-              <span className="cyber-badge">
+              <span className="cyber-badge text-[10px] sm:text-xs whitespace-nowrap">
                 <span className="status-dot busy" />
-                CHECKING...
+                <span className="hidden sm:inline">CHECKING...</span>
+                <span className="sm:hidden">…</span>
               </span>
             )}
           </div>
@@ -816,7 +806,7 @@ export default function App() {
             <button
               type="button"
               onClick={saveOrUpdateSession}
-              className="cyber-btn text-xs"
+              className="cyber-btn shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs"
             >
               {activeSessionId ? 'UPDATE' : 'SAVE'}
             </button>
@@ -827,7 +817,7 @@ export default function App() {
             <button
               type="button"
               onClick={onStop}
-              className="cyber-btn cyber-btn-danger text-xs"
+              className="cyber-btn cyber-btn-danger shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs"
             >
               ABORT
             </button>
@@ -1008,10 +998,6 @@ export default function App() {
               <div className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-neon-magenta/10 blur-3xl" aria-hidden />
               
               <div className="relative">
-                <GlitchText className="font-display text-3xl tracking-widest neon-text-cyan mb-4">
-                  VOIDCAST
-                </GlitchText>
-                
                 <p className="text-void-text text-sm mb-6 font-mono animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                   NEURAL INTERFACE READY. AWAITING INPUT.
                   <span className="animate-cursor-blink ml-1">_</span>
