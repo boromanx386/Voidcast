@@ -25,6 +25,29 @@ export function LlmOptionsPanel({
 }: Props) {
   return (
     <div className="grid gap-5 text-sm">
+      {/* Interface theme */}
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-cyan mr-2">◆</span> INTERFACE_THEME
+        </label>
+        <select
+          className="form-select"
+          value={settings.uiTheme}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              uiTheme: e.target.value === 'minimal' ? 'minimal' : 'dystopian',
+            }))
+          }
+        >
+          <option value="dystopian">Dystopian (neon / CRT)</option>
+          <option value="minimal">Minimal (zinc / indigo)</option>
+        </select>
+        <p className="text-xs text-void-dim mt-1">
+          Minimal turns off scanlines and particles and uses a calmer layout.
+        </p>
+      </div>
+
       {/* Ollama URL */}
       <div className="form-group">
         <label className="form-label">

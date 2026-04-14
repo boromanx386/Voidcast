@@ -1,0 +1,271 @@
+/* Minimal zinc / indigo shell — overrides dystopian theme when html[data-ui-theme="minimal"] */
+
+html[data-ui-theme='minimal'] body {
+  background: #09090b !important;
+  color: #fafafa !important;
+  text-shadow: none !important;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif !important;
+}
+
+html[data-ui-theme='minimal'] ::selection {
+  background: rgba(99, 102, 241, 0.35);
+  color: #fafafa;
+}
+
+html[data-ui-theme='minimal'] ::-webkit-scrollbar-track {
+  background: #18181b;
+}
+
+html[data-ui-theme='minimal'] ::-webkit-scrollbar-thumb {
+  background: #52525b;
+  box-shadow: none;
+}
+
+html[data-ui-theme='minimal'] ::-webkit-scrollbar-thumb:hover {
+  background: #6366f1;
+}
+
+html[data-ui-theme='minimal'] textarea:focus,
+html[data-ui-theme='minimal'] input:focus,
+html[data-ui-theme='minimal'] select:focus {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.45);
+}
+
+html[data-ui-theme='minimal'] .voidcast-app {
+  background:
+    radial-gradient(1200px 600px at 50% -20%, rgba(99, 102, 241, 0.06), transparent 55%),
+    radial-gradient(800px 400px at 100% 100%, rgba(139, 92, 246, 0.05), transparent 50%),
+    #09090b;
+}
+
+html[data-ui-theme='minimal'] .voidcast-header {
+  background: rgba(24, 24, 27, 0.85);
+  border-bottom-color: rgba(63, 63, 70, 0.6);
+  background-image: none;
+  backdrop-filter: blur(8px);
+}
+
+html[data-ui-theme='minimal'] .voidcast-header::after {
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.35), transparent);
+  opacity: 0.4;
+}
+
+html[data-ui-theme='minimal'] .voidcast-logo {
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+html[data-ui-theme='minimal'] .voidcast-logo span {
+  color: #a5b4fc;
+  text-shadow: none;
+}
+
+html[data-ui-theme='minimal'] .glitch-text {
+  animation: none;
+}
+
+html[data-ui-theme='minimal'] .glitch-text::before,
+html[data-ui-theme='minimal'] .glitch-text::after {
+  display: none;
+}
+
+html[data-ui-theme='minimal'] .voidcast-sidebar {
+  background: rgba(24, 24, 27, 0.85);
+  border-right-color: rgba(63, 63, 70, 0.6);
+}
+
+html[data-ui-theme='minimal'] .session-item:hover,
+html[data-ui-theme='minimal'] .session-item.active {
+  border-left-color: #818cf8;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+html[data-ui-theme='minimal'] .session-item.active {
+  color: #e4e4e7;
+}
+
+html[data-ui-theme='minimal'] .voidcast-input-area {
+  background: rgba(24, 24, 27, 0.9);
+  border-top-color: rgba(63, 63, 70, 0.6);
+  backdrop-filter: blur(8px);
+}
+
+html[data-ui-theme='minimal'] .voidcast-input-area::before {
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.35), transparent);
+  opacity: 0.35;
+}
+
+html[data-ui-theme='minimal'] .voidcast-textarea {
+  clip-path: none;
+  border-radius: 0.5rem;
+  background: #18181b;
+  border-color: #3f3f46;
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .voidcast-textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+html[data-ui-theme='minimal'] .send-btn {
+  clip-path: none;
+  border-radius: 0.5rem;
+  background: #27272a;
+  border-color: rgba(99, 102, 241, 0.45);
+  color: #a5b4fc;
+}
+
+html[data-ui-theme='minimal'] .send-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #818cf8;
+  box-shadow: none;
+}
+
+html[data-ui-theme='minimal'] .cyber-btn {
+  clip-path: none;
+  border-radius: 0.375rem;
+  background: #27272a;
+  border-color: #3f3f46;
+  color: #e4e4e7;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+html[data-ui-theme='minimal'] .cyber-btn:hover {
+  border-color: #6366f1;
+  color: #c7d2fe;
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-ui-theme='minimal'] .cyber-btn::before {
+  display: none;
+}
+
+html[data-ui-theme='minimal'] .cyber-btn-danger:hover {
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.4);
+}
+
+html[data-ui-theme='minimal'] .cyber-input {
+  clip-path: none;
+  border-radius: 0.375rem;
+  background: #18181b;
+  border-color: #3f3f46;
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .cyber-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+html[data-ui-theme='minimal'] .cyber-panel {
+  clip-path: none;
+  border-radius: 0.75rem;
+  background: rgba(24, 24, 27, 0.95);
+  border-color: #3f3f46;
+}
+
+html[data-ui-theme='minimal'] .cyber-panel::before {
+  display: none;
+}
+
+html[data-ui-theme='minimal'] .cyber-panel .corner-tl,
+html[data-ui-theme='minimal'] .cyber-panel .corner-tr,
+html[data-ui-theme='minimal'] .cyber-panel .corner-bl,
+html[data-ui-theme='minimal'] .cyber-panel .corner-br {
+  display: none;
+}
+
+html[data-ui-theme='minimal'] .option-tab {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .option-tab.active {
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+html[data-ui-theme='minimal'] .form-label {
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #a1a1aa;
+}
+
+html[data-ui-theme='minimal'] .form-select {
+  border-radius: 0.375rem;
+  clip-path: none;
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .message-user {
+  clip-path: none;
+  border-radius: 0.75rem;
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+html[data-ui-theme='minimal'] .message-assistant {
+  clip-path: none;
+  border-radius: 0.75rem;
+  background: rgba(39, 39, 42, 0.9);
+  border-color: #3f3f46;
+}
+
+html[data-ui-theme='minimal'] .message-bubble {
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .cyber-badge {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+html[data-ui-theme='minimal'] .cyber-spinner {
+  border-top-color: #6366f1;
+}
+
+html[data-ui-theme='minimal'] .system-status {
+  border-top-color: rgba(63, 63, 70, 0.6);
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .error-banner,
+html[data-ui-theme='minimal'] .tool-result-banner {
+  border-radius: 0.375rem;
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .tool-indicator {
+  animation: none;
+  border-radius: 0.375rem;
+  font-family: inherit;
+}
+
+html[data-ui-theme='minimal'] .modal-overlay {
+  background: rgba(9, 9, 11, 0.75);
+}
+
+html[data-ui-theme='minimal'] .modal-content {
+  clip-path: none;
+  border-radius: 0.75rem;
+  border-color: #3f3f46;
+}
+
+html[data-ui-theme='minimal'] .modal-content::before {
+  display: none;
+}

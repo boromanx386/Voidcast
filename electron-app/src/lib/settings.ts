@@ -1,5 +1,8 @@
 export type VoiceMode = 'auto' | 'design' | 'clone'
 
+/** UI shell: dystopian (neon/CRT) vs minimal (zinc/indigo, no overlays) */
+export type UiTheme = 'dystopian' | 'minimal'
+
 /** Per-tool toggles; extend with new keys as tools are added */
 export type ToolsEnabled = {
   webSearch: boolean
@@ -48,6 +51,8 @@ export type AppSettings = {
   toolsEnabled: ToolsEnabled
   /** Where `save_pdf` writes files (no dialog). Empty = tool returns an error until set. */
   pdfOutputDir: string
+  /** Visual chrome: cyberpunk shell vs calmer zinc/indigo layout */
+  uiTheme: UiTheme
 }
 
 import {
@@ -85,6 +90,7 @@ const defaults: AppSettings = {
     youtube: false,
   },
   pdfOutputDir: '',
+  uiTheme: 'dystopian',
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -131,8 +137,15 @@ function normalizePdfDir(s: AppSettings): AppSettings {
   return { ...s, pdfOutputDir: dir }
 }
 
+function normalizeUiTheme(s: AppSettings): AppSettings {
+  const t = s.uiTheme
+  const uiTheme: UiTheme =
+    t === 'minimal' || t === 'dystopian' ? t : 'dystopian'
+  return { ...s, uiTheme }
+}
+
 function normalizeAll(s: AppSettings): AppSettings {
-  return normalizePdfDir(normalizeTools(normalizeLlm(s)))
+  return normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeLlm(s))))
 }
 
 /** On phone browser, localhost / 127.0.0.1 point at the device — never reach the desktop server. */

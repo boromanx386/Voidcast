@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -183,6 +184,10 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  useLayoutEffect(() => {
+    document.documentElement.setAttribute('data-ui-theme', settings.uiTheme)
+  }, [settings.uiTheme])
 
   // Load sessions from storage
   useEffect(() => {
@@ -668,12 +673,18 @@ export default function App() {
     catch { /* ignore */ }
   }
 
+  const uiDystopian = settings.uiTheme === 'dystopian'
+
   // === OPTIONS SCREEN ===
   if (screen === 'options') {
     return (
-      <div className="voidcast-app grid-bg">
-        <CrtOverlay />
-        <AmbientParticles />
+      <div className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}>
+        {uiDystopian && (
+          <>
+            <CrtOverlay />
+            <AmbientParticles />
+          </>
+        )}
         
         {/* Header */}
         <header className="voidcast-header">
@@ -750,9 +761,13 @@ export default function App() {
 
   // === MAIN CHAT SCREEN ===
   return (
-    <div className="voidcast-app grid-bg">
-      <CrtOverlay />
-      <AmbientParticles />
+    <div className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}>
+      {uiDystopian && (
+        <>
+          <CrtOverlay />
+          <AmbientParticles />
+        </>
+      )}
 
       {/* Header */}
       <header className="voidcast-header min-w-0">
