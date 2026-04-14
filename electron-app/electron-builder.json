@@ -1,6 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.voidcast.app",
+  "productName": "Voidcast",
   "asar": true,
   "directories": {
     "output": "release/${version}"
@@ -9,14 +10,8 @@
     "dist-electron",
     "dist"
   ],
-  "mac": {
-    "artifactName": "${productName}_${version}.${ext}",
-    "target": [
-      "dmg",
-      "zip"
-    ]
-  },
   "win": {
+    "icon": "public/favicon.ico",
     "target": [
       {
         "target": "nsis",
@@ -25,17 +20,13 @@
         ]
       }
     ],
-    "artifactName": "${productName}_${version}.${ext}"
+    "artifactName": "${productName}_${version}_Setup.${ext}"
   },
   "nsis": {
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false
-  },
-  "publish": {
-    "provider": "generic",
-    "channel": "latest",
-    "url": "https://github.com/electron-vite/electron-vite-react/releases/download/v0.9.9/"
+    "deleteAppDataOnUninstall": false,
+    "shortcutName": "Voidcast"
   }
 }

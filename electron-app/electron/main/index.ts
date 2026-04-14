@@ -9,6 +9,7 @@ import {
   shell,
   Tray,
   nativeImage,
+  type NativeImage,
   type OpenDialogOptions,
 } from 'electron'
 import { createRequire } from 'node:module'
@@ -55,6 +56,8 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
+/** True when user chose Quit (vs close-to-tray). */
+let isQuitting = false
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
@@ -103,7 +106,7 @@ function createTray() {
     {
       label: 'Quit',
       click: () => {
-        app.isQuitting = true
+        isQuitting = true
         app.quit()
       },
     },
@@ -122,7 +125,7 @@ function createTray() {
 }
 
 // Create a simple default icon (cyan triangle)
-function createDefaultIcon(): nativeImage {
+function createDefaultIcon(): NativeImage {
   // Create a 16x16 PNG icon
   const size = 16
   const canvas = Buffer.alloc(size * size * 4)
@@ -179,13 +182,6 @@ function createDefaultIcon(): nativeImage {
   })
 }
 
-// Track if app is quitting
-declare module 'electron' {
-  interface App {
-    isQuitting?: boolean
-  }
-}
-
 async function createWindow() {
   if (process.platform !== 'darwin') {
     Menu.setApplicationMenu(null)
@@ -233,7 +229,7 @@ async function createWindow() {
 
   // Minimize to tray instead of closing
   win.on('close', (event) => {
-    if (!app.isQuitting) {
+    if (!isQuitting) {
       event.preventDefault()
       win?.hide()
     }
@@ -299,7 +295,7 @@ app.on('activate', () => {
 
 // Handle before-quit to set isQuitting flag
 app.on('before-quit', () => {
-  app.isQuitting = true
+  isQuitting = true
 })
 
 ipcMain.handle(
@@ -468,6 +464,6 @@ ipcMain.handle('voidcast:hide-window', () => {
 })
 
 ipcMain.handle('voidcast:quit-app', () => {
-  app.isQuitting = true
+  isQuitting = true
   app.quit()
 })

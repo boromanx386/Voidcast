@@ -25,7 +25,7 @@ import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
 import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
 import { compressConversationContext } from '@/lib/contextCompress'
-import { checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
+import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import {
   loadSettings,
@@ -37,6 +37,12 @@ import {
   loadCloneRef,
   saveCloneRef,
 } from '@/lib/cloneRefStorage'
+import {
+  clearVoiceAnchor,
+  loadVoiceAnchor,
+  saveVoiceAnchor,
+  type StoredVoiceAnchor,
+} from '@/lib/voiceAnchorStorage'
 import {
   deleteSessionById,
   loadChatSessions,
@@ -168,6 +174,7 @@ export default function App() {
   const [toolResultBanner, setToolResultBanner] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
+  const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const ttsAbortRef = useRef<AbortController | null>(null)
   const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
@@ -241,6 +248,10 @@ export default function App() {
 
   useEffect(() => {
     void loadCloneRef().then((r) => { if (r) setCloneRef(r) })
+  }, [])
+
+  useEffect(() => {
+    void loadVoiceAnchor().then((r) => { if (r) setVoiceAnchor(r) })
   }, [])
 
   useEffect(() => {
@@ -564,6 +575,7 @@ export default function App() {
         durationSec: durationForChunk,
         cloneRef: cloneRef ?? null,
         cloneRefText: settings.cloneRefText || null,
+        voiceAnchor: voiceAnchor ?? null,
         signal,
       })
 
@@ -617,6 +629,44 @@ export default function App() {
   const onClearClone = async () => {
     setCloneRef(null)
     try { await clearCloneRef() }
+    catch { /* ignore */ }
+  }
+
+  const onBakeVoiceAnchor = async () => {
+    const mode = settings.voiceMode
+    if (mode !== 'auto' && mode !== 'design') return
+    const phrase = settings.voiceBakePhrase.trim()
+    if (!phrase) {
+      setError('VOICE_ANCHOR: Enter a short bake phrase first')
+      return
+    }
+    setError(null)
+    try {
+      const blob = await bakeVoiceSample({
+        ttsBaseUrl: settings.ttsBaseUrl,
+        sourceMode: mode,
+        text: phrase,
+        instruct: settings.voiceInstruct || undefined,
+        speed: settings.ttsSpeed,
+        numStep: settings.ttsNumStep,
+        durationSec: null,
+      })
+      const data: StoredVoiceAnchor = {
+        blob,
+        refText: phrase,
+        sourceMode: mode,
+        instructSnapshot: mode === 'design' ? settings.voiceInstruct.trim() : undefined,
+      }
+      await saveVoiceAnchor(data)
+      setVoiceAnchor(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const onClearVoiceAnchor = async () => {
+    setVoiceAnchor(null)
+    try { await clearVoiceAnchor() }
     catch { /* ignore */ }
   }
 
@@ -685,6 +735,9 @@ export default function App() {
                 cloneRef={cloneRef}
                 onPickCloneFile={onPickCloneFile}
                 onClearClone={onClearClone}
+                voiceAnchor={voiceAnchor}
+                onBakeVoiceAnchor={onBakeVoiceAnchor}
+                onClearVoiceAnchor={onClearVoiceAnchor}
               />
             ) : (
               <ToolsOptionsPanel settings={settings} setSettings={setSettings} />

@@ -42,6 +42,8 @@ export type AppSettings = {
   ttsDurationSec: number | null
   /** Long text split into chunks; approximate chars per chunk */
   ttsChunkMaxChars: number
+  /** Short line spoken when baking a voice anchor (auto/design → consistent chunks) */
+  voiceBakePhrase: string
   /** Which LLM tools are registered with Ollama (see Tools settings tab) */
   toolsEnabled: ToolsEnabled
   /** Where `save_pdf` writes files (no dialog). Empty = tool returns an error until set. */
@@ -68,6 +70,7 @@ const defaults: AppSettings = {
   ttsNumStep: 32,
   ttsDurationSec: null,
   ttsChunkMaxChars: 380,
+  voiceBakePhrase: 'This is my reference voice for consistent synthesis.',
   toolsEnabled: {
     webSearch: false,
     weather: false,

@@ -1,5 +1,77 @@
 import type { AppSettings } from '@/lib/settings'
-import type { ChangeEvent, Dispatch, SetStateAction } from 'react'
+import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
+import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
+
+const OMNIVOICE_VOICE_DESIGN_DOCS =
+  'https://github.com/k2-fsa/OmniVoice/blob/master/docs/voice-design.md'
+
+/** Hover/focus panel — matches OmniVoice docs/voice-design.md */
+function VoiceDescriptInfo() {
+  return (
+    <div className="group relative inline-flex items-center align-middle">
+      <button
+        type="button"
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-void-dim/80 text-[10px] font-mono font-bold text-void-dim transition-colors hover:border-neon-cyan/60 hover:text-neon-cyan focus:outline-none focus-visible:ring-1 focus-visible:ring-neon-cyan/70"
+        aria-label="OmniVoice instruct: hover for gender, age, pitch, accent, dialect"
+      >
+        i
+      </button>
+      <div
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-[100] mt-0 hidden w-[min(92vw,22rem)] group-hover:pointer-events-auto group-hover:block group-focus-within:pointer-events-auto group-focus-within:block"
+      >
+        <div className="mt-1 max-h-[min(70vh,26rem)] overflow-y-auto rounded border border-neon-purple/35 bg-void-black p-3 text-left text-xs leading-snug text-void-text shadow-lg">
+          <p className="font-mono text-neon-purple text-[11px] uppercase tracking-wide">
+            OmniVoice instruct
+          </p>
+          <p className="mt-2 text-void-dim">
+            Comma-separated traits; pick at most one value per category. You can mix
+            English and Chinese — the model normalises it.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-void-text">
+            <li>
+              <span className="text-neon-cyan">Gender:</span> male, female (男, 女)
+            </li>
+            <li>
+              <span className="text-neon-cyan">Age:</span> child, teenager, young adult,
+              middle-aged, elderly
+            </li>
+            <li>
+              <span className="text-neon-cyan">Pitch:</span> very low → very high pitch
+              (极低音调 … 极高音调)
+            </li>
+            <li>
+              <span className="text-neon-cyan">Style:</span> whisper
+            </li>
+            <li>
+              <span className="text-neon-cyan">English accent</span> (English text only):
+              american, british, australian, canadian, indian, chinese, korean, japanese,
+              portuguese, russian
+            </li>
+            <li>
+              <span className="text-neon-cyan">Chinese dialect</span> (Chinese text only):
+              e.g. 四川话, 东北话, 河南话, 陕西话, …
+            </li>
+          </ul>
+          <p className="mt-2 font-mono text-[11px] text-neon-green/90">
+            female, young adult, high pitch, british accent
+          </p>
+          <p className="mt-1 text-void-dim">
+            Omit traits you do not care about; matching is case-insensitive.
+          </p>
+          <a
+            href={OMNIVOICE_VOICE_DESIGN_DOCS}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pointer-events-auto mt-2 inline-block text-neon-cyan underline decoration-neon-cyan/30 underline-offset-2 hover:decoration-neon-cyan"
+          >
+            Full attribute list (OmniVoice docs)
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type Props = {
   settings: AppSettings
@@ -8,6 +80,9 @@ type Props = {
   cloneRef: { blob: Blob; fileName: string } | null
   onPickCloneFile: (e: ChangeEvent<HTMLInputElement>) => void
   onClearClone: () => void
+  voiceAnchor: StoredVoiceAnchor | null
+  onBakeVoiceAnchor: () => Promise<void>
+  onClearVoiceAnchor: () => Promise<void>
 }
 
 export function TtsOptionsPanel({
@@ -17,7 +92,17 @@ export function TtsOptionsPanel({
   cloneRef,
   onPickCloneFile,
   onClearClone,
+  voiceAnchor,
+  onBakeVoiceAnchor,
+  onClearVoiceAnchor,
 }: Props) {
+  const [bakeBusy, setBakeBusy] = useState(false)
+  const instructStale =
+    voiceAnchor &&
+    settings.voiceMode === 'design' &&
+    voiceAnchor.sourceMode === 'design' &&
+    (voiceAnchor.instructSnapshot ?? '') !== settings.voiceInstruct.trim()
+
   return (
     <div className="grid gap-4 text-sm">
       {/* Server URL */}
@@ -95,8 +180,12 @@ export function TtsOptionsPanel({
       {/* Voice Design Instruct */}
       {settings.voiceMode === 'design' && (
         <div className="form-group">
-          <label className="form-label">
-            <span className="text-neon-purple">◇</span> VOICE_DESCRIPT
+          <label className="form-label flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-neon-purple">◇</span>
+              <span>VOICE_DESCRIPT</span>
+            </span>
+            <VoiceDescriptInfo />
           </label>
           <input
             className="cyber-input"
@@ -106,6 +195,65 @@ export function TtsOptionsPanel({
             }
             placeholder="e.g. female, British accent, calm"
           />
+        </div>
+      )}
+
+      {(settings.voiceMode === 'auto' || settings.voiceMode === 'design') && (
+        <div className="bg-void-black/50 border border-neon-cyan/25 p-4">
+          <p className="text-xs font-mono text-neon-cyan mb-2 uppercase tracking-wider">
+            <span className="mr-2">◇</span>VOICE_ANCHOR
+          </p>
+          <p className="text-xs text-void-dim mb-3">
+            Bake a short line once; long reads use it as a clone reference so every
+            chunk keeps the same voice (auto/design are random per request otherwise).
+          </p>
+          <div className="form-group">
+            <label className="form-label text-void-dim">BAKE_PHRASE</label>
+            <input
+              className="cyber-input"
+              value={settings.voiceBakePhrase}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, voiceBakePhrase: e.target.value }))
+              }
+              placeholder="Short line matching your language"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <button
+              type="button"
+              className="cyber-btn text-xs"
+              disabled={bakeBusy}
+              onClick={() => {
+                setBakeBusy(true)
+                void onBakeVoiceAnchor().finally(() => setBakeBusy(false))
+              }}
+            >
+              {bakeBusy ? 'BAKING…' : 'BAKE_LOCK_VOICE'}
+            </button>
+            {voiceAnchor && (
+              <button
+                type="button"
+                className="text-xs text-neon-red hover:underline font-mono"
+                onClick={() => void onClearVoiceAnchor()}
+              >
+                CLEAR_ANCHOR
+              </button>
+            )}
+          </div>
+          {voiceAnchor ? (
+            <p className="text-xs font-mono text-neon-green mt-2">
+              Locked — ref: “{voiceAnchor.refText.slice(0, 48)}
+              {voiceAnchor.refText.length > 48 ? '…' : ''}”
+            </p>
+          ) : (
+            <p className="text-xs text-void-dim mt-2">No anchor — per-chunk variation</p>
+          )}
+          {instructStale ? (
+            <p className="text-xs text-neon-yellow mt-2">
+              Voice description changed since bake — bake again to match the new
+              instruct.
+            </p>
+          ) : null}
         </div>
       )}
 
