@@ -197,7 +197,6 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ttsOk, setTtsOk] = useState<boolean | null>(null)
-  const [ttsDetail, setTtsDetail] = useState<string | undefined>(undefined)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
@@ -253,11 +252,9 @@ export default function App() {
       const h = await checkTtsHealth(settings.ttsBaseUrl)
       console.log('[VOIDCAST] TTS health result:', h)
       setTtsOk(h.ok)
-      setTtsDetail(h.detail)
     } catch (e) {
       console.error('[VOIDCAST] TTS health check failed:', e)
       setTtsOk(false)
-      setTtsDetail(e instanceof Error ? e.message : String(e))
     }
   }, [settings.ttsBaseUrl])
 
@@ -962,30 +959,6 @@ export default function App() {
 
         {/* Status & Actions */}
         <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
-          {/* TTS Status */}
-          <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2">
-            {ttsOk === true && (
-              <span className="cyber-badge success text-[10px] sm:text-xs whitespace-nowrap">
-                <span className="status-dot online" />
-                <span className="hidden sm:inline">TTS_ONLINE</span>
-                <span className="sm:hidden">TTS</span>
-              </span>
-            )}
-            {ttsOk === false && (
-              <span className="cyber-badge danger text-[10px] sm:text-xs whitespace-nowrap" title={ttsDetail}>
-                <span className="status-dot offline" />
-                <span className="hidden sm:inline">TTS_DOWN</span>
-                <span className="sm:hidden">!</span>
-              </span>
-            )}
-            {ttsOk == null && (
-              <span className="cyber-badge text-[10px] sm:text-xs whitespace-nowrap">
-                <span className="status-dot busy" />
-                <span className="hidden sm:inline">CHECKING...</span>
-                <span className="sm:hidden">…</span>
-              </span>
-            )}
-          </div>
 
           {/* Save Button */}
           {canSaveSession && (

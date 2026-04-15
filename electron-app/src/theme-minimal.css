@@ -244,6 +244,18 @@ html[data-ui-theme='minimal'] .system-status {
   font-family: inherit;
 }
 
+/* Improve clock/readout contrast in minimal theme footer. */
+html[data-ui-theme='minimal'] .system-status .text-void-dim\/50 {
+  color: #a1a1aa;
+  opacity: 0.95;
+}
+
+/* Match TTS status text readability with footer clock. */
+html[data-ui-theme='minimal'] .system-status .status-item {
+  color: #a1a1aa;
+  opacity: 0.95;
+}
+
 html[data-ui-theme='minimal'] .error-banner,
 html[data-ui-theme='minimal'] .tool-result-banner {
   border-radius: 0.375rem;
