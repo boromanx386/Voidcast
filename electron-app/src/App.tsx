@@ -11,6 +11,7 @@ import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
+import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
 import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
 import {
@@ -20,6 +21,7 @@ import {
   TOOLS_WEATHER_HINT,
   TOOLS_SCRAPE_HINT,
   TOOLS_PDF_HINT,
+  TOOLS_RUNWARE_IMAGE_HINT,
   TOOLS_TRUTH_HINT,
   type HistoryTurn,
 } from '@/lib/chatMessages'
@@ -37,6 +39,7 @@ import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
 import { compressConversationContext } from '@/lib/contextCompress'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
+import { invokeSaveImageFromUrl } from '@/lib/saveImage'
 import {
   loadSettings,
   saveSettings,
@@ -62,7 +65,7 @@ import {
 import type { ChatSession, UiMessage } from '@/types/chat'
 
 type Screen = 'chat' | 'options'
-type OptionsTab = 'general' | 'llm' | 'tts' | 'tools'
+type OptionsTab = 'general' | 'llm' | 'runware' | 'tts' | 'tools'
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -117,6 +120,60 @@ function buildRuntimeTimeHint(now = new Date()): string {
   ].join('\n')
 }
 
+const RUNWARE_IMAGE_URL_LINE_RE = /^\s*image_url:\s*(https?:\/\/\S+)\s*$/gim
+const MARKDOWN_IMAGE_URL_RE = /!\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
+const MARKDOWN_LINK_URL_RE = /\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
+const PLAIN_HTTP_URL_RE = /(https?:\/\/[^\s)]+)/gim
+const SAVED_IMAGE_PATH_RE = /^\s*Saved image:\s*(.+)\s*$/gim
+
+function extractRunwareImageUrls(text: string): string[] {
+  const out: string[] = []
+  if (!text.trim()) return out
+  RUNWARE_IMAGE_URL_LINE_RE.lastIndex = 0
+  MARKDOWN_LINK_URL_RE.lastIndex = 0
+  PLAIN_HTTP_URL_RE.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = RUNWARE_IMAGE_URL_LINE_RE.exec(text)) !== null) {
+    const u = (match[1] || '').trim()
+    if (u) out.push(u)
+  }
+  while ((match = MARKDOWN_LINK_URL_RE.exec(text)) !== null) {
+    const u = (match[1] || '').trim()
+    if (u) out.push(u)
+  }
+  while ((match = PLAIN_HTTP_URL_RE.exec(text)) !== null) {
+    const raw = (match[1] || '').trim()
+    const u = raw.replace(/[),.;!?]+$/g, '')
+    if (!u) continue
+    out.push(u)
+  }
+  return Array.from(new Set(out))
+}
+
+function extractMarkdownImageUrls(text: string): string[] {
+  if (!text.trim()) return []
+  MARKDOWN_IMAGE_URL_RE.lastIndex = 0
+  const out: string[] = []
+  let match: RegExpExecArray | null
+  while ((match = MARKDOWN_IMAGE_URL_RE.exec(text)) !== null) {
+    const u = (match[1] || '').trim().replace(/[),.;!?]+$/g, '')
+    if (u) out.push(u)
+  }
+  return Array.from(new Set(out))
+}
+
+function extractSavedImagePaths(text: string): string[] {
+  if (!text.trim()) return []
+  SAVED_IMAGE_PATH_RE.lastIndex = 0
+  const out: string[] = []
+  let match: RegExpExecArray | null
+  while ((match = SAVED_IMAGE_PATH_RE.exec(text)) !== null) {
+    const p = (match[1] || '').trim()
+    if (p) out.push(p)
+  }
+  return Array.from(new Set(out))
+}
+
 // CRT Overlay Component
 function CrtOverlay() {
   return (
@@ -162,6 +219,7 @@ function ToolIndicator({ phase }: { phase: string | null }) {
     weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
     scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrape' },
     pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
+    image: { icon: '◌', label: 'RUNWARE_IMAGE', className: 'image' },
   }
   
   const tool = config[phase] || { icon: '◈', label: phase.toUpperCase(), className: '' }
@@ -201,8 +259,12 @@ export default function App() {
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
-  const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | null>(null)
-  const [toolResultBanner, setToolResultBanner] = useState<string | null>(null)
+  const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | null>(null)
+  const [toolResultBanner, setToolResultBanner] = useState<
+    { kind: 'pdf' | 'image'; text: string } | null
+  >(null)
+  const [assistantGeneratedImages, setAssistantGeneratedImages] = useState<Record<string, string[]>>({})
+  const [assistantSavedImagePaths, setAssistantSavedImagePaths] = useState<Record<string, string[]>>({})
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
@@ -213,6 +275,46 @@ export default function App() {
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const chatImageInputRef = useRef<HTMLInputElement | null>(null)
+
+  const downloadImage = useCallback(async (url: string) => {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Image download failed: HTTP ${res.status}`)
+      const blob = await res.blob()
+      const objUrl = URL.createObjectURL(blob)
+      const fileFromUrl = (() => {
+        try {
+          const p = new URL(url).pathname.split('/').pop() || ''
+          return p.trim()
+        } catch {
+          return ''
+        }
+      })()
+      const safeName = fileFromUrl || `runware-${Date.now()}.jpg`
+      const a = document.createElement('a')
+      a.href = objUrl
+      a.download = safeName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(objUrl)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
+  const openLocalImage = useCallback(async (filePath: string) => {
+    try {
+      const vc = window.voidcast?.openPath
+      if (!vc) throw new Error('Open image is available only in Electron app.')
+      const r: unknown = await vc(filePath)
+      if (typeof r === 'string') return
+      const obj = r as { ok?: boolean; text?: string }
+      if (obj.ok === false) throw new Error(obj.text || 'Failed to open image.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
 
   // Save settings on change
   useEffect(() => {
@@ -232,6 +334,8 @@ export default function App() {
       ? state.sessions.find((s) => s.id === state.activeSessionId)
       : null
     setMessages(active?.messages ?? [])
+    setAssistantGeneratedImages({})
+    setAssistantSavedImagePaths({})
     setHiddenContextSummary(active?.hiddenContextSummary ?? '')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -329,6 +433,8 @@ export default function App() {
     abortRef.current?.abort()
     ttsAbortRef.current?.abort()
     setMessages([])
+    setAssistantGeneratedImages({})
+    setAssistantSavedImagePaths({})
     setHiddenContextSummary('')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -348,6 +454,8 @@ export default function App() {
     abortRef.current?.abort()
     ttsAbortRef.current?.abort()
     setMessages(session.messages)
+    setAssistantGeneratedImages({})
+    setAssistantSavedImagePaths({})
     setHiddenContextSummary(session.hiddenContextSummary ?? '')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -387,9 +495,13 @@ export default function App() {
     if (state.activeSessionId) {
       const next = state.sessions.find((s) => s.id === state.activeSessionId)
       setMessages(next?.messages ?? [])
+      setAssistantGeneratedImages({})
+      setAssistantSavedImagePaths({})
       setHiddenContextSummary(next?.hiddenContextSummary ?? '')
     } else {
       setMessages([])
+      setAssistantGeneratedImages({})
+      setAssistantSavedImagePaths({})
       setHiddenContextSummary('')
     }
     setContextUsageInfo(null)
@@ -533,6 +645,7 @@ export default function App() {
     if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
     if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
     if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
+    if (settings.toolsEnabled.runwareImage) toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
     if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     const history = buildOllamaMessages(
       priorHistory,
@@ -550,6 +663,7 @@ export default function App() {
     const ac = new AbortController()
     abortRef.current = ac
     let replyText = ''
+  const runwareImageUrlsFromTools: string[] = []
     let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
 
     try {
@@ -562,10 +676,68 @@ export default function App() {
           toolsEnabled: settings.toolsEnabled,
           ttsBaseUrl: settings.ttsBaseUrl,
           pdfOutputDir: settings.pdfOutputDir,
+          runware: {
+            apiBaseUrl: settings.runwareApiBaseUrl,
+            apiKey: settings.runwareApiKey,
+            proxyBaseUrl: settings.ttsBaseUrl,
+            model: settings.runwareImageModel,
+            width: settings.runwareWidth,
+            height: settings.runwareHeight,
+            steps: settings.runwareSteps,
+            cfgScale: settings.runwareCfgScale,
+            negativePrompt: settings.runwareNegativePrompt,
+          },
           signal: ac.signal,
           onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
           onToolPhase: (phase) => setToolPhase(phase as typeof toolPhase),
-          onToolResult: ({ name, result }) => { if (name === 'save_pdf') setToolResultBanner(result) },
+          onToolResult: ({ name, result }) => {
+            if (name === 'save_pdf') {
+              setToolResultBanner({ kind: 'pdf', text: result })
+            } else if (name === 'generate_image') {
+              setToolResultBanner({ kind: 'image', text: result })
+            }
+            if (name === 'generate_image') {
+              const urls = extractRunwareImageUrls(result)
+              for (const u of urls) {
+                if (!runwareImageUrlsFromTools.includes(u)) {
+                  runwareImageUrlsFromTools.push(u)
+                }
+              }
+              if (urls.length > 0) {
+                setAssistantGeneratedImages((prev) => {
+                  const cur = prev[asstId] || []
+                  const next = Array.from(new Set([...cur, ...urls]))
+                  return { ...prev, [asstId]: next }
+                })
+                if (settings.runwareAutoSaveImages && settings.runwareImageOutputDir.trim()) {
+                  void (async () => {
+                    const saved: string[] = []
+                    for (const u of urls) {
+                      const txt = await invokeSaveImageFromUrl({
+                        imageUrl: u,
+                        outputDir: settings.runwareImageOutputDir,
+                      }).catch((e) => (e instanceof Error ? e.message : String(e)))
+                      saved.push(txt)
+                    }
+                    if (saved.length > 0) {
+                      const savedPaths = extractSavedImagePaths(saved.join('\n'))
+                      if (savedPaths.length > 0) {
+                        setAssistantSavedImagePaths((prev) => {
+                          const cur = prev[asstId] || []
+                          const next = Array.from(new Set([...cur, ...savedPaths]))
+                          return { ...prev, [asstId]: next }
+                        })
+                      }
+                      setToolResultBanner({
+                        kind: 'image',
+                        text: `${result}\n${saved.join('\n')}`,
+                      })
+                    }
+                  })()
+                }
+              }
+            }
+          },
         })
         replyText = out.content
         usage = out.usage
@@ -585,6 +757,20 @@ export default function App() {
       const usageInfo = estimateContextUsage(usage, settings.llmNumCtx)
       setContextUsageInfo(usageInfo)
       if (usageInfo?.shouldWarn) setContextWarnDismissed(false)
+
+      if (runwareImageUrlsFromTools.length > 0) {
+        const present = new Set(extractRunwareImageUrls(replyText))
+        const missing = runwareImageUrlsFromTools.filter((u) => !present.has(u))
+        if (missing.length > 0) {
+          const block = missing.map((u) => `image_url: ${u}`).join('\n')
+          replyText = replyText.trim()
+            ? `${replyText.trim()}\n\nGenerated image URL(s):\n${block}`
+            : `Generated image URL(s):\n${block}`
+          setMessages((prev) =>
+            prev.map((m) => (m.id === asstId ? { ...m, content: replyText } : m)),
+          )
+        }
+      }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       const msg = e instanceof Error ? e.message : String(e)
@@ -870,7 +1056,7 @@ export default function App() {
 
         {/* Tabs */}
         <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['general', 'llm', 'tts', 'tools'] as OptionsTab[]).map((tab) => (
+          {(['general', 'llm', 'runware', 'tts', 'tools'] as OptionsTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -879,6 +1065,7 @@ export default function App() {
             >
               {tab === 'general' && '◆ GENERAL'}
               {tab === 'llm' && '◇ LLM'}
+              {tab === 'runware' && '◌ RUNWARE'}
               {tab === 'tts' && '◉ TTS'}
               {tab === 'tools' && '⬡ TOOLS'}
             </button>
@@ -916,6 +1103,8 @@ export default function App() {
                 onBakeVoiceAnchor={onBakeVoiceAnchor}
                 onClearVoiceAnchor={onClearVoiceAnchor}
               />
+            ) : optionsTab === 'runware' ? (
+              <RunwareOptionsPanel settings={settings} setSettings={setSettings} />
             ) : (
               <ToolsOptionsPanel settings={settings} setSettings={setSettings} />
             )}
@@ -1050,6 +1239,16 @@ export default function App() {
               >
                 <span className="text-neon-magenta">◉</span>
                 <span className="font-mono text-sm">TTS_SETTINGS</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openOptions('runware')}
+                className="flex items-center gap-3 rounded px-4 py-3 text-left
+                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
+              >
+                <span className="text-neon-green">◌</span>
+                <span className="font-mono text-sm">RUNWARE_IMAGE</span>
               </button>
               
               <button
@@ -1209,7 +1408,57 @@ export default function App() {
                 
                 {/* Content */}
                 {m.role === 'assistant' ? (
-                  <ChatMarkdown content={m.content} />
+                  <div className="space-y-3">
+                    <ChatMarkdown content={m.content} />
+                    {(() => {
+                      const markdownImageUrls = new Set(extractMarkdownImageUrls(m.content))
+                      const inlineImageUrls = Array.from(
+                        new Set([
+                          ...(assistantGeneratedImages[m.id] || []),
+                          ...extractRunwareImageUrls(m.content),
+                        ]),
+                      ).filter((u) => !markdownImageUrls.has(u))
+                      return inlineImageUrls.length > 0 ? (
+                      <div className="flex flex-wrap gap-3">
+                        {inlineImageUrls.map((url, i) => (
+                          <div
+                            key={`${m.id}-runware-${i}`}
+                            className="rounded border border-void-muted/40 p-2 bg-void-black/30"
+                          >
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block"
+                            >
+                              <img
+                                src={url}
+                                alt="Generated"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                                className="max-h-64 max-w-full rounded border border-void-muted/40 object-contain"
+                              />
+                            </a>
+                            <div className="mt-2 flex gap-2">
+                              {!settings.runwareAutoSaveImages && (
+                                <button
+                                  type="button"
+                                  onClick={() => void downloadImage(url)}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                                    border border-neon-green/30 text-neon-green
+                                    hover:bg-neon-green/10 hover:border-neon-green/50
+                                    transition-all"
+                                >
+                                  ⬇ DOWNLOAD
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      ) : null
+                    })()}
+                  </div>
                 ) : (
                   <div className="text-void-white whitespace-pre-wrap break-words space-y-2">
                     {m.images && m.images.length > 0 && (
@@ -1254,6 +1503,22 @@ export default function App() {
                       </span>
                       {playingId === m.id ? 'SYNTHESIZING...' : 'SPEAK'}
                     </button>
+                    {assistantSavedImagePaths[m.id]?.length ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void openLocalImage(
+                            assistantSavedImagePaths[m.id][assistantSavedImagePaths[m.id].length - 1],
+                          )
+                        }
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                          border border-neon-green/30 text-neon-green
+                          hover:bg-neon-green/10 hover:border-neon-green/50
+                          transition-all"
+                      >
+                        🖼 OPEN IMG
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -1288,10 +1553,10 @@ export default function App() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-xs font-mono text-neon-green/70 uppercase tracking-wider">
-                PDF_EXPORT_RESULT
+                {toolResultBanner.kind === 'image' ? 'RUNWARE_IMAGE_RESULT' : 'PDF_EXPORT_RESULT'}
               </div>
               <div className="mt-1 whitespace-pre-wrap break-all text-xs font-mono">
-                {toolResultBanner}
+                {toolResultBanner.text}
               </div>
             </div>
             <button

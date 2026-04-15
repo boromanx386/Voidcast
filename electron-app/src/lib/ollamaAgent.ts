@@ -6,6 +6,7 @@ import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
 import { invokeSavePdf } from '@/lib/savePdf'
 import { invokeYoutubeTool } from '@/lib/youtubeTool'
+import { invokeRunwareImage, type RunwareImageConfig } from '@/lib/runware'
 import type {
   OllamaApiMessage,
   OllamaChatUsage,
@@ -144,6 +145,7 @@ async function executeToolCall(
     signal?: AbortSignal
     /** Required for save_pdf when the tool is enabled */
     pdfOutputDir?: string
+    runware?: RunwareImageConfig
   },
 ): Promise<string> {
   const args =
@@ -236,6 +238,48 @@ async function executeToolCall(
     const filename = typeof args.filename === 'string' ? args.filename : undefined
     try {
       return await invokeSavePdf({ content, title, filename, outputDir: dir })
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+  if (name === 'generate_image') {
+    if (!toolsEnabled.runwareImage) {
+      return 'Error: generate_image tool is disabled in settings.'
+    }
+    if (!ctx.runware) {
+      return 'Error: Runware settings are missing.'
+    }
+    const prompt =
+      typeof args.prompt === 'string'
+        ? args.prompt.trim()
+        : typeof args.positivePrompt === 'string'
+          ? args.positivePrompt.trim()
+          : ''
+    if (!prompt) return 'Error: missing prompt parameter for generate_image.'
+    try {
+      return await invokeRunwareImage(
+        {
+          prompt,
+          negativePrompt:
+            typeof args.negative_prompt === 'string'
+              ? args.negative_prompt
+              : typeof args.negativePrompt === 'string'
+                ? args.negativePrompt
+                : undefined,
+          width: typeof args.width === 'number' ? args.width : undefined,
+          height: typeof args.height === 'number' ? args.height : undefined,
+          steps: typeof args.steps === 'number' ? args.steps : undefined,
+          cfgScale:
+            typeof args.cfg_scale === 'number'
+              ? args.cfg_scale
+              : typeof args.cfgScale === 'number'
+                ? args.cfgScale
+                : undefined,
+          model: typeof args.model === 'string' ? args.model : undefined,
+        },
+        ctx.runware,
+        ctx.signal,
+      )
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }
@@ -371,6 +415,7 @@ export type RunChatWithToolsParams = {
       | 'weather'
       | 'scrape'
       | 'pdf'
+      | 'image'
       | 'other'
       | null,
   ) => void
@@ -378,6 +423,7 @@ export type RunChatWithToolsParams = {
   pdfOutputDir?: string
   /** After each tool runs; use to show real outcomes (e.g. PDF path) in the UI. */
   onToolResult?: (payload: { name: string; result: string }) => void
+  runware?: RunwareImageConfig
 }
 
 /**
@@ -442,6 +488,7 @@ export async function runOllamaChatWithTools(
               ttsBaseUrl: params.ttsBaseUrl,
               signal: params.signal,
               pdfOutputDir: params.pdfOutputDir,
+              runware: params.runware,
             },
           )
           messages.push({
@@ -485,6 +532,7 @@ export async function runOllamaChatWithTools(
                 ttsBaseUrl: params.ttsBaseUrl,
                 signal: params.signal,
                 pdfOutputDir: params.pdfOutputDir,
+                runware: params.runware,
               },
             )
             messages.push({
@@ -529,6 +577,7 @@ export async function runOllamaChatWithTools(
       else if (name === 'get_weather') params.onToolPhase?.('weather')
       else if (name === 'scrape_url') params.onToolPhase?.('scrape')
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
+      else if (name === 'generate_image') params.onToolPhase?.('image')
       else params.onToolPhase?.('other')
 
       const result = await executeToolCall(
@@ -539,6 +588,7 @@ export async function runOllamaChatWithTools(
           ttsBaseUrl: params.ttsBaseUrl,
           signal: params.signal,
           pdfOutputDir: params.pdfOutputDir,
+          runware: params.runware,
         },
       )
       messages.push({

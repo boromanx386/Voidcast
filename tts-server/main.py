@@ -117,6 +117,12 @@ class WeatherRequest(BaseModel):
     forecast: bool = False
 
 
+class RunwareProxyRequest(BaseModel):
+    api_base_url: str = Field(default="https://api.runware.ai/v1", min_length=1, max_length=2048)
+    api_key: str = Field(..., min_length=1, max_length=2048)
+    tasks: list[dict[str, Any]] = Field(..., min_length=1, max_length=8)
+
+
 class TtsRequest(BaseModel):
     text: str = Field(..., min_length=1)
     instruct: str | None = None
@@ -493,6 +499,51 @@ async def tools_weather(req: WeatherRequest):
             status_code=503,
             detail=str(e) or "Weather failed",
         ) from e
+
+
+@app.post("/tools/runware_proxy")
+async def tools_runware_proxy(req: RunwareProxyRequest):
+    """Proxy Runware tasks through local server to avoid renderer CORS/network issues."""
+    base = req.api_base_url.strip().rstrip("/")
+    if not base:
+        raise HTTPException(status_code=400, detail="api_base_url is required")
+    if not base.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Runware base URL must use https://")
+    key = req.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="api_key is required")
+    if not req.tasks:
+        raise HTTPException(status_code=400, detail="tasks must not be empty")
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=20.0)) as client:
+            r = await client.post(
+                base,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {key}",
+                },
+                json=req.tasks,
+            )
+        data = r.json() if r.content else {}
+        if not r.is_success:
+            detail = "Runware request failed"
+            if isinstance(data, dict):
+                errs = data.get("errors")
+                if isinstance(errs, list) and errs and isinstance(errs[0], dict):
+                    msg = errs[0].get("message")
+                    if isinstance(msg, str) and msg.strip():
+                        detail = msg.strip()
+                else:
+                    msg = data.get("message") or data.get("error")
+                    if isinstance(msg, str) and msg.strip():
+                        detail = msg.strip()
+            raise HTTPException(status_code=502, detail=detail)
+        return {"ok": True, "data": data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("tools/runware_proxy failed: %s", e)
+        raise HTTPException(status_code=503, detail=str(e) or "Runware proxy failed") from e
 
 
 @app.api_route(

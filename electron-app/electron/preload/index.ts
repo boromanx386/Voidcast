@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('voidcast', {
     filename?: string
     outputDir: string
   }) => ipcRenderer.invoke('voidcast:save-pdf', payload),
+  saveImageFromUrl: (payload: {
+    imageUrl: string
+    outputDir: string
+    filename?: string
+  }) => ipcRenderer.invoke('voidcast:save-image-from-url', payload),
+  openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
   pickDirectory: () =>
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }

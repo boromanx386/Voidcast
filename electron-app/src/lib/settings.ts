@@ -13,6 +13,8 @@ export type ToolsEnabled = {
   pdf: boolean
   /** YouTube search / video info / transcript (TTS server: yt-dlp + transcript API) */
   youtube: boolean
+  /** Generate images via Runware API */
+  runwareImage: boolean
 }
 
 export type AppSettings = {
@@ -53,6 +55,26 @@ export type AppSettings = {
   pdfOutputDir: string
   /** Visual chrome: cyberpunk shell vs calmer zinc/indigo layout */
   uiTheme: UiTheme
+  /** Runware REST base URL */
+  runwareApiBaseUrl: string
+  /** Runware API key (stored locally on this device) */
+  runwareApiKey: string
+  /** Default Runware model id for text-to-image */
+  runwareImageModel: string
+  /** Default output width for generated images */
+  runwareWidth: number
+  /** Default output height for generated images */
+  runwareHeight: number
+  /** Default inference steps for image generation */
+  runwareSteps: number
+  /** Default guidance scale (model-dependent effect) */
+  runwareCfgScale: number
+  /** Optional default negative prompt */
+  runwareNegativePrompt: string
+  /** Auto-save generated Runware images to this folder (desktop app). */
+  runwareImageOutputDir: string
+  /** If true, each generated image is saved automatically to output folder. */
+  runwareAutoSaveImages: boolean
 }
 
 import {
@@ -88,9 +110,20 @@ const defaults: AppSettings = {
     scrape: false,
     pdf: false,
     youtube: false,
+    runwareImage: false,
   },
   pdfOutputDir: '',
   uiTheme: 'dystopian',
+  runwareApiBaseUrl: 'https://api.runware.ai/v1',
+  runwareApiKey: '',
+  runwareImageModel: 'runware:101@1',
+  runwareWidth: 1024,
+  runwareHeight: 1024,
+  runwareSteps: 30,
+  runwareCfgScale: 7,
+  runwareNegativePrompt: '',
+  runwareImageOutputDir: '',
+  runwareAutoSaveImages: false,
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -110,6 +143,10 @@ function normalizeTools(s: AppSettings): AppSettings {
       pdf: typeof te?.pdf === 'boolean' ? te.pdf : defaults.toolsEnabled.pdf,
       youtube:
         typeof te?.youtube === 'boolean' ? te.youtube : defaults.toolsEnabled.youtube,
+      runwareImage:
+        typeof te?.runwareImage === 'boolean'
+          ? te.runwareImage
+          : defaults.toolsEnabled.runwareImage,
     },
   }
 }
@@ -144,8 +181,47 @@ function normalizeUiTheme(s: AppSettings): AppSettings {
   return { ...s, uiTheme }
 }
 
+function normalizeRunware(s: AppSettings): AppSettings {
+  const width = Number(s.runwareWidth)
+  const height = Number(s.runwareHeight)
+  const steps = Number(s.runwareSteps)
+  const cfg = Number(s.runwareCfgScale)
+  const apiBase = typeof s.runwareApiBaseUrl === 'string'
+    ? s.runwareApiBaseUrl.trim()
+    : ''
+  const apiKey = typeof s.runwareApiKey === 'string' ? s.runwareApiKey.trim() : ''
+  const model =
+    typeof s.runwareImageModel === 'string' && s.runwareImageModel.trim()
+      ? s.runwareImageModel.trim()
+      : defaults.runwareImageModel
+  const negative =
+    typeof s.runwareNegativePrompt === 'string' ? s.runwareNegativePrompt : ''
+  const outputDir =
+    typeof s.runwareImageOutputDir === 'string' ? s.runwareImageOutputDir.trim() : ''
+  return {
+    ...s,
+    runwareApiBaseUrl: apiBase || defaults.runwareApiBaseUrl,
+    runwareApiKey: apiKey,
+    runwareImageModel: model,
+    runwareWidth: Number.isFinite(width) ? clamp(Math.round(width), 256, 2048) : defaults.runwareWidth,
+    runwareHeight: Number.isFinite(height)
+      ? clamp(Math.round(height), 256, 2048)
+      : defaults.runwareHeight,
+    runwareSteps: Number.isFinite(steps) ? clamp(Math.round(steps), 1, 80) : defaults.runwareSteps,
+    runwareCfgScale: Number.isFinite(cfg) ? clamp(cfg, 0, 30) : defaults.runwareCfgScale,
+    runwareNegativePrompt: negative,
+    runwareImageOutputDir: outputDir,
+    runwareAutoSaveImages:
+      typeof s.runwareAutoSaveImages === 'boolean'
+        ? s.runwareAutoSaveImages
+        : defaults.runwareAutoSaveImages,
+  }
+}
+
 function normalizeAll(s: AppSettings): AppSettings {
-  return normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeLlm(s))))
+  return normalizeRunware(
+    normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeLlm(s)))),
+  )
 }
 
 /** On phone browser, localhost / 127.0.0.1 point at the device — never reach the desktop server. */

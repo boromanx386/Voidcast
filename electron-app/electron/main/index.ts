@@ -16,7 +16,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
-import { readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
 import { savePdfToFolder } from './pdf'
@@ -393,6 +393,85 @@ ipcMain.handle(
   },
 )
 
+function sanitizeBaseName(input: string): string {
+  const clean = input
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return clean || 'runware-image'
+}
+
+function extFromContentType(contentType: string): string {
+  const ct = contentType.toLowerCase()
+  if (ct.includes('image/png')) return '.png'
+  if (ct.includes('image/webp')) return '.webp'
+  if (ct.includes('image/gif')) return '.gif'
+  if (ct.includes('image/jpeg') || ct.includes('image/jpg')) return '.jpg'
+  return '.jpg'
+}
+
+async function nextAvailablePath(outputDir: string, baseName: string, ext: string): Promise<string> {
+  for (let i = 0; i < 500; i++) {
+    const suffix = i === 0 ? '' : `-${i + 1}`
+    const candidate = path.join(outputDir, `${baseName}${suffix}${ext}`)
+    try {
+      await stat(candidate)
+      continue
+    } catch {
+      return candidate
+    }
+  }
+  return path.join(outputDir, `${baseName}-${Date.now()}${ext}`)
+}
+
+ipcMain.handle(
+  'voidcast:save-image-from-url',
+  async (
+    _evt,
+    payload: {
+      imageUrl?: string
+      outputDir?: string
+      filename?: string
+    },
+  ) => {
+    try {
+      const imageUrl = String(payload?.imageUrl ?? '').trim()
+      const outputDir = String(payload?.outputDir ?? '').trim()
+      if (!imageUrl) return { ok: false, text: 'Missing imageUrl' }
+      if (!outputDir) return { ok: false, text: 'Missing outputDir' }
+      await mkdir(outputDir, { recursive: true })
+
+      const res = await fetch(imageUrl)
+      if (!res.ok) {
+        return { ok: false, text: `Image download failed: HTTP ${res.status}` }
+      }
+      const ab = await res.arrayBuffer()
+      const contentType = res.headers.get('content-type') || 'image/jpeg'
+
+      const urlName = (() => {
+        try {
+          const p = new URL(imageUrl).pathname
+          return path.basename(p) || ''
+        } catch {
+          return ''
+        }
+      })()
+      const inputBase = String(payload?.filename ?? '').trim()
+      const fallbackBase = `runware-image-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      const chosenBase = sanitizeBaseName(
+        inputBase || path.basename(urlName, path.extname(urlName)) || fallbackBase,
+      )
+      const ext = path.extname(urlName) || extFromContentType(contentType)
+      const outPath = await nextAvailablePath(outputDir, chosenBase, ext)
+
+      await writeFile(outPath, Buffer.from(ab))
+      return { ok: true, text: `Saved image: ${outPath}` }
+    } catch (e) {
+      return { ok: false, text: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
 ipcMain.handle('voidcast:pick-directory', async () => {
   const opts: OpenDialogOptions = {
     title: 'Choose folder for PDFs',
@@ -562,4 +641,16 @@ ipcMain.handle('voidcast:get-lan-network-info', () => {
     }
   }
   return { ips: [...new Set(ips)] }
+})
+
+ipcMain.handle('voidcast:open-path', async (_evt, filePath: string) => {
+  const p = String(filePath ?? '').trim()
+  if (!p) return { ok: false, text: 'Missing file path' }
+  try {
+    const err = await shell.openPath(p)
+    if (err) return { ok: false, text: err }
+    return { ok: true, text: `Opened: ${p}` }
+  } catch (e) {
+    return { ok: false, text: e instanceof Error ? e.message : String(e) }
+  }
 })

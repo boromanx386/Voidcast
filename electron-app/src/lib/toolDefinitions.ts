@@ -141,6 +141,49 @@ const SEARCH_YOUTUBE_TOOL: OllamaToolDefinition = {
   },
 }
 
+const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'generate_image',
+    description:
+      'Generate an image with Runware from a text prompt. Use when the user asks to create an image, illustration, render, poster, logo, wallpaper, concept art, or similar visual asset.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Primary text prompt describing the image to generate.',
+        },
+        negative_prompt: {
+          type: 'string',
+          description: 'Optional negative prompt for elements to avoid.',
+        },
+        width: {
+          type: 'number',
+          description: 'Optional output width in pixels.',
+        },
+        height: {
+          type: 'number',
+          description: 'Optional output height in pixels.',
+        },
+        steps: {
+          type: 'number',
+          description: 'Optional number of inference steps.',
+        },
+        cfg_scale: {
+          type: 'number',
+          description: 'Optional guidance scale.',
+        },
+        model: {
+          type: 'string',
+          description: 'Optional Runware model id override.',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
@@ -148,6 +191,7 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
   if (enabled.pdf) out.push(SAVE_PDF_TOOL)
+  if (enabled.runwareImage) out.push(GENERATE_IMAGE_TOOL)
   return out
 }
 
@@ -157,6 +201,7 @@ export function anyToolEnabled(enabled: ToolsEnabled): boolean {
     enabled.youtube ||
     enabled.weather ||
     enabled.scrape ||
-    enabled.pdf
+    enabled.pdf ||
+    enabled.runwareImage
   )
 }

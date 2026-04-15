@@ -30,6 +30,12 @@ interface Window {
       filename?: string
       outputDir: string
     }) => Promise<{ ok: boolean; text: string } | string>
+    saveImageFromUrl: (payload: {
+      imageUrl: string
+      outputDir: string
+      filename?: string
+    }) => Promise<{ ok: boolean; text: string } | string>
+    openPath: (filePath: string) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
     /** Electron: native dialog + base64; absent in web build. */
     pickImages: () => Promise<
