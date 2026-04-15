@@ -1,7 +1,50 @@
 import type { Components } from 'react-markdown'
+import { isValidElement, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
+
+function flattenNodeText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map((n) => flattenNodeText(n)).join('')
+  if (isValidElement(node)) {
+    return flattenNodeText((node.props as { children?: ReactNode }).children)
+  }
+  return ''
+}
+
+function CodeBlock({ children }: { children: ReactNode }) {
+  const [copied, setCopied] = useState(false)
+
+  const onCopy = async () => {
+    const text = flattenNodeText(children).replace(/\n$/, '')
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1200)
+    } catch {
+      /* clipboard may be blocked; no-op */
+    }
+  }
+
+  return (
+    <div className="relative mb-3 last:mb-0">
+      <button
+        type="button"
+        onClick={() => void onCopy()}
+        className="absolute right-2 top-2 z-10 rounded border border-void-dim/50 bg-void-black/90 px-2 py-0.5 text-[10px] font-mono text-void-dim hover:border-neon-cyan/50 hover:text-neon-cyan transition-colors"
+        aria-label="Copy code block"
+      >
+        {copied ? 'COPIED' : 'COPY'}
+      </button>
+      <pre className="overflow-x-auto rounded bg-void-black border border-void-dim/30 p-4 pr-16 text-xs leading-relaxed">
+        {children}
+      </pre>
+    </div>
+  )
+}
 
 const components: Components = {
   p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
@@ -59,11 +102,7 @@ const components: Components = {
       {children}
     </a>
   ),
-  pre: ({ children }) => (
-    <pre className="mb-3 overflow-x-auto rounded bg-void-black border border-void-dim/30 p-4 text-xs leading-relaxed last:mb-0">
-      {children}
-    </pre>
-  ),
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
   code: ({ className, children, ...props }) => {
     const isBlock = Boolean(className?.includes('language-'))
     if (isBlock) {

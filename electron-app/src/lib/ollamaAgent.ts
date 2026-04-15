@@ -15,6 +15,9 @@ import type {
 import { mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 
 const MAX_TOOL_ROUNDS = 5
+const HTTP_URL_RE = /(https?:\/\/[^\s)]+)(?=[\s)]|$)/i
+const FRESHNESS_RE =
+  /\b(today|latest|recent|newest|breaking|update|updates|news|current|currently|202\d|danas|najnovije|trenutno|vesti)\b/i
 
 function compactModelOptions(
   o: OllamaModelOptions | undefined,
@@ -105,6 +108,31 @@ function normalizeToolCallsForReplay(calls: OllamaToolCall[]): OllamaToolCall[] 
         arguments: argumentsStringToObject(tc.function!.arguments),
       },
     }))
+}
+
+function getLastUserText(messages: OllamaApiMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === 'user') return (m.content || '').trim()
+  }
+  return ''
+}
+
+function pickFirstHttpUrl(text: string): string | null {
+  const m = text.match(HTTP_URL_RE)
+  return m?.[1]?.trim() || null
+}
+
+function shouldForceWebSearch(userText: string): boolean {
+  if (!userText.trim()) return false
+  return FRESHNESS_RE.test(userText)
+}
+
+function deriveSearchQuery(userText: string): string {
+  const noUrls = userText.replace(/https?:\/\/\S+/gi, ' ')
+  const single = noUrls.replace(/\s+/g, ' ').trim()
+  if (!single) return userText.slice(0, 220).trim()
+  return single.length > 220 ? single.slice(0, 220).trim() : single
 }
 
 async function executeToolCall(
@@ -366,6 +394,11 @@ export async function runOllamaChatWithTools(
   const messages: OllamaApiMessage[] = [...params.initialMessages]
   let lastAssistantText = ''
   let lastUsage: OllamaChatUsage | undefined
+  let forcedWebDone = false
+  let forcedScrapeDone = false
+  const originalUserText = getLastUserText(messages)
+  const originalUserUrl = pickFirstHttpUrl(originalUserText)
+  const originalNeedsFresh = shouldForceWebSearch(originalUserText)
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (params.signal?.aborted) {
@@ -390,6 +423,96 @@ export async function runOllamaChatWithTools(
 
     const validCalls = tool_calls.filter((t) => t.function?.name)
     if (validCalls.length === 0) {
+      // If model skipped tools on the first round, apply one forced call when
+      // user's request clearly needs it (URL scrape or time-sensitive web search).
+      if (round === 0) {
+        if (
+          !forcedScrapeDone &&
+          params.toolsEnabled.scrape &&
+          typeof originalUserUrl === 'string' &&
+          originalUserUrl.length > 0
+        ) {
+          forcedScrapeDone = true
+          params.onToolPhase?.('scrape')
+          const result = await executeToolCall(
+            'scrape_url',
+            { url: originalUserUrl, max_chars: 40000 },
+            params.toolsEnabled,
+            {
+              ttsBaseUrl: params.ttsBaseUrl,
+              signal: params.signal,
+              pdfOutputDir: params.pdfOutputDir,
+            },
+          )
+          messages.push({
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                type: 'function',
+                function: {
+                  name: 'scrape_url',
+                  arguments: { url: originalUserUrl, max_chars: 40000 },
+                },
+              },
+            ],
+          })
+          messages.push({
+            role: 'tool',
+            tool_name: 'scrape_url',
+            content: result,
+          })
+          params.onToolResult?.({ name: 'scrape_url', result })
+          params.onToolPhase?.(null)
+          lastAssistantText = ''
+          params.onDelta('')
+          continue
+        }
+        if (
+          !forcedWebDone &&
+          params.toolsEnabled.webSearch &&
+          originalNeedsFresh
+        ) {
+          const forcedQuery = deriveSearchQuery(originalUserText)
+          if (forcedQuery) {
+            forcedWebDone = true
+            params.onToolPhase?.('search')
+            const result = await executeToolCall(
+              'web_search',
+              { query: forcedQuery },
+              params.toolsEnabled,
+              {
+                ttsBaseUrl: params.ttsBaseUrl,
+                signal: params.signal,
+                pdfOutputDir: params.pdfOutputDir,
+              },
+            )
+            messages.push({
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                {
+                  type: 'function',
+                  function: {
+                    name: 'web_search',
+                    arguments: { query: forcedQuery },
+                  },
+                },
+              ],
+            })
+            messages.push({
+              role: 'tool',
+              tool_name: 'web_search',
+              content: result,
+            })
+            params.onToolResult?.({ name: 'web_search', result })
+            params.onToolPhase?.(null)
+            lastAssistantText = ''
+            params.onDelta('')
+            continue
+          }
+        }
+      }
       return { content, usage: lastUsage }
     }
 

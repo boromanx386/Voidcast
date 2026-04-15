@@ -315,30 +315,71 @@ def _run_youtube_tool(
 
 
 def _search_web_ddgs(query: str) -> str:
-    """Same idea as locAI search_web: text search via ddgs (metasearch)."""
+    """Search web with freshness bias (news + recent text results)."""
     if not _HAS_DDGS or DDGS is None:
         raise RuntimeError("ddgs is not installed (pip install ddgs)")
     q = query.strip()
     if not q:
         return "Empty query."
     current_year = datetime.now().year
-    q = re.sub(r"\b(20\d{2})\b", str(current_year), q)
-    with DDGS(timeout=20) as ddgs:  # type: ignore[misc]
-        results = list(ddgs.text(q, max_results=10))
-    if not results:
-        return "No results found."
+    q_norm = re.sub(r"\b(20\d{2})\b", str(current_year), q)
+    q_recent = f"{q_norm} {current_year}"
     out: list[str] = []
-    for r in results:
-        body = (r.get("body") or "").strip()
+    seen_links: set[str] = set()
+
+    def _append_result(r: dict[str, Any], source: str) -> None:
+        if len(out) >= 8:
+            return
+        title = str(r.get("title") or "").strip()
+        body = str(r.get("body") or "").strip()
+        link = str(r.get("href") or r.get("url") or "").strip()
+        if not link:
+            return
+        key = link.lower()
+        if key in seen_links:
+            return
         if len(body) < 15:
-            continue
-        title = r.get("title") or ""
-        link = r.get("href") or r.get("url") or ""
-        out.append(f"{title}\n{body[:400]}\n{link}")
-        if len(out) >= 7:
-            break
+            return
+        seen_links.add(key)
+        date_raw = str(
+            r.get("date")
+            or r.get("published")
+            or r.get("publishedAt")
+            or r.get("source_date")
+            or ""
+        ).strip()
+        stamp = f" [{source}{' | ' + date_raw if date_raw else ''}]"
+        out.append(f"{title}{stamp}\n{body[:450]}\n{link}")
+
+    with DDGS(timeout=20) as ddgs:  # type: ignore[misc]
+        # 1) News endpoint first (usually fresher).
+        try:
+            for r in list(ddgs.news(q_norm, max_results=8)):
+                if isinstance(r, dict):
+                    _append_result(r, "news")
+        except Exception:
+            pass
+        # 2) Recent text results.
+        for query_variant in (q_norm, q_recent):
+            try:
+                for r in list(ddgs.text(query_variant, max_results=10, timelimit="m")):
+                    if isinstance(r, dict):
+                        _append_result(r, "text:m")
+            except Exception:
+                continue
+            if len(out) >= 8:
+                break
+        # 3) Fallback broader text if still sparse.
+        if len(out) < 4:
+            try:
+                for r in list(ddgs.text(q_norm, max_results=10)):
+                    if isinstance(r, dict):
+                        _append_result(r, "text")
+            except Exception:
+                pass
+
     if not out:
-        return "No usable text snippets in results."
+        return "No usable fresh text snippets in results."
     return "\n\n---\n\n".join(out)
 
 

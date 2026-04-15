@@ -93,10 +93,28 @@ function isToday(ts: number): boolean {
 
 function sanitizeForTts(input: string): string {
   return input
-    .replace(/[*_`#~]+/g, '')
+    // Remove fenced code blocks so TTS skips code dumps.
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/~~~[\s\S]*?~~~/g, ' ')
+    // Remove inline code fragments.
+    .replace(/`[^`\n]*`/g, ' ')
+    .replace(/[*_#~]+/g, '')
     .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function buildRuntimeTimeHint(now = new Date()): string {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'
+  const local = now.toLocaleString()
+  const iso = now.toISOString()
+  return [
+    'Runtime clock context:',
+    `- Local datetime: ${local}`,
+    `- Timezone: ${tz}`,
+    `- UTC ISO timestamp: ${iso}`,
+    'Use this as current-time reference for queries about today/latest/current/recent.',
+  ].join('\n')
 }
 
 // CRT Overlay Component
@@ -511,6 +529,7 @@ export default function App() {
     })
 
     const useTools = anyToolEnabled(settings.toolsEnabled)
+    const runtimeTimeHint = buildRuntimeTimeHint()
     const toolsHintParts: string[] = []
     if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
     if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
@@ -524,6 +543,7 @@ export default function App() {
       {
         systemPrompt: settings.llmSystemPrompt,
         maxHistoryMessages: settings.llmMaxHistoryMessages,
+        runtimeSystemHint: runtimeTimeHint,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         toolsSystemHint: useTools && toolsHintParts.length > 0 ? toolsHintParts.join('\n\n') : undefined,
         newUserImages: imagesBase64.length > 0 ? imagesBase64 : undefined,
