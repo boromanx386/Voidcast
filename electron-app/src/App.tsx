@@ -9,6 +9,7 @@ import {
 } from 'react'
 import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
+import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
@@ -61,7 +62,7 @@ import {
 import type { ChatSession, UiMessage } from '@/types/chat'
 
 type Screen = 'chat' | 'options'
-type OptionsTab = 'llm' | 'tts' | 'tools'
+type OptionsTab = 'general' | 'llm' | 'tts' | 'tools'
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -159,7 +160,7 @@ function ToolIndicator({ phase }: { phase: string | null }) {
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
   const [screen, setScreen] = useState<Screen>('chat')
-  const [optionsTab, setOptionsTab] = useState<OptionsTab>('llm')
+  const [optionsTab, setOptionsTab] = useState<OptionsTab>('general')
   const [menuOpen, setMenuOpen] = useState(false)
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>([])
@@ -410,7 +411,7 @@ export default function App() {
     setRenameValue('')
   }
 
-  const openOptions = (tab: OptionsTab = 'llm') => {
+  const openOptions = (tab: OptionsTab = 'general') => {
     setOptionsTab(tab)
     setScreen('options')
     setMenuOpen(false)
@@ -852,13 +853,14 @@ export default function App() {
 
         {/* Tabs */}
         <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['llm', 'tts', 'tools'] as OptionsTab[]).map((tab) => (
+          {(['general', 'llm', 'tts', 'tools'] as OptionsTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setOptionsTab(tab)}
               className={`option-tab flex-1 ${optionsTab === tab ? 'active' : ''}`}
             >
+              {tab === 'general' && '◆ GENERAL'}
               {tab === 'llm' && '◇ LLM'}
               {tab === 'tts' && '◉ TTS'}
               {tab === 'tools' && '⬡ TOOLS'}
@@ -874,7 +876,9 @@ export default function App() {
             <div className="corner-bl" />
             <div className="corner-br" />
             
-            {optionsTab === 'llm' ? (
+            {optionsTab === 'general' ? (
+              <GeneralOptionsPanel settings={settings} setSettings={setSettings} />
+            ) : optionsTab === 'llm' ? (
               <LlmOptionsPanel
                 settings={settings}
                 setSettings={setSettings}
@@ -1024,6 +1028,16 @@ export default function App() {
               </button>
               
               <div className="h-px bg-void-muted/30 my-2" />
+              
+              <button
+                type="button"
+                onClick={() => openOptions('general')}
+                className="flex items-center gap-3 rounded px-4 py-3 text-left
+                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
+              >
+                <span className="text-neon-cyan">◆</span>
+                <span className="font-mono text-sm">GENERAL</span>
+              </button>
               
               <button
                 type="button"

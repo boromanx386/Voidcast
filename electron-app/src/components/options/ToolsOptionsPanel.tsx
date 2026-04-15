@@ -31,7 +31,7 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
         <p className="text-xs font-mono text-void-dim">
           <span className="text-neon-yellow mr-2">⬡</span>
           Enable tools for the model to use during conversation.
-          Requires a tool-capable model (Llama 3.1+, Qwen2.5+, Mistral).
+          Requires a tool-capable model (e.g. Qwen 3.5, Gemma 4, MiniMax 2.7 — check Ollama library tags).
         </p>
       </div>
 

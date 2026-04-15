@@ -25,29 +25,6 @@ export function LlmOptionsPanel({
 }: Props) {
   return (
     <div className="grid gap-5 text-sm">
-      {/* Interface theme */}
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan mr-2">◆</span> INTERFACE_THEME
-        </label>
-        <select
-          className="form-select"
-          value={settings.uiTheme}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              uiTheme: e.target.value === 'minimal' ? 'minimal' : 'dystopian',
-            }))
-          }
-        >
-          <option value="dystopian">Dystopian (neon / CRT)</option>
-          <option value="minimal">Minimal (zinc / indigo)</option>
-        </select>
-        <p className="text-xs text-void-dim mt-1">
-          Minimal turns off scanlines and particles and uses a calmer layout.
-        </p>
-      </div>
-
       {/* Ollama URL */}
       <div className="form-group">
         <label className="form-label">
@@ -72,7 +49,10 @@ export function LlmOptionsPanel({
       {/* Model Selection */}
       <div className="form-group">
         <div className="flex items-center justify-between mb-2">
-          <label className="form-label mb-0">
+          <label
+            className="form-label mb-0 cursor-help"
+            title="Suggested on Ollama: Qwen 3.5, Gemma 4, MiniMax 2.7 (exact tag names vary — use REFRESH and your library)."
+          >
             <span className="text-neon-cyan mr-2">◈</span> MODEL_SELECTION
           </label>
           <button
@@ -280,19 +260,20 @@ export function LlmOptionsPanel({
         <ul className="text-xs font-mono text-void-dim space-y-1">
           <li className="flex items-center gap-2">
             <span className="text-neon-green">✓</span>
-            Llama 3.1+ / Llama 3.2+ (tool support)
+            Qwen 3.5 (e.g. <code className="text-void-light/90">qwen3</code> family — add{' '}
+            <code className="text-void-light/90">-vl</code> for vision)
           </li>
           <li className="flex items-center gap-2">
             <span className="text-neon-green">✓</span>
-            Qwen2.5+ (tool support)
+            Gemma 4 (multimodal / tools-capable tags on Ollama)
           </li>
           <li className="flex items-center gap-2">
             <span className="text-neon-green">✓</span>
-            Mistral-Nemo / Mistral-7B (with tools)
+            MiniMax 2.7 (when available in your Ollama library)
           </li>
           <li className="flex items-center gap-2 opacity-50">
             <span className="text-neon-red">✗</span>
-            Models without tool support
+            Old or tiny models without tool / multimodal support
           </li>
         </ul>
       </div>
