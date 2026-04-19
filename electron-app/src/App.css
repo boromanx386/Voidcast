@@ -579,4 +579,45 @@
   nav.fixed.left-0 {
     padding-top: env(safe-area-inset-top);
   }
+
+  /* Mobile options panel fixes */
+  .options-panel {
+    @apply p-3;
+  }
+
+  .options-panel .cyber-panel {
+    @apply p-4;
+  }
+
+  .option-tab {
+    @apply px-2 py-2 text-[10px];
+    letter-spacing: 0.05em;
+  }
+
+  .options-panel .form-label {
+    @apply text-[10px];
+  }
+
+  .options-panel .cyber-input,
+  .options-panel .form-select {
+    @apply text-sm px-3 py-2;
+  }
+
+  .options-panel .cyber-btn {
+    @apply text-xs px-3 py-2;
+  }
+
+  .options-panel p,
+  .options-panel span {
+    @apply text-xs;
+  }
+
+  .options-panel .grid.gap-4,
+  .options-panel .grid.gap-5 {
+    @apply gap-3;
+  }
+
+  .options-panel .form-group {
+    @apply mb-3;
+  }
 }
