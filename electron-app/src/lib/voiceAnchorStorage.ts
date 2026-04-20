@@ -2,7 +2,7 @@ const DB_NAME = 'voidcast-voice-anchor-v1'
 const STORE = 'anchor'
 const KEY = 'current'
 
-export type VoiceAnchorSourceMode = 'auto' | 'design'
+export type VoiceAnchorSourceMode = 'design'
 
 export type StoredVoiceAnchor = {
   blob: Blob

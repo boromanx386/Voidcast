@@ -1,6 +1,7 @@
 import type { AppSettings } from '@/lib/settings'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
 import { isElectron, isWebStandalone } from '@/lib/platform'
+import { synthesizeSpeech } from '@/lib/tts'
 import {
   useState,
   type ChangeEvent,
@@ -103,6 +104,34 @@ export function TtsOptionsPanel({
   onClearVoiceAnchor,
 }: Props) {
   const [bakeBusy, setBakeBusy] = useState(false)
+  const [playBusy, setPlayBusy] = useState(false)
+
+  const playBakePhrase = async () => {
+    if (!settings.voiceBakePhrase.trim() || playBusy) return
+    setPlayBusy(true)
+    try {
+      const blob = await synthesizeSpeech({
+        ttsBaseUrl: settings.ttsBaseUrl,
+        text: settings.voiceBakePhrase,
+        voiceMode: settings.voiceMode,
+        instruct: settings.voiceMode === 'design' ? settings.voiceInstruct : undefined,
+        voiceAnchor: voiceAnchor,
+      })
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.onended = () => {
+        URL.revokeObjectURL(url)
+        setPlayBusy(false)
+      }
+      audio.onerror = () => {
+        URL.revokeObjectURL(url)
+        setPlayBusy(false)
+      }
+      await audio.play()
+    } catch {
+      setPlayBusy(false)
+    }
+  }
 
   const instructStale =
     voiceAnchor &&
@@ -163,7 +192,6 @@ export function TtsOptionsPanel({
         <div className="flex flex-col gap-2">
           {(
             [
-              ['auto', 'Auto Voice', 'Model selects voice automatically.'],
               ['design', 'Voice Design', 'Describe voice characteristics.'],
               ['clone', 'Voice Clone', 'Clone from reference audio clip.'],
             ] as const
@@ -213,14 +241,14 @@ export function TtsOptionsPanel({
         </div>
       )}
 
-      {(settings.voiceMode === 'auto' || settings.voiceMode === 'design') && (
+      {(settings.voiceMode === 'design') && (
         <div className="bg-void-black/50 border border-neon-cyan/25 p-4">
           <p className="text-xs font-mono text-neon-cyan mb-2 uppercase tracking-wider">
             <span className="mr-2">◇</span>VOICE_ANCHOR
           </p>
           <p className="text-xs text-void-dim mb-3">
             Bake a short line once; long reads use it as a clone reference so every
-            chunk keeps the same voice (auto/design are random per request otherwise).
+            chunk keeps the same voice (design is random per request otherwise).
           </p>
           <div className="form-group">
             <label className="form-label text-void-dim">BAKE_PHRASE</label>
@@ -244,6 +272,14 @@ export function TtsOptionsPanel({
               }}
             >
               {bakeBusy ? 'BAKING…' : 'BAKE_LOCK_VOICE'}
+            </button>
+            <button
+              type="button"
+              className="cyber-btn text-xs"
+              disabled={playBusy || !settings.voiceBakePhrase.trim()}
+              onClick={() => void playBakePhrase()}
+            >
+              {playBusy ? 'PLAYING…' : '▶ PLAY'}
             </button>
             {voiceAnchor && (
               <button

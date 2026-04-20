@@ -1,4 +1,4 @@
-export type VoiceMode = 'auto' | 'design' | 'clone'
+export type VoiceMode = 'design' | 'clone'
 
 /** UI shell: dystopian (neon/CRT) vs minimal (zinc/indigo, no overlays) */
 export type UiTheme = 'dystopian' | 'minimal'
@@ -96,7 +96,7 @@ const defaults: AppSettings = {
   llmSystemPrompt: '',
   ttsBaseUrl: 'http://127.0.0.1:8765',
   voiceInstruct: '',
-  voiceMode: 'auto',
+  voiceMode: 'design',
   cloneRefText: '',
   autoVoice: false,
   ttsSpeed: 1.0,

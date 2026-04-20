@@ -988,7 +988,7 @@ export default function App() {
 
   const onBakeVoiceAnchor = async () => {
     const mode = settings.voiceMode
-    if (mode !== 'auto' && mode !== 'design') return
+    if (mode !== 'design') return
     const phrase = settings.voiceBakePhrase.trim()
     if (!phrase) {
       setError('VOICE_ANCHOR: Enter a short bake phrase first')

@@ -82,7 +82,7 @@ export async function synthesizeSpeech(options: {
   const numStep = options.numStep ?? 32
 
   const useAnchor =
-    (options.voiceMode === 'auto' || options.voiceMode === 'design') &&
+    (options.voiceMode === 'design') &&
     options.voiceAnchor?.blob &&
     options.voiceAnchor.blob.size > 0
 

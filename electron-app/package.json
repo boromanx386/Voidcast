@@ -1,6 +1,6 @@
 {
   "name": "voidcast",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "main": "dist-electron/main/index.js",
   "description": "Voidcast — local LLM chat with TTS (Ollama + voice).",
   "author": "草鞋没号 <308487730@qq.com>",
