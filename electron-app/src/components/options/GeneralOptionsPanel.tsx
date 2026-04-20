@@ -35,9 +35,10 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
       if (cancelled) return
       const urls = r.ips.map((ip) => `http://${ip}:${ttsPort}`)
       setMobileLanUrls(urls)
-      const primary = urls[0]
-      if (primary) {
-        void QRCode.toDataURL(primary, {
+      // Prefer 192.x.x.x over 169.x.x.x (link-local)
+      const preferred = urls.find((u) => u.includes('192.')) ?? urls[0]
+      if (preferred) {
+        void QRCode.toDataURL(preferred, {
           width: 168,
           margin: 1,
           color: { dark: '#0a0a0f', light: '#00f5ff80' },
