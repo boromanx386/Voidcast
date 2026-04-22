@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:pick-images') as Promise<
       | {
           ok: true
-          files: { base64: string; mime: string; name: string }[]
+          files: { base64: string; mime: string; name: string; path: string }[]
         }
       | { ok: false; error?: string }
     >,

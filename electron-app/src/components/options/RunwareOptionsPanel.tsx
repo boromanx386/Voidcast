@@ -1,6 +1,11 @@
-import type { AppSettings } from '@/lib/settings'
+import {
+  getRunwareProfileForModel,
+  RUNWARE_CONFIGURED_MODELS,
+  RUNWARE_GPT_IMAGE_2_MODEL_ID,
+  type AppSettings,
+  type RunwareModelProfile,
+} from '@/lib/settings'
 import { isElectron, isWebStandalone } from '@/lib/platform'
-import { fetchRunwareImageModelOptions, type RunwareModelOption } from '@/lib/runware'
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 
 type Props = {
@@ -8,12 +13,7 @@ type Props = {
   setSettings: Dispatch<SetStateAction<AppSettings>>
 }
 
-const RUNWARE_IMAGE_MODEL_PRESETS = [
-  'runware:101@1',
-  'runware:29@1',
-  'runware:27@1',
-  'runware:28@1',
-]
+const RUNWARE_FLUX_MODEL_ID = 'runware:400@6'
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
@@ -21,24 +21,31 @@ function clamp(n: number, min: number, max: number) {
 
 export function RunwareOptionsPanel({ settings, setSettings }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
-  const [modelsLoading, setModelsLoading] = useState(false)
-  const [modelsError, setModelsError] = useState<string | null>(null)
-  const [modelsInfo, setModelsInfo] = useState<string | null>(null)
-  const [liveModels, setLiveModels] = useState<RunwareModelOption[]>([])
-  const [presetOptions] = useState<RunwareModelOption[]>(
-    RUNWARE_IMAGE_MODEL_PRESETS.map((id) => ({ id, label: id })),
+  const configuredModels = useMemo(() => RUNWARE_CONFIGURED_MODELS, [])
+  const configuredModelIdSet = useMemo(
+    () => new Set(configuredModels.map((m) => m.id)),
+    [configuredModels],
   )
-
-  const availableModels = useMemo(() => {
-    const byId = new Map<string, RunwareModelOption>()
-    for (const p of presetOptions) byId.set(p.id, p)
-    for (const l of liveModels) byId.set(l.id, l)
-    return Array.from(byId.values())
-  }, [presetOptions, liveModels])
-
-  const selectedModel = availableModels.some((m) => m.id === settings.runwareImageModel)
+  const configuredLabelById = useMemo(() => {
+    const out = new Map<string, string>()
+    for (const m of configuredModels) out.set(m.id, m.label)
+    return out
+  }, [configuredModels])
+  const selectedImageModel = configuredModelIdSet.has(settings.runwareImageModel)
     ? settings.runwareImageModel
-    : `__custom__${settings.runwareImageModel}`
+    : RUNWARE_FLUX_MODEL_ID
+  const selectedEditModel = configuredModelIdSet.has(settings.runwareEditModel)
+    ? settings.runwareEditModel
+    : RUNWARE_FLUX_MODEL_ID
+  const activeImageProfile = getRunwareProfileForModel(settings, selectedImageModel)
+  const activeEditProfile = getRunwareProfileForModel(settings, selectedEditModel)
+  const isGptImage2Selected = selectedImageModel === RUNWARE_GPT_IMAGE_2_MODEL_ID
+  const isGptImage2EditSelected = selectedEditModel === RUNWARE_GPT_IMAGE_2_MODEL_ID
+  const imageMinSide = isGptImage2Selected ? 480 : 256
+  const imageMaxSide = isGptImage2Selected ? 3840 : 2048
+  const editMinSide = isGptImage2EditSelected ? 480 : 256
+  const editMaxSide = isGptImage2EditSelected ? 3840 : 2048
+  const sideStep = 16
 
   const browseImageFolder = useCallback(async () => {
     const vc = isElectron() ? window.voidcast?.pickDirectory : undefined
@@ -54,28 +61,31 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
     }
   }, [setSettings])
 
-  const refreshModels = async () => {
-    setModelsInfo(null)
-    setModelsError(null)
-    setModelsLoading(true)
-    try {
-      const list = await fetchRunwareImageModelOptions({
-        apiBaseUrl: settings.runwareApiBaseUrl,
-        apiKey: settings.runwareApiKey,
-        proxyBaseUrl: settings.ttsBaseUrl,
-        search: 'image',
-        limit: 100,
-      })
-      setLiveModels(list)
-      if (list.length === 0) {
-        setModelsInfo('No live models found for current search. Preset models are still available.')
+  const updateProfile = (
+    modelId: string,
+    update: (current: RunwareModelProfile) => RunwareModelProfile,
+  ) => {
+    setSettings((s) => {
+      const current = getRunwareProfileForModel(s, modelId)
+      const next = update(current)
+      const nextProfiles = {
+        ...s.runwareModelProfiles,
+        [modelId]: next,
       }
-    } catch (e) {
-      setLiveModels([])
-      setModelsError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setModelsLoading(false)
-    }
+      return {
+        ...s,
+        runwareModelProfiles: nextProfiles,
+        // Keep flat fields aligned with active image model profile for compatibility.
+        ...(s.runwareImageModel === modelId
+          ? {
+              runwareWidth: next.width,
+              runwareHeight: next.height,
+              runwareSteps: next.steps,
+              runwareCfgScale: next.cfgScale,
+            }
+          : {}),
+      }
+    })
   }
 
   return (
@@ -83,7 +93,8 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
       <div className="border-b border-void-muted/30 pb-3">
         <p className="text-xs font-mono text-void-dim">
           <span className="text-neon-green mr-2">◌</span>
-          Runware koristi se samo za generisanje slika. Ollama ostaje glavni LLM.
+          Runware uses configured models only. Current profile:{' '}
+          {configuredLabelById.get(selectedImageModel) ?? selectedImageModel}.
         </p>
       </div>
 
@@ -105,7 +116,7 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
             ENABLE_RUNWARE_IMAGE_TOOL
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Omogućava LLM-u tool poziv <code className="text-neon-green">generate_image</code>.
+            Omogućava LLM-u Runware tool pozive <code className="text-neon-green">generate_image</code> and <code className="text-neon-green">edit_image_runware</code>.
           </span>
         </span>
       </label>
@@ -199,103 +210,60 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
       </div>
 
       <div className="form-group">
-        <div className="flex items-center justify-between mb-2">
-          <label className="form-label mb-0">
-            <span className="text-neon-cyan mr-2">◈</span> IMAGE_MODEL
-          </label>
-          <button
-            type="button"
-            className="cyber-btn text-xs py-1.5"
-            onClick={() => void refreshModels()}
-            disabled={modelsLoading}
-          >
-            {modelsLoading ? 'SCANNING...' : '↻ REFRESH'}
-          </button>
-        </div>
-        {modelsError && (
-          <div className="cyber-badge danger mb-3 inline-flex">
-            <span className="mr-2">⚠</span>
-            {modelsError}
-          </div>
-        )}
-        {!modelsError && modelsInfo && (
-          <div className="cyber-badge mb-3 inline-flex">
-            <span className="mr-2">i</span>
-            {modelsInfo}
-          </div>
-        )}
-        {!modelsError && liveModels.length > 0 && (
-          <div className="cyber-badge success mb-3 inline-flex">
-            <span className="status-dot online mr-2" />
-            {liveModels.length} RUNWARE_MODELS_LOADED
-          </div>
-        )}
+        <label className="form-label mb-2">
+          <span className="text-neon-cyan mr-2">◈</span> IMAGE_MODEL
+        </label>
         <select
           className="form-select mb-3"
-          value={selectedModel}
+          value={selectedImageModel}
           onChange={(e) => {
             const v = e.target.value
-            if (!v || v.startsWith('__custom__')) return
+            if (!configuredModelIdSet.has(v)) return
             setSettings((s) => ({ ...s, runwareImageModel: v }))
           }}
         >
-          {availableModels.map((model) => (
+          {configuredModels.map((model) => (
             <option key={model.id} value={model.id}>
               {model.label}
             </option>
           ))}
-          {settings.runwareImageModel &&
-            !availableModels.some((m) => m.id === settings.runwareImageModel) && (
-              <option value={`__custom__${settings.runwareImageModel}`}>
-                {settings.runwareImageModel} (manual)
-              </option>
-            )}
         </select>
-        <input
-          className="cyber-input"
-          placeholder="Manual model ID..."
-          value={
-            availableModels.some((m) => m.id === settings.runwareImageModel)
-              ? ''
-              : settings.runwareImageModel
-          }
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, runwareImageModel: e.target.value }))
-          }
-        />
+        <p className="text-xs text-void-dim mt-2">
+          Used by <code className="text-neon-green">generate_image</code>.
+        </p>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="form-group">
-          <label className="form-label">WIDTH</label>
+          <label className="form-label">IMAGE_WIDTH</label>
           <input
             type="number"
-            min={256}
-            max={2048}
-            step={64}
+            min={imageMinSide}
+            max={imageMaxSide}
+            step={sideStep}
             className="cyber-input"
-            value={settings.runwareWidth}
+            value={activeImageProfile.width}
             onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareWidth: clamp(Math.round(Number(e.target.value)) || 1024, 256, 2048),
+              updateProfile(selectedImageModel, (current) => ({
+                ...current,
+                width: clamp(Math.round(Number(e.target.value)) || 1024, imageMinSide, imageMaxSide),
               }))
             }
           />
         </div>
         <div className="form-group">
-          <label className="form-label">HEIGHT</label>
+          <label className="form-label">IMAGE_HEIGHT</label>
           <input
             type="number"
-            min={256}
-            max={2048}
-            step={64}
+            min={imageMinSide}
+            max={imageMaxSide}
+            step={sideStep}
             className="cyber-input"
-            value={settings.runwareHeight}
+            value={activeImageProfile.height}
             onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareHeight: clamp(Math.round(Number(e.target.value)) || 1024, 256, 2048),
+              updateProfile(selectedImageModel, (current) => ({
+                ...current,
+                height: clamp(Math.round(Number(e.target.value)) || 1024, imageMinSide, imageMaxSide),
               }))
             }
           />
@@ -303,41 +271,201 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
+        {!isGptImage2Selected ? (
+          <>
+            <div className="form-group">
+              <label className="form-label">IMAGE_STEPS</label>
+              <input
+                type="number"
+                min={1}
+                max={80}
+                step={1}
+                className="cyber-input"
+                value={activeImageProfile.steps}
+                onChange={(e) =>
+                  updateProfile(selectedImageModel, (current) => ({
+                    ...current,
+                    steps: clamp(Math.round(Number(e.target.value)) || 4, 1, 80),
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">IMAGE_CFG_SCALE</label>
+              <input
+                type="number"
+                min={0}
+                max={30}
+                step={0.1}
+                className="cyber-input"
+                value={activeImageProfile.cfgScale}
+                onChange={(e) =>
+                  updateProfile(selectedImageModel, (current) => ({
+                    ...current,
+                    cfgScale: clamp(Number(e.target.value) || 0, 0, 30),
+                  }))
+                }
+              />
+            </div>
+          </>
+        ) : (
+          <div className="form-group sm:col-span-2">
+            <label className="form-label">IMAGE_QUALITY</label>
+            <select
+              className="form-select"
+              value={activeImageProfile.gptQuality || 'auto'}
+              onChange={(e) =>
+                updateProfile(selectedImageModel, (current) => ({
+                  ...current,
+                  gptQuality:
+                    e.target.value === 'low' ||
+                    e.target.value === 'medium' ||
+                    e.target.value === 'high'
+                      ? e.target.value
+                      : 'auto',
+                }))
+              }
+            >
+              <option value="auto">auto</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+        )}
+      </div>
+      {isGptImage2Selected && <p className="text-xs text-neon-yellow/80 -mt-2">GPT Image 2 uses size + quality.</p>}
+
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-cyan mr-2">◈</span> EDIT_MODEL
+        </label>
+        <select
+          className="form-select mb-3"
+          value={selectedEditModel}
+          onChange={(e) => {
+            const v = e.target.value
+            if (!configuredModelIdSet.has(v)) return
+            setSettings((s) => ({ ...s, runwareEditModel: v }))
+          }}
+        >
+          {configuredModels.map((model) => (
+            <option key={`edit-${model.id}`} value={model.id}>
+              {model.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-void-dim mt-2">
+          Used by <code className="text-neon-green">edit_image_runware</code>.
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
         <div className="form-group">
-          <label className="form-label">STEPS</label>
+          <label className="form-label">EDIT_WIDTH</label>
           <input
             type="number"
-            min={1}
-            max={80}
-            step={1}
+            min={editMinSide}
+            max={editMaxSide}
+            step={sideStep}
             className="cyber-input"
-            value={settings.runwareSteps}
+            value={activeEditProfile.width}
             onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareSteps: clamp(Math.round(Number(e.target.value)) || 30, 1, 80),
+              updateProfile(selectedEditModel, (current) => ({
+                ...current,
+                width: clamp(Math.round(Number(e.target.value)) || 1024, editMinSide, editMaxSide),
               }))
             }
           />
         </div>
         <div className="form-group">
-          <label className="form-label">CFG_SCALE</label>
+          <label className="form-label">EDIT_HEIGHT</label>
           <input
             type="number"
-            min={0}
-            max={30}
-            step={0.1}
+            min={editMinSide}
+            max={editMaxSide}
+            step={sideStep}
             className="cyber-input"
-            value={settings.runwareCfgScale}
+            value={activeEditProfile.height}
             onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareCfgScale: clamp(Number(e.target.value) || 0, 0, 30),
+              updateProfile(selectedEditModel, (current) => ({
+                ...current,
+                height: clamp(Math.round(Number(e.target.value)) || 1024, editMinSide, editMaxSide),
               }))
             }
           />
         </div>
       </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        {!isGptImage2EditSelected ? (
+          <>
+            <div className="form-group">
+              <label className="form-label">EDIT_STEPS</label>
+              <input
+                type="number"
+                min={1}
+                max={80}
+                step={1}
+                className="cyber-input"
+                value={activeEditProfile.steps}
+                onChange={(e) =>
+                  updateProfile(selectedEditModel, (current) => ({
+                    ...current,
+                    steps: clamp(Math.round(Number(e.target.value)) || 4, 1, 80),
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">EDIT_CFG_SCALE</label>
+              <input
+                type="number"
+                min={0}
+                max={30}
+                step={0.1}
+                className="cyber-input"
+                value={activeEditProfile.cfgScale}
+                onChange={(e) =>
+                  updateProfile(selectedEditModel, (current) => ({
+                    ...current,
+                    cfgScale: clamp(Number(e.target.value) || 0, 0, 30),
+                  }))
+                }
+              />
+            </div>
+          </>
+        ) : (
+          <div className="form-group sm:col-span-2">
+            <label className="form-label">EDIT_QUALITY</label>
+            <select
+              className="form-select"
+              value={activeEditProfile.gptQuality || 'auto'}
+              onChange={(e) =>
+                updateProfile(selectedEditModel, (current) => ({
+                  ...current,
+                  gptQuality:
+                    e.target.value === 'low' ||
+                    e.target.value === 'medium' ||
+                    e.target.value === 'high'
+                      ? e.target.value
+                      : 'auto',
+                }))
+              }
+            >
+              <option value="auto">auto</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+        )}
+      </div>
+      {isGptImage2EditSelected && (
+        <p className="text-xs text-neon-yellow/80 -mt-2">
+          GPT Image 2 edit uses size + quality + reference images.
+        </p>
+      )}
 
       <div className="form-group">
         <label className="form-label">NEGATIVE_PROMPT (optional)</label>

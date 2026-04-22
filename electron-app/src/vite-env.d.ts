@@ -39,7 +39,7 @@ interface Window {
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
     /** Electron: native dialog + base64; absent in web build. */
     pickImages: () => Promise<
-      | { ok: true; files: { base64: string; mime: string; name: string }[] }
+      | { ok: true; files: { base64: string; mime: string; name: string; path: string }[] }
       | { ok: false; error?: string }
     >
     getLanNetworkInfo: () => Promise<{ ips: string[] }>

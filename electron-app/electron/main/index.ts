@@ -557,13 +557,14 @@ ipcMain.handle('voidcast:pick-images', async () => {
       }
     }
   }
-  const files: { base64: string; mime: string; name: string }[] = []
+  const files: { base64: string; mime: string; name: string; path: string }[] = []
   for (const fp of paths) {
     const buf = await readFile(fp)
     files.push({
       base64: buf.toString('base64'),
       mime: mimeFromImagePath(fp),
       name: path.basename(fp),
+      path: fp,
     })
   }
   return { ok: true as const, files }

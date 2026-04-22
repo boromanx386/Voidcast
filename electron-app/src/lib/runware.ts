@@ -1,20 +1,47 @@
-import { normalizeBaseUrl } from '@/lib/settings'
+import {
+  normalizeBaseUrl,
+  RUNWARE_GPT_IMAGE_2_MODEL_ID,
+} from '@/lib/settings'
 
 export type RunwareImageConfig = {
   apiBaseUrl: string
   apiKey: string
   /** Optional local proxy base URL (e.g. TTS server) for CORS-safe forwarding. */
   proxyBaseUrl?: string
+  /** Default Runware model id for text-to-image generation. */
   model: string
+  /** Default Runware model id for image editing with references. */
+  editModel?: string
   width: number
   height: number
   steps: number
   cfgScale: number
+  gptQuality?: 'auto' | 'low' | 'medium' | 'high'
+  /** Optional edit defaults resolved from selected edit model profile. */
+  editDefaults?: {
+    width: number
+    height: number
+    steps: number
+    cfgScale: number
+    gptQuality?: 'auto' | 'low' | 'medium' | 'high'
+  }
   negativePrompt?: string
 }
 
-export type RunwareImageRequest = {
+export type RunwareGenerateImageRequest = {
   prompt: string
+  negativePrompt?: string
+  width?: number
+  height?: number
+  steps?: number
+  cfgScale?: number
+  model?: string
+}
+
+export type RunwareEditImageRequest = {
+  prompt: string
+  /** Data URIs or raw base64 references mapped from attached images. */
+  referenceImages: string[]
   negativePrompt?: string
   width?: number
   height?: number
@@ -45,6 +72,34 @@ type RunwareModelSearchResult = {
 export type RunwareModelOption = {
   id: string
   label: string
+}
+
+const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
+
+export const RUNWARE_ALLOWED_EDIT_MODEL_IDS = [
+  RUNWARE_FLUX_9B_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_MODEL_ID,
+] as const
+
+const RUNWARE_ALLOWED_EDIT_MODEL_SET = new Set<string>(
+  RUNWARE_ALLOWED_EDIT_MODEL_IDS.map((x) => x.toLowerCase()),
+)
+
+function isAllowedEditModelId(modelId: string): boolean {
+  return RUNWARE_ALLOWED_EDIT_MODEL_SET.has(modelId.trim().toLowerCase())
+}
+
+function isGptImage2Model(modelId: string): boolean {
+  return modelId.trim().toLowerCase() === RUNWARE_GPT_IMAGE_2_MODEL_ID.toLowerCase()
+}
+
+function normalizeGptQuality(
+  value: unknown,
+): 'auto' | 'low' | 'medium' | 'high' | undefined {
+  if (value === 'auto' || value === 'low' || value === 'medium' || value === 'high') {
+    return value
+  }
+  return undefined
 }
 
 function normalizeStringArray(v: unknown): string[] {
@@ -401,32 +456,110 @@ function formatRunwareToolResult(payload: {
   model: string
   width: number
   height: number
-  steps: number
-  cfgScale: number
+  steps?: number
+  cfgScale?: number
   seed?: number
   taskUUID?: string
   imageUUID?: string
   cost?: number
+  elapsedMs?: number
 }): string {
   const lines = [
     'Runware image generated successfully.',
     `image_url: ${payload.imageUrl}`,
     `model: ${payload.model}`,
     `size: ${payload.width}x${payload.height}`,
-    `steps: ${payload.steps}`,
-    `cfg_scale: ${payload.cfgScale}`,
   ]
+  if (typeof payload.steps === 'number') lines.push(`steps: ${payload.steps}`)
+  if (typeof payload.cfgScale === 'number') lines.push(`cfg_scale: ${payload.cfgScale}`)
   if (typeof payload.seed === 'number') lines.push(`seed: ${payload.seed}`)
   if (payload.taskUUID) lines.push(`task_uuid: ${payload.taskUUID}`)
   if (payload.imageUUID) lines.push(`image_uuid: ${payload.imageUUID}`)
   if (typeof payload.cost === 'number' && Number.isFinite(payload.cost)) {
     lines.push(`cost_usd: ${payload.cost.toFixed(6)}`)
   }
+  if (typeof payload.elapsedMs === 'number' && Number.isFinite(payload.elapsedMs)) {
+    lines.push(`elapsed_ms: ${Math.max(0, Math.round(payload.elapsedMs))}`)
+  }
   return lines.join('\n')
 }
 
-export async function invokeRunwareImage(
-  req: RunwareImageRequest,
+function normalizeImageDataUri(value: string): string {
+  const raw = (value || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('data:image/')) return raw
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
+  const cleaned = raw.replace(/\s+/g, '')
+  return `data:image/png;base64,${cleaned}`
+}
+
+function quantizeToStep16(value: number): number {
+  return Math.round(value / 16) * 16
+}
+
+function fitGptImage2Dimensions(width: number, height: number): {
+  width: number
+  height: number
+  adjusted: boolean
+  notes: string[]
+} {
+  const MIN_PIXELS = 655360
+  const MAX_PIXELS = 8294400
+  const MAX_ASPECT = 3
+  let w = clamp(quantizeToStep16(width), 480, 3840)
+  let h = clamp(quantizeToStep16(height), 480, 3840)
+  const originalW = w
+  const originalH = h
+  const notes: string[] = []
+
+  let pixels = w * h
+  if (pixels < MIN_PIXELS) {
+    const scale = Math.sqrt(MIN_PIXELS / Math.max(1, pixels))
+    w = clamp(quantizeToStep16(w * scale), 480, 3840)
+    h = clamp(quantizeToStep16(h * scale), 480, 3840)
+    pixels = w * h
+  }
+  if (pixels > MAX_PIXELS) {
+    const scale = Math.sqrt(MAX_PIXELS / pixels)
+    w = clamp(quantizeToStep16(w * scale), 480, 3840)
+    h = clamp(quantizeToStep16(h * scale), 480, 3840)
+    pixels = w * h
+  }
+
+  if (w / h > MAX_ASPECT) {
+    w = quantizeToStep16(h * MAX_ASPECT)
+    notes.push('aspect_ratio_clamped_for_model')
+  } else if (h / w > MAX_ASPECT) {
+    h = quantizeToStep16(w * MAX_ASPECT)
+    notes.push('aspect_ratio_clamped_for_model')
+  }
+
+  w = clamp(w, 480, 3840)
+  h = clamp(h, 480, 3840)
+  pixels = w * h
+  while (pixels > MAX_PIXELS) {
+    if (w >= h && w > 480) w -= 16
+    else if (h > 480) h -= 16
+    else break
+    pixels = w * h
+  }
+  while (pixels < MIN_PIXELS) {
+    if (w <= h && w < 3840) w += 16
+    else if (h < 3840) h += 16
+    else break
+    pixels = w * h
+  }
+
+  return {
+    width: w,
+    height: h,
+    adjusted: w !== originalW || h !== originalH,
+    notes,
+  }
+}
+
+export async function invokeRunwareGenerateImage(
+  req: RunwareGenerateImageRequest,
   config: RunwareImageConfig,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -438,11 +571,23 @@ export async function invokeRunwareImage(
   const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')
   const model = (req.model || config.model || '').trim()
   if (!model) throw new Error('Runware model is not set. Configure it in Options -> Runware.')
+  const isGptImage2 = isGptImage2Model(model)
 
-  const width = clamp(Math.round(asFiniteNumber(req.width) ?? config.width), 256, 2048)
-  const height = clamp(Math.round(asFiniteNumber(req.height) ?? config.height), 256, 2048)
+  // Resolution is always sourced from the active Options profile.
+  const rawWidth = isGptImage2
+    ? clamp(Math.round(config.width), 480, 3840)
+    : clamp(Math.round(config.width), 256, 2048)
+  const rawHeight = isGptImage2
+    ? clamp(Math.round(config.height), 480, 3840)
+    : clamp(Math.round(config.height), 256, 2048)
+  const fitted = isGptImage2
+    ? fitGptImage2Dimensions(rawWidth, rawHeight)
+    : { width: rawWidth, height: rawHeight, adjusted: false, notes: [] as string[] }
+  const width = fitted.width
+  const height = fitted.height
   const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? config.steps), 1, 80)
   const cfgScale = clamp(asFiniteNumber(req.cfgScale) ?? config.cfgScale, 0, 30)
+  const gptQuality = normalizeGptQuality(config.gptQuality) ?? 'auto'
   const negativePrompt = (req.negativePrompt ?? config.negativePrompt ?? '').trim()
   const taskUUID = makeTaskUuid()
 
@@ -454,11 +599,20 @@ export async function invokeRunwareImage(
     positivePrompt: prompt,
     width,
     height,
-    steps,
-    CFGScale: cfgScale,
   }
-  if (negativePrompt) payload.negativePrompt = negativePrompt
+  if (!isGptImage2) {
+    payload.steps = steps
+    payload.CFGScale = cfgScale
+    if (negativePrompt) payload.negativePrompt = negativePrompt
+  } else {
+    payload.providerSettings = {
+      openai: {
+        quality: gptQuality,
+      },
+    }
+  }
 
+  const started = Date.now()
   const body = await postRunwareTasks({
     apiBaseUrl: root,
     apiKey,
@@ -466,6 +620,7 @@ export async function invokeRunwareImage(
     signal,
     proxyBaseUrl: config.proxyBaseUrl,
   })
+  const elapsedMs = Date.now() - started
 
   const first = Array.isArray(body.data) ? body.data[0] : undefined
   const imageUrl = first?.imageURL?.trim()
@@ -474,16 +629,137 @@ export async function invokeRunwareImage(
     throw new Error(errMessage)
   }
 
-  return formatRunwareToolResult({
+  const out = formatRunwareToolResult({
     imageUrl,
     model,
     width,
     height,
-    steps,
-    cfgScale,
+    ...(isGptImage2 ? {} : { steps, cfgScale }),
     seed: first?.seed,
     taskUUID: first?.taskUUID,
     imageUUID: first?.imageUUID,
     cost: first?.cost,
+    elapsedMs,
   })
+  if (isGptImage2 && fitted.adjusted) {
+    return `${out}\nsize_adjusted_for_model: ${rawWidth}x${rawHeight} -> ${width}x${height}`
+  }
+  return out
+}
+
+export async function invokeRunwareEditImage(
+  req: RunwareEditImageRequest,
+  config: RunwareImageConfig,
+  signal?: AbortSignal,
+): Promise<string> {
+  const prompt = (req.prompt || '').trim()
+  if (!prompt) throw new Error('Runware edit_image_runware requires a non-empty prompt.')
+  const apiKey = (config.apiKey || '').trim()
+  if (!apiKey) throw new Error('Runware API key is not set. Configure it in Options -> Runware.')
+
+  const refs = (req.referenceImages || [])
+    .map((x) => normalizeImageDataUri(x))
+    .filter((x) => x.length > 0)
+  if (refs.length === 0) {
+    throw new Error('Runware edit_image_runware requires at least one reference image.')
+  }
+
+  const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')
+  const model = (req.model || config.editModel || config.model || '').trim()
+  if (!model) throw new Error('Runware edit model is not set. Configure it in Options -> Runware.')
+  if (!isAllowedEditModelId(model)) {
+    throw new Error(
+      `Edit model "${model}" is not allowed. Allowed edit models: ${RUNWARE_ALLOWED_EDIT_MODEL_IDS.join(', ')}`,
+    )
+  }
+
+  const isGptImage2 = isGptImage2Model(model)
+  const modelRefs = isGptImage2 ? refs.slice(0, 16) : refs
+  const editDefaultWidth = config.editDefaults?.width ?? config.width
+  const editDefaultHeight = config.editDefaults?.height ?? config.height
+  const editDefaultSteps = config.editDefaults?.steps ?? config.steps
+  const editDefaultCfgScale = config.editDefaults?.cfgScale ?? config.cfgScale
+  const editDefaultGptQuality = normalizeGptQuality(config.editDefaults?.gptQuality) ?? 'auto'
+  // Resolution is always sourced from the active edit profile in Options.
+  const rawWidth = isGptImage2
+    ? clamp(Math.round(editDefaultWidth), 480, 3840)
+    : clamp(Math.round(editDefaultWidth), 256, 2048)
+  const rawHeight = isGptImage2
+    ? clamp(Math.round(editDefaultHeight), 480, 3840)
+    : clamp(Math.round(editDefaultHeight), 256, 2048)
+  const fitted = isGptImage2
+    ? fitGptImage2Dimensions(rawWidth, rawHeight)
+    : { width: rawWidth, height: rawHeight, adjusted: false, notes: [] as string[] }
+  const width = fitted.width
+  const height = fitted.height
+  const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? editDefaultSteps), 1, 80)
+  const cfgScale = clamp(asFiniteNumber(req.cfgScale) ?? editDefaultCfgScale, 0, 30)
+  const negativePrompt = (req.negativePrompt ?? config.negativePrompt ?? '').trim()
+  const taskUUID = makeTaskUuid()
+
+  const payload: Record<string, unknown> = {
+    taskType: 'imageInference',
+    taskUUID,
+    includeCost: true,
+    model,
+    positivePrompt: prompt,
+    width,
+    height,
+    ...(isGptImage2 ? {} : { steps, CFGScale: cfgScale }),
+  }
+  payload.inputs = { referenceImages: modelRefs }
+  if (!isGptImage2 && negativePrompt) payload.negativePrompt = negativePrompt
+  if (isGptImage2) {
+    payload.providerSettings = {
+      openai: {
+        quality: editDefaultGptQuality,
+      },
+    }
+  }
+
+  const started = Date.now()
+  const body = await postRunwareTasks({
+    apiBaseUrl: root,
+    apiKey,
+    tasks: [payload],
+    signal,
+    proxyBaseUrl: config.proxyBaseUrl,
+  })
+  const elapsedMs = Date.now() - started
+
+  const first = Array.isArray(body.data) ? body.data[0] : undefined
+  const imageUrl = first?.imageURL?.trim()
+  if (!imageUrl) {
+    const errMessage = readRunwareError(body) || 'Runware returned no image URL.'
+    const summary = `request: model=${model}, refs=${modelRefs.length}, size=${width}x${height}, steps=${isGptImage2 ? 'n/a' : steps}, cfg=${isGptImage2 ? 'n/a' : cfgScale}`
+    throw new Error(`${errMessage}\n${summary}`)
+  }
+
+  const out = formatRunwareToolResult({
+    imageUrl,
+    model,
+    width,
+    height,
+    ...(isGptImage2 ? {} : { steps, cfgScale }),
+    seed: first?.seed,
+    taskUUID: first?.taskUUID,
+    imageUUID: first?.imageUUID,
+    cost: first?.cost,
+    elapsedMs,
+  })
+  const notes: string[] = []
+  if (isGptImage2 && refs.length > 16) {
+    notes.push(`reference_images_limited_for_model: used 16 of ${refs.length}`)
+  }
+  if (isGptImage2 && fitted.adjusted) {
+    notes.push(`size_adjusted_for_model: ${rawWidth}x${rawHeight} -> ${width}x${height}`)
+  }
+  for (const n of fitted.notes) notes.push(n)
+  if (isGptImage2 && negativePrompt) {
+    notes.push('negative_prompt_not_sent_for_model')
+  }
+  if (notes.length > 0) {
+    return `${out}\n${notes.join('\n')}`
+  }
+  return out
 }

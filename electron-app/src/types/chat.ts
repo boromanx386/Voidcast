@@ -8,6 +8,10 @@ export type UiMessage = {
   images?: string[]
   /** Parallel MIME types for rendering (e.g. image/png). Not persisted (see chatSessionsStorage). */
   imageMimes?: string[]
+  /** Optional original image file names, parallel with `images`. */
+  imageNames?: string[]
+  /** Optional original absolute file paths (when available), parallel with `images`. */
+  imagePaths?: string[]
 }
 
 export type ChatSessionMessage = UiMessage

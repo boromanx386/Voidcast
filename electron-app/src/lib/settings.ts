@@ -3,6 +3,22 @@ export type VoiceMode = 'design' | 'clone'
 /** UI shell: dystopian (neon/CRT) vs minimal (zinc/indigo, no overlays) */
 export type UiTheme = 'dystopian' | 'minimal'
 
+export type RunwareModelProfile = {
+  width: number
+  height: number
+  steps: number
+  cfgScale: number
+  /** OpenAI GPT Image quality setting (used only for GPT Image models). */
+  gptQuality?: 'auto' | 'low' | 'medium' | 'high'
+}
+
+export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
+export const RUNWARE_GPT_IMAGE_2_MODEL_ID = 'openai:gpt-image@2'
+export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
+  { id: RUNWARE_FLUX_9B_MODEL_ID, label: 'FLUX 9B' },
+  { id: RUNWARE_GPT_IMAGE_2_MODEL_ID, label: 'GPT Image 2' },
+]
+
 /** Per-tool toggles; extend with new keys as tools are added */
 export type ToolsEnabled = {
   webSearch: boolean
@@ -61,6 +77,8 @@ export type AppSettings = {
   runwareApiKey: string
   /** Default Runware model id for text-to-image */
   runwareImageModel: string
+  /** Default Runware model id for image editing with references */
+  runwareEditModel: string
   /** Default output width for generated images */
   runwareWidth: number
   /** Default output height for generated images */
@@ -69,6 +87,8 @@ export type AppSettings = {
   runwareSteps: number
   /** Default guidance scale (model-dependent effect) */
   runwareCfgScale: number
+  /** Per-model defaults used for generation/edit parameters */
+  runwareModelProfiles: Record<string, RunwareModelProfile>
   /** Optional default negative prompt */
   runwareNegativePrompt: string
   /** Auto-save generated Runware images to this folder (desktop app). */
@@ -116,11 +136,27 @@ const defaults: AppSettings = {
   uiTheme: 'dystopian',
   runwareApiBaseUrl: 'https://api.runware.ai/v1',
   runwareApiKey: '',
-  runwareImageModel: 'runware:101@1',
+  runwareImageModel: RUNWARE_FLUX_9B_MODEL_ID,
+  runwareEditModel: RUNWARE_FLUX_9B_MODEL_ID,
   runwareWidth: 1024,
   runwareHeight: 1024,
-  runwareSteps: 30,
-  runwareCfgScale: 7,
+  runwareSteps: 4,
+  runwareCfgScale: 1,
+  runwareModelProfiles: {
+    [RUNWARE_FLUX_9B_MODEL_ID]: {
+      width: 1024,
+      height: 1024,
+      steps: 4,
+      cfgScale: 1,
+    },
+    [RUNWARE_GPT_IMAGE_2_MODEL_ID]: {
+      width: 1024,
+      height: 1024,
+      steps: 30,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+  },
   runwareNegativePrompt: '',
   runwareImageOutputDir: '',
   runwareAutoSaveImages: false,
@@ -186,6 +222,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
   const height = Number(s.runwareHeight)
   const steps = Number(s.runwareSteps)
   const cfg = Number(s.runwareCfgScale)
+  const configuredModelIdSet = new Set(RUNWARE_CONFIGURED_MODELS.map((x) => x.id))
   const apiBase = typeof s.runwareApiBaseUrl === 'string'
     ? s.runwareApiBaseUrl.trim()
     : ''
@@ -194,21 +231,78 @@ function normalizeRunware(s: AppSettings): AppSettings {
     typeof s.runwareImageModel === 'string' && s.runwareImageModel.trim()
       ? s.runwareImageModel.trim()
       : defaults.runwareImageModel
+  const editModel =
+    typeof s.runwareEditModel === 'string' && s.runwareEditModel.trim()
+      ? s.runwareEditModel.trim()
+      : defaults.runwareEditModel
   const negative =
     typeof s.runwareNegativePrompt === 'string' ? s.runwareNegativePrompt : ''
   const outputDir =
     typeof s.runwareImageOutputDir === 'string' ? s.runwareImageOutputDir.trim() : ''
+  const legacyProfile: RunwareModelProfile = {
+    width: Number.isFinite(width) ? clamp(Math.round(width), 256, 2048) : defaults.runwareWidth,
+    height: Number.isFinite(height)
+      ? clamp(Math.round(height), 256, 2048)
+      : defaults.runwareHeight,
+    steps: Number.isFinite(steps) ? clamp(Math.round(steps), 1, 80) : defaults.runwareSteps,
+    cfgScale: Number.isFinite(cfg) ? clamp(cfg, 0, 30) : defaults.runwareCfgScale,
+  }
+  const parsedProfiles =
+    s.runwareModelProfiles && typeof s.runwareModelProfiles === 'object'
+      ? (s.runwareModelProfiles as Record<string, Partial<RunwareModelProfile>>)
+      : {}
+  const normalizedProfiles: Record<string, RunwareModelProfile> = {}
+  for (const m of RUNWARE_CONFIGURED_MODELS) {
+    const fallback =
+      m.id === RUNWARE_FLUX_9B_MODEL_ID
+        ? legacyProfile
+        : defaults.runwareModelProfiles[m.id] ?? legacyProfile
+    const incoming = parsedProfiles[m.id] ?? {}
+    const w = Number(incoming.width)
+    const h = Number(incoming.height)
+    const st = Number(incoming.steps)
+    const cf = Number(incoming.cfgScale)
+    const gptQualityRaw = typeof incoming.gptQuality === 'string' ? incoming.gptQuality : ''
+    const normalizedGptQuality =
+      gptQualityRaw === 'auto' || gptQualityRaw === 'low' || gptQualityRaw === 'medium' || gptQualityRaw === 'high'
+        ? gptQualityRaw
+        : undefined
+    const isGptImage2 = m.id === RUNWARE_GPT_IMAGE_2_MODEL_ID
+    const minSide = isGptImage2 ? 480 : 256
+    const maxSide = isGptImage2 ? 3840 : 2048
+    normalizedProfiles[m.id] = {
+      width: Number.isFinite(w) ? clamp(Math.round(w), minSide, maxSide) : fallback.width,
+      height: Number.isFinite(h) ? clamp(Math.round(h), minSide, maxSide) : fallback.height,
+      steps: Number.isFinite(st) ? clamp(Math.round(st), 1, 80) : fallback.steps,
+      cfgScale: Number.isFinite(cf) ? clamp(cf, 0, 30) : fallback.cfgScale,
+      ...(isGptImage2
+        ? {
+            gptQuality:
+              normalizedGptQuality ??
+              fallback.gptQuality ??
+              defaults.runwareModelProfiles[RUNWARE_GPT_IMAGE_2_MODEL_ID]?.gptQuality ??
+              'auto',
+          }
+        : {}),
+    }
+  }
+  const safeModel = configuredModelIdSet.has(model) ? model : defaults.runwareImageModel
+  const safeEditModel = configuredModelIdSet.has(editModel) ? editModel : defaults.runwareEditModel
+  const activeProfile =
+    normalizedProfiles[safeModel] ??
+    defaults.runwareModelProfiles[safeModel] ??
+    defaults.runwareModelProfiles[defaults.runwareImageModel]
   return {
     ...s,
     runwareApiBaseUrl: apiBase || defaults.runwareApiBaseUrl,
     runwareApiKey: apiKey,
-    runwareImageModel: model,
-    runwareWidth: Number.isFinite(width) ? clamp(Math.round(width), 256, 2048) : defaults.runwareWidth,
-    runwareHeight: Number.isFinite(height)
-      ? clamp(Math.round(height), 256, 2048)
-      : defaults.runwareHeight,
-    runwareSteps: Number.isFinite(steps) ? clamp(Math.round(steps), 1, 80) : defaults.runwareSteps,
-    runwareCfgScale: Number.isFinite(cfg) ? clamp(cfg, 0, 30) : defaults.runwareCfgScale,
+    runwareImageModel: safeModel,
+    runwareEditModel: safeEditModel,
+    runwareWidth: activeProfile.width,
+    runwareHeight: activeProfile.height,
+    runwareSteps: activeProfile.steps,
+    runwareCfgScale: activeProfile.cfgScale,
+    runwareModelProfiles: normalizedProfiles,
     runwareNegativePrompt: negative,
     runwareImageOutputDir: outputDir,
     runwareAutoSaveImages:
@@ -274,4 +368,15 @@ export function saveSettings(s: AppSettings): void {
 
 export function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')
+}
+
+export function getRunwareProfileForModel(
+  s: Pick<AppSettings, 'runwareModelProfiles'>,
+  modelId: string,
+): RunwareModelProfile {
+  const incoming = s.runwareModelProfiles?.[modelId]
+  if (incoming) return incoming
+  const fallback = defaults.runwareModelProfiles[modelId]
+  if (fallback) return fallback
+  return defaults.runwareModelProfiles[defaults.runwareImageModel]
 }

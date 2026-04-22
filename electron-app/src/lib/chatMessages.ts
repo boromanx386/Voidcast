@@ -5,6 +5,10 @@ export type HistoryTurn = {
   content: string
   /** User turns only; raw base64 for Ollama. */
   images?: string[]
+  /** User turns only; optional file names for attached images. */
+  imageNames?: string[]
+  /** User turns only; optional absolute file paths for attached images. */
+  imagePaths?: string[]
 }
 
 /**
@@ -27,7 +31,7 @@ export const TOOLS_SCRAPE_HINT = `You have a scrape_url tool. If the user messag
 export const TOOLS_PDF_HINT = `You have a save_pdf tool. When the user asks to save as PDF or export to PDF, call save_pdf with the full text in content and optional title/filename. The file is written to the folder they configured in app options (no dialog). Content can use Markdown-style structure: blank line between paragraphs, lines starting with # / ## / ### / #### for headings, lines starting with "- " for bullets, pipe tables, horizontal rules made of --- or ====, and **bold** in body text.`
 
 /** When Runware image tool is enabled */
-export const TOOLS_RUNWARE_IMAGE_HINT = `You have a generate_image tool backed by Runware. When the user asks to create/generate/draw an image, illustration, wallpaper, logo, poster, render, or concept art, call generate_image with a clear prompt. Include optional width/height/style constraints only when user asked for them. After tool output, provide a concise result and include the generated image URL.`
+export const TOOLS_RUNWARE_IMAGE_HINT = `You have two Runware tools: generate_image and edit_image_runware. Use generate_image only for fresh text-to-image creation. Use edit_image_runware when the user asks to modify existing images; pass prompt plus required reference_image_indexes using the 1-based image catalog indexes listed in the user message (e.g. "1" or "1,2"). Always use the selected model profile resolution from Options (do not set width/height in tool args). Keep steps/cfg at the selected model profile defaults unless the user explicitly requests changing them. After tool output, provide a concise result and include the generated image URL.`
 
 /** When any tools are enabled — reduces false claims about tool execution */
 export const TOOLS_TRUTH_HINT = `Never claim you saved a file, searched the web, or ran a tool unless you actually invoked that tool in this turn and received its result message. If you show sample or fictional data, say clearly it is illustrative only — do not imply it was exported to a real file.`

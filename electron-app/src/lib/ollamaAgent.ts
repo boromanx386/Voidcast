@@ -6,7 +6,11 @@ import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
 import { invokeSavePdf } from '@/lib/savePdf'
 import { invokeYoutubeTool } from '@/lib/youtubeTool'
-import { invokeRunwareImage, type RunwareImageConfig } from '@/lib/runware'
+import {
+  invokeRunwareEditImage,
+  invokeRunwareGenerateImage,
+  type RunwareImageConfig,
+} from '@/lib/runware'
 import type {
   OllamaApiMessage,
   OllamaChatUsage,
@@ -136,6 +140,52 @@ function deriveSearchQuery(userText: string): string {
   return single.length > 220 ? single.slice(0, 220).trim() : single
 }
 
+function userRequestedStepsOverride(text: string): boolean {
+  const t = (text || '').toLowerCase()
+  if (!t.trim()) return false
+  return /\b(step|steps|korak|koraka)\b/.test(t)
+}
+
+function userRequestedCfgOverride(text: string): boolean {
+  const t = (text || '').toLowerCase()
+  if (!t.trim()) return false
+  return /\b(cfg|cfg[_\s-]?scale|guidance|guidance[_\s-]?scale)\b/.test(t)
+}
+
+function parseImageIndexes(raw: unknown): number[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => (typeof x === 'number' ? x : Number(String(x).trim())))
+      .filter((n) => Number.isFinite(n))
+      .map((n) => Math.round(n))
+      .filter((n) => n > 0)
+  }
+  if (typeof raw !== 'string') return []
+  return raw
+    .split(/[,\s]+/)
+    .map((x) => Number(x.trim()))
+    .filter((n) => Number.isFinite(n))
+    .map((n) => Math.round(n))
+    .filter((n) => n > 0)
+}
+
+function pickImageByOneBasedIndex(
+  images: string[] | undefined,
+  imageMimes: string[] | undefined,
+  idx: number | null,
+): string | undefined {
+  if (!images || images.length === 0 || idx == null || !Number.isFinite(idx)) return undefined
+  const i = Math.round(idx) - 1
+  if (i < 0 || i >= images.length) return undefined
+  const raw = (images[i] || '').trim()
+  if (!raw) return undefined
+  if (raw.startsWith('data:image/')) return raw
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
+  const mimeRaw = (imageMimes?.[i] || 'image/png').trim().toLowerCase()
+  const mime = /^image\/[a-z0-9.+-]+$/.test(mimeRaw) ? mimeRaw : 'image/png'
+  return `data:${mime};base64,${raw.replace(/\s+/g, '')}`
+}
+
 async function executeToolCall(
   name: string,
   argsJson: string | Record<string, unknown> | undefined,
@@ -146,6 +196,10 @@ async function executeToolCall(
     /** Required for save_pdf when the tool is enabled */
     pdfOutputDir?: string
     runware?: RunwareImageConfig
+    userImages?: string[]
+    userImageMimes?: string[]
+    /** Latest user message text for override-policy checks. */
+    userText?: string
   },
 ): Promise<string> {
   const args =
@@ -256,8 +310,10 @@ async function executeToolCall(
           ? args.positivePrompt.trim()
           : ''
     if (!prompt) return 'Error: missing prompt parameter for generate_image.'
+    const canOverrideSteps = userRequestedStepsOverride(ctx.userText || '')
+    const canOverrideCfg = userRequestedCfgOverride(ctx.userText || '')
     try {
-      return await invokeRunwareImage(
+      return await invokeRunwareGenerateImage(
         {
           prompt,
           negativePrompt:
@@ -268,11 +324,73 @@ async function executeToolCall(
                 : undefined,
           width: typeof args.width === 'number' ? args.width : undefined,
           height: typeof args.height === 'number' ? args.height : undefined,
-          steps: typeof args.steps === 'number' ? args.steps : undefined,
+          steps:
+            canOverrideSteps && typeof args.steps === 'number'
+              ? args.steps
+              : undefined,
           cfgScale:
-            typeof args.cfg_scale === 'number'
+            canOverrideCfg && typeof args.cfg_scale === 'number'
               ? args.cfg_scale
-              : typeof args.cfgScale === 'number'
+              : canOverrideCfg && typeof args.cfgScale === 'number'
+                ? args.cfgScale
+                : undefined,
+          model: typeof args.model === 'string' ? args.model : undefined,
+        },
+        ctx.runware,
+        ctx.signal,
+      )
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+  if (name === 'edit_image_runware') {
+    if (!toolsEnabled.runwareImage) {
+      return 'Error: edit_image_runware tool is disabled in settings.'
+    }
+    if (!ctx.runware) {
+      return 'Error: Runware settings are missing.'
+    }
+    const prompt =
+      typeof args.prompt === 'string'
+        ? args.prompt.trim()
+        : typeof args.positivePrompt === 'string'
+          ? args.positivePrompt.trim()
+          : ''
+    if (!prompt) return 'Error: missing prompt parameter for edit_image_runware.'
+    const canOverrideSteps = userRequestedStepsOverride(ctx.userText || '')
+    const canOverrideCfg = userRequestedCfgOverride(ctx.userText || '')
+    const indexes = parseImageIndexes(args.reference_image_indexes)
+    if (!indexes.length) {
+      return 'Error: missing reference_image_indexes for edit_image_runware (use 1-based indexes like "1" or "1,2").'
+    }
+    const refs = indexes
+      .map((i) => pickImageByOneBasedIndex(ctx.userImages, ctx.userImageMimes, i))
+      .filter((x): x is string => typeof x === 'string' && x.length > 0)
+    if (!refs.length) {
+      const max = ctx.userImages?.length ?? 0
+      return `Error: no valid reference images resolved from reference_image_indexes. Attached image count: ${max}.`
+    }
+    try {
+      return await invokeRunwareEditImage(
+        {
+          prompt,
+          referenceImages: refs,
+          negativePrompt:
+            typeof args.negative_prompt === 'string'
+              ? args.negative_prompt
+              : typeof args.negativePrompt === 'string'
+                ? args.negativePrompt
+                : undefined,
+          width: typeof args.width === 'number' ? args.width : undefined,
+          height: typeof args.height === 'number' ? args.height : undefined,
+          steps:
+            canOverrideSteps && typeof args.steps === 'number'
+              ? args.steps
+              : undefined,
+          cfgScale:
+            canOverrideCfg && typeof args.cfg_scale === 'number'
+              ? args.cfg_scale
+              : canOverrideCfg && typeof args.cfgScale === 'number'
                 ? args.cfgScale
                 : undefined,
           model: typeof args.model === 'string' ? args.model : undefined,
@@ -424,6 +542,10 @@ export type RunChatWithToolsParams = {
   /** After each tool runs; use to show real outcomes (e.g. PDF path) in the UI. */
   onToolResult?: (payload: { name: string; result: string }) => void
   runware?: RunwareImageConfig
+  /** Attached images from the latest user message (raw base64). */
+  userImages?: string[]
+  /** MIME list matching `userImages` indexes. */
+  userImageMimes?: string[]
 }
 
 /**
@@ -489,6 +611,9 @@ export async function runOllamaChatWithTools(
               signal: params.signal,
               pdfOutputDir: params.pdfOutputDir,
               runware: params.runware,
+              userImages: params.userImages,
+              userImageMimes: params.userImageMimes,
+              userText: originalUserText,
             },
           )
           messages.push({
@@ -533,6 +658,9 @@ export async function runOllamaChatWithTools(
                 signal: params.signal,
                 pdfOutputDir: params.pdfOutputDir,
                 runware: params.runware,
+                userImages: params.userImages,
+                userImageMimes: params.userImageMimes,
+                userText: originalUserText,
               },
             )
             messages.push({
@@ -577,7 +705,7 @@ export async function runOllamaChatWithTools(
       else if (name === 'get_weather') params.onToolPhase?.('weather')
       else if (name === 'scrape_url') params.onToolPhase?.('scrape')
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
-      else if (name === 'generate_image') params.onToolPhase?.('image')
+      else if (name === 'generate_image' || name === 'edit_image_runware') params.onToolPhase?.('image')
       else params.onToolPhase?.('other')
 
       const result = await executeToolCall(
@@ -589,6 +717,9 @@ export async function runOllamaChatWithTools(
           signal: params.signal,
           pdfOutputDir: params.pdfOutputDir,
           runware: params.runware,
+          userImages: params.userImages,
+          userImageMimes: params.userImageMimes,
+          userText: originalUserText,
         },
       )
       messages.push({

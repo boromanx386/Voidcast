@@ -50,7 +50,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
 
 WEB_UI_DIR = Path(__file__).resolve().parent / "web-ui"
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip(
+    "/"
+)
 
 
 def _web_index_file() -> Path | None:
@@ -60,6 +62,7 @@ def _web_index_file() -> Path | None:
         if p.is_file():
             return p
     return None
+
 
 # Tiho: symlink na nekim NTFS/mount putevima nije podržan (npr. Q:)
 if os.environ.get("HF_HUB_DISABLE_SYMLINKS_WARNING") is None:
@@ -118,7 +121,9 @@ class WeatherRequest(BaseModel):
 
 
 class RunwareProxyRequest(BaseModel):
-    api_base_url: str = Field(default="https://api.runware.ai/v1", min_length=1, max_length=2048)
+    api_base_url: str = Field(
+        default="https://api.runware.ai/v1", min_length=1, max_length=2048
+    )
     api_key: str = Field(..., min_length=1, max_length=2048)
     tasks: list[dict[str, Any]] = Field(..., min_length=1, max_length=8)
 
@@ -508,14 +513,18 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
     if not base:
         raise HTTPException(status_code=400, detail="api_base_url is required")
     if not base.startswith("https://"):
-        raise HTTPException(status_code=400, detail="Runware base URL must use https://")
+        raise HTTPException(
+            status_code=400, detail="Runware base URL must use https://"
+        )
     key = req.api_key.strip()
     if not key:
         raise HTTPException(status_code=400, detail="api_key is required")
     if not req.tasks:
         raise HTTPException(status_code=400, detail="tasks must not be empty")
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=20.0)) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(120.0, connect=20.0)
+        ) as client:
             r = await client.post(
                 base,
                 headers={
@@ -543,7 +552,9 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
         raise
     except Exception as e:
         logger.exception("tools/runware_proxy failed: %s", e)
-        raise HTTPException(status_code=503, detail=str(e) or "Runware proxy failed") from e
+        raise HTTPException(
+            status_code=503, detail=str(e) or "Runware proxy failed"
+        ) from e
 
 
 @app.api_route(

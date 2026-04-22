@@ -41,6 +41,7 @@ import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
 import {
+  getRunwareProfileForModel,
   loadSettings,
   saveSettings,
   type AppSettings,
@@ -71,7 +72,12 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-type PendingChatImage = { base64: string; mime: string }
+type PendingChatImage = {
+  base64: string
+  mime: string
+  name?: string
+  path?: string
+}
 
 function deriveSessionTitle(messages: UiMessage[]): string {
   const firstUser = messages.find((m) => m.role === 'user')
@@ -117,6 +123,73 @@ function buildRuntimeTimeHint(now = new Date()): string {
     `- Timezone: ${tz}`,
     `- UTC ISO timestamp: ${iso}`,
     'Use this as current-time reference for queries about today/latest/current/recent.',
+  ].join('\n')
+}
+
+const VISION_TRIGGER_RE =
+  /\b(analyze|analyse|describe|what(?:'s| is) in|inspect|ocr|read(?: the)? text|caption|scan|classify|identify)\b/i
+
+function shouldUseVisionForText(text: string): boolean {
+  return VISION_TRIGGER_RE.test(text)
+}
+
+function buildAttachedImagesHint(images: PendingChatImage[]): string {
+  if (images.length <= 0) return ''
+  const indexes = Array.from({ length: images.length }, (_, i) => i + 1).join(', ')
+  const lines = images.map((img, i) => {
+    const idx = i + 1
+    const displayPath = (img.path || '').trim()
+    const displayName = (img.name || '').trim()
+    const label = displayPath || displayName || `(image ${idx})`
+    return `- ${idx}: ${label}`
+  })
+  return [
+    `Attached images available: ${images.length}`,
+    `Use 1-based image indexes: ${indexes}`,
+    'Attached image references (index -> file):',
+    ...lines,
+    'For image edits, call edit_image_runware with reference_image_indexes.',
+  ].join('\n')
+}
+
+function buildToolImageCatalog(
+  history: UiMessage[],
+  queued: PendingChatImage[],
+): PendingChatImage[] {
+  const out: PendingChatImage[] = []
+  for (let i = queued.length - 1; i >= 0; i--) {
+    out.push(queued[i])
+  }
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i]
+    if (msg.role !== 'user' || !msg.images?.length) continue
+    for (let j = (msg.images.length - 1); j >= 0; j--) {
+      const base64 = (msg.images[j] || '').trim()
+      if (!base64) continue
+      out.push({
+        base64,
+        mime: (msg.imageMimes?.[j] || 'image/png').trim() || 'image/png',
+        name: msg.imageNames?.[j],
+        path: msg.imagePaths?.[j],
+      })
+    }
+  }
+  return out
+}
+
+function buildToolImageCatalogHint(catalog: PendingChatImage[]): string {
+  if (catalog.length <= 0) return ''
+  const lines = catalog.map((img, i) => {
+    const idx = i + 1
+    const p = (img.path || '').trim()
+    const n = (img.name || '').trim()
+    const label = p || n || `(image ${idx})`
+    return `- ${idx}: ${label}`
+  })
+  return [
+    `Image catalog available for tools: ${catalog.length} (index 1 = most recent image in conversation, including current attachments).`,
+    'Use these indexes with edit_image_runware.reference_image_indexes:',
+    ...lines,
   ].join('\n')
 }
 
@@ -172,6 +245,51 @@ function extractSavedImagePaths(text: string): string[] {
     if (p) out.push(p)
   }
   return Array.from(new Set(out))
+}
+
+type RunwareImageToolMeta = {
+  model?: string
+  size?: string
+  steps?: number
+  cfgScale?: number
+  seed?: number
+  costUsd?: number
+  taskUuid?: string
+  imageUuid?: string
+  elapsedMs?: number
+}
+
+function parseRunwareImageToolMeta(text: string): RunwareImageToolMeta | null {
+  const out: RunwareImageToolMeta = {}
+  const lines = text.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+  for (const line of lines) {
+    const idx = line.indexOf(':')
+    if (idx <= 0) continue
+    const key = line.slice(0, idx).trim().toLowerCase()
+    const value = line.slice(idx + 1).trim()
+    if (!value) continue
+    if (key === 'model') out.model = value
+    else if (key === 'size') out.size = value
+    else if (key === 'steps') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.steps = Math.round(n)
+    } else if (key === 'cfg_scale') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.cfgScale = n
+    } else if (key === 'seed') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.seed = Math.round(n)
+    } else if (key === 'cost_usd') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.costUsd = n
+    } else if (key === 'task_uuid') out.taskUuid = value
+    else if (key === 'image_uuid') out.imageUuid = value
+    else if (key === 'elapsed_ms') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.elapsedMs = Math.round(n)
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null
 }
 
 // CRT Overlay Component
@@ -261,10 +379,16 @@ export default function App() {
   const [playingId, setPlayingId] = useState<string | null>(null)
   const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | null>(null)
   const [toolResultBanner, setToolResultBanner] = useState<
-    { kind: 'pdf' | 'image'; text: string } | null
+    { kind: 'pdf'; text: string } | null
   >(null)
   const [assistantGeneratedImages, setAssistantGeneratedImages] = useState<Record<string, string[]>>({})
   const [assistantSavedImagePaths, setAssistantSavedImagePaths] = useState<Record<string, string[]>>({})
+  const [assistantImageToolMeta, setAssistantImageToolMeta] = useState<
+    Record<string, Record<string, RunwareImageToolMeta>>
+  >({})
+  const [assistantImageMessageMeta, setAssistantImageMessageMeta] = useState<
+    Record<string, RunwareImageToolMeta>
+  >({})
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
@@ -336,6 +460,8 @@ export default function App() {
     setMessages(active?.messages ?? [])
     setAssistantGeneratedImages({})
     setAssistantSavedImagePaths({})
+    setAssistantImageToolMeta({})
+    setAssistantImageMessageMeta({})
     setHiddenContextSummary(active?.hiddenContextSummary ?? '')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -435,6 +561,8 @@ export default function App() {
     setMessages([])
     setAssistantGeneratedImages({})
     setAssistantSavedImagePaths({})
+    setAssistantImageToolMeta({})
+    setAssistantImageMessageMeta({})
     setHiddenContextSummary('')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -456,6 +584,8 @@ export default function App() {
     setMessages(session.messages)
     setAssistantGeneratedImages({})
     setAssistantSavedImagePaths({})
+    setAssistantImageToolMeta({})
+    setAssistantImageMessageMeta({})
     setHiddenContextSummary(session.hiddenContextSummary ?? '')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -497,11 +627,15 @@ export default function App() {
       setMessages(next?.messages ?? [])
       setAssistantGeneratedImages({})
       setAssistantSavedImagePaths({})
+      setAssistantImageToolMeta({})
+      setAssistantImageMessageMeta({})
       setHiddenContextSummary(next?.hiddenContextSummary ?? '')
     } else {
       setMessages([])
       setAssistantGeneratedImages({})
       setAssistantSavedImagePaths({})
+      setAssistantImageToolMeta({})
+      setAssistantImageMessageMeta({})
       setHiddenContextSummary('')
     }
     setContextUsageInfo(null)
@@ -601,18 +735,22 @@ export default function App() {
 
     const imagesBase64 = queued.map((q) => q.base64)
     const imageMimes = queued.map((q) => q.mime)
-    /** Some vision stacks ignore empty user text even when `images` is set — keep UI caption empty but send a hint to the API. */
-    const ollamaUserText =
-      text ||
-      (imagesBase64.length > 0
-        ? 'Reply based on the attached image(s).'
-        : '')
+    const imageNames = queued.map((q) => (q.name || '').trim())
+    const imagePaths = queued.map((q) => (q.path || '').trim())
+    const toolImageCatalog = buildToolImageCatalog(messages, queued)
+    const useVisionForCurrentMessage =
+      imagesBase64.length > 0 && shouldUseVisionForText(text)
+    const attachedImagesHint = buildAttachedImagesHint(queued)
+    const toolCatalogHint = buildToolImageCatalogHint(toolImageCatalog)
+    const ollamaUserText = [text, attachedImagesHint, toolCatalogHint]
+      .filter((x) => x.trim().length > 0)
+      .join('\n\n')
     const userMsg: UiMessage = {
       id: uid(),
       role: 'user',
       content: text,
       ...(imagesBase64.length > 0
-        ? { images: imagesBase64, imageMimes }
+        ? { images: imagesBase64, imageMimes, imageNames, imagePaths }
         : {}),
     }
     const asstId = uid()
@@ -629,9 +767,11 @@ export default function App() {
           role: 'user',
           content:
             x.content ||
-            (x.images?.length ? 'Reply based on the attached image(s).' : ''),
+            (x.images?.length ? 'Attached image(s) were provided in this message.' : ''),
         }
-        if (x.images?.length) t.images = x.images
+        if (x.images?.length && shouldUseVisionForText(x.content)) t.images = x.images
+        if (x.imageNames?.length) t.imageNames = x.imageNames
+        if (x.imagePaths?.length) t.imagePaths = x.imagePaths
         return t
       }
       return { role: 'assistant', content: x.content }
@@ -656,8 +796,16 @@ export default function App() {
         runtimeSystemHint: runtimeTimeHint,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         toolsSystemHint: useTools && toolsHintParts.length > 0 ? toolsHintParts.join('\n\n') : undefined,
-        newUserImages: imagesBase64.length > 0 ? imagesBase64 : undefined,
+        newUserImages: useVisionForCurrentMessage ? imagesBase64 : undefined,
       },
+    )
+    const activeRunwareProfile = getRunwareProfileForModel(
+      settings,
+      settings.runwareImageModel,
+    )
+    const activeRunwareEditProfile = getRunwareProfileForModel(
+      settings,
+      settings.runwareEditModel,
     )
 
     const ac = new AbortController()
@@ -681,23 +829,36 @@ export default function App() {
             apiKey: settings.runwareApiKey,
             proxyBaseUrl: settings.ttsBaseUrl,
             model: settings.runwareImageModel,
-            width: settings.runwareWidth,
-            height: settings.runwareHeight,
-            steps: settings.runwareSteps,
-            cfgScale: settings.runwareCfgScale,
+            editModel: settings.runwareEditModel,
+            width: activeRunwareProfile.width,
+            height: activeRunwareProfile.height,
+            steps: activeRunwareProfile.steps,
+            cfgScale: activeRunwareProfile.cfgScale,
+            gptQuality: activeRunwareProfile.gptQuality,
+            editDefaults: {
+              width: activeRunwareEditProfile.width,
+              height: activeRunwareEditProfile.height,
+              steps: activeRunwareEditProfile.steps,
+              cfgScale: activeRunwareEditProfile.cfgScale,
+              gptQuality: activeRunwareEditProfile.gptQuality,
+            },
             negativePrompt: settings.runwareNegativePrompt,
           },
+          userImages: toolImageCatalog.map((x) => x.base64),
+          userImageMimes: toolImageCatalog.map((x) => x.mime),
           signal: ac.signal,
           onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
           onToolPhase: (phase) => setToolPhase(phase as typeof toolPhase),
           onToolResult: ({ name, result }) => {
             if (name === 'save_pdf') {
               setToolResultBanner({ kind: 'pdf', text: result })
-            } else if (name === 'generate_image') {
-              setToolResultBanner({ kind: 'image', text: result })
             }
-            if (name === 'generate_image') {
+            if (name === 'generate_image' || name === 'edit_image_runware') {
               const urls = extractRunwareImageUrls(result)
+              const meta = parseRunwareImageToolMeta(result)
+              if (meta) {
+                setAssistantImageMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
+              }
               for (const u of urls) {
                 if (!runwareImageUrlsFromTools.includes(u)) {
                   runwareImageUrlsFromTools.push(u)
@@ -709,6 +870,14 @@ export default function App() {
                   const next = Array.from(new Set([...cur, ...urls]))
                   return { ...prev, [asstId]: next }
                 })
+                if (meta) {
+                  setAssistantImageToolMeta((prev) => {
+                    const cur = prev[asstId] || {}
+                    const next = { ...cur }
+                    for (const u of urls) next[u] = meta
+                    return { ...prev, [asstId]: next }
+                  })
+                }
                 if (settings.runwareAutoSaveImages && settings.runwareImageOutputDir.trim()) {
                   void (async () => {
                     const saved: string[] = []
@@ -728,10 +897,6 @@ export default function App() {
                           return { ...prev, [asstId]: next }
                         })
                       }
-                      setToolResultBanner({
-                        kind: 'image',
-                        text: `${result}\n${saved.join('\n')}`,
-                      })
                     }
                   })()
                 }
@@ -806,6 +971,8 @@ export default function App() {
         const added: PendingChatImage[] = res.files.map((f) => ({
           base64: f.base64.replace(/\s+/g, ''),
           mime: f.mime,
+          name: f.name,
+          path: f.path,
         }))
         if (added.some((x) => !x.base64.length)) {
           setError('Could not read image data.')
@@ -855,7 +1022,7 @@ export default function App() {
           setError(`Empty image data: ${file.name}`)
           continue
         }
-        added.push({ base64, mime })
+        added.push({ base64, mime, name: file.name })
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       }
@@ -1453,6 +1620,58 @@ export default function App() {
                                 </button>
                               )}
                             </div>
+                            {assistantImageToolMeta[m.id]?.[url] ? (
+                              <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
+                                <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
+                                  IMAGE_INFO
+                                </summary>
+                                <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                                  {(() => {
+                                    const meta =
+                                      assistantImageToolMeta[m.id]?.[url]
+                                      || assistantImageMessageMeta[m.id]
+                                      || parseRunwareImageToolMeta(m.content)
+                                    if (!meta) return ''
+                                    const lines: string[] = []
+                                    if (meta.model) lines.push(`model: ${meta.model}`)
+                                    if (meta.size) lines.push(`size: ${meta.size}`)
+                                    if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
+                                    if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                    if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
+                                    if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                    if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                    if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
+                                    if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
+                                    return lines.join('\n')
+                                  })()}
+                                </div>
+                              </details>
+                            ) : (
+                              assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
+                            ) ? (
+                              <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
+                                <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
+                                  IMAGE_INFO
+                                </summary>
+                                <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                                  {(() => {
+                                    const meta = assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
+                                    if (!meta) return ''
+                                    const lines: string[] = []
+                                    if (meta.model) lines.push(`model: ${meta.model}`)
+                                    if (meta.size) lines.push(`size: ${meta.size}`)
+                                    if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
+                                    if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                    if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
+                                    if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                    if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                    if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
+                                    if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
+                                    return lines.join('\n')
+                                  })()}
+                                </div>
+                              </details>
+                            ) : null}
                           </div>
                         ))}
                       </div>
@@ -1553,7 +1772,7 @@ export default function App() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-xs font-mono text-neon-green/70 uppercase tracking-wider">
-                {toolResultBanner.kind === 'image' ? 'RUNWARE_IMAGE_RESULT' : 'PDF_EXPORT_RESULT'}
+                PDF_EXPORT_RESULT
               </div>
               <div className="mt-1 whitespace-pre-wrap break-all text-xs font-mono">
                 {toolResultBanner.text}

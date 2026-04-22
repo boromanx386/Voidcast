@@ -158,14 +158,6 @@ const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
           type: 'string',
           description: 'Optional negative prompt for elements to avoid.',
         },
-        width: {
-          type: 'number',
-          description: 'Optional output width in pixels.',
-        },
-        height: {
-          type: 'number',
-          description: 'Optional output height in pixels.',
-        },
         steps: {
           type: 'number',
           description: 'Optional number of inference steps.',
@@ -184,6 +176,46 @@ const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
   },
 }
 
+const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'edit_image_runware',
+    description:
+      'Edit or transform images with Runware using attached chat images as references. Use when the user asks to modify an existing image or combine details from attached images.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Instruction for how the referenced image(s) should be edited or transformed.',
+        },
+        reference_image_indexes: {
+          type: 'string',
+          description:
+            'Required 1-based attached-image indexes (for example: "1" or "1,2"). These map to images attached in the current user message.',
+        },
+        negative_prompt: {
+          type: 'string',
+          description: 'Optional negative prompt for elements to avoid.',
+        },
+        steps: {
+          type: 'number',
+          description: 'Optional number of inference steps.',
+        },
+        cfg_scale: {
+          type: 'number',
+          description: 'Optional guidance scale.',
+        },
+        model: {
+          type: 'string',
+          description: 'Optional Runware edit model id override.',
+        },
+      },
+      required: ['prompt', 'reference_image_indexes'],
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
@@ -191,7 +223,10 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
   if (enabled.pdf) out.push(SAVE_PDF_TOOL)
-  if (enabled.runwareImage) out.push(GENERATE_IMAGE_TOOL)
+  if (enabled.runwareImage) {
+    out.push(GENERATE_IMAGE_TOOL)
+    out.push(EDIT_IMAGE_RUNWARE_TOOL)
+  }
   return out
 }
 
