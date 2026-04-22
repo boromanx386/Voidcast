@@ -33,6 +33,9 @@ export const TOOLS_PDF_HINT = `You have a save_pdf tool. When the user asks to s
 /** When Runware image tool is enabled */
 export const TOOLS_RUNWARE_IMAGE_HINT = `You have two Runware tools: generate_image and edit_image_runware. Use generate_image only for fresh text-to-image creation. Use edit_image_runware when the user asks to modify existing images; pass prompt plus required reference_image_indexes using the 1-based image catalog indexes listed in the user message (e.g. "1" or "1,2"). Always use the selected model profile resolution from Options (do not set width/height in tool args). Keep steps/cfg at the selected model profile defaults unless the user explicitly requests changing them. After tool output, provide a concise result and include the generated image URL.`
 
+/** When Runware music tool is enabled */
+export const TOOLS_RUNWARE_MUSIC_HINT = `You have a Runware music tool named generate_music_runware using fixed model runware:ace-step@v1.5-turbo. Use it when the user asks to create music, song, beat, soundtrack, jingle, or vocals from text. Keep duration/steps/cfg/output format at the selected Runware Music Options defaults unless the user explicitly requests changes. You may include optional advanced fields (lyrics, bpm, key_scale, vocal_language, guidance_type) only when relevant. After tool output, provide a concise result and include the generated audio URL.`
+
 /** When any tools are enabled — reduces false claims about tool execution */
 export const TOOLS_TRUTH_HINT = `Never claim you saved a file, searched the web, or ran a tool unless you actually invoked that tool in this turn and received its result message. If you show sample or fictional data, say clearly it is illustrative only — do not imply it was exported to a real file.`
 

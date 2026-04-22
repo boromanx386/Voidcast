@@ -31,6 +31,8 @@ export type ToolsEnabled = {
   youtube: boolean
   /** Generate images via Runware API */
   runwareImage: boolean
+  /** Generate music/audio via Runware ACE-Step model */
+  runwareMusic: boolean
 }
 
 export type AppSettings = {
@@ -95,6 +97,24 @@ export type AppSettings = {
   runwareImageOutputDir: string
   /** If true, each generated image is saved automatically to output folder. */
   runwareAutoSaveImages: boolean
+  /** Runware music output format. */
+  runwareMusicOutputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
+  /** Runware music duration in seconds. */
+  runwareMusicDurationSec: number
+  /** Runware music inference steps. */
+  runwareMusicSteps: number
+  /** Runware music guidance scale. */
+  runwareMusicCfgScale: number
+  /** Runware music guidance type. */
+  runwareMusicGuidanceType: 'apg' | 'cfg'
+  /** Runware music vocals language (ISO 639-1 code or unknown). */
+  runwareMusicVocalLanguage: string
+  /** Optional fixed Runware seed for reproducible music generation. */
+  runwareMusicSeed: number | null
+  /** Auto-save generated Runware music to this folder (desktop app). */
+  runwareMusicOutputDir: string
+  /** If true, each generated music file is saved automatically to output folder. */
+  runwareAutoSaveMusic: boolean
 }
 
 import {
@@ -131,6 +151,7 @@ const defaults: AppSettings = {
     pdf: false,
     youtube: false,
     runwareImage: false,
+    runwareMusic: false,
   },
   pdfOutputDir: '',
   uiTheme: 'dystopian',
@@ -160,6 +181,15 @@ const defaults: AppSettings = {
   runwareNegativePrompt: '',
   runwareImageOutputDir: '',
   runwareAutoSaveImages: false,
+  runwareMusicOutputFormat: 'MP3',
+  runwareMusicDurationSec: 60,
+  runwareMusicSteps: 10,
+  runwareMusicCfgScale: 10,
+  runwareMusicGuidanceType: 'apg',
+  runwareMusicVocalLanguage: 'en',
+  runwareMusicSeed: null,
+  runwareMusicOutputDir: '',
+  runwareAutoSaveMusic: false,
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -183,6 +213,10 @@ function normalizeTools(s: AppSettings): AppSettings {
         typeof te?.runwareImage === 'boolean'
           ? te.runwareImage
           : defaults.toolsEnabled.runwareImage,
+      runwareMusic:
+        typeof te?.runwareMusic === 'boolean'
+          ? te.runwareMusic
+          : defaults.toolsEnabled.runwareMusic,
     },
   }
 }
@@ -239,6 +273,30 @@ function normalizeRunware(s: AppSettings): AppSettings {
     typeof s.runwareNegativePrompt === 'string' ? s.runwareNegativePrompt : ''
   const outputDir =
     typeof s.runwareImageOutputDir === 'string' ? s.runwareImageOutputDir.trim() : ''
+  const musicOutputFormatRaw = typeof s.runwareMusicOutputFormat === 'string'
+    ? s.runwareMusicOutputFormat.trim().toUpperCase()
+    : ''
+  const musicOutputFormat =
+    musicOutputFormatRaw === 'WAV' || musicOutputFormatRaw === 'FLAC' || musicOutputFormatRaw === 'OGG'
+      ? musicOutputFormatRaw
+      : 'MP3'
+  const musicDuration = Number(s.runwareMusicDurationSec)
+  const musicSteps = Number(s.runwareMusicSteps)
+  const musicCfg = Number(s.runwareMusicCfgScale)
+  const musicGuidanceRaw = typeof s.runwareMusicGuidanceType === 'string'
+    ? s.runwareMusicGuidanceType.trim().toLowerCase()
+    : ''
+  const musicGuidanceType = musicGuidanceRaw === 'cfg' ? 'cfg' : 'apg'
+  const musicVocalLangRaw = typeof s.runwareMusicVocalLanguage === 'string'
+    ? s.runwareMusicVocalLanguage.trim().toLowerCase()
+    : ''
+  const musicVocalLanguage = musicVocalLangRaw || defaults.runwareMusicVocalLanguage
+  const musicSeedRaw = Number(s.runwareMusicSeed)
+  const musicSeed = Number.isFinite(musicSeedRaw)
+    ? clamp(Math.round(musicSeedRaw), 0, 2147483647)
+    : null
+  const musicOutputDir =
+    typeof s.runwareMusicOutputDir === 'string' ? s.runwareMusicOutputDir.trim() : ''
   const legacyProfile: RunwareModelProfile = {
     width: Number.isFinite(width) ? clamp(Math.round(width), 256, 2048) : defaults.runwareWidth,
     height: Number.isFinite(height)
@@ -309,6 +367,24 @@ function normalizeRunware(s: AppSettings): AppSettings {
       typeof s.runwareAutoSaveImages === 'boolean'
         ? s.runwareAutoSaveImages
         : defaults.runwareAutoSaveImages,
+    runwareMusicOutputFormat: musicOutputFormat,
+    runwareMusicDurationSec: Number.isFinite(musicDuration)
+      ? clamp(musicDuration, 6, 300)
+      : defaults.runwareMusicDurationSec,
+    runwareMusicSteps: Number.isFinite(musicSteps)
+      ? clamp(Math.round(musicSteps), 1, 20)
+      : defaults.runwareMusicSteps,
+    runwareMusicCfgScale: Number.isFinite(musicCfg)
+      ? clamp(musicCfg, 1, 30)
+      : defaults.runwareMusicCfgScale,
+    runwareMusicGuidanceType: musicGuidanceType,
+    runwareMusicVocalLanguage: musicVocalLanguage,
+    runwareMusicSeed: musicSeed,
+    runwareMusicOutputDir: musicOutputDir,
+    runwareAutoSaveMusic:
+      typeof s.runwareAutoSaveMusic === 'boolean'
+        ? s.runwareAutoSaveMusic
+        : defaults.runwareAutoSaveMusic,
   }
 }
 

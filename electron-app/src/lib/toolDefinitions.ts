@@ -216,6 +216,69 @@ const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
   },
 }
 
+const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'generate_music_runware',
+    description:
+      'Generate music/audio with Runware ACE-Step v1.5 Turbo from a text prompt. Use when the user asks to create a song, beat, background music, jingle, soundtrack, or vocals.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Primary music prompt describing style, mood, instruments, vocals, and structure.',
+        },
+        negative_prompt: {
+          type: 'string',
+          description: 'Optional negative prompt for unwanted music qualities.',
+        },
+        lyrics: {
+          type: 'string',
+          description: 'Optional lyrics text.',
+        },
+        duration_sec: {
+          type: 'number',
+          description: 'Optional duration in seconds (6-300).',
+        },
+        steps: {
+          type: 'number',
+          description: 'Optional number of denoising steps (1-20).',
+        },
+        cfg_scale: {
+          type: 'number',
+          description: 'Optional guidance scale (1-30).',
+        },
+        output_format: {
+          type: 'string',
+          description: 'Optional output format: MP3, WAV, FLAC, or OGG.',
+        },
+        seed: {
+          type: 'number',
+          description: 'Optional fixed seed for reproducible generation.',
+        },
+        bpm: {
+          type: 'number',
+          description: 'Optional beats per minute (30-300).',
+        },
+        key_scale: {
+          type: 'string',
+          description: 'Optional musical key and scale (for example: "C major", "F# minor").',
+        },
+        guidance_type: {
+          type: 'string',
+          description: 'Optional guidance type: apg or cfg.',
+        },
+        vocal_language: {
+          type: 'string',
+          description: 'Optional vocal language code (for example: en, es, de, unknown).',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
@@ -227,6 +290,7 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
     out.push(GENERATE_IMAGE_TOOL)
     out.push(EDIT_IMAGE_RUNWARE_TOOL)
   }
+  if (enabled.runwareMusic) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
   return out
 }
 
@@ -237,6 +301,7 @@ export function anyToolEnabled(enabled: ToolsEnabled): boolean {
     enabled.weather ||
     enabled.scrape ||
     enabled.pdf ||
-    enabled.runwareImage
+    enabled.runwareImage ||
+    enabled.runwareMusic
   )
 }

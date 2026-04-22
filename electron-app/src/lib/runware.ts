@@ -26,6 +26,16 @@ export type RunwareImageConfig = {
     gptQuality?: 'auto' | 'low' | 'medium' | 'high'
   }
   negativePrompt?: string
+  /** Optional defaults for Runware music generation (ACE-Step). */
+  musicDefaults?: {
+    outputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
+    durationSec: number
+    steps: number
+    cfgScale: number
+    guidanceType: 'apg' | 'cfg'
+    vocalLanguage: string
+    seed?: number | null
+  }
 }
 
 export type RunwareGenerateImageRequest = {
@@ -48,6 +58,22 @@ export type RunwareEditImageRequest = {
   steps?: number
   cfgScale?: number
   model?: string
+}
+
+export type RunwareGenerateMusicRequest = {
+  prompt: string
+  negativePrompt?: string
+  outputFormat?: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
+  durationSec?: number
+  steps?: number
+  cfgScale?: number
+  seed?: number
+  lyrics?: string
+  bpm?: number
+  keyScale?: string
+  timeSignature?: '2' | '3' | '4' | '6'
+  vocalLanguage?: string
+  guidanceType?: 'apg' | 'cfg'
 }
 
 type RunwareInferenceResult = {
@@ -75,6 +101,7 @@ export type RunwareModelOption = {
 }
 
 const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
+export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo'
 
 export const RUNWARE_ALLOWED_EDIT_MODEL_IDS = [
   RUNWARE_FLUX_9B_MODEL_ID,
@@ -180,6 +207,8 @@ type RunwareApiBody = {
     seed?: number
     taskUUID?: string
     imageUUID?: string
+    audioURL?: string
+    audioUUID?: string
     cost?: number
   }>
   errors?: Array<{ message?: string }>
@@ -484,6 +513,44 @@ function formatRunwareToolResult(payload: {
   return lines.join('\n')
 }
 
+function formatRunwareMusicToolResult(payload: {
+  audioUrl: string
+  model: string
+  outputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
+  durationSec: number
+  steps: number
+  cfgScale: number
+  guidanceType: 'apg' | 'cfg'
+  vocalLanguage: string
+  seed?: number
+  taskUUID?: string
+  audioUUID?: string
+  cost?: number
+  elapsedMs?: number
+}): string {
+  const lines = [
+    'Runware music generated successfully.',
+    `audio_url: ${payload.audioUrl}`,
+    `model: ${payload.model}`,
+    `output_format: ${payload.outputFormat}`,
+    `duration_sec: ${payload.durationSec}`,
+    `steps: ${payload.steps}`,
+    `cfg_scale: ${payload.cfgScale}`,
+    `guidance_type: ${payload.guidanceType}`,
+    `vocal_language: ${payload.vocalLanguage}`,
+  ]
+  if (typeof payload.seed === 'number') lines.push(`seed: ${payload.seed}`)
+  if (payload.taskUUID) lines.push(`task_uuid: ${payload.taskUUID}`)
+  if (payload.audioUUID) lines.push(`audio_uuid: ${payload.audioUUID}`)
+  if (typeof payload.cost === 'number' && Number.isFinite(payload.cost)) {
+    lines.push(`cost_usd: ${payload.cost.toFixed(6)}`)
+  }
+  if (typeof payload.elapsedMs === 'number' && Number.isFinite(payload.elapsedMs)) {
+    lines.push(`elapsed_ms: ${Math.max(0, Math.round(payload.elapsedMs))}`)
+  }
+  return lines.join('\n')
+}
+
 function normalizeImageDataUri(value: string): string {
   const raw = (value || '').trim()
   if (!raw) return ''
@@ -762,4 +829,122 @@ export async function invokeRunwareEditImage(
     return `${out}\n${notes.join('\n')}`
   }
   return out
+}
+
+function normalizeRunwareAudioOutputFormat(
+  v: unknown,
+): 'MP3' | 'WAV' | 'FLAC' | 'OGG' {
+  const x = typeof v === 'string' ? v.trim().toUpperCase() : ''
+  if (x === 'WAV' || x === 'FLAC' || x === 'OGG') return x
+  return 'MP3'
+}
+
+function normalizeGuidanceType(v: unknown): 'apg' | 'cfg' {
+  return v === 'cfg' ? 'cfg' : 'apg'
+}
+
+function normalizeVocalLanguage(v: unknown): string {
+  const s = typeof v === 'string' ? v.trim().toLowerCase() : ''
+  return s || 'en'
+}
+
+export async function invokeRunwareGenerateMusic(
+  req: RunwareGenerateMusicRequest,
+  config: RunwareImageConfig,
+  signal?: AbortSignal,
+): Promise<string> {
+  const prompt = (req.prompt || '').trim()
+  if (!prompt) throw new Error('Runware generate_music_runware requires a non-empty prompt.')
+  const apiKey = (config.apiKey || '').trim()
+  if (!apiKey) throw new Error('Runware API key is not set. Configure it in Options -> Runware.')
+
+  const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')
+  const model = RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID
+  const defaults = config.musicDefaults
+  const outputFormat = normalizeRunwareAudioOutputFormat(req.outputFormat ?? defaults?.outputFormat)
+  const durationSec = clamp(
+    asFiniteNumber(req.durationSec) ?? defaults?.durationSec ?? 60,
+    6,
+    300,
+  )
+  const steps = clamp(
+    Math.round(asFiniteNumber(req.steps) ?? defaults?.steps ?? 10),
+    1,
+    20,
+  )
+  const cfgScale = clamp(
+    asFiniteNumber(req.cfgScale) ?? defaults?.cfgScale ?? 10,
+    1,
+    30,
+  )
+  const guidanceType = normalizeGuidanceType(req.guidanceType ?? defaults?.guidanceType)
+  const vocalLanguage = normalizeVocalLanguage(req.vocalLanguage ?? defaults?.vocalLanguage)
+  const seedRaw = asFiniteNumber(req.seed) ?? asFiniteNumber(defaults?.seed ?? null)
+  const seed = seedRaw == null ? undefined : clamp(Math.round(seedRaw), 0, 2147483647)
+  const negativePrompt = (req.negativePrompt || '').trim()
+  const lyrics = (req.lyrics || '').trim()
+  const keyScale = (req.keyScale || '').trim()
+  const taskUUID = makeTaskUuid()
+
+  const settings: Record<string, unknown> = {
+    guidanceType,
+    vocalLanguage,
+  }
+  if (lyrics) settings.lyrics = lyrics
+  if (keyScale) settings.keyScale = keyScale
+  if (typeof req.bpm === 'number' && Number.isFinite(req.bpm)) {
+    settings.bpm = clamp(Math.round(req.bpm), 30, 300)
+  }
+  if (req.timeSignature === '2' || req.timeSignature === '3' || req.timeSignature === '4' || req.timeSignature === '6') {
+    settings.timeSignature = req.timeSignature
+  }
+
+  const payload: Record<string, unknown> = {
+    taskType: 'audioInference',
+    taskUUID,
+    includeCost: true,
+    model,
+    outputType: 'URL',
+    outputFormat,
+    positivePrompt: prompt,
+    duration: durationSec,
+    steps,
+    CFGScale: cfgScale,
+    settings,
+  }
+  if (negativePrompt) payload.negativePrompt = negativePrompt
+  if (typeof seed === 'number') payload.seed = seed
+
+  const started = Date.now()
+  const body = await postRunwareTasks({
+    apiBaseUrl: root,
+    apiKey,
+    tasks: [payload],
+    signal,
+    proxyBaseUrl: config.proxyBaseUrl,
+  })
+  const elapsedMs = Date.now() - started
+
+  const first = Array.isArray(body.data) ? body.data[0] : undefined
+  const audioUrl = (first?.audioURL || '').trim()
+  if (!audioUrl) {
+    const errMessage = readRunwareError(body) || 'Runware returned no audio URL.'
+    throw new Error(errMessage)
+  }
+
+  return formatRunwareMusicToolResult({
+    audioUrl,
+    model,
+    outputFormat,
+    durationSec,
+    steps,
+    cfgScale,
+    guidanceType,
+    vocalLanguage,
+    seed: first?.seed,
+    taskUUID: first?.taskUUID,
+    audioUUID: first?.audioUUID,
+    cost: first?.cost,
+    elapsedMs,
+  })
 }

@@ -12,6 +12,7 @@ import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
+import { RunwareMusicOptionsPanel } from '@/components/options/RunwareMusicOptionsPanel'
 import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
 import {
@@ -22,6 +23,7 @@ import {
   TOOLS_SCRAPE_HINT,
   TOOLS_PDF_HINT,
   TOOLS_RUNWARE_IMAGE_HINT,
+  TOOLS_RUNWARE_MUSIC_HINT,
   TOOLS_TRUTH_HINT,
   type HistoryTurn,
 } from '@/lib/chatMessages'
@@ -40,6 +42,7 @@ import { compressConversationContext } from '@/lib/contextCompress'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
+import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import {
   getRunwareProfileForModel,
   loadSettings,
@@ -66,7 +69,7 @@ import {
 import type { ChatSession, UiMessage } from '@/types/chat'
 
 type Screen = 'chat' | 'options'
-type OptionsTab = 'general' | 'llm' | 'runware' | 'tts' | 'tools'
+type OptionsTab = 'general' | 'llm' | 'runware' | 'runwareMusic' | 'tts' | 'tools'
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -194,10 +197,12 @@ function buildToolImageCatalogHint(catalog: PendingChatImage[]): string {
 }
 
 const RUNWARE_IMAGE_URL_LINE_RE = /^\s*image_url:\s*(https?:\/\/\S+)\s*$/gim
+const RUNWARE_AUDIO_URL_LINE_RE = /^\s*audio_url:\s*(https?:\/\/\S+)\s*$/gim
 const MARKDOWN_IMAGE_URL_RE = /!\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
 const MARKDOWN_LINK_URL_RE = /\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
 const PLAIN_HTTP_URL_RE = /(https?:\/\/[^\s)]+)/gim
 const SAVED_IMAGE_PATH_RE = /^\s*Saved image:\s*(.+)\s*$/gim
+const SAVED_AUDIO_PATH_RE = /^\s*Saved audio:\s*(.+)\s*$/gim
 
 function extractRunwareImageUrls(text: string): string[] {
   const out: string[] = []
@@ -223,6 +228,24 @@ function extractRunwareImageUrls(text: string): string[] {
   return Array.from(new Set(out))
 }
 
+function extractRunwareAudioUrls(text: string): string[] {
+  const out: string[] = []
+  if (!text.trim()) return out
+  RUNWARE_AUDIO_URL_LINE_RE.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = RUNWARE_AUDIO_URL_LINE_RE.exec(text)) !== null) {
+    const u = (match[1] || '').trim()
+    if (u) out.push(u)
+  }
+  return Array.from(new Set(out))
+}
+
+function stripRunwareAudioUrlLines(text: string): string {
+  if (!text.trim()) return text
+  RUNWARE_AUDIO_URL_LINE_RE.lastIndex = 0
+  return text.replace(RUNWARE_AUDIO_URL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function extractMarkdownImageUrls(text: string): string[] {
   if (!text.trim()) return []
   MARKDOWN_IMAGE_URL_RE.lastIndex = 0
@@ -241,6 +264,18 @@ function extractSavedImagePaths(text: string): string[] {
   const out: string[] = []
   let match: RegExpExecArray | null
   while ((match = SAVED_IMAGE_PATH_RE.exec(text)) !== null) {
+    const p = (match[1] || '').trim()
+    if (p) out.push(p)
+  }
+  return Array.from(new Set(out))
+}
+
+function extractSavedAudioPaths(text: string): string[] {
+  if (!text.trim()) return []
+  SAVED_AUDIO_PATH_RE.lastIndex = 0
+  const out: string[] = []
+  let match: RegExpExecArray | null
+  while ((match = SAVED_AUDIO_PATH_RE.exec(text)) !== null) {
     const p = (match[1] || '').trim()
     if (p) out.push(p)
   }
@@ -284,6 +319,59 @@ function parseRunwareImageToolMeta(text: string): RunwareImageToolMeta | null {
       if (Number.isFinite(n)) out.costUsd = n
     } else if (key === 'task_uuid') out.taskUuid = value
     else if (key === 'image_uuid') out.imageUuid = value
+    else if (key === 'elapsed_ms') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.elapsedMs = Math.round(n)
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
+
+type RunwareAudioToolMeta = {
+  model?: string
+  outputFormat?: string
+  durationSec?: number
+  steps?: number
+  cfgScale?: number
+  guidanceType?: string
+  vocalLanguage?: string
+  seed?: number
+  costUsd?: number
+  taskUuid?: string
+  audioUuid?: string
+  elapsedMs?: number
+}
+
+function parseRunwareAudioToolMeta(text: string): RunwareAudioToolMeta | null {
+  const out: RunwareAudioToolMeta = {}
+  const lines = text.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+  for (const line of lines) {
+    const idx = line.indexOf(':')
+    if (idx <= 0) continue
+    const key = line.slice(0, idx).trim().toLowerCase()
+    const value = line.slice(idx + 1).trim()
+    if (!value) continue
+    if (key === 'model') out.model = value
+    else if (key === 'output_format') out.outputFormat = value
+    else if (key === 'duration_sec') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.durationSec = n
+    } else if (key === 'steps') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.steps = Math.round(n)
+    } else if (key === 'cfg_scale') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.cfgScale = n
+    } else if (key === 'guidance_type') out.guidanceType = value
+    else if (key === 'vocal_language') out.vocalLanguage = value
+    else if (key === 'seed') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.seed = Math.round(n)
+    } else if (key === 'cost_usd') {
+      const n = Number(value)
+      if (Number.isFinite(n)) out.costUsd = n
+    } else if (key === 'task_uuid') out.taskUuid = value
+    else if (key === 'audio_uuid') out.audioUuid = value
     else if (key === 'elapsed_ms') {
       const n = Number(value)
       if (Number.isFinite(n)) out.elapsedMs = Math.round(n)
@@ -338,6 +426,7 @@ function ToolIndicator({ phase }: { phase: string | null }) {
     scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrape' },
     pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
     image: { icon: '◌', label: 'RUNWARE_IMAGE', className: 'image' },
+    music: { icon: '♫', label: 'RUNWARE_MUSIC', className: 'music' },
   }
   
   const tool = config[phase] || { icon: '◈', label: phase.toUpperCase(), className: '' }
@@ -377,7 +466,7 @@ export default function App() {
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
-  const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | null>(null)
+  const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | 'music' | null>(null)
   const [toolResultBanner, setToolResultBanner] = useState<
     { kind: 'pdf'; text: string } | null
   >(null)
@@ -388,6 +477,14 @@ export default function App() {
   >({})
   const [assistantImageMessageMeta, setAssistantImageMessageMeta] = useState<
     Record<string, RunwareImageToolMeta>
+  >({})
+  const [assistantGeneratedAudios, setAssistantGeneratedAudios] = useState<Record<string, string[]>>({})
+  const [assistantSavedAudioPaths, setAssistantSavedAudioPaths] = useState<Record<string, string[]>>({})
+  const [assistantAudioToolMeta, setAssistantAudioToolMeta] = useState<
+    Record<string, Record<string, RunwareAudioToolMeta>>
+  >({})
+  const [assistantAudioMessageMeta, setAssistantAudioMessageMeta] = useState<
+    Record<string, RunwareAudioToolMeta>
   >({})
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
@@ -462,6 +559,10 @@ export default function App() {
     setAssistantSavedImagePaths({})
     setAssistantImageToolMeta({})
     setAssistantImageMessageMeta({})
+    setAssistantGeneratedAudios({})
+    setAssistantSavedAudioPaths({})
+    setAssistantAudioToolMeta({})
+    setAssistantAudioMessageMeta({})
     setHiddenContextSummary(active?.hiddenContextSummary ?? '')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -563,6 +664,10 @@ export default function App() {
     setAssistantSavedImagePaths({})
     setAssistantImageToolMeta({})
     setAssistantImageMessageMeta({})
+    setAssistantGeneratedAudios({})
+    setAssistantSavedAudioPaths({})
+    setAssistantAudioToolMeta({})
+    setAssistantAudioMessageMeta({})
     setHiddenContextSummary('')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -586,6 +691,10 @@ export default function App() {
     setAssistantSavedImagePaths({})
     setAssistantImageToolMeta({})
     setAssistantImageMessageMeta({})
+    setAssistantGeneratedAudios({})
+    setAssistantSavedAudioPaths({})
+    setAssistantAudioToolMeta({})
+    setAssistantAudioMessageMeta({})
     setHiddenContextSummary(session.hiddenContextSummary ?? '')
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -629,6 +738,10 @@ export default function App() {
       setAssistantSavedImagePaths({})
       setAssistantImageToolMeta({})
       setAssistantImageMessageMeta({})
+      setAssistantGeneratedAudios({})
+      setAssistantSavedAudioPaths({})
+      setAssistantAudioToolMeta({})
+      setAssistantAudioMessageMeta({})
       setHiddenContextSummary(next?.hiddenContextSummary ?? '')
     } else {
       setMessages([])
@@ -636,6 +749,10 @@ export default function App() {
       setAssistantSavedImagePaths({})
       setAssistantImageToolMeta({})
       setAssistantImageMessageMeta({})
+      setAssistantGeneratedAudios({})
+      setAssistantSavedAudioPaths({})
+      setAssistantAudioToolMeta({})
+      setAssistantAudioMessageMeta({})
       setHiddenContextSummary('')
     }
     setContextUsageInfo(null)
@@ -786,6 +903,7 @@ export default function App() {
     if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
     if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
     if (settings.toolsEnabled.runwareImage) toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
+    if (settings.toolsEnabled.runwareMusic) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
     if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     const history = buildOllamaMessages(
       priorHistory,
@@ -811,7 +929,7 @@ export default function App() {
     const ac = new AbortController()
     abortRef.current = ac
     let replyText = ''
-  const runwareImageUrlsFromTools: string[] = []
+    const runwareImageUrlsFromTools: string[] = []
     let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
 
     try {
@@ -843,6 +961,15 @@ export default function App() {
               gptQuality: activeRunwareEditProfile.gptQuality,
             },
             negativePrompt: settings.runwareNegativePrompt,
+            musicDefaults: {
+              outputFormat: settings.runwareMusicOutputFormat,
+              durationSec: settings.runwareMusicDurationSec,
+              steps: settings.runwareMusicSteps,
+              cfgScale: settings.runwareMusicCfgScale,
+              guidanceType: settings.runwareMusicGuidanceType,
+              vocalLanguage: settings.runwareMusicVocalLanguage,
+              seed: settings.runwareMusicSeed ?? undefined,
+            },
           },
           userImages: toolImageCatalog.map((x) => x.base64),
           userImageMimes: toolImageCatalog.map((x) => x.mime),
@@ -902,6 +1029,50 @@ export default function App() {
                 }
               }
             }
+            if (name === 'generate_music_runware') {
+              const urls = extractRunwareAudioUrls(result)
+              const meta = parseRunwareAudioToolMeta(result)
+              if (meta) {
+                setAssistantAudioMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
+              }
+              if (urls.length > 0) {
+                setAssistantGeneratedAudios((prev) => {
+                  const cur = prev[asstId] || []
+                  const next = Array.from(new Set([...cur, ...urls]))
+                  return { ...prev, [asstId]: next }
+                })
+                if (meta) {
+                  setAssistantAudioToolMeta((prev) => {
+                    const cur = prev[asstId] || {}
+                    const next = { ...cur }
+                    for (const u of urls) next[u] = meta
+                    return { ...prev, [asstId]: next }
+                  })
+                }
+              }
+              if (urls.length > 0 && settings.runwareAutoSaveMusic && settings.runwareMusicOutputDir.trim()) {
+                void (async () => {
+                  const saved: string[] = []
+                  for (const u of urls) {
+                    const txt = await invokeSaveAudioFromUrl({
+                      audioUrl: u,
+                      outputDir: settings.runwareMusicOutputDir,
+                    }).catch((e) => (e instanceof Error ? e.message : String(e)))
+                    saved.push(txt)
+                  }
+                  if (saved.length > 0) {
+                    const savedPaths = extractSavedAudioPaths(saved.join('\n'))
+                    if (savedPaths.length > 0) {
+                      setAssistantSavedAudioPaths((prev) => {
+                        const cur = prev[asstId] || []
+                        const next = Array.from(new Set([...cur, ...savedPaths]))
+                        return { ...prev, [asstId]: next }
+                      })
+                    }
+                  }
+                })()
+              }
+            }
           },
         })
         replyText = out.content
@@ -936,6 +1107,8 @@ export default function App() {
           )
         }
       }
+      // Audio is rendered in a dedicated chat bubble from tool results,
+      // so we don't append raw audio_url lines into assistant markdown content.
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       const msg = e instanceof Error ? e.message : String(e)
@@ -1223,7 +1396,7 @@ export default function App() {
 
         {/* Tabs */}
         <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['general', 'llm', 'runware', 'tts', 'tools'] as OptionsTab[]).map((tab) => (
+          {(['general', 'llm', 'runware', 'runwareMusic', 'tts', 'tools'] as OptionsTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -1233,6 +1406,7 @@ export default function App() {
               {tab === 'general' && '◆ GENERAL'}
               {tab === 'llm' && '◇ LLM'}
               {tab === 'runware' && '◌ RUNWARE'}
+              {tab === 'runwareMusic' && '♫ RUNWARE_MUSIC'}
               {tab === 'tts' && '◉ TTS'}
               {tab === 'tools' && '⬡ TOOLS'}
             </button>
@@ -1272,6 +1446,8 @@ export default function App() {
               />
             ) : optionsTab === 'runware' ? (
               <RunwareOptionsPanel settings={settings} setSettings={setSettings} />
+            ) : optionsTab === 'runwareMusic' ? (
+              <RunwareMusicOptionsPanel settings={settings} setSettings={setSettings} />
             ) : (
               <ToolsOptionsPanel settings={settings} setSettings={setSettings} />
             )}
@@ -1367,6 +1543,19 @@ export default function App() {
             <div className="flex flex-col gap-1 p-2">
               <button
                 type="button"
+                onClick={() => openOptions('general')}
+                className="flex items-center gap-3 rounded px-4 py-3 text-left
+                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5
+                  border border-transparent hover:border-neon-cyan/20 transition-all"
+              >
+                <span className="text-neon-cyan">⚙</span>
+                <span className="font-mono text-sm">SETTINGS</span>
+              </button>
+              
+              <div className="h-px bg-void-muted/30 my-2" />
+              
+              <button
+                type="button"
                 onClick={newChat}
                 className="flex items-center gap-3 rounded px-4 py-3 text-left
                   text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5
@@ -1375,64 +1564,12 @@ export default function App() {
                 <span className="text-neon-green">+</span>
                 <span className="font-mono text-sm">NEW_SESSION</span>
               </button>
-              
-              <div className="h-px bg-void-muted/30 my-2" />
-              
-              <button
-                type="button"
-                onClick={() => openOptions('general')}
-                className="flex items-center gap-3 rounded px-4 py-3 text-left
-                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
-              >
-                <span className="text-neon-cyan">◆</span>
-                <span className="font-mono text-sm">GENERAL</span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => openOptions('llm')}
-                className="flex items-center gap-3 rounded px-4 py-3 text-left
-                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
-              >
-                <span className="text-neon-purple">◇</span>
-                <span className="font-mono text-sm">LLM_CONFIG</span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => openOptions('tts')}
-                className="flex items-center gap-3 rounded px-4 py-3 text-left
-                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
-              >
-                <span className="text-neon-magenta">◉</span>
-                <span className="font-mono text-sm">TTS_SETTINGS</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => openOptions('runware')}
-                className="flex items-center gap-3 rounded px-4 py-3 text-left
-                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
-              >
-                <span className="text-neon-green">◌</span>
-                <span className="font-mono text-sm">RUNWARE_IMAGE</span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => openOptions('tools')}
-                className="flex items-center gap-3 rounded px-4 py-3 text-left
-                  text-void-light hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
-              >
-                <span className="text-neon-yellow">⬡</span>
-                <span className="font-mono text-sm">TOOLS_CONFIG</span>
-              </button>
             </div>
 
             {/* Sessions List */}
             <div className="flex-1 border-t border-void-muted/30 overflow-y-auto p-2">
               <div className="px-2 py-2 text-xs font-mono text-void-dim uppercase tracking-wider">
-                SAVED_SESSIONS
+                CHAT_HISTORY
               </div>
               
               {/* Today */}
@@ -1576,7 +1713,7 @@ export default function App() {
                 {/* Content */}
                 {m.role === 'assistant' ? (
                   <div className="space-y-3">
-                    <ChatMarkdown content={m.content} />
+                    <ChatMarkdown content={stripRunwareAudioUrlLines(m.content)} />
                     {(() => {
                       const markdownImageUrls = new Set(extractMarkdownImageUrls(m.content))
                       const inlineImageUrls = Array.from(
@@ -1675,6 +1812,83 @@ export default function App() {
                           </div>
                         ))}
                       </div>
+                      ) : null
+                    })()}
+                    {(() => {
+                      const inlineAudioUrls = Array.from(
+                        new Set([
+                          ...(assistantGeneratedAudios[m.id] || []),
+                          ...extractRunwareAudioUrls(m.content),
+                        ]),
+                      )
+                      return inlineAudioUrls.length > 0 ? (
+                        <div className="space-y-2">
+                          {inlineAudioUrls.map((url, i) => {
+                            const savedPath = assistantSavedAudioPaths[m.id]?.[i]
+                            return (
+                              <div
+                                key={`${m.id}-runware-audio-${i}`}
+                                className="rounded border border-void-muted/40 p-2 bg-void-black/30"
+                              >
+                                <div className="mb-2 text-[11px] font-mono text-neon-cyan/80">
+                                  GENERATED_AUDIO_{i + 1}
+                                  {savedPath ? ' (local)' : ' (url)'}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {savedPath && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void openLocalImage(savedPath)}
+                                      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                                        border border-neon-green/30 text-neon-green
+                                        hover:bg-neon-green/10 hover:border-neon-green/50
+                                        transition-all"
+                                    >
+                                      ▶ OPEN_LOCAL
+                                    </button>
+                                  )}
+                                  {!savedPath && (
+                                    <span className="text-xs font-mono text-void-dim">
+                                      Enable auto-save to open local file.
+                                    </span>
+                                  )}
+                                </div>
+                                {(assistantAudioToolMeta[m.id]?.[url] ||
+                                  assistantAudioMessageMeta[m.id] ||
+                                  parseRunwareAudioToolMeta(m.content)) ? (
+                                  <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
+                                    <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
+                                      AUDIO_INFO
+                                    </summary>
+                                    <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                                      {(() => {
+                                        const meta =
+                                          assistantAudioToolMeta[m.id]?.[url]
+                                          || assistantAudioMessageMeta[m.id]
+                                          || parseRunwareAudioToolMeta(m.content)
+                                        if (!meta) return ''
+                                        const lines: string[] = []
+                                        if (meta.model) lines.push(`model: ${meta.model}`)
+                                        if (meta.outputFormat) lines.push(`output_format: ${meta.outputFormat}`)
+                                        if (typeof meta.durationSec === 'number') lines.push(`duration_sec: ${meta.durationSec}`)
+                                        if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
+                                        if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                        if (meta.guidanceType) lines.push(`guidance_type: ${meta.guidanceType}`)
+                                        if (meta.vocalLanguage) lines.push(`vocal_language: ${meta.vocalLanguage}`)
+                                        if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
+                                        if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                        if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                        if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
+                                        if (meta.audioUuid) lines.push(`audio_uuid: ${meta.audioUuid}`)
+                                        return lines.join('\n')
+                                      })()}
+                                    </div>
+                                  </details>
+                                ) : null}
+                              </div>
+                            )
+                          })}
+                        </div>
                       ) : null
                     })()}
                   </div>

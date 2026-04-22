@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld('voidcast', {
     outputDir: string
     filename?: string
   }) => ipcRenderer.invoke('voidcast:save-image-from-url', payload),
+  saveAudioFromUrl: (payload: {
+    audioUrl: string
+    outputDir: string
+    filename?: string
+  }) => ipcRenderer.invoke('voidcast:save-audio-from-url', payload),
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
   pickDirectory: () =>
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<

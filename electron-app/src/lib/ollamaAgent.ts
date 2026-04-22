@@ -9,6 +9,7 @@ import { invokeYoutubeTool } from '@/lib/youtubeTool'
 import {
   invokeRunwareEditImage,
   invokeRunwareGenerateImage,
+  invokeRunwareGenerateMusic,
   type RunwareImageConfig,
 } from '@/lib/runware'
 import type {
@@ -402,6 +403,84 @@ async function executeToolCall(
       return e instanceof Error ? e.message : String(e)
     }
   }
+  if (name === 'generate_music_runware') {
+    if (!toolsEnabled.runwareMusic) {
+      return 'Error: generate_music_runware tool is disabled in settings.'
+    }
+    if (!ctx.runware) {
+      return 'Error: Runware settings are missing.'
+    }
+    const prompt =
+      typeof args.prompt === 'string'
+        ? args.prompt.trim()
+        : typeof args.positivePrompt === 'string'
+          ? args.positivePrompt.trim()
+          : ''
+    if (!prompt) return 'Error: missing prompt parameter for generate_music_runware.'
+    try {
+      return await invokeRunwareGenerateMusic(
+        {
+          prompt,
+          negativePrompt:
+            typeof args.negative_prompt === 'string'
+              ? args.negative_prompt
+              : typeof args.negativePrompt === 'string'
+                ? args.negativePrompt
+                : undefined,
+          lyrics: typeof args.lyrics === 'string' ? args.lyrics : undefined,
+          durationSec:
+            typeof args.duration_sec === 'number'
+              ? args.duration_sec
+              : typeof args.durationSec === 'number'
+                ? args.durationSec
+                : undefined,
+          steps: typeof args.steps === 'number' ? args.steps : undefined,
+          cfgScale:
+            typeof args.cfg_scale === 'number'
+              ? args.cfg_scale
+              : typeof args.cfgScale === 'number'
+                ? args.cfgScale
+                : undefined,
+          outputFormat:
+            args.output_format === 'MP3' ||
+            args.output_format === 'WAV' ||
+            args.output_format === 'FLAC' ||
+            args.output_format === 'OGG'
+              ? args.output_format
+              : args.outputFormat === 'MP3' ||
+                  args.outputFormat === 'WAV' ||
+                  args.outputFormat === 'FLAC' ||
+                  args.outputFormat === 'OGG'
+                ? args.outputFormat
+                : undefined,
+          seed: typeof args.seed === 'number' ? args.seed : undefined,
+          bpm: typeof args.bpm === 'number' ? args.bpm : undefined,
+          keyScale:
+            typeof args.key_scale === 'string'
+              ? args.key_scale
+              : typeof args.keyScale === 'string'
+                ? args.keyScale
+                : undefined,
+          guidanceType:
+            args.guidance_type === 'apg' || args.guidance_type === 'cfg'
+              ? args.guidance_type
+              : args.guidanceType === 'apg' || args.guidanceType === 'cfg'
+                ? args.guidanceType
+                : undefined,
+          vocalLanguage:
+            typeof args.vocal_language === 'string'
+              ? args.vocal_language
+              : typeof args.vocalLanguage === 'string'
+                ? args.vocalLanguage
+                : undefined,
+        },
+        ctx.runware,
+        ctx.signal,
+      )
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
   return `Error: unknown tool "${name}".`
 }
 
@@ -534,6 +613,7 @@ export type RunChatWithToolsParams = {
       | 'scrape'
       | 'pdf'
       | 'image'
+      | 'music'
       | 'other'
       | null,
   ) => void
@@ -706,6 +786,7 @@ export async function runOllamaChatWithTools(
       else if (name === 'scrape_url') params.onToolPhase?.('scrape')
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
       else if (name === 'generate_image' || name === 'edit_image_runware') params.onToolPhase?.('image')
+      else if (name === 'generate_music_runware') params.onToolPhase?.('music')
       else params.onToolPhase?.('other')
 
       const result = await executeToolCall(

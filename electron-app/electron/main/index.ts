@@ -410,6 +410,15 @@ function extFromContentType(contentType: string): string {
   return '.jpg'
 }
 
+function extFromAudioContentType(contentType: string): string {
+  const ct = contentType.toLowerCase()
+  if (ct.includes('audio/mpeg') || ct.includes('audio/mp3')) return '.mp3'
+  if (ct.includes('audio/wav') || ct.includes('audio/wave') || ct.includes('audio/x-wav')) return '.wav'
+  if (ct.includes('audio/flac')) return '.flac'
+  if (ct.includes('audio/ogg')) return '.ogg'
+  return '.mp3'
+}
+
 async function nextAvailablePath(outputDir: string, baseName: string, ext: string): Promise<string> {
   for (let i = 0; i < 500; i++) {
     const suffix = i === 0 ? '' : `-${i + 1}`
@@ -466,6 +475,54 @@ ipcMain.handle(
 
       await writeFile(outPath, Buffer.from(ab))
       return { ok: true, text: `Saved image: ${outPath}` }
+    } catch (e) {
+      return { ok: false, text: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:save-audio-from-url',
+  async (
+    _evt,
+    payload: {
+      audioUrl?: string
+      outputDir?: string
+      filename?: string
+    },
+  ) => {
+    try {
+      const audioUrl = String(payload?.audioUrl ?? '').trim()
+      const outputDir = String(payload?.outputDir ?? '').trim()
+      if (!audioUrl) return { ok: false, text: 'Missing audioUrl' }
+      if (!outputDir) return { ok: false, text: 'Missing outputDir' }
+      await mkdir(outputDir, { recursive: true })
+
+      const res = await fetch(audioUrl)
+      if (!res.ok) {
+        return { ok: false, text: `Audio download failed: HTTP ${res.status}` }
+      }
+      const ab = await res.arrayBuffer()
+      const contentType = res.headers.get('content-type') || 'audio/mpeg'
+
+      const urlName = (() => {
+        try {
+          const p = new URL(audioUrl).pathname
+          return path.basename(p) || ''
+        } catch {
+          return ''
+        }
+      })()
+      const inputBase = String(payload?.filename ?? '').trim()
+      const fallbackBase = `runware-audio-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      const chosenBase = sanitizeBaseName(
+        inputBase || path.basename(urlName, path.extname(urlName)) || fallbackBase,
+      )
+      const ext = path.extname(urlName) || extFromAudioContentType(contentType)
+      const outPath = await nextAvailablePath(outputDir, chosenBase, ext)
+
+      await writeFile(outPath, Buffer.from(ab))
+      return { ok: true, text: `Saved audio: ${outPath}` }
     } catch (e) {
       return { ok: false, text: e instanceof Error ? e.message : String(e) }
     }
