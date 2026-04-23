@@ -1,6 +1,7 @@
 import {
   normalizeBaseUrl,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
+  RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
 } from '@/lib/settings'
 
 export type RunwareImageConfig = {
@@ -105,6 +106,7 @@ export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo
 
 export const RUNWARE_ALLOWED_EDIT_MODEL_IDS = [
   RUNWARE_FLUX_9B_MODEL_ID,
+  RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
 ] as const
 
@@ -118,6 +120,10 @@ function isAllowedEditModelId(modelId: string): boolean {
 
 function isGptImage2Model(modelId: string): boolean {
   return modelId.trim().toLowerCase() === RUNWARE_GPT_IMAGE_2_MODEL_ID.toLowerCase()
+}
+
+function isZImageTurboModel(modelId: string): boolean {
+  return modelId.trim().toLowerCase() === RUNWARE_Z_IMAGE_TURBO_MODEL_ID.toLowerCase()
 }
 
 function normalizeGptQuality(
@@ -639,13 +645,18 @@ export async function invokeRunwareGenerateImage(
   const model = (req.model || config.model || '').trim()
   if (!model) throw new Error('Runware model is not set. Configure it in Options -> Runware.')
   const isGptImage2 = isGptImage2Model(model)
+  const isZImageTurbo = isZImageTurboModel(model)
 
   // Resolution is always sourced from the active Options profile.
   const rawWidth = isGptImage2
     ? clamp(Math.round(config.width), 480, 3840)
+    : isZImageTurbo
+      ? clamp(Math.round(config.width), 128, 2048)
     : clamp(Math.round(config.width), 256, 2048)
   const rawHeight = isGptImage2
     ? clamp(Math.round(config.height), 480, 3840)
+    : isZImageTurbo
+      ? clamp(Math.round(config.height), 128, 2048)
     : clamp(Math.round(config.height), 256, 2048)
   const fitted = isGptImage2
     ? fitGptImage2Dimensions(rawWidth, rawHeight)
@@ -741,6 +752,7 @@ export async function invokeRunwareEditImage(
   }
 
   const isGptImage2 = isGptImage2Model(model)
+  const isZImageTurbo = isZImageTurboModel(model)
   const modelRefs = isGptImage2 ? refs.slice(0, 16) : refs
   const editDefaultWidth = config.editDefaults?.width ?? config.width
   const editDefaultHeight = config.editDefaults?.height ?? config.height
@@ -750,9 +762,13 @@ export async function invokeRunwareEditImage(
   // Resolution is always sourced from the active edit profile in Options.
   const rawWidth = isGptImage2
     ? clamp(Math.round(editDefaultWidth), 480, 3840)
+    : isZImageTurbo
+      ? clamp(Math.round(editDefaultWidth), 128, 2048)
     : clamp(Math.round(editDefaultWidth), 256, 2048)
   const rawHeight = isGptImage2
     ? clamp(Math.round(editDefaultHeight), 480, 3840)
+    : isZImageTurbo
+      ? clamp(Math.round(editDefaultHeight), 128, 2048)
     : clamp(Math.round(editDefaultHeight), 256, 2048)
   const fitted = isGptImage2
     ? fitGptImage2Dimensions(rawWidth, rawHeight)

@@ -111,12 +111,18 @@ function isToday(ts: number): boolean {
 
 function sanitizeForTts(input: string): string {
   return input
+    // Drop generated-image link markers/lines before speaking.
+    .replace(/^\s*Generated image URL\(s\):\s*$/gim, ' ')
+    .replace(/^\s*image_url:\s*https?:\/\/\S+\s*$/gim, ' ')
+    .replace(/^\s*audio_url:\s*https?:\/\/\S+\s*$/gim, ' ')
     // Remove fenced code blocks so TTS skips code dumps.
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/~~~[\s\S]*?~~~/g, ' ')
     // Remove inline code fragments.
     .replace(/`[^`\n]*`/g, ' ')
     .replace(/[*_#~]+/g, '')
+    // Remove bare URLs so TTS does not spell links.
+    .replace(/https?:\/\/[^\s)]+/g, ' ')
     .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
     .replace(/\s+/g, ' ')
     .trim()

@@ -2,6 +2,7 @@ import {
   getRunwareProfileForModel,
   RUNWARE_CONFIGURED_MODELS,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
+  RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
   type AppSettings,
   type RunwareModelProfile,
 } from '@/lib/settings'
@@ -41,9 +42,11 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
   const activeEditProfile = getRunwareProfileForModel(settings, selectedEditModel)
   const isGptImage2Selected = selectedImageModel === RUNWARE_GPT_IMAGE_2_MODEL_ID
   const isGptImage2EditSelected = selectedEditModel === RUNWARE_GPT_IMAGE_2_MODEL_ID
-  const imageMinSide = isGptImage2Selected ? 480 : 256
+  const isZImageTurboSelected = selectedImageModel === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
+  const isZImageTurboEditSelected = selectedEditModel === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
+  const imageMinSide = isGptImage2Selected ? 480 : isZImageTurboSelected ? 128 : 256
   const imageMaxSide = isGptImage2Selected ? 3840 : 2048
-  const editMinSide = isGptImage2EditSelected ? 480 : 256
+  const editMinSide = isGptImage2EditSelected ? 480 : isZImageTurboEditSelected ? 128 : 256
   const editMaxSide = isGptImage2EditSelected ? 3840 : 2048
   const sideStep = 16
 

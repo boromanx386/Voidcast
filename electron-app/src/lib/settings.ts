@@ -14,8 +14,10 @@ export type RunwareModelProfile = {
 
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
 export const RUNWARE_GPT_IMAGE_2_MODEL_ID = 'openai:gpt-image@2'
+export const RUNWARE_Z_IMAGE_TURBO_MODEL_ID = 'runware:z-image@turbo'
 export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
   { id: RUNWARE_FLUX_9B_MODEL_ID, label: 'FLUX 9B' },
+  { id: RUNWARE_Z_IMAGE_TURBO_MODEL_ID, label: 'Z Image Turbo' },
   { id: RUNWARE_GPT_IMAGE_2_MODEL_ID, label: 'GPT Image 2' },
 ]
 
@@ -177,6 +179,12 @@ const defaults: AppSettings = {
       cfgScale: 7,
       gptQuality: 'auto',
     },
+    [RUNWARE_Z_IMAGE_TURBO_MODEL_ID]: {
+      width: 1024,
+      height: 1024,
+      steps: 8,
+      cfgScale: 1,
+    },
   },
   runwareNegativePrompt: '',
   runwareImageOutputDir: '',
@@ -326,7 +334,8 @@ function normalizeRunware(s: AppSettings): AppSettings {
         ? gptQualityRaw
         : undefined
     const isGptImage2 = m.id === RUNWARE_GPT_IMAGE_2_MODEL_ID
-    const minSide = isGptImage2 ? 480 : 256
+    const isZImageTurbo = m.id === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
+    const minSide = isGptImage2 ? 480 : isZImageTurbo ? 128 : 256
     const maxSide = isGptImage2 ? 3840 : 2048
     normalizedProfiles[m.id] = {
       width: Number.isFinite(w) ? clamp(Math.round(w), minSide, maxSide) : fallback.width,
