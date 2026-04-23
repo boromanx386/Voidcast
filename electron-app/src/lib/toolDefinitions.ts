@@ -192,7 +192,12 @@ const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
         reference_image_indexes: {
           type: 'string',
           description:
-            'Required 1-based attached-image indexes (for example: "1" or "1,2"). These map to images attached in the current user message.',
+            'Optional 1-based image indexes from the internal conversation image catalog (for example: "1" or "1,2"), where index 1 is the most recent image.',
+        },
+        reference_image_paths: {
+          type: 'string',
+          description:
+            'Optional absolute image path(s) from chat history (single path or comma/newline-separated list). Use when user references image by path/name from history.',
         },
         negative_prompt: {
           type: 'string',
@@ -211,7 +216,37 @@ const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
           description: 'Optional Runware edit model id override.',
         },
       },
-      required: ['prompt', 'reference_image_indexes'],
+      required: ['prompt'],
+    },
+  },
+}
+
+const IMAGE_RECALL_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'image_recall',
+    description:
+      'Recall image bytes from the internal conversation image catalog so the model can analyze or edit historical images in the current runtime turn.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reference_image_indexes: {
+          type: 'string',
+          description:
+            'Optional 1-based indexes from the internal conversation image catalog (for example: "1" or "1,2"), where index 1 is the most recent image.',
+        },
+        reference_image_paths: {
+          type: 'string',
+          description:
+            'Optional absolute image path(s) from chat history (single path or comma/newline-separated list).',
+        },
+        purpose: {
+          type: 'string',
+          description:
+            'Optional intent for recall usage: "vision" (analysis) or "edit" (image editing).',
+        },
+      },
+      required: [],
     },
   },
 }
@@ -289,6 +324,7 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
   if (enabled.runwareImage) {
     out.push(GENERATE_IMAGE_TOOL)
     out.push(EDIT_IMAGE_RUNWARE_TOOL)
+    out.push(IMAGE_RECALL_TOOL)
   }
   if (enabled.runwareMusic) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
   return out

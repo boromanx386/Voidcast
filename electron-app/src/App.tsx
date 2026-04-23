@@ -43,6 +43,7 @@ import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
+import { isElectron } from '@/lib/platform'
 import {
   getRunwareProfileForModel,
   loadSettings,
@@ -80,6 +81,11 @@ type PendingChatImage = {
   mime: string
   name?: string
   path?: string
+}
+
+type LocalImagePreview = {
+  base64: string
+  mime: string
 }
 
 function deriveSessionTitle(messages: UiMessage[]): string {
@@ -136,32 +142,43 @@ function shouldUseVisionForText(text: string): boolean {
   return VISION_TRIGGER_RE.test(text)
 }
 
-function buildAttachedImagesHint(images: PendingChatImage[]): string {
-  if (images.length <= 0) return ''
-  const indexes = Array.from({ length: images.length }, (_, i) => i + 1).join(', ')
-  const lines = images.map((img, i) => {
-    const idx = i + 1
-    const displayPath = (img.path || '').trim()
-    const displayName = (img.name || '').trim()
-    const label = displayPath || displayName || `(image ${idx})`
-    return `- ${idx}: ${label}`
-  })
+function dedupeNonEmpty(values: string[]): string[] {
+  return Array.from(new Set(values.map((x) => x.trim()).filter(Boolean)))
+}
+
+function buildQueuedImagePathHint(queued: PendingChatImage[]): string {
+  if (!queued.length) return ''
+  const lines: string[] = []
+  let idx = 1
+  for (let i = queued.length - 1; i >= 0; i--) {
+    const q = queued[i]
+    const label = (q.path || q.name || '').trim() || '(unnamed image)'
+    lines.push(`- ${idx}: ${label}`)
+    idx += 1
+  }
   return [
-    `Attached images available: ${images.length}`,
-    `Use 1-based image indexes: ${indexes}`,
-    'Attached image references (index -> file):',
+    `Attached image references for this message (internal catalog indexes, 1 = most recent):`,
     ...lines,
-    'For image edits, call edit_image_runware with reference_image_indexes.',
+    'Use image_recall for vision-style analysis or edit_image_runware for edits when needed.',
   ].join('\n')
 }
 
-function buildToolImageCatalog(
+async function buildToolImageCatalog(
   history: UiMessage[],
   queued: PendingChatImage[],
-): PendingChatImage[] {
+): Promise<PendingChatImage[]> {
   const out: PendingChatImage[] = []
+  const seenKeys = new Set<string>()
+  const tryPush = (item: PendingChatImage) => {
+    const key = item.path?.trim()
+      ? `path:${item.path.trim().toLowerCase()}`
+      : `b64:${item.base64.slice(0, 96)}`
+    if (seenKeys.has(key)) return
+    seenKeys.add(key)
+    out.push(item)
+  }
   for (let i = queued.length - 1; i >= 0; i--) {
-    out.push(queued[i])
+    tryPush(queued[i])
   }
   for (let i = history.length - 1; i >= 0; i--) {
     const msg = history[i]
@@ -169,7 +186,7 @@ function buildToolImageCatalog(
     for (let j = (msg.images.length - 1); j >= 0; j--) {
       const base64 = (msg.images[j] || '').trim()
       if (!base64) continue
-      out.push({
+      tryPush({
         base64,
         mime: (msg.imageMimes?.[j] || 'image/png').trim() || 'image/png',
         name: msg.imageNames?.[j],
@@ -177,23 +194,33 @@ function buildToolImageCatalog(
       })
     }
   }
-  return out
-}
 
-function buildToolImageCatalogHint(catalog: PendingChatImage[]): string {
-  if (catalog.length <= 0) return ''
-  const lines = catalog.map((img, i) => {
-    const idx = i + 1
-    const p = (img.path || '').trim()
-    const n = (img.name || '').trim()
-    const label = p || n || `(image ${idx})`
-    return `- ${idx}: ${label}`
-  })
-  return [
-    `Image catalog available for tools: ${catalog.length} (index 1 = most recent image in conversation, including current attachments).`,
-    'Use these indexes with edit_image_runware.reference_image_indexes:',
-    ...lines,
-  ].join('\n')
+  const readImageFile = window.voidcast?.readImageFile
+  if (isElectron() && readImageFile) {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const msg = history[i]
+      if (msg.role !== 'assistant' || !msg.generatedImagePaths?.length) continue
+      for (let j = msg.generatedImagePaths.length - 1; j >= 0; j--) {
+        const p = (msg.generatedImagePaths[j] || '').trim()
+        if (!p) continue
+        const pathKey = `path:${p.toLowerCase()}`
+        if (seenKeys.has(pathKey)) continue
+        try {
+          const res = await readImageFile({ path: p })
+          if (!res.ok || !res.file?.base64?.trim()) continue
+          tryPush({
+            base64: res.file.base64.replace(/\s+/g, ''),
+            mime: res.file.mime || 'image/png',
+            name: res.file.name || msg.generatedImageUrls?.[j],
+            path: res.file.path || p,
+          })
+        } catch {
+          // Ignore unreadable files; keep catalog build best-effort.
+        }
+      }
+    }
+  }
+  return out
 }
 
 const RUNWARE_IMAGE_URL_LINE_RE = /^\s*image_url:\s*(https?:\/\/\S+)\s*$/gim
@@ -244,6 +271,24 @@ function stripRunwareAudioUrlLines(text: string): string {
   if (!text.trim()) return text
   RUNWARE_AUDIO_URL_LINE_RE.lastIndex = 0
   return text.replace(RUNWARE_AUDIO_URL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function stripGeneratedImageLinkArtifacts(text: string, urls: string[]): string {
+  if (!text.trim() || urls.length === 0) return text
+  let out = text
+  for (const url of urls) {
+    const esc = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const mdImage = new RegExp(`!\\[[^\\]]*\\]\\(${esc}\\)`, 'g')
+    const mdLink = new RegExp(`\\[([^\\]]+)\\]\\(${esc}\\)`, 'g')
+    const plain = new RegExp(esc, 'g')
+    out = out.replace(mdImage, '')
+    out = out.replace(mdLink, '$1')
+    out = out.replace(plain, '')
+  }
+  RUNWARE_IMAGE_URL_LINE_RE.lastIndex = 0
+  out = out.replace(RUNWARE_IMAGE_URL_LINE_RE, '')
+  out = out.replace(/^\s*Generated image URL\(s\):\s*$/gim, '')
+  return out.replace(/\n{3,}/g, '\n\n').trim()
 }
 
 function extractMarkdownImageUrls(text: string): string[] {
@@ -472,6 +517,7 @@ export default function App() {
   >(null)
   const [assistantGeneratedImages, setAssistantGeneratedImages] = useState<Record<string, string[]>>({})
   const [assistantSavedImagePaths, setAssistantSavedImagePaths] = useState<Record<string, string[]>>({})
+  const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, LocalImagePreview>>({})
   const [assistantImageToolMeta, setAssistantImageToolMeta] = useState<
     Record<string, Record<string, RunwareImageToolMeta>>
   >({})
@@ -490,6 +536,7 @@ export default function App() {
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
+  const localPreviewLoadingRef = useRef<Set<string>>(new Set())
   const abortRef = useRef<AbortController | null>(null)
   const ttsAbortRef = useRef<AbortController | null>(null)
   const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
@@ -654,6 +701,38 @@ export default function App() {
   const canSaveSession = messages.length > 0 && !busy
   const todaySessions = useMemo(() => sessions.filter((s) => isToday(s.updatedAt)), [sessions])
   const olderSessions = useMemo(() => sessions.filter((s) => !isToday(s.updatedAt)), [sessions])
+  const desktopRuntime = isElectron()
+
+  useEffect(() => {
+    const readImageFile = window.voidcast?.readImageFile
+    if (!desktopRuntime || !readImageFile) return
+    const candidates = new Set<string>()
+    for (const msg of messages) {
+      if (msg.role !== 'assistant' || !msg.generatedImagePaths?.length) continue
+      for (const p of msg.generatedImagePaths) {
+        const path = (p || '').trim()
+        if (path) candidates.add(path)
+      }
+    }
+    for (const p of candidates) {
+      if (localImagePreviews[p] || localPreviewLoadingRef.current.has(p)) continue
+      localPreviewLoadingRef.current.add(p)
+      void readImageFile({ path: p })
+        .then((res) => {
+          if (!res.ok || !res.file?.base64?.trim()) return
+          setLocalImagePreviews((prev) => ({
+            ...prev,
+            [p]: {
+              base64: res.file.base64.replace(/\s+/g, ''),
+              mime: (res.file.mime || 'image/png').trim() || 'image/png',
+            },
+          }))
+        })
+        .finally(() => {
+          localPreviewLoadingRef.current.delete(p)
+        })
+    }
+  }, [desktopRuntime, localImagePreviews, messages])
 
   // === Session Actions ===
   const newChat = () => {
@@ -854,14 +933,13 @@ export default function App() {
     const imageMimes = queued.map((q) => q.mime)
     const imageNames = queued.map((q) => (q.name || '').trim())
     const imagePaths = queued.map((q) => (q.path || '').trim())
-    const toolImageCatalog = buildToolImageCatalog(messages, queued)
-    const useVisionForCurrentMessage =
-      imagesBase64.length > 0 && shouldUseVisionForText(text)
-    const attachedImagesHint = buildAttachedImagesHint(queued)
-    const toolCatalogHint = buildToolImageCatalogHint(toolImageCatalog)
-    const ollamaUserText = [text, attachedImagesHint, toolCatalogHint]
-      .filter((x) => x.trim().length > 0)
-      .join('\n\n')
+    const toolImageCatalog = await buildToolImageCatalog(messages, queued)
+    const useVisionForCurrentMessage = shouldUseVisionForText(text)
+    const visionImagesForCurrentMessage = useVisionForCurrentMessage
+      ? (imagesBase64.length > 0 ? imagesBase64 : toolImageCatalog.slice(0, 1).map((x) => x.base64))
+      : []
+    const attachedImageHint = buildQueuedImagePathHint(queued)
+    const ollamaUserText = [text, attachedImageHint].filter((x) => x.trim().length > 0).join('\n\n')
     const userMsg: UiMessage = {
       id: uid(),
       role: 'user',
@@ -914,7 +992,9 @@ export default function App() {
         runtimeSystemHint: runtimeTimeHint,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         toolsSystemHint: useTools && toolsHintParts.length > 0 ? toolsHintParts.join('\n\n') : undefined,
-        newUserImages: useVisionForCurrentMessage ? imagesBase64 : undefined,
+        newUserImages: visionImagesForCurrentMessage.length > 0
+          ? visionImagesForCurrentMessage
+          : undefined,
       },
     )
     const activeRunwareProfile = getRunwareProfileForModel(
@@ -929,7 +1009,6 @@ export default function App() {
     const ac = new AbortController()
     abortRef.current = ac
     let replyText = ''
-    const runwareImageUrlsFromTools: string[] = []
     let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
 
     try {
@@ -973,6 +1052,7 @@ export default function App() {
           },
           userImages: toolImageCatalog.map((x) => x.base64),
           userImageMimes: toolImageCatalog.map((x) => x.mime),
+          userImagePaths: toolImageCatalog.map((x) => x.path || ''),
           signal: ac.signal,
           onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
           onToolPhase: (phase) => setToolPhase(phase as typeof toolPhase),
@@ -986,12 +1066,19 @@ export default function App() {
               if (meta) {
                 setAssistantImageMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
               }
-              for (const u of urls) {
-                if (!runwareImageUrlsFromTools.includes(u)) {
-                  runwareImageUrlsFromTools.push(u)
-                }
-              }
               if (urls.length > 0) {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== asstId) return m
+                    return {
+                      ...m,
+                      generatedImageUrls: dedupeNonEmpty([
+                        ...(m.generatedImageUrls || []),
+                        ...urls,
+                      ]),
+                    }
+                  }),
+                )
                 setAssistantGeneratedImages((prev) => {
                   const cur = prev[asstId] || []
                   const next = Array.from(new Set([...cur, ...urls]))
@@ -1018,6 +1105,22 @@ export default function App() {
                     if (saved.length > 0) {
                       const savedPaths = extractSavedImagePaths(saved.join('\n'))
                       if (savedPaths.length > 0) {
+                        setMessages((prev) =>
+                          prev.map((m) => {
+                            if (m.id !== asstId) return m
+                            return {
+                              ...m,
+                              generatedImagePaths: dedupeNonEmpty([
+                                ...(m.generatedImagePaths || []),
+                                ...savedPaths,
+                              ]),
+                              generatedImageUrls: dedupeNonEmpty([
+                                ...(m.generatedImageUrls || []),
+                                ...urls,
+                              ]),
+                            }
+                          }),
+                        )
                         setAssistantSavedImagePaths((prev) => {
                           const cur = prev[asstId] || []
                           const next = Array.from(new Set([...cur, ...savedPaths]))
@@ -1093,20 +1196,6 @@ export default function App() {
       const usageInfo = estimateContextUsage(usage, settings.llmNumCtx)
       setContextUsageInfo(usageInfo)
       if (usageInfo?.shouldWarn) setContextWarnDismissed(false)
-
-      if (runwareImageUrlsFromTools.length > 0) {
-        const present = new Set(extractRunwareImageUrls(replyText))
-        const missing = runwareImageUrlsFromTools.filter((u) => !present.has(u))
-        if (missing.length > 0) {
-          const block = missing.map((u) => `image_url: ${u}`).join('\n')
-          replyText = replyText.trim()
-            ? `${replyText.trim()}\n\nGenerated image URL(s):\n${block}`
-            : `Generated image URL(s):\n${block}`
-          setMessages((prev) =>
-            prev.map((m) => (m.id === asstId ? { ...m, content: replyText } : m)),
-          )
-        }
-      }
       // Audio is rendered in a dedicated chat bubble from tool results,
       // so we don't append raw audio_url lines into assistant markdown content.
     } catch (e) {
@@ -1713,106 +1802,155 @@ export default function App() {
                 {/* Content */}
                 {m.role === 'assistant' ? (
                   <div className="space-y-3">
-                    <ChatMarkdown content={stripRunwareAudioUrlLines(m.content)} />
                     {(() => {
+                      const generatedUrls = dedupeNonEmpty([
+                        ...(m.generatedImageUrls || []),
+                        ...(assistantGeneratedImages[m.id] || []),
+                        ...extractRunwareImageUrls(m.content),
+                      ])
+                      const markdownContent = desktopRuntime
+                        ? stripGeneratedImageLinkArtifacts(
+                            stripRunwareAudioUrlLines(m.content),
+                            generatedUrls,
+                          )
+                        : stripRunwareAudioUrlLines(m.content)
                       const markdownImageUrls = new Set(extractMarkdownImageUrls(m.content))
-                      const inlineImageUrls = Array.from(
-                        new Set([
-                          ...(assistantGeneratedImages[m.id] || []),
-                          ...extractRunwareImageUrls(m.content),
-                        ]),
-                      ).filter((u) => !markdownImageUrls.has(u))
-                      return inlineImageUrls.length > 0 ? (
-                      <div className="flex flex-wrap gap-3">
-                        {inlineImageUrls.map((url, i) => (
-                          <div
-                            key={`${m.id}-runware-${i}`}
-                            className="rounded border border-void-muted/40 p-2 bg-void-black/30"
-                          >
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block"
-                            >
-                              <img
-                                src={url}
-                                alt="Generated"
-                                loading="lazy"
-                                referrerPolicy="no-referrer"
-                                className="max-h-64 max-w-full rounded border border-void-muted/40 object-contain"
-                              />
-                            </a>
-                            <div className="mt-2 flex gap-2">
-                              {!settings.runwareAutoSaveImages && (
-                                <button
-                                  type="button"
-                                  onClick={() => void downloadImage(url)}
-                                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
-                                    border border-neon-green/30 text-neon-green
-                                    hover:bg-neon-green/10 hover:border-neon-green/50
-                                    transition-all"
+                      const inlineImageUrls = generatedUrls.filter((u) => !markdownImageUrls.has(u))
+                      const localImagePaths = desktopRuntime
+                        ? dedupeNonEmpty([
+                            ...(m.generatedImagePaths || []),
+                            ...(assistantSavedImagePaths[m.id] || []),
+                          ])
+                        : []
+                      const renderItems = localImagePaths.length > 0
+                        ? localImagePaths.map((p, i) => ({
+                            key: `${m.id}-local-${i}`,
+                            src: localImagePreviews[p]
+                              ? imageDataUrl(localImagePreviews[p].base64, localImagePreviews[p].mime)
+                              : '',
+                            url: inlineImageUrls[i] || '',
+                            localPath: p,
+                            hasPreview: Boolean(localImagePreviews[p]),
+                          }))
+                        : desktopRuntime
+                          ? []
+                          : inlineImageUrls.map((url, i) => ({
+                              key: `${m.id}-url-${i}`,
+                              src: url,
+                              url,
+                              localPath: '',
+                              hasPreview: true,
+                            }))
+                      return (
+                        <>
+                          <ChatMarkdown content={markdownContent} />
+                          {renderItems.length > 0 ? (
+                            <div className="flex flex-wrap gap-3">
+                              {renderItems.map((item) => (
+                                <div
+                                  key={item.key}
+                                  className="rounded border border-void-muted/40 p-2 bg-void-black/30"
                                 >
-                                  ⬇ DOWNLOAD
-                                </button>
-                              )}
+                                  <a
+                                    href={item.localPath || item.url || item.src}
+                                    target={item.localPath ? undefined : '_blank'}
+                                    rel={item.localPath ? undefined : 'noreferrer'}
+                                    className="block"
+                                    onClick={item.localPath ? (e) => {
+                                      e.preventDefault()
+                                      void openLocalImage(item.localPath)
+                                    } : undefined}
+                                  >
+                                    {item.hasPreview ? (
+                                      <img
+                                        src={item.src}
+                                        alt="Generated"
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer"
+                                        className="max-h-64 max-w-full rounded border border-void-muted/40 object-contain"
+                                      />
+                                    ) : (
+                                      <div className="max-h-64 w-[220px] rounded border border-void-muted/40 bg-void-black/40 px-3 py-2 text-xs font-mono text-void-dim">
+                                        Loading local image preview...
+                                      </div>
+                                    )}
+                                  </a>
+                                  <div className="mt-2 flex gap-2">
+                                    {!item.localPath && !settings.runwareAutoSaveImages ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void downloadImage(item.url)}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                                          border border-neon-green/30 text-neon-green
+                                          hover:bg-neon-green/10 hover:border-neon-green/50
+                                          transition-all"
+                                      >
+                                        ⬇ DOWNLOAD
+                                      </button>
+                                    ) : !item.localPath ? (
+                                      <span className="text-xs font-mono text-void-dim">
+                                        Local image unavailable on this platform.
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  {assistantImageToolMeta[m.id]?.[item.url] ? (
+                                  <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
+                                    <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
+                                      IMAGE_INFO
+                                    </summary>
+                                    <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                                      {(() => {
+                                        const meta =
+                                          assistantImageToolMeta[m.id]?.[item.url]
+                                          || assistantImageMessageMeta[m.id]
+                                          || parseRunwareImageToolMeta(m.content)
+                                        if (!meta) return ''
+                                        const lines: string[] = []
+                                        if (meta.model) lines.push(`model: ${meta.model}`)
+                                        if (meta.size) lines.push(`size: ${meta.size}`)
+                                        if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
+                                        if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                        if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
+                                        if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                        if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                        if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
+                                        if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
+                                        return lines.join('\n')
+                                      })()}
+                                    </div>
+                                  </details>
+                                ) : (
+                                  assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
+                                ) ? (
+                                  <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
+                                    <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
+                                      IMAGE_INFO
+                                    </summary>
+                                    <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                                      {(() => {
+                                        const meta = assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
+                                        if (!meta) return ''
+                                        const lines: string[] = []
+                                        if (meta.model) lines.push(`model: ${meta.model}`)
+                                        if (meta.size) lines.push(`size: ${meta.size}`)
+                                        if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
+                                        if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                        if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
+                                        if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                        if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                        if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
+                                        if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
+                                        return lines.join('\n')
+                                      })()}
+                                    </div>
+                                  </details>
+                                ) : null}
+                                </div>
+                              ))}
                             </div>
-                            {assistantImageToolMeta[m.id]?.[url] ? (
-                              <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
-                                <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
-                                  IMAGE_INFO
-                                </summary>
-                                <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
-                                  {(() => {
-                                    const meta =
-                                      assistantImageToolMeta[m.id]?.[url]
-                                      || assistantImageMessageMeta[m.id]
-                                      || parseRunwareImageToolMeta(m.content)
-                                    if (!meta) return ''
-                                    const lines: string[] = []
-                                    if (meta.model) lines.push(`model: ${meta.model}`)
-                                    if (meta.size) lines.push(`size: ${meta.size}`)
-                                    if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
-                                    if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
-                                    if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
-                                    if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
-                                    if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
-                                    if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
-                                    if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
-                                    return lines.join('\n')
-                                  })()}
-                                </div>
-                              </details>
-                            ) : (
-                              assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
-                            ) ? (
-                              <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
-                                <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
-                                  IMAGE_INFO
-                                </summary>
-                                <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
-                                  {(() => {
-                                    const meta = assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
-                                    if (!meta) return ''
-                                    const lines: string[] = []
-                                    if (meta.model) lines.push(`model: ${meta.model}`)
-                                    if (meta.size) lines.push(`size: ${meta.size}`)
-                                    if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
-                                    if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
-                                    if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
-                                    if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
-                                    if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
-                                    if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
-                                    if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
-                                    return lines.join('\n')
-                                  })()}
-                                </div>
-                              </details>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                      ) : null
+                          ) : null}
+                        </>
+                      )
                     })()}
                     {(() => {
                       const inlineAudioUrls = Array.from(
@@ -1936,12 +2074,15 @@ export default function App() {
                       </span>
                       {playingId === m.id ? 'SYNTHESIZING...' : 'SPEAK'}
                     </button>
-                    {assistantSavedImagePaths[m.id]?.length ? (
+                    {dedupeNonEmpty([...(m.generatedImagePaths || []), ...(assistantSavedImagePaths[m.id] || [])]).length > 0 ? (
                       <button
                         type="button"
                         onClick={() =>
                           void openLocalImage(
-                            assistantSavedImagePaths[m.id][assistantSavedImagePaths[m.id].length - 1],
+                            dedupeNonEmpty([
+                              ...(m.generatedImagePaths || []),
+                              ...(assistantSavedImagePaths[m.id] || []),
+                            ]).slice(-1)[0],
                           )
                         }
                         className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono

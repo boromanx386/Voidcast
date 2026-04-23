@@ -47,6 +47,10 @@ interface Window {
       | { ok: true; files: { base64: string; mime: string; name: string; path: string }[] }
       | { ok: false; error?: string }
     >
+    readImageFile: (payload: { path: string }) => Promise<
+      | { ok: true; file: { base64: string; mime: string; name: string; path: string } }
+      | { ok: false; error?: string }
+    >
     getLanNetworkInfo: () => Promise<{ ips: string[] }>
     showWindow: () => Promise<void>
     hideWindow: () => Promise<void>

@@ -36,6 +36,14 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
+  readImageFile: (payload: { path: string }) =>
+    ipcRenderer.invoke('voidcast:read-image-file', payload) as Promise<
+      | {
+          ok: true
+          file: { base64: string; mime: string; name: string; path: string }
+        }
+      | { ok: false; error?: string }
+    >,
   /** LAN IPv4 addresses of this machine (for mobile web UI URLs). */
   getLanNetworkInfo: () =>
     ipcRenderer.invoke('voidcast:get-lan-network-info') as Promise<{ ips: string[] }>,

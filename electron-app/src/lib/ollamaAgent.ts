@@ -170,6 +170,72 @@ function parseImageIndexes(raw: unknown): number[] {
     .filter((n) => n > 0)
 }
 
+function parseImagePaths(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return Array.from(
+      new Set(
+        raw
+          .map((x) => String(x ?? '').trim())
+          .filter(Boolean),
+      ),
+    )
+  }
+  if (typeof raw !== 'string') return []
+  return Array.from(
+    new Set(
+      raw
+        .split(/[\n,]+/)
+        .map((x) => x.trim())
+        .filter(Boolean),
+    ),
+  )
+}
+
+function normalizePathForMatch(p: string): string {
+  return p.trim().replace(/\\/g, '/').toLowerCase()
+}
+
+function indexesFromReferencePaths(
+  catalogPaths: string[] | undefined,
+  requestedPaths: string[],
+): { indexes: number[]; missingPaths: string[] } {
+  if (!catalogPaths?.length || !requestedPaths.length) {
+    return { indexes: [], missingPaths: requestedPaths }
+  }
+  const indexByPath = new Map<string, number>()
+  for (let i = 0; i < catalogPaths.length; i++) {
+    const raw = (catalogPaths[i] || '').trim()
+    if (!raw) continue
+    const key = normalizePathForMatch(raw)
+    if (!key || indexByPath.has(key)) continue
+    indexByPath.set(key, i + 1)
+  }
+  const indexes: number[] = []
+  const missingPaths: string[] = []
+  for (const p of requestedPaths) {
+    const hit = indexByPath.get(normalizePathForMatch(p))
+    if (!hit) {
+      missingPaths.push(p)
+      continue
+    }
+    indexes.push(hit)
+  }
+  return { indexes, missingPaths }
+}
+
+function resolveReferenceImageIndexes(
+  args: Record<string, unknown>,
+  catalogPaths: string[] | undefined,
+): { indexes: number[]; missingPaths: string[] } {
+  const fromIndexes = parseImageIndexes(args.reference_image_indexes)
+  const requestedPaths = parseImagePaths(args.reference_image_paths)
+  const fromPaths = indexesFromReferencePaths(catalogPaths, requestedPaths)
+  return {
+    indexes: Array.from(new Set([...fromIndexes, ...fromPaths.indexes])),
+    missingPaths: fromPaths.missingPaths,
+  }
+}
+
 function pickImageByOneBasedIndex(
   images: string[] | undefined,
   imageMimes: string[] | undefined,
@@ -187,6 +253,103 @@ function pickImageByOneBasedIndex(
   return `data:${mime};base64,${raw.replace(/\s+/g, '')}`
 }
 
+type ResolvedRecallImage = {
+  index: number
+  mime: string
+  base64: string
+  path?: string
+}
+
+function parseDataImageUri(value: string): { mime: string; base64: string } | null {
+  const raw = value.trim()
+  const m = raw.match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i)
+  if (!m) return null
+  const mime = m[1].toLowerCase()
+  const base64 = m[2].replace(/\s+/g, '')
+  if (!base64) return null
+  return { mime, base64 }
+}
+
+function resolveCatalogImageByOneBasedIndex(
+  images: string[] | undefined,
+  imageMimes: string[] | undefined,
+  imagePaths: string[] | undefined,
+  idx: number | null,
+): ResolvedRecallImage | undefined {
+  if (!images || images.length === 0 || idx == null || !Number.isFinite(idx)) return undefined
+  const i = Math.round(idx) - 1
+  if (i < 0 || i >= images.length) return undefined
+  const raw = (images[i] || '').trim()
+  if (!raw) return undefined
+  const parsed = parseDataImageUri(raw)
+  if (parsed) {
+    return {
+      index: Math.round(idx),
+      mime: parsed.mime,
+      base64: parsed.base64,
+      path: (imagePaths?.[i] || '').trim() || undefined,
+    }
+  }
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return undefined
+  const mimeRaw = (imageMimes?.[i] || 'image/png').trim().toLowerCase()
+  const mime = /^image\/[a-z0-9.+-]+$/.test(mimeRaw) ? mimeRaw : 'image/png'
+  return {
+    index: Math.round(idx),
+    mime,
+    base64: raw.replace(/\s+/g, ''),
+    path: (imagePaths?.[i] || '').trim() || undefined,
+  }
+}
+
+type ImageRecallToolResult = {
+  ok: boolean
+  source: 'internal_catalog'
+  purpose?: 'vision' | 'edit'
+  recalled_images: Array<{ index: number; mime: string; path?: string }>
+  errors?: string[]
+}
+
+function resolveImageRecallRequest(
+  args: Record<string, unknown>,
+  ctx: {
+    userImages?: string[]
+    userImageMimes?: string[]
+    userImagePaths?: string[]
+  },
+): {
+  purpose?: 'vision' | 'edit'
+  recalled: ResolvedRecallImage[]
+  errors: string[]
+  maxAvailable: number
+} {
+  const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths)
+  const indexes = selected.indexes
+  const purposeRaw = typeof args.purpose === 'string' ? args.purpose.trim().toLowerCase() : ''
+  const purpose: 'vision' | 'edit' | undefined =
+    purposeRaw === 'vision' ? 'vision' : purposeRaw === 'edit' ? 'edit' : undefined
+  const recalled: ResolvedRecallImage[] = []
+  const errors: string[] = selected.missingPaths.map((p) => `path not found in catalog: ${p}`)
+  for (const idx of indexes) {
+    const hit = resolveCatalogImageByOneBasedIndex(
+      ctx.userImages,
+      ctx.userImageMimes,
+      ctx.userImagePaths,
+      idx,
+    )
+    if (!hit) {
+      errors.push(`index ${idx}: not found or not convertible to base64`)
+      continue
+    }
+    recalled.push(hit)
+  }
+  return {
+    purpose,
+    recalled,
+    errors,
+    maxAvailable: ctx.userImages?.length ?? 0,
+  }
+}
+
 async function executeToolCall(
   name: string,
   argsJson: string | Record<string, unknown> | undefined,
@@ -199,6 +362,7 @@ async function executeToolCall(
     runware?: RunwareImageConfig
     userImages?: string[]
     userImageMimes?: string[]
+    userImagePaths?: string[]
     /** Latest user message text for override-policy checks. */
     userText?: string
   },
@@ -360,16 +524,20 @@ async function executeToolCall(
     if (!prompt) return 'Error: missing prompt parameter for edit_image_runware.'
     const canOverrideSteps = userRequestedStepsOverride(ctx.userText || '')
     const canOverrideCfg = userRequestedCfgOverride(ctx.userText || '')
-    const indexes = parseImageIndexes(args.reference_image_indexes)
+    const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths)
+    const indexes = selected.indexes
     if (!indexes.length) {
-      return 'Error: missing reference_image_indexes for edit_image_runware (use 1-based indexes like "1" or "1,2").'
+      return 'Error: missing image references for edit_image_runware. Provide reference_image_indexes (e.g. "1" or "1,2") and/or reference_image_paths.'
     }
     const refs = indexes
       .map((i) => pickImageByOneBasedIndex(ctx.userImages, ctx.userImageMimes, i))
       .filter((x): x is string => typeof x === 'string' && x.length > 0)
     if (!refs.length) {
       const max = ctx.userImages?.length ?? 0
-      return `Error: no valid reference images resolved from reference_image_indexes. Attached image count: ${max}.`
+      const missing = selected.missingPaths.length
+        ? ` Missing paths: ${selected.missingPaths.join(' | ')}.`
+        : ''
+      return `Error: no valid reference images resolved from provided indexes/paths. Available image count: ${max}.${missing}`
     }
     try {
       return await invokeRunwareEditImage(
@@ -402,6 +570,33 @@ async function executeToolCall(
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }
+  }
+  if (name === 'image_recall') {
+    if (!toolsEnabled.runwareImage) {
+      return 'Error: image_recall tool is disabled in settings.'
+    }
+    const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths)
+    const indexes = selected.indexes
+    if (!indexes.length) {
+      return 'Error: missing image references for image_recall. Provide reference_image_indexes and/or reference_image_paths.'
+    }
+    const recall = resolveImageRecallRequest(args, ctx)
+    if (!recall.recalled.length) {
+      const max = recall.maxAvailable
+      return `Error: image_recall could not resolve any requested images. Available image count: ${max}.`
+    }
+    const payload: ImageRecallToolResult = {
+      ok: true,
+      source: 'internal_catalog',
+      purpose: recall.purpose,
+      recalled_images: recall.recalled.map((x) => ({
+        index: x.index,
+        mime: x.mime,
+        path: x.path,
+      })),
+      ...(recall.errors.length > 0 ? { errors: recall.errors } : {}),
+    }
+    return JSON.stringify(payload)
   }
   if (name === 'generate_music_runware') {
     if (!toolsEnabled.runwareMusic) {
@@ -626,6 +821,8 @@ export type RunChatWithToolsParams = {
   userImages?: string[]
   /** MIME list matching `userImages` indexes. */
   userImageMimes?: string[]
+  /** Optional source paths matching `userImages` indexes. */
+  userImagePaths?: string[]
 }
 
 /**
@@ -647,6 +844,7 @@ export async function runOllamaChatWithTools(
   const originalUserText = getLastUserText(messages)
   const originalUserUrl = pickFirstHttpUrl(originalUserText)
   const originalNeedsFresh = shouldForceWebSearch(originalUserText)
+  const runtimeRecalledImages: Array<{ base64: string; mime: string }> = []
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (params.signal?.aborted) {
@@ -693,6 +891,7 @@ export async function runOllamaChatWithTools(
               runware: params.runware,
               userImages: params.userImages,
               userImageMimes: params.userImageMimes,
+              userImagePaths: params.userImagePaths,
               userText: originalUserText,
             },
           )
@@ -740,6 +939,7 @@ export async function runOllamaChatWithTools(
                 runware: params.runware,
                 userImages: params.userImages,
                 userImageMimes: params.userImageMimes,
+                userImagePaths: params.userImagePaths,
                 userText: originalUserText,
               },
             )
@@ -785,7 +985,7 @@ export async function runOllamaChatWithTools(
       else if (name === 'get_weather') params.onToolPhase?.('weather')
       else if (name === 'scrape_url') params.onToolPhase?.('scrape')
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
-      else if (name === 'generate_image' || name === 'edit_image_runware') params.onToolPhase?.('image')
+      else if (name === 'generate_image' || name === 'edit_image_runware' || name === 'image_recall') params.onToolPhase?.('image')
       else if (name === 'generate_music_runware') params.onToolPhase?.('music')
       else params.onToolPhase?.('other')
 
@@ -800,6 +1000,7 @@ export async function runOllamaChatWithTools(
           runware: params.runware,
           userImages: params.userImages,
           userImageMimes: params.userImageMimes,
+          userImagePaths: params.userImagePaths,
           userText: originalUserText,
         },
       )
@@ -809,6 +1010,28 @@ export async function runOllamaChatWithTools(
         content: result,
       })
       params.onToolResult?.({ name, result })
+      if (name === 'image_recall') {
+        const argsObj = argumentsStringToObject(call.function!.arguments)
+        const recall = resolveImageRecallRequest(argsObj, {
+          userImages: params.userImages,
+          userImageMimes: params.userImageMimes,
+          userImagePaths: params.userImagePaths,
+        })
+        if (recall.recalled.length > 0) {
+          for (const img of recall.recalled) {
+            runtimeRecalledImages.push({ base64: img.base64, mime: img.mime })
+          }
+        }
+      }
+    }
+
+    if (runtimeRecalledImages.length > 0) {
+      const consumed = runtimeRecalledImages.splice(0, runtimeRecalledImages.length)
+      messages.push({
+        role: 'user',
+        content: 'Image recall payload for current turn.',
+        images: consumed.map((x) => x.base64),
+      })
     }
 
     params.onToolPhase?.(null)

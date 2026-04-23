@@ -12,6 +12,10 @@ export type UiMessage = {
   imageNames?: string[]
   /** Optional original absolute file paths (when available), parallel with `images`. */
   imagePaths?: string[]
+  /** Assistant-generated image URLs (persisted for chat history rendering/fallback). */
+  generatedImageUrls?: string[]
+  /** Assistant-generated local image file paths (desktop source-of-truth). */
+  generatedImagePaths?: string[]
 }
 
 export type ChatSessionMessage = UiMessage

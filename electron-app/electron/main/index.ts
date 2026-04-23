@@ -627,6 +627,28 @@ ipcMain.handle('voidcast:pick-images', async () => {
   return { ok: true as const, files }
 })
 
+ipcMain.handle('voidcast:read-image-file', async (_evt, payload: { path?: string }) => {
+  try {
+    const fp = String(payload?.path ?? '').trim()
+    if (!fp) return { ok: false as const, error: 'Missing image path.' }
+    const buf = await readFile(fp)
+    return {
+      ok: true as const,
+      file: {
+        base64: buf.toString('base64'),
+        mime: mimeFromImagePath(fp),
+        name: path.basename(fp),
+        path: fp,
+      },
+    }
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
+})
+
 ipcMain.handle(
   'voidcast:get-weather',
   async (_evt, payload: { city?: string; forecast?: boolean }) => {
