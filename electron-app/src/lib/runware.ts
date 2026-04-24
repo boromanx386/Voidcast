@@ -489,6 +489,7 @@ export async function fetchRunwareImageModelOptions(options: {
 function formatRunwareToolResult(payload: {
   imageUrl: string
   model: string
+  prompt?: string
   width: number
   height: number
   steps?: number
@@ -505,6 +506,10 @@ function formatRunwareToolResult(payload: {
     `model: ${payload.model}`,
     `size: ${payload.width}x${payload.height}`,
   ]
+  if (payload.prompt?.trim()) {
+    const compactPrompt = payload.prompt.replace(/\s+/g, ' ').trim()
+    lines.push(`prompt: ${compactPrompt}`)
+  }
   if (typeof payload.steps === 'number') lines.push(`steps: ${payload.steps}`)
   if (typeof payload.cfgScale === 'number') lines.push(`cfg_scale: ${payload.cfgScale}`)
   if (typeof payload.seed === 'number') lines.push(`seed: ${payload.seed}`)
@@ -710,6 +715,7 @@ export async function invokeRunwareGenerateImage(
   const out = formatRunwareToolResult({
     imageUrl,
     model,
+    prompt,
     width,
     height,
     ...(isGptImage2 ? {} : { steps, cfgScale }),
@@ -821,6 +827,7 @@ export async function invokeRunwareEditImage(
   const out = formatRunwareToolResult({
     imageUrl,
     model,
+    prompt,
     width,
     height,
     ...(isGptImage2 ? {} : { steps, cfgScale }),

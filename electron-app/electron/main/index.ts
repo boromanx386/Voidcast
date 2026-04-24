@@ -113,7 +113,7 @@ function createTray() {
     },
   ])
   
-  tray.setToolTip('Voidcast - Neural Interface')
+  tray.setToolTip('Voidcast')
   tray.setContextMenu(contextMenu)
   
   // Double-click to show window

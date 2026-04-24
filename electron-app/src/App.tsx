@@ -88,6 +88,19 @@ type LocalImagePreview = {
   mime: string
 }
 
+const EMPTY_STATE_VARIANTS = {
+  dystopian: [
+    'NEURAL INTERFACE READY. AWAITING INPUT.',
+    'SYSTEM LINK STABLE. ENTER COMMAND.',
+    'CHANNEL OPEN. FEED PROMPT TO CONTINUE.',
+  ],
+  minimal: [
+    'Chat is ready. Type your first message.',
+    'New session started. Ask anything.',
+    'All set. Enter a prompt to continue.',
+  ],
+} as const
+
 function deriveSessionTitle(messages: UiMessage[]): string {
   const firstUser = messages.find((m) => m.role === 'user')
   if (!firstUser) return 'UNTITLED_SESSION'
@@ -336,6 +349,7 @@ function extractSavedAudioPaths(text: string): string[] {
 type RunwareImageToolMeta = {
   model?: string
   size?: string
+  prompt?: string
   steps?: number
   cfgScale?: number
   seed?: number
@@ -356,6 +370,7 @@ function parseRunwareImageToolMeta(text: string): RunwareImageToolMeta | null {
     if (!value) continue
     if (key === 'model') out.model = value
     else if (key === 'size') out.size = value
+    else if (key === 'prompt') out.prompt = value
     else if (key === 'steps') {
       const n = Number(value)
       if (Number.isFinite(n)) out.steps = Math.round(n)
@@ -703,11 +718,12 @@ export default function App() {
     () => (!!input.trim() || pendingImages.length > 0) && !busy,
     [input, pendingImages.length, busy],
   )
-  const canStop = busy || playingId !== null
+  const canStop = busy
   const canSaveSession = messages.length > 0 && !busy
   const todaySessions = useMemo(() => sessions.filter((s) => isToday(s.updatedAt)), [sessions])
   const olderSessions = useMemo(() => sessions.filter((s) => !isToday(s.updatedAt)), [sessions])
   const desktopRuntime = isElectron()
+  const [emptyStateSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
 
   useEffect(() => {
     const readImageFile = window.voidcast?.readImageFile
@@ -1222,7 +1238,6 @@ export default function App() {
 
   const onStop = () => {
     abortRef.current?.abort()
-    ttsAbortRef.current?.abort()
   }
 
   /** Prefer Electron native dialog (`voidcast.pickImages`); hidden `<input type=file>` is unreliable on some Windows builds. */
@@ -1460,6 +1475,10 @@ export default function App() {
   }
 
   const uiDystopian = settings.uiTheme === 'dystopian'
+  const emptyStateMessage = useMemo(() => {
+    const variants = uiDystopian ? EMPTY_STATE_VARIANTS.dystopian : EMPTY_STATE_VARIANTS.minimal
+    return variants[emptyStateSeed % variants.length]
+  }, [uiDystopian, emptyStateSeed])
 
   // === OPTIONS SCREEN ===
   if (screen === 'options') {
@@ -1574,7 +1593,7 @@ export default function App() {
           onClick={() => setMenuOpen((v) => !v)}
           className="group relative w-10 h-10 flex items-center justify-center
             bg-void-mid border border-void-dim/50 hover:border-neon-cyan/50
-            transition-all duration-300 hover:shadow-[0_0_15px_rgba(0,245,255,0.3)]"
+            transition-all duration-300 hover:shadow-[0_0_15px_rgba(var(--ui-accent-rgb),0.3)]"
           style={{ clipPath: 'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)' }}
         >
           <span className="flex flex-col gap-1.5">
@@ -1623,7 +1642,7 @@ export default function App() {
           />
           <nav 
             className="fixed left-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col 
-              bg-void-dark/95 border-r border-neon-cyan/20 shadow-[4px_0_30px_rgba(0,245,255,0.1)]
+              bg-void-dark/95 border-r border-neon-cyan/20 shadow-[4px_0_30px_rgba(var(--ui-accent-rgb),0.1)]
               backdrop-blur-xl"
           >
             {/* Menu Header */}
@@ -1755,37 +1774,26 @@ export default function App() {
         <div className="mx-auto max-w-3xl flex flex-col gap-4">
           {/* Empty State */}
           {messages.length === 0 && (
-            <div className="relative overflow-hidden rounded-lg border border-neon-cyan/20 bg-void-dark/80 p-8 text-center animate-fade-in-up">
-              <div className="corner-tl" />
-              <div className="corner-tr" />
-              <div className="corner-bl" />
-              <div className="corner-br" />
-              
-              {/* Decorative glow */}
-              <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-neon-cyan/10 blur-3xl" aria-hidden />
-              <div className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-neon-magenta/10 blur-3xl" aria-hidden />
+            <div
+              className={`relative overflow-hidden rounded-lg p-8 text-center animate-fade-in-up ${
+                uiDystopian
+                  ? 'border border-neon-cyan/20 bg-void-dark/80'
+                  : 'border border-void-muted/50 bg-void-mid/70'
+              }`}
+            >
+              {uiDystopian && (
+                <>
+                  {/* Decorative glow */}
+                  <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-neon-cyan/10 blur-3xl" aria-hidden />
+                  <div className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-neon-magenta/10 blur-3xl" aria-hidden />
+                </>
+              )}
               
               <div className="relative">
                 <p className="text-void-text text-sm mb-6 font-mono animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                  NEURAL INTERFACE READY. AWAITING INPUT.
-                  <span className="animate-cursor-blink ml-1">_</span>
+                  {emptyStateMessage}
+                  {uiDystopian && <span className="animate-cursor-blink ml-1">_</span>}
                 </p>
-                
-                <div className="flex flex-col gap-2 text-left max-w-sm mx-auto stagger-children">
-                  <div className="flex items-center gap-3 px-3 py-2 bg-void-black/50 rounded border border-void-muted/30">
-                    <span className="text-neon-cyan font-mono">↵</span>
-                    <span className="text-void-light text-sm font-mono">
-                      ENTER <span className="text-void-dim">send</span> · SHIFT+ENTER <span className="text-void-dim">newline</span>
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 px-3 py-2 bg-void-black/50 rounded border border-void-muted/30">
-                    <span className="text-neon-magenta font-mono">⌘</span>
-                    <span className="text-void-light text-sm font-mono">
-                      CTRL+ALT+SHIFT+V <span className="text-void-dim">clipboard TTS</span>
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -1914,6 +1922,7 @@ export default function App() {
                                         const lines: string[] = []
                                         if (meta.model) lines.push(`model: ${meta.model}`)
                                         if (meta.size) lines.push(`size: ${meta.size}`)
+                                        if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
                                         if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
                                         if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
                                         if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
@@ -1939,6 +1948,7 @@ export default function App() {
                                         const lines: string[] = []
                                         if (meta.model) lines.push(`model: ${meta.model}`)
                                         if (meta.size) lines.push(`size: ${meta.size}`)
+                                        if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
                                         if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
                                         if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
                                         if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
@@ -2067,8 +2077,14 @@ export default function App() {
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-void-muted/30 pt-3">
                     <button
                       type="button"
-                      disabled={ttsOk === false || playingId === m.id}
-                      onClick={() => void onRead(m)}
+                      disabled={ttsOk === false}
+                      onClick={() => {
+                        if (playingId === m.id) {
+                          ttsAbortRef.current?.abort()
+                          return
+                        }
+                        void onRead(m)
+                      }}
                       className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
                         border border-neon-cyan/30 text-neon-cyan
                         hover:bg-neon-cyan/10 hover:border-neon-cyan/50
@@ -2078,7 +2094,7 @@ export default function App() {
                       <span className={playingId === m.id ? 'animate-pulse' : ''}>
                         {playingId === m.id ? '◼' : '▶'}
                       </span>
-                      {playingId === m.id ? 'SYNTHESIZING...' : 'SPEAK'}
+                      {playingId === m.id ? 'STOP' : 'SPEAK'}
                     </button>
                     {dedupeNonEmpty([...(m.generatedImagePaths || []), ...(assistantSavedImagePaths[m.id] || [])]).length > 0 ? (
                       <button

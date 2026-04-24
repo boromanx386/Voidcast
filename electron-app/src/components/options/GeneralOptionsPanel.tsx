@@ -78,6 +78,25 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
         </p>
       </div>
 
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-yellow mr-2">⚿</span> RUNWARE_API_KEY
+        </label>
+        <input
+          type="password"
+          className="cyber-input"
+          value={settings.runwareApiKey}
+          onChange={(e) =>
+            setSettings((s) => ({ ...s, runwareApiKey: e.target.value }))
+          }
+          placeholder="rw_..."
+          autoComplete="off"
+        />
+        <p className="text-xs text-neon-yellow/80 mt-1">
+          Stored locally on this device (browser/electron storage).
+        </p>
+      </div>
+
       {isElectron() && (
         <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
           <p className="text-xs font-mono text-neon-green uppercase tracking-wider mb-2">

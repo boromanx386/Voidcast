@@ -1,5 +1,32 @@
 /* Minimal zinc / indigo shell — overrides dystopian theme when html[data-ui-theme="minimal"] */
 
+html[data-ui-theme='minimal'] {
+  --color-void-black: 9 9 11;
+  --color-void-dark: 24 24 27;
+  --color-void-mid: 39 39 42;
+  --color-void-muted: 82 82 91;
+  --color-void-dim: 113 113 122;
+  --color-void-text: 180 180 190;
+  --color-void-light: 235 235 240;
+  --color-void-white: 250 250 250;
+
+  --color-neon-cyan: 129 140 248;
+  --color-neon-cyan-dim: 99 102 241;
+  --color-neon-magenta: 167 139 250;
+  --color-neon-magenta-dim: 139 92 246;
+  --color-neon-green: 110 231 183;
+  --color-neon-green-dim: 52 211 153;
+  --color-neon-yellow: 251 191 36;
+  --color-neon-red: 251 113 133;
+  --color-neon-purple: 196 181 253;
+
+  --color-glitch-red: 251 113 133;
+  --color-glitch-blue: 129 140 248;
+  --color-glitch-green: 110 231 183;
+
+  --ui-accent-rgb: 99,102,241;
+}
+
 html[data-ui-theme='minimal'] body {
   background: #09090b !important;
   color: #fafafa !important;
@@ -39,8 +66,7 @@ html[data-ui-theme='minimal'] select:focus {
 
 html[data-ui-theme='minimal'] .voidcast-app {
   background:
-    radial-gradient(1200px 600px at 50% -20%, rgba(99, 102, 241, 0.06), transparent 55%),
-    radial-gradient(800px 400px at 100% 100%, rgba(139, 92, 246, 0.05), transparent 50%),
+    radial-gradient(1000px 520px at 50% -30%, rgba(99, 102, 241, 0.04), transparent 58%),
     #09090b;
 }
 
@@ -53,7 +79,7 @@ html[data-ui-theme='minimal'] .voidcast-header {
 
 html[data-ui-theme='minimal'] .voidcast-header::after {
   background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.35), transparent);
-  opacity: 0.4;
+  opacity: 0.2;
 }
 
 html[data-ui-theme='minimal'] .voidcast-logo {
@@ -98,7 +124,7 @@ html[data-ui-theme='minimal'] .voidcast-input-area {
 
 html[data-ui-theme='minimal'] .voidcast-input-area::before {
   background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.35), transparent);
-  opacity: 0.35;
+  opacity: 0.18;
 }
 
 html[data-ui-theme='minimal'] .voidcast-textarea {
@@ -118,12 +144,12 @@ html[data-ui-theme='minimal'] .send-btn {
   clip-path: none;
   border-radius: 0.5rem;
   background: #27272a;
-  border-color: rgba(99, 102, 241, 0.45);
-  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #c7d2fe;
 }
 
 html[data-ui-theme='minimal'] .send-btn:hover:not(:disabled) {
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.14);
   border-color: #818cf8;
   box-shadow: none;
 }
@@ -192,9 +218,9 @@ html[data-ui-theme='minimal'] .option-tab {
 }
 
 html[data-ui-theme='minimal'] .option-tab.active {
-  color: #a5b4fc;
-  border-color: rgba(99, 102, 241, 0.5);
-  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
 }
 
 html[data-ui-theme='minimal'] .form-label {
@@ -213,8 +239,8 @@ html[data-ui-theme='minimal'] .form-select {
 html[data-ui-theme='minimal'] .message-user {
   clip-path: none;
   border-radius: 0.75rem;
-  background: rgba(99, 102, 241, 0.12);
-  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.09);
+  border-color: rgba(99, 102, 241, 0.26);
 }
 
 html[data-ui-theme='minimal'] .message-assistant {
@@ -266,6 +292,7 @@ html[data-ui-theme='minimal'] .tool-indicator {
   animation: none;
   border-radius: 0.375rem;
   font-family: inherit;
+  box-shadow: none;
 }
 
 html[data-ui-theme='minimal'] .modal-overlay {
@@ -280,4 +307,29 @@ html[data-ui-theme='minimal'] .modal-content {
 
 html[data-ui-theme='minimal'] .modal-content::before {
   display: none;
+}
+
+/* Additional cleanup for minimal: remove neon-heavy utility effects. */
+html[data-ui-theme='minimal'] .neon-text-cyan,
+html[data-ui-theme='minimal'] .neon-text-magenta,
+html[data-ui-theme='minimal'] .neon-text-green,
+html[data-ui-theme='minimal'] .text-shadow-neon,
+html[data-ui-theme='minimal'] .text-shadow-glow {
+  text-shadow: none !important;
+}
+
+html[data-ui-theme='minimal'] .hover-glow-cyan:hover,
+html[data-ui-theme='minimal'] .hover-glow-magenta:hover {
+  box-shadow: none !important;
+}
+
+html[data-ui-theme='minimal'] .chromatic-hover:hover {
+  text-shadow: none !important;
+}
+
+html[data-ui-theme='minimal'] .gradient-text,
+html[data-ui-theme='minimal'] .gradient-text-green {
+  background-image: none !important;
+  -webkit-text-fill-color: currentColor;
+  color: #c7d2fe;
 }

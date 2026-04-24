@@ -119,7 +119,7 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
             ENABLE_RUNWARE_IMAGE_TOOL
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Omogućava LLM-u Runware tool pozive <code className="text-neon-green">generate_image</code> and <code className="text-neon-green">edit_image_runware</code>.
+            Allows the LLM to call Runware tools <code className="text-neon-green">generate_image</code> and <code className="text-neon-green">edit_image_runware</code>.
           </span>
         </span>
       </label>
@@ -191,25 +191,6 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
           }
           placeholder="https://api.runware.ai/v1"
         />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-yellow mr-2">⚿</span> RUNWARE_API_KEY
-        </label>
-        <input
-          type="password"
-          className="cyber-input"
-          value={settings.runwareApiKey}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, runwareApiKey: e.target.value }))
-          }
-          placeholder="rw_..."
-          autoComplete="off"
-        />
-        <p className="text-xs text-neon-yellow/80 mt-1">
-          V1: ključ se čuva lokalno u browser/electron storage.
-        </p>
       </div>
 
       <div className="form-group">
