@@ -97,6 +97,16 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
         </p>
       </div>
 
+      <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
+        <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-2">
+          <span className="mr-2">⌘</span>TTS_SHORTCUT
+        </p>
+        <p className="text-xs text-void-dim">
+          Global shortcut: <code className="text-neon-cyan">Ctrl+Alt+Shift+V</code>. Reads current
+          clipboard text with TTS while Voidcast is running.
+        </p>
+      </div>
+
       {isElectron() && (
         <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
           <p className="text-xs font-mono text-neon-green uppercase tracking-wider mb-2">

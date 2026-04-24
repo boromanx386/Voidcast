@@ -560,6 +560,7 @@ export default function App() {
   const localPreviewLoadingRef = useRef<Set<string>>(new Set())
   const abortRef = useRef<AbortController | null>(null)
   const ttsAbortRef = useRef<AbortController | null>(null)
+  const ttsRunIdRef = useRef(0)
   const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -1356,6 +1357,8 @@ export default function App() {
     }
     ttsAbortRef.current?.abort()
     const ac = new AbortController()
+    ttsRunIdRef.current += 1
+    const runId = ttsRunIdRef.current
     ttsAbortRef.current = ac
     const signal = ac.signal
 
@@ -1399,8 +1402,8 @@ export default function App() {
     } catch (e) {
       if (!signal.aborted) setError(e instanceof Error ? e.message : String(e))
     } finally {
-      ttsAbortRef.current = null
-      setPlayingId(null)
+      if (ttsAbortRef.current === ac) ttsAbortRef.current = null
+      if (ttsRunIdRef.current === runId) setPlayingId(null)
     }
   }
 
@@ -2081,6 +2084,7 @@ export default function App() {
                       onClick={() => {
                         if (playingId === m.id) {
                           ttsAbortRef.current?.abort()
+                          setPlayingId(null)
                           return
                         }
                         void onRead(m)
@@ -2294,14 +2298,10 @@ export default function App() {
           {/* Input hints */}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
             <span>
-              ENTER <span className="text-void-dim/80">send</span>
-              {' · '}
-              SHIFT+ENTER <span className="text-void-dim/80">newline</span>
               {pendingImages.length > 0 && (
-                <>
-                  {' · '}
-                  <span className="text-neon-cyan/70">{pendingImages.length} image{pendingImages.length === 1 ? '' : 's'} attached</span>
-                </>
+                <span className="text-neon-cyan/70">
+                  {pendingImages.length} image{pendingImages.length === 1 ? '' : 's'} attached
+                </span>
               )}
             </span>
             <span className="flex items-center gap-2">
@@ -2320,7 +2320,7 @@ export default function App() {
           <span>TTS: {ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}</span>
         </div>
         <div className="font-mono text-void-dim/50">
-          VOIDCAST_NEXUS // {new Date().toLocaleTimeString('en-US', { hour12: false })}
+          {new Date().toLocaleTimeString('en-US', { hour12: false })}
         </div>
       </div>
 
