@@ -691,6 +691,33 @@ export default function App() {
     saveChatSessions({ sessions, activeSessionId })
   }, [sessions, activeSessionId, sessionsHydrated])
 
+  // Auto-update only previously saved sessions.
+  // If activeSessionId is null, this remains an unsaved draft until user clicks SAVE.
+  useEffect(() => {
+    if (!sessionsHydrated || !activeSessionId) return
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === activeSessionId)
+      if (idx < 0) return prev
+      const current = prev[idx]
+      const nextHiddenContextSummary = hiddenContextSummary.trim() || undefined
+      const sameMessagesRef = current.messages === messages
+      const sameHiddenSummary =
+        (current.hiddenContextSummary ?? '') === (nextHiddenContextSummary ?? '')
+      if (sameMessagesRef && sameHiddenSummary) return prev
+
+      const next = [...prev]
+      next[idx] = {
+        ...current,
+        updatedAt: Date.now(),
+        messages,
+        hiddenContextSummary: nextHiddenContextSummary,
+      }
+      next.sort((a, b) => b.updatedAt - a.updatedAt)
+      return next
+    })
+    setSessionDirty(false)
+  }, [messages, hiddenContextSummary, activeSessionId, sessionsHydrated])
+
   // TTS health check
   const refreshTts = useCallback(async () => {
     console.log('[VOIDCAST] Checking TTS at:', settings.ttsBaseUrl)
@@ -766,7 +793,7 @@ export default function App() {
     [input, pendingImages.length, busy],
   )
   const canStop = busy
-  const canSaveSession = messages.length > 0 && !busy
+  const canSaveSession = messages.length > 0 && !busy && !activeSessionId
   const todaySessions = useMemo(() => sessions.filter((s) => isToday(s.updatedAt)), [sessions])
   const olderSessions = useMemo(() => sessions.filter((s) => !isToday(s.updatedAt)), [sessions])
   const desktopRuntime = isElectron()
@@ -1668,7 +1695,7 @@ export default function App() {
               onClick={saveOrUpdateSession}
               className="cyber-btn shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs"
             >
-              {activeSessionId ? 'UPDATE' : 'SAVE'}
+              SAVE
             </button>
           )}
 
