@@ -80,6 +80,8 @@ _model: Any = None
 _sampling_rate: int = 24000
 _load_error: str | None = None
 _infer_lock = asyncio.Lock()
+_desktop_settings_cache: dict[str, Any] | None = None
+_desktop_settings_updated_at: str | None = None
 
 # Prefer `ddgs` — the `duckduckgo_search` package was renamed and its DDGS often returns no results.
 try:
@@ -126,6 +128,10 @@ class RunwareProxyRequest(BaseModel):
     )
     api_key: str = Field(..., min_length=1, max_length=2048)
     tasks: list[dict[str, Any]] = Field(..., min_length=1, max_length=8)
+
+
+class DesktopSettingsSyncRequest(BaseModel):
+    settings: dict[str, Any] = Field(default_factory=dict)
 
 
 class TtsRequest(BaseModel):
@@ -555,6 +561,31 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
         raise HTTPException(
             status_code=503, detail=str(e) or "Runware proxy failed"
         ) from e
+
+
+@app.post("/tools/desktop-settings-sync")
+async def tools_desktop_settings_sync(req: DesktopSettingsSyncRequest):
+    """Cache desktop app settings for LAN web clients (phone/browser)."""
+    global _desktop_settings_cache, _desktop_settings_updated_at
+    incoming = req.settings if isinstance(req.settings, dict) else {}
+    if not incoming:
+        raise HTTPException(status_code=400, detail="settings payload is required")
+    _desktop_settings_cache = incoming
+    _desktop_settings_updated_at = datetime.utcnow().isoformat() + "Z"
+    return {"ok": True, "updatedAt": _desktop_settings_updated_at}
+
+
+@app.get("/tools/desktop-settings")
+async def tools_desktop_settings():
+    """Return last synced desktop settings for web/LAN clients."""
+    if _desktop_settings_cache is None:
+        return {"ok": True, "hasSettings": False}
+    return {
+        "ok": True,
+        "hasSettings": True,
+        "updatedAt": _desktop_settings_updated_at,
+        "settings": _desktop_settings_cache,
+    }
 
 
 @app.api_route(

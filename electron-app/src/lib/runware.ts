@@ -3,6 +3,7 @@ import {
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
 } from '@/lib/settings'
+import { isWebStandalone } from '@/lib/platform'
 
 export type RunwareImageConfig = {
   apiBaseUrl: string
@@ -199,11 +200,21 @@ function asFiniteNumber(v: unknown): number | null {
   return v
 }
 
+/**
+ * Runware expects RFC-4122 taskUUID values. `crypto.randomUUID()` is often missing on
+ * plain HTTP (e.g. phone → LAN IP), so we always emit a valid v4 UUID without that API.
+ */
 function makeTaskUuid(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < 16; i += 1) bytes[i] = Math.floor(Math.random() * 256)
   }
-  return `rw-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const h = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
 
 type RunwareApiBody = {
@@ -245,33 +256,28 @@ async function postRunwareTasks(args: {
   proxyBaseUrl?: string
 }): Promise<RunwareApiBody> {
   const directRoot = normalizeBaseUrl(args.apiBaseUrl || 'https://api.runware.ai/v1')
+  const apiKey = (args.apiKey || '').trim().replace(/^\uFEFF/, '')
   const headers = {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${args.apiKey}`,
+    Authorization: `Bearer ${apiKey}`,
   }
   const bodyText = JSON.stringify(args.tasks)
 
-  try {
-    const res = await fetch(directRoot, {
-      method: 'POST',
-      headers,
-      body: bodyText,
-      signal: args.signal,
-    })
-    const body = (await res.json().catch(() => ({}))) as RunwareApiBody
-    if (!res.ok) throw new Error(readRunwareError(body, res.status))
-    return body
-  } catch (e) {
-    if (!args.proxyBaseUrl || !looksLikeNetworkFetchError(e)) {
-      throw e instanceof Error ? e : new Error(String(e))
+  const proxyRootRaw = (args.proxyBaseUrl || '').trim()
+  const proxyRoot = proxyRootRaw ? normalizeBaseUrl(proxyRootRaw) : ''
+
+  async function postViaProxy(): Promise<RunwareApiBody> {
+    if (!proxyRoot) {
+      throw new Error(
+        'Runware proxy URL is missing. Open the app from your desktop TTS server address (same host as this page) so image requests can be forwarded server-side.',
+      )
     }
-    const proxyRoot = normalizeBaseUrl(args.proxyBaseUrl)
     const proxyRes = await fetch(`${proxyRoot}/tools/runware_proxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_base_url: directRoot,
-        api_key: args.apiKey,
+        api_key: apiKey,
         tasks: args.tasks,
       }),
       signal: args.signal,
@@ -286,6 +292,34 @@ async function postRunwareTasks(args: {
       throw new Error(detail)
     }
     return proxyBody.data
+  }
+
+  // Browser → Runware direct calls often differ from server-side (Electron / httpx): WAF, auth, or
+  // non-2xx without a usable CORS body. On web UI, always use the local TTS proxy when available.
+  if (isWebStandalone() && proxyRoot) {
+    return postViaProxy()
+  }
+
+  try {
+    const res = await fetch(directRoot, {
+      method: 'POST',
+      headers,
+      body: bodyText,
+      signal: args.signal,
+    })
+    const body = (await res.json().catch(() => ({}))) as RunwareApiBody
+    if (!res.ok) {
+      if (proxyRoot && (res.status === 400 || res.status === 401 || res.status === 403)) {
+        return postViaProxy()
+      }
+      throw new Error(readRunwareError(body, res.status))
+    }
+    return body
+  } catch (e) {
+    if (!proxyRoot || !looksLikeNetworkFetchError(e)) {
+      throw e instanceof Error ? e : new Error(String(e))
+    }
+    return postViaProxy()
   }
 }
 

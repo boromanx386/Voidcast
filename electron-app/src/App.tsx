@@ -43,10 +43,12 @@ import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
-import { isElectron } from '@/lib/platform'
+import { isElectron, isWebStandalone } from '@/lib/platform'
 import {
+  fetchDesktopSyncedSettings,
   getRunwareProfileForModel,
   loadSettings,
+  normalizeSettingsCandidate,
   saveSettings,
   type AppSettings,
 } from '@/lib/settings'
@@ -98,6 +100,11 @@ const EMPTY_STATE_VARIANTS = {
     'Chat is ready. Type your first message.',
     'New session started. Ask anything.',
     'All set. Enter a prompt to continue.',
+  ],
+  matrix: [
+    'Terminal link established. Awaiting input.',
+    'Greenline channel open. Enter your prompt.',
+    'System ready. Type to continue.',
   ],
 } as const
 
@@ -610,6 +617,45 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  // Desktop source-of-truth sync for phone/web clients.
+  useEffect(() => {
+    if (isWebStandalone()) return
+    const root = settings.ttsBaseUrl.trim().replace(/\/+$/, '')
+    if (!root) return
+    const syncNow = () =>
+      void fetch(`${root}/tools/desktop-settings-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      }).catch(() => {
+        // Best-effort sync only; desktop app must stay usable offline.
+      })
+    const timer = window.setTimeout(syncNow, 250)
+    const heartbeat = window.setInterval(syncNow, 10000)
+    return () => {
+      window.clearTimeout(timer)
+      window.clearInterval(heartbeat)
+    }
+  }, [settings])
+
+  // Web/LAN client pulls latest desktop settings on startup + polling.
+  useEffect(() => {
+    if (!isWebStandalone()) return
+    let cancelled = false
+    const pull = () => {
+      void fetchDesktopSyncedSettings(settings.ttsBaseUrl).then((synced) => {
+        if (cancelled || !synced) return
+        setSettings((prev) => normalizeSettingsCandidate({ ...prev, ...synced }))
+      })
+    }
+    pull()
+    const interval = window.setInterval(pull, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [settings.ttsBaseUrl])
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute('data-ui-theme', settings.uiTheme)
@@ -1351,7 +1397,8 @@ export default function App() {
     if (msg.role !== 'assistant' || !msg.content.trim()) return
     const spoken = sanitizeForTts(msg.content)
     if (!spoken) return
-    if (settings.voiceMode === 'clone' && (!cloneRef?.blob || cloneRef.blob.size === 0)) {
+    const ttsVoiceMode = isWebStandalone() ? 'design' : settings.voiceMode
+    if (ttsVoiceMode === 'clone' && (!cloneRef?.blob || cloneRef.blob.size === 0)) {
       setError('VOICE_CLONE: Load reference audio in Settings → TTS')
       return
     }
@@ -1375,13 +1422,13 @@ export default function App() {
       const synth = (text: string) => synthesizeSpeech({
         ttsBaseUrl: settings.ttsBaseUrl,
         text,
-        voiceMode: settings.voiceMode,
+        voiceMode: ttsVoiceMode,
         instruct: settings.voiceInstruct || undefined,
         speed: settings.ttsSpeed,
         numStep: settings.ttsNumStep,
         durationSec: durationForChunk,
-        cloneRef: cloneRef ?? null,
-        cloneRefText: settings.cloneRefText || null,
+        cloneRef: isWebStandalone() ? null : cloneRef ?? null,
+        cloneRefText: isWebStandalone() ? null : settings.cloneRefText || null,
         voiceAnchor: voiceAnchor ?? null,
         signal,
       })
@@ -1479,9 +1526,14 @@ export default function App() {
 
   const uiDystopian = settings.uiTheme === 'dystopian'
   const emptyStateMessage = useMemo(() => {
-    const variants = uiDystopian ? EMPTY_STATE_VARIANTS.dystopian : EMPTY_STATE_VARIANTS.minimal
+    const variants =
+      settings.uiTheme === 'dystopian'
+        ? EMPTY_STATE_VARIANTS.dystopian
+        : settings.uiTheme === 'matrix'
+          ? EMPTY_STATE_VARIANTS.matrix
+          : EMPTY_STATE_VARIANTS.minimal
     return variants[emptyStateSeed % variants.length]
-  }, [uiDystopian, emptyStateSeed])
+  }, [settings.uiTheme, emptyStateSeed])
 
   // === OPTIONS SCREEN ===
   if (screen === 'options') {

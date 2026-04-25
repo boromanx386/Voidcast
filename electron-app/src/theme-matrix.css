@@ -1,0 +1,185 @@
+/* Soft Matrix shell — subtle green terminal vibe for html[data-ui-theme="matrix"] */
+
+html[data-ui-theme='matrix'] {
+  --color-void-black: 5 12 8;
+  --color-void-dark: 10 20 14;
+  --color-void-mid: 15 30 22;
+  --color-void-muted: 42 82 62;
+  --color-void-dim: 74 122 96;
+  --color-void-text: 132 186 156;
+  --color-void-light: 188 230 204;
+  --color-void-white: 222 247 231;
+
+  --color-neon-cyan: 120 226 160;
+  --color-neon-cyan-dim: 78 182 126;
+  --color-neon-magenta: 108 202 144;
+  --color-neon-magenta-dim: 72 154 108;
+  --color-neon-green: 144 236 172;
+  --color-neon-green-dim: 94 193 126;
+  --color-neon-yellow: 180 220 138;
+  --color-neon-red: 204 120 120;
+  --color-neon-purple: 132 214 168;
+
+  --color-glitch-red: 174 124 124;
+  --color-glitch-blue: 112 204 148;
+  --color-glitch-green: 142 226 170;
+
+  --ui-accent-rgb: 120,226,160;
+}
+
+html[data-ui-theme='matrix'] body {
+  background: #050c08 !important;
+  color: #def7e7 !important;
+  text-shadow: none !important;
+  font-family:
+    'JetBrains Mono',
+    'Fira Code',
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace !important;
+}
+
+html[data-ui-theme='matrix'] ::selection {
+  background: rgba(120, 226, 160, 0.2);
+  color: #eafff2;
+}
+
+html[data-ui-theme='matrix'] ::-webkit-scrollbar-track {
+  background: #08130d;
+}
+
+html[data-ui-theme='matrix'] ::-webkit-scrollbar-thumb {
+  background: #2a5a43;
+  box-shadow: none;
+}
+
+html[data-ui-theme='matrix'] ::-webkit-scrollbar-thumb:hover {
+  background: #3a7a5c;
+}
+
+html[data-ui-theme='matrix'] textarea:focus,
+html[data-ui-theme='matrix'] input:focus,
+html[data-ui-theme='matrix'] select:focus {
+  box-shadow: 0 0 0 2px rgba(120, 226, 160, 0.3);
+}
+
+html[data-ui-theme='matrix'] .voidcast-app {
+  background:
+    radial-gradient(900px 420px at 50% -25%, rgba(120, 226, 160, 0.05), transparent 60%),
+    #050c08;
+}
+
+html[data-ui-theme='matrix'] .voidcast-header,
+html[data-ui-theme='matrix'] .voidcast-input-area,
+html[data-ui-theme='matrix'] .voidcast-sidebar {
+  background: rgba(8, 19, 13, 0.82);
+  border-color: rgba(74, 122, 96, 0.45);
+  backdrop-filter: blur(8px);
+}
+
+html[data-ui-theme='matrix'] .voidcast-header::after,
+html[data-ui-theme='matrix'] .voidcast-input-area::before {
+  background: linear-gradient(90deg, transparent, rgba(120, 226, 160, 0.35), transparent);
+  opacity: 0.22;
+}
+
+html[data-ui-theme='matrix'] .glitch-text,
+html[data-ui-theme='matrix'] .glitch-text::before,
+html[data-ui-theme='matrix'] .glitch-text::after,
+html[data-ui-theme='matrix'] .crt-overlay,
+html[data-ui-theme='matrix'] .ambient-particles {
+  animation: none !important;
+}
+
+html[data-ui-theme='matrix'] .glitch-text::before,
+html[data-ui-theme='matrix'] .glitch-text::after {
+  display: none;
+}
+
+html[data-ui-theme='matrix'] .cyber-btn,
+html[data-ui-theme='matrix'] .cyber-input,
+html[data-ui-theme='matrix'] .cyber-panel,
+html[data-ui-theme='matrix'] .send-btn,
+html[data-ui-theme='matrix'] .voidcast-textarea,
+html[data-ui-theme='matrix'] .form-select {
+  clip-path: none;
+  border-radius: 0.5rem;
+}
+
+html[data-ui-theme='matrix'] .cyber-btn {
+  background: rgba(12, 28, 20, 0.92);
+  border-color: rgba(74, 122, 96, 0.62);
+  color: #bce6cc;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+html[data-ui-theme='matrix'] .cyber-btn:hover {
+  border-color: rgba(120, 226, 160, 0.6);
+  color: #d6f6e2;
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-ui-theme='matrix'] .cyber-btn::before,
+html[data-ui-theme='matrix'] .cyber-panel::before,
+html[data-ui-theme='matrix'] .corner-tl,
+html[data-ui-theme='matrix'] .corner-tr,
+html[data-ui-theme='matrix'] .corner-bl,
+html[data-ui-theme='matrix'] .corner-br {
+  display: none !important;
+}
+
+html[data-ui-theme='matrix'] .voidcast-textarea,
+html[data-ui-theme='matrix'] .cyber-input,
+html[data-ui-theme='matrix'] .form-select {
+  background: rgba(7, 17, 12, 0.9);
+  border-color: rgba(58, 96, 76, 0.65);
+}
+
+html[data-ui-theme='matrix'] .voidcast-textarea:focus,
+html[data-ui-theme='matrix'] .cyber-input:focus {
+  border-color: rgba(120, 226, 160, 0.65);
+  box-shadow: 0 0 0 2px rgba(120, 226, 160, 0.24);
+}
+
+html[data-ui-theme='matrix'] .message-user {
+  background: rgba(33, 74, 58, 0.28);
+  border-color: rgba(104, 178, 142, 0.38);
+}
+
+html[data-ui-theme='matrix'] .message-assistant {
+  background: rgba(11, 24, 18, 0.9);
+  border-color: rgba(56, 92, 74, 0.6);
+}
+
+html[data-ui-theme='matrix'] .option-tab.active {
+  color: #bce6cc;
+  border-color: rgba(104, 178, 142, 0.45);
+  background: rgba(120, 226, 160, 0.08);
+}
+
+html[data-ui-theme='matrix'] .system-status {
+  border-top-color: rgba(56, 92, 74, 0.6);
+}
+
+html[data-ui-theme='matrix'] .tool-indicator,
+html[data-ui-theme='matrix'] .hover-glow-cyan:hover,
+html[data-ui-theme='matrix'] .hover-glow-magenta:hover,
+html[data-ui-theme='matrix'] .text-shadow-neon,
+html[data-ui-theme='matrix'] .text-shadow-glow,
+html[data-ui-theme='matrix'] .neon-text-cyan,
+html[data-ui-theme='matrix'] .neon-text-magenta,
+html[data-ui-theme='matrix'] .neon-text-green,
+html[data-ui-theme='matrix'] .chromatic-hover:hover {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+html[data-ui-theme='matrix'] .gradient-text,
+html[data-ui-theme='matrix'] .gradient-text-green {
+  background-image: none !important;
+  -webkit-text-fill-color: currentColor;
+  color: #bce6cc;
+}

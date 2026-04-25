@@ -110,12 +110,15 @@ export function TtsOptionsPanel({
     if (!settings.voiceBakePhrase.trim() || playBusy) return
     setPlayBusy(true)
     try {
+      const web = isWebStandalone()
+      const voiceMode = web ? 'design' : settings.voiceMode
       const blob = await synthesizeSpeech({
         ttsBaseUrl: settings.ttsBaseUrl,
         text: settings.voiceBakePhrase,
-        voiceMode: settings.voiceMode,
-        instruct: settings.voiceMode === 'design' ? settings.voiceInstruct : undefined,
+        voiceMode,
+        instruct: voiceMode === 'design' ? settings.voiceInstruct : undefined,
         voiceAnchor: voiceAnchor,
+        ...(web ? { cloneRef: null, cloneRefText: null } : {}),
       })
       const url = URL.createObjectURL(blob)
       const audio = new Audio(url)
@@ -189,35 +192,46 @@ export function TtsOptionsPanel({
         <p className="text-xs font-mono text-neon-magenta uppercase tracking-wider mb-3">
           <span className="mr-2">◉</span>VOICE_MODE
         </p>
-        <div className="flex flex-col gap-2">
-          {(
-            [
-              ['design', 'Voice Design', 'Describe voice characteristics.'],
-              ['clone', 'Voice Clone', 'Clone from reference audio clip.'],
-            ] as const
-          ).map(([value, label, hint]) => (
-            <label
-              key={value}
-              className={`flex cursor-pointer items-start gap-3 px-3 py-2 border transition-all ${
-                settings.voiceMode === value
-                  ? 'border-neon-cyan/50 bg-neon-cyan/5 text-neon-cyan'
-                  : 'border-void-muted/30 text-void-text hover:border-void-dim hover:bg-void-mid/30'
-              }`}
-            >
-              <input
-                type="radio"
-                name="voiceMode"
-                className="mt-1 accent-neon-cyan"
-                checked={settings.voiceMode === value}
-                onChange={() => setSettings((s) => ({ ...s, voiceMode: value }))}
-              />
-              <span>
-                <span className="font-mono text-sm">{label}</span>
-                <span className="mt-0.5 block text-xs opacity-70">{hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
+        {isWebStandalone() ? (
+          <div className="rounded border border-void-muted/30 bg-void-mid/20 px-3 py-2 text-xs text-void-dim leading-snug">
+            <span className="font-mono text-neon-cyan">Voice Design</span> only in this
+            browser build (instruct + optional anchor baked here).{' '}
+            <span className="text-void-text">
+              Voice Clone with a WAV file stays on the desktop app — there is no shared
+              reference audio from the PC.
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                ['design', 'Voice Design', 'Describe voice characteristics.'],
+                ['clone', 'Voice Clone', 'Clone from reference audio clip.'],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <label
+                key={value}
+                className={`flex cursor-pointer items-start gap-3 px-3 py-2 border transition-all ${
+                  settings.voiceMode === value
+                    ? 'border-neon-cyan/50 bg-neon-cyan/5 text-neon-cyan'
+                    : 'border-void-muted/30 text-void-text hover:border-void-dim hover:bg-void-mid/30'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="voiceMode"
+                  className="mt-1 accent-neon-cyan"
+                  checked={settings.voiceMode === value}
+                  onChange={() => setSettings((s) => ({ ...s, voiceMode: value }))}
+                />
+                <span>
+                  <span className="font-mono text-sm">{label}</span>
+                  <span className="mt-0.5 block text-xs opacity-70">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Voice Design Instruct */}
@@ -308,8 +322,8 @@ export function TtsOptionsPanel({
         </div>
       )}
 
-      {/* Voice Clone Panel */}
-      {settings.voiceMode === 'clone' && (
+      {/* Voice Clone Panel (desktop / Electron only) */}
+      {!isWebStandalone() && settings.voiceMode === 'clone' && (
         <div className="bg-void-black/50 border border-neon-purple/30 p-4">
           <p className="text-xs font-mono text-neon-purple mb-3">
             <span className="mr-2">⬡</span>REFERENCE_CLONE

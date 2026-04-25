@@ -1,7 +1,7 @@
 export type VoiceMode = 'design' | 'clone'
 
-/** UI shell: dystopian (neon/CRT) vs minimal (zinc/indigo, no overlays) */
-export type UiTheme = 'dystopian' | 'minimal'
+/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green terminal) */
+export type UiTheme = 'dystopian' | 'minimal' | 'matrix'
 
 export type RunwareModelProfile = {
   width: number
@@ -255,7 +255,7 @@ function normalizePdfDir(s: AppSettings): AppSettings {
 function normalizeUiTheme(s: AppSettings): AppSettings {
   const t = s.uiTheme
   const uiTheme: UiTheme =
-    t === 'minimal' || t === 'dystopian' ? t : 'dystopian'
+    t === 'minimal' || t === 'dystopian' || t === 'matrix' ? t : 'dystopian'
   return { ...s, uiTheme }
 }
 
@@ -403,6 +403,25 @@ function normalizeAll(s: AppSettings): AppSettings {
   )
 }
 
+function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
+  if (typeof window !== 'undefined' && isWebStandalone()) {
+    return {
+      ...s,
+      ttsBaseUrl: defaultTtsBaseUrlForRuntime(),
+      ollamaBaseUrl: ollamaUrlShouldUseDesktopProxy(s.ollamaBaseUrl)
+        ? defaultOllamaBaseUrlForRuntime()
+        : s.ollamaBaseUrl,
+      // Browser/LAN UI has no desktop WAV clone file; synced "clone" would fail. TTS uses instruct (+ optional anchor baked on this device).
+      voiceMode: 'design',
+    }
+  }
+  return s
+}
+
+export function normalizeSettingsCandidate(candidate: Partial<AppSettings>): AppSettings {
+  return applyWebRuntimeOverrides(normalizeAll({ ...defaults, ...candidate }))
+}
+
 /** On phone browser, localhost / 127.0.0.1 point at the device — never reach the desktop server. */
 function ollamaUrlShouldUseDesktopProxy(url: string): boolean {
   const u = url.trim()
@@ -435,16 +454,7 @@ export function loadSettings(): AppSettings {
     merged = { ...defaults }
   }
 
-  if (typeof window !== 'undefined' && isWebStandalone()) {
-    merged = {
-      ...merged,
-      ttsBaseUrl: defaultTtsBaseUrlForRuntime(),
-      ollamaBaseUrl: ollamaUrlShouldUseDesktopProxy(merged.ollamaBaseUrl)
-        ? defaultOllamaBaseUrlForRuntime()
-        : merged.ollamaBaseUrl,
-    }
-  }
-  return merged
+  return applyWebRuntimeOverrides(merged)
 }
 
 export function saveSettings(s: AppSettings): void {
@@ -464,4 +474,28 @@ export function getRunwareProfileForModel(
   const fallback = defaults.runwareModelProfiles[modelId]
   if (fallback) return fallback
   return defaults.runwareModelProfiles[defaults.runwareImageModel]
+}
+
+export async function fetchDesktopSyncedSettings(
+  ttsBaseUrl: string,
+): Promise<Partial<AppSettings> | null> {
+  const root = normalizeBaseUrl(ttsBaseUrl || defaultTtsBaseUrlForRuntime())
+  try {
+    const res = await fetch(`${root}/tools/desktop-settings`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!res.ok) return null
+    const body = (await res.json().catch(() => ({}))) as {
+      ok?: boolean
+      hasSettings?: boolean
+      settings?: Partial<AppSettings>
+    }
+    if (!body.ok || !body.hasSettings || !body.settings || typeof body.settings !== 'object') {
+      return null
+    }
+    return body.settings
+  } catch {
+    return null
+  }
 }

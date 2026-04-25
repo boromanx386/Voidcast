@@ -66,15 +66,21 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
           onChange={(e) =>
             setSettings((s) => ({
               ...s,
-              uiTheme: e.target.value === 'minimal' ? 'minimal' : 'dystopian',
+              uiTheme:
+                e.target.value === 'minimal'
+                  ? 'minimal'
+                  : e.target.value === 'matrix'
+                    ? 'matrix'
+                    : 'dystopian',
             }))
           }
         >
           <option value="dystopian">Dystopian (neon / CRT)</option>
           <option value="minimal">Minimal (zinc / indigo)</option>
+          <option value="matrix">Matrix (soft green terminal)</option>
         </select>
         <p className="text-xs text-void-dim mt-1">
-          Minimal turns off scanlines and particles and uses a calmer layout.
+          Minimal and Matrix use calmer visuals (scanlines/particles off) with gentler contrast.
         </p>
       </div>
 
