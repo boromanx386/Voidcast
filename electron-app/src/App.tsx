@@ -252,8 +252,6 @@ async function buildToolImageCatalog(
 const RUNWARE_IMAGE_URL_LINE_RE = /^\s*image_url:\s*(https?:\/\/\S+)\s*$/gim
 const RUNWARE_AUDIO_URL_LINE_RE = /^\s*audio_url:\s*(https?:\/\/\S+)\s*$/gim
 const MARKDOWN_IMAGE_URL_RE = /!\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
-const MARKDOWN_LINK_URL_RE = /\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
-const PLAIN_HTTP_URL_RE = /(https?:\/\/[^\s)]+)/gim
 const SAVED_IMAGE_PATH_RE = /^\s*Saved image:\s*(.+)\s*$/gim
 const SAVED_AUDIO_PATH_RE = /^\s*Saved audio:\s*(.+)\s*$/gim
 
@@ -261,22 +259,15 @@ function extractRunwareImageUrls(text: string): string[] {
   const out: string[] = []
   if (!text.trim()) return out
   RUNWARE_IMAGE_URL_LINE_RE.lastIndex = 0
-  MARKDOWN_LINK_URL_RE.lastIndex = 0
-  PLAIN_HTTP_URL_RE.lastIndex = 0
+  MARKDOWN_IMAGE_URL_RE.lastIndex = 0
   let match: RegExpExecArray | null
   while ((match = RUNWARE_IMAGE_URL_LINE_RE.exec(text)) !== null) {
     const u = (match[1] || '').trim()
     if (u) out.push(u)
   }
-  while ((match = MARKDOWN_LINK_URL_RE.exec(text)) !== null) {
+  while ((match = MARKDOWN_IMAGE_URL_RE.exec(text)) !== null) {
     const u = (match[1] || '').trim()
     if (u) out.push(u)
-  }
-  while ((match = PLAIN_HTTP_URL_RE.exec(text)) !== null) {
-    const raw = (match[1] || '').trim()
-    const u = raw.replace(/[),.;!?]+$/g, '')
-    if (!u) continue
-    out.push(u)
   }
   return Array.from(new Set(out))
 }
