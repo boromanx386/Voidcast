@@ -71,6 +71,8 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
                   ? 'minimal'
                   : e.target.value === 'matrix'
                     ? 'matrix'
+                    : e.target.value === 'light'
+                      ? 'light'
                     : 'dystopian',
             }))
           }
@@ -78,9 +80,10 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
           <option value="dystopian">Dystopian (neon / CRT)</option>
           <option value="minimal">Minimal (zinc / indigo)</option>
           <option value="matrix">Matrix (soft green terminal)</option>
+          <option value="light">Light (warm paper)</option>
         </select>
         <p className="text-xs text-void-dim mt-1">
-          Minimal and Matrix use calmer visuals (scanlines/particles off) with gentler contrast.
+          Minimal, Matrix, and Light use calmer visuals (scanlines/particles off) with gentler contrast.
         </p>
       </div>
 

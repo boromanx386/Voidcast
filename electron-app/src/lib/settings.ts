@@ -1,7 +1,7 @@
 export type VoiceMode = 'design' | 'clone'
 
-/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green terminal) */
-export type UiTheme = 'dystopian' | 'minimal' | 'matrix'
+/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper) */
+export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light'
 
 export type RunwareModelProfile = {
   width: number
@@ -255,7 +255,7 @@ function normalizePdfDir(s: AppSettings): AppSettings {
 function normalizeUiTheme(s: AppSettings): AppSettings {
   const t = s.uiTheme
   const uiTheme: UiTheme =
-    t === 'minimal' || t === 'dystopian' || t === 'matrix' ? t : 'dystopian'
+    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' ? t : 'dystopian'
   return { ...s, uiTheme }
 }
 

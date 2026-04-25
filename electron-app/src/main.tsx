@@ -4,6 +4,7 @@ import './index.css'
 import App from './App'
 import './theme-minimal.css'
 import './theme-matrix.css'
+import './theme-light.css'
 // If you want use Node.js, the`nodeIntegration` needs to be enabled in the Main process.
 // import './demos/node'
 

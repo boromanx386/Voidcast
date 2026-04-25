@@ -106,6 +106,11 @@ const EMPTY_STATE_VARIANTS = {
     'Greenline channel open. Enter your prompt.',
     'System ready. Type to continue.',
   ],
+  light: [
+    'Workspace ready. Start with a prompt.',
+    'You are all set. Ask anything.',
+    'Session is ready. Type to continue.',
+  ],
 } as const
 
 function deriveSessionTitle(messages: UiMessage[]): string {
@@ -1549,6 +1554,8 @@ export default function App() {
         ? EMPTY_STATE_VARIANTS.dystopian
         : settings.uiTheme === 'matrix'
           ? EMPTY_STATE_VARIANTS.matrix
+          : settings.uiTheme === 'light'
+            ? EMPTY_STATE_VARIANTS.light
           : EMPTY_STATE_VARIANTS.minimal
     return variants[emptyStateSeed % variants.length]
   }, [settings.uiTheme, emptyStateSeed])
