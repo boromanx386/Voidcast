@@ -1,5 +1,5 @@
 import type { Components } from 'react-markdown'
-import { isValidElement, useState, type ReactNode } from 'react'
+import { memo, isValidElement, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
@@ -169,7 +169,7 @@ type Props = {
   className?: string
 }
 
-export function ChatMarkdown({ content, className }: Props) {
+export const ChatMarkdown = memo(function ChatMarkdown({ content, className }: Props) {
   return (
     <div
       className={`break-words text-sm leading-[1.7] text-void-light font-body ${className ?? ''}`}
@@ -182,4 +182,4 @@ export function ChatMarkdown({ content, className }: Props) {
       </ReactMarkdown>
     </div>
   )
-}
+})

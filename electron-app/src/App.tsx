@@ -794,6 +794,40 @@ export default function App() {
   const olderSessions = useMemo(() => sessions.filter((s) => !isToday(s.updatedAt)), [sessions])
   const desktopRuntime = isElectron()
   const [emptyStateSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
+  const assistantRenderCache = useMemo(() => {
+    const out: Record<
+      string,
+      {
+        markdownContent: string
+        inlineImageUrls: string[]
+        localImagePaths: string[]
+      }
+    > = {}
+    for (const m of messages) {
+      if (m.role !== 'assistant') continue
+      const generatedUrls = dedupeNonEmpty([
+        ...(m.generatedImageUrls || []),
+        ...(assistantGeneratedImages[m.id] || []),
+        ...extractRunwareImageUrls(m.content),
+      ])
+      const markdownContent = desktopRuntime
+        ? stripGeneratedImageLinkArtifacts(
+            stripRunwareAudioUrlLines(m.content),
+            generatedUrls,
+          )
+        : stripRunwareAudioUrlLines(m.content)
+      const markdownImageUrls = new Set(extractMarkdownImageUrls(m.content))
+      const inlineImageUrls = generatedUrls.filter((u) => !markdownImageUrls.has(u))
+      const localImagePaths = desktopRuntime
+        ? dedupeNonEmpty([
+            ...(m.generatedImagePaths || []),
+            ...(assistantSavedImagePaths[m.id] || []),
+          ])
+        : []
+      out[m.id] = { markdownContent, inlineImageUrls, localImagePaths }
+    }
+    return out
+  }, [messages, assistantGeneratedImages, assistantSavedImagePaths, desktopRuntime])
 
   useEffect(() => {
     const readImageFile = window.voidcast?.readImageFile
@@ -1897,25 +1931,10 @@ export default function App() {
                 {m.role === 'assistant' ? (
                   <div className="space-y-3">
                     {(() => {
-                      const generatedUrls = dedupeNonEmpty([
-                        ...(m.generatedImageUrls || []),
-                        ...(assistantGeneratedImages[m.id] || []),
-                        ...extractRunwareImageUrls(m.content),
-                      ])
-                      const markdownContent = desktopRuntime
-                        ? stripGeneratedImageLinkArtifacts(
-                            stripRunwareAudioUrlLines(m.content),
-                            generatedUrls,
-                          )
-                        : stripRunwareAudioUrlLines(m.content)
-                      const markdownImageUrls = new Set(extractMarkdownImageUrls(m.content))
-                      const inlineImageUrls = generatedUrls.filter((u) => !markdownImageUrls.has(u))
-                      const localImagePaths = desktopRuntime
-                        ? dedupeNonEmpty([
-                            ...(m.generatedImagePaths || []),
-                            ...(assistantSavedImagePaths[m.id] || []),
-                          ])
-                        : []
+                      const cached = assistantRenderCache[m.id]
+                      const markdownContent = cached?.markdownContent || stripRunwareAudioUrlLines(m.content)
+                      const inlineImageUrls = cached?.inlineImageUrls || []
+                      const localImagePaths = cached?.localImagePaths || []
                       const renderItems = localImagePaths.length > 0
                         ? localImagePaths.map((p, i) => ({
                             key: `${m.id}-local-${i}`,
