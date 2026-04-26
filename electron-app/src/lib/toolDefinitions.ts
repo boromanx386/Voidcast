@@ -146,7 +146,7 @@ const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'generate_image',
     description:
-      'Generate an image with Runware from a text prompt. Use when the user asks to create an image, illustration, render, poster, logo, wallpaper, concept art, or similar visual asset.',
+      'Generate an image with Runware from a text prompt. If the user asks to create/make/draw/generate a new image, you MUST call this tool instead of replying with a pretend result. Never claim an image was generated unless this tool returned a real result with image_url; if generation fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {
