@@ -11,6 +11,8 @@ import {
 
 const OMNIVOICE_VOICE_DESIGN_DOCS =
   'https://github.com/k2-fsa/OmniVoice/blob/master/docs/voice-design.md'
+const LOCAL_TTS_SETUP_DOCS =
+  'https://github.com/boromanx386/Voidcast/blob/main/LOCAL_TTS_SETUP.md'
 
 /** Hover/focus panel — matches OmniVoice docs/voice-design.md */
 function VoiceDescriptInfo() {
@@ -240,10 +242,23 @@ export function TtsOptionsPanel({
           </p>
         )}
         {!isWebStandalone() && (
-          <p className="text-xs text-void-dim mt-1">
-            Local TTS is distributed as a separate installer. Keep this URL pointed to your
-            external Local TTS server instance.
-          </p>
+          <div className="text-xs text-void-dim mt-1 leading-snug">
+            <p>
+              Local TTS is distributed as a separate installer. Keep this URL pointed to your
+              external Local TTS server instance.
+            </p>
+            <p className="mt-1 font-mono">
+              Required API: GET /health and POST /tts (default: http://127.0.0.1:8765)
+            </p>
+            <a
+              href={LOCAL_TTS_SETUP_DOCS}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block mt-1 text-neon-cyan underline decoration-neon-cyan/30 underline-offset-2 hover:decoration-neon-cyan"
+            >
+              Open Local TTS setup guide
+            </a>
+          </div>
         )}
       </div>
       )}
