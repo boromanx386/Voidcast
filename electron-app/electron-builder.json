@@ -43,5 +43,11 @@
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": false,
     "shortcutName": "Voidcast"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "boromanx386",
+    "repo": "Voidcast",
+    "releaseType": "release"
   }
 }
