@@ -7,6 +7,7 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 - Desktop chat UI focused on practical AI workflows (Electron + React).
 - Ollama-based chat orchestration with configurable model and prompt settings.
 - Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF).
+- Built-in context summarization/compression for long conversations.
 - Runware media support:
   - image generation/editing
   - music generation
@@ -15,28 +16,6 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 - Cloud-first operation path (works without local GPU/CUDA requirements).
 - Optional power-user local path for users with capable hardware.
 - Windows installer builds with update-ready release artifacts.
-
-## Screenshots
-
-**Main Chat**
-
-![Main Chat](screenshots/chat-main.png)
-
-**Settings - General**
-
-![Settings General](screenshots/settings-general.png)
-
-**Settings - Runware**
-
-![Settings Runware](screenshots/settings-runware.png)
-
-**Settings - TTS**
-
-![Settings TTS](screenshots/settings-tts.png)
-
-**Image Generation Example**
-
-![Image Generation](screenshots/chat-image-generation.png)
 
 ## Cloud-first note
 
@@ -64,6 +43,27 @@ LLM/TTS-heavy workloads:
 Local TTS remains optional and external by design. See:
 
 - `LOCAL_TTS_SETUP.md`
+
+## Image-aware workflow
+
+Voidcast can reuse images from chat history as working context for later turns.
+
+This means the assistant can:
+
+- describe and analyze previously generated/attached images
+- evaluate quality and consistency against your prompt goals
+- use older images as references for edit operations
+- compare multiple prior images and suggest improvements
+
+In practice, this enables iterative visual workflows inside one conversation
+instead of isolated one-shot image calls.
+
+Combined with GPT Image 2.0 model (strong text rendering and chart-friendly output),
+this becomes a serious tool for:
+
+- chart/diagram generation with readable labels
+- visual drafts with embedded text
+- iterative image refinement based on prior chat artifacts
 
 ## Roadmap (planned)
 
