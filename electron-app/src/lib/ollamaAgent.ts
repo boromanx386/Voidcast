@@ -20,7 +20,7 @@ import type {
 } from '@/lib/ollama'
 import { mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 
-const MAX_TOOL_ROUNDS = 5
+const MAX_TOOL_ROUNDS = 10
 const HTTP_URL_RE = /(https?:\/\/[^\s)]+)(?=[\s)]|$)/i
 const FRESHNESS_RE =
   /\b(today|latest|recent|newest|breaking|update|updates|news|current|currently|202\d|danas|najnovije|trenutno|vesti)\b/i
