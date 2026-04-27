@@ -759,7 +759,7 @@ export default function App() {
       console.error('[VOIDCAST] TTS health check failed:', e)
       setTtsOk(false)
     }
-  }, [settings.ttsBaseUrl])
+  }, [settings.ttsBaseUrl, settings.ttsProvider, settings.runwareApiKey])
 
   useEffect(() => {
     void refreshTts()

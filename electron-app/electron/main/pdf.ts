@@ -222,6 +222,45 @@ function wrapRichParagraph(
   return lines
 }
 
+type ParsedListItem =
+  | { kind: 'bullet'; body: string }
+  | { kind: 'ordered'; n: string; body: string }
+
+/** Merge continuation lines into the previous item; supports `-`, `•`, `* `, `1.` … */
+function parseMarkdownListLines(rawLines: string[]): ParsedListItem[] | null {
+  const items: ParsedListItem[] = []
+  for (const raw of rawLines) {
+    const line = raw.trimEnd()
+    const t = line.trim()
+    if (!t) continue
+
+    let m: RegExpExecArray | null
+    if ((m = /^[-•]\s+(.*)$/.exec(t))) {
+      items.push({ kind: 'bullet', body: m[1] ?? '' })
+    } else if (
+      !t.startsWith('**') &&
+      /^\*\s+/.test(t) &&
+      (m = /^\*\s+(.*)$/.exec(t))
+    ) {
+      items.push({ kind: 'bullet', body: m[1] ?? '' })
+    } else if ((m = /^(\d{1,3})\.\s+(.*)$/.exec(t))) {
+      items.push({ kind: 'ordered', n: m[1], body: m[2] ?? '' })
+    } else if (items.length > 0) {
+      const prev = items[items.length - 1]
+      prev.body += (prev.body ? ' ' : '') + t
+    }
+  }
+  return items.length ? items : null
+}
+
+function isMarkdownListFirstLine(line: string): boolean {
+  const t = line.trim()
+  if (/^[-•]\s+/.test(t)) return true
+  if (/^\d{1,3}\.\s+/.test(t)) return true
+  if (/^\*\s+/.test(t) && !t.startsWith('**')) return true
+  return false
+}
+
 function wrapPlainParagraph(
   paragraph: string,
   maxWidth: number,
@@ -338,28 +377,96 @@ function drawParagraphRich(
   size: number,
   color = COL_BODY,
   lineGap = 0,
+  layout?: { x: number; width: number },
 ): void {
-  const lines = wrapRichParagraph(
-    para,
-    CONTENT_W,
-    ctx.fonts,
-    size,
-  )
+  const textX = layout?.x ?? MARGIN_L
+  const maxW = layout?.width ?? CONTENT_W
+  const lines = wrapRichParagraph(para, maxW, ctx.fonts, size)
   const lh = LEADING(size)
   for (const lineParts of lines) {
     ensureSpace(ctx, lh + 2)
     ctx.y -= lh
-    drawRichLine(
-      ctx.page,
-      lineParts,
-      MARGIN_L,
-      ctx.y,
-      size,
-      ctx.fonts,
-      color,
-    )
+    drawRichLine(ctx.page, lineParts, textX, ctx.y, size, ctx.fonts, color)
   }
   ctx.y -= lineGap
+}
+
+/** Marker + hanging indent for wrapped body (same baseline on first line). */
+function drawListItemRich(
+  ctx: RenderCtx,
+  markerDisplay: string,
+  body: string,
+  markerBold = false,
+): void {
+  const size = SIZE_BODY
+  const lh = LEADING(size)
+  const markerWithSpace = markerDisplay.endsWith(' ')
+    ? markerDisplay
+    : `${markerDisplay} `
+  const prefixW = measureLine(markerWithSpace, ctx.fonts, size, markerBold)
+  const textStartX = MARGIN_L + prefixW
+  const maxW = PAGE_W - MARGIN_R - textStartX
+  const lines = wrapRichParagraph(body.trim(), maxW, ctx.fonts, size)
+
+  for (let i = 0; i < lines.length; i++) {
+    ensureSpace(ctx, lh + 2)
+    ctx.y -= lh
+    if (i === 0) {
+      drawLineMixed(
+        ctx.page,
+        markerWithSpace,
+        MARGIN_L,
+        ctx.y,
+        size,
+        ctx.fonts,
+        COL_BODY,
+        markerBold,
+      )
+      drawRichLine(
+        ctx.page,
+        lines[i],
+        textStartX,
+        ctx.y,
+        size,
+        ctx.fonts,
+        COL_BODY,
+      )
+    } else {
+      drawRichLine(
+        ctx.page,
+        lines[i],
+        MARGIN_L + prefixW,
+        ctx.y,
+        size,
+        ctx.fonts,
+        COL_BODY,
+      )
+    }
+  }
+  ctx.y -= 4
+}
+
+/** Keeps single `\\n` inside a block as separate paragraphs; `\\n\\n` still splits blocks earlier. */
+function drawBodyBlockRich(ctx: RenderCtx, block: string): void {
+  const trimmed = block.trim()
+  if (!trimmed) return
+  const segments = trimmed
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  if (segments.length <= 1) {
+    drawParagraphRich(ctx, trimmed, SIZE_BODY, COL_BODY, PARA_AFTER)
+    return
+  }
+  for (let i = 0; i < segments.length; i++) {
+    drawParagraphRich(
+      ctx,
+      segments[i],
+      SIZE_BODY,
+      COL_BODY,
+      i < segments.length - 1 ? 8 : PARA_AFTER,
+    )
+  }
 }
 
 function drawParagraphPlain(
@@ -438,16 +545,19 @@ function classifyAndRenderBlock(ctx: RenderCtx, rawBlock: string): void {
   if (heading('### ', SIZE_H3, COL_H2)) return
   if (heading('## ', SIZE_H2, COL_H2)) return
 
-  if (firstLine.startsWith('- ') || firstLine.startsWith('• ')) {
-    const items = lines.filter((l) => l.length)
-    for (const item of items) {
-      const clean = item.replace(/^[-•]\s+/, '').trim()
-      if (!clean) continue
-      const bullet = `• ${clean}`
-      drawParagraphRich(ctx, bullet, SIZE_BODY, COL_BODY, 4)
+  if (isMarkdownListFirstLine(firstLine)) {
+    const parsed = parseMarkdownListLines(lines.filter((l) => l.trim().length))
+    if (parsed?.length) {
+      for (const item of parsed) {
+        if (item.kind === 'bullet') {
+          drawListItemRich(ctx, '•', item.body, false)
+        } else {
+          drawListItemRich(ctx, `${item.n}.`, item.body, false)
+        }
+      }
+      ctx.y -= PARA_AFTER
+      return
     }
-    ctx.y -= PARA_AFTER
-    return
   }
 
   const table = parseMdTable(block)
@@ -457,7 +567,7 @@ function classifyAndRenderBlock(ctx: RenderCtx, rawBlock: string): void {
     return
   }
 
-  drawParagraphRich(ctx, block, SIZE_BODY, COL_BODY, PARA_AFTER)
+  drawBodyBlockRich(ctx, block)
 }
 
 function drawTable(ctx: RenderCtx, rows: string[][]): void {

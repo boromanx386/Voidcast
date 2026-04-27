@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.2] - 2026-04-27
+
+### Added
+
+- Save PDF formatter now preserves explicit single-line breaks inside blocks.
+- Save PDF list parsing now supports:
+  - `-`, `*`, and `•` unordered list markers
+  - ordered list markers like `1.`, `2.`, ...
+  - continuation lines merged into the previous list item
+
+### Changed
+
+- Save PDF list rendering now uses hanging indents for wrapped list content.
+- Tool guidance text updated so agents can format PDF content more consistently.
+
 ## [2.3.1] - 2026-04-27
 
 ### Added

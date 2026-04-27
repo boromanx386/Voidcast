@@ -91,8 +91,8 @@ function createZoomedWindowIcon(iconPath: string): NativeImage | null {
   if (width <= 0 || height <= 0) return null
 
   // Stronger crop than tray so Windows taskbar/app icon appears visually larger.
-  const cropWidth = Math.max(1, Math.floor(width * 0.42))
-  const cropHeight = Math.max(1, Math.floor(height * 0.42))
+  const cropWidth = Math.max(1, Math.floor(width * 0.55))
+  const cropHeight = Math.max(1, Math.floor(height * 0.55))
   const x = Math.max(0, Math.floor((width - cropWidth) / 2))
   const y = Math.max(0, Math.floor((height - cropHeight) / 2))
 

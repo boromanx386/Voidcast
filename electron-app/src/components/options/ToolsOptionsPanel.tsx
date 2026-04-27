@@ -113,7 +113,8 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
           description={
             <>
               <code className="text-neon-purple">save_pdf</code> generates PDF with headings,
-              lists, tables, and <code className="text-void-light">**bold**</code>.
+              bullet/numbered lists (with hanging indent), tables, and{' '}
+              <code className="text-void-light">**bold**</code>.
               {isWebStandalone() && (
                 <span className="block mt-1 text-neon-yellow/90">
                   Desktop (Electron) only — not available in the mobile web client.
