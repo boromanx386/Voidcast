@@ -632,9 +632,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!isElectron() || !settings.autoUpdate) return
+    if (!isElectron()) return
     const ipc = window.ipcRenderer
     if (!ipc) return
+    void ipc.invoke('set-auto-update-enabled', Boolean(settings.autoUpdate)).catch(() => {
+      // Best-effort setting sync.
+    })
+    if (!settings.autoUpdate) return
     void ipc.invoke('check-update').catch(() => {
       // Best-effort automatic check.
     })

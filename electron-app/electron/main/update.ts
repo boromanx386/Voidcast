@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
 import { createRequire } from 'node:module'
 import type {
   ProgressInfo,
@@ -7,6 +7,7 @@ import type {
 } from 'electron-updater'
 
 const { autoUpdater } = createRequire(import.meta.url)('electron-updater');
+let autoUpdateEnabled = false
 
 export function update(win: Electron.BrowserWindow) {
 
@@ -40,6 +41,12 @@ export function update(win: Electron.BrowserWindow) {
     }
   })
 
+  ipcMain.handle('set-auto-update-enabled', (_event, enabled: boolean) => {
+    autoUpdateEnabled = Boolean(enabled)
+    autoUpdater.autoDownload = autoUpdateEnabled
+    return { ok: true, autoUpdateEnabled }
+  })
+
   // Start downloading and feedback on progress
   ipcMain.handle('start-download', (event: Electron.IpcMainInvokeEvent) => {
     startDownload(
@@ -62,6 +69,23 @@ export function update(win: Electron.BrowserWindow) {
   // Install now
   ipcMain.handle('quit-and-install', () => {
     autoUpdater.quitAndInstall(false, true)
+  })
+
+  autoUpdater.on('update-downloaded', async () => {
+    if (!autoUpdateEnabled) return
+    const result = await dialog.showMessageBox(win, {
+      type: 'info',
+      buttons: ['Install now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Update ready',
+      message: 'A new version has been downloaded.',
+      detail: 'Restart now to install the update.',
+      noLink: true,
+    })
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall(false, true)
+    }
   })
 }
 
