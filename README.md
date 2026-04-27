@@ -2,6 +2,77 @@
 
 Desktop AI chat app (Electron + React) with local Ollama integration, tools API, optional Local TTS, and Runware image/music/TTS support.
 
+## Features
+
+- Desktop chat UI focused on practical AI workflows (Electron + React).
+- Ollama-based chat orchestration with configurable model and prompt settings.
+- Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF).
+- Runware media support:
+  - image generation/editing
+  - music generation
+  - xAI TTS via Runware
+- Optional external Local TTS server support (OmniVoice API-compatible).
+- Cloud-first operation path (works without local GPU/CUDA requirements).
+- Optional power-user local path for users with capable hardware.
+- Windows installer builds with update-ready release artifacts.
+
+## Screenshots
+
+### Chat and navigation
+
+![Main chat](screenshots/chat-main.png)
+![Sidebar navigation](screenshots/chat-sidebar.png)
+![Image generation example](screenshots/chat-image-generation.png)
+![Light theme example](screenshots/chat-light-theme.png)
+
+### Settings overview
+
+![General settings](screenshots/settings-general.png)
+![LLM settings](screenshots/settings-llm.png)
+![Runware settings](screenshots/settings-runware.png)
+![TTS settings](screenshots/settings-tts.png)
+![Tools settings](screenshots/settings-tools.png)
+
+## Cloud-first note
+
+This app is oriented to a cloud-friendly workflow and does not require high-end
+local hardware to be useful.
+
+### Minimum practical setup (recommended)
+
+- Ollama running (chat + tool orchestration)
+- Runware API key/account (media generation: image/music/xAI TTS)
+
+In this scenario, the app works well without GPU/CUDA on the user machine.
+
+For typical chat + tool + media calls, an Ollama free-tier style usage profile
+is generally more than enough for testing and normal personal usage.
+
+### Optional local power-user setup
+
+If you have capable hardware (NVIDIA GPU with CUDA), you can also run local
+LLM/TTS-heavy workloads:
+
+- local Ollama models on your own machine
+- optional external Local TTS server (OmniVoice stack)
+
+Local TTS remains optional and external by design. See:
+
+- `LOCAL_TTS_SETUP.md`
+
+## Roadmap (planned)
+
+Planned product direction for upcoming releases:
+
+- Add more practical built-in tools for everyday assistant workflows
+  (research, docs handling, productivity helpers, automation actions).
+- Introduce global context/memory across sessions, with clear controls for
+  what is remembered and what stays session-local.
+- Expand support for additional Runware models (image/music/voice) with richer
+  per-model presets and safer default profiles.
+- Add optional integrations with other API providers beyond the current stack,
+  so users can choose the backend that best fits their cost/performance needs.
+
 ## Repository layout
 
 - `electron-app/` - Electron renderer/main app
@@ -94,3 +165,22 @@ This publishes release artifacts needed by auto-update (`Setup.exe`, blockmap, l
 - If new version exists, app downloads and offers restart/install
 
 Keep Local TTS updates/versioning independent from core app releases.
+
+## License
+
+This repository is released under the MIT License.
+
+- `LICENSE`
+
+## Third-party licenses
+
+Third-party notices and dependency license families are documented in:
+
+- `THIRD_PARTY_NOTICES.md`
+
+For full dependency metadata, see:
+
+- `package-lock.json`
+- `electron-app/package.json`
+- `tts-server/requirements-tools.txt`
+- `tts-server/requirements-tts.txt`

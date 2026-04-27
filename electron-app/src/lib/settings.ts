@@ -125,6 +125,8 @@ export type AppSettings = {
   runwareMusicOutputDir: string
   /** If true, each generated music file is saved automatically to output folder. */
   runwareAutoSaveMusic: boolean
+  /** If true, app should check updates automatically on startup (desktop). */
+  autoUpdate: boolean
 }
 
 import {
@@ -209,6 +211,7 @@ const defaults: AppSettings = {
   runwareMusicSeed: null,
   runwareMusicOutputDir: '',
   runwareAutoSaveMusic: false,
+  autoUpdate: false,
 }
 
 function clamp(n: number, min: number, max: number) {

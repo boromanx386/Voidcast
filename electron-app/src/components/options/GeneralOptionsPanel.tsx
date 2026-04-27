@@ -17,6 +17,8 @@ type Props = {
 export function GeneralOptionsPanel({ settings, setSettings }: Props) {
   const [mobileLanUrls, setMobileLanUrls] = useState<string[]>([])
   const [mobileQrDataUrl, setMobileQrDataUrl] = useState<string | null>(null)
+  const [updateChecking, setUpdateChecking] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null)
 
   const ttsPort = useMemo(() => {
     try {
@@ -53,6 +55,58 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
       cancelled = true
     }
   }, [ttsPort])
+
+  useEffect(() => {
+    const ipc = window.ipcRenderer
+    if (!isElectron() || !ipc) return
+
+    const onAvailable = (_event: unknown, payload: { update?: boolean; newVersion?: string }) => {
+      if (payload?.update) {
+        setUpdateStatus(`Update available: v${payload.newVersion ?? '?'}`)
+      } else {
+        setUpdateStatus('No update available.')
+      }
+      setUpdateChecking(false)
+    }
+    const onError = (_event: unknown, payload: { message?: string }) => {
+      setUpdateStatus(payload?.message || 'Update check failed.')
+      setUpdateChecking(false)
+    }
+    const onDownloaded = () => {
+      setUpdateStatus('Update downloaded. Restart app to install.')
+      setUpdateChecking(false)
+    }
+
+    ipc.on('update-can-available', onAvailable)
+    ipc.on('update-error', onError)
+    ipc.on('update-downloaded', onDownloaded)
+    return () => {
+      ipc.off('update-can-available', onAvailable)
+      ipc.off('update-error', onError)
+      ipc.off('update-downloaded', onDownloaded)
+    }
+  }, [])
+
+  const checkForUpdate = async () => {
+    const ipc = window.ipcRenderer
+    if (!isElectron() || !ipc) {
+      setUpdateStatus('Update check is available only in desktop app.')
+      return
+    }
+    setUpdateChecking(true)
+    setUpdateStatus('Checking for updates...')
+    try {
+      const result = await ipc.invoke('check-update')
+      const maybe = result as { error?: { message?: string } } | null
+      if (maybe?.error) {
+        setUpdateStatus(maybe.error.message || 'Update check failed.')
+        setUpdateChecking(false)
+      }
+    } catch (e) {
+      setUpdateStatus(e instanceof Error ? e.message : String(e))
+      setUpdateChecking(false)
+    }
+  }
 
   return (
     <div className="grid gap-5 text-sm">
@@ -105,6 +159,45 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
           Stored locally on this device (browser/electron storage).
         </p>
       </div>
+
+      {isElectron() && (
+        <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-neon-cyan"
+              checked={settings.autoUpdate}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, autoUpdate: e.target.checked }))
+              }
+            />
+            <span>
+              <span className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
+                AUTO_UPDATE
+              </span>
+              <span className="mt-1 block text-xs text-void-dim">
+                Automatically check updates on startup (desktop app).
+              </span>
+            </span>
+          </label>
+
+          {!settings.autoUpdate && (
+            <div className="mt-3">
+              <button
+                type="button"
+                className="cyber-btn text-xs"
+                disabled={updateChecking}
+                onClick={() => void checkForUpdate()}
+              >
+                {updateChecking ? 'CHECKING…' : 'CHECK FOR UPDATE'}
+              </button>
+              {updateStatus && (
+                <p className="text-xs text-void-dim mt-2">{updateStatus}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
         <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-2">

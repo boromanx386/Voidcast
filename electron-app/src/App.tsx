@@ -631,6 +631,15 @@ export default function App() {
       })
   }, [])
 
+  useEffect(() => {
+    if (!isElectron() || !settings.autoUpdate) return
+    const ipc = window.ipcRenderer
+    if (!ipc) return
+    void ipc.invoke('check-update').catch(() => {
+      // Best-effort automatic check.
+    })
+  }, [settings.autoUpdate])
+
   // Desktop source-of-truth sync for phone/web clients.
   useEffect(() => {
     if (isWebStandalone()) return
