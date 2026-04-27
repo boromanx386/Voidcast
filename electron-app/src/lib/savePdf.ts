@@ -7,6 +7,8 @@ export async function invokeSavePdf(opts: {
   title?: string
   filename?: string
   outputDir: string
+  /** Base64 + optional MIME; from the current user message when saving chat images. */
+  images?: { mime?: string; base64: string }[]
 }): Promise<string> {
   if (!isElectron()) {
     throw new Error(

@@ -102,6 +102,43 @@ function argumentsStringToObject(
   return {}
 }
 
+/** Pick chat images for save_pdf — uses `attached_image_indices` when set; else `embed_attached_images` for all. */
+function resolvePdfAttachedImages(
+  args: Record<string, unknown>,
+  ctx: { userImages?: string[]; userImageMimes?: string[] },
+): { base64: string; mime: string }[] {
+  const b64 = ctx.userImages ?? []
+  const mimes = ctx.userImageMimes ?? []
+  const rawIdx = args.attached_image_indices
+  const embedAll = args.embed_attached_images === true
+
+  const toIndex = (x: unknown): number | null => {
+    if (typeof x === 'number' && Number.isFinite(x)) return Math.trunc(x)
+    if (typeof x === 'string' && /^-?\d+$/.test(x.trim()))
+      return parseInt(x.trim(), 10)
+    return null
+  }
+
+  let idxs: number[] = []
+  if (Array.isArray(rawIdx) && rawIdx.length > 0) {
+    for (const x of rawIdx) {
+      const n = toIndex(x)
+      if (n !== null && n >= 0 && n < b64.length) idxs.push(n)
+    }
+    idxs = [...new Set(idxs)].sort((a, b) => a - b)
+  } else if (embedAll) {
+    idxs = b64.map((_, i) => i)
+  }
+
+  return idxs.map((i) => ({
+    base64: b64[i]!,
+    mime:
+      typeof mimes[i] === 'string' && (mimes[i] as string).trim()
+        ? (mimes[i] as string).trim()
+        : 'image/png',
+  }))
+}
+
 function normalizeToolCallsForReplay(calls: OllamaToolCall[]): OllamaToolCall[] {
   return calls
     .filter((t) => t.function?.name)
@@ -455,8 +492,18 @@ async function executeToolCall(
     if (!content.trim()) return 'Error: missing or empty content for save_pdf.'
     const title = typeof args.title === 'string' ? args.title : undefined
     const filename = typeof args.filename === 'string' ? args.filename : undefined
+    const images = resolvePdfAttachedImages(args as Record<string, unknown>, {
+      userImages: ctx.userImages,
+      userImageMimes: ctx.userImageMimes,
+    })
     try {
-      return await invokeSavePdf({ content, title, filename, outputDir: dir })
+      return await invokeSavePdf({
+        content,
+        title,
+        filename,
+        outputDir: dir,
+        images: images.length ? images : undefined,
+      })
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }

@@ -1,12 +1,21 @@
 import fontkit from '@pdf-lib/fontkit'
+import { Buffer } from 'node:buffer'
 import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import path from 'node:path'
-import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import {
+  PDFDocument,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from 'pdf-lib'
 
 const require = createRequire(import.meta.url)
 
 const MAX_CONTENT_CHARS = 400_000
+/** Total decoded image payload per save (base64 → bytes). */
+const MAX_IMAGES_TOTAL_BYTES = 48 * 1024 * 1024
 const PAGE_W = 595.28
 const PAGE_H = 841.89
 const MARGIN_L = 54
@@ -699,10 +708,91 @@ async function embedFonts(pdfDoc: PDFDocument): Promise<FontQuad> {
   return { latin, cyr, latinBold, cyrBold }
 }
 
+async function embedRasterToPdfImage(
+  pdfDoc: PDFDocument,
+  bytes: Uint8Array,
+  mimeHint: string,
+): Promise<PDFImage> {
+  const m = mimeHint.toLowerCase()
+  const tryOrder: Array<'jpg' | 'png'> = []
+  if (m.includes('jpeg') || m.includes('jpg')) tryOrder.push('jpg', 'png')
+  else if (m.includes('png')) tryOrder.push('png', 'jpg')
+  else if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8)
+    tryOrder.push('jpg', 'png')
+  else if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  )
+    tryOrder.push('png', 'jpg')
+  else tryOrder.push('png', 'jpg')
+
+  let lastErr: unknown
+  const uniq = [...new Set(tryOrder)]
+  for (const kind of uniq) {
+    try {
+      if (kind === 'jpg') return await pdfDoc.embedJpg(bytes)
+      return await pdfDoc.embedPng(bytes)
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error('Unsupported or corrupt raster image for PDF')
+}
+
+function scaleImageToLayout(iw: number, ih: number): { w: number; h: number } {
+  let scale = Math.min(1, CONTENT_W / iw)
+  let w = iw * scale
+  let h = ih * scale
+  const maxPageH = PAGE_H - MARGIN_T - MARGIN_B - 24
+  if (h > maxPageH && ih > 0) {
+    scale = maxPageH / ih
+    w = iw * scale
+    h = ih * scale
+  }
+  return { w, h }
+}
+
+async function drawEmbeddedImages(
+  ctx: RenderCtx,
+  pdfDoc: PDFDocument,
+  sources: { bytes: Uint8Array; mime: string }[],
+): Promise<{ drawn: number; skipped: number }> {
+  let drawn = 0
+  let skipped = 0
+  for (const src of sources) {
+    let img: PDFImage
+    try {
+      img = await embedRasterToPdfImage(pdfDoc, src.bytes, src.mime)
+    } catch {
+      skipped++
+      continue
+    }
+    const { w, h } = scaleImageToLayout(img.width, img.height)
+    ensureSpace(ctx, h + 20)
+    ctx.y -= 10
+    ctx.y -= h
+    ctx.page.drawImage(img, {
+      x: MARGIN_L,
+      y: ctx.y,
+      width: w,
+      height: h,
+    })
+    drawn++
+    ctx.y -= 12
+  }
+  return { drawn, skipped }
+}
+
 async function buildPdfBytes(opts: {
   title: string
   body: string
-}): Promise<Uint8Array> {
+  images?: { bytes: Uint8Array; mime: string }[]
+}): Promise<{ bytes: Uint8Array; imagesDrawn: number; imagesSkipped: number }> {
   const pdfDoc = await PDFDocument.create()
   const fonts = await embedFonts(pdfDoc)
 
@@ -747,17 +837,62 @@ async function buildPdfBytes(opts: {
     classifyAndRenderBlock(ctx, block)
   }
 
-  return pdfDoc.save()
+  let imagesDrawn = 0
+  let imagesSkipped = 0
+  if (opts.images?.length) {
+    const r = await drawEmbeddedImages(ctx, pdfDoc, opts.images)
+    imagesDrawn = r.drawn
+    imagesSkipped = r.skipped
+  }
+
+  const bytes = await pdfDoc.save()
+  return { bytes, imagesDrawn, imagesSkipped }
 }
 
 /**
  * Write PDF into `outputDir` (no dialog). Creates the directory if needed.
  */
+function decodePayloadImages(
+  incoming: { mime?: string; base64: string }[] | undefined,
+):
+  | { ok: true; decoded: { bytes: Uint8Array; mime: string }[] }
+  | { ok: false; text: string } {
+  if (!incoming?.length) return { ok: true, decoded: [] }
+  const decoded: { bytes: Uint8Array; mime: string }[] = []
+  let total = 0
+  for (const item of incoming) {
+    const b64 = typeof item.base64 === 'string' ? item.base64.trim() : ''
+    if (!b64) continue
+    let buf: Buffer
+    try {
+      buf = Buffer.from(b64, 'base64')
+    } catch {
+      return { ok: false, text: 'Invalid base64 in attached image data' }
+    }
+    if (!buf.length) continue
+    total += buf.length
+    if (total > MAX_IMAGES_TOTAL_BYTES) {
+      return {
+        ok: false,
+        text: `Attached images exceed size limit (${MAX_IMAGES_TOTAL_BYTES} bytes total)`,
+      }
+    }
+    const mime =
+      typeof item.mime === 'string' && item.mime.trim()
+        ? item.mime.trim()
+        : 'application/octet-stream'
+    decoded.push({ bytes: new Uint8Array(buf), mime })
+  }
+  return { ok: true, decoded }
+}
+
 export async function savePdfToFolder(payload: {
   content?: string
   title?: string
   filename?: string
   outputDir?: string
+  /** Base64-encoded images from the chat (PNG/JPEG), with optional MIME. */
+  images?: { mime?: string; base64: string }[]
 }): Promise<{ ok: boolean; text: string }> {
   const raw = String(payload?.content ?? '')
   if (!raw.trim()) {
@@ -793,9 +928,21 @@ export async function savePdfToFolder(payload: {
   const baseName = safeDefaultFilename(title, payload?.filename)
   const filePath = uniqueFilePath(dir, baseName)
 
+  const dec = decodePayloadImages(payload.images)
+  if (!dec.ok) return { ok: false, text: dec.text }
+
   let pdfBytes: Uint8Array
+  let imagesDrawn = 0
+  let imagesSkipped = 0
   try {
-    pdfBytes = await buildPdfBytes({ title, body: raw })
+    const out = await buildPdfBytes({
+      title,
+      body: raw,
+      images: dec.decoded.length ? dec.decoded : undefined,
+    })
+    pdfBytes = out.bytes
+    imagesDrawn = out.imagesDrawn
+    imagesSkipped = out.imagesSkipped
   } catch (e) {
     return {
       ok: false,
@@ -812,8 +959,16 @@ export async function savePdfToFolder(payload: {
     }
   }
 
+  const requested = dec.decoded.length
+  let extra = ''
+  if (requested > 0) {
+    extra = `\nEmbedded ${imagesDrawn} image(s)`
+    if (imagesSkipped > 0) extra += ` (${imagesSkipped} skipped as unsupported/corrupt)`
+    extra += '.'
+  }
+
   return {
     ok: true,
-    text: `PDF saved:\n${filePath}`,
+    text: `PDF saved:\n${filePath}${extra}`,
   }
 }

@@ -425,6 +425,7 @@ ipcMain.handle(
       title?: string
       filename?: string
       outputDir?: string
+      images?: { mime?: string; base64: string }[]
     },
   ) => {
     return savePdfToFolder(payload)

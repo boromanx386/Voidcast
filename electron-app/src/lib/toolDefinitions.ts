@@ -1,5 +1,12 @@
 import type { ToolsEnabled } from '@/lib/settings'
 
+/** Minimal JSON-schema subset for tool `parameters.properties` values */
+export type OllamaToolParameterSchema = {
+  type: string
+  description?: string
+  items?: { type: string; minimum?: number }
+}
+
 /** Ollama /api/chat `tools` entry (OpenAI-style function tool) */
 export type OllamaToolDefinition = {
   type: 'function'
@@ -8,7 +15,7 @@ export type OllamaToolDefinition = {
     description: string
     parameters: {
       type: 'object'
-      properties: Record<string, { type: string; description?: string }>
+      properties: Record<string, OllamaToolParameterSchema>
       required?: string[]
     }
   }
@@ -66,7 +73,7 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
   function: {
     name: 'save_pdf',
     description:
-      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks.',
+      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. When the user attached image(s) to their message and wants them in the PDF, set embed_attached_images true and/or attached_image_indices (0-based). PNG and JPEG embed in the PDF after the text.',
     parameters: {
       type: 'object',
       properties: {
@@ -82,6 +89,17 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
           type: 'string',
           description:
             'Optional suggested file name without path (e.g. report); .pdf is added if missing',
+        },
+        embed_attached_images: {
+          type: 'boolean',
+          description:
+            'If true, embed every image the user attached to the current message (after body text). Ignored if attached_image_indices is provided.',
+        },
+        attached_image_indices: {
+          type: 'array',
+          items: { type: 'integer', minimum: 0 },
+          description:
+            'Optional 0-based indices into the images attached with the user message (first image is 0). Use this for a subset instead of embed_attached_images.',
         },
       },
       required: ['content'],

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     title?: string
     filename?: string
     outputDir: string
+    images?: { mime?: string; base64: string }[]
   }) => ipcRenderer.invoke('voidcast:save-pdf', payload),
   saveImageFromUrl: (payload: {
     imageUrl: string

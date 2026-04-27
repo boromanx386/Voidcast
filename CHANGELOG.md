@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.3] - 2026-04-27
+
+### Added
+
+- `save_pdf` can embed images from the current user message (PNG/JPEG) after the text body, using `embed_attached_images` and/or `attached_image_indices` in the tool call.
+
 ## [2.3.2] - 2026-04-27
 
 ### Added

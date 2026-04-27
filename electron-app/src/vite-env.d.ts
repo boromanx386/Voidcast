@@ -29,6 +29,7 @@ interface Window {
       title?: string
       filename?: string
       outputDir: string
+      images?: { mime?: string; base64: string }[]
     }) => Promise<{ ok: boolean; text: string } | string>
     saveImageFromUrl: (payload: {
       imageUrl: string
