@@ -1717,8 +1717,8 @@ export default function App() {
             >
               {tab === 'general' && '◆ GENERAL'}
               {tab === 'llm' && '◇ LLM'}
-              {tab === 'runware' && '◌ RUNWARE'}
-              {tab === 'runwareMusic' && '♫ RUNWARE_MUSIC'}
+              {tab === 'runware' && '◌ IMAGE'}
+              {tab === 'runwareMusic' && '♫ MUSIC'}
               {tab === 'tts' && '◉ TTS'}
               {tab === 'tools' && '⬡ TOOLS'}
             </button>
