@@ -786,3 +786,7 @@ ipcMain.handle('voidcast:open-path', async (_evt, filePath: string) => {
     return { ok: false, text: e instanceof Error ? e.message : String(e) }
   }
 })
+
+ipcMain.handle('voidcast:get-app-version', () => {
+  return app.getVersion()
+})

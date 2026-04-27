@@ -511,6 +511,7 @@ function ToolIndicator({ phase }: { phase: string | null }) {
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
+  const [appVersion, setAppVersion] = useState('2.2.0')
   const [screen, setScreen] = useState<Screen>('chat')
   const [optionsTab, setOptionsTab] = useState<OptionsTab>('general')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -615,6 +616,20 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  useEffect(() => {
+    if (!isElectron()) return
+    const getVersion = window.voidcast?.getAppVersion
+    if (!getVersion) return
+    void getVersion()
+      .then((v) => {
+        const version = String(v || '').trim()
+        if (version) setAppVersion(version)
+      })
+      .catch(() => {
+        // Keep fallback version text if IPC call fails.
+      })
+  }, [])
 
   // Desktop source-of-truth sync for phone/web clients.
   useEffect(() => {
@@ -1932,7 +1947,7 @@ export default function App() {
             {/* Footer */}
             <div className="p-3 border-t border-void-muted/30">
               <div className="text-xs font-mono text-void-dim/50 text-center">
-                VOIDCAST_NEXUS // BUILD_2.2.0
+                {`VOIDCAST_NEXUS // BUILD_${appVersion}`}
               </div>
             </div>
           </nav>

@@ -48,6 +48,7 @@ interface Window {
       | { ok: true; data: unknown }
       | { ok: false; detail: string }
     >
+    getAppVersion: () => Promise<string>
     openPath: (filePath: string) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
     /** Electron: native dialog + base64; absent in web build. */

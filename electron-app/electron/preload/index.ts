@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: true; data: unknown }
       | { ok: false; detail: string }
     >,
+  getAppVersion: () => ipcRenderer.invoke('voidcast:get-app-version') as Promise<string>,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
   pickDirectory: () =>
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
