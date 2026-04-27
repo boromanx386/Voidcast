@@ -61,28 +61,44 @@ let tray: Tray | null = null
 let isQuitting = false
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
+const appIconPath = app.isPackaged
+  ? path.join(process.resourcesPath, 'logo_app_nobg.png')
+  : path.join(process.env.APP_ROOT, '..', 'logo_app_nobg.png')
+
+function createZoomedTrayIcon(iconPath: string): NativeImage | null {
+  const src = nativeImage.createFromPath(iconPath)
+  if (src.isEmpty()) return null
+
+  const { width, height } = src.getSize()
+  if (width <= 0 || height <= 0) return null
+
+  // Crop to center so the symbol occupies more of the tray icon.
+  const cropWidth = Math.max(1, Math.floor(width * 0.5))
+  const cropHeight = Math.max(1, Math.floor(height * 0.5))
+  const x = Math.max(0, Math.floor((width - cropWidth) / 2))
+  const y = Math.max(0, Math.floor((height - cropHeight) / 2))
+
+  return src
+    .crop({ x, y, width: cropWidth, height: cropHeight })
+    .resize({ width: 18, height: 18 })
+}
 
 // Create tray icon
 function createTray() {
-  // Create a simple tray icon (16x16 cyan triangle)
-  const iconSize = 16
-  const icon = nativeImage.createEmpty()
-  
-  // Try to load favicon first, fallback to a simple icon
-  const iconPath = path.join(process.env.VITE_PUBLIC, 'favicon.ico')
-  
+  // Try app icon first, fallback to a simple icon.
+  const iconPath = appIconPath
+
   try {
-    const loadedIcon = nativeImage.createFromPath(iconPath)
-    if (!loadedIcon.isEmpty()) {
-      tray = new Tray(loadedIcon.resize({ width: 16, height: 16 }))
+    const zoomedIcon = createZoomedTrayIcon(iconPath)
+    if (zoomedIcon) {
+      tray = new Tray(zoomedIcon)
     } else {
-      // Create a simple colored icon programmatically
       tray = new Tray(createDefaultIcon())
     }
   } catch {
     tray = new Tray(createDefaultIcon())
   }
-  
+
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Show Voidcast',
@@ -191,7 +207,7 @@ async function createWindow() {
   win = new BrowserWindow({
     title: 'Voidcast',
     autoHideMenuBar: true,
-    icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
+    icon: appIconPath,
     show: false, // Start hidden until ready
     webPreferences: {
       preload,

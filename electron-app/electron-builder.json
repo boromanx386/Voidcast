@@ -12,6 +12,10 @@
   ],
   "extraResources": [
     {
+      "from": "../logo_app_nobg.png",
+      "to": "logo_app_nobg.png"
+    },
+    {
       "from": "../tts-server",
       "to": "tts-server",
       "filter": [
@@ -26,7 +30,7 @@
     }
   ],
   "win": {
-    "icon": "public/favicon.ico",
+    "icon": "../logo_app_nobg.png",
     "target": [
       {
         "target": "nsis",

@@ -1,5 +1,7 @@
 # Voidcast Workspace
 
+![Voidcast logo](logo.jpg)
+
 Desktop AI chat app (Electron + React) with local Ollama integration, tools API, optional Local TTS, and Runware image/music/TTS support.
 
 ## Features
