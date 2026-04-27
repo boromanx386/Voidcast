@@ -30,7 +30,7 @@
     }
   ],
   "win": {
-    "icon": "../logo_app_nobg.png",
+    "icon": "../logo.jpg",
     "target": [
       {
         "target": "nsis",
