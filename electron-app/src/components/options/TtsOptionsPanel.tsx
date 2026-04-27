@@ -114,6 +114,11 @@ export function TtsOptionsPanel({
       const voiceMode = web ? 'design' : settings.voiceMode
       const blob = await synthesizeSpeech({
         ttsBaseUrl: settings.ttsBaseUrl,
+        ttsProvider: settings.ttsProvider,
+        runwareApiBaseUrl: settings.runwareApiBaseUrl,
+        runwareApiKey: settings.runwareApiKey,
+        runwareXaiVoice: settings.runwareXaiVoice,
+        runwareXaiLanguage: settings.runwareXaiLanguage,
         text: settings.voiceBakePhrase,
         voiceMode,
         instruct: voiceMode === 'design' ? settings.voiceInstruct : undefined,
@@ -147,6 +152,78 @@ export function TtsOptionsPanel({
       {/* Server URL */}
       <div className="form-group">
         <label className="form-label">
+          <span className="text-neon-cyan">◈</span> TTS_PROVIDER
+        </label>
+        <select
+          className="form-select"
+          value={settings.ttsProvider}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              ttsProvider: e.target.value === 'runware-xai' ? 'runware-xai' : 'local',
+            }))
+          }
+        >
+          <option value="local">Local OmniVoice (`/tts`)</option>
+          <option value="runware-xai">Runware xAI TTS (`xai:tts@0`)</option>
+        </select>
+      </div>
+
+      {settings.ttsProvider === 'runware-xai' && (
+        <div className="bg-void-black/50 border border-neon-yellow/25 p-4 rounded">
+          <p className="text-xs text-void-dim">
+            Uses <span className="font-mono text-neon-yellow">RUNWARE_API_KEY</span> from
+            General settings. Local TTS URL/clone/anchor options are ignored in this mode.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3 mt-3">
+            <div className="form-group">
+              <label className="form-label">XAI_VOICE</label>
+              <select
+                className="form-select"
+                value={settings.runwareXaiVoice}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    runwareXaiVoice:
+                      e.target.value === 'una' ||
+                      e.target.value === 'leo' ||
+                      e.target.value === 'eve' ||
+                      e.target.value === 'ara' ||
+                      e.target.value === 'sal' ||
+                      e.target.value === 'rex'
+                        ? e.target.value
+                        : 'auto',
+                  }))
+                }
+              >
+                <option value="auto">auto</option>
+                <option value="eve">eve</option>
+                <option value="ara">ara</option>
+                <option value="leo">leo</option>
+                <option value="rex">rex</option>
+                <option value="sal">sal</option>
+                <option value="una">una</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">XAI_LANGUAGE (optional)</label>
+              <input
+                className="cyber-input"
+                value={settings.runwareXaiLanguage}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, runwareXaiLanguage: e.target.value }))
+                }
+                placeholder="en, de, es-ES..."
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Server URL */}
+      {settings.ttsProvider === 'local' && (
+      <div className="form-group">
+        <label className="form-label">
           <span className="text-neon-cyan">◈</span> TTS_SERVER_URL
         </label>
         <input
@@ -163,6 +240,7 @@ export function TtsOptionsPanel({
           </p>
         )}
       </div>
+      )}
 
       {/* Refresh Button */}
       <button
@@ -174,7 +252,7 @@ export function TtsOptionsPanel({
       </button>
 
       {/* Clipboard TTS Info (Electron only) */}
-      {isElectron() && (
+      {isElectron() && settings.ttsProvider === 'local' && (
         <div className="bg-void-black/50 border border-void-muted/30 p-3 rounded">
           <p className="text-xs font-mono text-void-text">
             <span className="text-neon-magenta font-semibold">CLIPBOARD_TTS:</span>{' '}
@@ -188,6 +266,7 @@ export function TtsOptionsPanel({
       )}
 
       {/* Voice Mode Selection */}
+      {settings.ttsProvider === 'local' && (
       <div className="bg-void-black/50 border border-neon-magenta/20 p-4">
         <p className="text-xs font-mono text-neon-magenta uppercase tracking-wider mb-3">
           <span className="mr-2">◉</span>VOICE_MODE
@@ -233,9 +312,10 @@ export function TtsOptionsPanel({
           </div>
         )}
       </div>
+      )}
 
       {/* Voice Design Instruct */}
-      {settings.voiceMode === 'design' && (
+      {settings.ttsProvider === 'local' && settings.voiceMode === 'design' && (
         <div className="form-group">
           <label className="form-label flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
@@ -255,7 +335,7 @@ export function TtsOptionsPanel({
         </div>
       )}
 
-      {(settings.voiceMode === 'design') && (
+      {settings.ttsProvider === 'local' && (settings.voiceMode === 'design') && (
         <div className="bg-void-black/50 border border-neon-cyan/25 p-4">
           <p className="text-xs font-mono text-neon-cyan mb-2 uppercase tracking-wider">
             <span className="mr-2">◇</span>VOICE_ANCHOR
@@ -323,7 +403,9 @@ export function TtsOptionsPanel({
       )}
 
       {/* Voice Clone Panel (desktop / Electron only) */}
-      {!isWebStandalone() && settings.voiceMode === 'clone' && (
+      {!isWebStandalone() &&
+        settings.ttsProvider === 'local' &&
+        settings.voiceMode === 'clone' && (
         <div className="bg-void-black/50 border border-neon-purple/30 p-4">
           <p className="text-xs font-mono text-neon-purple mb-3">
             <span className="mr-2">⬡</span>REFERENCE_CLONE

@@ -564,6 +564,8 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null)
   const ttsAbortRef = useRef<AbortController | null>(null)
   const ttsRunIdRef = useRef(0)
+  const ttsAudioCacheRef = useRef<Map<string, Blob>>(new Map())
+  const ttsAudioCacheOrderRef = useRef<string[]>([])
   const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -718,7 +720,11 @@ export default function App() {
   const refreshTts = useCallback(async () => {
     console.log('[VOIDCAST] Checking TTS at:', settings.ttsBaseUrl)
     try {
-      const h = await checkTtsHealth(settings.ttsBaseUrl)
+      const h = await checkTtsHealth({
+        ttsBaseUrl: settings.ttsBaseUrl,
+        ttsProvider: settings.ttsProvider,
+        runwareApiKey: settings.runwareApiKey,
+      })
       console.log('[VOIDCAST] TTS health result:', h)
       setTtsOk(h.ok)
     } catch (e) {
@@ -1454,7 +1460,10 @@ export default function App() {
     if (msg.role !== 'assistant' || !msg.content.trim()) return
     const spoken = sanitizeForTts(msg.content)
     if (!spoken) return
-    const ttsVoiceMode = isWebStandalone() ? 'design' : settings.voiceMode
+    const ttsVoiceMode =
+      settings.ttsProvider === 'local'
+        ? (isWebStandalone() ? 'design' : settings.voiceMode)
+        : 'design'
     if (ttsVoiceMode === 'clone' && (!cloneRef?.blob || cloneRef.blob.size === 0)) {
       setError('VOICE_CLONE: Load reference audio in Settings → TTS')
       return
@@ -1476,19 +1485,62 @@ export default function App() {
       const multi = chunks.length > 1
       const durationForChunk = multi ? null : settings.ttsDurationSec
 
-      const synth = (text: string) => synthesizeSpeech({
-        ttsBaseUrl: settings.ttsBaseUrl,
-        text,
-        voiceMode: ttsVoiceMode,
-        instruct: settings.voiceInstruct || undefined,
-        speed: settings.ttsSpeed,
-        numStep: settings.ttsNumStep,
-        durationSec: durationForChunk,
-        cloneRef: isWebStandalone() ? null : cloneRef ?? null,
-        cloneRefText: isWebStandalone() ? null : settings.cloneRefText || null,
-        voiceAnchor: voiceAnchor ?? null,
-        signal,
-      })
+      const cloneRefKey =
+        !isWebStandalone() && cloneRef
+          ? `${cloneRef.fileName || ''}:${cloneRef.blob.size}:${cloneRef.blob.type}`
+          : 'none'
+      const voiceAnchorKey = voiceAnchor
+        ? `${voiceAnchor.refText}:${voiceAnchor.sourceMode}:${voiceAnchor.instructSnapshot || ''}:${voiceAnchor.blob.size}`
+        : 'none'
+      const baseCacheKey = [
+        `provider=${settings.ttsProvider}`,
+        `ttsBaseUrl=${settings.ttsBaseUrl}`,
+        `runwareBase=${settings.runwareApiBaseUrl}`,
+        `runwareVoice=${settings.runwareXaiVoice}`,
+        `runwareLang=${settings.runwareXaiLanguage}`,
+        `voiceMode=${ttsVoiceMode}`,
+        `instruct=${settings.voiceInstruct}`,
+        `speed=${settings.ttsSpeed}`,
+        `numStep=${settings.ttsNumStep}`,
+        `duration=${durationForChunk == null ? 'null' : String(durationForChunk)}`,
+        `cloneRef=${cloneRefKey}`,
+        `cloneRefText=${isWebStandalone() ? '' : settings.cloneRefText || ''}`,
+        `voiceAnchor=${voiceAnchorKey}`,
+      ].join('|')
+
+      const synth = (text: string) => {
+        const cacheKey = `${baseCacheKey}|text=${text}`
+        const cached = ttsAudioCacheRef.current.get(cacheKey)
+        if (cached) return Promise.resolve(cached)
+        return synthesizeSpeech({
+          ttsBaseUrl: settings.ttsBaseUrl,
+          ttsProvider: settings.ttsProvider,
+          runwareApiBaseUrl: settings.runwareApiBaseUrl,
+          runwareApiKey: settings.runwareApiKey,
+          runwareXaiVoice: settings.runwareXaiVoice,
+          runwareXaiLanguage: settings.runwareXaiLanguage,
+          text,
+          voiceMode: ttsVoiceMode,
+          instruct: settings.voiceInstruct || undefined,
+          speed: settings.ttsSpeed,
+          numStep: settings.ttsNumStep,
+          durationSec: durationForChunk,
+          cloneRef: isWebStandalone() ? null : cloneRef ?? null,
+          cloneRefText: isWebStandalone() ? null : settings.cloneRefText || null,
+          voiceAnchor: voiceAnchor ?? null,
+          signal,
+        }).then((blob) => {
+          ttsAudioCacheRef.current.set(cacheKey, blob)
+          ttsAudioCacheOrderRef.current.push(cacheKey)
+          const maxEntries = 64
+          while (ttsAudioCacheOrderRef.current.length > maxEntries) {
+            const oldest = ttsAudioCacheOrderRef.current.shift()
+            if (!oldest) break
+            ttsAudioCacheRef.current.delete(oldest)
+          }
+          return blob
+        })
+      }
 
       let pending = synth(chunks[0])
       for (let i = 0; i < chunks.length; i++) {
@@ -1544,6 +1596,10 @@ export default function App() {
   }
 
   const onBakeVoiceAnchor = async () => {
+    if (settings.ttsProvider !== 'local') {
+      setError('VOICE_ANCHOR is available only with local OmniVoice TTS.')
+      return
+    }
     const mode = settings.voiceMode
     if (mode !== 'design') return
     const phrase = settings.voiceBakePhrase.trim()

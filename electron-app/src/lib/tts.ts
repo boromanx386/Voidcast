@@ -1,6 +1,8 @@
 import { normalizeBaseUrl } from './settings'
 import type { VoiceMode } from './settings'
+import type { RunwareXaiVoice, TtsProvider } from './settings'
 import type { StoredVoiceAnchor, VoiceAnchorSourceMode } from './voiceAnchorStorage'
+import { isWebStandalone } from './platform'
 
 /** Electron/Chromium often mishandles Blob in FormData; JSON+base64 is reliable. */
 function blobToBase64(blob: Blob): Promise<string> {
@@ -65,6 +67,11 @@ export async function bakeVoiceSample(options: {
 
 export async function synthesizeSpeech(options: {
   ttsBaseUrl: string
+  ttsProvider?: TtsProvider
+  runwareApiBaseUrl?: string
+  runwareApiKey?: string
+  runwareXaiVoice?: RunwareXaiVoice
+  runwareXaiLanguage?: string
   text: string
   voiceMode: VoiceMode
   instruct?: string
@@ -77,6 +84,123 @@ export async function synthesizeSpeech(options: {
   voiceAnchor?: StoredVoiceAnchor | null
   signal?: AbortSignal
 }): Promise<Blob> {
+  if (options.ttsProvider === 'runware-xai') {
+    const apiKey = (options.runwareApiKey || '').trim()
+    if (!apiKey) {
+      throw new Error('Runware API key is missing. Set it in Options -> General.')
+    }
+    const root = normalizeBaseUrl(options.runwareApiBaseUrl || 'https://api.runware.ai/v1')
+    const taskUUID =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const language = (options.runwareXaiLanguage || '').trim()
+    const payload: Record<string, unknown> = {
+      taskType: 'audioInference',
+      taskUUID,
+      model: 'xai:tts@0',
+      outputType: 'base64Data',
+      outputFormat: 'MP3',
+      speech: {
+        text: options.text,
+        voice: options.runwareXaiVoice || 'auto',
+        ...(language ? { language } : {}),
+      },
+    }
+    const decodeRunwareAudioBody = (body: {
+      data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>
+    }): Blob => {
+      const first = Array.isArray(body.data) ? body.data[0] : undefined
+      const base64Data = (first?.audioBase64Data || '').trim()
+      if (base64Data) {
+        const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
+        return new Blob([bytes], { type: 'audio/mpeg' })
+      }
+      const dataUri = (first?.audioDataURI || '').trim()
+      if (dataUri.startsWith('data:')) {
+        const commaIdx = dataUri.indexOf(',')
+        const encoded = commaIdx >= 0 ? dataUri.slice(commaIdx + 1) : ''
+        if (!encoded) throw new Error('Runware TTS returned empty audio payload.')
+        const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0))
+        return new Blob([bytes], { type: 'audio/mpeg' })
+      }
+      throw new Error('Runware TTS returned no audio data.')
+    }
+
+    const parseErrorDetail = (
+      body: { errors?: Array<{ message?: string }>; error?: string },
+      status?: number,
+    ) =>
+      body.error ||
+      body.errors?.[0]?.message ||
+      (typeof status === 'number' ? `Runware TTS HTTP ${status}` : 'Runware TTS request failed')
+
+    const postDirect = async (): Promise<Blob> => {
+      const res = await fetch(root, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        signal: options.signal,
+        body: JSON.stringify([payload]),
+      })
+      const body = (await res.json().catch(() => ({}))) as {
+        data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>
+        errors?: Array<{ message?: string }>
+        error?: string
+      }
+      if (!res.ok) throw new Error(parseErrorDetail(body, res.status))
+      return decodeRunwareAudioBody(body)
+    }
+
+    const proxyRootRaw = (options.ttsBaseUrl || '').trim()
+    const proxyRoot = proxyRootRaw ? normalizeBaseUrl(proxyRootRaw) : ''
+    const postViaProxy = async (): Promise<Blob> => {
+      if (!proxyRoot) {
+        throw new Error(
+          'Runware proxy URL is missing. Open app from desktop TTS server address so requests can be forwarded server-side.',
+        )
+      }
+      const proxyRes = await fetch(`${proxyRoot}/tools/runware_proxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: options.signal,
+        body: JSON.stringify({
+          api_base_url: root,
+          api_key: apiKey,
+          tasks: [payload],
+        }),
+      })
+      const proxyBody = (await proxyRes.json().catch(() => ({}))) as {
+        ok?: boolean
+        data?: {
+          data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>
+          errors?: Array<{ message?: string }>
+          error?: string
+        }
+        detail?: string
+      }
+      if (!proxyRes.ok || !proxyBody.ok || !proxyBody.data) {
+        throw new Error(proxyBody.detail || `Runware proxy HTTP ${proxyRes.status}`)
+      }
+      return decodeRunwareAudioBody(proxyBody.data)
+    }
+
+    if (isWebStandalone() && proxyRoot) {
+      return postViaProxy()
+    }
+
+    try {
+      return await postDirect()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.toLowerCase() : ''
+      const looksNetwork = msg.includes('failed to fetch') || msg.includes('networkerror')
+      if (!proxyRoot || !looksNetwork) throw e
+      return postViaProxy()
+    }
+  }
+
   const root = normalizeBaseUrl(options.ttsBaseUrl)
   const speed = options.speed ?? 1.0
   const numStep = options.numStep ?? 32
@@ -183,12 +307,22 @@ export async function synthesizeSpeech(options: {
   return await res.blob()
 }
 
-export async function checkTtsHealth(ttsBaseUrl: string): Promise<{
+export async function checkTtsHealth(options: {
+  ttsBaseUrl: string
+  ttsProvider?: TtsProvider
+  runwareApiKey?: string
+}): Promise<{
   ok: boolean
   detail?: string
 }> {
+  if (options.ttsProvider === 'runware-xai') {
+    const hasKey = Boolean((options.runwareApiKey || '').trim())
+    return hasKey
+      ? { ok: true }
+      : { ok: false, detail: 'Runware API key missing' }
+  }
   try {
-    const root = normalizeBaseUrl(ttsBaseUrl)
+    const root = normalizeBaseUrl(options.ttsBaseUrl)
     const url = `${root}/health`
     console.log('[TTS] Health check URL:', url)
     const res = await fetch(url)

@@ -1,4 +1,6 @@
 export type VoiceMode = 'design' | 'clone'
+export type TtsProvider = 'local' | 'runware-xai'
+export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 
 /** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper) */
 export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light'
@@ -52,6 +54,8 @@ export type AppSettings = {
   /** System message prepended to each request */
   llmSystemPrompt: string
   ttsBaseUrl: string
+  /** TTS backend provider. local = OmniVoice HTTP server, runware-xai = Runware xAI TTS. */
+  ttsProvider: TtsProvider
   voiceInstruct: string
   /** auto = no instruct; design = instruct; clone = ref_audio + optional ref_text */
   voiceMode: VoiceMode
@@ -67,6 +71,10 @@ export type AppSettings = {
   ttsDurationSec: number | null
   /** Long text split into chunks; approximate chars per chunk */
   ttsChunkMaxChars: number
+  /** xAI TTS voice id when Runware xAI provider is selected. */
+  runwareXaiVoice: RunwareXaiVoice
+  /** Optional xAI language code (auto-detect when empty). */
+  runwareXaiLanguage: string
   /** Short line spoken when baking a voice anchor (auto/design → consistent chunks) */
   voiceBakePhrase: string
   /** Which LLM tools are registered with Ollama (see Tools settings tab) */
@@ -137,6 +145,7 @@ const defaults: AppSettings = {
   llmMaxHistoryMessages: 0,
   llmSystemPrompt: '',
   ttsBaseUrl: 'http://127.0.0.1:8765',
+  ttsProvider: 'local',
   voiceInstruct: '',
   voiceMode: 'design',
   cloneRefText: '',
@@ -145,6 +154,8 @@ const defaults: AppSettings = {
   ttsNumStep: 32,
   ttsDurationSec: null,
   ttsChunkMaxChars: 380,
+  runwareXaiVoice: 'auto',
+  runwareXaiLanguage: '',
   voiceBakePhrase: 'This is my reference voice for consistent synthesis.',
   toolsEnabled: {
     webSearch: false,
@@ -244,6 +255,30 @@ function normalizeLlm(s: AppSettings): AppSettings {
       : defaults.llmMaxHistoryMessages,
     llmSystemPrompt:
       typeof s.llmSystemPrompt === 'string' ? s.llmSystemPrompt : '',
+  }
+}
+
+function normalizeTts(s: AppSettings): AppSettings {
+  const providerRaw = typeof s.ttsProvider === 'string' ? s.ttsProvider : ''
+  const ttsProvider: TtsProvider = providerRaw === 'runware-xai' ? 'runware-xai' : 'local'
+  const voiceRaw = typeof s.runwareXaiVoice === 'string' ? s.runwareXaiVoice : ''
+  const runwareXaiVoice: RunwareXaiVoice =
+    voiceRaw === 'una' ||
+    voiceRaw === 'leo' ||
+    voiceRaw === 'eve' ||
+    voiceRaw === 'ara' ||
+    voiceRaw === 'sal' ||
+    voiceRaw === 'rex' ||
+    voiceRaw === 'auto'
+      ? voiceRaw
+      : defaults.runwareXaiVoice
+  const runwareXaiLanguage =
+    typeof s.runwareXaiLanguage === 'string' ? s.runwareXaiLanguage.trim() : ''
+  return {
+    ...s,
+    ttsProvider,
+    runwareXaiVoice,
+    runwareXaiLanguage,
   }
 }
 
@@ -399,7 +434,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
 
 function normalizeAll(s: AppSettings): AppSettings {
   return normalizeRunware(
-    normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeLlm(s)))),
+    normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeLlm(s))))),
   )
 }
 
