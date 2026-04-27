@@ -2,9 +2,14 @@ import { normalizeBaseUrl } from './settings'
 import type { VoiceMode } from './settings'
 import type { RunwareXaiVoice, TtsProvider } from './settings'
 import type { StoredVoiceAnchor, VoiceAnchorSourceMode } from './voiceAnchorStorage'
-import { isWebStandalone } from './platform'
+import { isElectron } from './platform'
 
 /** Electron/Chromium often mishandles Blob in FormData; JSON+base64 is reliable. */
+function errorMessage(e: unknown): string {
+  if (e instanceof Error && e.message.trim()) return e.message.trim()
+  return String(e)
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader()
@@ -156,6 +161,7 @@ export async function synthesizeSpeech(options: {
 
     const proxyRootRaw = (options.ttsBaseUrl || '').trim()
     const proxyRoot = proxyRootRaw ? normalizeBaseUrl(proxyRootRaw) : ''
+    let proxyFailureMessage = ''
     const postViaProxy = async (): Promise<Blob> => {
       if (!proxyRoot) {
         throw new Error(
@@ -187,13 +193,48 @@ export async function synthesizeSpeech(options: {
       return decodeRunwareAudioBody(proxyBody.data)
     }
 
-    if (isWebStandalone() && proxyRoot) {
-      return postViaProxy()
+    const postViaElectronProxy = async (): Promise<Blob> => {
+      if (!isElectron() || !window.voidcast?.runwareProxy) {
+        throw new Error('Electron Runware proxy is unavailable.')
+      }
+      const res = await window.voidcast.runwareProxy({
+        api_base_url: root,
+        api_key: apiKey,
+        tasks: [payload],
+      })
+      if (!res.ok) throw new Error(res.detail || 'Electron Runware proxy failed')
+      return decodeRunwareAudioBody((res.data || {}) as {
+        data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>
+      })
     }
 
+    if (isElectron() && window.voidcast?.runwareProxy) {
+      try {
+        return await postViaElectronProxy()
+      } catch (e) {
+        proxyFailureMessage = errorMessage(e)
+      }
+    }
+
+    // Prefer local proxy whenever available (desktop and web). It avoids renderer-side
+    // network/CORS/WAF edge-cases seen on some machines.
+    if (proxyRoot) {
+      try {
+        return await postViaProxy()
+      } catch (e) {
+        proxyFailureMessage = errorMessage(e)
+        // If proxy is unavailable, continue with direct request as fallback.
+      }
+    }
     try {
       return await postDirect()
     } catch (e) {
+      const directMsg = errorMessage(e)
+      if (proxyFailureMessage) {
+        throw new Error(
+          `Runware proxy failed: ${proxyFailureMessage}\nDirect Runware request failed: ${directMsg}`,
+        )
+      }
       const msg = e instanceof Error ? e.message.toLowerCase() : ''
       const looksNetwork = msg.includes('failed to fetch') || msg.includes('networkerror')
       if (!proxyRoot || !looksNetwork) throw e

@@ -19,6 +19,6 @@ echo Web UI: prvo "cd electron-app ^&^& npm run build:web" ako folder web-ui nij
 echo Zaustavi: Ctrl+C
 echo.
 
-".venv\Scripts\python.exe" -m uvicorn main:app --host 0.0.0.0 --port 8765 --app-dir "%~dp0tts-server"
+".venv\Scripts\python.exe" -m uvicorn tts_main:app --host 0.0.0.0 --port 8765 --app-dir "%~dp0tts-server"
 
 if errorlevel 1 pause

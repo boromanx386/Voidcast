@@ -1,8 +1,5 @@
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-pydantic>=2.0.0
-httpx>=0.27.0
-beautifulsoup4>=4.12.0
-ddgs>=9.0.0
-yt-dlp>=2024.0.0
-youtube-transcript-api>=1.0.0
+#
+# Legacy alias kept for compatibility.
+# Core installer should use requirements-tools.txt.
+#
+-r requirements-tools.txt

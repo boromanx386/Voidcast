@@ -239,6 +239,12 @@ export function TtsOptionsPanel({
             Served from this host; TTS and tools use the same origin.
           </p>
         )}
+        {!isWebStandalone() && (
+          <p className="text-xs text-void-dim mt-1">
+            Local TTS is distributed as a separate installer. Keep this URL pointed to your
+            external Local TTS server instance.
+          </p>
+        )}
       </div>
       )}
 

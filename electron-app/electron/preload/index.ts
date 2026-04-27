@@ -23,6 +23,15 @@ contextBridge.exposeInMainWorld('voidcast', {
     outputDir: string
     filename?: string
   }) => ipcRenderer.invoke('voidcast:save-audio-from-url', payload),
+  runwareProxy: (payload: {
+    api_base_url: string
+    api_key: string
+    tasks: unknown[]
+  }) =>
+    ipcRenderer.invoke('voidcast:runware-proxy', payload) as Promise<
+      | { ok: true; data: unknown }
+      | { ok: false; detail: string }
+    >,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
   pickDirectory: () =>
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<

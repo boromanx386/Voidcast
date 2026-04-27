@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n tts,ui -c blue,green \"npm run dev:tts\" \"npm run dev:electron\"",
-    "dev:tts": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8765",
+    "dev:tts": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn tools_main:app --host 0.0.0.0 --port 8765",
+    "dev:tts:local": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn tts_main:app --host 0.0.0.0 --port 8765",
     "dev:electron": "cd electron-app && npm run dev",
     "build:web": "cd electron-app && npm run build:web"
   },

@@ -40,6 +40,14 @@ interface Window {
       outputDir: string
       filename?: string
     }) => Promise<{ ok: boolean; text: string } | string>
+    runwareProxy: (payload: {
+      api_base_url: string
+      api_key: string
+      tasks: unknown[]
+    }) => Promise<
+      | { ok: true; data: unknown }
+      | { ok: false; detail: string }
+    >
     openPath: (filePath: string) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
     /** Electron: native dialog + base64; absent in web build. */

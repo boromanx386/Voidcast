@@ -75,6 +75,7 @@ if os.environ.get("HF_HUB_ETAG_TIMEOUT") is None:
 MODEL_ID = os.environ.get("OMNIVOICE_MODEL", "k2-fsa/OmniVoice")
 DEVICE = os.environ.get("OMNIVOICE_DEVICE", "cuda:0")
 DTYPE_ENV = os.environ.get("OMNIVOICE_DTYPE", "float16")
+TTS_ENABLED = os.environ.get("OMNIVOICE_ENABLE_TTS", "0").strip() == "1"
 
 _model: Any = None
 _sampling_rate: int = 24000
@@ -179,6 +180,14 @@ def _load_model() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _load_error
+    if not TTS_ENABLED:
+        _load_error = (
+            "Local TTS is disabled in this server build. "
+            "Set OMNIVOICE_ENABLE_TTS=1 and install TTS dependencies."
+        )
+        logger.info("TTS disabled (OMNIVOICE_ENABLE_TTS != 1). Running tools-only mode.")
+        yield
+        return
     try:
         await asyncio.to_thread(_load_model)
         logger.info("Model ready. sampling_rate=%s", _sampling_rate)
@@ -291,6 +300,7 @@ def _generate_clone_from_b64(req: TtsRequest) -> bytes:
 async def health():
     return {
         "ok": _model is not None and _load_error is None,
+        "tts_enabled": TTS_ENABLED,
         "model": MODEL_ID,
         "device": DEVICE,
         "sampling_rate": _sampling_rate,
@@ -661,6 +671,14 @@ async def ollama_proxy(request: Request, full_path: str):
 @app.post("/tts")
 async def tts(req: TtsRequest):
     """JSON: auto / design, ili voice clone preko ref_audio_base64 + opciono ref_text."""
+    if not TTS_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Local TTS is disabled on this server. "
+                "Install external Local TTS package and enable OMNIVOICE_ENABLE_TTS=1."
+            ),
+        )
     if _model is None:
         raise HTTPException(
             status_code=503,

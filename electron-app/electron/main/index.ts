@@ -529,6 +529,58 @@ ipcMain.handle(
   },
 )
 
+ipcMain.handle(
+  'voidcast:runware-proxy',
+  async (
+    _evt,
+    payload: {
+      api_base_url?: string
+      api_key?: string
+      tasks?: unknown[]
+    },
+  ) => {
+    try {
+      const base = String(payload?.api_base_url ?? '').trim().replace(/\/+$/, '')
+      const key = String(payload?.api_key ?? '').trim()
+      const tasks = Array.isArray(payload?.tasks) ? payload.tasks : []
+      if (!base) return { ok: false, detail: 'api_base_url is required' }
+      if (!base.startsWith('https://')) {
+        return { ok: false, detail: 'Runware base URL must use https://' }
+      }
+      if (!key) return { ok: false, detail: 'api_key is required' }
+      if (tasks.length === 0) return { ok: false, detail: 'tasks must not be empty' }
+
+      const res = await fetch(base, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify(tasks),
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        errors?: Array<{ message?: string }>
+        message?: string
+        error?: string
+      }
+      if (!res.ok) {
+        const detail =
+          data?.errors?.[0]?.message ||
+          data?.message ||
+          data?.error ||
+          `Runware HTTP ${res.status}`
+        return { ok: false, detail }
+      }
+      return { ok: true, data }
+    } catch (e) {
+      return {
+        ok: false,
+        detail: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
+
 ipcMain.handle('voidcast:pick-directory', async () => {
   const opts: OpenDialogOptions = {
     title: 'Choose folder for PDFs',

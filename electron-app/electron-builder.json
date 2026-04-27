@@ -10,6 +10,21 @@
     "dist-electron",
     "dist"
   ],
+  "extraResources": [
+    {
+      "from": "../tts-server",
+      "to": "tts-server",
+      "filter": [
+        "tools_main.py",
+        "main.py",
+        "scrape_tool.py",
+        "youtube_tools.py",
+        "requirements-tools.txt",
+        "requirements.txt",
+        "web-ui/**"
+      ]
+    }
+  ],
   "win": {
     "icon": "public/favicon.ico",
     "target": [

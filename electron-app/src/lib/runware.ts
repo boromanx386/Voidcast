@@ -3,7 +3,7 @@ import {
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
 } from '@/lib/settings'
-import { isWebStandalone } from '@/lib/platform'
+import { isElectron, isWebStandalone } from '@/lib/platform'
 
 export type RunwareImageConfig = {
   apiBaseUrl: string
@@ -248,6 +248,11 @@ function looksLikeNetworkFetchError(e: unknown): boolean {
   return msg.includes('failed to fetch') || msg.includes('networkerror')
 }
 
+function errorMessage(e: unknown): string {
+  if (e instanceof Error && e.message.trim()) return e.message.trim()
+  return String(e)
+}
+
 async function postRunwareTasks(args: {
   apiBaseUrl: string
   apiKey: string
@@ -265,6 +270,7 @@ async function postRunwareTasks(args: {
 
   const proxyRootRaw = (args.proxyBaseUrl || '').trim()
   const proxyRoot = proxyRootRaw ? normalizeBaseUrl(proxyRootRaw) : ''
+  let proxyFailureMessage = ''
 
   async function postViaProxy(): Promise<RunwareApiBody> {
     if (!proxyRoot) {
@@ -294,12 +300,38 @@ async function postRunwareTasks(args: {
     return proxyBody.data
   }
 
-  // Browser → Runware direct calls often differ from server-side (Electron / httpx): WAF, auth, or
-  // non-2xx without a usable CORS body. On web UI, always use the local TTS proxy when available.
-  if (isWebStandalone() && proxyRoot) {
-    return postViaProxy()
+  async function postViaElectronProxy(): Promise<RunwareApiBody> {
+    if (!isElectron() || !window.voidcast?.runwareProxy) {
+      throw new Error('Electron Runware proxy is unavailable.')
+    }
+    const res = await window.voidcast.runwareProxy({
+      api_base_url: directRoot,
+      api_key: apiKey,
+      tasks: args.tasks,
+    })
+    if (!res.ok) throw new Error(res.detail || 'Electron Runware proxy failed')
+    return (res.data || {}) as RunwareApiBody
   }
 
+  // Most stable path in desktop app: Electron main-process proxy.
+  if (isElectron() && window.voidcast?.runwareProxy) {
+    try {
+      return await postViaElectronProxy()
+    } catch (e) {
+      proxyFailureMessage = errorMessage(e)
+    }
+  }
+
+  // Prefer server-side proxy whenever available (web + desktop renderer). Direct browser/electron
+  // fetches can fail due to CORS/WAF/auth edge-cases while proxy/httpx succeeds more reliably.
+  if (proxyRoot) {
+    try {
+      return await postViaProxy()
+    } catch (e) {
+      proxyFailureMessage = errorMessage(e)
+      // Fall back to direct request below (useful when proxy server is down/misconfigured).
+    }
+  }
   try {
     const res = await fetch(directRoot, {
       method: 'POST',
@@ -316,6 +348,12 @@ async function postRunwareTasks(args: {
     }
     return body
   } catch (e) {
+    const directMsg = errorMessage(e)
+    if (proxyFailureMessage) {
+      throw new Error(
+        `Runware proxy failed: ${proxyFailureMessage}\nDirect Runware request failed: ${directMsg}`,
+      )
+    }
     if (!proxyRoot || !looksLikeNetworkFetchError(e)) {
       throw e instanceof Error ? e : new Error(String(e))
     }

@@ -12,7 +12,7 @@ if errorlevel 1 (
 
 if not exist ".venv\Scripts\python.exe" (
   echo [GRESKA] Nema Python venv na: %~dp0.venv\
-  echo Napravi venv u korenu repoa i: pip install -r tts-server\requirements.txt
+  echo Napravi venv u korenu repoa i: pip install -r tts-server\requirements-tools.txt
   pause
   exit /b 1
 )
