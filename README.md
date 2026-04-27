@@ -18,20 +18,25 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 
 ## Screenshots
 
-### Chat and navigation
+**Main Chat**
 
-![Main chat](screenshots/chat-main.png)
-![Sidebar navigation](screenshots/chat-sidebar.png)
-![Image generation example](screenshots/chat-image-generation.png)
-![Light theme example](screenshots/chat-light-theme.png)
+![Main Chat](screenshots/chat-main.png)
 
-### Settings overview
+**Settings - General**
 
-![General settings](screenshots/settings-general.png)
-![LLM settings](screenshots/settings-llm.png)
-![Runware settings](screenshots/settings-runware.png)
-![TTS settings](screenshots/settings-tts.png)
-![Tools settings](screenshots/settings-tools.png)
+![Settings General](screenshots/settings-general.png)
+
+**Settings - Runware**
+
+![Settings Runware](screenshots/settings-runware.png)
+
+**Settings - TTS**
+
+![Settings TTS](screenshots/settings-tts.png)
+
+**Image Generation Example**
+
+![Image Generation](screenshots/chat-image-generation.png)
 
 ## Cloud-first note
 
