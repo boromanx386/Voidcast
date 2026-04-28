@@ -636,6 +636,64 @@ ipcMain.handle('voidcast:pick-directory', async () => {
 
 const MAX_CHAT_IMAGE_BYTES = 4 * 1024 * 1024
 const MAX_CHAT_IMAGE_FILES = 4
+const MAX_CHAT_FILE_BYTES = 5 * 1024 * 1024
+const MAX_CHAT_FILE_SNAPSHOT_BYTES = 200 * 1024
+const MAX_CHAT_FILE_COUNT = 8
+const CHAT_FILE_EXTENSIONS = new Set([
+  'txt',
+  'md',
+  'pdf',
+  'docx',
+  'csv',
+  'json',
+  'js',
+  'ts',
+  'py',
+  'java',
+  'cs',
+  'html',
+  'css',
+])
+const CHAT_TEXT_FILE_EXTENSIONS = new Set([
+  'txt',
+  'md',
+  'pdf',
+  'docx',
+  'csv',
+  'json',
+  'js',
+  'ts',
+  'py',
+  'java',
+  'cs',
+  'html',
+  'css',
+])
+const CHAT_IMAGE_EXTENSIONS = [
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'gif',
+  'bmp',
+  'avif',
+  'tif',
+  'tiff',
+  'svg',
+  'heic',
+  'heif',
+]
+const CHAT_IMAGE_EXTENSION_SET = new Set(CHAT_IMAGE_EXTENSIONS)
+
+function clampSnapshotText(raw: string): { content?: string; truncated?: boolean } {
+  const text = String(raw ?? '')
+  if (!text.trim()) return {}
+  if (text.length <= MAX_CHAT_FILE_SNAPSHOT_BYTES) return { content: text }
+  return {
+    content: text.slice(0, MAX_CHAT_FILE_SNAPSHOT_BYTES),
+    truncated: true,
+  }
+}
 
 function mimeFromImagePath(filePath: string): string {
   const e = path.extname(filePath).replace(/^\./, '').toLowerCase()
@@ -657,66 +715,87 @@ function mimeFromImagePath(filePath: string): string {
   return map[e] ?? 'image/png'
 }
 
-/** Native file dialog + fs.readFile — avoids hidden `<input type=file>` + `.click()` issues on some Windows/Electron builds. */
-ipcMain.handle('voidcast:pick-images', async () => {
-  const opts: OpenDialogOptions = {
-    title: 'Choose image(s) for chat',
-    properties: ['openFile', 'multiSelections'],
-    filters: [
-      {
-        name: 'Images',
-        extensions: [
-          'png',
-          'jpg',
-          'jpeg',
-          'webp',
-          'gif',
-          'bmp',
-          'avif',
-          'tif',
-          'tiff',
-          'svg',
-          'heic',
-          'heif',
-        ],
-      },
-    ],
+function extFromPath(filePath: string): string {
+  return path.extname(filePath).replace(/^\./, '').toLowerCase()
+}
+
+function mimeFromChatFilePath(filePath: string): string {
+  const ext = extFromPath(filePath)
+  const map: Record<string, string> = {
+    txt: 'text/plain',
+    md: 'text/markdown',
+    csv: 'text/csv',
+    json: 'application/json',
+    js: 'text/javascript',
+    ts: 'text/typescript',
+    py: 'text/x-python',
+    java: 'text/x-java-source',
+    cs: 'text/plain',
+    html: 'text/html',
+    css: 'text/css',
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   }
-  const result = win
-    ? await dialog.showOpenDialog(win, opts)
-    : await dialog.showOpenDialog(opts)
-  if (result.canceled || !result.filePaths?.length) {
-    return { ok: false as const }
+  return map[ext] || 'application/octet-stream'
+}
+
+async function toChatFileSnapshot(filePath: string): Promise<{
+  name: string
+  path: string
+  mime: string
+  size: number
+  ext: string
+  content?: string
+  truncated?: boolean
+}> {
+  const st = await stat(filePath)
+  if (st.size > MAX_CHAT_FILE_BYTES) {
+    throw new Error(`Too large (max 5 MB): ${path.basename(filePath)}`)
   }
-  const paths = result.filePaths.slice(0, MAX_CHAT_IMAGE_FILES)
-  for (const fp of paths) {
+  const ext = extFromPath(filePath)
+  if (!CHAT_FILE_EXTENSIONS.has(ext)) {
+    throw new Error(`Unsupported file type: ${path.basename(filePath)}`)
+  }
+  const base = {
+    name: path.basename(filePath),
+    path: filePath,
+    mime: mimeFromChatFilePath(filePath),
+    size: st.size,
+    ext,
+  }
+  if (!CHAT_TEXT_FILE_EXTENSIONS.has(ext)) return base
+  if (ext === 'pdf') {
     try {
-      const st = await stat(fp)
-      if (st.size > MAX_CHAT_IMAGE_BYTES) {
-        return {
-          ok: false as const,
-          error: `Too large (max 4 MB): ${path.basename(fp)}`,
-        }
+      const pdfParseMod = await import('pdf-parse')
+      const buf = await readFile(filePath)
+      const PDFParseCtor = (pdfParseMod as { PDFParse: new (args: { data: Buffer }) => {
+        getText: () => Promise<{ text?: string }>
+        destroy: () => Promise<void>
+      } }).PDFParse
+      const parser = new PDFParseCtor({ data: buf })
+      try {
+        const parsed = await parser.getText()
+        return { ...base, ...clampSnapshotText(parsed?.text || '') }
+      } finally {
+        await parser.destroy().catch(() => {})
       }
-    } catch (e) {
-      return {
-        ok: false as const,
-        error: e instanceof Error ? e.message : String(e),
-      }
+    } catch {
+      return base
     }
   }
-  const files: { base64: string; mime: string; name: string; path: string }[] = []
-  for (const fp of paths) {
-    const buf = await readFile(fp)
-    files.push({
-      base64: buf.toString('base64'),
-      mime: mimeFromImagePath(fp),
-      name: path.basename(fp),
-      path: fp,
-    })
+  if (ext === 'docx') {
+    try {
+      const mammothMod = await import('mammoth')
+      const mammoth = mammothMod.default ?? mammothMod
+      const extracted = await mammoth.extractRawText({ path: filePath })
+      return { ...base, ...clampSnapshotText(extracted?.value || '') }
+    } catch {
+      return base
+    }
   }
-  return { ok: true as const, files }
-})
+  const buf = await readFile(filePath)
+  return { ...base, ...clampSnapshotText(buf.toString('utf8')) }
+}
 
 ipcMain.handle('voidcast:read-image-file', async (_evt, payload: { path?: string }) => {
   try {
@@ -738,6 +817,51 @@ ipcMain.handle('voidcast:read-image-file', async (_evt, payload: { path?: string
       error: e instanceof Error ? e.message : String(e),
     }
   }
+})
+
+ipcMain.handle('voidcast:pick-chat-attachments', async () => {
+  const opts: OpenDialogOptions = {
+    title: 'Choose attachment(s) for chat',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Supported attachments', extensions: [...CHAT_IMAGE_EXTENSIONS, ...Array.from(CHAT_FILE_EXTENSIONS)] },
+    ],
+  }
+  const result = win
+    ? await dialog.showOpenDialog(win, opts)
+    : await dialog.showOpenDialog(opts)
+  if (result.canceled || !result.filePaths?.length) {
+    return { ok: false as const }
+  }
+  const imagePaths = result.filePaths.filter((fp) => CHAT_IMAGE_EXTENSION_SET.has(extFromPath(fp))).slice(0, MAX_CHAT_IMAGE_FILES)
+  const filePaths = result.filePaths.filter((fp) => !CHAT_IMAGE_EXTENSION_SET.has(extFromPath(fp))).slice(0, MAX_CHAT_FILE_COUNT)
+  const images: { base64: string; mime: string; name: string; path: string }[] = []
+  for (const fp of imagePaths) {
+    const st = await stat(fp)
+    if (st.size > MAX_CHAT_IMAGE_BYTES) {
+      return { ok: false as const, error: `Too large (max 4 MB): ${path.basename(fp)}` }
+    }
+    const buf = await readFile(fp)
+    images.push({
+      base64: buf.toString('base64'),
+      mime: mimeFromImagePath(fp),
+      name: path.basename(fp),
+      path: fp,
+    })
+  }
+  const files: Array<{
+    name: string
+    path: string
+    mime: string
+    size: number
+    ext: string
+    content?: string
+    truncated?: boolean
+  }> = []
+  for (const fp of filePaths) {
+    files.push(await toChatFileSnapshot(fp))
+  }
+  return { ok: true as const, images, files }
 })
 
 ipcMain.handle(

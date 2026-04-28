@@ -39,11 +39,20 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }
     >,
-  pickImages: () =>
-    ipcRenderer.invoke('voidcast:pick-images') as Promise<
+  pickChatAttachments: () =>
+    ipcRenderer.invoke('voidcast:pick-chat-attachments') as Promise<
       | {
           ok: true
-          files: { base64: string; mime: string; name: string; path: string }[]
+          images: { base64: string; mime: string; name: string; path: string }[]
+          files: {
+            name: string
+            path: string
+            mime: string
+            size: number
+            ext: string
+            content?: string
+            truncated?: boolean
+          }[]
         }
       | { ok: false; error?: string }
     >,

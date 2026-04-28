@@ -34,6 +34,11 @@ import {
   imageDataUrl,
   looksLikeImageFile,
 } from '@/lib/imageAttachment'
+import {
+  chatFileAcceptList,
+  extFromName,
+  isSupportedChatFileName,
+} from '@/lib/fileAttachment'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
@@ -69,7 +74,7 @@ import {
   saveChatSessions,
   upsertSession,
 } from '@/lib/chatSessionsStorage'
-import type { ChatSession, UiMessage } from '@/types/chat'
+import type { ChatSession, FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 
 type Screen = 'chat' | 'options'
 type OptionsTab = 'general' | 'llm' | 'runware' | 'runwareMusic' | 'tts' | 'tools'
@@ -84,6 +89,8 @@ type PendingChatImage = {
   name?: string
   path?: string
 }
+
+type PendingChatFile = FileAttachmentSnapshot
 
 type LocalImagePreview = {
   base64: string
@@ -118,7 +125,11 @@ function deriveSessionTitle(messages: UiMessage[]): string {
   if (!firstUser) return 'UNTITLED_SESSION'
   const raw =
     firstUser.content.trim() ||
-    (firstUser.images?.length ? '[image]' : '')
+    (firstUser.images?.length
+      ? '[image]'
+      : firstUser.fileAttachments?.length
+        ? `[file: ${firstUser.fileAttachments[0].name}]`
+        : '')
   if (!raw) return 'UNTITLED_SESSION'
   const single = raw.replace(/\s+/g, ' ')
   return single.length > 60 ? `${single.slice(0, 60)}…` : single
@@ -191,6 +202,37 @@ function buildQueuedImagePathHint(queued: PendingChatImage[]): string {
     `Attached image references for this message (internal catalog indexes, 1 = most recent):`,
     ...lines,
     'Use image_recall for vision-style analysis or edit_image_runware for edits when needed.',
+  ].join('\n')
+}
+
+function buildQueuedFilePathHint(queued: PendingChatFile[]): string {
+  if (!queued.length) return ''
+  const lines = queued.map((f, idx) => {
+    const tag = f.truncated ? ' (snapshot truncated)' : ''
+    return `- ${idx + 1}: ${f.path || f.name}${tag}`
+  })
+  const contentBlocks = queued
+    .map((f, idx) => {
+      const text = (f.content || '').trim()
+      if (!text) return ''
+      const short = text.length > 12000 ? `${text.slice(0, 12000)}\n...[cut]` : text
+      return [
+        `File ${idx + 1} snapshot (${f.name}):`,
+        '---',
+        short,
+        '---',
+      ].join('\n')
+    })
+    .filter((x) => x.length > 0)
+  return [
+    'Attached file references for this message:',
+    ...lines,
+    'Important: local file access is not needed for these attachments in this turn because their snapshot/path metadata is already included in chat context.',
+    ...(contentBlocks.length > 0
+      ? ['', 'Attached file snapshot text (use for analysis):', ...contentBlocks]
+      : []),
+    'When snapshot text exists, analyze it directly and do not claim missing tools for local PDF/DOCX access.',
+    'Use these paths as primary source and snapshot content when present.',
   ].join('\n')
 }
 
@@ -559,6 +601,7 @@ export default function App() {
   >({})
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
+  const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([])
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
   const localPreviewLoadingRef = useRef<Set<string>>(new Set())
@@ -570,7 +613,7 @@ export default function App() {
   const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const chatImageInputRef = useRef<HTMLInputElement | null>(null)
+  const chatAttachmentInputRef = useRef<HTMLInputElement | null>(null)
 
   const downloadImage = useCallback(async (url: string) => {
     try {
@@ -819,8 +862,8 @@ export default function App() {
   }, [audioUrl])
 
   const canSend = useMemo(
-    () => (!!input.trim() || pendingImages.length > 0) && !busy,
-    [input, pendingImages.length, busy],
+    () => (!!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0) && !busy,
+    [input, pendingImages.length, pendingFiles.length, busy],
   )
   const canStop = busy
   const canSaveSession = messages.length > 0 && !busy && !activeSessionId
@@ -1043,6 +1086,9 @@ export default function App() {
         if (m.role === 'user' && !c.trim() && m.images?.length) {
           c = '[user attached image]'
         }
+        if (m.role === 'user' && !c.trim() && m.fileAttachments?.length) {
+          c = '[user attached file]'
+        }
         return { role: m.role, content: c }
       })
       .filter((t): t is { role: 'user' | 'assistant'; content: string } =>
@@ -1084,9 +1130,11 @@ export default function App() {
   const onSend = async () => {
     const text = input.trim()
     const queued = pendingImages
-    if ((!text && queued.length === 0) || busy) return
+    const queuedFiles = pendingFiles
+    if ((!text && queued.length === 0 && queuedFiles.length === 0) || busy) return
     setError(null)
     setPendingImages([])
+    setPendingFiles([])
     setInput('')
 
     const imagesBase64 = queued.map((q) => q.base64)
@@ -1099,13 +1147,28 @@ export default function App() {
       ? (imagesBase64.length > 0 ? imagesBase64 : toolImageCatalog.slice(0, 1).map((x) => x.base64))
       : []
     const attachedImageHint = buildQueuedImagePathHint(queued)
-    const ollamaUserText = [text, attachedImageHint].filter((x) => x.trim().length > 0).join('\n\n')
+    const attachedFileHint = buildQueuedFilePathHint(queuedFiles)
+    const ollamaUserText = [text, attachedImageHint, attachedFileHint].filter((x) => x.trim().length > 0).join('\n\n')
     const userMsg: UiMessage = {
       id: uid(),
       role: 'user',
       content: text,
       ...(imagesBase64.length > 0
         ? { images: imagesBase64, imageMimes, imageNames, imagePaths }
+        : {}),
+      ...(queuedFiles.length > 0
+        ? {
+            fileAttachments: queuedFiles.map((f) => ({
+              id: f.id,
+              name: f.name,
+              path: f.path,
+              mime: f.mime,
+              size: f.size,
+              ext: f.ext,
+              content: f.content,
+              truncated: f.truncated,
+            })),
+          }
         : {}),
     }
     const asstId = uid()
@@ -1118,11 +1181,21 @@ export default function App() {
 
     const priorHistory: HistoryTurn[] = messages.map((x) => {
       if (x.role === 'user') {
+        const fileHint = x.fileAttachments?.length
+          ? [
+              'Attached files in this user turn:',
+              ...x.fileAttachments.map((f, idx) => `- ${idx + 1}: ${f.path || f.name}`),
+              'File snapshots are stored in the original attachment turn.',
+            ].join('\n')
+          : ''
         const t: HistoryTurn = {
           role: 'user',
-          content:
-            x.content ||
-            (x.images?.length ? 'Attached image(s) were provided in this message.' : ''),
+          content: [x.content, fileHint].filter((v) => v.trim().length > 0).join('\n\n') ||
+            (x.images?.length
+              ? 'Attached image(s) were provided in this message.'
+              : x.fileAttachments?.length
+                ? 'Attached file(s) were provided in this message.'
+                : ''),
         }
         if (x.images?.length && shouldUseVisionForText(x.content)) t.images = x.images
         if (x.imageNames?.length) t.imageNames = x.imageNames
@@ -1378,10 +1451,90 @@ export default function App() {
     abortRef.current?.abort()
   }
 
-  /** Prefer Electron native dialog (`voidcast.pickImages`); hidden `<input type=file>` is unreliable on some Windows builds. */
-  const openChatImagePicker = useCallback(async () => {
+  const removePendingImage = (index: number) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const onPickChatAttachments = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    e.target.value = ''
+    if (!files?.length) return
+    const rawList = Array.from(files)
+    const imageFiles = rawList.filter(looksLikeImageFile)
+    const nonImageFiles = rawList.filter((f) => !looksLikeImageFile(f))
+    const newImages: PendingChatImage[] = []
+    const newFiles: PendingChatFile[] = []
+
+    for (const file of imageFiles) {
+      if (file.size > MAX_IMAGE_BYTES) {
+        setError(`Image too large (max ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB): ${file.name}`)
+        continue
+      }
+      try {
+        const { base64, mime } = await readImageFileAsBase64(file)
+        if (!base64.trim()) continue
+        newImages.push({ base64, mime, name: file.name })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
+    }
+    for (const file of nonImageFiles) {
+      if (!isSupportedChatFileName(file.name)) {
+        setError(`Unsupported file type: ${file.name}`)
+        continue
+      }
+      const ext = extFromName(file.name)
+      const isText =
+        ext === 'txt' || ext === 'md' || ext === 'csv' || ext === 'json' ||
+        ext === 'js' || ext === 'ts' || ext === 'py' || ext === 'java' ||
+        ext === 'cs' || ext === 'html' || ext === 'css'
+      let content: string | undefined
+      let truncated = false
+      if (isText) {
+        const raw = await file.text()
+        if (raw.length > 200 * 1024) {
+          content = raw.slice(0, 200 * 1024)
+          truncated = true
+        } else {
+          content = raw
+        }
+      }
+      newFiles.push({
+        id: uid(),
+        name: file.name,
+        path: file.name,
+        mime: file.type || 'application/octet-stream',
+        size: file.size,
+        ext,
+        content,
+        truncated,
+      })
+    }
+
+    if (newImages.length === 0 && newFiles.length === 0) return
+    setError(null)
+    if (newImages.length > 0) {
+      setPendingImages((prev) => {
+        const merged = [...prev]
+        for (const item of newImages) {
+          if (merged.length >= MAX_CHAT_IMAGES) break
+          merged.push(item)
+        }
+        return merged
+      })
+    }
+    if (newFiles.length > 0) {
+      setPendingFiles((prev) => [...prev, ...newFiles].slice(0, 8))
+    }
+  }
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const openChatAttachmentPicker = useCallback(async () => {
     if (busy) return
-    const native = window.voidcast?.pickImages
+    const native = window.voidcast?.pickChatAttachments
     if (native) {
       try {
         const res = await native()
@@ -1389,83 +1542,36 @@ export default function App() {
           if ('error' in res && res.error) setError(res.error)
           return
         }
-        const added: PendingChatImage[] = res.files.map((f) => ({
-          base64: f.base64.replace(/\s+/g, ''),
-          mime: f.mime,
-          name: f.name,
-          path: f.path,
-        }))
-        if (added.some((x) => !x.base64.length)) {
-          setError('Could not read image data.')
-          return
+        if (res.images?.length) {
+          const addedImages: PendingChatImage[] = res.images.map((f) => ({
+            base64: f.base64.replace(/\s+/g, ''),
+            mime: f.mime,
+            name: f.name,
+            path: f.path,
+          }))
+          setPendingImages((prev) => [...prev, ...addedImages].slice(0, MAX_CHAT_IMAGES))
+        }
+        if (res.files?.length) {
+          const addedFiles: PendingChatFile[] = res.files.map((f) => ({
+            id: uid(),
+            name: f.name,
+            path: f.path,
+            mime: f.mime,
+            size: f.size,
+            ext: f.ext,
+            content: f.content,
+            truncated: f.truncated,
+          }))
+          setPendingFiles((prev) => [...prev, ...addedFiles].slice(0, 8))
         }
         setError(null)
-        setPendingImages((prev) => {
-          const merged = [...prev]
-          for (const item of added) {
-            if (merged.length >= MAX_CHAT_IMAGES) break
-            merged.push(item)
-          }
-          return merged
-        })
+        return
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       }
-      return
     }
-    chatImageInputRef.current?.click()
+    chatAttachmentInputRef.current?.click()
   }, [busy])
-
-  const onPickChatImages = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    e.target.value = ''
-    if (!files?.length) return
-    const rawList = Array.from(files)
-    const incoming = rawList.filter(looksLikeImageFile)
-    if (rawList.length > 0 && incoming.length === 0) {
-      setError(
-        'No image file recognized. On Windows, file types are sometimes empty — use PNG or JPEG, or rename to .png/.jpg. Not supported here: PDF, Word, arbitrary "no extension" files.',
-      )
-      return
-    }
-
-    const added: PendingChatImage[] = []
-    for (const file of incoming) {
-      if (file.size > MAX_IMAGE_BYTES) {
-        setError(
-          `Image too large (max ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB): ${file.name}`,
-        )
-        continue
-      }
-      try {
-        const { base64, mime } = await readImageFileAsBase64(file)
-        if (!base64.trim()) {
-          setError(`Empty image data: ${file.name}`)
-          continue
-        }
-        added.push({ base64, mime, name: file.name })
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
-      }
-    }
-    if (added.length === 0) {
-      setError('Could not load image data (file may be corrupt or unsupported).')
-      return
-    }
-    setError(null)
-    setPendingImages((prev) => {
-      const merged = [...prev]
-      for (const item of added) {
-        if (merged.length >= MAX_CHAT_IMAGES) continue
-        merged.push(item)
-      }
-      return merged
-    })
-  }
-
-  const removePendingImage = (index: number) => {
-    setPendingImages((prev) => prev.filter((_, i) => i !== index))
-  }
 
   // === Audio Playback ===
   const playBlobUrl = (url: string, signal: AbortSignal): Promise<void> => {
@@ -2243,13 +2349,25 @@ export default function App() {
                         ))}
                       </div>
                     )}
+                    {m.fileAttachments && m.fileAttachments.length > 0 && (
+                      <div className="space-y-1 rounded border border-void-muted/40 bg-void-black/20 p-2 text-xs font-mono">
+                        {m.fileAttachments.map((f) => (
+                          <div key={f.id} className="text-void-dim">
+                            FILE: {f.name} ({f.ext || 'unknown'}) {f.truncated ? '[truncated]' : ''}
+                            <div className="break-all text-[10px] text-void-dim/80">{f.path}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {m.content.length > 0 ? (
                       m.content
                     ) : m.images?.length ? (
                       <span className="text-void-dim text-xs font-mono">(no caption)</span>
+                    ) : m.fileAttachments?.length ? (
+                      <span className="text-void-dim text-xs font-mono">(file attached)</span>
                     ) : (
                       <span className="text-void-dim text-xs font-mono">
-                        (images not persisted after reload)
+                        (no text content)
                       </span>
                     )}
                   </div>
@@ -2364,8 +2482,8 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm font-mono text-neon-yellow">
               <span className="opacity-70">CONTEXT_WARNING:</span>
-              {' '}TOKEN_USAGE {Math.round(contextUsageInfo.ratio * 100)}%
-              ({contextUsageInfo.usedTokens}/{contextUsageInfo.maxTokens})
+              {' '}CTX_USAGE {Math.round(contextUsageInfo.ratio * 100)}%
+              ({contextUsageInfo.promptTokens}/{contextUsageInfo.maxTokens})
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -2399,13 +2517,13 @@ export default function App() {
       <footer className="voidcast-input-area">
         <div className="mx-auto max-w-3xl">
           <input
-            ref={chatImageInputRef}
+            ref={chatAttachmentInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif"
+            accept={`image/png,image/jpeg,image/jpg,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif,${chatFileAcceptList()}`}
             multiple
             className="hidden"
             aria-hidden
-            onChange={(e) => void onPickChatImages(e)}
+            onChange={(e) => void onPickChatAttachments(e)}
           />
           {pendingImages.length > 0 && (
             <div className="mb-2 flex flex-wrap items-center gap-2" aria-live="polite">
@@ -2431,20 +2549,40 @@ export default function App() {
               ))}
             </div>
           )}
+          {pendingFiles.length > 0 && (
+            <div className="mb-2 flex flex-wrap items-center gap-2" aria-live="polite">
+              {pendingFiles.map((f, i) => (
+                <div
+                  key={f.id}
+                  className="relative rounded border border-void-muted/60 bg-void-black/30 px-2 py-1 text-xs font-mono text-void-dim"
+                >
+                  <div>{f.name}{f.truncated ? ' [truncated]' : ''}</div>
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(i)}
+                    className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded border border-void-muted bg-void-black text-[9px] text-void-dim hover:border-neon-red/50 hover:text-neon-red"
+                    aria-label="Remove file"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="input-wrapper">
             <button
               type="button"
               disabled={busy}
-              onClick={() => void openChatImagePicker()}
+              onClick={() => void openChatAttachmentPicker()}
               className="shrink-0 px-3 py-3 mb-px text-xs font-mono border border-void-muted bg-void-black/80 text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5 transition-colors disabled:opacity-40"
               style={{
                 clipPath:
                   'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))',
               }}
-              title={`Attach images (max ${MAX_CHAT_IMAGES}). Vision-capable Ollama model required.`}
-              aria-label="Attach images"
+              title="Attach image or file"
+              aria-label="Attach files and images"
             >
-              IMG
+              +
             </button>
             <textarea
               className="voidcast-textarea"
@@ -2483,6 +2621,11 @@ export default function App() {
                   {pendingImages.length} image{pendingImages.length === 1 ? '' : 's'} attached
                 </span>
               )}
+              {pendingFiles.length > 0 && (
+                <span className="ml-2 text-neon-green/70">
+                  {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} attached
+                </span>
+              )}
             </span>
             <span className="flex items-center gap-2">
               <span className="text-neon-cyan/50">{ollamaModels.length > 0 ? `${ollamaModels.length} MODELS` : 'NO_MODELS'}</span>
@@ -2504,16 +2647,20 @@ export default function App() {
             <>
               <span className="text-[11px] leading-tight text-void-dim tabular-nums">
                 <span className="text-void-dim/60">CTX </span>
-                <span className="text-void-text">{contextUsageInfo.usedTokens}</span>
+                <span className="text-void-text">{contextUsageInfo.promptTokens}</span>
                 <span className="text-void-dim/50">/</span>
                 <span>{contextUsageInfo.maxTokens}</span>
                 <span className="ml-1.5 text-void-dim/70">
                   {Math.round(contextUsageInfo.ratio * 100)}%
                 </span>
               </span>
+              <span className="text-[10px] leading-tight text-void-dim/70 tabular-nums">
+                <span className="text-void-dim/50">OUT </span>
+                <span>{contextUsageInfo.outputTokens}</span>
+              </span>
               <div
                 className="h-1 w-full max-w-[14rem] overflow-hidden rounded-sm bg-void-muted/70"
-                title={`Context window usage: ${contextUsageInfo.usedTokens} / ${contextUsageInfo.maxTokens} tokens`}
+                title={`Context window usage: ${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens`}
               >
                 <div
                   className={`h-full transition-[width] duration-500 ${

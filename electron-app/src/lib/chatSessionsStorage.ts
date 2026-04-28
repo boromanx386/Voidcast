@@ -2,11 +2,21 @@ import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
 /** Drop image payloads before localStorage — avoids quota blowups (MVP). */
 function stripImagesForPersistence(msg: UiMessage): UiMessage {
-  if (msg.role !== 'user' || (!msg.images?.length && !msg.imageMimes?.length)) {
-    return msg
+  const base =
+    msg.role !== 'user' || (!msg.images?.length && !msg.imageMimes?.length)
+      ? msg
+      : (() => {
+          const { images: _i, imageMimes: _m, ...rest } = msg
+          return rest
+        })()
+  if (!base.fileAttachments?.length) return base
+  return {
+    ...base,
+    fileAttachments: base.fileAttachments.map((f) => {
+      if (!f.content || f.content.length <= 200 * 1024) return f
+      return { ...f, content: f.content.slice(0, 200 * 1024), truncated: true }
+    }),
   }
-  const { images: _i, imageMimes: _m, ...rest } = msg
-  return rest
 }
 
 const STORAGE_KEY = 'voidcast-chat-sessions-v1'

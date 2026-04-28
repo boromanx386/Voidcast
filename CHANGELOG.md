@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.4] - 2026-04-28
+
+### Added
+
+- Unified `+` attach flow in chat composer that opens a single picker for both images and supported files.
+- File attachment snapshots in chat context/history for: `txt`, `md`, `pdf`, `docx`, `csv`, `json`, `js`, `ts`, `py`, `java`, `cs`, `html`, `css`.
+- Desktop extraction of `pdf`/`docx` text into attachment snapshot content (with truncation safeguards).
+
+### Fixed
+
+- TTS health status now refreshes correctly when switching provider/API-key so Runware xAI mode no longer shows false OFFLINE.
+- Removed repeated file snapshot replay in follow-up turns; snapshots now stay bound to the original attachment message.
+
+### Changed
+
+- Reduced header height and hamburger button size for a tighter chat top bar.
+- Set minimal as default UI theme and fallback for unknown theme values.
+- Footer system area now prioritizes context usage readout and now shows `CTX` (prompt tokens / context window) plus `OUT` (generated tokens) separately.
+- Removed runtime clock display from chat UI.
+
 ## [2.3.3] - 2026-04-27
 
 ### Added

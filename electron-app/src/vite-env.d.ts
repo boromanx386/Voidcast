@@ -52,9 +52,20 @@ interface Window {
     getAppVersion: () => Promise<string>
     openPath: (filePath: string) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
-    /** Electron: native dialog + base64; absent in web build. */
-    pickImages: () => Promise<
-      | { ok: true; files: { base64: string; mime: string; name: string; path: string }[] }
+    pickChatAttachments: () => Promise<
+      | {
+          ok: true
+          images: { base64: string; mime: string; name: string; path: string }[]
+          files: {
+            name: string
+            path: string
+            mime: string
+            size: number
+            ext: string
+            content?: string
+            truncated?: boolean
+          }[]
+        }
       | { ok: false; error?: string }
     >
     readImageFile: (payload: { path: string }) => Promise<

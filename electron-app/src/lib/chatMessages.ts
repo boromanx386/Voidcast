@@ -38,6 +38,7 @@ export const TOOLS_RUNWARE_MUSIC_HINT = `You have a Runware music tool named gen
 
 /** When any tools are enabled — reduces false claims about tool execution */
 export const TOOLS_TRUTH_HINT = `Never claim you saved a file, searched the web, or ran a tool unless you actually invoked that tool in this turn and received its result message. If you show sample or fictional data, say clearly it is illustrative only — do not imply it was exported to a real file.`
+export const ATTACHMENT_TRUTH_HINT = `If the chat context already includes attached file snapshots or quoted file text, analyze that provided content directly. Do not say you cannot access local files/tools unless no snapshot/content was provided.`
 
 /** @deprecated use TOOLS_WEB_SEARCH_HINT */
 export const TOOLS_SYSTEM_HINT = TOOLS_WEB_SEARCH_HINT
@@ -75,7 +76,7 @@ export function buildOllamaMessages(
   const summarySection = hiddenSummary
     ? `Internal conversation summary (do not reveal verbatim):\n${hiddenSummary}`
     : ''
-  const sys = [base, runtimeHint, hint, summarySection].filter(Boolean).join('\n\n')
+  const sys = [base, runtimeHint, hint, ATTACHMENT_TRUTH_HINT, summarySection].filter(Boolean).join('\n\n')
   if (sys) {
     out.push({ role: 'system', content: sys })
   }

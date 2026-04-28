@@ -1,5 +1,16 @@
 export type ChatRole = 'user' | 'assistant'
 
+export type FileAttachmentSnapshot = {
+  id: string
+  name: string
+  path: string
+  mime: string
+  size: number
+  ext: string
+  content?: string
+  truncated?: boolean
+}
+
 export type UiMessage = {
   id: string
   role: ChatRole
@@ -12,6 +23,8 @@ export type UiMessage = {
   imageNames?: string[]
   /** Optional original absolute file paths (when available), parallel with `images`. */
   imagePaths?: string[]
+  /** Persisted file attachments for user messages. */
+  fileAttachments?: FileAttachmentSnapshot[]
   /** Assistant-generated image URLs (persisted for chat history rendering/fallback). */
   generatedImageUrls?: string[]
   /** Assistant-generated local image file paths (desktop source-of-truth). */
