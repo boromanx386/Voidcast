@@ -13,8 +13,8 @@ function stripImagesForPersistence(msg: UiMessage): UiMessage {
   return {
     ...base,
     fileAttachments: base.fileAttachments.map((f) => {
-      if (!f.content || f.content.length <= 200 * 1024) return f
-      return { ...f, content: f.content.slice(0, 200 * 1024), truncated: true }
+      if (!f.content || f.content.length <= 400 * 1024) return f
+      return { ...f, content: f.content.slice(0, 400 * 1024), truncated: true }
     }),
   }
 }

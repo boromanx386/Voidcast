@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Increased file attachment snapshot truncation limit from `200KB` to `400KB` for chat attachment ingestion, desktop extraction, and persisted session storage.
+- Updated General options copy to clarify desktop-local Runware API key storage wording.
+- Added direct link in General options to [Runware](https://runware.ai/) for API key setup.
+
 ## [2.3.4] - 2026-04-28
 
 ### Added

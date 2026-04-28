@@ -1492,8 +1492,8 @@ export default function App() {
       let truncated = false
       if (isText) {
         const raw = await file.text()
-        if (raw.length > 200 * 1024) {
-          content = raw.slice(0, 200 * 1024)
+        if (raw.length > 400 * 1024) {
+          content = raw.slice(0, 400 * 1024)
           truncated = true
         } else {
           content = raw

@@ -116,8 +116,16 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
           autoComplete="off"
         />
         <p className="text-xs text-neon-yellow/80 mt-1">
-          Stored locally on this device (browser/electron storage).
+          Stored locally on this device (desktop app storage).
         </p>
+        <a
+          href="https://runware.ai/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
+        >
+          Get Runware API key
+        </a>
       </div>
 
       {isElectron() && (

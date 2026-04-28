@@ -637,7 +637,7 @@ ipcMain.handle('voidcast:pick-directory', async () => {
 const MAX_CHAT_IMAGE_BYTES = 4 * 1024 * 1024
 const MAX_CHAT_IMAGE_FILES = 4
 const MAX_CHAT_FILE_BYTES = 5 * 1024 * 1024
-const MAX_CHAT_FILE_SNAPSHOT_BYTES = 200 * 1024
+const MAX_CHAT_FILE_SNAPSHOT_BYTES = 400 * 1024
 const MAX_CHAT_FILE_COUNT = 8
 const CHAT_FILE_EXTENSIONS = new Set([
   'txt',

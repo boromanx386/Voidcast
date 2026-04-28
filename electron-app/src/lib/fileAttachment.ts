@@ -18,7 +18,7 @@ const SUPPORTED_FILE_EXTENSIONS = new Set([
   'docx',
 ])
 
-export const MAX_CHAT_FILE_SNAPSHOT_BYTES = 200 * 1024
+export const MAX_CHAT_FILE_SNAPSHOT_BYTES = 400 * 1024
 
 export function extFromName(name: string): string {
   const idx = name.lastIndexOf('.')
