@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Increased file attachment snapshot truncation limit from `200KB` to `400KB` for chat attachment ingestion, desktop extraction, and persisted session storage.
 - Updated General options copy to clarify desktop-local Runware API key storage wording.
 - Added direct link in General options to [Runware](https://runware.ai/) for API key setup.
+- Tool-round streaming now preserves assistant text in the same chat bubble instead of clearing content between rounds, so post-tool output appends rather than replacing prior analysis.
 
 ## [2.3.4] - 2026-04-28
 

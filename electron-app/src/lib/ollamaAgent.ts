@@ -885,6 +885,7 @@ export async function runOllamaChatWithTools(
 
   const messages: OllamaApiMessage[] = [...params.initialMessages]
   let lastAssistantText = ''
+  let persistedAssistantPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   let forcedWebDone = false
   let forcedScrapeDone = false
@@ -908,8 +909,9 @@ export async function runOllamaChatWithTools(
       tools,
       signal: params.signal,
       onDelta: (full) => {
-        lastAssistantText = full
-        params.onDelta(full)
+        const combined = `${persistedAssistantPrefix}${full}`
+        lastAssistantText = combined
+        params.onDelta(combined)
       },
     })
     lastUsage = mergeOllamaUsage(lastUsage, usage)
@@ -962,8 +964,10 @@ export async function runOllamaChatWithTools(
           })
           params.onToolResult?.({ name: 'scrape_url', result })
           params.onToolPhase?.(null)
-          lastAssistantText = ''
-          params.onDelta('')
+          persistedAssistantPrefix = lastAssistantText
+          if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
+            persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
+          }
           continue
         }
         if (
@@ -1010,13 +1014,15 @@ export async function runOllamaChatWithTools(
             })
             params.onToolResult?.({ name: 'web_search', result })
             params.onToolPhase?.(null)
-            lastAssistantText = ''
-            params.onDelta('')
+            persistedAssistantPrefix = lastAssistantText
+            if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
+              persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
+            }
             continue
           }
         }
       }
-      return { content, usage: lastUsage }
+      return { content: lastAssistantText || content, usage: lastUsage }
     }
 
     messages.push({
@@ -1082,8 +1088,10 @@ export async function runOllamaChatWithTools(
     }
 
     params.onToolPhase?.(null)
-    lastAssistantText = ''
-    params.onDelta('')
+    persistedAssistantPrefix = lastAssistantText
+    if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
+      persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
+    }
   }
 
   return { content: lastAssistantText, usage: lastUsage }
