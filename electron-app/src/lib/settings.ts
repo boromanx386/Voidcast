@@ -169,7 +169,7 @@ const defaults: AppSettings = {
     runwareMusic: false,
   },
   pdfOutputDir: '',
-  uiTheme: 'dystopian',
+  uiTheme: 'minimal',
   runwareApiBaseUrl: 'https://api.runware.ai/v1',
   runwareApiKey: '',
   runwareImageModel: RUNWARE_FLUX_9B_MODEL_ID,
@@ -293,7 +293,7 @@ function normalizePdfDir(s: AppSettings): AppSettings {
 function normalizeUiTheme(s: AppSettings): AppSettings {
   const t = s.uiTheme
   const uiTheme: UiTheme =
-    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' ? t : 'dystopian'
+    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' ? t : 'minimal'
   return { ...s, uiTheme }
 }
 

@@ -270,10 +270,9 @@ html[data-ui-theme='minimal'] .system-status {
   font-family: inherit;
 }
 
-/* Improve clock/readout contrast in minimal theme footer. */
-html[data-ui-theme='minimal'] .system-status .text-void-dim\/50 {
+/* Context usage readout in footer (replaces clock). */
+html[data-ui-theme='minimal'] .system-status .footer-context-readout {
   color: #a1a1aa;
-  opacity: 0.95;
 }
 
 /* Match TTS status text readability with footer clock. */

@@ -1699,7 +1699,7 @@ export default function App() {
             ← RETURN
           </button>
           
-          <GlitchText className="voidcast-logo text-2xl">
+          <GlitchText className="voidcast-logo text-xl">
             SETTINGS
           </GlitchText>
           
@@ -1789,15 +1789,15 @@ export default function App() {
           aria-label="Menu"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((v) => !v)}
-          className="group relative w-10 h-10 flex items-center justify-center
+          className="group relative flex h-8 w-8 shrink-0 items-center justify-center
             bg-void-mid border border-void-dim/50 hover:border-neon-cyan/50
-            transition-all duration-300 hover:shadow-[0_0_15px_rgba(var(--ui-accent-rgb),0.3)]"
-          style={{ clipPath: 'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)' }}
+            transition-all duration-300 hover:shadow-[0_0_12px_rgba(var(--ui-accent-rgb),0.25)]"
+          style={{ clipPath: 'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)' }}
         >
-          <span className="flex flex-col gap-1.5">
-            <span className="w-5 h-0.5 bg-void-light group-hover:bg-neon-cyan transition-colors" />
-            <span className="w-5 h-0.5 bg-void-light group-hover:bg-neon-cyan transition-colors" />
-            <span className="w-5 h-0.5 bg-void-light group-hover:bg-neon-cyan transition-colors" />
+          <span className="flex flex-col gap-1">
+            <span className="h-0.5 w-4 bg-void-light transition-colors group-hover:bg-neon-cyan" />
+            <span className="h-0.5 w-4 bg-void-light transition-colors group-hover:bg-neon-cyan" />
+            <span className="h-0.5 w-4 bg-void-light transition-colors group-hover:bg-neon-cyan" />
           </span>
         </button>
 
@@ -2495,12 +2495,43 @@ export default function App() {
 
       {/* System Status */}
       <div className="system-status">
-        <div className="status-item">
+        <div className="status-item min-w-0 shrink">
           <span className={`dot ${ttsOk === true ? 'online' : ttsOk === false ? 'offline' : 'busy'}`} />
           <span>TTS: {ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}</span>
         </div>
-        <div className="font-mono text-void-dim/50">
-          {new Date().toLocaleTimeString('en-US', { hour12: false })}
+        <div className="footer-context-readout flex min-w-0 max-w-[min(100%,22rem)] flex-col items-end gap-0.5 text-right font-mono">
+          {contextUsageInfo ? (
+            <>
+              <span className="text-[11px] leading-tight text-void-dim tabular-nums">
+                <span className="text-void-dim/60">CTX </span>
+                <span className="text-void-text">{contextUsageInfo.usedTokens}</span>
+                <span className="text-void-dim/50">/</span>
+                <span>{contextUsageInfo.maxTokens}</span>
+                <span className="ml-1.5 text-void-dim/70">
+                  {Math.round(contextUsageInfo.ratio * 100)}%
+                </span>
+              </span>
+              <div
+                className="h-1 w-full max-w-[14rem] overflow-hidden rounded-sm bg-void-muted/70"
+                title={`Context window usage: ${contextUsageInfo.usedTokens} / ${contextUsageInfo.maxTokens} tokens`}
+              >
+                <div
+                  className={`h-full transition-[width] duration-500 ${
+                    contextUsageInfo.ratio > 0.9
+                      ? 'bg-neon-red/90'
+                      : contextUsageInfo.ratio > 0.7
+                        ? 'bg-neon-yellow/85'
+                        : 'bg-neon-cyan/75'
+                  }`}
+                  style={{
+                    width: `${Math.min(100, contextUsageInfo.ratio * 100)}%`,
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <span className="text-[11px] text-void-dim/45 tabular-nums">CTX —</span>
+          )}
         </div>
       </div>
 

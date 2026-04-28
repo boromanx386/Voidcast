@@ -19,7 +19,7 @@
 
 /* Header bar */
 .voidcast-header {
-  @apply relative flex items-center justify-between px-4 py-3;
+  @apply relative flex min-h-0 items-center justify-between gap-2 px-3 py-1.5;
   @apply bg-void-dark/80 backdrop-blur-sm border-b border-void-muted/50;
   background-image: linear-gradient(
     90deg,
@@ -580,7 +580,7 @@
   }
 
   .voidcast-header {
-    @apply px-2 py-2.5 gap-2;
+    @apply px-2 py-1.5 gap-2;
   }
 
   .voidcast-messages {
