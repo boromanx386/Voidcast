@@ -42,6 +42,8 @@ import {
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
+import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
+import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
 import { compressConversationContext } from '@/lib/contextCompress'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
@@ -812,6 +814,12 @@ export default function App() {
 
   // Load Ollama models
   const loadModels = useCallback(async () => {
+    if (settings.llmProvider !== 'ollama') {
+      setModelsError(null)
+      setOllamaModels([])
+      setModelsLoading(false)
+      return
+    }
     setModelsError(null)
     setModelsLoading(true)
     try {
@@ -823,7 +831,7 @@ export default function App() {
     } finally {
       setModelsLoading(false)
     }
-  }, [settings.ollamaBaseUrl])
+  }, [settings.llmProvider, settings.ollamaBaseUrl])
 
   useEffect(() => { void loadModels() }, [loadModels])
 
@@ -1246,9 +1254,7 @@ export default function App() {
 
     try {
       if (useTools) {
-        const out = await runOllamaChatWithTools({
-          baseUrl: settings.ollamaBaseUrl,
-          model: settings.ollamaModel,
+        const commonToolParams = {
           initialMessages: history,
           modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
           toolsEnabled: settings.toolsEnabled,
@@ -1287,9 +1293,9 @@ export default function App() {
           userImageMimes: toolImageCatalog.map((x) => x.mime),
           userImagePaths: toolImageCatalog.map((x) => x.path || ''),
           signal: ac.signal,
-          onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
-          onToolPhase: (phase) => setToolPhase(phase as typeof toolPhase),
-          onToolResult: ({ name, result }) => {
+          onDelta: (full: string) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
+          onToolPhase: (phase: unknown) => setToolPhase(phase as typeof toolPhase),
+          onToolResult: ({ name, result }: { name: string; result: string }) => {
             if (name === 'save_pdf') {
               setToolResultBanner({ kind: 'pdf', text: result })
             }
@@ -1410,18 +1416,40 @@ export default function App() {
               }
             }
           },
-        })
+        }
+        const out = settings.llmProvider === 'openrouter'
+          ? await runOpenRouterChatWithTools({
+              baseUrl: settings.openrouterBaseUrl,
+              apiKey: settings.openrouterApiKey,
+              model: settings.openrouterModel,
+              ...commonToolParams,
+            })
+          : await runOllamaChatWithTools({
+              baseUrl: settings.ollamaBaseUrl,
+              model: settings.ollamaModel,
+              ...commonToolParams,
+            })
         replyText = out.content
         usage = out.usage
       } else {
-        const out = await streamOllamaChat({
-          baseUrl: settings.ollamaBaseUrl,
-          model: settings.ollamaModel,
-          messages: history,
-          modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-          signal: ac.signal,
-          onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
-        })
+        const out = settings.llmProvider === 'openrouter'
+          ? await streamOpenRouterChat({
+              baseUrl: settings.openrouterBaseUrl,
+              apiKey: settings.openrouterApiKey,
+              model: settings.openrouterModel,
+              messages: ollamaMessagesToOpenRouter(history),
+              modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
+              signal: ac.signal,
+              onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
+            })
+          : await streamOllamaChat({
+              baseUrl: settings.ollamaBaseUrl,
+              model: settings.ollamaModel,
+              messages: history,
+              modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
+              signal: ac.signal,
+              onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
+            })
         replyText = out.content
         usage = out.usage
       }

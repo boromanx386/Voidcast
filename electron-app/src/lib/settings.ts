@@ -1,6 +1,7 @@
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai'
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
+export type LlmProvider = 'ollama' | 'openrouter'
 
 /** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper) */
 export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light'
@@ -40,8 +41,12 @@ export type ToolsEnabled = {
 }
 
 export type AppSettings = {
+  llmProvider: LlmProvider
   ollamaBaseUrl: string
   ollamaModel: string
+  openrouterBaseUrl: string
+  openrouterApiKey: string
+  openrouterModel: string
   /** Ollama options.temperature */
   llmTemperature: number
   /** Ollama options.num_ctx — context window size in tokens */
@@ -140,8 +145,12 @@ const STORAGE_KEY = 'voidcast-settings-v1'
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
 
 const defaults: AppSettings = {
+  llmProvider: 'ollama',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: 'llama3.2',
+  openrouterBaseUrl: 'https://openrouter.ai/api/v1',
+  openrouterApiKey: '',
+  openrouterModel: 'openrouter/free',
   llmTemperature: 0.8,
   llmNumCtx: 8192,
   llmMaxHistoryMessages: 0,
@@ -244,11 +253,27 @@ function normalizeTools(s: AppSettings): AppSettings {
 }
 
 function normalizeLlm(s: AppSettings): AppSettings {
+  const providerRaw = typeof s.llmProvider === 'string' ? s.llmProvider : ''
+  const llmProvider: LlmProvider = providerRaw === 'openrouter' ? 'openrouter' : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
   const hist = Number(s.llmMaxHistoryMessages)
+  const openrouterBaseUrl =
+    typeof s.openrouterBaseUrl === 'string' && s.openrouterBaseUrl.trim()
+      ? s.openrouterBaseUrl.trim()
+      : defaults.openrouterBaseUrl
+  const openrouterApiKey =
+    typeof s.openrouterApiKey === 'string' ? s.openrouterApiKey.trim() : ''
+  const openrouterModel =
+    typeof s.openrouterModel === 'string' && s.openrouterModel.trim()
+      ? s.openrouterModel.trim()
+      : defaults.openrouterModel
   return {
     ...s,
+    llmProvider,
+    openrouterBaseUrl,
+    openrouterApiKey,
+    openrouterModel,
     llmTemperature: Number.isFinite(t) ? clamp(t, 0, 2) : defaults.llmTemperature,
     llmNumCtx: Number.isFinite(ctx)
       ? clamp(Math.round(ctx), 512, 262144)

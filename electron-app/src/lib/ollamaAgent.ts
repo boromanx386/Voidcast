@@ -387,7 +387,7 @@ function resolveImageRecallRequest(
   }
 }
 
-async function executeToolCall(
+export async function executeToolCall(
   name: string,
   argsJson: string | Record<string, unknown> | undefined,
   toolsEnabled: ToolsEnabled,

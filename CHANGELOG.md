@@ -4,12 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.5] - 2026-04-28
+
+### Added
+
+- OpenRouter provider support for chat streaming and tool-calling flows (parallel to existing Ollama path).
+- OpenRouter settings in LLM options: provider switch, base URL, model selection, and preset model profiles with manual override.
+- OpenRouter API key field in General options (local-device storage wording + direct key link).
+- Automatic retry/backoff handling for OpenRouter `429` and `503` responses, plus fallback to `openrouter/free` after repeated upstream failures.
+
+### Fixed
+
+- Desktop CSP `connect-src` now allows external HTTPS/WSS endpoints, preventing immediate `Failed to fetch` errors for OpenRouter calls.
+- OpenRouter renderer request headers trimmed to avoid blocked/forbidden header issues in desktop runtime.
+
 ### Changed
 
 - Increased file attachment snapshot truncation limit from `200KB` to `400KB` for chat attachment ingestion, desktop extraction, and persisted session storage.
 - Updated General options copy to clarify desktop-local Runware API key storage wording.
 - Added direct link in General options to [Runware](https://runware.ai/) for API key setup.
 - Tool-round streaming now preserves assistant text in the same chat bubble instead of clearing content between rounds, so post-tool output appends rather than replacing prior analysis.
+- Version bump to `2.3.5`.
 
 ## [2.3.4] - 2026-04-28
 

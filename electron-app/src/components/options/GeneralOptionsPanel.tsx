@@ -128,6 +128,33 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
         </a>
       </div>
 
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-cyan mr-2">⚿</span> OPENROUTER_API_KEY
+        </label>
+        <input
+          type="password"
+          className="cyber-input"
+          value={settings.openrouterApiKey}
+          onChange={(e) =>
+            setSettings((s) => ({ ...s, openrouterApiKey: e.target.value }))
+          }
+          placeholder="sk-or-v1-..."
+          autoComplete="off"
+        />
+        <p className="text-xs text-neon-cyan/80 mt-1">
+          Stored locally on this device (desktop app storage).
+        </p>
+        <a
+          href="https://openrouter.ai/keys"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
+        >
+          Get OpenRouter API key
+        </a>
+      </div>
+
       {isElectron() && (
         <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
           <label className="flex items-start gap-3">

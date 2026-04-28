@@ -11,6 +11,21 @@ type Props = {
   modelsError: string | null
 }
 
+const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
+  { id: 'openrouter/free', label: 'Auto Free Router (openrouter/free)' },
+  { id: 'qwen/qwen3-coder', label: 'Qwen3 Coder' },
+  { id: 'qwen/qwen3-coder-next', label: 'Qwen3 Coder Next' },
+  { id: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder (Free)' },
+  { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+  { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+  { id: 'google/gemma-4-31b-it', label: 'Google Gemma 4 31B IT' },
+  { id: 'google/gemma-4-31b-it:free', label: 'Google Gemma 4 31B IT (Free)' },
+  { id: 'z-ai/glm-4.7-flash', label: 'Z.AI GLM 4.7 Flash' },
+  { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7' },
+  { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
+  { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'NVIDIA Nemotron 3 Super 120B A12B (Free)' },
+]
+
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
 }
@@ -28,6 +43,26 @@ export function LlmOptionsPanel({
       {/* Ollama URL */}
       <div className="form-group">
         <label className="form-label">
+          <span className="text-neon-cyan mr-2">◎</span> LLM_PROVIDER
+        </label>
+        <select
+          className="form-select"
+          value={settings.llmProvider}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              llmProvider: e.target.value === 'openrouter' ? 'openrouter' : 'ollama',
+            }))
+          }
+        >
+          <option value="ollama">Ollama (local)</option>
+          <option value="openrouter">OpenRouter (cloud)</option>
+        </select>
+      </div>
+
+      {/* Ollama URL */}
+      {settings.llmProvider === 'ollama' && <div className="form-group">
+        <label className="form-label">
           <span className="text-neon-purple mr-2">◇</span> OLLAMA_BASE_URL
         </label>
         <input
@@ -44,10 +79,10 @@ export function LlmOptionsPanel({
             desktop&apos;s Ollama. Same LAN as the phone browser.
           </p>
         )}
-      </div>
+      </div>}
 
       {/* Model Selection */}
-      <div className="form-group">
+      {settings.llmProvider === 'ollama' && <div className="form-group">
         <div className="flex items-center justify-between mb-2">
           <label
             className="form-label mb-0 cursor-help"
@@ -134,7 +169,65 @@ export function LlmOptionsPanel({
             setSettings((s) => ({ ...s, ollamaModel: e.target.value }))
           }
         />
-      </div>
+      </div>}
+
+      {settings.llmProvider === 'openrouter' && (
+        <>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-purple mr-2">◇</span> OPENROUTER_BASE_URL
+            </label>
+            <input
+              className="cyber-input"
+              value={settings.openrouterBaseUrl}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, openrouterBaseUrl: e.target.value }))
+              }
+              placeholder="https://openrouter.ai/api/v1"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> OPENROUTER_MODEL
+            </label>
+            <select
+              className="form-select mb-3"
+              value={
+                OPENROUTER_PRESET_MODELS.some((m) => m.id === settings.openrouterModel)
+                  ? settings.openrouterModel
+                  : settings.openrouterModel
+                    ? `__custom__${settings.openrouterModel}`
+                    : ''
+              }
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v || v.startsWith('__custom__')) return
+                setSettings((s) => ({ ...s, openrouterModel: v }))
+              }}
+            >
+              {OPENROUTER_PRESET_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              {settings.openrouterModel &&
+                !OPENROUTER_PRESET_MODELS.some((m) => m.id === settings.openrouterModel) && (
+                  <option value={`__custom__${settings.openrouterModel}`}>
+                    {settings.openrouterModel} (manual)
+                  </option>
+                )}
+            </select>
+            <input
+              className="cyber-input"
+              value={settings.openrouterModel}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, openrouterModel: e.target.value }))
+              }
+              placeholder="openrouter/free"
+            />
+          </div>
+        </>
+      )}
 
       {/* Temperature */}
       <div className="form-group">
@@ -255,9 +348,9 @@ export function LlmOptionsPanel({
       {/* Model Info Panel */}
       <div className="bg-void-black/50 border border-neon-cyan/20 p-4">
         <p className="text-xs font-mono text-neon-cyan mb-3 uppercase tracking-wider">
-          <span className="mr-2">◈</span>RECOMMENDED_MODELS
+          <span className="mr-2">◈</span>{settings.llmProvider === 'openrouter' ? 'OPENROUTER_NOTES' : 'RECOMMENDED_MODELS'}
         </p>
-        <ul className="text-xs font-mono text-void-dim space-y-1">
+        {settings.llmProvider === 'ollama' && <ul className="text-xs font-mono text-void-dim space-y-1">
           <li className="flex items-center gap-2">
             <span className="text-neon-green">✓</span>
             Qwen 3.5 (e.g. <code className="text-void-light/90">qwen3</code> family — add{' '}
@@ -275,7 +368,23 @@ export function LlmOptionsPanel({
             <span className="text-neon-red">✗</span>
             Old or tiny models without tool / multimodal support
           </li>
-        </ul>
+        </ul>}
+        {settings.llmProvider === 'openrouter' && (
+          <ul className="text-xs font-mono text-void-dim space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Use full model IDs, e.g. <code className="text-void-light/90">openai/gpt-4o-mini</code>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Keep API key local on this device (stored in browser localStorage)
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              Tool-calling support depends on selected upstream model/provider.
+            </li>
+          </ul>
+        )}
       </div>
     </div>
   )

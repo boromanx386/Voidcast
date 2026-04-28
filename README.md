@@ -7,7 +7,7 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 ## Features
 
 - Desktop chat UI focused on practical AI workflows (Electron + React).
-- Ollama-based chat orchestration with configurable model and prompt settings.
+- Ollama/OpenRouter-based chat orchestration with configurable model and prompt settings.
 - Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF).
 - Built-in context summarization/compression for long conversations.
 - Runware media support:
