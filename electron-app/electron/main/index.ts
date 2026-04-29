@@ -16,6 +16,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
@@ -59,6 +60,8 @@ let win: BrowserWindow | null = null
 let tray: Tray | null = null
 /** True when user chose Quit (vs close-to-tray). */
 let isQuitting = false
+let toolsServerProcess: ChildProcessWithoutNullStreams | null = null
+let toolsServerStarting = false
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 const appIconPath = app.isPackaged
@@ -99,6 +102,130 @@ function createZoomedWindowIcon(iconPath: string): NativeImage | null {
   return src
     .crop({ x, y, width: cropWidth, height: cropHeight })
     .resize({ width: 256, height: 256 })
+}
+
+function getToolsServerDir(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'tts-server')
+    : path.join(process.env.APP_ROOT, '..', 'tts-server')
+}
+
+function getBundledToolsExePath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'tools', 'voidcast-tools-server.exe')
+    : path.join(process.env.APP_ROOT, '..', 'tts-server', 'dist', 'voidcast-tools-server.exe')
+}
+
+async function isToolsServerHealthy(baseUrl = 'http://127.0.0.1:8765'): Promise<boolean> {
+  try {
+    const res = await fetch(`${baseUrl}/health`)
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+function startToolsServerWithCommand(
+  command: string,
+  args: string[],
+  cwd: string,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd,
+      env: {
+        ...process.env,
+        OMNIVOICE_ENABLE_TTS: '0',
+      },
+      windowsHide: true,
+    })
+    toolsServerProcess = child
+    let settled = false
+    let stderrText = ''
+
+    child.stdout.on('data', (chunk) => {
+      const text = String(chunk)
+      if (text.trim()) console.log(`[tools-server] ${text.trim()}`)
+    })
+    child.stderr.on('data', (chunk) => {
+      const text = String(chunk)
+      stderrText += text
+      if (text.trim()) console.warn(`[tools-server] ${text.trim()}`)
+    })
+
+    const settle = (ok: boolean) => {
+      if (settled) return
+      settled = true
+      resolve(ok)
+    }
+
+    child.once('error', () => {
+      if (toolsServerProcess === child) toolsServerProcess = null
+      settle(false)
+    })
+
+    child.once('exit', () => {
+      if (toolsServerProcess === child) toolsServerProcess = null
+      if (!settled && /No module named|ModuleNotFoundError/i.test(stderrText)) {
+        settle(false)
+        return
+      }
+      settle(false)
+    })
+
+    // If process stays alive a bit, treat startup as successful candidate.
+    setTimeout(() => {
+      settle(!child.killed && child.exitCode === null)
+    }, 1200)
+  })
+}
+
+async function ensureToolsServerRunning(): Promise<void> {
+  if (toolsServerStarting) return
+  toolsServerStarting = true
+  try {
+    if (await isToolsServerHealthy()) return
+    const cwd = getToolsServerDir()
+    const bundledExe = getBundledToolsExePath()
+    const args = [
+      '-m',
+      'uvicorn',
+      'tools_main:app',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      '8765',
+      '--app-dir',
+      cwd,
+    ]
+    const candidates: Array<{ command: string; args: string[] }> = []
+    candidates.push({ command: bundledExe, args: [] })
+    if (!app.isPackaged) {
+      const devPython = path.join(process.env.APP_ROOT, '..', '.venv', 'Scripts', 'python.exe')
+      candidates.push({ command: devPython, args })
+    }
+    candidates.push({ command: 'py', args: ['-3', ...args] })
+    candidates.push({ command: 'python', args })
+
+    for (const candidate of candidates) {
+      const ok = await startToolsServerWithCommand(candidate.command, candidate.args, cwd)
+      if (!ok) continue
+      for (let i = 0; i < 12; i++) {
+        if (await isToolsServerHealthy()) {
+          console.log('[tools-server] Ready on http://127.0.0.1:8765')
+          return
+        }
+        await new Promise((r) => setTimeout(r, 500))
+      }
+      toolsServerProcess?.kill()
+      toolsServerProcess = null
+    }
+    console.warn(
+      '[tools-server] Auto-start failed. Build may be missing bundled tools executable.',
+    )
+  } finally {
+    toolsServerStarting = false
+  }
 }
 
 // Create tray icon
@@ -296,10 +423,15 @@ async function createWindow() {
 }
 
 app.on('will-quit', () => {
+  if (toolsServerProcess && !toolsServerProcess.killed) {
+    toolsServerProcess.kill()
+    toolsServerProcess = null
+  }
   globalShortcut.unregisterAll()
 })
 
 app.whenReady().then(() => {
+  void ensureToolsServerRunning()
   createWindow()
   createTray()
 })

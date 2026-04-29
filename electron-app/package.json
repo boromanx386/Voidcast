@@ -14,10 +14,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder --win",
-    "build:publish": "tsc && vite build && electron-builder --win --publish always",
+    "build": "npm --prefix .. run build:tools-exe && tsc && vite build && electron-builder --win",
+    "build:publish": "npm --prefix .. run build:tools-exe && tsc && vite build && electron-builder --win --publish always",
     "build:web": "tsc && vite build --config vite.config.web.ts",
-    "build:dir": "tsc && vite build && electron-builder --win --dir",
+    "build:dir": "npm --prefix .. run build:tools-exe && tsc && vite build && electron-builder --win --dir",
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run"

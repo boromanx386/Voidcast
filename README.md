@@ -123,6 +123,7 @@ Main installer includes:
 
 - Electron app
 - Python tools server resources
+- Bundled tools-only backend executable (`voidcast-tools-server.exe`) so web search / scrape / YouTube tools work without a separate Python install.
 
 Main installer does **not** include:
 

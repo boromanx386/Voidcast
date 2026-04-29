@@ -27,6 +27,10 @@
         "requirements.txt",
         "web-ui/**"
       ]
+    },
+    {
+      "from": "../tts-server/dist/voidcast-tools-server.exe",
+      "to": "tools/voidcast-tools-server.exe"
     }
   ],
   "win": {

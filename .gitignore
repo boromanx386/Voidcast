@@ -13,6 +13,9 @@ electron-app/dist/
 electron-app/dist-electron/
 electron-app/release/
 tts-server/web-ui/
+tts-server/build/
+tts-server/dist/
+tts-server/*.spec
 
 # IDE / local
 .cursor/
