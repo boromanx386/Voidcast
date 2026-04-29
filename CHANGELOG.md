@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 - Long-memory enablement now uses a single global setting (`longMemoryDefaultEnabled`) as source of truth across all chats.
 - Chat header save label updated from `SAVE` to `SAVE_CHAT` for clarity.
+- Strengthened Runware image/music tool descriptions with explicit mandatory-call wording so the assistant is less likely to claim generation without actually invoking `generate_image` / `generate_music_runware`.
 
 ## [2.3.6] - 2026-04-29
 

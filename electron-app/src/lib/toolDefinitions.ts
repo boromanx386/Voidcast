@@ -164,7 +164,7 @@ const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'generate_image',
     description:
-      'Generate an image with Runware from a text prompt. If the user asks to create/make/draw/generate a new image, you MUST call this tool instead of replying with a pretend result. Never claim an image was generated unless this tool returned a real result with image_url; if generation fails, report the tool error.',
+      'MANDATORY: Generate an image with Runware from a text prompt. CRITICAL: When the user asks to create/make/draw/generate a new image, you MUST call this tool BEFORE responding with any text. Do NOT describe what you would create - actually call the tool. Do NOT say "Here is the image" without calling this tool first. Never claim an image was generated unless this tool returned a real result with image_url; if generation fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {
@@ -274,7 +274,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'generate_music_runware',
     description:
-      'Generate music/audio with Runware ACE-Step v1.5 Turbo from a text prompt. Use when the user asks to create a song, beat, background music, jingle, soundtrack, or vocals.',
+      'MANDATORY: Generate music/audio with Runware ACE-Step v1.5 Turbo from a text prompt. CRITICAL: When the user asks to create/make/generate a song, beat, background music, jingle, soundtrack, or vocals, you MUST call this tool BEFORE responding with any text. Do NOT describe what music you would create - actually call the tool. Do NOT say "Here is the music" or "I created the song" without calling this tool first. Never claim music was generated unless this tool returned a real result with audio_url; if generation fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {
