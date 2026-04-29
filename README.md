@@ -10,6 +10,10 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 - Ollama/OpenRouter-based chat orchestration with configurable model and prompt settings.
 - Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF).
 - Built-in context summarization/compression for long conversations.
+- Long-memory personalization controls:
+  - `SAVE_MEM` in chat header to extract durable memory from current chat
+  - global long-memory toggle in `General` options
+  - memory manager (view/delete saved memory items)
 - Runware media support:
   - image generation/editing
   - music generation
@@ -68,14 +72,27 @@ this becomes a serious tool for:
 - visual drafts with embedded text
 - iterative image refinement based on prior chat artifacts
 
+## Long memory (current behavior)
+
+Long memory is now available as a controlled workflow:
+
+- `SAVE_MEM` (chat header) runs memory extraction for the current conversation.
+- A preview dialog appears before save so entries can be reviewed/removed.
+- Saved memory is stored locally in IndexedDB (not as raw full transcripts).
+- `General` options contains:
+  - global toggle for long-memory usage across chats
+  - basic memory manager list with delete actions
+- At generation time, when global long memory is enabled, relevant memories are
+  retrieved and injected into model context with a strict size cap.
+
 ## Roadmap (planned)
 
 Planned product direction for upcoming releases:
 
 - Add more practical built-in tools for everyday assistant workflows
   (research, docs handling, productivity helpers, automation actions).
-- Introduce global context/memory across sessions, with clear controls for
-  what is remembered and what stays session-local.
+- Expand long-memory controls with richer curation (search/edit/tagging and
+  better conflict resolution across memories).
 - Expand support for additional Runware models (image/music/voice) with richer
   per-model presets and safer default profiles.
 - Add optional integrations with other API providers beyond the current stack,

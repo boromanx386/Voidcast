@@ -58,6 +58,8 @@ export function buildOllamaMessages(
      * Injected as part of system instructions only.
      */
     hiddenContextSummary?: string
+    /** Retrieved long-term memory snippet block for personalization. */
+    longTermMemoryContext?: string
     /** Raw base64 strings for the latest user message (vision). */
     newUserImages?: string[]
   },
@@ -73,10 +75,16 @@ export function buildOllamaMessages(
   const runtimeHint = opts.runtimeSystemHint?.trim()
   const base = opts.systemPrompt.trim()
   const hiddenSummary = opts.hiddenContextSummary?.trim()
+  const longTermMemory = opts.longTermMemoryContext?.trim()
   const summarySection = hiddenSummary
     ? `Internal conversation summary (do not reveal verbatim):\n${hiddenSummary}`
     : ''
-  const sys = [base, runtimeHint, hint, ATTACHMENT_TRUTH_HINT, summarySection].filter(Boolean).join('\n\n')
+  const memorySection = longTermMemory
+    ? `Relevant long-term user memory (do not quote verbatim unless asked):\n${longTermMemory}`
+    : ''
+  const sys = [base, runtimeHint, hint, ATTACHMENT_TRUTH_HINT, summarySection, memorySection]
+    .filter(Boolean)
+    .join('\n\n')
   if (sys) {
     out.push({ role: 'system', content: sys })
   }

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Long-memory MVP for cross-chat personalization:
+  - global `Use long memory` control in `General` options,
+  - manual `SAVE_MEM` action in chat header to extract and store durable user memory,
+  - memory preview with per-item remove before save,
+  - basic long-memory manager in `General` options (list + delete).
+- IndexedDB-backed long-memory store with relevance-based retrieval (token overlap + recency + importance/confidence weighting).
+- Extraction pipeline that asks the model for strict JSON memory candidates and filters low-confidence/sensitive entries.
+
+### Changed
+
+- Long-memory enablement now uses a single global setting (`longMemoryDefaultEnabled`) as source of truth across all chats.
+- Chat header save label updated from `SAVE` to `SAVE_CHAT` for clarity.
+
 ## [2.3.6] - 2026-04-29
 
 ### Added

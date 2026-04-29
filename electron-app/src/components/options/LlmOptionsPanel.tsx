@@ -326,6 +326,24 @@ export function LlmOptionsPanel({
         </p>
       </div>
 
+      <div className="form-group">
+        <label className="form-label flex items-center justify-between gap-3">
+          <span>
+            <span className="text-neon-cyan mr-2">◎</span> NEW_CHATS_USE_LONG_MEMORY
+          </span>
+          <input
+            type="checkbox"
+            checked={settings.longMemoryDefaultEnabled}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, longMemoryDefaultEnabled: e.target.checked }))
+            }
+          />
+        </label>
+        <p className="text-xs text-void-dim mt-1">
+          New chats inherit this as their default for long-term memory retrieval.
+        </p>
+      </div>
+
       {/* System Prompt */}
       <div className="form-group">
         <label className="form-label">

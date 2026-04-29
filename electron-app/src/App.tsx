@@ -46,6 +46,15 @@ import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
 import { compressConversationContext } from '@/lib/contextCompress'
+import { extractLongMemoryCandidates } from '@/lib/longMemoryExtract'
+import {
+  deleteMemory,
+  dedupeMemories,
+  listMemories,
+  searchMemories,
+  touchMemoryUsage,
+  upsertMemories,
+} from '@/lib/longMemoryStorage'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
@@ -77,6 +86,7 @@ import {
   upsertSession,
 } from '@/lib/chatSessionsStorage'
 import type { ChatSession, FileAttachmentSnapshot, UiMessage } from '@/types/chat'
+import type { LongMemoryCandidate, LongMemoryItem } from '@/types/longMemory'
 
 type Screen = 'chat' | 'options'
 type OptionsTab = 'general' | 'llm' | 'runware' | 'runwareMusic' | 'tts' | 'tools'
@@ -188,6 +198,19 @@ function shouldUseVisionForText(text: string): boolean {
 
 function dedupeNonEmpty(values: string[]): string[] {
   return Array.from(new Set(values.map((x) => x.trim()).filter(Boolean)))
+}
+
+function toConversationTurns(messages: UiMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+  return messages
+    .map((m) => {
+      let c = m.content
+      if (m.role === 'user' && !c.trim() && m.images?.length) c = '[user attached image]'
+      if (m.role === 'user' && !c.trim() && m.fileAttachments?.length) c = '[user attached file]'
+      return { role: m.role, content: c }
+    })
+    .filter((t): t is { role: 'user' | 'assistant'; content: string } =>
+      (t.role === 'user' || t.role === 'assistant') && t.content.trim().length > 0,
+    )
 }
 
 function buildQueuedImagePathHint(queued: PendingChatImage[]): string {
@@ -566,6 +589,10 @@ export default function App() {
   const [contextUsageInfo, setContextUsageInfo] = useState<ContextUsageInfo | null>(null)
   const [contextWarnDismissed, setContextWarnDismissed] = useState(false)
   const [contextCompressBusy, setContextCompressBusy] = useState(false)
+  const [longMemoryBusy, setLongMemoryBusy] = useState(false)
+  const [memoryCandidates, setMemoryCandidates] = useState<LongMemoryCandidate[]>([])
+  const [memoryPreviewOpen, setMemoryPreviewOpen] = useState(false)
+  const [longMemories, setLongMemories] = useState<LongMemoryItem[]>([])
   const [sessionDirty, setSessionDirty] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState({ today: false, older: false })
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
@@ -874,6 +901,7 @@ export default function App() {
     () => (!!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0) && !busy,
     [input, pendingImages.length, pendingFiles.length, busy],
   )
+  const activeSessionUseLongMemory = settings.longMemoryDefaultEnabled
   const canStop = busy
   const canSaveSession = messages.length > 0 && !busy && !activeSessionId
   const todaySessions = useMemo(() => sessions.filter((s) => isToday(s.updatedAt)), [sessions])
@@ -999,6 +1027,10 @@ export default function App() {
     setPendingImages([])
   }
 
+  const setUseLongMemoryForActiveChat = (enabled: boolean) => {
+    setSettings((prev) => ({ ...prev, longMemoryDefaultEnabled: enabled }))
+  }
+
   const saveOrUpdateSession = () => {
     if (messages.length === 0) return
     const now = Date.now()
@@ -1089,20 +1121,7 @@ export default function App() {
   // Context summarization
   const summarizeContextNow = useCallback(async () => {
     if (busy || contextCompressBusy) return
-    const turns = messages
-      .map((m) => {
-        let c = m.content
-        if (m.role === 'user' && !c.trim() && m.images?.length) {
-          c = '[user attached image]'
-        }
-        if (m.role === 'user' && !c.trim() && m.fileAttachments?.length) {
-          c = '[user attached file]'
-        }
-        return { role: m.role, content: c }
-      })
-      .filter((t): t is { role: 'user' | 'assistant'; content: string } =>
-        (t.role === 'user' || t.role === 'assistant') && t.content.trim().length > 0,
-      )
+    const turns = toConversationTurns(messages)
     if (turns.length === 0) return
 
     setContextCompressBusy(true)
@@ -1134,6 +1153,75 @@ export default function App() {
       setContextCompressBusy(false)
     }
   }, [activeSessionId, busy, contextCompressBusy, hiddenContextSummary, messages, settings])
+
+  const extractLongMemoryNow = useCallback(async () => {
+    if (busy || longMemoryBusy) return
+    const turns = toConversationTurns(messages)
+    if (turns.length === 0) return
+    setLongMemoryBusy(true)
+    setError(null)
+    try {
+      const candidates = await extractLongMemoryCandidates({
+        provider: settings.llmProvider,
+        ollamaBaseUrl: settings.ollamaBaseUrl,
+        ollamaModel: settings.ollamaModel,
+        openrouterBaseUrl: settings.openrouterBaseUrl,
+        openrouterApiKey: settings.openrouterApiKey,
+        openrouterModel: settings.openrouterModel,
+        modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
+        turns,
+      })
+      if (candidates.length === 0) {
+        setError('No stable long-memory items found in this chat.')
+        return
+      }
+      setMemoryCandidates(candidates)
+      setMemoryPreviewOpen(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLongMemoryBusy(false)
+    }
+  }, [busy, longMemoryBusy, messages, settings])
+
+  const confirmSaveLongMemory = useCallback(async () => {
+    if (!memoryCandidates.length) {
+      setMemoryPreviewOpen(false)
+      return
+    }
+    setLongMemoryBusy(true)
+    setError(null)
+    try {
+      await upsertMemories(memoryCandidates, activeSessionId ?? 'draft')
+      await dedupeMemories()
+      setLongMemories(await listMemories(100))
+      setMemoryPreviewOpen(false)
+      setMemoryCandidates([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLongMemoryBusy(false)
+    }
+  }, [activeSessionId, memoryCandidates])
+
+  const refreshLongMemories = useCallback(async () => {
+    try {
+      setLongMemories(await listMemories(100))
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const deleteLongMemoryById = useCallback(async (id: string) => {
+    await deleteMemory(id)
+    await refreshLongMemories()
+  }, [refreshLongMemories])
+
+  useEffect(() => {
+    if (screen === 'options' && optionsTab === 'general') {
+      void refreshLongMemories()
+    }
+  }, [optionsTab, refreshLongMemories, screen])
 
   // === Send Message ===
   const onSend = async () => {
@@ -1225,6 +1313,19 @@ export default function App() {
     if (settings.toolsEnabled.runwareImage) toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
     if (settings.toolsEnabled.runwareMusic) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
     if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
+    const retrievedLongMemory = activeSessionUseLongMemory
+      ? await searchMemories({
+          query: [text, hiddenContextSummary].filter(Boolean).join('\n'),
+          limit: 8,
+          minConfidence: 0.35,
+        })
+      : []
+    const longMemoryContext = retrievedLongMemory.length > 0
+      ? retrievedLongMemory
+          .map((m, idx) => `- ${idx + 1}. [${m.kind}] ${m.text}`)
+          .join('\n')
+          .slice(0, 1200)
+      : undefined
     const history = buildOllamaMessages(
       priorHistory,
       ollamaUserText,
@@ -1233,6 +1334,7 @@ export default function App() {
         maxHistoryMessages: settings.llmMaxHistoryMessages,
         runtimeSystemHint: runtimeTimeHint,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
+        longTermMemoryContext: longMemoryContext,
         toolsSystemHint: useTools && toolsHintParts.length > 0 ? toolsHintParts.join('\n\n') : undefined,
         newUserImages: visionImagesForCurrentMessage.length > 0
           ? visionImagesForCurrentMessage
@@ -1460,6 +1562,9 @@ export default function App() {
       if (usageInfo?.shouldWarn) setContextWarnDismissed(false)
       // Audio is rendered in a dedicated chat bubble from tool results,
       // so we don't append raw audio_url lines into assistant markdown content.
+      if (retrievedLongMemory.length > 0) {
+        void touchMemoryUsage(retrievedLongMemory.map((m) => m.id))
+      }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       const msg = e instanceof Error ? e.message : String(e)
@@ -1872,7 +1977,14 @@ export default function App() {
             <div className="corner-br" />
             
             {optionsTab === 'general' ? (
-              <GeneralOptionsPanel settings={settings} setSettings={setSettings} />
+              <GeneralOptionsPanel
+                settings={settings}
+                setSettings={setSettings}
+                useLongMemoryInActiveChat={activeSessionUseLongMemory}
+                onToggleUseLongMemoryInActiveChat={setUseLongMemoryForActiveChat}
+                longMemories={longMemories}
+                onDeleteLongMemory={deleteLongMemoryById}
+              />
             ) : optionsTab === 'llm' ? (
               <LlmOptionsPanel
                 settings={settings}
@@ -1941,6 +2053,15 @@ export default function App() {
 
         {/* Status & Actions */}
         <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
+          <button
+            type="button"
+            disabled={busy || longMemoryBusy || messages.length === 0}
+            onClick={() => void extractLongMemoryNow()}
+            className="cyber-btn shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs disabled:opacity-50"
+            title="Summarize this chat and save relevant long-term memory"
+          >
+            {longMemoryBusy ? 'MEMORY...' : 'SAVE_MEM'}
+          </button>
 
           {/* Save Button */}
           {canSaveSession && (
@@ -1949,7 +2070,7 @@ export default function App() {
               onClick={saveOrUpdateSession}
               className="cyber-btn shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs"
             >
-              SAVE
+              SAVE_CHAT
             </button>
           )}
 
@@ -2541,6 +2662,63 @@ export default function App() {
               className={`context-fill ${contextUsageInfo.ratio > 0.9 ? 'danger' : contextUsageInfo.ratio > 0.7 ? 'warning' : ''}`}
               style={{ width: `${Math.min(100, contextUsageInfo.ratio * 100)}%` }}
             />
+          </div>
+        </div>
+      )}
+
+      {memoryPreviewOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-void-black/80 p-4">
+          <div className="w-full max-w-2xl rounded border border-neon-cyan/30 bg-void-dark p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-mono text-neon-cyan">LONG_MEMORY_PREVIEW</div>
+              <button
+                type="button"
+                onClick={() => setMemoryPreviewOpen(false)}
+                className="px-2 py-1 text-xs font-mono text-void-dim hover:text-void-light"
+              >
+                CLOSE
+              </button>
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto space-y-2">
+              {memoryCandidates.map((m, idx) => (
+                <div key={`${m.kind}-${idx}`} className="rounded border border-void-muted/30 bg-void-black/30 p-2">
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-neon-green/80">
+                    <span>{m.kind.toUpperCase()} · conf {(m.confidence ?? 0).toFixed(2)} · imp {(m.importance ?? 0).toFixed(2)}</span>
+                    <button
+                      type="button"
+                      className="px-2 py-0.5 text-[10px] text-neon-red/80 hover:text-neon-red"
+                      onClick={() => setMemoryCandidates((prev) => prev.filter((_, i) => i !== idx))}
+                    >
+                      REMOVE
+                    </button>
+                  </div>
+                  <div className="mt-1 text-xs text-void-light">{m.text}</div>
+                  {!!m.tags?.length && (
+                    <div className="mt-1 text-[10px] text-void-dim">{m.tags.join(', ')}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMemoryPreviewOpen(false)
+                  setMemoryCandidates([])
+                }}
+                className="px-3 py-1 text-xs font-mono text-void-dim hover:text-void-light"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmSaveLongMemory()}
+                className="cyber-btn text-xs"
+                disabled={longMemoryBusy || memoryCandidates.length === 0}
+              >
+                CONFIRM_SAVE
+              </button>
+            </div>
           </div>
         </div>
       )}

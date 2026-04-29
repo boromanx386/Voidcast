@@ -6,13 +6,25 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
+import type { LongMemoryItem } from '@/types/longMemory'
 
 type Props = {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
+  useLongMemoryInActiveChat: boolean
+  onToggleUseLongMemoryInActiveChat: (enabled: boolean) => void
+  longMemories: LongMemoryItem[]
+  onDeleteLongMemory: (id: string) => void
 }
 
-export function GeneralOptionsPanel({ settings, setSettings }: Props) {
+export function GeneralOptionsPanel({
+  settings,
+  setSettings,
+  useLongMemoryInActiveChat,
+  onToggleUseLongMemoryInActiveChat,
+  longMemories,
+  onDeleteLongMemory,
+}: Props) {
   const [updateChecking, setUpdateChecking] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
 
@@ -202,6 +214,49 @@ export function GeneralOptionsPanel({ settings, setSettings }: Props) {
           Global shortcut: <code className="text-neon-cyan">Ctrl+Alt+Shift+V</code>. Reads current
           clipboard text with TTS while Voidcast is running.
         </p>
+      </div>
+
+      <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded space-y-3">
+        <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
+          <span className="mr-2">◉</span>LONG_MEMORY
+        </p>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-neon-cyan"
+            checked={useLongMemoryInActiveChat}
+            onChange={(e) => onToggleUseLongMemoryInActiveChat(e.target.checked)}
+          />
+          <span>
+            <span className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
+              USE_LONG_MEMORY_GLOBALLY
+            </span>
+            <span className="mt-1 block text-xs text-void-dim">
+              Apply long-memory retrieval to all chats, including newly created chats.
+            </span>
+          </span>
+        </label>
+        <div className="space-y-2 max-h-56 overflow-y-auto">
+          {longMemories.length === 0 ? (
+            <p className="text-xs text-void-dim">No saved long memory items yet.</p>
+          ) : (
+            longMemories.map((m) => (
+              <div key={m.id} className="rounded border border-void-muted/30 bg-void-black/30 px-2 py-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-mono text-neon-green/80 uppercase">{m.kind}</div>
+                  <button
+                    type="button"
+                    className="text-[10px] font-mono text-neon-red/80 hover:text-neon-red"
+                    onClick={() => void onDeleteLongMemory(m.id)}
+                  >
+                    DELETE
+                  </button>
+                </div>
+                <div className="text-xs text-void-light">{m.text}</div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
     </div>

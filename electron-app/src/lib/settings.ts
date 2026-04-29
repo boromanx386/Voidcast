@@ -60,6 +60,8 @@ export type AppSettings = {
    * System prompt is always sent separately.
    */
   llmMaxHistoryMessages: number
+  /** Default for new chats: whether to include long-term memory retrieval. */
+  longMemoryDefaultEnabled: boolean
   /** System message prepended to each request */
   llmSystemPrompt: string
   ttsBaseUrl: string
@@ -160,6 +162,7 @@ const defaults: AppSettings = {
   llmTemperature: 0.8,
   llmNumCtx: 8192,
   llmMaxHistoryMessages: 0,
+  longMemoryDefaultEnabled: false,
   llmSystemPrompt: '',
   ttsBaseUrl: 'http://127.0.0.1:8765',
   ttsProvider: 'local',
@@ -287,6 +290,10 @@ function normalizeLlm(s: AppSettings): AppSettings {
     llmMaxHistoryMessages: Number.isFinite(hist)
       ? clamp(Math.round(hist), 0, 500)
       : defaults.llmMaxHistoryMessages,
+    longMemoryDefaultEnabled:
+      typeof s.longMemoryDefaultEnabled === 'boolean'
+        ? s.longMemoryDefaultEnabled
+        : defaults.longMemoryDefaultEnabled,
     llmSystemPrompt:
       typeof s.llmSystemPrompt === 'string' ? s.llmSystemPrompt : '',
   }
