@@ -599,6 +599,7 @@ function formatRunwareToolResult(payload: {
 function formatRunwareMusicToolResult(payload: {
   audioUrl: string
   model: string
+  prompt?: string
   outputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
   durationSec: number
   steps: number
@@ -622,6 +623,10 @@ function formatRunwareMusicToolResult(payload: {
     `guidance_type: ${payload.guidanceType}`,
     `vocal_language: ${payload.vocalLanguage}`,
   ]
+  if (payload.prompt?.trim()) {
+    const compactPrompt = payload.prompt.replace(/\s+/g, ' ').trim()
+    lines.push(`prompt: ${compactPrompt}`)
+  }
   if (typeof payload.seed === 'number') lines.push(`seed: ${payload.seed}`)
   if (payload.taskUUID) lines.push(`task_uuid: ${payload.taskUUID}`)
   if (payload.audioUUID) lines.push(`audio_uuid: ${payload.audioUUID}`)
@@ -1030,6 +1035,7 @@ export async function invokeRunwareGenerateMusic(
   return formatRunwareMusicToolResult({
     audioUrl,
     model,
+    prompt,
     outputFormat,
     durationSec,
     steps,

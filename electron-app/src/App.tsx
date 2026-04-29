@@ -465,6 +465,7 @@ function parseRunwareImageToolMeta(text: string): RunwareImageToolMeta | null {
 
 type RunwareAudioToolMeta = {
   model?: string
+  prompt?: string
   outputFormat?: string
   durationSec?: number
   steps?: number
@@ -488,6 +489,7 @@ function parseRunwareAudioToolMeta(text: string): RunwareAudioToolMeta | null {
     const value = line.slice(idx + 1).trim()
     if (!value) continue
     if (key === 'model') out.model = value
+    else if (key === 'prompt') out.prompt = value
     else if (key === 'output_format') out.outputFormat = value
     else if (key === 'duration_sec') {
       const n = Number(value)
@@ -2465,6 +2467,7 @@ export default function App() {
                                         if (!meta) return ''
                                         const lines: string[] = []
                                         if (meta.model) lines.push(`model: ${meta.model}`)
+                                        if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
                                         if (meta.outputFormat) lines.push(`output_format: ${meta.outputFormat}`)
                                         if (typeof meta.durationSec === 'number') lines.push(`duration_sec: ${meta.durationSec}`)
                                         if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
