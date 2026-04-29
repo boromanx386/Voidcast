@@ -73,6 +73,9 @@ export async function bakeVoiceSample(options: {
 export async function synthesizeSpeech(options: {
   ttsBaseUrl: string
   ttsProvider?: TtsProvider
+  openrouterApiKey?: string
+  openrouterTtsModel?: string
+  openrouterTtsVoice?: string
   runwareApiBaseUrl?: string
   runwareApiKey?: string
   runwareXaiVoice?: RunwareXaiVoice
@@ -89,6 +92,49 @@ export async function synthesizeSpeech(options: {
   voiceAnchor?: StoredVoiceAnchor | null
   signal?: AbortSignal
 }): Promise<Blob> {
+  if (options.ttsProvider === 'openrouter-tts') {
+    const apiKey = (options.openrouterApiKey || '').trim()
+    if (!apiKey) {
+      throw new Error('OpenRouter API key is missing. Set it in Options -> General.')
+    }
+    const model =
+      options.openrouterTtsModel?.trim() ||
+      'openai/gpt-4o-mini-tts-2025-12-15'
+    const root = 'https://openrouter.ai/api/v1'
+    const payload: Record<string, unknown> = {
+      model,
+      input: options.text,
+      response_format: 'mp3',
+    }
+    const voice = options.openrouterTtsVoice?.trim() || 'alloy'
+    payload.voice = voice
+    try {
+      const res = await fetch(`${root}/audio/speech`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: options.signal,
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        throw new Error(
+          `OpenRouter TTS ${res.status}: ${errText || res.statusText}`,
+        )
+      }
+      const blob = await res.blob()
+      if (!blob || blob.size === 0) {
+        throw new Error('OpenRouter TTS returned empty audio payload.')
+      }
+      const arr = await blob.arrayBuffer()
+      return new Blob([arr], { type: 'audio/mpeg' })
+    } catch (e) {
+      throw new Error(errorMessage(e))
+    }
+  }
+
   if (options.ttsProvider === 'runware-xai') {
     const apiKey = (options.runwareApiKey || '').trim()
     if (!apiKey) {
@@ -351,6 +397,7 @@ export async function synthesizeSpeech(options: {
 export async function checkTtsHealth(options: {
   ttsBaseUrl: string
   ttsProvider?: TtsProvider
+  openrouterApiKey?: string
   runwareApiKey?: string
 }): Promise<{
   ok: boolean
@@ -361,6 +408,13 @@ export async function checkTtsHealth(options: {
     return hasKey
       ? { ok: true }
       : { ok: false, detail: 'Runware API key missing' }
+  }
+  if (options.ttsProvider === 'openrouter-tts') {
+    // For OpenRouter TTS we rely on API key presence; detailed network errors surface at call time.
+    const hasKey = Boolean((options.openrouterApiKey || '').trim())
+    return hasKey
+      ? { ok: true }
+      : { ok: false, detail: 'OpenRouter API key missing' }
   }
   try {
     const root = normalizeBaseUrl(options.ttsBaseUrl)

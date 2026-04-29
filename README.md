@@ -15,6 +15,7 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
   - music generation
   - xAI TTS via Runware
 - Optional external Local TTS server support (OmniVoice API-compatible).
+- Optional OpenRouter TTS support via GPT-4o Mini TTS model.
 - Cloud-first operation path (works without local GPU/CUDA requirements).
 - Optional power-user local path for users with capable hardware.
 - Windows installer builds with update-ready release artifacts.

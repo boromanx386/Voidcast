@@ -796,6 +796,7 @@ export default function App() {
       const h = await checkTtsHealth({
         ttsBaseUrl: settings.ttsBaseUrl,
         ttsProvider: settings.ttsProvider,
+        openrouterApiKey: settings.openrouterApiKey,
         runwareApiKey: settings.runwareApiKey,
       })
       console.log('[VOIDCAST] TTS health result:', h)
@@ -804,7 +805,7 @@ export default function App() {
       console.error('[VOIDCAST] TTS health check failed:', e)
       setTtsOk(false)
     }
-  }, [settings.ttsBaseUrl, settings.ttsProvider, settings.runwareApiKey])
+  }, [settings.ttsBaseUrl, settings.ttsProvider, settings.openrouterApiKey, settings.runwareApiKey])
 
   useEffect(() => {
     void refreshTts()
@@ -1677,6 +1678,9 @@ export default function App() {
         return synthesizeSpeech({
           ttsBaseUrl: settings.ttsBaseUrl,
           ttsProvider: settings.ttsProvider,
+          openrouterApiKey: settings.openrouterApiKey,
+          openrouterTtsModel: settings.openrouterTtsModel,
+          openrouterTtsVoice: settings.openrouterTtsVoice,
           runwareApiBaseUrl: settings.runwareApiBaseUrl,
           runwareApiKey: settings.runwareApiKey,
           runwareXaiVoice: settings.runwareXaiVoice,

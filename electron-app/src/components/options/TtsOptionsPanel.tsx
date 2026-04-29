@@ -94,6 +94,23 @@ type Props = {
   onClearVoiceAnchor: () => Promise<void>
 }
 
+const OPENROUTER_TTS_VOICES = [
+  '',
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'fable',
+  'onyx',
+  'nova',
+  'sage',
+  'shimmer',
+  'verse',
+  'marin',
+  'cedar',
+] as const
+
 export function TtsOptionsPanel({
   settings,
   setSettings,
@@ -117,6 +134,9 @@ export function TtsOptionsPanel({
       const blob = await synthesizeSpeech({
         ttsBaseUrl: settings.ttsBaseUrl,
         ttsProvider: settings.ttsProvider,
+        openrouterApiKey: settings.openrouterApiKey,
+        openrouterTtsModel: settings.openrouterTtsModel,
+        openrouterTtsVoice: settings.openrouterTtsVoice,
         runwareApiBaseUrl: settings.runwareApiBaseUrl,
         runwareApiKey: settings.runwareApiKey,
         runwareXaiVoice: settings.runwareXaiVoice,
@@ -162,12 +182,18 @@ export function TtsOptionsPanel({
           onChange={(e) =>
             setSettings((s) => ({
               ...s,
-              ttsProvider: e.target.value === 'runware-xai' ? 'runware-xai' : 'local',
+              ttsProvider:
+                e.target.value === 'runware-xai'
+                  ? 'runware-xai'
+                  : e.target.value === 'openrouter-tts'
+                    ? 'openrouter-tts'
+                    : 'local',
             }))
           }
         >
           <option value="local">Local OmniVoice (`/tts`)</option>
           <option value="runware-xai">Runware xAI TTS (`xai:tts@0`)</option>
+          <option value="openrouter-tts">OpenRouter GPT-4o Mini TTS</option>
         </select>
       </div>
 
@@ -217,6 +243,45 @@ export function TtsOptionsPanel({
                 }
                 placeholder="en, de, es-ES..."
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settings.ttsProvider === 'openrouter-tts' && (
+        <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
+          <p className="text-xs text-void-dim">
+            Uses <span className="font-mono text-neon-cyan">OPENROUTER_API_KEY</span> from
+            General settings to call OpenRouter TTS (`openai/gpt-4o-mini-tts-2025-12-15` by default).
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3 mt-3">
+            <div className="form-group">
+              <label className="form-label">OPENROUTER_TTS_MODEL</label>
+              <input
+                className="cyber-input"
+                value={settings.openrouterTtsModel}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, openrouterTtsModel: e.target.value }))
+                }
+                placeholder="openai/gpt-4o-mini-tts-2025-12-15"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">OPENROUTER_TTS_VOICE (optional)</label>
+              <select
+                className="form-select"
+                value={OPENROUTER_TTS_VOICES.includes(settings.openrouterTtsVoice as any) ? settings.openrouterTtsVoice : ''}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, openrouterTtsVoice: e.target.value }))
+                }
+              >
+                <option value="">(model default)</option>
+                {OPENROUTER_TTS_VOICES.filter((v) => v).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

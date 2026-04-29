@@ -1,5 +1,5 @@
 export type VoiceMode = 'design' | 'clone'
-export type TtsProvider = 'local' | 'runware-xai'
+export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 export type LlmProvider = 'ollama' | 'openrouter'
 
@@ -47,6 +47,10 @@ export type AppSettings = {
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
+  /** Default OpenRouter TTS model id (GPT-4o Mini TTS). */
+  openrouterTtsModel: string
+  /** Optional OpenRouter TTS voice id/preset. */
+  openrouterTtsVoice: string
   /** Ollama options.temperature */
   llmTemperature: number
   /** Ollama options.num_ctx — context window size in tokens */
@@ -151,6 +155,8 @@ const defaults: AppSettings = {
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   openrouterApiKey: '',
   openrouterModel: 'openrouter/free',
+  openrouterTtsModel: 'openai/gpt-4o-mini-tts-2025-12-15',
+  openrouterTtsVoice: '',
   llmTemperature: 0.8,
   llmNumCtx: 8192,
   llmMaxHistoryMessages: 0,
@@ -288,7 +294,12 @@ function normalizeLlm(s: AppSettings): AppSettings {
 
 function normalizeTts(s: AppSettings): AppSettings {
   const providerRaw = typeof s.ttsProvider === 'string' ? s.ttsProvider : ''
-  const ttsProvider: TtsProvider = providerRaw === 'runware-xai' ? 'runware-xai' : 'local'
+  const ttsProvider: TtsProvider =
+    providerRaw === 'runware-xai'
+      ? 'runware-xai'
+      : providerRaw === 'openrouter-tts'
+        ? 'openrouter-tts'
+        : 'local'
   const voiceRaw = typeof s.runwareXaiVoice === 'string' ? s.runwareXaiVoice : ''
   const runwareXaiVoice: RunwareXaiVoice =
     voiceRaw === 'una' ||
