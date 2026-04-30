@@ -1,9 +1,10 @@
-import type { ToolsEnabled } from '@/lib/settings'
+import { AGENT_EDITABLE_SETTINGS_FIELDS, type ToolsEnabled } from '@/lib/settings'
 
 /** Minimal JSON-schema subset for tool `parameters.properties` values */
 export type OllamaToolParameterSchema = {
   type: string
   description?: string
+  enum?: readonly string[]
   items?: { type: string; minimum?: number }
 }
 
@@ -332,6 +333,32 @@ const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
   },
 }
 
+const UPDATE_SETTINGS_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'update_settings',
+    description:
+      'MANDATORY: Update app settings. CRITICAL: When the user asks to change system prompt, context window, temperature, theme, image resolution, or image/edit models, you MUST call this tool BEFORE replying with confirmation text.',
+    parameters: {
+      type: 'object',
+      properties: {
+        field: {
+          type: 'string',
+          enum: AGENT_EDITABLE_SETTINGS_FIELDS,
+          description:
+            'Setting key to update. Allowed: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
+        },
+        value: {
+          type: 'string',
+          description:
+            'New value to apply. Numeric settings should be passed as numeric text. For longMemoryAdd, pass either plain text or JSON string like {"text":"...","kind":"fact","importance":0.7,"confidence":0.8,"tags":["x","y"]}.',
+        },
+      },
+      required: ['field', 'value'],
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
@@ -345,6 +372,7 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
     out.push(IMAGE_RECALL_TOOL)
   }
   if (enabled.runwareMusic) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
+  out.push(UPDATE_SETTINGS_TOOL)
   return out
 }
 

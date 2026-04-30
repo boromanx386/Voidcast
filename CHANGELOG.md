@@ -13,12 +13,14 @@ All notable changes to this project will be documented in this file.
   - basic long-memory manager in `General` options (list + delete).
 - IndexedDB-backed long-memory store with relevance-based retrieval (token overlap + recency + importance/confidence weighting).
 - Extraction pipeline that asks the model for strict JSON memory candidates and filters low-confidence/sensitive entries.
+- New `update_settings` tool for agent-driven config updates of selected fields (system prompt, context window, temperature, theme, Runware image/edit models, image resolution, and `longMemoryAdd` entry writes).
 
 ### Changed
 
 - Long-memory enablement now uses a single global setting (`longMemoryDefaultEnabled`) as source of truth across all chats.
 - Chat header save label updated from `SAVE` to `SAVE_CHAT` for clarity.
 - Strengthened Runware image/music tool descriptions with explicit mandatory-call wording so the assistant is less likely to claim generation without actually invoking `generate_image` / `generate_music_runware`.
+- `update_settings` now updates the active Runware model profile resolution (instead of only legacy width/height fields), and accepts `runwareResolution` in `WIDTHxHEIGHT` format.
 
 ## [2.3.6] - 2026-04-29
 

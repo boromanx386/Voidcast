@@ -1,5 +1,17 @@
-import { normalizeBaseUrl } from '@/lib/settings'
-import type { ToolsEnabled } from '@/lib/settings'
+import {
+  AGENT_EDITABLE_SETTINGS_FIELDS,
+  RUNWARE_CONFIGURED_MODELS,
+  loadSettings,
+  normalizeBaseUrl,
+  normalizeSettingsCandidate,
+  saveSettings,
+  type AppSettings,
+  type AgentEditableSettingsField,
+  type ToolsEnabled,
+  type UiTheme,
+} from '@/lib/settings'
+import { upsertMemories } from '@/lib/longMemoryStorage'
+import type { LongMemoryKind } from '@/types/longMemory'
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
 import { invokeWebSearch } from '@/lib/webSearch'
 import { invokeGetWeather } from '@/lib/weather'
@@ -176,6 +188,73 @@ function deriveSearchQuery(userText: string): string {
   const single = noUrls.replace(/\s+/g, ' ').trim()
   if (!single) return userText.slice(0, 220).trim()
   return single.length > 220 ? single.slice(0, 220).trim() : single
+}
+
+const AGENT_EDITABLE_SETTINGS_FIELD_SET = new Set<string>(AGENT_EDITABLE_SETTINGS_FIELDS)
+const CONFIGURED_RUNWARE_MODEL_IDS = new Set<string>(RUNWARE_CONFIGURED_MODELS.map((x) => x.id))
+const UI_THEME_SET = new Set<UiTheme>(['dystopian', 'minimal', 'matrix', 'light'])
+const LONG_MEMORY_KIND_SET = new Set<LongMemoryKind>([
+  'preference',
+  'project',
+  'fact',
+  'constraint',
+  'task',
+])
+
+function parseToolValueAsString(raw: unknown): string {
+  if (typeof raw === 'string') return raw
+  if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw)
+  return ''
+}
+
+function parseToolValueAsNumber(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string') {
+    const n = Number(raw.trim())
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+function parseResolutionPair(raw: unknown): { width: number; height: number } | null {
+  const s = parseToolValueAsString(raw).trim().toLowerCase()
+  if (!s) return null
+  const m = s.match(/^(\d{2,5})\s*[x,]\s*(\d{2,5})$/)
+  if (!m) return null
+  const width = Number(m[1])
+  const height = Number(m[2])
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null
+  return { width: Math.round(width), height: Math.round(height) }
+}
+
+function parseLongMemoryCandidate(raw: unknown): {
+  text: string
+  kind: LongMemoryKind
+  importance?: number
+  confidence?: number
+  tags?: string[]
+} | null {
+  const textValue = parseToolValueAsString(raw).trim()
+  if (!textValue) return null
+  if (textValue.startsWith('{') && textValue.endsWith('}')) {
+    try {
+      const obj = JSON.parse(textValue) as Record<string, unknown>
+      const text = parseToolValueAsString(obj.text).trim()
+      if (!text) return null
+      const kindRaw = parseToolValueAsString(obj.kind).trim().toLowerCase() as LongMemoryKind
+      const kind: LongMemoryKind = LONG_MEMORY_KIND_SET.has(kindRaw) ? kindRaw : 'fact'
+      const importance = parseToolValueAsNumber(obj.importance) ?? undefined
+      const confidence = parseToolValueAsNumber(obj.confidence) ?? undefined
+      const tagsRaw = Array.isArray(obj.tags) ? obj.tags : []
+      const tags = tagsRaw
+        .map((x) => parseToolValueAsString(x).trim())
+        .filter(Boolean)
+      return { text, kind, importance, confidence, tags: tags.length ? tags : undefined }
+    } catch {
+      return null
+    }
+  }
+  return { text: textValue, kind: 'fact' }
 }
 
 function userRequestedStepsOverride(text: string): boolean {
@@ -722,6 +801,116 @@ export async function executeToolCall(
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }
+  }
+  if (name === 'update_settings') {
+    const fieldRaw = parseToolValueAsString(args.field).trim()
+    const valueRaw = args.value
+    if (!fieldRaw) return 'Error: missing field parameter for update_settings.'
+    if (!AGENT_EDITABLE_SETTINGS_FIELD_SET.has(fieldRaw)) {
+      return `Error: field "${fieldRaw}" is not editable by update_settings.`
+    }
+    const field = fieldRaw as AgentEditableSettingsField
+    const current = loadSettings()
+    const candidate: AppSettings = { ...current }
+    const updateActiveRunwareProfile = (patch: { width?: number; height?: number }) => {
+      const activeModelId = candidate.runwareImageModel
+      const currentProfile = candidate.runwareModelProfiles[activeModelId] ?? {
+        width: candidate.runwareWidth,
+        height: candidate.runwareHeight,
+        steps: candidate.runwareSteps,
+        cfgScale: candidate.runwareCfgScale,
+      }
+      candidate.runwareModelProfiles = {
+        ...candidate.runwareModelProfiles,
+        [activeModelId]: {
+          ...currentProfile,
+          ...(typeof patch.width === 'number' ? { width: Math.round(patch.width) } : {}),
+          ...(typeof patch.height === 'number' ? { height: Math.round(patch.height) } : {}),
+        },
+      }
+      if (typeof patch.width === 'number') candidate.runwareWidth = Math.round(patch.width)
+      if (typeof patch.height === 'number') candidate.runwareHeight = Math.round(patch.height)
+    }
+    if (field === 'llmSystemPrompt') {
+      const next = parseToolValueAsString(valueRaw)
+      candidate.llmSystemPrompt = next
+    } else if (field === 'llmNumCtx') {
+      const n = parseToolValueAsNumber(valueRaw)
+      if (n === null) return 'Error: llmNumCtx expects a numeric value.'
+      candidate.llmNumCtx = Math.round(n)
+    } else if (field === 'llmTemperature') {
+      const n = parseToolValueAsNumber(valueRaw)
+      if (n === null) return 'Error: llmTemperature expects a numeric value.'
+      candidate.llmTemperature = n
+    } else if (field === 'uiTheme') {
+      const next = parseToolValueAsString(valueRaw).trim().toLowerCase() as UiTheme
+      if (!UI_THEME_SET.has(next)) {
+        return 'Error: uiTheme must be one of: dystopian, minimal, matrix, light.'
+      }
+      candidate.uiTheme = next
+    } else if (field === 'longMemoryAdd') {
+      const parsed = parseLongMemoryCandidate(valueRaw)
+      if (!parsed) {
+        return 'Error: longMemoryAdd expects plain text or JSON with at least {"text":"..."}'
+      }
+      try {
+        const saved = await upsertMemories(
+          [
+            {
+              kind: parsed.kind,
+              text: parsed.text,
+              importance: parsed.importance,
+              confidence: parsed.confidence,
+              tags: parsed.tags,
+            },
+          ],
+          'agent-tool',
+        )
+        if (saved.length === 0) {
+          return 'Error: long memory entry was empty and was not saved.'
+        }
+        return `OK: added long memory (${saved[0].kind}): ${saved[0].text}`
+      } catch (e) {
+        return e instanceof Error ? `Error: failed to add long memory: ${e.message}` : String(e)
+      }
+    } else if (field === 'runwareResolution') {
+      const pair = parseResolutionPair(valueRaw)
+      if (!pair) {
+        return 'Error: runwareResolution expects "WIDTHxHEIGHT" (for example 1920x1080).'
+      }
+      updateActiveRunwareProfile(pair)
+    } else if (field === 'runwareWidth') {
+      const n = parseToolValueAsNumber(valueRaw)
+      if (n === null) return 'Error: runwareWidth expects a numeric value.'
+      updateActiveRunwareProfile({ width: n })
+    } else if (field === 'runwareHeight') {
+      const n = parseToolValueAsNumber(valueRaw)
+      if (n === null) return 'Error: runwareHeight expects a numeric value.'
+      updateActiveRunwareProfile({ height: n })
+    } else if (field === 'runwareImageModel') {
+      const next = parseToolValueAsString(valueRaw).trim()
+      if (!next) return 'Error: runwareImageModel cannot be empty.'
+      if (!CONFIGURED_RUNWARE_MODEL_IDS.has(next)) {
+        return `Error: unsupported runwareImageModel "${next}".`
+      }
+      candidate.runwareImageModel = next
+    } else if (field === 'runwareEditModel') {
+      const next = parseToolValueAsString(valueRaw).trim()
+      if (!next) return 'Error: runwareEditModel cannot be empty.'
+      if (!CONFIGURED_RUNWARE_MODEL_IDS.has(next)) {
+        return `Error: unsupported runwareEditModel "${next}".`
+      }
+      candidate.runwareEditModel = next
+    } else {
+      return `Error: unsupported field "${fieldRaw}".`
+    }
+    const normalized = normalizeSettingsCandidate(candidate)
+    saveSettings(normalized)
+    if (field === 'runwareResolution') {
+      return `OK: updated runwareResolution to ${normalized.runwareWidth}x${normalized.runwareHeight}.`
+    }
+    const applied = normalized[field]
+    return `OK: updated ${field} to ${String(applied)}.`
   }
   return `Error: unknown tool "${name}".`
 }

@@ -9,9 +9,16 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 - Desktop chat UI focused on practical AI workflows (Electron + React).
 - Ollama/OpenRouter-based chat orchestration with configurable model and prompt settings.
 - Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF).
+- Assistant-managed app configuration via `update_settings` tool for selected options:
+  - LLM system prompt, context window, temperature
+  - UI theme
+  - Runware image resolution (`width`, `height`, or `WIDTHxHEIGHT`)
+  - Runware image/edit model selection
+  - manual long-memory add (`longMemoryAdd`)
 - Built-in context summarization/compression for long conversations.
 - Long-memory personalization controls:
   - `SAVE_MEM` in chat header to extract durable memory from current chat
+  - optional agent-driven memory write via `update_settings` (`longMemoryAdd`)
   - global long-memory toggle in `General` options
   - memory manager (view/delete saved memory items)
 - Runware media support:

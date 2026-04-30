@@ -62,6 +62,7 @@ import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import {
   fetchDesktopSyncedSettings,
+  getAgentVisibleSettings,
   getRunwareProfileForModel,
   loadSettings,
   normalizeSettingsCandidate,
@@ -691,6 +692,28 @@ export default function App() {
     saveSettings(settings)
   }, [settings])
 
+  // Keep UI state in sync when settings are changed outside React state (for example via agent tool).
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const stored = loadSettings()
+      setSettings((prev) => {
+        const changed =
+          prev.llmSystemPrompt !== stored.llmSystemPrompt ||
+          prev.llmNumCtx !== stored.llmNumCtx ||
+          prev.llmTemperature !== stored.llmTemperature ||
+          prev.uiTheme !== stored.uiTheme ||
+          prev.runwareWidth !== stored.runwareWidth ||
+          prev.runwareHeight !== stored.runwareHeight ||
+          prev.runwareImageModel !== stored.runwareImageModel ||
+          prev.runwareEditModel !== stored.runwareEditModel
+        return changed ? stored : prev
+      })
+    }, 1000)
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [])
+
   useEffect(() => {
     if (!isElectron()) return
     const getVersion = window.voidcast?.getAppVersion
@@ -1314,6 +1337,23 @@ export default function App() {
     if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
     if (settings.toolsEnabled.runwareImage) toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
     if (settings.toolsEnabled.runwareMusic) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
+    if (useTools) {
+      const visible = getAgentVisibleSettings(settings)
+      const settingsHint = [
+        'You have an update_settings tool for app configuration.',
+        'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
+        `Current llmSystemPrompt: ${JSON.stringify(String(visible.llmSystemPrompt ?? ''))}`,
+        `Current llmNumCtx: ${String(visible.llmNumCtx ?? '')}`,
+        `Current llmTemperature: ${String(visible.llmTemperature ?? '')}`,
+        `Current uiTheme: ${String(visible.uiTheme ?? '')}`,
+        `Current runwareWidth: ${String(visible.runwareWidth ?? '')}`,
+        `Current runwareHeight: ${String(visible.runwareHeight ?? '')}`,
+        `Current runwareImageModel: ${String(visible.runwareImageModel ?? '')}`,
+        `Current runwareEditModel: ${String(visible.runwareEditModel ?? '')}`,
+        'Sensitive keys are hidden; never ask to reveal API keys.',
+      ].join('\n')
+      toolsHintParts.push(settingsHint)
+    }
     if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     const retrievedLongMemory = activeSessionUseLongMemory
       ? await searchMemories({

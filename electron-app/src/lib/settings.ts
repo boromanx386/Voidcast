@@ -140,6 +140,21 @@ export type AppSettings = {
   autoUpdate: boolean
 }
 
+export const AGENT_EDITABLE_SETTINGS_FIELDS = [
+  'llmSystemPrompt',
+  'llmNumCtx',
+  'llmTemperature',
+  'uiTheme',
+  'longMemoryAdd',
+  'runwareResolution',
+  'runwareWidth',
+  'runwareHeight',
+  'runwareImageModel',
+  'runwareEditModel',
+] as const
+
+export type AgentEditableSettingsField = (typeof AGENT_EDITABLE_SETTINGS_FIELDS)[number]
+
 import {
   defaultOllamaBaseUrlForRuntime,
   defaultTtsBaseUrlForRuntime,
@@ -149,6 +164,7 @@ import {
 const STORAGE_KEY = 'voidcast-settings-v1'
 /** Previous key; read once to migrate */
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
+const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'runwareApiKey'] as const
 
 const defaults: AppSettings = {
   llmProvider: 'ollama',
@@ -540,6 +556,14 @@ export function loadSettings(): AppSettings {
 
 export function saveSettings(s: AppSettings): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+}
+
+export function getAgentVisibleSettings(settings: AppSettings): Partial<AppSettings> {
+  const out: Partial<AppSettings> = { ...settings }
+  for (const k of AGENT_HIDDEN_SETTINGS_FIELDS) {
+    delete out[k]
+  }
+  return out
 }
 
 export function normalizeBaseUrl(url: string): string {
