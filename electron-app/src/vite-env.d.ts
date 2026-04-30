@@ -52,6 +52,43 @@ interface Window {
     getAppVersion: () => Promise<string>
     openPath: (filePath: string) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
+    pickCodingDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
+    codingListDirectory: (payload: { projectPath: string; path?: string }) => Promise<
+      | {
+          ok: true
+          entries: {
+            name: string
+            path: string
+            type: 'file' | 'directory'
+            size?: number
+          }[]
+        }
+      | { ok: false; error?: string }
+    >
+    codingReadFile: (payload: { projectPath: string; path: string }) => Promise<
+      | { ok: true; content: string }
+      | { ok: false; error?: string }
+    >
+    codingWriteFile: (payload: { projectPath: string; path: string; content: string }) => Promise<
+      | { ok: true; path: string }
+      | { ok: false; error?: string }
+    >
+    codingSearchFiles: (payload: { projectPath: string; query: string }) => Promise<
+      | {
+          ok: true
+          matches: { path: string; line: number; text: string }[]
+        }
+      | { ok: false; error?: string }
+    >
+    codingExecuteCommand: (payload: {
+      projectPath: string
+      command: string
+      timeoutSec?: number
+      runInBackground?: boolean
+    }) => Promise<
+      | { ok: true; stdout: string; stderr: string; code: number; timedOut?: boolean; pid?: number }
+      | { ok: false; error?: string }
+    >
     pickChatAttachments: () => Promise<
       | {
           ok: true

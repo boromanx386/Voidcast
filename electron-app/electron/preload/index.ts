@@ -39,6 +39,51 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }
     >,
+  pickCodingDirectory: () =>
+    ipcRenderer.invoke('voidcast:coding-pick-directory') as Promise<
+      { ok: true; path: string } | { ok: false }
+    >,
+  codingListDirectory: (payload: { projectPath: string; path?: string }) =>
+    ipcRenderer.invoke('voidcast:coding-list-directory', payload) as Promise<
+      | {
+          ok: true
+          entries: {
+            name: string
+            path: string
+            type: 'file' | 'directory'
+            size?: number
+          }[]
+        }
+      | { ok: false; error?: string }
+    >,
+  codingReadFile: (payload: { projectPath: string; path: string }) =>
+    ipcRenderer.invoke('voidcast:coding-read-file', payload) as Promise<
+      | { ok: true; content: string }
+      | { ok: false; error?: string }
+    >,
+  codingWriteFile: (payload: { projectPath: string; path: string; content: string }) =>
+    ipcRenderer.invoke('voidcast:coding-write-file', payload) as Promise<
+      | { ok: true; path: string }
+      | { ok: false; error?: string }
+    >,
+  codingSearchFiles: (payload: { projectPath: string; query: string }) =>
+    ipcRenderer.invoke('voidcast:coding-search-files', payload) as Promise<
+      | {
+          ok: true
+          matches: { path: string; line: number; text: string }[]
+        }
+      | { ok: false; error?: string }
+    >,
+  codingExecuteCommand: (payload: {
+    projectPath: string
+    command: string
+    timeoutSec?: number
+    runInBackground?: boolean
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-execute-command', payload) as Promise<
+      | { ok: true; stdout: string; stderr: string; code: number; timedOut?: boolean; pid?: number }
+      | { ok: false; error?: string }
+    >,
   pickChatAttachments: () =>
     ipcRenderer.invoke('voidcast:pick-chat-attachments') as Promise<
       | {

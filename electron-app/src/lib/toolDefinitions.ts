@@ -359,6 +359,145 @@ const UPDATE_SETTINGS_TOOL: OllamaToolDefinition = {
   },
 }
 
+const CODING_LIST_DIRECTORY_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'list_directory',
+    description:
+      'List files and folders inside the configured coding project directory. Use this to browse project structure before reading or editing files.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description:
+            'Optional relative path inside coding project. Empty means project root.',
+        },
+      },
+    },
+  },
+}
+
+const CODING_READ_FILE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'read_file',
+    description:
+      'Read a file from the configured coding project directory. Use this before proposing edits.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative file path inside coding project.',
+        },
+      },
+      required: ['path'],
+    },
+  },
+}
+
+const CODING_WRITE_FILE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'write_file',
+    description:
+      'Write full file content in the configured coding project directory. This overwrites file content; read the file first when changing existing code.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative file path inside coding project.',
+        },
+        content: {
+          type: 'string',
+          description: 'Full file content to write.',
+        },
+      },
+      required: ['path', 'content'],
+    },
+  },
+}
+
+const CODING_EDIT_CODE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'edit_code',
+    description:
+      'Edit existing file content by replacing a target snippet with new text inside the configured coding project directory.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative file path inside coding project.',
+        },
+        find_text: {
+          type: 'string',
+          description: 'Exact text snippet to find in the file.',
+        },
+        replace_text: {
+          type: 'string',
+          description: 'Replacement text snippet.',
+        },
+        replace_all: {
+          type: 'boolean',
+          description: 'If true, replace all matches. Default false (first match only).',
+        },
+      },
+      required: ['path', 'find_text', 'replace_text'],
+    },
+  },
+}
+
+const CODING_SEARCH_FILES_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'search_files',
+    description:
+      'Search file contents in the configured coding project directory using a plain-text query.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search text to match inside files.',
+        },
+      },
+      required: ['query'],
+    },
+  },
+}
+
+const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'execute_command',
+    description:
+      'Execute a shell command in the configured coding project directory and return stdout/stderr.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: {
+          type: 'string',
+          description: 'Shell command to execute.',
+        },
+        timeout_sec: {
+          type: 'number',
+          description: 'Optional timeout in seconds (default 20, max 120).',
+        },
+        run_in_background: {
+          type: 'boolean',
+          description:
+            'If true, starts command in background and returns immediately with process id.',
+        },
+      },
+      required: ['command'],
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
@@ -372,6 +511,14 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
     out.push(IMAGE_RECALL_TOOL)
   }
   if (enabled.runwareMusic) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
+  if (enabled.coding) {
+    out.push(CODING_LIST_DIRECTORY_TOOL)
+    out.push(CODING_READ_FILE_TOOL)
+    out.push(CODING_WRITE_FILE_TOOL)
+    out.push(CODING_EDIT_CODE_TOOL)
+    out.push(CODING_SEARCH_FILES_TOOL)
+    out.push(CODING_EXECUTE_COMMAND_TOOL)
+  }
   out.push(UPDATE_SETTINGS_TOOL)
   return out
 }
@@ -384,6 +531,7 @@ export function anyToolEnabled(enabled: ToolsEnabled): boolean {
     enabled.scrape ||
     enabled.pdf ||
     enabled.runwareImage ||
-    enabled.runwareMusic
+    enabled.runwareMusic ||
+    enabled.coding
   )
 }

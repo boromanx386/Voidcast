@@ -11,6 +11,7 @@ import {
 import { executeToolCall } from '@/lib/ollamaAgent'
 
 const MAX_TOOL_ROUNDS = 18
+const MAX_SAME_TOOL_SIGNATURE_ROUNDS = 3
 
 function parseToolArguments(raw: string | undefined): Record<string, unknown> {
   if (!raw?.trim()) return {}
@@ -59,15 +60,17 @@ export type RunOpenRouterChatWithToolsParams = {
       | 'pdf'
       | 'image'
       | 'music'
+      | 'coding'
       | 'other'
       | null,
   ) => void
   pdfOutputDir?: string
-  onToolResult?: (payload: { name: string; result: string }) => void
+  onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   runware?: RunwareImageConfig
   userImages?: string[]
   userImageMimes?: string[]
   userImagePaths?: string[]
+  codingProjectPath?: string
 }
 
 export async function runOpenRouterChatWithTools(
@@ -81,6 +84,8 @@ export async function runOpenRouterChatWithTools(
   let persistedAssistantPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   const runtimeRecalledImages: Array<{ base64: string; mime: string }> = []
+  let lastToolSignature = ''
+  let sameToolSignatureRounds = 0
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (params.signal?.aborted) {
@@ -106,7 +111,33 @@ export async function runOpenRouterChatWithTools(
 
     const validCalls = tool_calls.filter((t) => t.function?.name)
     if (validCalls.length === 0) {
-      return { content: lastAssistantText || content, usage: lastUsage }
+      const finalText = (lastAssistantText || content || '').trim()
+      return {
+        content:
+          finalText ||
+          'Task completed, but no final assistant summary was produced. Ask me to summarize the result.',
+        usage: lastUsage,
+      }
+    }
+
+    const currentSignature = JSON.stringify(
+      validCalls.map((call) => ({
+        name: call.function?.name || '',
+        args: parseToolArguments(call.function?.arguments),
+      })),
+    )
+    if (currentSignature === lastToolSignature) {
+      sameToolSignatureRounds += 1
+    } else {
+      lastToolSignature = currentSignature
+      sameToolSignatureRounds = 1
+    }
+    if (sameToolSignatureRounds >= MAX_SAME_TOOL_SIGNATURE_ROUNDS) {
+      return {
+        content:
+          'Stopped repeated tool loop (same tool calls were repeated multiple rounds). Please continue with a narrower prompt or ask for a summary of current progress.',
+        usage: lastUsage,
+      }
     }
 
     messages.push({
@@ -124,6 +155,7 @@ export async function runOpenRouterChatWithTools(
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
       else if (name === 'generate_image' || name === 'edit_image_runware' || name === 'image_recall') params.onToolPhase?.('image')
       else if (name === 'generate_music_runware') params.onToolPhase?.('music')
+      else if (name === 'list_directory' || name === 'read_file' || name === 'write_file' || name === 'edit_code' || name === 'search_files' || name === 'execute_command') params.onToolPhase?.('coding')
       else params.onToolPhase?.('other')
 
       const argsObj = parseToolArguments(call.function.arguments)
@@ -139,6 +171,7 @@ export async function runOpenRouterChatWithTools(
           userImages: params.userImages,
           userImageMimes: params.userImageMimes,
           userImagePaths: params.userImagePaths,
+          codingProjectPath: params.codingProjectPath,
         },
       )
 
@@ -148,7 +181,7 @@ export async function runOpenRouterChatWithTools(
         name,
         content: result,
       })
-      params.onToolResult?.({ name, result })
+      params.onToolResult?.({ name, result, args: argsObj })
 
       if (name === 'image_recall') {
         let parsed: unknown
@@ -190,5 +223,11 @@ export async function runOpenRouterChatWithTools(
     }
   }
 
-  return { content: lastAssistantText, usage: lastUsage }
+  const fallback = lastAssistantText.trim()
+  return {
+    content:
+      fallback ||
+      'Reached tool-round limit before final response. Ask me to continue from current state.',
+    usage: lastUsage,
+  }
 }

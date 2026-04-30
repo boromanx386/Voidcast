@@ -24,6 +24,25 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
     }
   }, [setSettings])
 
+  const browseCodingFolder = useCallback(async () => {
+    const vc = isElectron() ? window.voidcast?.pickCodingDirectory : undefined
+    if (!vc) return
+    setPickBusy(true)
+    try {
+      const r = await vc()
+      if (r.ok && r.path) {
+        setSettings((s) => ({
+          ...s,
+          coding: { ...s.coding, projectPath: r.path, enabled: true },
+          codingProjectPath: r.path,
+          toolsEnabled: { ...s.toolsEnabled, coding: true },
+        }))
+      }
+    } finally {
+      setPickBusy(false)
+    }
+  }, [setSettings])
+
   return (
     <div className="grid gap-4 text-sm">
       {/* Header */}
@@ -176,6 +195,51 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
           </>
         }
       />
+
+      <div className="bg-void-black/50 border border-void-muted/30 p-4">
+        <ToolToggle
+          checked={settings.toolsEnabled.coding}
+          onChange={(v) =>
+            setSettings((s) => ({
+              ...s,
+              toolsEnabled: { ...s.toolsEnabled, coding: v },
+              coding: { ...s.coding, enabled: v },
+            }))
+          }
+          label="CODING_TOOLS"
+          icon="⌘"
+          iconColor="text-neon-cyan"
+          disabled={isWebStandalone()}
+          description={<>Enable LLM coding tools (`list_directory`, `read_file`, `write_file`, `search_files`, `execute_command`).</>}
+          noBorder
+        />
+        {settings.toolsEnabled.coding && isElectron() && (
+          <div className="mt-4 border-t border-void-muted/20 pt-4">
+            <label className="form-label text-void-dim">
+              <span className="mr-2">▸</span>CODING_PROJECT_DIR
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="text"
+                spellCheck={false}
+                className="cyber-input flex-1 min-w-[12rem]"
+                placeholder="C:\project\folder"
+                value={settings.coding.projectPath}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    coding: { ...s.coding, projectPath: e.target.value },
+                    codingProjectPath: e.target.value,
+                  }))
+                }
+              />
+              <button type="button" disabled={pickBusy} className="cyber-btn text-xs" onClick={() => void browseCodingFolder()}>
+                {pickBusy ? '...' : 'BROWSE'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

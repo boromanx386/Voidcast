@@ -24,6 +24,14 @@ import {
   invokeRunwareGenerateMusic,
   type RunwareImageConfig,
 } from '@/lib/runware'
+import {
+  invokeExecuteCodingCommand,
+  invokeEditCodingFile,
+  invokeListCodingDirectory,
+  invokeReadCodingFile,
+  invokeSearchCodingFiles,
+  invokeWriteCodingFile,
+} from '@/lib/codingTools'
 import type {
   OllamaApiMessage,
   OllamaChatUsage,
@@ -33,6 +41,7 @@ import type {
 import { mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 
 const MAX_TOOL_ROUNDS = 18
+const MAX_SAME_TOOL_SIGNATURE_ROUNDS = 3
 const HTTP_URL_RE = /(https?:\/\/[^\s)]+)(?=[\s)]|$)/i
 const FRESHNESS_RE =
   /\b(today|latest|recent|newest|breaking|update|updates|news|current|currently|202\d|danas|najnovije|trenutno|vesti)\b/i
@@ -431,6 +440,7 @@ function resolveImageRecallRequest(
     userImages?: string[]
     userImageMimes?: string[]
     userImagePaths?: string[]
+    codingProjectPath?: string
   },
 ): {
   purpose?: 'vision' | 'edit'
@@ -479,6 +489,7 @@ export async function executeToolCall(
     userImages?: string[]
     userImageMimes?: string[]
     userImagePaths?: string[]
+    codingProjectPath?: string
     /** Latest user message text for override-policy checks. */
     userText?: string
   },
@@ -912,6 +923,75 @@ export async function executeToolCall(
     const applied = normalized[field]
     return `OK: updated ${field} to ${String(applied)}.`
   }
+  if (name === 'list_directory') {
+    if (!toolsEnabled.coding) return 'Error: list_directory tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    try {
+      const entries = await invokeListCodingDirectory(projectPath, relativePath)
+      if (entries.length === 0) return 'Directory is empty.'
+      return entries
+        .map((e) => `${e.type === 'directory' ? '[dir]' : '[file]'} ${e.path}`)
+        .join('\n')
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+  if (name === 'read_file') {
+    if (!toolsEnabled.coding) return 'Error: read_file tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    if (!relativePath) return 'Error: missing path parameter for read_file.'
+    return (await invokeReadCodingFile(projectPath, relativePath)).text
+  }
+  if (name === 'write_file') {
+    if (!toolsEnabled.coding) return 'Error: write_file tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    const content = typeof args.content === 'string' ? args.content : ''
+    if (!relativePath) return 'Error: missing path parameter for write_file.'
+    return (await invokeWriteCodingFile(projectPath, relativePath, content)).text
+  }
+  if (name === 'edit_code') {
+    if (!toolsEnabled.coding) return 'Error: edit_code tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    const findText = typeof args.find_text === 'string' ? args.find_text : ''
+    const replaceText = typeof args.replace_text === 'string' ? args.replace_text : ''
+    const replaceAll = args.replace_all === true
+    if (!relativePath) return 'Error: missing path parameter for edit_code.'
+    return (await invokeEditCodingFile(projectPath, relativePath, findText, replaceText, replaceAll)).text
+  }
+  if (name === 'search_files') {
+    if (!toolsEnabled.coding) return 'Error: search_files tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const query = typeof args.query === 'string' ? args.query.trim() : ''
+    if (!query) return 'Error: missing query parameter for search_files.'
+    return (await invokeSearchCodingFiles(projectPath, query)).text
+  }
+  if (name === 'execute_command') {
+    if (!toolsEnabled.coding) return 'Error: execute_command tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const command = typeof args.command === 'string' ? args.command.trim() : ''
+    const timeoutSec =
+      typeof args.timeout_sec === 'number' && Number.isFinite(args.timeout_sec)
+        ? args.timeout_sec
+        : undefined
+    const runInBackground = args.run_in_background === true
+    if (!command) return 'Error: missing command parameter for execute_command.'
+    return (
+      await invokeExecuteCodingCommand(projectPath, command, {
+        timeoutSec,
+        runInBackground,
+      })
+    ).text
+  }
   return `Error: unknown tool "${name}".`
 }
 
@@ -1045,13 +1125,14 @@ export type RunChatWithToolsParams = {
       | 'pdf'
       | 'image'
       | 'music'
+      | 'coding'
       | 'other'
       | null,
   ) => void
   /** Folder for `save_pdf` (from app settings). */
   pdfOutputDir?: string
   /** After each tool runs; use to show real outcomes (e.g. PDF path) in the UI. */
-  onToolResult?: (payload: { name: string; result: string }) => void
+  onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   runware?: RunwareImageConfig
   /** Attached images from the latest user message (raw base64). */
   userImages?: string[]
@@ -1059,6 +1140,7 @@ export type RunChatWithToolsParams = {
   userImageMimes?: string[]
   /** Optional source paths matching `userImages` indexes. */
   userImagePaths?: string[]
+  codingProjectPath?: string
 }
 
 /**
@@ -1078,6 +1160,8 @@ export async function runOllamaChatWithTools(
   let lastUsage: OllamaChatUsage | undefined
   let forcedWebDone = false
   let forcedScrapeDone = false
+  let lastToolSignature = ''
+  let sameToolSignatureRounds = 0
   const originalUserText = getLastUserText(messages)
   const originalUserUrl = pickFirstHttpUrl(originalUserText)
   const originalNeedsFresh = shouldForceWebSearch(originalUserText)
@@ -1151,7 +1235,7 @@ export async function runOllamaChatWithTools(
             tool_name: 'scrape_url',
             content: result,
           })
-          params.onToolResult?.({ name: 'scrape_url', result })
+          params.onToolResult?.({ name: 'scrape_url', result, args: { url: originalUserUrl, max_chars: 40000 } })
           params.onToolPhase?.(null)
           persistedAssistantPrefix = lastAssistantText
           if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
@@ -1201,7 +1285,7 @@ export async function runOllamaChatWithTools(
               tool_name: 'web_search',
               content: result,
             })
-            params.onToolResult?.({ name: 'web_search', result })
+            params.onToolResult?.({ name: 'web_search', result, args: { query: forcedQuery } })
             params.onToolPhase?.(null)
             persistedAssistantPrefix = lastAssistantText
             if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
@@ -1211,7 +1295,33 @@ export async function runOllamaChatWithTools(
           }
         }
       }
-      return { content: lastAssistantText || content, usage: lastUsage }
+      const finalText = (lastAssistantText || content || '').trim()
+      return {
+        content:
+          finalText ||
+          'Task completed, but no final assistant summary was produced. Ask me to summarize the result.',
+        usage: lastUsage,
+      }
+    }
+
+    const currentSignature = JSON.stringify(
+      validCalls.map((call) => ({
+        name: call.function?.name || '',
+        args: argumentsStringToObject(call.function?.arguments),
+      })),
+    )
+    if (currentSignature === lastToolSignature) {
+      sameToolSignatureRounds += 1
+    } else {
+      lastToolSignature = currentSignature
+      sameToolSignatureRounds = 1
+    }
+    if (sameToolSignatureRounds >= MAX_SAME_TOOL_SIGNATURE_ROUNDS) {
+      return {
+        content:
+          'Stopped repeated tool loop (same tool calls were repeated multiple rounds). Please continue with a narrower prompt or ask for a summary of current progress.',
+        usage: lastUsage,
+      }
     }
 
     messages.push({
@@ -1229,6 +1339,7 @@ export async function runOllamaChatWithTools(
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
       else if (name === 'generate_image' || name === 'edit_image_runware' || name === 'image_recall') params.onToolPhase?.('image')
       else if (name === 'generate_music_runware') params.onToolPhase?.('music')
+      else if (name === 'list_directory' || name === 'read_file' || name === 'write_file' || name === 'edit_code' || name === 'search_files' || name === 'execute_command') params.onToolPhase?.('coding')
       else params.onToolPhase?.('other')
 
       const result = await executeToolCall(
@@ -1243,6 +1354,7 @@ export async function runOllamaChatWithTools(
           userImages: params.userImages,
           userImageMimes: params.userImageMimes,
           userImagePaths: params.userImagePaths,
+          codingProjectPath: params.codingProjectPath,
           userText: originalUserText,
         },
       )
@@ -1251,7 +1363,7 @@ export async function runOllamaChatWithTools(
         tool_name: name,
         content: result,
       })
-      params.onToolResult?.({ name, result })
+      params.onToolResult?.({ name, result, args: argumentsStringToObject(call.function!.arguments) })
       if (name === 'image_recall') {
         const argsObj = argumentsStringToObject(call.function!.arguments)
         const recall = resolveImageRecallRequest(argsObj, {
@@ -1283,5 +1395,11 @@ export async function runOllamaChatWithTools(
     }
   }
 
-  return { content: lastAssistantText, usage: lastUsage }
+  const fallback = lastAssistantText.trim()
+  return {
+    content:
+      fallback ||
+      'Reached tool-round limit before final response. Ask me to continue from current state.',
+    usage: lastUsage,
+  }
 }

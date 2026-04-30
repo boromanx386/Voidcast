@@ -38,6 +38,13 @@ export type ToolsEnabled = {
   runwareImage: boolean
   /** Generate music/audio via Runware ACE-Step model */
   runwareMusic: boolean
+  /** Local coding tools (file read/write/search + terminal command execution) */
+  coding: boolean
+}
+
+export type CodingSettings = {
+  enabled: boolean
+  projectPath: string
 }
 
 export type AppSettings = {
@@ -90,6 +97,10 @@ export type AppSettings = {
   voiceBakePhrase: string
   /** Which LLM tools are registered with Ollama (see Tools settings tab) */
   toolsEnabled: ToolsEnabled
+  /** Standalone coding panel settings. */
+  coding: CodingSettings
+  /** Backward-compatible top-level alias for coding project path. */
+  codingProjectPath: string
   /** Where `save_pdf` writes files (no dialog). Empty = tool returns an error until set. */
   pdfOutputDir: string
   /** Visual chrome: cyberpunk shell vs calmer zinc/indigo layout */
@@ -201,7 +212,13 @@ const defaults: AppSettings = {
     youtube: false,
     runwareImage: false,
     runwareMusic: false,
+    coding: false,
   },
+  coding: {
+    enabled: false,
+    projectPath: '',
+  },
+  codingProjectPath: '',
   pdfOutputDir: '',
   uiTheme: 'minimal',
   runwareApiBaseUrl: 'https://api.runware.ai/v1',
@@ -254,6 +271,19 @@ function clamp(n: number, min: number, max: number) {
 
 function normalizeTools(s: AppSettings): AppSettings {
   const te = s.toolsEnabled
+  const codingEnabled =
+    typeof te?.coding === 'boolean'
+      ? te.coding
+      : typeof s.coding?.enabled === 'boolean'
+        ? s.coding.enabled
+        : defaults.toolsEnabled.coding
+  const codingProjectPathRaw =
+    typeof s.coding?.projectPath === 'string'
+      ? s.coding.projectPath
+      : typeof s.codingProjectPath === 'string'
+        ? s.codingProjectPath
+        : defaults.coding.projectPath
+  const codingProjectPath = codingProjectPathRaw.trim()
   return {
     ...s,
     toolsEnabled: {
@@ -273,7 +303,13 @@ function normalizeTools(s: AppSettings): AppSettings {
         typeof te?.runwareMusic === 'boolean'
           ? te.runwareMusic
           : defaults.toolsEnabled.runwareMusic,
+      coding: codingEnabled,
     },
+    coding: {
+      enabled: codingEnabled,
+      projectPath: codingProjectPath,
+    },
+    codingProjectPath,
   }
 }
 

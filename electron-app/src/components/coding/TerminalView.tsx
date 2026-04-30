@@ -1,0 +1,24 @@
+import type { TerminalLine } from '@/types/coding'
+
+type Props = {
+  lines: TerminalLine[]
+}
+
+export function TerminalView({ lines }: Props) {
+  return (
+    <div className="rounded border border-void-muted/30 bg-void-black/50 p-2">
+      <div className="mb-2 text-xs font-mono text-neon-yellow">TERMINAL</div>
+      <div className="max-h-56 overflow-auto space-y-1 font-mono text-xs">
+        {lines.length === 0 && <div className="text-void-dim">No terminal output yet.</div>}
+        {lines.map((line) => (
+          <div
+            key={line.id}
+            className={line.stream === 'stderr' ? 'text-neon-red/90' : line.stream === 'system' ? 'text-neon-cyan/80' : 'text-void-light'}
+          >
+            {line.text}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

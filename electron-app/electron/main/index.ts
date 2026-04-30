@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
 import { savePdfToFolder } from './pdf'
@@ -765,6 +765,220 @@ ipcMain.handle('voidcast:pick-directory', async () => {
   }
   return { ok: true as const, path: result.filePaths[0] }
 })
+
+function resolveInsideProject(projectPath: string, inputPath: string): string {
+  const root = path.resolve(projectPath)
+  const requested = inputPath.trim() ? inputPath.trim() : '.'
+  const abs = path.resolve(root, requested)
+  const rel = path.relative(root, abs)
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('Path escapes project root.')
+  }
+  return abs
+}
+
+ipcMain.handle('voidcast:coding-pick-directory', async () => {
+  const opts: OpenDialogOptions = {
+    title: 'Choose coding project folder',
+    properties: ['openDirectory'],
+  }
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+  if (result.canceled || !result.filePaths?.[0]) return { ok: false as const }
+  return { ok: true as const, path: result.filePaths[0] }
+})
+
+ipcMain.handle(
+  'voidcast:coding-list-directory',
+  async (_evt, payload: { projectPath?: string; path?: string }) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      if (!projectPath) return { ok: false as const, error: 'Missing coding project path.' }
+      const absDir = resolveInsideProject(projectPath, String(payload?.path ?? ''))
+      const entries = await readdir(absDir, { withFileTypes: true })
+      const mapped = await Promise.all(
+        entries
+          .filter((e) => !e.name.startsWith('.git'))
+          .map(async (entry) => {
+            const fullPath = path.join(absDir, entry.name)
+            const st = await stat(fullPath).catch(() => null)
+            return {
+              name: entry.name,
+              path: path.relative(projectPath, fullPath).replace(/\\/g, '/'),
+              type: entry.isDirectory() ? ('directory' as const) : ('file' as const),
+              size: entry.isDirectory() ? undefined : st?.size,
+            }
+          }),
+      )
+      mapped.sort((a, b) =>
+        a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1,
+      )
+      return { ok: true as const, entries: mapped }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-read-file',
+  async (_evt, payload: { projectPath?: string; path?: string }) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      const filePath = String(payload?.path ?? '').trim()
+      if (!projectPath || !filePath) {
+        return { ok: false as const, error: 'Missing projectPath or path.' }
+      }
+      const absFile = resolveInsideProject(projectPath, filePath)
+      const content = await readFile(absFile, 'utf8')
+      return { ok: true as const, content }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-write-file',
+  async (_evt, payload: { projectPath?: string; path?: string; content?: string }) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      const filePath = String(payload?.path ?? '').trim()
+      if (!projectPath || !filePath) {
+        return { ok: false as const, error: 'Missing projectPath or path.' }
+      }
+      const absFile = resolveInsideProject(projectPath, filePath)
+      const content = String(payload?.content ?? '')
+      await mkdir(path.dirname(absFile), { recursive: true })
+      try {
+        const previous = await readFile(absFile, 'utf8')
+        const backupPath = `${absFile}.bak-${Date.now()}`
+        await writeFile(backupPath, previous, 'utf8')
+      } catch {
+        // New file; no backup needed.
+      }
+      await writeFile(absFile, content, 'utf8')
+      return { ok: true as const, path: filePath.replace(/\\/g, '/') }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-search-files',
+  async (_evt, payload: { projectPath?: string; query?: string }) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      const query = String(payload?.query ?? '').trim()
+      if (!projectPath || !query) {
+        return { ok: false as const, error: 'Missing projectPath or query.' }
+      }
+      const root = path.resolve(projectPath)
+      const results: Array<{ path: string; line: number; text: string }> = []
+      const visit = async (dir: string): Promise<void> => {
+        const entries = await readdir(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (entry.name === '.git' || entry.name === 'node_modules') continue
+          const full = path.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            await visit(full)
+            continue
+          }
+          const rel = path.relative(root, full).replace(/\\/g, '/')
+          if (!/\.(ts|tsx|js|jsx|json|md|txt|py|java|cs|css|html|yml|yaml)$/i.test(rel)) continue
+          const content = await readFile(full, 'utf8').catch(() => '')
+          if (!content) continue
+          const lines = content.split(/\r?\n/)
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].toLowerCase().includes(query.toLowerCase())) {
+              results.push({ path: rel, line: i + 1, text: lines[i].trim().slice(0, 240) })
+              if (results.length >= 200) return
+            }
+          }
+        }
+      }
+      await visit(root)
+      return { ok: true as const, matches: results }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-execute-command',
+  async (_evt, payload: { projectPath?: string; command?: string; timeoutSec?: number; runInBackground?: boolean }) => {
+    const projectPath = String(payload?.projectPath ?? '').trim()
+    const command = String(payload?.command ?? '').trim()
+    if (!projectPath || !command) {
+      return { ok: false as const, error: 'Missing projectPath or command.' }
+    }
+    const timeoutSecRaw = Number(payload?.timeoutSec)
+    const timeoutMs = Number.isFinite(timeoutSecRaw)
+      ? Math.min(120_000, Math.max(3_000, Math.round(timeoutSecRaw * 1000)))
+      : 20_000
+    const runInBackground = payload?.runInBackground === true
+    return new Promise<{ ok: true; stdout: string; stderr: string; code: number; timedOut?: boolean; pid?: number } | { ok: false; error: string }>((resolve) => {
+      const child = spawn(command, {
+        cwd: projectPath,
+        shell: true,
+        detached: runInBackground,
+        stdio: runInBackground ? 'ignore' : 'pipe',
+        windowsHide: true,
+      })
+      if (runInBackground) {
+        child.unref()
+        resolve({
+          ok: true,
+          stdout: `Started in background (pid ${child.pid ?? 'n/a'})`,
+          stderr: '',
+          code: 0,
+          pid: child.pid ?? undefined,
+        })
+        return
+      }
+      let stdout = ''
+      let stderr = ''
+      let settled = false
+      const timer = setTimeout(() => {
+        if (settled) return
+        settled = true
+        try {
+          child.kill()
+        } catch {
+          // ignore kill errors
+        }
+        resolve({
+          ok: true,
+          stdout: stdout.trim(),
+          stderr: [stderr.trim(), `Command timed out after ${Math.round(timeoutMs / 1000)}s and was stopped.`]
+            .filter(Boolean)
+            .join('\n'),
+          code: 124,
+          timedOut: true,
+        })
+      }, timeoutMs)
+      child.stdout.on('data', (chunk) => {
+        stdout += String(chunk)
+      })
+      child.stderr.on('data', (chunk) => {
+        stderr += String(chunk)
+      })
+      child.on('error', (err) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve({ ok: false, error: err.message })
+      })
+      child.on('close', (code) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve({ ok: true, stdout: stdout.trim(), stderr: stderr.trim(), code: code ?? 0 })
+      })
+    })
+  },
+)
 
 const MAX_CHAT_IMAGE_BYTES = 4 * 1024 * 1024
 const MAX_CHAT_IMAGE_FILES = 4
