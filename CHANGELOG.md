@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.7] - 2026-05-01
+
 ### Added
 
 - Long-memory MVP for cross-chat personalization:
