@@ -41,7 +41,6 @@ import type {
 import { mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 
 const MAX_TOOL_ROUNDS = 18
-const MAX_SAME_TOOL_SIGNATURE_ROUNDS = 3
 const HTTP_URL_RE = /(https?:\/\/[^\s)]+)(?=[\s)]|$)/i
 const FRESHNESS_RE =
   /\b(today|latest|recent|newest|breaking|update|updates|news|current|currently|202\d|danas|najnovije|trenutno|vesti)\b/i
@@ -1160,8 +1159,6 @@ export async function runOllamaChatWithTools(
   let lastUsage: OllamaChatUsage | undefined
   let forcedWebDone = false
   let forcedScrapeDone = false
-  let lastToolSignature = ''
-  let sameToolSignatureRounds = 0
   const originalUserText = getLastUserText(messages)
   const originalUserUrl = pickFirstHttpUrl(originalUserText)
   const originalNeedsFresh = shouldForceWebSearch(originalUserText)
@@ -1295,33 +1292,7 @@ export async function runOllamaChatWithTools(
           }
         }
       }
-      const finalText = (lastAssistantText || content || '').trim()
-      return {
-        content:
-          finalText ||
-          'Task completed, but no final assistant summary was produced. Ask me to summarize the result.',
-        usage: lastUsage,
-      }
-    }
-
-    const currentSignature = JSON.stringify(
-      validCalls.map((call) => ({
-        name: call.function?.name || '',
-        args: argumentsStringToObject(call.function?.arguments),
-      })),
-    )
-    if (currentSignature === lastToolSignature) {
-      sameToolSignatureRounds += 1
-    } else {
-      lastToolSignature = currentSignature
-      sameToolSignatureRounds = 1
-    }
-    if (sameToolSignatureRounds >= MAX_SAME_TOOL_SIGNATURE_ROUNDS) {
-      return {
-        content:
-          'Stopped repeated tool loop (same tool calls were repeated multiple rounds). Please continue with a narrower prompt or ask for a summary of current progress.',
-        usage: lastUsage,
-      }
+      return { content: lastAssistantText || content, usage: lastUsage }
     }
 
     messages.push({
@@ -1395,11 +1366,5 @@ export async function runOllamaChatWithTools(
     }
   }
 
-  const fallback = lastAssistantText.trim()
-  return {
-    content:
-      fallback ||
-      'Reached tool-round limit before final response. Ask me to continue from current state.',
-    usage: lastUsage,
-  }
+  return { content: lastAssistantText, usage: lastUsage }
 }

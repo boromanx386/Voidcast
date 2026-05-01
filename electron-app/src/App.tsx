@@ -229,28 +229,6 @@ function buildCodingMemoHint(memo: CodingContextMemo): string {
   return lines.join('\n')
 }
 
-function summarizeToolArgs(args?: Record<string, unknown>): string {
-  if (!args) return '{}'
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(args)) {
-    if (typeof v === 'string') {
-      if (k === 'content' || k === 'find_text' || k === 'replace_text') {
-        out[k] = `[string:${v.length}] ${v.slice(0, 120)}${v.length > 120 ? '…' : ''}`
-      } else {
-        out[k] = v.length > 160 ? `${v.slice(0, 160)}…` : v
-      }
-      continue
-    }
-    if (Array.isArray(v)) {
-      out[k] = `[array:${v.length}]`
-      continue
-    }
-    out[k] = v
-  }
-  const json = JSON.stringify(out)
-  return json.length > 500 ? `${json.slice(0, 500)}…` : json
-}
-
 function toConversationTurns(messages: UiMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
   return messages
     .map((m) => {
@@ -1519,7 +1497,7 @@ export default function App() {
               name === 'search_files' ||
               name === 'execute_command'
             ) {
-              const argsSummary = summarizeToolArgs(args)
+              const argsSummary = args ? JSON.stringify(args) : '{}'
               const preview = String(result || '').slice(0, 500)
               const outputStream: TerminalLine['stream'] =
                 name === 'execute_command' ? 'stdout' : 'system'
