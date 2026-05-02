@@ -9,6 +9,7 @@ import {
 } from 'react'
 import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
+import { BrainIcon } from '@/components/icons/BrainIcon'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
@@ -2099,10 +2100,20 @@ export default function App() {
             type="button"
             disabled={busy || longMemoryBusy || messages.length === 0}
             onClick={() => void extractLongMemoryNow()}
-            className="cyber-btn shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs disabled:opacity-50"
+            className="cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 disabled:opacity-50"
             title="Summarize this chat and save relevant long-term memory"
+            aria-label={
+              longMemoryBusy ? 'Saving long-term memory…' : 'Save long-term memory'
+            }
           >
-            {longMemoryBusy ? 'MEMORY...' : 'SAVE_MEM'}
+            {longMemoryBusy ? (
+              <span
+                className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-void-dim border-t-neon-cyan"
+                aria-hidden
+              />
+            ) : (
+              <BrainIcon className="h-4 w-4 text-current" />
+            )}
           </button>
 
           {/* Save Button */}
@@ -2110,9 +2121,24 @@ export default function App() {
             <button
               type="button"
               onClick={saveOrUpdateSession}
-              className="cyber-btn shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs"
+              className="cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0"
+              title="Save chat session"
+              aria-label="Save chat session"
             >
-              SAVE_CHAT
+              <svg
+                className="h-4 w-4 text-current"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
             </button>
           )}
 
@@ -2866,25 +2892,35 @@ export default function App() {
             </button>
           </div>
           
-          {/* Input hints */}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
-            <span>
-              {pendingImages.length > 0 && (
-                <span className="text-neon-cyan/70">
-                  {pendingImages.length} image{pendingImages.length === 1 ? '' : 's'} attached
-                </span>
+          {/* Input hints (attachments + unsaved only; model list lives in LLM options) */}
+          {(pendingImages.length > 0 ||
+            pendingFiles.length > 0 ||
+            sessionDirty) && (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
+              <span>
+                {pendingImages.length > 0 && (
+                  <span className="text-neon-cyan/70">
+                    {pendingImages.length} image{pendingImages.length === 1 ? '' : 's'}{' '}
+                    attached
+                  </span>
+                )}
+                {pendingFiles.length > 0 && (
+                  <span
+                    className={
+                      pendingImages.length > 0
+                        ? 'ml-2 text-neon-green/70'
+                        : 'text-neon-green/70'
+                    }
+                  >
+                    {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} attached
+                  </span>
+                )}
+              </span>
+              {sessionDirty && (
+                <span className="text-neon-yellow/70 animate-pulse">UNSAVED</span>
               )}
-              {pendingFiles.length > 0 && (
-                <span className="ml-2 text-neon-green/70">
-                  {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} attached
-                </span>
-              )}
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="text-neon-cyan/50">{ollamaModels.length > 0 ? `${ollamaModels.length} MODELS` : 'NO_MODELS'}</span>
-              {sessionDirty && <span className="text-neon-yellow/70 animate-pulse">UNSAVED</span>}
-            </span>
-          </div>
+            </div>
+          )}
         </div>
       </footer>
       </div>

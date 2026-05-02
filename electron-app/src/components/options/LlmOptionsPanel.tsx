@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { BrainIcon } from '@/components/icons/BrainIcon'
 import { isWebStandalone } from '@/lib/platform'
 import type { Dispatch, SetStateAction } from 'react'
 
@@ -22,6 +23,7 @@ const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
   { id: 'google/gemma-4-31b-it:free', label: 'Google Gemma 4 31B IT (Free)' },
   { id: 'z-ai/glm-4.7-flash', label: 'Z.AI GLM 4.7 Flash' },
   { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7' },
+  { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (Free)' },
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
   { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'NVIDIA Nemotron 3 Super 120B A12B (Free)' },
 ]
@@ -328,8 +330,9 @@ export function LlmOptionsPanel({
 
       <div className="form-group">
         <label className="form-label flex items-center justify-between gap-3">
-          <span>
-            <span className="text-neon-cyan mr-2">◎</span> NEW_CHATS_USE_LONG_MEMORY
+          <span className="flex items-center gap-2">
+            <BrainIcon className="h-4 w-4 shrink-0 text-neon-cyan" aria-hidden />
+            NEW_CHATS_USE_LONG_MEMORY
           </span>
           <input
             type="checkbox"

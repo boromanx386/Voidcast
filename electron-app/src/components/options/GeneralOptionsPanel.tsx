@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from 'react'
 import type { LongMemoryItem } from '@/types/longMemory'
+import { BrainIcon } from '@/components/icons/BrainIcon'
 
 type Props = {
   settings: AppSettings
@@ -217,8 +218,9 @@ export function GeneralOptionsPanel({
       </div>
 
       <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded space-y-3">
-        <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
-          <span className="mr-2">◉</span>LONG_MEMORY
+        <p className="flex items-center gap-2 text-xs font-mono text-neon-cyan uppercase tracking-wider">
+          <BrainIcon className="h-4 w-4 shrink-0 text-neon-cyan" aria-hidden />
+          LONG_MEMORY
         </p>
         <label className="flex items-start gap-3">
           <input
