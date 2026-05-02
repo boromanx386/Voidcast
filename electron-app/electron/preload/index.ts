@@ -56,7 +56,14 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
-  codingReadFile: (payload: { projectPath: string; path: string }) =>
+  codingReadFile: (payload: {
+    projectPath: string
+    path: string
+    startLine?: number
+    endLine?: number
+    maxChars?: number
+    allowLargeRead?: boolean
+  }) =>
     ipcRenderer.invoke('voidcast:coding-read-file', payload) as Promise<
       | { ok: true; content: string }
       | { ok: false; error?: string }
@@ -66,12 +73,32 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: true; path: string }
       | { ok: false; error?: string }
     >,
-  codingSearchFiles: (payload: { projectPath: string; query: string }) =>
+  codingSearchFiles: (payload: { projectPath: string; query: string; pathPrefix?: string }) =>
     ipcRenderer.invoke('voidcast:coding-search-files', payload) as Promise<
       | {
           ok: true
           matches: { path: string; line: number; text: string }[]
         }
+      | { ok: false; error?: string }
+    >,
+  codingGlobFiles: (payload: {
+    projectPath: string
+    pathPrefix?: string
+    extensions?: string[]
+    maxResults?: number
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-glob-files', payload) as Promise<
+      | { ok: true; paths: string[] }
+      | { ok: false; error?: string }
+    >,
+  codingGit: (payload: {
+    projectPath: string
+    mode: 'status' | 'diff'
+    path?: string
+    staged?: boolean
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-git', payload) as Promise<
+      | { ok: true; text: string }
       | { ok: false; error?: string }
     >,
   codingExecuteCommand: (payload: {

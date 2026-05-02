@@ -383,13 +383,26 @@ const CODING_READ_FILE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'read_file',
     description:
-      'Read a file from the configured coding project directory. Use this before proposing edits.',
+      'Read a file from the configured coding project. Prefer start_line/end_line or max_chars on large files (whole-file reads above ~220k characters are rejected unless you use a range). Lines are returned as N|text with 1-based line numbers.',
     parameters: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
           description: 'Relative file path inside coding project.',
+        },
+        start_line: {
+          type: 'number',
+          description: 'Optional 1-based start line. Use with end_line or alone (then up to ~400 lines are returned).',
+        },
+        end_line: {
+          type: 'number',
+          description: 'Optional 1-based inclusive end line.',
+        },
+        max_chars: {
+          type: 'number',
+          description:
+            'Optional cap on returned characters after line slicing (default unlimited within range).',
         },
       },
       required: ['path'],
@@ -456,7 +469,7 @@ const CODING_SEARCH_FILES_TOOL: OllamaToolDefinition = {
   function: {
     name: 'search_files',
     description:
-      'Search file contents in the configured coding project directory using a plain-text query.',
+      'Search file contents under the coding project using a plain-text query (case-insensitive). Skips node_modules, dist, build, .git, and similar folders.',
     parameters: {
       type: 'object',
       properties: {
@@ -464,8 +477,77 @@ const CODING_SEARCH_FILES_TOOL: OllamaToolDefinition = {
           type: 'string',
           description: 'Search text to match inside files.',
         },
+        path_prefix: {
+          type: 'string',
+          description:
+            'Optional relative folder inside the project to limit the search (e.g. src/components).',
+        },
       },
       required: ['query'],
+    },
+  },
+}
+
+const CODING_GLOB_FILES_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'glob_files',
+    description:
+      'List source-like files under the coding project by extension. Faster than repeated list_directory for finding TypeScript, configs, etc. Skips node_modules, dist, build, .git, and similar folders.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path_prefix: {
+          type: 'string',
+          description: 'Optional relative folder to search under (default: project root).',
+        },
+        extensions: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'File extensions without dot, e.g. ["ts","tsx"]. If omitted, uses a sensible default set (ts, tsx, js, jsx, json, md, css, html, py, rs, go, vue).',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum paths to return (default 150, max 500).',
+        },
+      },
+    },
+  },
+}
+
+const CODING_GIT_STATUS_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'git_status',
+    description:
+      'Show git branch and short working-tree status for the coding project (modified, staged, untracked paths). Use to see what changed before or after edits. Requires the project folder to be a git repository.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+}
+
+const CODING_GIT_DIFF_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'git_diff',
+    description:
+      'Show unified diff for the coding project. Unstaged changes by default; set staged=true for staged (cached) diff. Optional path limits diff to one file or subdirectory (relative to project root). Requires git.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description:
+            'Optional relative path to a file or folder inside the project. Omit for full tree diff.',
+        },
+        staged: {
+          type: 'boolean',
+          description: 'If true, show staged changes (git diff --cached). Default false (working tree vs index).',
+        },
+      },
     },
   },
 }
@@ -517,6 +599,9 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
     out.push(CODING_WRITE_FILE_TOOL)
     out.push(CODING_EDIT_CODE_TOOL)
     out.push(CODING_SEARCH_FILES_TOOL)
+    out.push(CODING_GLOB_FILES_TOOL)
+    out.push(CODING_GIT_STATUS_TOOL)
+    out.push(CODING_GIT_DIFF_TOOL)
     out.push(CODING_EXECUTE_COMMAND_TOOL)
   }
   out.push(UPDATE_SETTINGS_TOOL)

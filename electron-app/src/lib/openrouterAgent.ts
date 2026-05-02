@@ -126,7 +126,18 @@ export async function runOpenRouterChatWithTools(
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
       else if (name === 'generate_image' || name === 'edit_image_runware' || name === 'image_recall') params.onToolPhase?.('image')
       else if (name === 'generate_music_runware') params.onToolPhase?.('music')
-      else if (name === 'list_directory' || name === 'read_file' || name === 'write_file' || name === 'edit_code' || name === 'search_files' || name === 'execute_command') params.onToolPhase?.('coding')
+      else if (
+        name === 'list_directory' ||
+        name === 'read_file' ||
+        name === 'write_file' ||
+        name === 'edit_code' ||
+        name === 'search_files' ||
+        name === 'glob_files' ||
+        name === 'git_status' ||
+        name === 'git_diff' ||
+        name === 'execute_command'
+      )
+        params.onToolPhase?.('coding')
       else params.onToolPhase?.('other')
 
       const argsObj = parseToolArguments(call.function.arguments)

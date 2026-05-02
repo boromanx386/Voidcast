@@ -27,6 +27,8 @@ import {
 import {
   invokeExecuteCodingCommand,
   invokeEditCodingFile,
+  invokeCodingGit,
+  invokeGlobCodingFiles,
   invokeListCodingDirectory,
   invokeReadCodingFile,
   invokeSearchCodingFiles,
@@ -928,9 +930,10 @@ export async function executeToolCall(
     if (!projectPath) return 'Error: coding project folder is not set in settings.'
     const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
     try {
-      const entries = await invokeListCodingDirectory(projectPath, relativePath)
-      if (entries.length === 0) return 'Directory is empty.'
-      return entries
+      const listed = await invokeListCodingDirectory(projectPath, relativePath)
+      if (!listed.ok) return `Error: ${listed.error}`
+      if (listed.entries.length === 0) return 'Directory is empty.'
+      return listed.entries
         .map((e) => `${e.type === 'directory' ? '[dir]' : '[file]'} ${e.path}`)
         .join('\n')
     } catch (e) {
@@ -943,7 +946,25 @@ export async function executeToolCall(
     if (!projectPath) return 'Error: coding project folder is not set in settings.'
     const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
     if (!relativePath) return 'Error: missing path parameter for read_file.'
-    return (await invokeReadCodingFile(projectPath, relativePath)).text
+    const startLine =
+      typeof args.start_line === 'number' && Number.isFinite(args.start_line)
+        ? Math.floor(args.start_line)
+        : undefined
+    const endLine =
+      typeof args.end_line === 'number' && Number.isFinite(args.end_line)
+        ? Math.floor(args.end_line)
+        : undefined
+    const maxChars =
+      typeof args.max_chars === 'number' && Number.isFinite(args.max_chars)
+        ? Math.floor(args.max_chars)
+        : undefined
+    return (
+      await invokeReadCodingFile(projectPath, relativePath, {
+        startLine,
+        endLine,
+        maxChars,
+      })
+    ).text
   }
   if (name === 'write_file') {
     if (!toolsEnabled.coding) return 'Error: write_file tool is disabled in settings.'
@@ -971,7 +992,50 @@ export async function executeToolCall(
     if (!projectPath) return 'Error: coding project folder is not set in settings.'
     const query = typeof args.query === 'string' ? args.query.trim() : ''
     if (!query) return 'Error: missing query parameter for search_files.'
-    return (await invokeSearchCodingFiles(projectPath, query)).text
+    const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
+    return (
+      await invokeSearchCodingFiles(projectPath, query, pathPrefix ? { pathPrefix } : undefined)
+    ).text
+  }
+  if (name === 'glob_files') {
+    if (!toolsEnabled.coding) return 'Error: glob_files tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
+    const extensions = Array.isArray(args.extensions)
+      ? args.extensions.filter((x): x is string => typeof x === 'string')
+      : undefined
+    const maxResults =
+      typeof args.max_results === 'number' && Number.isFinite(args.max_results)
+        ? args.max_results
+        : undefined
+    return (
+      await invokeGlobCodingFiles(projectPath, {
+        pathPrefix: pathPrefix || undefined,
+        extensions,
+        maxResults,
+      })
+    ).text
+  }
+  if (name === 'git_status') {
+    if (!toolsEnabled.coding) return 'Error: git_status tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    return (await invokeCodingGit(projectPath, { mode: 'status' })).text
+  }
+  if (name === 'git_diff') {
+    if (!toolsEnabled.coding) return 'Error: git_diff tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relPath = typeof args.path === 'string' ? args.path.trim() : ''
+    const staged = args.staged === true
+    return (
+      await invokeCodingGit(projectPath, {
+        mode: 'diff',
+        path: relPath || undefined,
+        staged,
+      })
+    ).text
   }
   if (name === 'execute_command') {
     if (!toolsEnabled.coding) return 'Error: execute_command tool is disabled in settings.'
@@ -1310,7 +1374,18 @@ export async function runOllamaChatWithTools(
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
       else if (name === 'generate_image' || name === 'edit_image_runware' || name === 'image_recall') params.onToolPhase?.('image')
       else if (name === 'generate_music_runware') params.onToolPhase?.('music')
-      else if (name === 'list_directory' || name === 'read_file' || name === 'write_file' || name === 'edit_code' || name === 'search_files' || name === 'execute_command') params.onToolPhase?.('coding')
+      else if (
+        name === 'list_directory' ||
+        name === 'read_file' ||
+        name === 'write_file' ||
+        name === 'edit_code' ||
+        name === 'search_files' ||
+        name === 'glob_files' ||
+        name === 'git_status' ||
+        name === 'git_diff' ||
+        name === 'execute_command'
+      )
+        params.onToolPhase?.('coding')
       else params.onToolPhase?.('other')
 
       const result = await executeToolCall(

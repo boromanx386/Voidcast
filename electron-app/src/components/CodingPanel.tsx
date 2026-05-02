@@ -32,9 +32,10 @@ export function CodingPanel({ settings, onUpdateProjectPath, externalTerminalLin
 
   const refreshFiles = useCallback(async () => {
     if (!projectPath) return
-    const entries = await invokeListCodingDirectory(projectPath)
-    setFiles(entries)
-  }, [projectPath])
+    const listed = await invokeListCodingDirectory(projectPath)
+    if (listed.ok) setFiles(listed.entries)
+    else pushTerminal('stderr', listed.error)
+  }, [projectPath, pushTerminal])
 
   useEffect(() => {
     void refreshFiles()

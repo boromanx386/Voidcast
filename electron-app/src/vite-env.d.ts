@@ -65,21 +65,41 @@ interface Window {
         }
       | { ok: false; error?: string }
     >
-    codingReadFile: (payload: { projectPath: string; path: string }) => Promise<
-      | { ok: true; content: string }
-      | { ok: false; error?: string }
-    >
+    codingReadFile: (payload: {
+      projectPath: string
+      path: string
+      startLine?: number
+      endLine?: number
+      maxChars?: number
+      allowLargeRead?: boolean
+    }) => Promise<{ ok: true; content: string } | { ok: false; error?: string }>
     codingWriteFile: (payload: { projectPath: string; path: string; content: string }) => Promise<
       | { ok: true; path: string }
       | { ok: false; error?: string }
     >
-    codingSearchFiles: (payload: { projectPath: string; query: string }) => Promise<
+    codingSearchFiles: (payload: {
+      projectPath: string
+      query: string
+      pathPrefix?: string
+    }) => Promise<
       | {
           ok: true
           matches: { path: string; line: number; text: string }[]
         }
       | { ok: false; error?: string }
     >
+    codingGlobFiles: (payload: {
+      projectPath: string
+      pathPrefix?: string
+      extensions?: string[]
+      maxResults?: number
+    }) => Promise<{ ok: true; paths: string[] } | { ok: false; error?: string }>
+    codingGit: (payload: {
+      projectPath: string
+      mode: 'status' | 'diff'
+      path?: string
+      staged?: boolean
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
     codingExecuteCommand: (payload: {
       projectPath: string
       command: string

@@ -1381,7 +1381,7 @@ export default function App() {
         [
           'Coding tools are available for local project operations.',
           `Coding project path: ${settings.coding.projectPath || settings.codingProjectPath || '(not set)'}`,
-          'Use list_directory before reading or writing files.',
+          'Use glob_files or list_directory to find paths; git_status / git_diff for repo changes; read_file with start_line/end_line or max_chars on large files; search_files accepts path_prefix.',
         ].join('\n'),
       )
       toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
@@ -1497,6 +1497,9 @@ export default function App() {
               name === 'write_file' ||
               name === 'edit_code' ||
               name === 'search_files' ||
+              name === 'glob_files' ||
+              name === 'git_status' ||
+              name === 'git_diff' ||
               name === 'execute_command'
             ) {
               const argsSummary = args ? JSON.stringify(args) : '{}'

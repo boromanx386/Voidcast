@@ -777,6 +777,91 @@ function resolveInsideProject(projectPath: string, inputPath: string): string {
   return abs
 }
 
+/** Skip heavy / generated dirs when walking project trees for search & glob. */
+const CODING_SKIP_DIR_NAMES = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  '.next',
+  'coverage',
+  'target',
+  'out',
+  '__pycache__',
+  '.turbo',
+  '.cache',
+  '.venv',
+  'venv',
+  'Pods',
+  '.gradle',
+  'DerivedData',
+])
+
+const CODING_READ_SOFT_CHAR_LIMIT = 220_000
+
+function shouldSkipCodingWalkDir(name: string): boolean {
+  if (name.startsWith('.')) {
+    return name === '.git' || name === '.next' || name === '.turbo' || name === '.cache' || name === '.venv'
+  }
+  return CODING_SKIP_DIR_NAMES.has(name)
+}
+
+const MAX_GIT_OUTPUT_CHARS = 450_000
+const GIT_COMMAND_TIMEOUT_MS = 25_000
+
+function truncateGitOutput(text: string): string {
+  if (text.length <= MAX_GIT_OUTPUT_CHARS) return text
+  return `${text.slice(0, MAX_GIT_OUTPUT_CHARS)}\n\n… [output truncated to ${MAX_GIT_OUTPUT_CHARS} characters]`
+}
+
+function runGitCapture(
+  cwd: string,
+  args: string[],
+  timeoutMs = GIT_COMMAND_TIMEOUT_MS,
+): Promise<{ ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }> {
+  return new Promise((resolve) => {
+    const child = spawn('git', args, { cwd, shell: false, windowsHide: true })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      try {
+        child.kill()
+      } catch {
+        /* ignore */
+      }
+      resolve({ ok: false, error: `Git command timed out after ${Math.round(timeoutMs / 1000)}s.` })
+    }, timeoutMs)
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk)
+    })
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk)
+    })
+    child.on('error', (err) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      const code = (err as NodeJS.ErrnoException).code
+      resolve({
+        ok: false,
+        error:
+          code === 'ENOENT' || err.message.includes('ENOENT')
+            ? 'Git executable not found on PATH.'
+            : err.message,
+      })
+    })
+    child.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ ok: true, stdout: stdout.trimEnd(), stderr: stderr.trimEnd(), code: code ?? 0 })
+    })
+  })
+}
+
 ipcMain.handle('voidcast:coding-pick-directory', async () => {
   const opts: OpenDialogOptions = {
     title: 'Choose coding project folder',
@@ -821,7 +906,17 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:coding-read-file',
-  async (_evt, payload: { projectPath?: string; path?: string }) => {
+  async (
+    _evt,
+    payload: {
+      projectPath?: string
+      path?: string
+      startLine?: number
+      endLine?: number
+      maxChars?: number
+      allowLargeRead?: boolean
+    },
+  ) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
       const filePath = String(payload?.path ?? '').trim()
@@ -830,7 +925,60 @@ ipcMain.handle(
       }
       const absFile = resolveInsideProject(projectPath, filePath)
       const content = await readFile(absFile, 'utf8')
-      return { ok: true as const, content }
+      const allowLarge = payload?.allowLargeRead === true
+      const startLine =
+        typeof payload?.startLine === 'number' && Number.isFinite(payload.startLine)
+          ? Math.max(1, Math.floor(payload.startLine))
+          : undefined
+      const endLine =
+        typeof payload?.endLine === 'number' && Number.isFinite(payload.endLine)
+          ? Math.max(1, Math.floor(payload.endLine))
+          : undefined
+      const maxChars =
+        typeof payload?.maxChars === 'number' && Number.isFinite(payload.maxChars)
+          ? Math.min(500_000, Math.max(1, Math.floor(payload.maxChars)))
+          : undefined
+
+      const hasPartial =
+        startLine !== undefined || endLine !== undefined || maxChars !== undefined
+
+      if (!allowLarge && !hasPartial && content.length > CODING_READ_SOFT_CHAR_LIMIT) {
+        return {
+          ok: false as const,
+          error: `File is too large to read at once (${content.length} chars; soft limit ${CODING_READ_SOFT_CHAR_LIMIT}). Use start_line/end_line (1-based) or max_chars, or read a smaller range.`,
+        }
+      }
+
+      let out = content
+      let lineRangeNote = ''
+
+      if (startLine !== undefined || endLine !== undefined) {
+        const lines = content.split(/\r?\n/)
+        const total = lines.length
+        const from = startLine !== undefined ? startLine - 1 : 0
+        let to =
+          endLine !== undefined ? endLine - 1 : startLine !== undefined ? startLine - 1 + 399 : total - 1
+        if (endLine === undefined && startLine !== undefined) {
+          to = Math.min(startLine - 1 + 399, total - 1)
+        }
+        const safeFrom = Math.max(0, Math.min(from, total > 0 ? total - 1 : 0))
+        const safeTo = Math.max(safeFrom, Math.min(to, total > 0 ? total - 1 : 0))
+        const slice = lines.slice(safeFrom, safeTo + 1)
+        const numbered = slice.map((line, i) => {
+          const n = safeFrom + i + 1
+          return `${n}| ${line}`
+        })
+        out = numbered.join('\n')
+        lineRangeNote = `\n(lines ${safeFrom + 1}-${safeTo + 1} of ${total})`
+      }
+
+      if (maxChars !== undefined && out.length > maxChars) {
+        out = `${out.slice(0, maxChars)}\n\n… [truncated to ${maxChars} characters]${lineRangeNote}`
+      } else if (lineRangeNote && !out.endsWith(lineRangeNote.trim())) {
+        out = `${out}${lineRangeNote}`
+      }
+
+      return { ok: true as const, content: out }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }
@@ -866,7 +1014,7 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:coding-search-files',
-  async (_evt, payload: { projectPath?: string; query?: string }) => {
+  async (_evt, payload: { projectPath?: string; query?: string; pathPrefix?: string }) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
       const query = String(payload?.query ?? '').trim()
@@ -874,18 +1022,21 @@ ipcMain.handle(
         return { ok: false as const, error: 'Missing projectPath or query.' }
       }
       const root = path.resolve(projectPath)
+      const prefix = String(payload?.pathPrefix ?? '').trim()
+      const searchRoot = prefix ? resolveInsideProject(projectPath, prefix) : root
       const results: Array<{ path: string; line: number; text: string }> = []
       const visit = async (dir: string): Promise<void> => {
         const entries = await readdir(dir, { withFileTypes: true })
         for (const entry of entries) {
-          if (entry.name === '.git' || entry.name === 'node_modules') continue
-          const full = path.join(dir, entry.name)
           if (entry.isDirectory()) {
-            await visit(full)
+            if (shouldSkipCodingWalkDir(entry.name)) continue
+            await visit(path.join(dir, entry.name))
             continue
           }
+          const full = path.join(dir, entry.name)
           const rel = path.relative(root, full).replace(/\\/g, '/')
-          if (!/\.(ts|tsx|js|jsx|json|md|txt|py|java|cs|css|html|yml|yaml)$/i.test(rel)) continue
+          if (!/\.(ts|tsx|js|jsx|json|md|txt|py|java|cs|css|html|yml|yaml|rs|go|vue|svelte)$/i.test(rel))
+            continue
           const content = await readFile(full, 'utf8').catch(() => '')
           if (!content) continue
           const lines = content.split(/\r?\n/)
@@ -897,8 +1048,142 @@ ipcMain.handle(
           }
         }
       }
-      await visit(root)
+      await visit(searchRoot)
       return { ok: true as const, matches: results }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-glob-files',
+  async (
+    _evt,
+    payload: {
+      projectPath?: string
+      pathPrefix?: string
+      extensions?: string[]
+      maxResults?: number
+    },
+  ) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      if (!projectPath) return { ok: false as const, error: 'Missing projectPath.' }
+      const root = path.resolve(projectPath)
+      const prefix = String(payload?.pathPrefix ?? '').trim()
+      const walkRoot = prefix ? resolveInsideProject(projectPath, prefix) : root
+      const rawExt = Array.isArray(payload?.extensions) ? payload.extensions : []
+      const extensions = rawExt
+        .map((e) => String(e).trim().replace(/^\./, '').toLowerCase())
+        .filter(Boolean)
+      const defaultExt = ['ts', 'tsx', 'js', 'jsx', 'json', 'md', 'css', 'html', 'py', 'rs', 'go', 'vue']
+      const useExt = extensions.length > 0 ? extensions : defaultExt
+      const maxRaw = Number(payload?.maxResults)
+      const maxResults = Number.isFinite(maxRaw)
+        ? Math.min(500, Math.max(1, Math.floor(maxRaw)))
+        : 150
+
+      const paths: string[] = []
+      const visit = async (dir: string): Promise<void> => {
+        if (paths.length >= maxResults) return
+        const entries = await readdir(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (paths.length >= maxResults) return
+          const full = path.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            if (shouldSkipCodingWalkDir(entry.name)) continue
+            await visit(full)
+            continue
+          }
+          const rel = path.relative(root, full).replace(/\\/g, '/')
+          const dot = rel.lastIndexOf('.')
+          const ext = dot >= 0 ? rel.slice(dot + 1).toLowerCase() : ''
+          if (!useExt.includes(ext)) continue
+          paths.push(rel)
+        }
+      }
+      await visit(walkRoot)
+      return { ok: true as const, paths }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-git',
+  async (
+    _evt,
+    payload: {
+      projectPath?: string
+      mode?: 'status' | 'diff'
+      path?: string
+      staged?: boolean
+    },
+  ) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      if (!projectPath) return { ok: false as const, error: 'Missing projectPath.' }
+      const root = path.resolve(projectPath)
+      const mode = payload?.mode === 'diff' ? 'diff' : 'status'
+
+      const inside = await runGitCapture(root, ['rev-parse', '--is-inside-work-tree'])
+      if (!inside.ok) return { ok: false as const, error: inside.error }
+      if (inside.code !== 0 || inside.stdout.trim() !== 'true') {
+        const hint = inside.stderr?.trim() || 'Not a git repository.'
+        return {
+          ok: false as const,
+          error: /not a git repository/i.test(hint) ? 'Not a git repository.' : hint,
+        }
+      }
+
+      if (mode === 'status') {
+        const r = await runGitCapture(root, [
+          '-c',
+          'core.quotepath=false',
+          'status',
+          '--short',
+          '--branch',
+          '--untracked-files=all',
+        ])
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error: r.stderr.trim() || `git status failed (exit ${r.code}).`,
+          }
+        }
+        const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
+        return {
+          ok: true as const,
+          text: truncateGitOutput(combined || '(no status output)'),
+        }
+      }
+
+      const staged = payload?.staged === true
+      const rel = String(payload?.path ?? '').trim()
+      const args: string[] = staged ? ['diff', '--cached', '--no-color'] : ['diff', '--no-color']
+      if (rel) {
+        const abs = resolveInsideProject(projectPath, rel)
+        const relGit = path.relative(root, abs).replace(/\\/g, '/')
+        args.push('--', relGit)
+      }
+      const r = await runGitCapture(root, args)
+      if (!r.ok) return { ok: false as const, error: r.error }
+      if (r.code !== 0) {
+        return {
+          ok: false as const,
+          error: r.stderr.trim() || `git diff failed (exit ${r.code}).`,
+        }
+      }
+      let out = r.stdout
+      if (r.stderr) out = [out, r.stderr].filter(Boolean).join('\n')
+      const trimmed = out.trim()
+      return {
+        ok: true as const,
+        text: truncateGitOutput(trimmed ? trimmed : '(no diff)'),
+      }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }
@@ -958,10 +1243,10 @@ ipcMain.handle(
           timedOut: true,
         })
       }, timeoutMs)
-      child.stdout.on('data', (chunk) => {
+      child.stdout?.on('data', (chunk) => {
         stdout += String(chunk)
       })
-      child.stderr.on('data', (chunk) => {
+      child.stderr?.on('data', (chunk) => {
         stderr += String(chunk)
       })
       child.on('error', (err) => {
