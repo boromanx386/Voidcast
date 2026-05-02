@@ -10,6 +10,7 @@ import {
 import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { BrainIcon } from '@/components/icons/BrainIcon'
+import { CodeIcon } from '@/components/icons/CodeIcon'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
@@ -2193,9 +2194,11 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowCodingPanel((v) => !v)}
-            className={`cyber-btn shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs ${showCodingPanel ? 'border-neon-cyan/60 text-neon-cyan' : ''}`}
+            className={`cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 ${showCodingPanel ? 'border-neon-cyan/60 text-neon-cyan' : ''}`}
+            title={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
+            aria-label={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
           >
-            {showCodingPanel ? 'CODING_ON' : 'CODING'}
+            <CodeIcon className="h-4 w-4 text-current" />
           </button>
           <button
             type="button"

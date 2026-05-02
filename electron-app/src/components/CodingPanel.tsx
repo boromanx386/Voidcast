@@ -71,20 +71,24 @@ export function CodingPanel({ settings, onUpdateProjectPath, externalTerminalLin
   const fileCount = useMemo(() => files.filter((f) => f.type === 'file').length, [files])
 
   return (
-    <aside className="w-[26rem] min-w-[22rem] border-l border-void-muted/30 bg-void-dark/40 p-3 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+    <aside className="flex h-full min-h-0 w-[26rem] min-w-[22rem] shrink-0 flex-col gap-3 overflow-hidden border-l border-void-muted/30 bg-void-dark/40 p-3">
+      <div className="flex shrink-0 items-center justify-between">
         <div className="text-sm font-mono text-neon-cyan">CODING_PANEL</div>
         <button type="button" className="cyber-btn text-xs" onClick={() => void onPickFolder()}>
           PICK_FOLDER
         </button>
       </div>
-      <div className="text-[11px] font-mono text-void-dim break-all">
+      <div className="shrink-0 text-[11px] font-mono text-void-dim break-all">
         {projectPath || 'No project folder selected.'} {projectPath ? `(${fileCount} files)` : ''}
       </div>
-      <FileTree files={files} selectedPath={selectedPath} onSelect={(path) => void onOpenFile(path)} />
-      <FilePreview filePath={selectedPath} content={previewContent} />
-      <TerminalView lines={terminalLines} />
-      <div className="flex gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        <div className="min-h-0 shrink-0">
+          <FileTree files={files} selectedPath={selectedPath} onSelect={(path) => void onOpenFile(path)} />
+        </div>
+        <FilePreview filePath={selectedPath} content={previewContent} />
+        <TerminalView lines={terminalLines} />
+      </div>
+      <div className="flex shrink-0 gap-2">
         <input
           type="text"
           value={command}
