@@ -1520,7 +1520,7 @@ export default function App() {
                   text: preview || '(empty result)',
                   ts: Date.now(),
                 },
-              ].slice(-300))
+              ].slice(-100))
 
               setCodingContextMemo((prev) => {
                 const next = { ...prev }
