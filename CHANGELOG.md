@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- New `agentToolPhase.ts` module with granular UI tool phases for coding operations: `coding_list`, `coding_read`, `coding_write`, `coding_edit`, `coding_search`, `coding_glob`, `coding_git`, `coding_shell`, plus `settings` and `other` phases.
+- Tool indicator CSS styles for image, music, coding, settings, and other phase types.
+
+### Changed
+
+- **MAX_TOOL_ROUNDS** increased from 18 to 30 in Ollama agent for longer tool chains.
+- Tool phase handler now persists the last non-null phase until turn ends, preventing UI flashing between tool batches.
+- OpenRouter agent now uses the shared `toolPhaseForAgentTool` helper (same as Ollama).
+
 ## [2.3.9] - 2026-05-04
 
 ### Added

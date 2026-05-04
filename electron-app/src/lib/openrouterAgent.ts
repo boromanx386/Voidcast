@@ -9,6 +9,7 @@ import {
   type OpenRouterToolCall,
 } from '@/lib/openrouter'
 import { executeToolCall } from '@/lib/ollamaAgent'
+import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 
 const MAX_TOOL_ROUNDS = 18
 
@@ -50,19 +51,7 @@ export type RunOpenRouterChatWithToolsParams = {
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
-  onToolPhase?: (
-    phase:
-      | 'search'
-      | 'youtube'
-      | 'weather'
-      | 'scrape'
-      | 'pdf'
-      | 'image'
-      | 'music'
-      | 'coding'
-      | 'other'
-      | null,
-  ) => void
+  onToolPhase?: (phase: AgentToolUiPhase | null) => void
   pdfOutputDir?: string
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   runware?: RunwareImageConfig
@@ -119,28 +108,7 @@ export async function runOpenRouterChatWithTools(
 
     for (const call of validCalls) {
       const name = call.function.name
-      if (name === 'web_search') params.onToolPhase?.('search')
-      else if (name === 'search_youtube') params.onToolPhase?.('youtube')
-      else if (name === 'get_weather') params.onToolPhase?.('weather')
-      else if (name === 'scrape_url') params.onToolPhase?.('scrape')
-      else if (name === 'save_pdf') params.onToolPhase?.('pdf')
-      else if (name === 'generate_image' || name === 'edit_image_runware' || name === 'image_recall') params.onToolPhase?.('image')
-      else if (name === 'generate_music_runware') params.onToolPhase?.('music')
-      else if (
-        name === 'list_directory' ||
-        name === 'read_file' ||
-        name === 'write_file' ||
-        name === 'edit_code' ||
-        name === 'search_files' ||
-        name === 'glob_files' ||
-        name === 'git_status' ||
-        name === 'git_diff' ||
-        name === 'git_log' ||
-        name === 'git_show' ||
-        name === 'execute_command'
-      )
-        params.onToolPhase?.('coding')
-      else params.onToolPhase?.('other')
+      params.onToolPhase?.(toolPhaseForAgentTool(name))
 
       const argsObj = parseToolArguments(call.function.arguments)
       const result = await executeToolCall(

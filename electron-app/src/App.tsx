@@ -44,6 +44,7 @@ import {
 } from '@/lib/fileAttachment'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
+import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
@@ -585,22 +586,34 @@ function GlitchText({ children, className = '' }: { children: React.ReactNode; c
 }
 
 // Tool Phase Indicator Component
-function ToolIndicator({ phase }: { phase: string | null }) {
+const TOOL_PHASE_UI: Record<
+  AgentToolUiPhase,
+  { icon: string; label: string; className: string }
+> = {
+  search: { icon: '⌕', label: 'SEARCHING_NET', className: 'search' },
+  youtube: { icon: '▶', label: 'YOUTUBE_PROC', className: 'youtube' },
+  weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
+  scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrape' },
+  pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
+  image: { icon: '◌', label: 'RUNWARE_IMAGE', className: 'image' },
+  music: { icon: '♫', label: 'RUNWARE_MUSIC', className: 'music' },
+  coding_list: { icon: '⊢', label: 'CODING_FILES', className: 'coding' },
+  coding_read: { icon: '◊', label: 'CODING_READ', className: 'coding' },
+  coding_write: { icon: '▹', label: 'CODING_WRITE', className: 'coding' },
+  coding_edit: { icon: '✎', label: 'CODING_EDIT', className: 'coding' },
+  coding_search: { icon: '◇', label: 'CODING_FIND', className: 'coding' },
+  coding_glob: { icon: '◎', label: 'CODING_GLOB', className: 'coding' },
+  coding_git: { icon: '⎇', label: 'CODING_GIT', className: 'coding' },
+  coding_shell: { icon: '$', label: 'CODING_SHELL', className: 'coding' },
+  settings: { icon: '⚙', label: 'APP_SETTINGS', className: 'settings' },
+  other: { icon: '◈', label: 'TOOL', className: 'other' },
+}
+
+function ToolIndicator({ phase }: { phase: AgentToolUiPhase | null }) {
   if (!phase) return null
-  
-  const config: Record<string, { icon: string; label: string; className: string }> = {
-    search: { icon: '⌕', label: 'SEARCHING_NET', className: 'search' },
-    youtube: { icon: '▶', label: 'YOUTUBE_PROC', className: 'youtube' },
-    weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
-    scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrape' },
-    pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
-    image: { icon: '◌', label: 'RUNWARE_IMAGE', className: 'image' },
-    music: { icon: '♫', label: 'RUNWARE_MUSIC', className: 'music' },
-    coding: { icon: '⌘', label: 'CODING_TOOLS', className: 'coding' },
-  }
-  
-  const tool = config[phase] || { icon: '◈', label: phase.toUpperCase(), className: '' }
-  
+
+  const tool = TOOL_PHASE_UI[phase]
+
   return (
     <div className={`tool-indicator ${tool.className}`}>
       <span className="opacity-70">{tool.icon}</span>
@@ -641,7 +654,7 @@ export default function App() {
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
-  const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | 'music' | 'coding' | null>(null)
+  const [toolPhase, setToolPhase] = useState<AgentToolUiPhase | null>(null)
   const [showCodingPanel, setShowCodingPanel] = useState(false)
   const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
   const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
@@ -1496,7 +1509,12 @@ export default function App() {
           codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
           signal: ac.signal,
           onDelta: (full: string) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
-          onToolPhase: (phase: unknown) => setToolPhase(phase as typeof toolPhase),
+          // Agent calls onToolPhase(null) between tool batches and the next model stream; if we
+          // cleared here, the UI would flash real phases for ms then fall back to PROCESSING...
+          // Keep the last non-null phase until the turn ends (finally clears).
+          onToolPhase: (phase: AgentToolUiPhase | null) => {
+            if (phase !== null) setToolPhase(phase)
+          },
           onToolResult: ({ name, result, args }: { name: string; result: string; args?: Record<string, unknown> }) => {
             if (
               name === 'list_directory' ||
