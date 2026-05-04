@@ -9,6 +9,11 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 - Desktop chat UI focused on practical AI workflows (Electron + React).
 - Ollama/OpenRouter-based chat orchestration with configurable model and prompt settings.
 - Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF).
+- Desktop coding tools (Electron mode, optional per-project folder):
+  - right-side coding panel with file tree, file preview, and terminal output
+  - agent tools for local project work: `list_directory`, `read_file`, `write_file`, `edit_code`
+  - code discovery and repo insight tools: `search_files`, `glob_files`, `git_status`, `git_diff`, `git_log`, `git_show`
+  - command execution with timeout and optional background mode (`execute_command`)
 - Assistant-managed app configuration via `update_settings` tool for selected options:
   - LLM system prompt, context window, temperature
   - UI theme
@@ -17,7 +22,7 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
   - manual long-memory add (`longMemoryAdd`)
 - Built-in context summarization/compression for long conversations.
 - Long-memory personalization controls:
-  - `SAVE_MEM` in chat header to extract durable memory from current chat
+  - header memory action (brain icon) to extract durable memory from current chat
   - optional agent-driven memory write via `update_settings` (`longMemoryAdd`)
   - global long-memory toggle in `General` options
   - memory manager (view/delete saved memory items)
@@ -83,7 +88,7 @@ this becomes a serious tool for:
 
 Long memory is now available as a controlled workflow:
 
-- `SAVE_MEM` (chat header) runs memory extraction for the current conversation.
+- Header memory action (brain icon) runs memory extraction for the current conversation.
 - A preview dialog appears before save so entries can be reviewed/removed.
 - Saved memory is stored locally in IndexedDB (not as raw full transcripts).
 - `General` options contains:
@@ -120,6 +125,8 @@ From repository root:
 2. Create Python virtual env in repo root (`.venv`)
 3. Install Python tools deps:
    - `pip install -r tts-server/requirements-tools.txt`
+4. Optional (recommended for faster `search_files` in coding tools):
+   - install [ripgrep](https://github.com/BurntSushi/ripgrep) and ensure `rg` is on your `PATH`
 
 ## Run (development)
 

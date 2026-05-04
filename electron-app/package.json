@@ -1,6 +1,6 @@
 {
   "name": "voidcast",
-  "version": "2.3.7",
+  "version": "2.3.9",
   "main": "dist-electron/main/index.js",
   "description": "Voidcast — local LLM chat with TTS (Ollama + voice).",
   "author": "https://github.com/boromanx386/Voidcast",
