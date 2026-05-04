@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **`save_pdf` PDF rendering moved to the Python tools server** (`POST /tools/pdf`, ReportLab in `tts-server/pdf_tool.py`). Electron no longer uses `pdf-lib`; the desktop/mobile renderer calls the same HTTP endpoint as other tools. PDF output path is resolved on the host running the tools server. Bundled `voidcast-tools-server.exe` PyInstaller build includes `tts-server/fonts` (Noto Sans). Removed npm deps: `pdf-lib`, `@pdf-lib/fontkit`, `@fontsource/noto-sans`.
 - **Coding panel UX**: layout and flex behavior, terminal chunking and row cap with autoscroll, file tree refresh after agent file changes and after **RUN**, panel hidden when coding tools are disabled.
 - Chat header **long-memory** and **save session** actions are icon-only buttons (shared brain + save-disk SVGs) with tooltips and `aria-label`s instead of `SAVE_MEM` / `SAVE_CHAT` text.
 - **General → LONG_MEMORY** and **LLM → NEW_CHATS_USE_LONG_MEMORY** use the same brain icon next to their headings (`BrainIcon` component).

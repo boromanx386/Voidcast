@@ -8,7 +8,8 @@ Desktop AI chat app (Electron + React) with local Ollama integration, tools API,
 
 - Desktop chat UI focused on practical AI workflows (Electron + React).
 - Ollama/OpenRouter-based chat orchestration with configurable model and prompt settings.
-- Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF).
+- Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF export).
+- **`save_pdf` PDF export**: rendered by the Python tools server (`POST /tools/pdf`, ReportLab); files are written on the **machine where the tools server runs** into the folder set under Options → Tools → Save as PDF (no dialog). Requires a reachable `TTS_SERVER_URL` with `reportlab` + bundled Noto Sans fonts (included in tools deps / installer bundle).
 - Desktop coding tools (Electron mode, optional per-project folder):
   - right-side coding panel with file tree, file preview, and terminal output
   - agent tools for local project work: `list_directory`, `read_file`, `write_file`, `edit_code`
@@ -155,7 +156,7 @@ Main installer includes:
 
 - Electron app
 - Python tools server resources
-- Bundled tools-only backend executable (`voidcast-tools-server.exe`) so web search / scrape / YouTube tools work without a separate Python install.
+- Bundled tools-only backend executable (`voidcast-tools-server.exe`) so web search / scrape / YouTube / **PDF** tools work without a separate Python install (fonts bundled via PyInstaller `--add-data`).
 
 Main installer does **not** include:
 
@@ -177,6 +178,8 @@ Tools endpoints (server-side helpers):
 - `POST /tools/search`
 - `POST /tools/weather`
 - `POST /tools/scrape`
+- `POST /tools/youtube`
+- `POST /tools/pdf` (Markdown-lite → PDF; optional embedded images; see `tts-server/pdf_tool.py`)
 - `POST /tools/runware_proxy`
 
 ## Updates (GitHub Releases)

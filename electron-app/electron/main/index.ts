@@ -20,7 +20,6 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
-import { savePdfToFolder } from './pdf'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -545,22 +544,6 @@ ipcMain.handle(
   async (_evt, payload: { url?: string; max_chars?: number }) => {
     const url = String(payload?.url ?? '').trim()
     return scrapePublicUrlToText(url, payload?.max_chars)
-  },
-)
-
-ipcMain.handle(
-  'voidcast:save-pdf',
-  async (
-    _evt,
-    payload: {
-      content?: string
-      title?: string
-      filename?: string
-      outputDir?: string
-      images?: { mime?: string; base64: string }[]
-    },
-  ) => {
-    return savePdfToFolder(payload)
   },
 )
 

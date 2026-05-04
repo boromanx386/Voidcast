@@ -590,11 +590,13 @@ export async function executeToolCall(
     })
     try {
       return await invokeSavePdf({
+        ttsBaseUrl: ctx.ttsBaseUrl,
         content,
         title,
         filename,
         outputDir: dir,
         images: images.length ? images : undefined,
+        signal: ctx.signal,
       })
     } catch (e) {
       return e instanceof Error ? e.message : String(e)

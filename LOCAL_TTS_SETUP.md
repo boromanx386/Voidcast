@@ -16,6 +16,8 @@ Optional tool endpoints used by the app:
 - `POST /tools/search`
 - `POST /tools/weather`
 - `POST /tools/scrape`
+- `POST /tools/youtube`
+- `POST /tools/pdf` (Markdown-lite body → PDF on disk; requires `reportlab` + `pillow` in `requirements-tools.txt` and Noto Sans TTFs in `tts-server/fonts/`)
 - `POST /tools/runware_proxy`
 
 Default URL: `http://127.0.0.1:8765`

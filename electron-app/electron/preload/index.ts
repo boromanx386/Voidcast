@@ -7,13 +7,6 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:get-weather', payload),
   scrapeUrl: (payload: { url: string; max_chars?: number }) =>
     ipcRenderer.invoke('voidcast:scrape-url', payload),
-  savePdf: (payload: {
-    content: string
-    title?: string
-    filename?: string
-    outputDir: string
-    images?: { mime?: string; base64: string }[]
-  }) => ipcRenderer.invoke('voidcast:save-pdf', payload),
   saveImageFromUrl: (payload: {
     imageUrl: string
     outputDir: string

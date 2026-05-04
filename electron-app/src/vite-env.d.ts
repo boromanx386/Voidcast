@@ -24,13 +24,6 @@ interface Window {
       url: string
       max_chars?: number
     }) => Promise<{ ok: boolean; text: string } | string>
-    savePdf: (payload: {
-      content: string
-      title?: string
-      filename?: string
-      outputDir: string
-      images?: { mime?: string; base64: string }[]
-    }) => Promise<{ ok: boolean; text: string } | string>
     saveImageFromUrl: (payload: {
       imageUrl: string
       outputDir: string

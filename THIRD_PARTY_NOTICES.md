@@ -35,6 +35,8 @@ heavy local TTS stack). Runtime deps referenced for tools mode:
 - ddgs
 - yt-dlp
 - youtube-transcript-api
+- reportlab (PDF export for `save_pdf` / `POST /tools/pdf`)
+- pillow (raster image handling for embedded images in PDFs)
 
 Optional external local TTS deps (not bundled in core installer):
 

@@ -40,6 +40,8 @@ from pydantic import BaseModel, Field
 
 from scrape_tool import scrape_public_url_to_text
 
+from pdf_tool import HAS_REPORTLAB, save_pdf_to_folder
+
 from youtube_tools import (
     HAS_YOUTUBE_TRANSCRIPT,
     HAS_YTDLP,
@@ -121,6 +123,23 @@ class ScrapeRequest(BaseModel):
 class WeatherRequest(BaseModel):
     city: str = Field(..., min_length=1, max_length=200)
     forecast: bool = False
+
+
+class PdfImageItem(BaseModel):
+    """Single attached image (PNG/JPEG) for `save_pdf`."""
+
+    mime: str | None = Field(default=None, max_length=200)
+    base64: str = Field(..., min_length=1, max_length=70_000_000)
+
+
+class PdfRequest(BaseModel):
+    """Payload for `POST /tools/pdf` (Markdown-lite body + optional images)."""
+
+    content: str = Field(..., min_length=1, max_length=400_000)
+    title: str | None = Field(default=None, max_length=300)
+    filename: str | None = Field(default=None, max_length=300)
+    output_dir: str = Field(..., min_length=1, max_length=4096)
+    images: list[PdfImageItem] | None = None
 
 
 class RunwareProxyRequest(BaseModel):
@@ -313,6 +332,7 @@ async def health():
         },
         "tools_scrape": True,
         "tools_weather": True,
+        "tools_pdf": HAS_REPORTLAB,
         "ollama_proxy": OLLAMA_BASE_URL,
         "web_ui": _web_index_file() is not None,
     }
@@ -520,6 +540,44 @@ async def tools_weather(req: WeatherRequest):
             status_code=503,
             detail=str(e) or "Weather failed",
         ) from e
+
+
+@app.post("/tools/pdf")
+async def tools_pdf(req: PdfRequest):
+    """Render Markdown-lite content into a PDF inside `output_dir` (no dialog)."""
+    if not HAS_REPORTLAB:
+        raise HTTPException(
+            status_code=503,
+            detail="reportlab is not installed on the tools server.",
+        )
+
+    images_payload: list[dict[str, Any]] | None = (
+        [item.model_dump() for item in req.images] if req.images else None
+    )
+
+    try:
+        result = await asyncio.to_thread(
+            save_pdf_to_folder,
+            content=req.content,
+            output_dir=req.output_dir,
+            title=req.title,
+            filename=req.filename,
+            images=images_payload,
+        )
+    except Exception as e:
+        logger.exception("tools/pdf failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "PDF render failed",
+        ) from e
+
+    if not result.get("ok"):
+        return {"ok": False, "text": result.get("text", "PDF render failed")}
+    return {
+        "ok": True,
+        "text": result.get("text", ""),
+        "file_path": result.get("file_path", ""),
+    }
 
 
 @app.post("/tools/runware_proxy")

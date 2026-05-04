@@ -6,12 +6,16 @@ $ttsDir = Join-Path $repoRoot "tts-server"
 $distDir = Join-Path $ttsDir "dist"
 $entryFile = Join-Path $ttsDir "tools_exe_entry.py"
 $toolsReq = Join-Path $ttsDir "requirements-tools.txt"
+$fontsDir = Join-Path $ttsDir "fonts"
 
 if (!(Test-Path $venvPython)) {
   throw "Missing venv Python at $venvPython. Create .venv first."
 }
 if (!(Test-Path $entryFile)) {
   throw "Missing tools exe entrypoint at $entryFile."
+}
+if (!(Test-Path $fontsDir)) {
+  throw "Missing PDF fonts at $fontsDir (need NotoSans-Regular.ttf and NotoSans-Bold.ttf)."
 }
 
 Write-Host "[tools-exe] Ensuring PyInstaller is available..."
@@ -31,6 +35,7 @@ Write-Host "[tools-exe] Building one-file tools backend..."
   --workpath (Join-Path $ttsDir "build") `
   --specpath $ttsDir `
   --paths $ttsDir `
+  --add-data "$fontsDir;fonts" `
   --exclude-module torch `
   --exclude-module torchaudio `
   --exclude-module omnivoice `
