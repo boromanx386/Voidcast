@@ -3,7 +3,11 @@
   "version": "2.3.7",
   "main": "dist-electron/main/index.js",
   "description": "Voidcast — local LLM chat with TTS (Ollama + voice).",
-  "author": "草鞋没号 <308487730@qq.com>",
+  "author": "https://github.com/boromanx386/Voidcast",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boromanx386/Voidcast.git"
+  },
   "license": "MIT",
   "private": true,
   "debug": {

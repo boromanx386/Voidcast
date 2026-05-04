@@ -96,9 +96,13 @@ interface Window {
     }) => Promise<{ ok: true; paths: string[] } | { ok: false; error?: string }>
     codingGit: (payload: {
       projectPath: string
-      mode: 'status' | 'diff'
+      mode: 'status' | 'diff' | 'log' | 'show'
       path?: string
       staged?: boolean
+      logMaxCount?: number
+      logPath?: string
+      showRef?: string
+      showPath?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
     codingExecuteCommand: (payload: {
       projectPath: string

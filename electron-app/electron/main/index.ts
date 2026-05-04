@@ -797,6 +797,40 @@ const CODING_SKIP_DIR_NAMES = new Set([
   'DerivedData',
 ])
 
+/** Text/source extensions for search_files and glob_files default (no leading dot). Keep in sync with toolDefinitions glob_files copy. */
+const CODING_SOURCE_EXTENSIONS = [
+  'ts',
+  'tsx',
+  'js',
+  'jsx',
+  'mjs',
+  'cjs',
+  'json',
+  'md',
+  'mdx',
+  'txt',
+  'py',
+  'java',
+  'cs',
+  'css',
+  'scss',
+  'html',
+  'htm',
+  'yml',
+  'yaml',
+  'rs',
+  'go',
+  'vue',
+  'svelte',
+  'kt',
+  'kts',
+  'toml',
+  'sh',
+  'bash',
+] as const
+
+const CODING_SOURCE_FILE_RE = new RegExp(`\\.(${CODING_SOURCE_EXTENSIONS.join('|')})$`, 'i')
+
 const CODING_READ_SOFT_CHAR_LIMIT = 220_000
 
 function shouldSkipCodingWalkDir(name: string): boolean {
@@ -862,6 +896,162 @@ function runGitCapture(
   })
 }
 
+const RIPGREP_TIMEOUT_MS = 90_000
+const CODING_SEARCH_MAX_MATCHES = 200
+const CODING_BINARY_SCAN_BYTES = 65_536
+
+const RIPGREP_EXCLUDE_GLOBS = [
+  '!**/node_modules/**',
+  '!**/dist/**',
+  '!**/build/**',
+  '!**/.git/**',
+  '!**/.next/**',
+  '!**/coverage/**',
+  '!**/target/**',
+  '!**/out/**',
+  '!**/__pycache__/**',
+  '!**/.turbo/**',
+  '!**/.cache/**',
+  '!**/venv/**',
+  '!**/.venv/**',
+  '!**/Pods/**',
+  '!**/.gradle/**',
+  '!**/DerivedData/**',
+] as const
+
+function runRipgrepCapture(
+  cwd: string,
+  args: string[],
+  timeoutMs = RIPGREP_TIMEOUT_MS,
+): Promise<{ ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }> {
+  return new Promise((resolve) => {
+    const child = spawn('rg', args, { cwd, shell: false, windowsHide: true })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      try {
+        child.kill()
+      } catch {
+        /* ignore */
+      }
+      resolve({ ok: false, error: `ripgrep timed out after ${Math.round(timeoutMs / 1000)}s.` })
+    }, timeoutMs)
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk)
+    })
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk)
+    })
+    child.on('error', (err) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      const code = (err as NodeJS.ErrnoException).code
+      resolve({
+        ok: false,
+        error:
+          code === 'ENOENT' || err.message.includes('ENOENT')
+            ? 'ENOENT'
+            : err.message,
+      })
+    })
+    child.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ ok: true, stdout: stdout.trimEnd(), stderr: stderr.trimEnd(), code: code ?? 0 })
+    })
+  })
+}
+
+/**
+ * @returns `null` if ripgrep is missing or failed; empty array = no matches.
+ */
+async function searchProjectWithRipgrep(
+  searchRoot: string,
+  query: string,
+  maxMatches: number,
+): Promise<Array<{ path: string; line: number; text: string }> | null> {
+  // Align with searchProjectFilesWalk: do not use ignore files (.gitignore, .ignore, …), and
+  // include hidden paths. Walk only skips named dirs (shouldSkipCodingWalkDir) + globs below.
+  const args: string[] = ['--json', '-i', '-F', '--no-ignore', '--hidden', query]
+  for (const ext of CODING_SOURCE_EXTENSIONS) {
+    args.push('-g', `*.${ext}`)
+  }
+  for (const g of RIPGREP_EXCLUDE_GLOBS) {
+    args.push('--glob', g)
+  }
+  args.push('.')
+  const r = await runRipgrepCapture(searchRoot, args)
+  if (!r.ok) {
+    if (r.error === 'ENOENT') return null
+    return null
+  }
+  if (r.code !== 0 && r.code !== 1) return null
+  const matches: Array<{ path: string; line: number; text: string }> = []
+  for (const line of r.stdout.split(/\r?\n/)) {
+    if (!line.trim() || matches.length >= maxMatches) break
+    let msg: { type?: string; data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number } }
+    try {
+      msg = JSON.parse(line) as typeof msg
+    } catch {
+      continue
+    }
+    if (msg.type !== 'match' || !msg.data) continue
+    const rel = (msg.data.path?.text ?? '').replace(/\\/g, '/')
+    const lineNum = msg.data.line_number ?? 0
+    const lineText = (msg.data.lines?.text ?? '').split(/\r?\n/)[0] ?? ''
+    matches.push({ path: rel, line: lineNum, text: lineText.trim().slice(0, 240) })
+  }
+  return matches
+}
+
+async function searchProjectFilesWalk(
+  projectRoot: string,
+  searchRoot: string,
+  query: string,
+  maxMatches: number,
+): Promise<Array<{ path: string; line: number; text: string }>> {
+  const q = query.toLowerCase()
+  const results: Array<{ path: string; line: number; text: string }> = []
+  const visit = async (dir: string): Promise<void> => {
+    const entries = await readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (results.length >= maxMatches) return
+      if (entry.isDirectory()) {
+        if (shouldSkipCodingWalkDir(entry.name)) continue
+        await visit(path.join(dir, entry.name))
+        continue
+      }
+      const full = path.join(dir, entry.name)
+      const rel = path.relative(projectRoot, full).replace(/\\/g, '/')
+      if (!CODING_SOURCE_FILE_RE.test(rel)) continue
+      const content = await readFile(full, 'utf8').catch(() => '')
+      if (!content) continue
+      const lines = content.split(/\r?\n/)
+      for (let i = 0; i < lines.length; i++) {
+        if (results.length >= maxMatches) return
+        if (lines[i].toLowerCase().includes(q)) {
+          results.push({ path: rel, line: i + 1, text: lines[i].trim().slice(0, 240) })
+        }
+      }
+    }
+  }
+  await visit(searchRoot)
+  return results
+}
+
+function fileLooksBinary(buf: Buffer): boolean {
+  const n = Math.min(buf.length, CODING_BINARY_SCAN_BYTES)
+  for (let i = 0; i < n; i++) {
+    if (buf[i] === 0) return true
+  }
+  return false
+}
+
 ipcMain.handle('voidcast:coding-pick-directory', async () => {
   const opts: OpenDialogOptions = {
     title: 'Choose coding project folder',
@@ -924,7 +1114,15 @@ ipcMain.handle(
         return { ok: false as const, error: 'Missing projectPath or path.' }
       }
       const absFile = resolveInsideProject(projectPath, filePath)
-      const content = await readFile(absFile, 'utf8')
+      const buf = await readFile(absFile)
+      if (fileLooksBinary(buf)) {
+        return {
+          ok: false as const,
+          error:
+            'File appears to be binary (e.g. contains null bytes in the first portion scanned); text read skipped.',
+        }
+      }
+      const content = buf.toString('utf8')
       const allowLarge = payload?.allowLargeRead === true
       const startLine =
         typeof payload?.startLine === 'number' && Number.isFinite(payload.startLine)
@@ -1024,31 +1222,10 @@ ipcMain.handle(
       const root = path.resolve(projectPath)
       const prefix = String(payload?.pathPrefix ?? '').trim()
       const searchRoot = prefix ? resolveInsideProject(projectPath, prefix) : root
-      const results: Array<{ path: string; line: number; text: string }> = []
-      const visit = async (dir: string): Promise<void> => {
-        const entries = await readdir(dir, { withFileTypes: true })
-        for (const entry of entries) {
-          if (entry.isDirectory()) {
-            if (shouldSkipCodingWalkDir(entry.name)) continue
-            await visit(path.join(dir, entry.name))
-            continue
-          }
-          const full = path.join(dir, entry.name)
-          const rel = path.relative(root, full).replace(/\\/g, '/')
-          if (!/\.(ts|tsx|js|jsx|json|md|txt|py|java|cs|css|html|yml|yaml|rs|go|vue|svelte)$/i.test(rel))
-            continue
-          const content = await readFile(full, 'utf8').catch(() => '')
-          if (!content) continue
-          const lines = content.split(/\r?\n/)
-          for (let i = 0; i < lines.length; i++) {
-            if (lines[i].toLowerCase().includes(query.toLowerCase())) {
-              results.push({ path: rel, line: i + 1, text: lines[i].trim().slice(0, 240) })
-              if (results.length >= 200) return
-            }
-          }
-        }
+      let results = await searchProjectWithRipgrep(searchRoot, query, CODING_SEARCH_MAX_MATCHES)
+      if (results === null) {
+        results = await searchProjectFilesWalk(root, searchRoot, query, CODING_SEARCH_MAX_MATCHES)
       }
-      await visit(searchRoot)
       return { ok: true as const, matches: results }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
@@ -1077,8 +1254,7 @@ ipcMain.handle(
       const extensions = rawExt
         .map((e) => String(e).trim().replace(/^\./, '').toLowerCase())
         .filter(Boolean)
-      const defaultExt = ['ts', 'tsx', 'js', 'jsx', 'json', 'md', 'css', 'html', 'py', 'rs', 'go', 'vue']
-      const useExt = extensions.length > 0 ? extensions : defaultExt
+      const useExt = extensions.length > 0 ? extensions : [...CODING_SOURCE_EXTENSIONS]
       const maxRaw = Number(payload?.maxResults)
       const maxResults = Number.isFinite(maxRaw)
         ? Math.min(500, Math.max(1, Math.floor(maxRaw)))
@@ -1117,16 +1293,22 @@ ipcMain.handle(
     _evt,
     payload: {
       projectPath?: string
-      mode?: 'status' | 'diff'
+      mode?: 'status' | 'diff' | 'log' | 'show'
       path?: string
       staged?: boolean
+      logMaxCount?: number
+      logPath?: string
+      showRef?: string
+      showPath?: string
     },
   ) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
       if (!projectPath) return { ok: false as const, error: 'Missing projectPath.' }
       const root = path.resolve(projectPath)
-      const mode = payload?.mode === 'diff' ? 'diff' : 'status'
+      const modeRaw = payload?.mode
+      const mode: 'status' | 'diff' | 'log' | 'show' =
+        modeRaw === 'diff' || modeRaw === 'log' || modeRaw === 'show' ? modeRaw : 'status'
 
       const inside = await runGitCapture(root, ['rev-parse', '--is-inside-work-tree'])
       if (!inside.ok) return { ok: false as const, error: inside.error }
@@ -1159,6 +1341,61 @@ ipcMain.handle(
           ok: true as const,
           text: truncateGitOutput(combined || '(no status output)'),
         }
+      }
+
+      if (mode === 'log') {
+        const nRaw = Number(payload?.logMaxCount)
+        const n = Number.isFinite(nRaw) ? Math.min(100, Math.max(1, Math.floor(nRaw))) : 25
+        const rel = String(payload?.logPath ?? '').trim()
+        const args = [
+          '-c',
+          'core.quotepath=false',
+          'log',
+          '--no-color',
+          '-n',
+          String(n),
+          '--oneline',
+          '--decorate',
+        ]
+        if (rel) {
+          const abs = resolveInsideProject(projectPath, rel)
+          const relGit = path.relative(root, abs).replace(/\\/g, '/')
+          args.push('--', relGit)
+        }
+        const r = await runGitCapture(root, args)
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error: r.stderr.trim() || `git log failed (exit ${r.code}).`,
+          }
+        }
+        const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
+        return { ok: true as const, text: truncateGitOutput(combined || '(no commits)') }
+      }
+
+      if (mode === 'show') {
+        const ref = String(payload?.showRef ?? 'HEAD').trim() || 'HEAD'
+        const rel = String(payload?.showPath ?? '').trim()
+        const args = ['-c', 'core.quotepath=false', 'show', '--no-color']
+        if (rel) {
+          const abs = resolveInsideProject(projectPath, rel)
+          const relGit = path.relative(root, abs).replace(/\\/g, '/')
+          args.push(ref, '--', relGit)
+        } else {
+          args.push(ref)
+        }
+        const r = await runGitCapture(root, args)
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error: r.stderr.trim() || `git show failed (exit ${r.code}).`,
+          }
+        }
+        let out = r.stdout
+        if (r.stderr) out = [out, r.stderr].filter(Boolean).join('\n')
+        return { ok: true as const, text: truncateGitOutput(out.trim() || '(no output)') }
       }
 
       const staged = payload?.staged === true

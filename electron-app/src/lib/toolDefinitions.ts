@@ -383,7 +383,7 @@ const CODING_READ_FILE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'read_file',
     description:
-      'Read a file from the configured coding project. Prefer start_line/end_line or max_chars on large files (whole-file reads above ~220k characters are rejected unless you use a range). Lines are returned as N|text with 1-based line numbers.',
+      'Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. Prefer start_line/end_line or max_chars on large files (whole-file reads above ~220k characters are rejected unless you use a range). Lines are returned as N|text with 1-based line numbers.',
     parameters: {
       type: 'object',
       properties: {
@@ -469,7 +469,7 @@ const CODING_SEARCH_FILES_TOOL: OllamaToolDefinition = {
   function: {
     name: 'search_files',
     description:
-      'Search file contents under the coding project using a plain-text query (case-insensitive). Skips node_modules, dist, build, .git, and similar folders.',
+      'Search file contents under the coding project using a plain-text query (case-insensitive, literal substring—fixed string, not regex). When ripgrep (rg) is on PATH, search uses it for speed; otherwise a built-in walk runs the same query. Both paths share the same source-like extension list and skip the same heavy folders (node_modules, dist, .git, etc.). Ripgrep is run with --no-ignore and --hidden so match sets stay close to the fallback walk, which does not read .gitignore and does enter most dot-directories except a fixed skip list.',
     parameters: {
       type: 'object',
       properties: {
@@ -505,7 +505,7 @@ const CODING_GLOB_FILES_TOOL: OllamaToolDefinition = {
           type: 'array',
           items: { type: 'string' },
           description:
-            'File extensions without dot, e.g. ["ts","tsx"]. If omitted, uses a sensible default set (ts, tsx, js, jsx, json, md, css, html, py, rs, go, vue).',
+            'File extensions without dot, e.g. ["ts","tsx"]. If omitted, uses the same default set as search_files (TypeScript/JavaScript stack, configs, markdown, Rust, Go, Vue, Svelte, Kotlin, shell, toml, etc.).',
         },
         max_results: {
           type: 'number',
@@ -546,6 +546,52 @@ const CODING_GIT_DIFF_TOOL: OllamaToolDefinition = {
         staged: {
           type: 'boolean',
           description: 'If true, show staged changes (git diff --cached). Default false (working tree vs index).',
+        },
+      },
+    },
+  },
+}
+
+const CODING_GIT_LOG_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'git_log',
+    description:
+      'Show recent git commits for the coding project (oneline with decorations). Optional path limits history to that file or folder. Requires git.',
+    parameters: {
+      type: 'object',
+      properties: {
+        max_commits: {
+          type: 'number',
+          description: 'How many commits to show (default 25, max 100).',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Optional relative file or directory inside the project to scope the log (git log -- path).',
+        },
+      },
+    },
+  },
+}
+
+const CODING_GIT_SHOW_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'git_show',
+    description:
+      'Show a git object (commit, tag, etc.): metadata and patch. Default ref is HEAD. With path, limits output to that file in the commit (git show ref -- path). Large output may be truncated. Requires git.',
+    parameters: {
+      type: 'object',
+      properties: {
+        ref: {
+          type: 'string',
+          description: 'Commit-ish (hash, HEAD, HEAD~1, branch name, tag). Default HEAD.',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Optional relative file inside the project to show changes for at that commit.',
         },
       },
     },
@@ -602,6 +648,8 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
     out.push(CODING_GLOB_FILES_TOOL)
     out.push(CODING_GIT_STATUS_TOOL)
     out.push(CODING_GIT_DIFF_TOOL)
+    out.push(CODING_GIT_LOG_TOOL)
+    out.push(CODING_GIT_SHOW_TOOL)
     out.push(CODING_EXECUTE_COMMAND_TOOL)
   }
   out.push(UPDATE_SETTINGS_TOOL)

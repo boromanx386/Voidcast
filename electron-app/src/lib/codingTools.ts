@@ -61,7 +61,18 @@ export async function invokeEditCodingFile(
   const read = await invokeReadCodingFile(projectPath, path, { allowLargeRead: true })
   if (!read.ok) return read
   if (!findText) return { ok: false, text: 'find_text must not be empty.' }
-  if (!read.text.includes(findText)) return { ok: false, text: 'Target snippet not found.' }
+  if (!read.text.includes(findText)) {
+    const lineCount = read.text.split(/\r?\n/).length
+    const crlf = read.text.includes('\r\n')
+    const eolHint =
+      crlf && findText.includes('\n') && !findText.includes('\r\n')
+        ? ' File uses CRLF line endings; find_text may need carriage returns where you used newline-only breaks.'
+        : ''
+    return {
+      ok: false,
+      text: `Target snippet not found (${lineCount} lines; match must be exact, including spaces).${eolHint} Re-read the file with read_file if needed.`,
+    }
+  }
   const next = replaceAll ? read.text.split(findText).join(replaceText) : read.text.replace(findText, replaceText)
   const write = await invokeWriteCodingFile(projectPath, path, next)
   if (!write.ok) return write
@@ -105,16 +116,38 @@ export async function invokeGlobCodingFiles(
 
 export async function invokeCodingGit(
   projectPath: string,
-  options: { mode: 'status' | 'diff'; path?: string; staged?: boolean },
+  options:
+    | { mode: 'status' }
+    | { mode: 'diff'; path?: string; staged?: boolean }
+    | { mode: 'log'; logMaxCount?: number; logPath?: string }
+    | { mode: 'show'; showRef?: string; showPath?: string },
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingGit
   if (!fn) return missingBridgeResult('Git')
-  const res = await fn({
-    projectPath,
-    mode: options.mode,
-    path: options.path,
-    staged: options.staged,
-  })
+  const payload =
+    options.mode === 'status'
+      ? { projectPath, mode: 'status' as const }
+      : options.mode === 'diff'
+        ? {
+            projectPath,
+            mode: 'diff' as const,
+            path: options.path,
+            staged: options.staged,
+          }
+        : options.mode === 'log'
+          ? {
+              projectPath,
+              mode: 'log' as const,
+              logMaxCount: options.logMaxCount,
+              logPath: options.logPath,
+            }
+          : {
+              projectPath,
+              mode: 'show' as const,
+              showRef: options.showRef,
+              showPath: options.showPath,
+            }
+  const res = await fn(payload)
   return { ok: res.ok, text: res.ok ? res.text : res.error || 'Git command failed.' }
 }
 

@@ -210,7 +210,20 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
           icon="⌘"
           iconColor="text-neon-cyan"
           disabled={isWebStandalone()}
-          description={<>Enable LLM coding tools (`list_directory`, `read_file`, `write_file`, `search_files`, `execute_command`).</>}
+          description={
+            <>
+              Enable LLM coding tools:{' '}
+              <code className="text-void-light">
+                list_directory
+              </code>
+              , <code className="text-void-light">read_file</code>,{' '}
+              <code className="text-void-light">write_file</code>, <code className="text-void-light">edit_code</code>,{' '}
+              <code className="text-void-light">search_files</code>, <code className="text-void-light">glob_files</code>,{' '}
+              <code className="text-void-light">git_status</code>, <code className="text-void-light">git_diff</code>,{' '}
+              <code className="text-void-light">git_log</code>, <code className="text-void-light">git_show</code>,{' '}
+              <code className="text-void-light">execute_command</code>.
+            </>
+          }
           noBorder
         />
         {settings.toolsEnabled.coding && isElectron() && (

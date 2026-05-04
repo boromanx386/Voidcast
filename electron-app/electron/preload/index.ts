@@ -93,9 +93,13 @@ contextBridge.exposeInMainWorld('voidcast', {
     >,
   codingGit: (payload: {
     projectPath: string
-    mode: 'status' | 'diff'
+    mode: 'status' | 'diff' | 'log' | 'show'
     path?: string
     staged?: boolean
+    logMaxCount?: number
+    logPath?: string
+    showRef?: string
+    showPath?: string
   }) =>
     ipcRenderer.invoke('voidcast:coding-git', payload) as Promise<
       | { ok: true; text: string }

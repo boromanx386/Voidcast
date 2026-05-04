@@ -135,6 +135,8 @@ export async function runOpenRouterChatWithTools(
         name === 'glob_files' ||
         name === 'git_status' ||
         name === 'git_diff' ||
+        name === 'git_log' ||
+        name === 'git_show' ||
         name === 'execute_command'
       )
         params.onToolPhase?.('coding')

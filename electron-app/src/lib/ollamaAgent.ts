@@ -1037,6 +1037,37 @@ export async function executeToolCall(
       })
     ).text
   }
+  if (name === 'git_log') {
+    if (!toolsEnabled.coding) return 'Error: git_log tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const maxCommits =
+      typeof args.max_commits === 'number' && Number.isFinite(args.max_commits)
+        ? Math.floor(args.max_commits)
+        : undefined
+    const logPath = typeof args.path === 'string' ? args.path.trim() : ''
+    return (
+      await invokeCodingGit(projectPath, {
+        mode: 'log',
+        logMaxCount: maxCommits,
+        logPath: logPath || undefined,
+      })
+    ).text
+  }
+  if (name === 'git_show') {
+    if (!toolsEnabled.coding) return 'Error: git_show tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const ref = typeof args.ref === 'string' && args.ref.trim() ? args.ref.trim() : undefined
+    const showPath = typeof args.path === 'string' ? args.path.trim() : ''
+    return (
+      await invokeCodingGit(projectPath, {
+        mode: 'show',
+        showRef: ref,
+        showPath: showPath || undefined,
+      })
+    ).text
+  }
   if (name === 'execute_command') {
     if (!toolsEnabled.coding) return 'Error: execute_command tool is disabled in settings.'
     const projectPath = (ctx.codingProjectPath || '').trim()
@@ -1383,6 +1414,8 @@ export async function runOllamaChatWithTools(
         name === 'glob_files' ||
         name === 'git_status' ||
         name === 'git_diff' ||
+        name === 'git_log' ||
+        name === 'git_show' ||
         name === 'execute_command'
       )
         params.onToolPhase?.('coding')
