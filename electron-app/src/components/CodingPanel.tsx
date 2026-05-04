@@ -16,10 +16,18 @@ import type { CodingFileNode, TerminalLine } from '@/types/coding'
 type Props = {
   settings: AppSettings
   onUpdateProjectPath: (path: string) => void
-  externalTerminalLines?: TerminalLine[]
+  /** Increments when agent mutates the project on disk; refreshes file tree while panel is open. */
+  fileTreeRevision?: number
+  /** Agent `execute_command` lines only (mirrors shell); manual RUN output is appended locally. */
+  agentShellFeed?: TerminalLine[]
 }
 
-export function CodingPanel({ settings, onUpdateProjectPath, externalTerminalLines = [] }: Props) {
+export function CodingPanel({
+  settings,
+  onUpdateProjectPath,
+  fileTreeRevision = 0,
+  agentShellFeed = [],
+}: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
@@ -32,7 +40,13 @@ export function CodingPanel({ settings, onUpdateProjectPath, externalTerminalLin
   const expandedDirsRef = useRef(expandedDirs)
   expandedDirsRef.current = expandedDirs
 
+  const seenAgentShellIdsRef = useRef<Set<string>>(new Set())
+
   const projectPath = settings.coding.projectPath || settings.codingProjectPath
+
+  useEffect(() => {
+    seenAgentShellIdsRef.current.clear()
+  }, [projectPath])
 
   const pushTerminal = useCallback((stream: TerminalLine['stream'], text: string) => {
     const idBase = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -49,6 +63,36 @@ export function CodingPanel({ settings, onUpdateProjectPath, externalTerminalLin
       setChildrenByDir({})
       setExpandedDirs(new Set())
     } else pushTerminal('stderr', listed.error)
+  }, [projectPath, pushTerminal])
+
+  /** Re-list root and any expanded folders; keeps expand state, drops cache for collapsed dirs. */
+  const refreshFileTreeInPlace = useCallback(async () => {
+    if (!projectPath) return
+    const root = await invokeListCodingDirectory(projectPath)
+    if (!root.ok) {
+      pushTerminal('stderr', root.error)
+      return
+    }
+    setFiles(filterCodingTreeEntries(root.entries))
+
+    const expanded = [...expandedDirsRef.current]
+    if (expanded.length === 0) {
+      setChildrenByDir({})
+      return
+    }
+    const pairs = await Promise.all(
+      expanded.map(async (dirPath) => {
+        const r = await invokeListCodingDirectory(projectPath, dirPath)
+        return [dirPath, r.ok ? filterCodingTreeEntries(r.entries) : null] as const
+      }),
+    )
+    setChildrenByDir(() => {
+      const next: Record<string, CodingFileNode[]> = {}
+      for (const [dirPath, list] of pairs) {
+        if (list) next[dirPath] = list
+      }
+      return next
+    })
   }, [projectPath, pushTerminal])
 
   const toggleDirectory = useCallback(
@@ -93,13 +137,26 @@ export function CodingPanel({ settings, onUpdateProjectPath, externalTerminalLin
   }, [refreshFiles])
 
   useEffect(() => {
-    if (externalTerminalLines.length === 0) return
-    const batch = externalTerminalLines.flatMap((line) =>
-      expandTextToTerminalLines(line.stream, line.text, line.id),
-    )
+    if (fileTreeRevision === 0) return
+    void refreshFileTreeInPlace()
+  }, [fileTreeRevision, refreshFileTreeInPlace])
+
+  useEffect(() => {
+    const feed = agentShellFeed
+    const stillInFeed = new Set(feed.map((l) => l.id))
+    for (const id of [...seenAgentShellIdsRef.current]) {
+      if (!stillInFeed.has(id)) seenAgentShellIdsRef.current.delete(id)
+    }
+    if (feed.length === 0) return
+    const batch: TerminalLine[] = []
+    for (const line of feed) {
+      if (seenAgentShellIdsRef.current.has(line.id)) continue
+      seenAgentShellIdsRef.current.add(line.id)
+      batch.push(...expandTextToTerminalLines(line.stream, line.text, line.id))
+    }
     if (batch.length === 0) return
     setTerminalLines((prev) => [...prev, ...batch].slice(-MAX_TERMINAL_ROWS))
-  }, [externalTerminalLines])
+  }, [agentShellFeed])
 
   const onPickFolder = useCallback(async () => {
     const r = await invokePickCodingDirectory()
@@ -122,7 +179,8 @@ export function CodingPanel({ settings, onUpdateProjectPath, externalTerminalLin
     const out = await invokeExecuteCodingCommand(projectPath, command)
     pushTerminal(out.ok ? 'stdout' : 'stderr', out.text)
     setCommand('')
-  }, [projectPath, command, pushTerminal])
+    void refreshFileTreeInPlace()
+  }, [projectPath, command, pushTerminal, refreshFileTreeInPlace])
 
   const visibleFileCount = useMemo(() => {
     let n = 0

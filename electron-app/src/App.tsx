@@ -644,6 +644,7 @@ export default function App() {
   const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | 'music' | 'coding' | null>(null)
   const [showCodingPanel, setShowCodingPanel] = useState(false)
   const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
+  const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
   const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>({
     lastDirectory: '',
     recentFiles: [],
@@ -730,6 +731,12 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  const codingPanelAvailable = isElectron() && settings.toolsEnabled.coding
+
+  useEffect(() => {
+    if (!codingPanelAvailable) setShowCodingPanel(false)
+  }, [codingPanelAvailable])
 
   // Keep UI state in sync when settings are changed outside React state (for example via agent tool).
   useEffect(() => {
@@ -1502,26 +1509,6 @@ export default function App() {
               name === 'git_diff' ||
               name === 'execute_command'
             ) {
-              const argsSummary = args ? JSON.stringify(args) : '{}'
-              const preview = String(result || '').slice(0, 500)
-              const outputStream: TerminalLine['stream'] =
-                name === 'execute_command' ? 'stdout' : 'system'
-              setCodingTerminalFeed((prev) => [
-                ...prev,
-                {
-                  id: `tool-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                  stream: 'system' as const,
-                  text: `agent> ${name} ${argsSummary}`,
-                  ts: Date.now(),
-                },
-                {
-                  id: `tool-out-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                  stream: outputStream,
-                  text: preview || '(empty result)',
-                  ts: Date.now(),
-                },
-              ].slice(-100))
-
               setCodingContextMemo((prev) => {
                 const next = { ...prev }
                 if (name === 'list_directory') {
@@ -1539,6 +1526,42 @@ export default function App() {
                 }
                 return next
               })
+            }
+
+            if (name === 'execute_command') {
+              const cmd = typeof args?.command === 'string' ? args.command : ''
+              const raw = String(result ?? '').trimEnd()
+              const MAX = 120_000
+              const body =
+                raw.length > MAX
+                  ? `${raw.slice(0, MAX)}\n\n… [truncated ${(raw.length - MAX).toLocaleString()} chars]`
+                  : raw
+              const ts = Date.now()
+              const idBase = `${ts}-${Math.random().toString(36).slice(2, 9)}`
+              setCodingTerminalFeed((prev) =>
+                [
+                  ...prev,
+                  {
+                    id: `exec-cmd-${idBase}`,
+                    stream: 'system' as const,
+                    text: `$ ${cmd || '(empty command)'}`,
+                    ts,
+                  },
+                  ...(body
+                    ? ([
+                        {
+                          id: `exec-out-${idBase}`,
+                          stream: 'stdout' as const,
+                          text: body,
+                          ts,
+                        },
+                      ] as const)
+                    : []),
+                ].slice(-80),
+              )
+            }
+            if (name === 'write_file' || name === 'edit_code' || name === 'execute_command') {
+              setCodingFileTreeNonce((n) => n + 1)
             }
             if (name === 'save_pdf') {
               setToolResultBanner({ kind: 'pdf', text: result })
@@ -2194,15 +2217,17 @@ export default function App() {
 
         {/* Status & Actions */}
         <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => setShowCodingPanel((v) => !v)}
-            className={`cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 ${showCodingPanel ? 'border-neon-cyan/60 text-neon-cyan' : ''}`}
-            title={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
-            aria-label={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
-          >
-            <CodeIcon className="h-4 w-4 text-current" />
-          </button>
+          {codingPanelAvailable && (
+            <button
+              type="button"
+              onClick={() => setShowCodingPanel((v) => !v)}
+              className={`cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 ${showCodingPanel ? 'border-neon-cyan/60 text-neon-cyan' : ''}`}
+              title={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
+              aria-label={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
+            >
+              <CodeIcon className="h-4 w-4 text-current" />
+            </button>
+          )}
           <button
             type="button"
             disabled={busy || longMemoryBusy || messages.length === 0}
@@ -3032,10 +3057,11 @@ export default function App() {
         </div>
       </footer>
       </div>
-      {showCodingPanel && (
+      {showCodingPanel && codingPanelAvailable && (
         <CodingPanel
           settings={settings}
-          externalTerminalLines={codingTerminalFeed.length > 0 ? [codingTerminalFeed[codingTerminalFeed.length - 1]!] : []}
+          fileTreeRevision={codingFileTreeNonce}
+          agentShellFeed={codingTerminalFeed}
           onUpdateProjectPath={(path) =>
             setSettings((s) => ({
               ...s,
