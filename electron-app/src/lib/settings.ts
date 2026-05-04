@@ -45,6 +45,12 @@ export type ToolsEnabled = {
 export type CodingSettings = {
   enabled: boolean
   projectPath: string
+  /** Coding panel: show file tree section */
+  showFileTree: boolean
+  /** Coding panel: show file preview section */
+  showFilePreview: boolean
+  /** Coding panel: show terminal section */
+  showTerminal: boolean
 }
 
 export type AppSettings = {
@@ -217,6 +223,9 @@ const defaults: AppSettings = {
   coding: {
     enabled: false,
     projectPath: '',
+    showFileTree: true,
+    showFilePreview: true,
+    showTerminal: true,
   },
   codingProjectPath: '',
   pdfOutputDir: '',
@@ -284,6 +293,22 @@ function normalizeTools(s: AppSettings): AppSettings {
         ? s.codingProjectPath
         : defaults.coding.projectPath
   const codingProjectPath = codingProjectPathRaw.trim()
+  const showFileTree =
+    typeof s.coding?.showFileTree === 'boolean' ? s.coding.showFileTree : defaults.coding.showFileTree
+  const showFilePreview =
+    typeof s.coding?.showFilePreview === 'boolean'
+      ? s.coding.showFilePreview
+      : defaults.coding.showFilePreview
+  const showTerminal =
+    typeof s.coding?.showTerminal === 'boolean' ? s.coding.showTerminal : defaults.coding.showTerminal
+  let st = showFileTree
+  let sp = showFilePreview
+  let sm = showTerminal
+  if (!st && !sp && !sm) {
+    st = defaults.coding.showFileTree
+    sp = defaults.coding.showFilePreview
+    sm = defaults.coding.showTerminal
+  }
   return {
     ...s,
     toolsEnabled: {
@@ -308,6 +333,9 @@ function normalizeTools(s: AppSettings): AppSettings {
     coding: {
       enabled: codingEnabled,
       projectPath: codingProjectPath,
+      showFileTree: st,
+      showFilePreview: sp,
+      showTerminal: sm,
     },
     codingProjectPath,
   }

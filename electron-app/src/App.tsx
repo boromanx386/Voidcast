@@ -3062,6 +3062,9 @@ export default function App() {
           settings={settings}
           fileTreeRevision={codingFileTreeNonce}
           agentShellFeed={codingTerminalFeed}
+          onCodingUiChange={(patch) =>
+            setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
+          }
           onUpdateProjectPath={(path) =>
             setSettings((s) => ({
               ...s,

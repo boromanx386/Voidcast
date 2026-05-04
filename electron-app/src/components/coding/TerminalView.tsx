@@ -20,9 +20,11 @@ const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: Terminal
 
 type Props = {
   lines: TerminalLine[]
+  /** When set, shows a small CLEAR control in the header to wipe buffered lines. */
+  onClear?: () => void
 }
 
-export function TerminalView({ lines }: Props) {
+export function TerminalView({ lines, onClear }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
 
@@ -44,7 +46,21 @@ export function TerminalView({ lines }: Props) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded border border-void-muted/30 bg-void-black/50 p-2">
-      <div className="mb-2 shrink-0 text-xs font-mono text-neon-yellow">TERMINAL</div>
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+        <div className="text-xs font-mono text-neon-yellow">TERMINAL</div>
+        {onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={lines.length === 0}
+            title="Clear terminal output"
+            aria-label="Clear terminal output"
+            className="rounded border border-void-muted/50 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide text-void-dim transition-colors hover:border-neon-yellow/40 hover:text-neon-yellow disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-void-muted/50 disabled:hover:text-void-dim"
+          >
+            CLEAR
+          </button>
+        )}
+      </div>
       <div
         ref={scrollRef}
         onScroll={onScroll}
