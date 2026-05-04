@@ -6,15 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Desktop coding tools** (vs `main`, branch `feature/coding-tools-experiment`): optional coding project folder, **Tools** toggle + folder picker, and agent-side tools when coding is enabled:
+- **Desktop coding tools** (Electron): optional coding project folder, **Tools** toggle + folder picker, and agent-side tools when coding is enabled:
   - **Panel**: right-side coding panel with expandable file tree, read-only file preview, and terminal; tool calls can append to the panel terminal; **Code** icon toggles the panel.
   - **Main-process IPC** (path-confined to the project): `list_directory`, `read_file` (optional `start_line` / `end_line` / `max_chars`, soft whole-file size limit, internal large read for `edit_code`), `write_file`, `edit_code`, `search_files` (optional `path_prefix`, skips `node_modules` / `dist` / `.git` / similar), `glob_files` (extension filter), `execute_command` (timeout, optional background), `git_status`, `git_diff` (optional path, optional staged diff).
   - **Agents**: Ollama and OpenRouter `executeToolCall` wiring plus tool definitions for the above; `list_directory` errors surface to the model instead of returning an empty list.
 
 ### Changed
 
-- **Coding panel UX** (same branch delta vs `main`): layout and flex behavior, terminal chunking and row cap with autoscroll, file tree refresh after agent file changes and after **RUN**, panel hidden when coding tools are disabled.
-
+- **Coding panel UX**: layout and flex behavior, terminal chunking and row cap with autoscroll, file tree refresh after agent file changes and after **RUN**, panel hidden when coding tools are disabled.
 - Chat header **long-memory** and **save session** actions are icon-only buttons (shared brain + save-disk SVGs) with tooltips and `aria-label`s instead of `SAVE_MEM` / `SAVE_CHAT` text.
 - **General → LONG_MEMORY** and **LLM → NEW_CHATS_USE_LONG_MEMORY** use the same brain icon next to their headings (`BrainIcon` component).
 - Composer hint row below the input no longer shows Ollama model count (`NO_MODELS` / `X MODELS`); the row appears only when there are pending attachments or an unsaved session.
