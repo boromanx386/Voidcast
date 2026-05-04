@@ -2,23 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.3.9] - 2026-05-04
 
 ### Added
 
 - New `agentToolPhase.ts` module with granular UI tool phases for coding operations: `coding_list`, `coding_read`, `coding_write`, `coding_edit`, `coding_search`, `coding_glob`, `coding_git`, `coding_shell`, plus `settings` and `other` phases.
 - Tool indicator CSS styles for image, music, coding, settings, and other phase types.
-
-### Changed
-
-- **MAX_TOOL_ROUNDS** increased from 18 to 30 in Ollama agent for longer tool chains.
-- Tool phase handler now persists the last non-null phase until turn ends, preventing UI flashing between tool batches.
-- OpenRouter agent now uses the shared `toolPhaseForAgentTool` helper (same as Ollama).
-
-## [2.3.9] - 2026-05-04
-
-### Added
-
 - **Desktop coding tools** (Electron): optional coding project folder, **Tools** toggle + folder picker, and agent-side tools when coding is enabled:
   - **Panel**: right-side coding panel with expandable file tree, read-only file preview, and terminal; tool calls can append to the panel terminal; **Code** icon toggles the panel.
   - **Main-process IPC** (path-confined to the project): `list_directory`, `read_file` (optional `start_line` / `end_line` / `max_chars`, soft whole-file size limit, internal large read for `edit_code`, skips likely binary files), `write_file`, `edit_code`, `search_files` (optional `path_prefix`; **ripgrep** `rg` on PATH for speed, else built-in walk; shared source extension list with `glob_files`), `glob_files` (extension filter), `execute_command` (timeout, optional background), `git_status`, `git_diff` (optional path, optional staged diff), `git_log`, `git_show`.
