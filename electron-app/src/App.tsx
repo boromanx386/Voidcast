@@ -10,12 +10,14 @@ import {
 import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { BrainIcon } from '@/components/icons/BrainIcon'
+import { CodeIcon } from '@/components/icons/CodeIcon'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
 import { RunwareMusicOptionsPanel } from '@/components/options/RunwareMusicOptionsPanel'
 import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
+import { CodingPanel } from '@/components/CodingPanel'
 import {
   buildOllamaMessages,
   TOOLS_WEB_SEARCH_HINT,
@@ -89,6 +91,7 @@ import {
 } from '@/lib/chatSessionsStorage'
 import type { ChatSession, FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { LongMemoryCandidate, LongMemoryItem } from '@/types/longMemory'
+import type { TerminalLine } from '@/types/coding'
 
 type Screen = 'chat' | 'options'
 type OptionsTab = 'general' | 'llm' | 'runware' | 'runwareMusic' | 'tts' | 'tools'
@@ -109,6 +112,13 @@ type PendingChatFile = FileAttachmentSnapshot
 type LocalImagePreview = {
   base64: string
   mime: string
+}
+
+type CodingContextMemo = {
+  lastDirectory: string
+  recentFiles: string[]
+  recentSearches: string[]
+  recentCommands: string[]
 }
 
 const EMPTY_STATE_VARIANTS = {
@@ -200,6 +210,25 @@ function shouldUseVisionForText(text: string): boolean {
 
 function dedupeNonEmpty(values: string[]): string[] {
   return Array.from(new Set(values.map((x) => x.trim()).filter(Boolean)))
+}
+
+function pushRecentUnique(values: string[], next: string, limit = 8): string[] {
+  const trimmed = next.trim()
+  if (!trimmed) return values
+  const without = values.filter((v) => v !== trimmed)
+  return [trimmed, ...without].slice(0, limit)
+}
+
+function buildCodingMemoHint(memo: CodingContextMemo): string {
+  const lines: string[] = [
+    'Coding context memory from this chat session:',
+    `- Last listed directory: ${memo.lastDirectory || '(none yet)'}`,
+    `- Recently opened/edited files: ${memo.recentFiles.length ? memo.recentFiles.join(', ') : '(none yet)'}`,
+    `- Recent searches: ${memo.recentSearches.length ? memo.recentSearches.join(' | ') : '(none yet)'}`,
+    `- Recent commands: ${memo.recentCommands.length ? memo.recentCommands.join(' | ') : '(none yet)'}`,
+    'Prefer reusing this context before scanning the whole project again.',
+  ]
+  return lines.join('\n')
 }
 
 function toConversationTurns(messages: UiMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
@@ -567,6 +596,7 @@ function ToolIndicator({ phase }: { phase: string | null }) {
     pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
     image: { icon: '◌', label: 'RUNWARE_IMAGE', className: 'image' },
     music: { icon: '♫', label: 'RUNWARE_MUSIC', className: 'music' },
+    coding: { icon: '⌘', label: 'CODING_TOOLS', className: 'coding' },
   }
   
   const tool = config[phase] || { icon: '◈', label: phase.toUpperCase(), className: '' }
@@ -611,7 +641,16 @@ export default function App() {
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
-  const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | 'music' | null>(null)
+  const [toolPhase, setToolPhase] = useState<'search' | 'youtube' | 'weather' | 'scrape' | 'pdf' | 'image' | 'music' | 'coding' | null>(null)
+  const [showCodingPanel, setShowCodingPanel] = useState(false)
+  const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
+  const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
+  const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>({
+    lastDirectory: '',
+    recentFiles: [],
+    recentSearches: [],
+    recentCommands: [],
+  })
   const [toolResultBanner, setToolResultBanner] = useState<
     { kind: 'pdf'; text: string } | null
   >(null)
@@ -692,6 +731,12 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  const codingPanelAvailable = isElectron() && settings.toolsEnabled.coding
+
+  useEffect(() => {
+    if (!codingPanelAvailable) setShowCodingPanel(false)
+  }, [codingPanelAvailable])
 
   // Keep UI state in sync when settings are changed outside React state (for example via agent tool).
   useEffect(() => {
@@ -1338,6 +1383,16 @@ export default function App() {
     if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
     if (settings.toolsEnabled.runwareImage) toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
     if (settings.toolsEnabled.runwareMusic) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
+    if (settings.toolsEnabled.coding) {
+      toolsHintParts.push(
+        [
+          'Coding tools are available for local project operations.',
+          `Coding project path: ${settings.coding.projectPath || settings.codingProjectPath || '(not set)'}`,
+          'Use glob_files or list_directory to find paths; git_status / git_diff for repo changes; read_file with start_line/end_line or max_chars on large files; search_files accepts path_prefix.',
+        ].join('\n'),
+      )
+      toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
+    }
     if (useTools) {
       const visible = getAgentVisibleSettings(settings)
       const settingsHint = [
@@ -1438,10 +1493,76 @@ export default function App() {
           userImages: toolImageCatalog.map((x) => x.base64),
           userImageMimes: toolImageCatalog.map((x) => x.mime),
           userImagePaths: toolImageCatalog.map((x) => x.path || ''),
+          codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
           signal: ac.signal,
           onDelta: (full: string) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
           onToolPhase: (phase: unknown) => setToolPhase(phase as typeof toolPhase),
-          onToolResult: ({ name, result }: { name: string; result: string }) => {
+          onToolResult: ({ name, result, args }: { name: string; result: string; args?: Record<string, unknown> }) => {
+            if (
+              name === 'list_directory' ||
+              name === 'read_file' ||
+              name === 'write_file' ||
+              name === 'edit_code' ||
+              name === 'search_files' ||
+              name === 'glob_files' ||
+              name === 'git_status' ||
+              name === 'git_diff' ||
+              name === 'execute_command'
+            ) {
+              setCodingContextMemo((prev) => {
+                const next = { ...prev }
+                if (name === 'list_directory') {
+                  const p = typeof args?.path === 'string' ? args.path : ''
+                  next.lastDirectory = p || '.'
+                } else if (name === 'read_file' || name === 'write_file' || name === 'edit_code') {
+                  const p = typeof args?.path === 'string' ? args.path : ''
+                  next.recentFiles = pushRecentUnique(next.recentFiles, p)
+                } else if (name === 'search_files') {
+                  const q = typeof args?.query === 'string' ? args.query : ''
+                  next.recentSearches = pushRecentUnique(next.recentSearches, q, 6)
+                } else if (name === 'execute_command') {
+                  const c = typeof args?.command === 'string' ? args.command : ''
+                  next.recentCommands = pushRecentUnique(next.recentCommands, c, 6)
+                }
+                return next
+              })
+            }
+
+            if (name === 'execute_command') {
+              const cmd = typeof args?.command === 'string' ? args.command : ''
+              const raw = String(result ?? '').trimEnd()
+              const MAX = 120_000
+              const body =
+                raw.length > MAX
+                  ? `${raw.slice(0, MAX)}\n\n… [truncated ${(raw.length - MAX).toLocaleString()} chars]`
+                  : raw
+              const ts = Date.now()
+              const idBase = `${ts}-${Math.random().toString(36).slice(2, 9)}`
+              setCodingTerminalFeed((prev) =>
+                [
+                  ...prev,
+                  {
+                    id: `exec-cmd-${idBase}`,
+                    stream: 'system' as const,
+                    text: `$ ${cmd || '(empty command)'}`,
+                    ts,
+                  },
+                  ...(body
+                    ? ([
+                        {
+                          id: `exec-out-${idBase}`,
+                          stream: 'stdout' as const,
+                          text: body,
+                          ts,
+                        },
+                      ] as const)
+                    : []),
+                ].slice(-80),
+              )
+            }
+            if (name === 'write_file' || name === 'edit_code' || name === 'execute_command') {
+              setCodingFileTreeNonce((n) => n + 1)
+            }
             if (name === 'save_pdf') {
               setToolResultBanner({ kind: 'pdf', text: result })
             }
@@ -2096,6 +2217,17 @@ export default function App() {
 
         {/* Status & Actions */}
         <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
+          {codingPanelAvailable && (
+            <button
+              type="button"
+              onClick={() => setShowCodingPanel((v) => !v)}
+              className={`cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 ${showCodingPanel ? 'border-neon-cyan/60 text-neon-cyan' : ''}`}
+              title={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
+              aria-label={showCodingPanel ? 'Hide coding panel' : 'Show coding panel'}
+            >
+              <CodeIcon className="h-4 w-4 text-current" />
+            </button>
+          )}
           <button
             type="button"
             disabled={busy || longMemoryBusy || messages.length === 0}
@@ -2155,7 +2287,8 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* Sidebar Menu */}
       {menuOpen && (
         <>
@@ -2923,6 +3056,25 @@ export default function App() {
           )}
         </div>
       </footer>
+      </div>
+      {showCodingPanel && codingPanelAvailable && (
+        <CodingPanel
+          settings={settings}
+          fileTreeRevision={codingFileTreeNonce}
+          agentShellFeed={codingTerminalFeed}
+          onCodingUiChange={(patch) =>
+            setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
+          }
+          onUpdateProjectPath={(path) =>
+            setSettings((s) => ({
+              ...s,
+              coding: { ...s.coding, enabled: true, projectPath: path },
+              codingProjectPath: path,
+              toolsEnabled: { ...s.toolsEnabled, coding: true },
+            }))
+          }
+        />
+      )}
       </div>
 
       {/* System Status */}

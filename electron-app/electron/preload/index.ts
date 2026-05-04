@@ -39,6 +39,78 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }
     >,
+  pickCodingDirectory: () =>
+    ipcRenderer.invoke('voidcast:coding-pick-directory') as Promise<
+      { ok: true; path: string } | { ok: false }
+    >,
+  codingListDirectory: (payload: { projectPath: string; path?: string }) =>
+    ipcRenderer.invoke('voidcast:coding-list-directory', payload) as Promise<
+      | {
+          ok: true
+          entries: {
+            name: string
+            path: string
+            type: 'file' | 'directory'
+            size?: number
+          }[]
+        }
+      | { ok: false; error?: string }
+    >,
+  codingReadFile: (payload: {
+    projectPath: string
+    path: string
+    startLine?: number
+    endLine?: number
+    maxChars?: number
+    allowLargeRead?: boolean
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-read-file', payload) as Promise<
+      | { ok: true; content: string }
+      | { ok: false; error?: string }
+    >,
+  codingWriteFile: (payload: { projectPath: string; path: string; content: string }) =>
+    ipcRenderer.invoke('voidcast:coding-write-file', payload) as Promise<
+      | { ok: true; path: string }
+      | { ok: false; error?: string }
+    >,
+  codingSearchFiles: (payload: { projectPath: string; query: string; pathPrefix?: string }) =>
+    ipcRenderer.invoke('voidcast:coding-search-files', payload) as Promise<
+      | {
+          ok: true
+          matches: { path: string; line: number; text: string }[]
+        }
+      | { ok: false; error?: string }
+    >,
+  codingGlobFiles: (payload: {
+    projectPath: string
+    pathPrefix?: string
+    extensions?: string[]
+    maxResults?: number
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-glob-files', payload) as Promise<
+      | { ok: true; paths: string[] }
+      | { ok: false; error?: string }
+    >,
+  codingGit: (payload: {
+    projectPath: string
+    mode: 'status' | 'diff'
+    path?: string
+    staged?: boolean
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-git', payload) as Promise<
+      | { ok: true; text: string }
+      | { ok: false; error?: string }
+    >,
+  codingExecuteCommand: (payload: {
+    projectPath: string
+    command: string
+    timeoutSec?: number
+    runInBackground?: boolean
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-execute-command', payload) as Promise<
+      | { ok: true; stdout: string; stderr: string; code: number; timedOut?: boolean; pid?: number }
+      | { ok: false; error?: string }
+    >,
   pickChatAttachments: () =>
     ipcRenderer.invoke('voidcast:pick-chat-attachments') as Promise<
       | {

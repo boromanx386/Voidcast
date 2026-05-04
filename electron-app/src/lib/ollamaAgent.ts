@@ -24,6 +24,16 @@ import {
   invokeRunwareGenerateMusic,
   type RunwareImageConfig,
 } from '@/lib/runware'
+import {
+  invokeExecuteCodingCommand,
+  invokeEditCodingFile,
+  invokeCodingGit,
+  invokeGlobCodingFiles,
+  invokeListCodingDirectory,
+  invokeReadCodingFile,
+  invokeSearchCodingFiles,
+  invokeWriteCodingFile,
+} from '@/lib/codingTools'
 import type {
   OllamaApiMessage,
   OllamaChatUsage,
@@ -431,6 +441,7 @@ function resolveImageRecallRequest(
     userImages?: string[]
     userImageMimes?: string[]
     userImagePaths?: string[]
+    codingProjectPath?: string
   },
 ): {
   purpose?: 'vision' | 'edit'
@@ -479,6 +490,7 @@ export async function executeToolCall(
     userImages?: string[]
     userImageMimes?: string[]
     userImagePaths?: string[]
+    codingProjectPath?: string
     /** Latest user message text for override-policy checks. */
     userText?: string
   },
@@ -912,6 +924,137 @@ export async function executeToolCall(
     const applied = normalized[field]
     return `OK: updated ${field} to ${String(applied)}.`
   }
+  if (name === 'list_directory') {
+    if (!toolsEnabled.coding) return 'Error: list_directory tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    try {
+      const listed = await invokeListCodingDirectory(projectPath, relativePath)
+      if (!listed.ok) return `Error: ${listed.error}`
+      if (listed.entries.length === 0) return 'Directory is empty.'
+      return listed.entries
+        .map((e) => `${e.type === 'directory' ? '[dir]' : '[file]'} ${e.path}`)
+        .join('\n')
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+  if (name === 'read_file') {
+    if (!toolsEnabled.coding) return 'Error: read_file tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    if (!relativePath) return 'Error: missing path parameter for read_file.'
+    const startLine =
+      typeof args.start_line === 'number' && Number.isFinite(args.start_line)
+        ? Math.floor(args.start_line)
+        : undefined
+    const endLine =
+      typeof args.end_line === 'number' && Number.isFinite(args.end_line)
+        ? Math.floor(args.end_line)
+        : undefined
+    const maxChars =
+      typeof args.max_chars === 'number' && Number.isFinite(args.max_chars)
+        ? Math.floor(args.max_chars)
+        : undefined
+    return (
+      await invokeReadCodingFile(projectPath, relativePath, {
+        startLine,
+        endLine,
+        maxChars,
+      })
+    ).text
+  }
+  if (name === 'write_file') {
+    if (!toolsEnabled.coding) return 'Error: write_file tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    const content = typeof args.content === 'string' ? args.content : ''
+    if (!relativePath) return 'Error: missing path parameter for write_file.'
+    return (await invokeWriteCodingFile(projectPath, relativePath, content)).text
+  }
+  if (name === 'edit_code') {
+    if (!toolsEnabled.coding) return 'Error: edit_code tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relativePath = typeof args.path === 'string' ? args.path.trim() : ''
+    const findText = typeof args.find_text === 'string' ? args.find_text : ''
+    const replaceText = typeof args.replace_text === 'string' ? args.replace_text : ''
+    const replaceAll = args.replace_all === true
+    if (!relativePath) return 'Error: missing path parameter for edit_code.'
+    return (await invokeEditCodingFile(projectPath, relativePath, findText, replaceText, replaceAll)).text
+  }
+  if (name === 'search_files') {
+    if (!toolsEnabled.coding) return 'Error: search_files tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const query = typeof args.query === 'string' ? args.query.trim() : ''
+    if (!query) return 'Error: missing query parameter for search_files.'
+    const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
+    return (
+      await invokeSearchCodingFiles(projectPath, query, pathPrefix ? { pathPrefix } : undefined)
+    ).text
+  }
+  if (name === 'glob_files') {
+    if (!toolsEnabled.coding) return 'Error: glob_files tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
+    const extensions = Array.isArray(args.extensions)
+      ? args.extensions.filter((x): x is string => typeof x === 'string')
+      : undefined
+    const maxResults =
+      typeof args.max_results === 'number' && Number.isFinite(args.max_results)
+        ? args.max_results
+        : undefined
+    return (
+      await invokeGlobCodingFiles(projectPath, {
+        pathPrefix: pathPrefix || undefined,
+        extensions,
+        maxResults,
+      })
+    ).text
+  }
+  if (name === 'git_status') {
+    if (!toolsEnabled.coding) return 'Error: git_status tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    return (await invokeCodingGit(projectPath, { mode: 'status' })).text
+  }
+  if (name === 'git_diff') {
+    if (!toolsEnabled.coding) return 'Error: git_diff tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const relPath = typeof args.path === 'string' ? args.path.trim() : ''
+    const staged = args.staged === true
+    return (
+      await invokeCodingGit(projectPath, {
+        mode: 'diff',
+        path: relPath || undefined,
+        staged,
+      })
+    ).text
+  }
+  if (name === 'execute_command') {
+    if (!toolsEnabled.coding) return 'Error: execute_command tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const command = typeof args.command === 'string' ? args.command.trim() : ''
+    const timeoutSec =
+      typeof args.timeout_sec === 'number' && Number.isFinite(args.timeout_sec)
+        ? args.timeout_sec
+        : undefined
+    const runInBackground = args.run_in_background === true
+    if (!command) return 'Error: missing command parameter for execute_command.'
+    return (
+      await invokeExecuteCodingCommand(projectPath, command, {
+        timeoutSec,
+        runInBackground,
+      })
+    ).text
+  }
   return `Error: unknown tool "${name}".`
 }
 
@@ -1045,13 +1188,14 @@ export type RunChatWithToolsParams = {
       | 'pdf'
       | 'image'
       | 'music'
+      | 'coding'
       | 'other'
       | null,
   ) => void
   /** Folder for `save_pdf` (from app settings). */
   pdfOutputDir?: string
   /** After each tool runs; use to show real outcomes (e.g. PDF path) in the UI. */
-  onToolResult?: (payload: { name: string; result: string }) => void
+  onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   runware?: RunwareImageConfig
   /** Attached images from the latest user message (raw base64). */
   userImages?: string[]
@@ -1059,6 +1203,7 @@ export type RunChatWithToolsParams = {
   userImageMimes?: string[]
   /** Optional source paths matching `userImages` indexes. */
   userImagePaths?: string[]
+  codingProjectPath?: string
 }
 
 /**
@@ -1151,7 +1296,7 @@ export async function runOllamaChatWithTools(
             tool_name: 'scrape_url',
             content: result,
           })
-          params.onToolResult?.({ name: 'scrape_url', result })
+          params.onToolResult?.({ name: 'scrape_url', result, args: { url: originalUserUrl, max_chars: 40000 } })
           params.onToolPhase?.(null)
           persistedAssistantPrefix = lastAssistantText
           if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
@@ -1201,7 +1346,7 @@ export async function runOllamaChatWithTools(
               tool_name: 'web_search',
               content: result,
             })
-            params.onToolResult?.({ name: 'web_search', result })
+            params.onToolResult?.({ name: 'web_search', result, args: { query: forcedQuery } })
             params.onToolPhase?.(null)
             persistedAssistantPrefix = lastAssistantText
             if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
@@ -1229,6 +1374,18 @@ export async function runOllamaChatWithTools(
       else if (name === 'save_pdf') params.onToolPhase?.('pdf')
       else if (name === 'generate_image' || name === 'edit_image_runware' || name === 'image_recall') params.onToolPhase?.('image')
       else if (name === 'generate_music_runware') params.onToolPhase?.('music')
+      else if (
+        name === 'list_directory' ||
+        name === 'read_file' ||
+        name === 'write_file' ||
+        name === 'edit_code' ||
+        name === 'search_files' ||
+        name === 'glob_files' ||
+        name === 'git_status' ||
+        name === 'git_diff' ||
+        name === 'execute_command'
+      )
+        params.onToolPhase?.('coding')
       else params.onToolPhase?.('other')
 
       const result = await executeToolCall(
@@ -1243,6 +1400,7 @@ export async function runOllamaChatWithTools(
           userImages: params.userImages,
           userImageMimes: params.userImageMimes,
           userImagePaths: params.userImagePaths,
+          codingProjectPath: params.codingProjectPath,
           userText: originalUserText,
         },
       )
@@ -1251,7 +1409,7 @@ export async function runOllamaChatWithTools(
         tool_name: name,
         content: result,
       })
-      params.onToolResult?.({ name, result })
+      params.onToolResult?.({ name, result, args: argumentsStringToObject(call.function!.arguments) })
       if (name === 'image_recall') {
         const argsObj = argumentsStringToObject(call.function!.arguments)
         const recall = resolveImageRecallRequest(argsObj, {
