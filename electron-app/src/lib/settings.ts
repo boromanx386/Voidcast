@@ -1,7 +1,7 @@
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
-export type LlmProvider = 'ollama' | 'openrouter'
+export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
 
 /** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper) */
 export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light'
@@ -60,6 +60,9 @@ export type AppSettings = {
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
+  nvidiaBaseUrl: string
+  nvidiaApiKey: string
+  nvidiaModel: string
   /** Default OpenRouter TTS model id (GPT-4o Mini TTS). */
   openrouterTtsModel: string
   /** Optional OpenRouter TTS voice id/preset. */
@@ -181,7 +184,7 @@ import {
 const STORAGE_KEY = 'voidcast-settings-v1'
 /** Previous key; read once to migrate */
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
-const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'runwareApiKey'] as const
+const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'runwareApiKey'] as const
 
 const defaults: AppSettings = {
   llmProvider: 'ollama',
@@ -190,6 +193,9 @@ const defaults: AppSettings = {
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   openrouterApiKey: '',
   openrouterModel: 'openrouter/free',
+  nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
+  nvidiaApiKey: '',
+  nvidiaModel: 'z-ai/glm5',
   openrouterTtsModel: 'openai/gpt-4o-mini-tts-2025-12-15',
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
@@ -343,7 +349,12 @@ function normalizeTools(s: AppSettings): AppSettings {
 
 function normalizeLlm(s: AppSettings): AppSettings {
   const providerRaw = typeof s.llmProvider === 'string' ? s.llmProvider : ''
-  const llmProvider: LlmProvider = providerRaw === 'openrouter' ? 'openrouter' : 'ollama'
+  const llmProvider: LlmProvider =
+    providerRaw === 'openrouter'
+      ? 'openrouter'
+      : providerRaw === 'nvidia'
+        ? 'nvidia'
+        : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
   const hist = Number(s.llmMaxHistoryMessages)
@@ -357,12 +368,25 @@ function normalizeLlm(s: AppSettings): AppSettings {
     typeof s.openrouterModel === 'string' && s.openrouterModel.trim()
       ? s.openrouterModel.trim()
       : defaults.openrouterModel
+  const nvidiaBaseUrl =
+    typeof s.nvidiaBaseUrl === 'string' && s.nvidiaBaseUrl.trim()
+      ? s.nvidiaBaseUrl.trim()
+      : defaults.nvidiaBaseUrl
+  const nvidiaApiKey =
+    typeof s.nvidiaApiKey === 'string' ? s.nvidiaApiKey.trim() : ''
+  const nvidiaModel =
+    typeof s.nvidiaModel === 'string' && s.nvidiaModel.trim()
+      ? s.nvidiaModel.trim()
+      : defaults.nvidiaModel
   return {
     ...s,
     llmProvider,
     openrouterBaseUrl,
     openrouterApiKey,
     openrouterModel,
+    nvidiaBaseUrl,
+    nvidiaApiKey,
+    nvidiaModel,
     llmTemperature: Number.isFinite(t) ? clamp(t, 0, 2) : defaults.llmTemperature,
     llmNumCtx: Number.isFinite(ctx)
       ? clamp(Math.round(ctx), 512, 262144)

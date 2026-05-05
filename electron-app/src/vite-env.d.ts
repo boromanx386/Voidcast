@@ -42,6 +42,14 @@ interface Window {
       | { ok: true; data: unknown }
       | { ok: false; detail: string }
     >
+    llmChatProxy: (payload: {
+      api_base_url: string
+      api_key: string
+      body: unknown
+    }) => Promise<
+      | { ok: true; data: unknown; status: number }
+      | { ok: false; detail: string; status?: number }
+    >
     getAppVersion: () => Promise<string>
     openPath: (filePath: string) => Promise<{ ok: boolean; text: string } | string>
     pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>

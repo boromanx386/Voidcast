@@ -26,6 +26,15 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: true; data: unknown }
       | { ok: false; detail: string }
     >,
+  llmChatProxy: (payload: {
+    api_base_url: string
+    api_key: string
+    body: unknown
+  }) =>
+    ipcRenderer.invoke('voidcast:llm-chat-proxy', payload) as Promise<
+      | { ok: true; data: unknown; status: number }
+      | { ok: false; detail: string; status?: number }
+    >,
   getAppVersion: () => ipcRenderer.invoke('voidcast:get-app-version') as Promise<string>,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
   pickDirectory: () =>

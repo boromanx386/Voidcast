@@ -168,6 +168,33 @@ export function GeneralOptionsPanel({
         </a>
       </div>
 
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-cyan mr-2">⚿</span> NVIDIA_API_KEY
+        </label>
+        <input
+          type="password"
+          className="cyber-input"
+          value={settings.nvidiaApiKey}
+          onChange={(e) =>
+            setSettings((s) => ({ ...s, nvidiaApiKey: e.target.value }))
+          }
+          placeholder="nvapi-..."
+          autoComplete="off"
+        />
+        <p className="text-xs text-neon-cyan/80 mt-1">
+          Stored locally on this device (desktop app storage).
+        </p>
+        <a
+          href="https://build.nvidia.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
+        >
+          Get NVIDIA API key
+        </a>
+      </div>
+
       {isElectron() && (
         <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
           <label className="flex items-start gap-3">

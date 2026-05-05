@@ -1,4 +1,5 @@
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
+import { isElectron } from './platform'
 import { normalizeBaseUrl } from './settings'
 
 export type OpenRouterContentPart =
@@ -38,7 +39,7 @@ export type StreamOpenRouterChatParams = {
   tools?: unknown
 }
 
-const RETRYABLE_STATUS = new Set([429, 503])
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
 const MAX_RETRIES_PER_MODEL = 3
 const FALLBACK_MODEL = 'openrouter/free'
 
@@ -95,6 +96,12 @@ function toDataImageUri(base64: string): string {
   return `data:image/png;base64,${base64.replace(/\s+/g, '')}`
 }
 
+function normalizeNvidiaBaseUrl(root: string): string {
+  if (!root.includes('integrate.api.nvidia.com')) return root
+  const withoutEndpoint = root.replace(/\/chat\/completions\/?$/i, '')
+  return /\/v1(?:\/|$)/.test(withoutEndpoint) ? withoutEndpoint : `${withoutEndpoint}/v1`
+}
+
 function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) return Promise.resolve()
   return new Promise((resolve, reject) => {
@@ -107,6 +114,24 @@ function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
       reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+function throwAbortError(): never {
+  throw Object.assign(new Error('Aborted'), { name: 'AbortError' })
+}
+
+async function fetchWithHardAbort(input: RequestInfo | URL, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+  if (!signal) return fetch(input, init)
+  if (signal.aborted) throwAbortError()
+  return await new Promise<Response>((resolve, reject) => {
+    const onAbort = () => {
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    fetch(input, init)
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', onAbort))
   })
 }
 
@@ -180,9 +205,21 @@ export function ollamaMessagesToOpenRouter(messages: OllamaApiMessage[]): OpenRo
 export async function streamOpenRouterChat(
   options: StreamOpenRouterChatParams,
 ): Promise<{ content: string; tool_calls: OpenRouterToolCall[]; usage?: OllamaChatUsage }> {
-  const root = normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1')
+  const root = normalizeNvidiaBaseUrl(
+    normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1'),
+  )
+  const isNvidia = root.includes('integrate.api.nvidia.com')
+  const canUseElectronNvidiaProxy =
+    isElectron() &&
+    isNvidia &&
+    Boolean(window.voidcast?.llmChatProxy)
+
   const extra = compactOpenRouterOptions(options.modelOptions)
-  const models = options.model === FALLBACK_MODEL ? [options.model] : [options.model, FALLBACK_MODEL]
+  const models = isNvidia
+    ? [options.model]
+    : options.model === FALLBACK_MODEL
+      ? [options.model]
+      : [options.model, FALLBACK_MODEL]
   let res: Response | null = null
   let lastErr = ''
 
@@ -196,15 +233,46 @@ export async function streamOpenRouterChat(
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
 
-      res = await fetch(`${root}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${options.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        signal: options.signal,
-        body: JSON.stringify(body),
-      })
+      try {
+        res = await fetchWithHardAbort(`${root}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${options.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          signal: options.signal,
+          body: JSON.stringify(body),
+        }, options.signal)
+      } catch (e) {
+        if ((e as Error)?.name === 'AbortError') throw e
+        if (!canUseElectronNvidiaProxy || model !== options.model) throw e
+        const proxyRes = await window.voidcast!.llmChatProxy({
+          api_base_url: root,
+          api_key: options.apiKey,
+          body: { ...body, stream: false },
+        })
+        if (!proxyRes.ok) {
+          throw new Error(`NVIDIA /chat/completions ${proxyRes.status ?? ''}: ${proxyRes.detail}`.trim())
+        }
+        const data = proxyRes.data as {
+          choices?: Array<{
+            message?: { content?: string | null; tool_calls?: OpenRouterToolCall[] }
+          }>
+          usage?: OpenRouterUsage
+          error?: { message?: string } | string
+        }
+        const errMsg = typeof data.error === 'string' ? data.error : data.error?.message
+        if (errMsg) throw new Error(errMsg)
+        const msg = data.choices?.[0]?.message
+        const content = msg?.content ?? ''
+        const toolCalls = msg?.tool_calls ?? []
+        options.onDelta(content)
+        return {
+          content,
+          tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
+          usage: mapOpenRouterUsageToOllama(data.usage),
+        }
+      }
       if (res.ok) break
 
       const err = await parseOpenRouterError(res)
@@ -236,6 +304,7 @@ export async function streamOpenRouterChat(
   let usage: OpenRouterUsage | undefined
 
   while (true) {
+    if (options.signal?.aborted) throwAbortError()
     const { value, done } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })

@@ -735,6 +735,72 @@ ipcMain.handle(
   },
 )
 
+ipcMain.handle(
+  'voidcast:llm-chat-proxy',
+  async (
+    _evt,
+    payload: {
+      api_base_url?: string
+      api_key?: string
+      body?: unknown
+    },
+  ) => {
+    try {
+      const base = String(payload?.api_base_url ?? '').trim().replace(/\/+$/, '')
+      const key = String(payload?.api_key ?? '').trim()
+      if (!base) return { ok: false, detail: 'api_base_url is required' }
+      if (!base.startsWith('https://')) {
+        return { ok: false, detail: 'LLM base URL must use https://' }
+      }
+      if (!key) return { ok: false, detail: 'api_key is required' }
+      const reqBody = payload?.body ?? {}
+      const requestUrl = `${base}/chat/completions`
+      const res = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify(reqBody),
+      })
+      const raw = await res.text().catch(() => '')
+      let data = {} as {
+        error?: { message?: string } | string
+        message?: string
+      }
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {}
+      } catch {
+        data = {}
+      }
+      if (!res.ok) {
+        const model =
+          reqBody && typeof reqBody === 'object' && 'model' in reqBody
+            ? String((reqBody as { model?: unknown }).model ?? '')
+            : ''
+        const detail =
+          (typeof data.error === 'string' ? data.error : data.error?.message) ||
+          data.message ||
+          raw ||
+          `LLM HTTP ${res.status}`
+        const modelSuffix = model ? ` [model=${model}]` : ''
+        const urlSuffix = ` [url=${requestUrl}]`
+        const normalizedDetail =
+          detail.startsWith('LLM HTTP ') || detail.startsWith('HTTP ')
+            ? detail
+            : `HTTP ${res.status}: ${detail}`
+        return { ok: false, detail: `${normalizedDetail}${modelSuffix}${urlSuffix}`, status: res.status }
+      }
+      return { ok: true, data, status: res.status }
+    } catch (e) {
+      return {
+        ok: false,
+        detail: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
+
 ipcMain.handle('voidcast:pick-directory', async () => {
   const opts: OpenDialogOptions = {
     title: 'Choose folder for PDFs',

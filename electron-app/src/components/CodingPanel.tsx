@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FileTree } from '@/components/coding/FileTree'
+import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FilePreview } from '@/components/coding/FilePreview'
 import { TerminalView } from '@/components/coding/TerminalView'
 import { filterCodingTreeEntries } from '@/lib/codingTreeFilter'
@@ -240,7 +240,7 @@ export function CodingPanel({
       <div className="flex shrink-0 items-center justify-between">
         <div className="text-sm font-mono text-neon-cyan">CODING_PANEL</div>
         <button type="button" className="cyber-btn text-xs" onClick={() => void onPickFolder()}>
-          <FolderIcon className="h-4 w-4" aria-hidden="true" />
+          <FolderIcon className="h-4 w-4" />
         </button>
       </div>
       <div className="shrink-0 text-[11px] font-mono text-void-dim break-all">

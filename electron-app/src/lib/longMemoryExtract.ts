@@ -5,12 +5,15 @@ import type { LongMemoryCandidate, LongMemoryKind } from '@/types/longMemory'
 type Turn = { role: 'user' | 'assistant'; content: string }
 
 type ExtractParams = {
-  provider: 'ollama' | 'openrouter'
+  provider: 'ollama' | 'openrouter' | 'nvidia'
   ollamaBaseUrl: string
   ollamaModel: string
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
+  nvidiaBaseUrl?: string
+  nvidiaApiKey?: string
+  nvidiaModel?: string
   modelOptions?: OllamaModelOptions
   turns: Turn[]
   signal?: AbortSignal
@@ -93,11 +96,11 @@ export async function extractLongMemoryCandidates(params: ExtractParams): Promis
   ].join('\n')
 
   let raw = ''
-  if (params.provider === 'openrouter') {
+  if (params.provider === 'openrouter' || params.provider === 'nvidia') {
     const out = await streamOpenRouterChat({
-      baseUrl: params.openrouterBaseUrl,
-      apiKey: params.openrouterApiKey,
-      model: params.openrouterModel,
+      baseUrl: params.provider === 'nvidia' ? (params.nvidiaBaseUrl || '') : params.openrouterBaseUrl,
+      apiKey: params.provider === 'nvidia' ? (params.nvidiaApiKey || '') : params.openrouterApiKey,
+      model: params.provider === 'nvidia' ? (params.nvidiaModel || '') : params.openrouterModel,
       messages: ollamaMessagesToOpenRouter([
         { role: 'system', content: system },
         { role: 'user', content: user },

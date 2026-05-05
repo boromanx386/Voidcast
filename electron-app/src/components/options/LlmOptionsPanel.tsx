@@ -28,6 +28,18 @@ const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
   { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'NVIDIA Nemotron 3 Super 120B A12B (Free)' },
 ]
 
+const NVIDIA_PRESET_MODELS: Array<{ id: string; label: string }> = [
+  { id: 'z-ai/glm5', label: 'Z.AI GLM 5 (NVIDIA docs)' },
+  { id: 'z-ai/glm-5.1', label: 'Z.AI GLM 5.1 (alt id)' },
+  { id: 'z-ai/glm4.7', label: 'Z.AI GLM 4.7' },
+  { id: 'minimaxai/minimax-m2.7', label: 'MiniMax M2.7' },
+  { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+  { id: 'mistralai/mistral-medium-3.5-128b', label: 'Mistral Medium 3.5 128B' },
+  { id: 'moonshotai/kimi-k2.6', label: 'Moonshot Kimi K2.6' },
+  { id: 'deepseek-ai/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+  { id: 'qwen/qwen3.5-397b-a17b', label: 'Qwen 3.5 397B A17B' },
+]
+
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
 }
@@ -53,12 +65,18 @@ export function LlmOptionsPanel({
           onChange={(e) =>
             setSettings((s) => ({
               ...s,
-              llmProvider: e.target.value === 'openrouter' ? 'openrouter' : 'ollama',
+              llmProvider:
+                e.target.value === 'openrouter'
+                  ? 'openrouter'
+                  : e.target.value === 'nvidia'
+                    ? 'nvidia'
+                    : 'ollama',
             }))
           }
         >
           <option value="ollama">Ollama (local)</option>
           <option value="openrouter">OpenRouter (cloud)</option>
+          <option value="nvidia">NVIDIA (cloud)</option>
         </select>
       </div>
 
@@ -231,6 +249,64 @@ export function LlmOptionsPanel({
         </>
       )}
 
+      {settings.llmProvider === 'nvidia' && (
+        <>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-purple mr-2">◇</span> NVIDIA_BASE_URL
+            </label>
+            <input
+              className="cyber-input"
+              value={settings.nvidiaBaseUrl}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, nvidiaBaseUrl: e.target.value }))
+              }
+              placeholder="https://integrate.api.nvidia.com/v1"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> NVIDIA_MODEL
+            </label>
+            <select
+              className="form-select mb-3"
+              value={
+                NVIDIA_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel)
+                  ? settings.nvidiaModel
+                  : settings.nvidiaModel
+                    ? `__custom__${settings.nvidiaModel}`
+                    : ''
+              }
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v || v.startsWith('__custom__')) return
+                setSettings((s) => ({ ...s, nvidiaModel: v }))
+              }}
+            >
+              {NVIDIA_PRESET_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              {settings.nvidiaModel &&
+                !NVIDIA_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel) && (
+                  <option value={`__custom__${settings.nvidiaModel}`}>
+                    {settings.nvidiaModel} (manual)
+                  </option>
+                )}
+            </select>
+            <input
+              className="cyber-input"
+              value={settings.nvidiaModel}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, nvidiaModel: e.target.value }))
+              }
+              placeholder="z-ai/glm5"
+            />
+          </div>
+        </>
+      )}
+
       {/* Temperature */}
       <div className="form-group">
         <label className="form-label">
@@ -369,7 +445,7 @@ export function LlmOptionsPanel({
       {/* Model Info Panel */}
       <div className="bg-void-black/50 border border-neon-cyan/20 p-4">
         <p className="text-xs font-mono text-neon-cyan mb-3 uppercase tracking-wider">
-          <span className="mr-2">◈</span>{settings.llmProvider === 'openrouter' ? 'OPENROUTER_NOTES' : 'RECOMMENDED_MODELS'}
+          <span className="mr-2">◈</span>{settings.llmProvider === 'openrouter' ? 'OPENROUTER_NOTES' : settings.llmProvider === 'nvidia' ? 'NVIDIA_NOTES' : 'RECOMMENDED_MODELS'}
         </p>
         {settings.llmProvider === 'ollama' && <ul className="text-xs font-mono text-void-dim space-y-1">
           <li className="flex items-center gap-2">
@@ -403,6 +479,22 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
               Tool-calling support depends on selected upstream model/provider.
+            </li>
+          </ul>
+        )}
+        {settings.llmProvider === 'nvidia' && (
+          <ul className="text-xs font-mono text-void-dim space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Use OpenAI-compatible endpoint at <code className="text-void-light/90">/chat/completions</code>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Keep NVIDIA API key in General options
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              Some upstream providers may require reasoning replay in multi-turn chats.
             </li>
           </ul>
         )}

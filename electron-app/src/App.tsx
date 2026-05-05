@@ -691,6 +691,7 @@ export default function App() {
   const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
   const localPreviewLoadingRef = useRef<Set<string>>(new Set())
   const abortRef = useRef<AbortController | null>(null)
+  const activeChatRunIdRef = useRef(0)
   const ttsAbortRef = useRef<AbortController | null>(null)
   const ttsRunIdRef = useRef(0)
   const ttsAudioCacheRef = useRef<Map<string, Blob>>(new Map())
@@ -1252,6 +1253,9 @@ export default function App() {
         openrouterBaseUrl: settings.openrouterBaseUrl,
         openrouterApiKey: settings.openrouterApiKey,
         openrouterModel: settings.openrouterModel,
+        nvidiaBaseUrl: settings.nvidiaBaseUrl,
+        nvidiaApiKey: settings.nvidiaApiKey,
+        nvidiaModel: settings.nvidiaModel,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
         turns,
       })
@@ -1353,6 +1357,8 @@ export default function App() {
         : {}),
     }
     const asstId = uid()
+    const runId = activeChatRunIdRef.current + 1
+    activeChatRunIdRef.current = runId
     const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
     setMessages((m) => [...m, userMsg, asstMsg])
     setSessionDirty(true)
@@ -1360,7 +1366,7 @@ export default function App() {
     setToolPhase(null)
     setToolResultBanner(null)
 
-    const priorHistory: HistoryTurn[] = messages.map((x) => {
+    const priorHistory: HistoryTurn[] = messages.reduce<HistoryTurn[]>((acc, x) => {
       if (x.role === 'user') {
         const fileHint = x.fileAttachments?.length
           ? [
@@ -1381,10 +1387,14 @@ export default function App() {
         if (x.images?.length && shouldUseVisionForText(x.content)) t.images = x.images
         if (x.imageNames?.length) t.imageNames = x.imageNames
         if (x.imagePaths?.length) t.imagePaths = x.imagePaths
-        return t
+        acc.push(t)
+        return acc
       }
-      return { role: 'assistant', content: x.content }
-    })
+      // Some providers reject empty assistant turns (common right after abort).
+      if (!x.content.trim()) return acc
+      acc.push({ role: 'assistant', content: x.content })
+      return acc
+    }, [])
 
     const useTools = anyToolEnabled(settings.toolsEnabled)
     const runtimeTimeHint = buildRuntimeTimeHint()
@@ -1463,6 +1473,7 @@ export default function App() {
 
     const ac = new AbortController()
     abortRef.current = ac
+    const isRunActive = () => activeChatRunIdRef.current === runId && !ac.signal.aborted
     let replyText = ''
     let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
 
@@ -1508,14 +1519,19 @@ export default function App() {
           userImagePaths: toolImageCatalog.map((x) => x.path || ''),
           codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
           signal: ac.signal,
-          onDelta: (full: string) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
+          onDelta: (full: string) => {
+            if (!isRunActive()) return
+            setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
+          },
           // Agent calls onToolPhase(null) between tool batches and the next model stream; if we
           // cleared here, the UI would flash real phases for ms then fall back to PROCESSING...
           // Keep the last non-null phase until the turn ends (finally clears).
           onToolPhase: (phase: AgentToolUiPhase | null) => {
+            if (!isRunActive()) return
             if (phase !== null) setToolPhase(phase)
           },
           onToolResult: ({ name, result, args }: { name: string; result: string; args?: Record<string, unknown> }) => {
+            if (!isRunActive()) return
             if (
               name === 'list_directory' ||
               name === 'read_file' ||
@@ -1702,11 +1718,11 @@ export default function App() {
             }
           },
         }
-        const out = settings.llmProvider === 'openrouter'
+        const out = settings.llmProvider === 'openrouter' || settings.llmProvider === 'nvidia'
           ? await runOpenRouterChatWithTools({
-              baseUrl: settings.openrouterBaseUrl,
-              apiKey: settings.openrouterApiKey,
-              model: settings.openrouterModel,
+              baseUrl: settings.llmProvider === 'nvidia' ? settings.nvidiaBaseUrl : settings.openrouterBaseUrl,
+              apiKey: settings.llmProvider === 'nvidia' ? settings.nvidiaApiKey : settings.openrouterApiKey,
+              model: settings.llmProvider === 'nvidia' ? settings.nvidiaModel : settings.openrouterModel,
               ...commonToolParams,
             })
           : await runOllamaChatWithTools({
@@ -1717,15 +1733,18 @@ export default function App() {
         replyText = out.content
         usage = out.usage
       } else {
-        const out = settings.llmProvider === 'openrouter'
+        const out = settings.llmProvider === 'openrouter' || settings.llmProvider === 'nvidia'
           ? await streamOpenRouterChat({
-              baseUrl: settings.openrouterBaseUrl,
-              apiKey: settings.openrouterApiKey,
-              model: settings.openrouterModel,
+              baseUrl: settings.llmProvider === 'nvidia' ? settings.nvidiaBaseUrl : settings.openrouterBaseUrl,
+              apiKey: settings.llmProvider === 'nvidia' ? settings.nvidiaApiKey : settings.openrouterApiKey,
+              model: settings.llmProvider === 'nvidia' ? settings.nvidiaModel : settings.openrouterModel,
               messages: ollamaMessagesToOpenRouter(history),
               modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
               signal: ac.signal,
-              onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
+              onDelta: (full) => {
+                if (!isRunActive()) return
+                setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
+              },
             })
           : await streamOllamaChat({
               baseUrl: settings.ollamaBaseUrl,
@@ -1733,11 +1752,16 @@ export default function App() {
               messages: history,
               modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
               signal: ac.signal,
-              onDelta: (full) => setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m)),
+              onDelta: (full) => {
+                if (!isRunActive()) return
+                setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
+              },
             })
         replyText = out.content
         usage = out.usage
       }
+
+      if (!isRunActive()) return
 
       const usageInfo = estimateContextUsage(usage, settings.llmNumCtx)
       setContextUsageInfo(usageInfo)
@@ -1748,14 +1772,17 @@ export default function App() {
         void touchMemoryUsage(retrievedLongMemory.map((m) => m.id))
       }
     } catch (e) {
+      if (!isRunActive()) return
       if ((e as Error).name === 'AbortError') return
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
       setMessages((prev) => prev.map((m) => m.id === asstId && !m.content.trim() ? { ...m, content: `(ERR: ${msg})` } : m))
     } finally {
-      setToolPhase(null)
-      setBusy(false)
-      abortRef.current = null
+      if (activeChatRunIdRef.current === runId) {
+        setToolPhase(null)
+        setBusy(false)
+        abortRef.current = null
+      }
     }
 
     if (replyText.trim() && settings.autoVoice && ttsOk !== false) {
@@ -1764,7 +1791,11 @@ export default function App() {
   }
 
   const onStop = () => {
+    activeChatRunIdRef.current += 1
     abortRef.current?.abort()
+    abortRef.current = null
+    setToolPhase(null)
+    setBusy(false)
   }
 
   const removePendingImage = (index: number) => {
