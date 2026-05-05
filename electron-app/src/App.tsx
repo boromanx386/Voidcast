@@ -1391,8 +1391,12 @@ export default function App() {
         return acc
       }
       // Some providers reject empty assistant turns (common right after abort).
-      if (!x.content.trim()) return acc
-      acc.push({ role: 'assistant', content: x.content })
+      if (!x.content.trim() && !x.thinking?.trim()) return acc
+      acc.push({
+        role: 'assistant',
+        content: x.content,
+        ...(x.thinking?.trim() ? { thinking: x.thinking } : {}),
+      })
       return acc
     }, [])
 
@@ -1519,6 +1523,12 @@ export default function App() {
           userImagePaths: toolImageCatalog.map((x) => x.path || ''),
           codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
           signal: ac.signal,
+          onThinkingDelta: (thinking: string) => {
+            if (!isRunActive()) return
+            setMessages((prev) =>
+              prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+            )
+          },
           onDelta: (full: string) => {
             if (!isRunActive()) return
             setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
@@ -1729,6 +1739,7 @@ export default function App() {
           : await runOllamaChatWithTools({
               baseUrl: settings.ollamaBaseUrl,
               model: settings.ollamaModel,
+              think: settings.llmThinkingEnabled,
               ...commonToolParams,
             })
         replyText = out.content
@@ -1742,6 +1753,12 @@ export default function App() {
               messages: ollamaMessagesToOpenRouter(history),
               modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
               signal: ac.signal,
+              onThinkingDelta: (thinking) => {
+                if (!isRunActive()) return
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                )
+              },
               onDelta: (full) => {
                 if (!isRunActive()) return
                 setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
@@ -1753,6 +1770,13 @@ export default function App() {
               messages: history,
               modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
               signal: ac.signal,
+              think: settings.llmThinkingEnabled,
+              onThinkingDelta: (thinking) => {
+                if (!isRunActive()) return
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                )
+              },
               onDelta: (full) => {
                 if (!isRunActive()) return
                 setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
@@ -2550,6 +2574,19 @@ export default function App() {
                             }))
                       return (
                         <>
+                          {m.thinking?.trim() ? (
+                            <details
+                              className="rounded border border-neon-cyan/25 bg-void-black/40"
+                              open={busy && index === messages.length - 1}
+                            >
+                              <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-neon-cyan/90 hover:text-neon-cyan">
+                                THINKING
+                              </summary>
+                              <div className="max-h-64 overflow-y-auto border-t border-void-muted/30 px-3 py-2 text-xs font-mono text-void-dim whitespace-pre-wrap break-words">
+                                {m.thinking}
+                              </div>
+                            </details>
+                          ) : null}
                           <ChatMarkdown content={markdownContent} />
                           {renderItems.length > 0 ? (
                             <div className="flex flex-wrap gap-3">

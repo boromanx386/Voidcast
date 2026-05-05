@@ -19,6 +19,8 @@ export type OllamaApiMessage =
   | {
       role: 'assistant'
       content: string
+      /** Ollama replay: include prior thinking trace when `think` was used */
+      thinking?: string
       tool_calls?: OllamaToolCall[]
     }
   | { role: 'tool'; content: string; tool_name: string }
@@ -72,6 +74,10 @@ export type StreamOllamaChatParams = {
   messages: OllamaApiMessage[]
   signal?: AbortSignal
   onDelta: (fullText: string) => void
+  /** When true, sends Ollama `think: true` and streams `message.thinking` separately. */
+  think?: boolean
+  /** Accumulated thinking text for the current assistant message. */
+  onThinkingDelta?: (fullThinking: string) => void
   /** Sent as request `options` (temperature, num_ctx, …). */
   modelOptions?: OllamaModelOptions
   tools?: unknown
@@ -149,7 +155,7 @@ export function mergeOllamaUsage(
  */
 export async function streamOllamaChat(
   options: StreamOllamaChatParams,
-): Promise<{ content: string; usage?: OllamaChatUsage }> {
+): Promise<{ content: string; thinking: string; usage?: OllamaChatUsage }> {
   const root = normalizeBaseUrl(options.baseUrl)
   const opts = compactModelOptions(options.modelOptions)
   const body: Record<string, unknown> = {
@@ -159,6 +165,7 @@ export async function streamOllamaChat(
   }
   if (opts) body.options = opts
   if (options.tools !== undefined) body.tools = options.tools
+  if (options.think) body.think = true
 
   const res = await fetch(`${root}/api/chat`, {
     method: 'POST',
@@ -176,6 +183,7 @@ export async function streamOllamaChat(
   const decoder = new TextDecoder()
   let buffer = ''
   let full = ''
+  let fullThinking = ''
   let usage: OllamaChatUsage | undefined
 
   while (true) {
@@ -194,11 +202,16 @@ export async function streamOllamaChat(
         continue
       }
       const chunk = obj as {
-        message?: { content?: string }
+        message?: { content?: string; thinking?: string }
         error?: string
       }
       if (chunk.error) throw new Error(chunk.error)
       usage = mergeOllamaUsage(usage, parseChatStreamUsage(obj))
+      const thinkPiece = chunk.message?.thinking
+      if (thinkPiece) {
+        fullThinking += thinkPiece
+        options.onThinkingDelta?.(fullThinking)
+      }
       const piece = chunk.message?.content
       if (piece) {
         full += piece
@@ -210,11 +223,16 @@ export async function streamOllamaChat(
   if (tail) {
     try {
       const last = JSON.parse(tail) as {
-        message?: { content?: string }
+        message?: { content?: string; thinking?: string }
         error?: string
       }
       if (last.error) throw new Error(last.error)
       usage = mergeOllamaUsage(usage, parseChatStreamUsage(last))
+      const thinkPiece = last.message?.thinking
+      if (thinkPiece) {
+        fullThinking += thinkPiece
+        options.onThinkingDelta?.(fullThinking)
+      }
       const piece = last.message?.content
       if (piece) {
         full += piece
@@ -224,5 +242,5 @@ export async function streamOllamaChat(
       /* ignore trailing parse noise */
     }
   }
-  return { content: full, usage }
+  return { content: full, thinking: fullThinking, usage }
 }

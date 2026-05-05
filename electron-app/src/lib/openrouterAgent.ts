@@ -51,6 +51,7 @@ export type RunOpenRouterChatWithToolsParams = {
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
+  onThinkingDelta?: (fullReasoning: string) => void
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
   pdfOutputDir?: string
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
@@ -70,6 +71,7 @@ export async function runOpenRouterChatWithTools(
   const messages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   let lastAssistantText = ''
   let persistedAssistantPrefix = ''
+  let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   const runtimeRecalledImages: Array<{ base64: string; mime: string }> = []
 
@@ -79,7 +81,7 @@ export async function runOpenRouterChatWithTools(
       err.name = 'AbortError'
       throw err
     }
-    const { content, tool_calls, usage } = await streamOpenRouterChat({
+    const { content, tool_calls, usage, reasoning } = await streamOpenRouterChat({
       baseUrl: params.baseUrl,
       apiKey: params.apiKey,
       model: params.model,
@@ -92,6 +94,10 @@ export async function runOpenRouterChatWithTools(
         lastAssistantText = combined
         params.onDelta(combined)
       },
+      onThinkingDelta: (fullRound) => {
+        const combined = `${persistedThinkingPrefix}${fullRound}`
+        params.onThinkingDelta?.(combined)
+      },
     })
     lastUsage = usage ?? lastUsage
 
@@ -103,6 +109,7 @@ export async function runOpenRouterChatWithTools(
     messages.push({
       role: 'assistant',
       content: content ?? '',
+      ...(reasoning.trim() ? { reasoning: reasoning.trim() } : {}),
       tool_calls: toOpenRouterToolCalls(validCalls),
     })
 
@@ -172,6 +179,9 @@ export async function runOpenRouterChatWithTools(
     persistedAssistantPrefix = lastAssistantText
     if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
       persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
+    }
+    if (reasoning.trim()) {
+      persistedThinkingPrefix += `${reasoning.trim()}\n\n---\n\n`
     }
   }
 

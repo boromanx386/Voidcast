@@ -78,6 +78,11 @@ export type AppSettings = {
   llmMaxHistoryMessages: number
   /** Default for new chats: whether to include long-term memory retrieval. */
   longMemoryDefaultEnabled: boolean
+  /**
+   * Ollama: send `think: true` so reasoning-capable models stream `message.thinking`.
+   * OpenRouter/NVIDIA still surface `reasoning` when the model returns it (no extra flag).
+   */
+  llmThinkingEnabled: boolean
   /** System message prepended to each request */
   llmSystemPrompt: string
   ttsBaseUrl: string
@@ -202,6 +207,7 @@ const defaults: AppSettings = {
   llmNumCtx: 8192,
   llmMaxHistoryMessages: 0,
   longMemoryDefaultEnabled: false,
+  llmThinkingEnabled: true,
   llmSystemPrompt: '',
   ttsBaseUrl: 'http://127.0.0.1:8765',
   ttsProvider: 'local',
@@ -398,6 +404,10 @@ function normalizeLlm(s: AppSettings): AppSettings {
       typeof s.longMemoryDefaultEnabled === 'boolean'
         ? s.longMemoryDefaultEnabled
         : defaults.longMemoryDefaultEnabled,
+    llmThinkingEnabled:
+      typeof s.llmThinkingEnabled === 'boolean'
+        ? s.llmThinkingEnabled
+        : defaults.llmThinkingEnabled,
     llmSystemPrompt:
       typeof s.llmSystemPrompt === 'string' ? s.llmSystemPrompt : '',
   }

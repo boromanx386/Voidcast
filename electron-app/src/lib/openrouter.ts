@@ -9,7 +9,13 @@ export type OpenRouterContentPart =
 export type OpenRouterMessage =
   | { role: 'system' | 'assistant'; content: string }
   | { role: 'user'; content: string | OpenRouterContentPart[] }
-  | { role: 'assistant'; content: string | null; tool_calls?: OpenRouterToolCall[] }
+  | {
+      role: 'assistant'
+      content: string | null
+      tool_calls?: OpenRouterToolCall[]
+      /** Replay for reasoning models (OpenRouter / upstream). */
+      reasoning?: string | null
+    }
   | { role: 'tool'; content: string; tool_call_id: string; name?: string }
 
 export type OpenRouterToolCall = {
@@ -35,6 +41,8 @@ export type StreamOpenRouterChatParams = {
   messages: OpenRouterMessage[]
   signal?: AbortSignal
   onDelta: (fullText: string) => void
+  /** Some models stream `delta.reasoning` (or `reasoning_content`) alongside content. */
+  onThinkingDelta?: (fullReasoning: string) => void
   modelOptions?: OllamaModelOptions
   tools?: unknown
 }
@@ -180,10 +188,15 @@ export function ollamaMessagesToOpenRouter(messages: OllamaApiMessage[]): OpenRo
               },
             }))
         : undefined
+      const reasoning =
+        'thinking' in m && typeof (m as { thinking?: string }).thinking === 'string'
+          ? (m as { thinking?: string }).thinking?.trim() || undefined
+          : undefined
       out.push({
         role: 'assistant',
         content: m.content ?? '',
         ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
+        ...(reasoning ? { reasoning } : {}),
       })
       continue
     }
@@ -202,9 +215,24 @@ export function ollamaMessagesToOpenRouter(messages: OllamaApiMessage[]): OpenRo
   return out
 }
 
+function pickReasoningDelta(d: unknown): string {
+  if (!d || typeof d !== 'object') return ''
+  const o = d as Record<string, unknown>
+  const r = o.reasoning
+  if (typeof r === 'string') return r
+  const rc = o.reasoning_content
+  if (typeof rc === 'string') return rc
+  return ''
+}
+
 export async function streamOpenRouterChat(
   options: StreamOpenRouterChatParams,
-): Promise<{ content: string; tool_calls: OpenRouterToolCall[]; usage?: OllamaChatUsage }> {
+): Promise<{
+  content: string
+  reasoning: string
+  tool_calls: OpenRouterToolCall[]
+  usage?: OllamaChatUsage
+}> {
   const root = normalizeNvidiaBaseUrl(
     normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1'),
   )
@@ -266,11 +294,17 @@ export async function streamOpenRouterChat(
         const msg = data.choices?.[0]?.message
         const content = msg?.content ?? ''
         const toolCalls = msg?.tool_calls ?? []
+        const reasoning =
+          msg && typeof (msg as { reasoning?: string }).reasoning === 'string'
+            ? (msg as { reasoning: string }).reasoning
+            : ''
         options.onDelta(content)
+        if (reasoning) options.onThinkingDelta?.(reasoning)
         return {
           content,
           tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
           usage: mapOpenRouterUsageToOllama(data.usage),
+          reasoning,
         }
       }
       if (res.ok) break
@@ -300,6 +334,7 @@ export async function streamOpenRouterChat(
   const decoder = new TextDecoder()
   let buffer = ''
   let full = ''
+  let fullReasoning = ''
   const toolCalls: OpenRouterToolCall[] = []
   let usage: OpenRouterUsage | undefined
 
@@ -342,6 +377,11 @@ export async function streamOpenRouterChat(
       const msg = choice?.message
       if (delta?.tool_calls?.length) mergeToolCallDeltas(toolCalls, delta.tool_calls)
       if (msg?.tool_calls?.length) mergeToolCallDeltas(toolCalls, msg.tool_calls)
+      const rPiece = pickReasoningDelta(delta) || pickReasoningDelta(msg)
+      if (rPiece) {
+        fullReasoning += rPiece
+        options.onThinkingDelta?.(fullReasoning)
+      }
       const piece = delta?.content ?? msg?.content
       if (piece) {
         full += piece
@@ -352,6 +392,7 @@ export async function streamOpenRouterChat(
 
   return {
     content: full,
+    reasoning: fullReasoning,
     tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
     usage: mapOpenRouterUsageToOllama(usage),
   }

@@ -339,6 +339,26 @@ export function LlmOptionsPanel({
         </p>
       </div>
 
+      <div className="form-group">
+        <label className="form-label !flex flex-row items-center justify-between gap-3">
+          <span className="inline-flex min-w-0 items-center gap-2 pr-1">
+            <span className="min-w-0 leading-snug">THINKING_STREAM (Ollama)</span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-4 w-4 shrink-0 accent-neon-cyan"
+            checked={settings.llmThinkingEnabled}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, llmThinkingEnabled: e.target.checked }))
+            }
+          />
+        </label>
+        <p className="text-xs text-void-dim mt-1">
+          Sends <code className="text-neon-purple/90">think: true</code> to Ollama so models that support it stream a separate trace. OpenRouter
+          shows reasoning when the model provides it.
+        </p>
+      </div>
+
       {/* Context Window */}
       <div className="form-group">
         <label className="form-label">

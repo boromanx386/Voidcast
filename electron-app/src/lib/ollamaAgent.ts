@@ -1103,7 +1103,14 @@ export async function streamOllamaChatOnce(options: {
   tools: unknown[] | undefined
   signal?: AbortSignal
   onDelta: (fullText: string) => void
-}): Promise<{ content: string; tool_calls: OllamaToolCall[]; usage?: OllamaChatUsage }> {
+  think?: boolean
+  onThinkingDelta?: (fullThinking: string) => void
+}): Promise<{
+  content: string
+  thinking: string
+  tool_calls: OllamaToolCall[]
+  usage?: OllamaChatUsage
+}> {
   const root = normalizeBaseUrl(options.baseUrl)
   const opts = compactModelOptions(options.modelOptions)
   const body: Record<string, unknown> = {
@@ -1115,6 +1122,7 @@ export async function streamOllamaChatOnce(options: {
   if (options.tools !== undefined && options.tools.length > 0) {
     body.tools = options.tools
   }
+  if (options.think) body.think = true
 
   const res = await fetch(`${root}/api/chat`, {
     method: 'POST',
@@ -1132,6 +1140,7 @@ export async function streamOllamaChatOnce(options: {
   const decoder = new TextDecoder()
   let buffer = ''
   let fullContent = ''
+  let fullThinking = ''
   const toolCalls: OllamaToolCall[] = []
   let usage: OllamaChatUsage | undefined
 
@@ -1153,6 +1162,7 @@ export async function streamOllamaChatOnce(options: {
       const chunk = obj as {
         message?: {
           content?: string
+          thinking?: string
           tool_calls?: OllamaToolCall[]
         }
         error?: string
@@ -1162,6 +1172,11 @@ export async function streamOllamaChatOnce(options: {
       const msg = chunk.message
       if (msg?.tool_calls?.length) {
         mergeToolCallDeltas(toolCalls, msg.tool_calls)
+      }
+      const thinkPiece = msg?.thinking
+      if (thinkPiece) {
+        fullThinking += thinkPiece
+        options.onThinkingDelta?.(fullThinking)
       }
       const piece = msg?.content
       if (piece) {
@@ -1176,6 +1191,7 @@ export async function streamOllamaChatOnce(options: {
       const last = JSON.parse(tail) as {
         message?: {
           content?: string
+          thinking?: string
           tool_calls?: OllamaToolCall[]
         }
         error?: string
@@ -1184,6 +1200,11 @@ export async function streamOllamaChatOnce(options: {
       usage = mergeOllamaUsage(usage, parseChatStreamUsage(last))
       if (last.message?.tool_calls?.length) {
         mergeToolCallDeltas(toolCalls, last.message.tool_calls)
+      }
+      const thinkPiece = last.message?.thinking
+      if (thinkPiece) {
+        fullThinking += thinkPiece
+        options.onThinkingDelta?.(fullThinking)
       }
       const piece = last.message?.content
       if (piece) {
@@ -1197,6 +1218,7 @@ export async function streamOllamaChatOnce(options: {
 
   return {
     content: fullContent,
+    thinking: fullThinking,
     tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
     usage,
   }
@@ -1212,6 +1234,10 @@ export type RunChatWithToolsParams = {
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
+  /** Ollama: send `think: true` when enabled in settings. */
+  think?: boolean
+  /** Accumulated thinking across tool rounds + current stream. */
+  onThinkingDelta?: (fullThinking: string) => void
   /** Called when a tool phase starts; pass null to clear (e.g. before next model stream). */
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
   /** Folder for `save_pdf` (from app settings). */
@@ -1242,6 +1268,7 @@ export async function runOllamaChatWithTools(
   const messages: OllamaApiMessage[] = [...params.initialMessages]
   let lastAssistantText = ''
   let persistedAssistantPrefix = ''
+  let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   let forcedWebDone = false
   let forcedScrapeDone = false
@@ -1257,17 +1284,22 @@ export async function runOllamaChatWithTools(
       throw err
     }
 
-    const { content, tool_calls, usage } = await streamOllamaChatOnce({
+    const { content, tool_calls, usage, thinking } = await streamOllamaChatOnce({
       baseUrl: params.baseUrl,
       model: params.model,
       messages,
       modelOptions: params.modelOptions,
       tools,
       signal: params.signal,
+      think: params.think,
       onDelta: (full) => {
         const combined = `${persistedAssistantPrefix}${full}`
         lastAssistantText = combined
         params.onDelta(combined)
+      },
+      onThinkingDelta: (fullRound) => {
+        const combined = `${persistedThinkingPrefix}${fullRound}`
+        params.onThinkingDelta?.(combined)
       },
     })
     lastUsage = mergeOllamaUsage(lastUsage, usage)
@@ -1324,6 +1356,9 @@ export async function runOllamaChatWithTools(
           if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
             persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
           }
+          if (thinking.trim()) {
+            persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
+          }
           continue
         }
         if (
@@ -1374,6 +1409,9 @@ export async function runOllamaChatWithTools(
             if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
               persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
             }
+            if (thinking.trim()) {
+              persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
+            }
             continue
           }
         }
@@ -1384,6 +1422,7 @@ export async function runOllamaChatWithTools(
     messages.push({
       role: 'assistant',
       content: content ?? '',
+      ...(thinking.trim() ? { thinking } : {}),
       tool_calls: normalizeToolCallsForReplay(validCalls),
     })
 
@@ -1441,6 +1480,9 @@ export async function runOllamaChatWithTools(
     persistedAssistantPrefix = lastAssistantText
     if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
       persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
+    }
+    if (thinking.trim()) {
+      persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
     }
   }
 

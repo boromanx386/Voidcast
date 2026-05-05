@@ -15,6 +15,11 @@ export type UiMessage = {
   id: string
   role: ChatRole
   content: string
+  /**
+   * Assistant only: streamed model reasoning (Ollama `thinking` / OpenRouter `reasoning`).
+   * Shown above the main reply when non-empty.
+   */
+  thinking?: string
   /** Raw base64 for Ollama `images` (no data-URL prefix). User messages only. */
   images?: string[]
   /** Parallel MIME types for rendering (e.g. image/png). Not persisted (see chatSessionsStorage). */
