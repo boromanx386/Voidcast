@@ -44,7 +44,7 @@ import {
 } from '@/lib/fileAttachment'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
-import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
@@ -1532,6 +1532,7 @@ export default function App() {
           },
           onToolResult: ({ name, result, args }: { name: string; result: string; args?: Record<string, unknown> }) => {
             if (!isRunActive()) return
+            setToolPhase(toolPhaseForAgentTool(name))
             if (
               name === 'list_directory' ||
               name === 'read_file' ||
