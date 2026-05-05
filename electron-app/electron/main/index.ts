@@ -1244,13 +1244,6 @@ ipcMain.handle(
       const absFile = resolveInsideProject(projectPath, filePath)
       const content = String(payload?.content ?? '')
       await mkdir(path.dirname(absFile), { recursive: true })
-      try {
-        const previous = await readFile(absFile, 'utf8')
-        const backupPath = `${absFile}.bak-${Date.now()}`
-        await writeFile(backupPath, previous, 'utf8')
-      } catch {
-        // New file; no backup needed.
-      }
       await writeFile(absFile, content, 'utf8')
       return { ok: true as const, path: filePath.replace(/\\/g, '/') }
     } catch (e) {
