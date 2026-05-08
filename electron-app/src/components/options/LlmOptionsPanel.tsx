@@ -25,6 +25,10 @@ const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
   { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (Free)' },
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
   { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'NVIDIA Nemotron 3 Super 120B A12B (Free)' },
+  { id: 'inclusionai/ring-2.6-1t:free', label: 'Inclusion Ring 2.6 1T (Free)' },
+  { id: 'baidu/cobuddy:free', label: 'Baidu CoBuddy (Free)' },
+  { id: 'openrouter/owl-alpha', label: 'OpenRouter Owl Alpha' },
+  { id: 'poolside/laguna-m.1:free', label: 'Poolside Laguna M.1 (Free)' },
 ]
 
 const NVIDIA_PRESET_MODELS: Array<{ id: string; label: string }> = [

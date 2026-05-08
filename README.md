@@ -4,6 +4,15 @@
 
 Desktop AI chat app (Electron + React) with local Ollama integration, tools API, optional Local TTS, and Runware image/music/TTS support.
 
+### Update 2.4 (resume)
+
+- **Thinking / reasoning in chat**: collapsible **THINKING** block when the model streams traces (Ollama `think`; OpenRouter/NVIDIA `reasoning` / `reasoning_content` where supported).
+- **NVIDIA Build LLM**: optional cloud provider on `integrate.api.nvidia.com`, presets for common models, desktop fallback proxy for clearer errors; smarter base URL handling and retries on `502`/`504`.
+- **Tool agent**: stricter behavior so the assistant cannot pretend a tool ran without an actual tool call when the user clearly asked for a tool-backed action; after a real tool runs, a normal text wrap-up is allowed (no spurious “tool not called” on success).
+- **OpenRouter**: extra model presets (`inclusionai/ring-2.6-1t:free`, `baidu/cobuddy:free`, `openrouter/owl-alpha`, `poolside/laguna-m.1:free`).
+
+Full notes: see **[2.4.0] - 2026-05-08** in `CHANGELOG.md`.
+
 ## Features
 
 - Desktop chat UI focused on practical AI workflows (Electron + React).

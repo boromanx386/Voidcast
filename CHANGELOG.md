@@ -4,12 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-05-08
+
 ### Added
 
 - **Thinking / reasoning stream in chat**: assistant messages can show a collapsible **THINKING** block above the reply when the model streams a trace. Ollama uses `think: true` and `message.thinking` chunks (toggle **THINKING_STREAM (Ollama)** in LLM options). OpenRouter/NVIDIA surfaces `reasoning` / `reasoning_content` deltas when the upstream model sends them. History replays `thinking` on Ollama and `reasoning` on OpenRouter for multi-turn agent loops.
 - NVIDIA cloud LLM provider support (`integrate.api.nvidia.com`) across settings, UI, and chat execution paths.
 - NVIDIA-specific model presets in LLM options (including Z.AI, MiniMax, DeepSeek, Mistral, Moonshot, and Qwen variants) with manual model override support.
 - Desktop Electron `llm-chat-proxy` IPC bridge for NVIDIA fallback requests and richer upstream error details.
+- OpenRouter LLM presets: `inclusionai/ring-2.6-1t:free`, `baidu/cobuddy:free`, `openrouter/owl-alpha`, `poolside/laguna-m.1:free`.
+
+### Changed
+
+- Agent tool loops (`runOpenRouterChatWithTools`, `runOllamaChatWithTools`): when the user clearly expects a tool-backed action, the assistant cannot finish with plain text alone until at least one tool has actually run; optional short reprompt rounds apply only **before** any tool executes. After a real tool run in the turn, a final text-only reply is allowed (no false “tool not invoked” error).
 
 ### Fixed
 
@@ -17,6 +24,10 @@ All notable changes to this project will be documented in this file.
 - Retry/backoff now also handles transient upstream `502` and `504` failures.
 - Post-abort NVIDIA/OpenAI-compatible requests no longer fail from empty assistant turns in history (`Invalid assistant message`).
 - Abort flow no longer allows stale in-flight updates to overwrite current chat state (`runId` guard on stream/tool callbacks).
+
+### Repository
+
+- Ignore local `modal-test/` experiment folder via `.gitignore` so scratch Modal/harness files stay out of version control.
 
 ## [2.3.9] - 2026-05-04
 

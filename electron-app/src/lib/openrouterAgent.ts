@@ -12,6 +12,41 @@ import { executeToolCall } from '@/lib/ollamaAgent'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 
 const MAX_TOOL_ROUNDS = 18
+const MAX_REQUIRED_TOOL_REPROMPTS = 2
+
+function getLastUserText(messages: OllamaApiMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return String(messages[i]?.content || '').trim()
+  }
+  return ''
+}
+
+function shouldRequireToolCall(userText: string, enabled: ToolsEnabled): boolean {
+  const t = userText.toLowerCase()
+  if (!t) return false
+  const hasUrl = /https?:\/\/\S+/i.test(userText)
+  const asksImage = /\b(image|picture|draw|render|slika|fotka)\b/i.test(t)
+  const asksMusic = /\b(music|song|beat|audio|muzik|pesm|traka)\b/i.test(t)
+  const asksPdf = /\b(pdf|export|save as pdf|sacuvaj.*pdf)\b/i.test(t)
+  const asksWeb = /\b(search|google|web|online|internet|latest|news|proveri online)\b/i.test(t)
+  const asksWeather = /\b(weather|forecast|temperature|temperatura|vreme)\b/i.test(t)
+  const asksYoutube = /\b(youtube|video|transcript|caption)\b/i.test(t)
+  const asksScrape = hasUrl && /\b(scrape|extract|summarize|procitaj|izvuci)\b/i.test(t)
+  const asksCoding = /\b(list|read|write|edit|search|glob|git|command|terminal|fajl|folder)\b/i.test(t)
+  const asksSettings = /\b(change|set|update|podesi|promeni)\b/i.test(t) &&
+    /\b(setting|temperature|context|theme|model|rezoluc|prompt)\b/i.test(t)
+  return (
+    (enabled.runwareImage && asksImage) ||
+    (enabled.runwareMusic && asksMusic) ||
+    (enabled.pdf && asksPdf) ||
+    (enabled.webSearch && asksWeb) ||
+    (enabled.weather && asksWeather) ||
+    (enabled.youtube && asksYoutube) ||
+    (enabled.scrape && asksScrape) ||
+    (enabled.coding && asksCoding) ||
+    asksSettings
+  )
+}
 
 function parseToolArguments(raw: string | undefined): Record<string, unknown> {
   if (!raw?.trim()) return {}
@@ -74,6 +109,10 @@ export async function runOpenRouterChatWithTools(
   let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   const runtimeRecalledImages: Array<{ base64: string; mime: string }> = []
+  const originalUserText = getLastUserText(params.initialMessages)
+  const mustCallTool = shouldRequireToolCall(originalUserText, params.toolsEnabled)
+  let requiredToolRepromptCount = 0
+  let hasExecutedToolInTurn = false
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (params.signal?.aborted) {
@@ -103,6 +142,25 @@ export async function runOpenRouterChatWithTools(
 
     const validCalls = tool_calls.filter((t) => t.function?.name)
     if (validCalls.length === 0) {
+      if (mustCallTool && !hasExecutedToolInTurn && requiredToolRepromptCount < MAX_REQUIRED_TOOL_REPROMPTS) {
+        requiredToolRepromptCount += 1
+        messages.push({
+          role: 'user',
+          content:
+            'Tool call required: do not answer with plain text. Call the appropriate available tool now and only then provide the final answer from real tool output.',
+        })
+        persistedAssistantPrefix = lastAssistantText
+        if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
+          persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
+        }
+        if (reasoning.trim()) {
+          persistedThinkingPrefix += `${reasoning.trim()}\n\n---\n\n`
+        }
+        continue
+      }
+      if (mustCallTool && !hasExecutedToolInTurn) {
+        throw new Error('Tool-required request was answered without invoking any tool.')
+      }
       return { content: lastAssistantText || content, usage: lastUsage }
     }
 
@@ -140,6 +198,7 @@ export async function runOpenRouterChatWithTools(
         name,
         content: result,
       })
+      hasExecutedToolInTurn = true
       params.onToolResult?.({ name, result, args: argsObj })
 
       if (name === 'image_recall') {

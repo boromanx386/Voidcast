@@ -22,6 +22,9 @@ tts-server/*.spec
 .idea/
 *.local
 
+# Local experiments / Modal scratch (not shipped)
+modal-test/
+
 # Generated audio (local tests)
 *.wav
 
