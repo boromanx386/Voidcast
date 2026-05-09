@@ -231,6 +231,7 @@
 .tool-indicator.music { @apply text-neon-green border-neon-green/30; }
 .tool-indicator.coding { @apply text-neon-cyan border-neon-cyan/30; }
 .tool-indicator.settings { @apply text-neon-yellow border-neon-yellow/30; }
+.tool-indicator.reminder { @apply text-neon-orange border-neon-orange/30; }
 .tool-indicator.other { @apply text-void-dim border-void-muted/50; }
 
 /* Options panel */

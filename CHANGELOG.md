@@ -7,11 +7,20 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - `update_settings` tool now supports `autoVoice` (boolean) for agent-driven toggling of automatic TTS speech.
+- **Reminder tools**: `add_reminder` (general + scheduled) and `list_reminders` (date filter) for agent-driven reminders.
+  - New IndexedDB storage layer: `reminderStorage.ts` with CRUD operations.
+  - Tool definitions in `toolDefinitions.ts`, always available (no toggle).
+  - Tool execution handlers in `ollamaAgent.ts` `executeToolCall`.
+  - UI integrated into `GeneralOptionsPanel` with same styling as long memory (orange accent).
+  - New `ClockIcon` component in Lucide outline style.
+  - Tool phase: `reminder` with ⧗ icon and orange styling.
+  - Agent hints for reminder usage in `App.tsx`.
 
 ### Fixed
 
 - `update_settings` changes now immediately refresh the React UI state (previously only `localStorage` was updated, so the UI reflected the change only on the next message).
 - TTS playback for the current assistant reply now respects an `autoVoice` change made by the agent within the same turn (reads the latest setting from storage instead of a stale closure).
+- Added missing `--color-neon-orange` CSS variable across all themes (fixes `.tool-indicator.reminder` Tailwind error).
 
 ### Security
 

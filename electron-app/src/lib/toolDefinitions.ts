@@ -626,6 +626,64 @@ const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
   },
 }
 
+const ADD_REMINDER_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'add_reminder',
+    description:
+      'Add a reminder. Use when the user asks to be reminded, schedule something, or set a note. If the user gives a specific time, pass it as ISO datetime in `when`. If no time is given, omit `when` for a general reminder.',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'Reminder text. Required.',
+        },
+        when: {
+          type: 'string',
+          description:
+            'Optional scheduled time as ISO datetime (e.g. 2026-05-10T09:00). Omit for a general reminder with no specific time.',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional tags for categorizing the reminder.',
+        },
+      },
+      required: ['text'],
+    },
+  },
+}
+
+const LIST_REMINDERS_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'list_reminders',
+    description:
+      'List reminders. Use when the user asks what they have scheduled, what is coming up, or for a reminder report. Pass from/to as ISO dates (YYYY-MM-DD) or natural language (today, tomorrow, next 3 days). Set include_general to false if the user only wants time-based reminders.',
+    parameters: {
+      type: 'object',
+      properties: {
+        from: {
+          type: 'string',
+          description:
+            'Optional start date as ISO date (YYYY-MM-DD) or natural language (today, tomorrow). Defaults to today if omitted.',
+        },
+        to: {
+          type: 'string',
+          description:
+            'Optional end date as ISO date (YYYY-MM-DD) or natural language (next 3 days). Defaults to end of the from day if only from is given, or end of today if neither is given.',
+        },
+        include_general: {
+          type: 'boolean',
+          description:
+            'If true, include general reminders with no specific time. Defaults to true.',
+        },
+      },
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
@@ -653,6 +711,8 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
     out.push(CODING_EXECUTE_COMMAND_TOOL)
   }
   out.push(UPDATE_SETTINGS_TOOL)
+  out.push(ADD_REMINDER_TOOL)
+  out.push(LIST_REMINDERS_TOOL)
   return out
 }
 

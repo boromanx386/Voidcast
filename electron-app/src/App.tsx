@@ -60,6 +60,13 @@ import {
   touchMemoryUsage,
   upsertMemories,
 } from '@/lib/longMemoryStorage'
+import {
+  addReminder,
+  listReminders,
+  deleteReminder,
+  markReminderDone,
+  type Reminder,
+} from '@/lib/reminderStorage'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
@@ -650,6 +657,7 @@ const TOOL_PHASE_UI: Record<
   coding_git: { icon: '⎇', label: 'CODING_GIT', className: 'coding' },
   coding_shell: { icon: '$', label: 'CODING_SHELL', className: 'coding' },
   settings: { icon: '⚙', label: 'APP_SETTINGS', className: 'settings' },
+  reminder: { icon: '⧗', label: 'REMINDER', className: 'reminder' },
   other: { icon: '◈', label: 'TOOL', className: 'other' },
 }
 
@@ -684,6 +692,7 @@ export default function App() {
   const [memoryCandidates, setMemoryCandidates] = useState<LongMemoryCandidate[]>([])
   const [memoryPreviewOpen, setMemoryPreviewOpen] = useState(false)
   const [longMemories, setLongMemories] = useState<LongMemoryItem[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
   const [sessionDirty, setSessionDirty] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState({ today: false, older: false })
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
@@ -1344,6 +1353,14 @@ export default function App() {
     }
   }, [])
 
+  const refreshReminders = useCallback(async () => {
+    try {
+      setReminders(await listReminders())
+    } catch {
+      // ignore
+    }
+  }, [])
+
   const deleteLongMemoryById = useCallback(async (id: string) => {
     await deleteMemory(id)
     await refreshLongMemories()
@@ -1467,7 +1484,7 @@ export default function App() {
       const visible = getAgentVisibleSettings(settings)
       const settingsHint = [
         'You have an update_settings tool for app configuration.',
-        'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
+        'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
         `Current llmSystemPrompt: ${JSON.stringify(String(visible.llmSystemPrompt ?? ''))}`,
         `Current llmNumCtx: ${String(visible.llmNumCtx ?? '')}`,
         `Current llmTemperature: ${String(visible.llmTemperature ?? '')}`,
@@ -1476,10 +1493,15 @@ export default function App() {
         `Current runwareHeight: ${String(visible.runwareHeight ?? '')}`,
         `Current runwareImageModel: ${String(visible.runwareImageModel ?? '')}`,
         `Current runwareEditModel: ${String(visible.runwareEditModel ?? '')}`,
-        `Current autoVoice: ${String(visible.autoVoice ?? '')}`,
         'Sensitive keys are hidden; never ask to reveal API keys.',
       ].join('\n')
       toolsHintParts.push(settingsHint)
+      const remindersHint = [
+        'You have reminder tools: add_reminder (set a note or scheduled reminder) and list_reminders (show what is coming up).',
+        'For add_reminder, pass ISO datetime in "when" for scheduled, or omit for general.',
+        'For list_reminders, use "today", "tomorrow", or date ranges like "next 3 days" in from/to.',
+      ].join('\n')
+      toolsHintParts.push(remindersHint)
     }
     if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     const retrievedLongMemory = activeSessionUseLongMemory
@@ -1587,8 +1609,8 @@ export default function App() {
           onToolResult: ({ name, result, args }: { name: string; result: string; args?: Record<string, unknown> }) => {
             if (!isRunActive()) return
             setToolPhase(toolPhaseForAgentTool(name))
-            if (name === 'update_settings') {
-              setSettings(loadSettings())
+            if (name === 'add_reminder' || name === 'list_reminders') {
+              void refreshReminders()
             }
             if (
               name === 'list_directory' ||
@@ -1857,7 +1879,7 @@ export default function App() {
       }
     }
 
-    if (replyText.trim() && loadSettings().autoVoice && ttsOk !== false) {
+    if (replyText.trim() && settings.autoVoice && ttsOk !== false) {
       void onRead({ id: asstId, role: 'assistant', content: replyText })
     }
   }
@@ -2267,6 +2289,15 @@ export default function App() {
                 onToggleUseLongMemoryInActiveChat={setUseLongMemoryForActiveChat}
                 longMemories={longMemories}
                 onDeleteLongMemory={deleteLongMemoryById}
+                reminders={reminders}
+                onDeleteReminder={async (id) => {
+                  await deleteReminder(id)
+                  await refreshReminders()
+                }}
+                onMarkDoneReminder={async (id) => {
+                  await markReminderDone(id)
+                  await refreshReminders()
+                }}
               />
             ) : optionsTab === 'llm' ? (
               <LlmOptionsPanel

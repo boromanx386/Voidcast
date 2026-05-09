@@ -7,7 +7,9 @@ import {
   type SetStateAction,
 } from 'react'
 import type { LongMemoryItem } from '@/types/longMemory'
+import type { Reminder } from '@/lib/reminderStorage'
 import { BrainIcon } from '@/components/icons/BrainIcon'
+import { ClockIcon } from '@/components/icons/ClockIcon'
 
 type Props = {
   settings: AppSettings
@@ -16,6 +18,9 @@ type Props = {
   onToggleUseLongMemoryInActiveChat: (enabled: boolean) => void
   longMemories: LongMemoryItem[]
   onDeleteLongMemory: (id: string) => void
+  reminders: Reminder[]
+  onDeleteReminder: (id: string) => void
+  onMarkDoneReminder: (id: string) => void
 }
 
 export function GeneralOptionsPanel({
@@ -25,6 +30,9 @@ export function GeneralOptionsPanel({
   onToggleUseLongMemoryInActiveChat,
   longMemories,
   onDeleteLongMemory,
+  reminders,
+  onDeleteReminder,
+  onMarkDoneReminder,
 }: Props) {
   const [updateChecking, setUpdateChecking] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
@@ -278,6 +286,64 @@ export function GeneralOptionsPanel({
                   </button>
                 </div>
                 <div className="text-xs text-void-light">{m.text}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="bg-void-black/50 border border-neon-orange/25 p-4 rounded space-y-3">
+        <p className="flex items-center gap-2 text-xs font-mono text-neon-orange uppercase tracking-wider">
+          <ClockIcon className="h-4 w-4 shrink-0 text-neon-orange" aria-hidden />
+          REMINDERS
+        </p>
+        <div className="space-y-2 max-h-56 overflow-y-auto">
+          {reminders.length === 0 ? (
+            <p className="text-xs text-void-dim">No reminders yet.</p>
+          ) : (
+            reminders.map((r) => (
+              <div
+                key={r.id}
+                className={`rounded border border-void-muted/30 bg-void-black/30 px-2 py-1.5 ${
+                  r.status === 'done' ? 'opacity-50' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-mono text-neon-orange/80 uppercase">
+                    {r.when != null
+                      ? new Date(r.when).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'General'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {r.status !== 'done' && (
+                      <button
+                        type="button"
+                        className="text-[10px] font-mono text-neon-green/80 hover:text-neon-green"
+                        onClick={() => void onMarkDoneReminder(r.id)}
+                      >
+                        DONE
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="text-[10px] font-mono text-neon-red/80 hover:text-neon-red"
+                      onClick={() => void onDeleteReminder(r.id)}
+                    >
+                      DELETE
+                    </button>
+                  </div>
+                </div>
+                <div className={`text-xs text-void-light ${r.status === 'done' ? 'line-through' : ''}`}>
+                  {r.text}
+                </div>
+                {r.tags.length > 0 && (
+                  <div className="text-[10px] text-void-dim mt-0.5">[{r.tags.join(', ')}]</div>
+                )}
               </div>
             ))
           )}

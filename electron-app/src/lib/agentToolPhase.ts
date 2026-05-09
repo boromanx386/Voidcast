@@ -21,6 +21,7 @@ export type AgentToolUiPhase =
   | 'coding_git'
   | 'coding_shell'
   | 'settings'
+  | 'reminder'
   | 'other'
 
 export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
@@ -63,6 +64,9 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'coding_shell'
     case 'update_settings':
       return 'settings'
+    case 'add_reminder':
+    case 'list_reminders':
+      return 'reminder'
     default:
       return 'other'
   }

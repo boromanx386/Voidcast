@@ -11,6 +11,7 @@ import {
   type UiTheme,
 } from '@/lib/settings'
 import { upsertMemories } from '@/lib/longMemoryStorage'
+import { addReminder, listReminders } from '@/lib/reminderStorage'
 import type { LongMemoryKind } from '@/types/longMemory'
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
 import { invokeWebSearch } from '@/lib/webSearch'
@@ -210,6 +211,7 @@ function shouldRequireToolCall(userText: string, enabled: ToolsEnabled): boolean
   const asksCoding = /\b(list|read|write|edit|search|glob|git|command|terminal|fajl|folder)\b/i.test(t)
   const asksSettings = /\b(change|set|update|podesi|promeni)\b/i.test(t) &&
     /\b(setting|temperature|context|theme|model|rezoluc|prompt)\b/i.test(t)
+  const asksReminders = /\b(remind|reminder|schedule|podseti|podsetnik|napomena)\b/i.test(t)
   return (
     (enabled.runwareImage && asksImage) ||
     (enabled.runwareMusic && asksMusic) ||
@@ -219,7 +221,8 @@ function shouldRequireToolCall(userText: string, enabled: ToolsEnabled): boolean
     (enabled.youtube && asksYoutube) ||
     (enabled.scrape && asksScrape) ||
     (enabled.coding && asksCoding) ||
-    asksSettings
+    asksSettings ||
+    asksReminders
   )
 }
 
@@ -964,6 +967,82 @@ export async function executeToolCall(
     }
     const applied = normalized[field]
     return `OK: updated ${field} to ${String(applied)}.`
+  }
+  if (name === 'add_reminder') {
+    const text = parseToolValueAsString(args.text).trim()
+    if (!text) return 'Error: missing text parameter for add_reminder.'
+    const whenRaw = parseToolValueAsString(args.when).trim()
+    let when: number | null = null
+    if (whenRaw) {
+      const parsed = new Date(whenRaw).getTime()
+      if (Number.isNaN(parsed)) {
+        return 'Error: when must be a valid ISO datetime (e.g. 2026-05-10T09:00).'
+      }
+      when = parsed
+    }
+    const tagsRaw = Array.isArray(args.tags) ? args.tags : []
+    const tags = tagsRaw
+      .map((x) => parseToolValueAsString(x).trim())
+      .filter(Boolean)
+    try {
+      const item = await addReminder({ text, when: when ?? undefined, tags, source: 'agent-tool' })
+      if (item.when != null) {
+        const dateStr = new Date(item.when).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        return `OK: reminder set for ${dateStr} — "${item.text}".`
+      }
+      return `OK: reminder added — "${item.text}".`
+    } catch (e) {
+      return e instanceof Error ? `Error: failed to add reminder: ${e.message}` : String(e)
+    }
+  }
+  if (name === 'list_reminders') {
+    const fromRaw = parseToolValueAsString(args.from).trim()
+    const toRaw = parseToolValueAsString(args.to).trim()
+    const includeGeneral = args.include_general !== false
+    let fromMs: number | undefined
+    let toMs: number | undefined
+    if (fromRaw) {
+      const d = new Date(fromRaw)
+      if (Number.isNaN(d.getTime())) {
+        return 'Error: from must be a valid date (e.g. 2026-05-10 or today).'
+      }
+      fromMs = d.setHours(0, 0, 0, 0)
+    }
+    if (toRaw) {
+      const d = new Date(toRaw)
+      if (Number.isNaN(d.getTime())) {
+        return 'Error: to must be a valid date (e.g. 2026-05-10 or tomorrow).'
+      }
+      toMs = d.setHours(23, 59, 59, 999)
+    } else if (fromMs != null) {
+      toMs = new Date(fromMs).setHours(23, 59, 59, 999)
+    }
+    try {
+      const items = await listReminders({ from: fromMs, to: toMs, includeGeneral })
+      if (items.length === 0) {
+        return 'No reminders found for that period.'
+      }
+      const lines = items.map((r) => {
+        const time = r.when != null
+          ? new Date(r.when).toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : 'General'
+        const tags = r.tags.length ? ` [${r.tags.join(', ')}]` : ''
+        return `• ${time} — "${r.text}"${tags}`
+      })
+      return `Reminders:\n${lines.join('\n')}`
+    } catch (e) {
+      return e instanceof Error ? `Error: failed to list reminders: ${e.message}` : String(e)
+    }
   }
   if (name === 'list_directory') {
     if (!toolsEnabled.coding) return 'Error: list_directory tool is disabled in settings.'

@@ -27,6 +27,7 @@ export default {
           yellow: 'rgb(var(--color-neon-yellow) / <alpha-value>)',
           red: 'rgb(var(--color-neon-red) / <alpha-value>)',
           purple: 'rgb(var(--color-neon-purple) / <alpha-value>)',
+          orange: 'rgb(var(--color-neon-orange) / <alpha-value>)',
         },
         glitch: {
           red: 'rgb(var(--color-glitch-red) / <alpha-value>)',
