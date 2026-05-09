@@ -130,3 +130,31 @@ export async function markReminderDone(id: string): Promise<void> {
   }
   await txDone(tx)
 }
+
+export async function updateReminder(
+  id: string,
+  patch: Partial<Pick<Reminder, 'text' | 'when' | 'tags'>>,
+): Promise<Reminder | null> {
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  const store = tx.objectStore(STORE)
+  const req = store.get(id)
+  const item: Reminder | undefined = await new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result as Reminder | undefined)
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB get failed'))
+  })
+  if (!item) return null
+  if (patch.text !== undefined) item.text = patch.text.trim()
+  if (patch.when !== undefined) item.when = patch.when
+  if (patch.tags !== undefined) item.tags = normalizeTags(patch.tags)
+  store.put(item)
+  await txDone(tx)
+  return item
+}
+
+export async function searchRemindersByText(query: string): Promise<Reminder[]> {
+  const all = await listReminders()
+  const q = query.toLowerCase().trim()
+  if (!q) return []
+  return all.filter((r) => r.text.toLowerCase().includes(q))
+}

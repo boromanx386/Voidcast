@@ -66,6 +66,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'settings'
     case 'add_reminder':
     case 'list_reminders':
+    case 'delete_reminder':
+    case 'update_reminder':
       return 'reminder'
     default:
       return 'other'

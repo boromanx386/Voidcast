@@ -1497,9 +1497,10 @@ export default function App() {
       ].join('\n')
       toolsHintParts.push(settingsHint)
       const remindersHint = [
-        'You have reminder tools: add_reminder (set a note or scheduled reminder) and list_reminders (show what is coming up).',
+        'You have reminder tools: add_reminder (set a note or scheduled reminder), list_reminders (show what is coming up), delete_reminder (cancel/remove), and update_reminder (reschedule or edit text/tags).',
         'For add_reminder, pass ISO datetime in "when" for scheduled, or omit for general.',
         'For list_reminders, use "today", "tomorrow", or date ranges like "next 3 days" in from/to.',
+        'For delete_reminder and update_reminder, pass search_text to find the reminder by its text.',
       ].join('\n')
       toolsHintParts.push(remindersHint)
     }
@@ -1609,7 +1610,7 @@ export default function App() {
           onToolResult: ({ name, result, args }: { name: string; result: string; args?: Record<string, unknown> }) => {
             if (!isRunActive()) return
             setToolPhase(toolPhaseForAgentTool(name))
-            if (name === 'add_reminder' || name === 'list_reminders') {
+            if (name === 'add_reminder' || name === 'list_reminders' || name === 'delete_reminder' || name === 'update_reminder') {
               void refreshReminders()
             }
             if (

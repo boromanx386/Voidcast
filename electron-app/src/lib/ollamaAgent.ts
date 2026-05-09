@@ -11,7 +11,7 @@ import {
   type UiTheme,
 } from '@/lib/settings'
 import { upsertMemories } from '@/lib/longMemoryStorage'
-import { addReminder, listReminders } from '@/lib/reminderStorage'
+import { addReminder, listReminders, deleteReminder, updateReminder, searchRemindersByText } from '@/lib/reminderStorage'
 import type { LongMemoryKind } from '@/types/longMemory'
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
 import { invokeWebSearch } from '@/lib/webSearch'
@@ -1042,6 +1042,62 @@ export async function executeToolCall(
       return `Reminders:\n${lines.join('\n')}`
     } catch (e) {
       return e instanceof Error ? `Error: failed to list reminders: ${e.message}` : String(e)
+    }
+  }
+  if (name === 'delete_reminder') {
+    const searchText = parseToolValueAsString(args.search_text).trim()
+    if (!searchText) return 'Error: missing search_text parameter for delete_reminder.'
+    try {
+      const matches = await searchRemindersByText(searchText)
+      if (matches.length === 0) {
+        return `Error: no reminder found matching "${searchText}".`
+      }
+      const target = matches[0]
+      await deleteReminder(target.id)
+      return `OK: deleted reminder — "${target.text}".`
+    } catch (e) {
+      return e instanceof Error ? `Error: failed to delete reminder: ${e.message}` : String(e)
+    }
+  }
+  if (name === 'update_reminder') {
+    const searchText = parseToolValueAsString(args.search_text).trim()
+    if (!searchText) return 'Error: missing search_text parameter for update_reminder.'
+    const newTextRaw = parseToolValueAsString(args.text).trim()
+    const whenRaw = parseToolValueAsString(args.when).trim()
+    const tagsRaw = Array.isArray(args.tags) ? args.tags : []
+    try {
+      const matches = await searchRemindersByText(searchText)
+      if (matches.length === 0) {
+        return `Error: no reminder found matching "${searchText}".`
+      }
+      const target = matches[0]
+      const patch: Parameters<typeof updateReminder>[1] = {}
+      if (newTextRaw) patch.text = newTextRaw
+      if (whenRaw === '') {
+        patch.when = null
+      } else if (whenRaw) {
+        const parsed = new Date(whenRaw).getTime()
+        if (Number.isNaN(parsed)) {
+          return 'Error: when must be a valid ISO datetime (e.g. 2026-05-10T09:00) or empty string to remove time.'
+        }
+        patch.when = parsed
+      }
+      if (tagsRaw.length > 0) {
+        patch.tags = tagsRaw.map((x) => parseToolValueAsString(x).trim()).filter(Boolean)
+      }
+      const updated = await updateReminder(target.id, patch)
+      if (!updated) return 'Error: reminder was not found during update.'
+      const timeStr = updated.when != null
+        ? new Date(updated.when).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'General'
+      return `OK: updated reminder — "${updated.text}" (${timeStr}).`
+    } catch (e) {
+      return e instanceof Error ? `Error: failed to update reminder: ${e.message}` : String(e)
     }
   }
   if (name === 'list_directory') {

@@ -684,6 +684,60 @@ const LIST_REMINDERS_TOOL: OllamaToolDefinition = {
   },
 }
 
+const DELETE_REMINDER_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'delete_reminder',
+    description:
+      'Delete a reminder. Use when the user asks to cancel, remove, or delete a reminder. Search by text to find the reminder ID, then delete it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        search_text: {
+          type: 'string',
+          description:
+            'Text to search for in reminders. The tool will find the best matching reminder and delete it.',
+        },
+      },
+      required: ['search_text'],
+    },
+  },
+}
+
+const UPDATE_REMINDER_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'update_reminder',
+    description:
+      'Update a reminder. Use when the user asks to change, reschedule, or edit a reminder. Search by text to find the reminder, then update its text, time, or tags.',
+    parameters: {
+      type: 'object',
+      properties: {
+        search_text: {
+          type: 'string',
+          description:
+            'Text to search for in reminders. The tool will find the best matching reminder and update it.',
+        },
+        text: {
+          type: 'string',
+          description: 'New reminder text. Omit to keep existing text.',
+        },
+        when: {
+          type: 'string',
+          description:
+            'New scheduled time as ISO datetime (e.g. 2026-05-10T09:00). Pass empty string to remove the time (make it general). Omit to keep existing time.',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'New tags. Omit to keep existing tags.',
+        },
+      },
+      required: ['search_text'],
+    },
+  },
+}
+
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
@@ -713,6 +767,8 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
   out.push(UPDATE_SETTINGS_TOOL)
   out.push(ADD_REMINDER_TOOL)
   out.push(LIST_REMINDERS_TOOL)
+  out.push(DELETE_REMINDER_TOOL)
+  out.push(UPDATE_REMINDER_TOOL)
   return out
 }
 
