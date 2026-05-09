@@ -30,46 +30,42 @@ export function GeneralOptionsPanel({
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
 
   useEffect(() => {
-    const ipc = window.ipcRenderer
-    if (!isElectron() || !ipc) return
+    const bridge = window.voidcast
+    if (!isElectron() || !bridge) return
 
-    const onAvailable = (_event: unknown, payload: { update?: boolean; newVersion?: string }) => {
+    const offAvailable = bridge.onUpdateCanAvailable((payload) => {
       if (payload?.update) {
         setUpdateStatus(`Update available: v${payload.newVersion ?? '?'}`)
       } else {
         setUpdateStatus('No update available.')
       }
       setUpdateChecking(false)
-    }
-    const onError = (_event: unknown, payload: { message?: string }) => {
+    })
+    const offError = bridge.onUpdateError((payload) => {
       setUpdateStatus(payload?.message || 'Update check failed.')
       setUpdateChecking(false)
-    }
-    const onDownloaded = () => {
+    })
+    const offDownloaded = bridge.onUpdateDownloaded(() => {
       setUpdateStatus('Update downloaded. Restart app to install.')
       setUpdateChecking(false)
-    }
-
-    ipc.on('update-can-available', onAvailable)
-    ipc.on('update-error', onError)
-    ipc.on('update-downloaded', onDownloaded)
+    })
     return () => {
-      ipc.off('update-can-available', onAvailable)
-      ipc.off('update-error', onError)
-      ipc.off('update-downloaded', onDownloaded)
+      offAvailable()
+      offError()
+      offDownloaded()
     }
   }, [])
 
   const checkForUpdate = async () => {
-    const ipc = window.ipcRenderer
-    if (!isElectron() || !ipc) {
+    const bridge = window.voidcast
+    if (!isElectron() || !bridge) {
       setUpdateStatus('Update check is available only in desktop app.')
       return
     }
     setUpdateChecking(true)
     setUpdateStatus('Checking for updates...')
     try {
-      const result = await ipc.invoke('check-update')
+      const result = await bridge.checkForUpdates()
       const maybe = result as { error?: { message?: string } } | null
       if (maybe?.error) {
         setUpdateStatus(maybe.error.message || 'Update check failed.')

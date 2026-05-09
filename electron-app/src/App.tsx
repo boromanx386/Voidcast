@@ -790,13 +790,13 @@ export default function App() {
 
   useEffect(() => {
     if (!isElectron()) return
-    const ipc = window.ipcRenderer
-    if (!ipc) return
-    void ipc.invoke('set-auto-update-enabled', Boolean(settings.autoUpdate)).catch(() => {
+    const bridge = window.voidcast
+    if (!bridge) return
+    void bridge.setAutoUpdateEnabled(Boolean(settings.autoUpdate)).catch(() => {
       // Best-effort setting sync.
     })
     if (!settings.autoUpdate) return
-    void ipc.invoke('check-update').catch(() => {
+    void bridge.checkForUpdates().catch(() => {
       // Best-effort automatic check.
     })
   }, [settings.autoUpdate])
@@ -2076,15 +2076,13 @@ export default function App() {
 
   // IPC clipboard TTS listener
   useEffect(() => {
-    const ipc = window.ipcRenderer
-    if (!ipc) return
-    const listener = (_e: unknown, text: unknown) => {
+    const bridge = window.voidcast
+    if (!bridge) return
+    return bridge.onClipboardTts((text) => {
       const t = String(text ?? '').trim()
       if (!t) return
       void onReadRef.current({ id: '_clipboard-tts', role: 'assistant', content: t })
-    }
-    ipc.on('voidcast:read-clipboard-tts', listener)
-    return () => { void ipc.off('voidcast:read-clipboard-tts', listener) }
+    })
   }, [])
 
   // Voice clone file picker

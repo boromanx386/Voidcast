@@ -148,32 +148,50 @@ contextBridge.exposeInMainWorld('voidcast', {
   showWindow: () => ipcRenderer.invoke('voidcast:show-window'),
   hideWindow: () => ipcRenderer.invoke('voidcast:hide-window'),
   quitApp: () => ipcRenderer.invoke('voidcast:quit-app'),
+  checkForUpdates: () => ipcRenderer.invoke('check-update'),
+  setAutoUpdateEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke('set-auto-update-enabled', enabled) as Promise<{
+      ok: true
+      autoUpdateEnabled: boolean
+    }>,
+  startUpdateDownload: () => ipcRenderer.invoke('start-download'),
+  quitAndInstallUpdate: () => ipcRenderer.invoke('quit-and-install'),
+  onUpdateCanAvailable: (
+    callback: (payload: { update?: boolean; version?: string; newVersion?: string }) => void,
+  ) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+      callback((payload ?? {}) as { update?: boolean; version?: string; newVersion?: string })
+    ipcRenderer.on('update-can-available', listener)
+    return () => ipcRenderer.removeListener('update-can-available', listener)
+  },
+  onUpdateError: (
+    callback: (payload: { message?: string; error?: unknown }) => void,
+  ) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+      callback((payload ?? {}) as { message?: string; error?: unknown })
+    ipcRenderer.on('update-error', listener)
+    return () => ipcRenderer.removeListener('update-error', listener)
+  },
+  onUpdateDownloadProgress: (callback: (payload: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload)
+    ipcRenderer.on('download-progress', listener)
+    return () => ipcRenderer.removeListener('download-progress', listener)
+  },
+  onUpdateDownloaded: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('update-downloaded', listener)
+    return () => ipcRenderer.removeListener('update-downloaded', listener)
+  },
+  onClipboardTts: (callback: (text: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, text: unknown) =>
+      callback(String(text ?? ''))
+    ipcRenderer.on('voidcast:read-clipboard-tts', listener)
+    return () => ipcRenderer.removeListener('voidcast:read-clipboard-tts', listener)
+  },
   onNewChat: (callback: () => void) => {
     ipcRenderer.on('voidcast:new-chat', callback)
     return () => ipcRenderer.removeListener('voidcast:new-chat', callback)
   },
-})
-
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
-  },
-
-  // You can expose other APTs you need here.
-  // ...
 })
 
 // --------- Preload scripts loading ---------

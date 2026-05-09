@@ -5,7 +5,7 @@ import Progress from '@/components/update/Progress'
 import './update.css'
 
 const Update = () => {
-  const ipc = window.ipcRenderer
+  const bridge = window.voidcast
   const [checking, setChecking] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [versionInfo, setVersionInfo] = useState<VersionInfo>()
@@ -19,26 +19,27 @@ const Update = () => {
     onOk?: () => void
   }>({
     onCancel: () => setModalOpen(false),
-    onOk: () => { void ipc?.invoke('start-download') },
+    onOk: () => { void bridge?.startUpdateDownload() },
   })
 
   const checkUpdate = async () => {
-    if (!ipc) return
+    if (!bridge) return
     setChecking(true)
     /**
      * @type {import('electron-updater').UpdateCheckResult | null | { message: string, error: Error }}
      */
-    const result = await ipc.invoke('check-update')
+    const result = await bridge.checkForUpdates()
+    const maybe = result as { error?: ErrorType } | null
     setProgressInfo({ percent: 0 })
     setChecking(false)
     setModalOpen(true)
-    if (result?.error) {
+    if (maybe?.error) {
       setUpdateAvailable(false)
-      setUpdateError(result?.error)
+      setUpdateError(maybe.error)
     }
   }
 
-  const onUpdateCanAvailable = useCallback((_event: Electron.IpcRendererEvent, arg1: VersionInfo) => {
+  const onUpdateCanAvailable = useCallback((arg1: VersionInfo) => {
     setVersionInfo(arg1)
     setUpdateError(undefined)
     // Can be update
@@ -47,48 +48,54 @@ const Update = () => {
         ...state,
         cancelText: 'Cancel',
         okText: 'Update',
-        onOk: () => { void ipc?.invoke('start-download') },
+        onOk: () => { void bridge?.startUpdateDownload() },
       }))
       setUpdateAvailable(true)
     } else {
       setUpdateAvailable(false)
     }
-  }, [ipc])
+  }, [bridge])
 
-  const onUpdateError = useCallback((_event: Electron.IpcRendererEvent, arg1: ErrorType) => {
+  const onUpdateError = useCallback((arg1: ErrorType) => {
     setUpdateAvailable(false)
     setUpdateError(arg1)
   }, [])
 
-  const onDownloadProgress = useCallback((_event: Electron.IpcRendererEvent, arg1: ProgressInfo) => {
+  const onDownloadProgress = useCallback((arg1: ProgressInfo) => {
     setProgressInfo(arg1)
   }, [])
 
-  const onUpdateDownloaded = useCallback((_event: Electron.IpcRendererEvent, ...args: any[]) => {
+  const onUpdateDownloaded = useCallback(() => {
     setProgressInfo({ percent: 100 })
     setModalBtn(state => ({
       ...state,
       cancelText: 'Later',
       okText: 'Install now',
-      onOk: () => { void ipc?.invoke('quit-and-install') },
+      onOk: () => { void bridge?.quitAndInstallUpdate() },
     }))
-  }, [ipc])
+  }, [bridge])
 
   useEffect(() => {
-    if (!ipc) return
+    if (!bridge) return
     // Get version information and whether to update
-    ipc.on('update-can-available', onUpdateCanAvailable)
-    ipc.on('update-error', onUpdateError)
-    ipc.on('download-progress', onDownloadProgress)
-    ipc.on('update-downloaded', onUpdateDownloaded)
+    const offAvailable = bridge.onUpdateCanAvailable((payload) => {
+      onUpdateCanAvailable(payload as VersionInfo)
+    })
+    const offError = bridge.onUpdateError((payload) => {
+      onUpdateError(payload as ErrorType)
+    })
+    const offProgress = bridge.onUpdateDownloadProgress((payload) => {
+      onDownloadProgress(payload as ProgressInfo)
+    })
+    const offDownloaded = bridge.onUpdateDownloaded(onUpdateDownloaded)
 
     return () => {
-      ipc.off('update-can-available', onUpdateCanAvailable)
-      ipc.off('update-error', onUpdateError)
-      ipc.off('download-progress', onDownloadProgress)
-      ipc.off('update-downloaded', onUpdateDownloaded)
+      offAvailable()
+      offError()
+      offProgress()
+      offDownloaded()
     }
-  }, [ipc, onUpdateCanAvailable, onUpdateError, onDownloadProgress, onUpdateDownloaded])
+  }, [bridge, onUpdateCanAvailable, onUpdateError, onDownloadProgress, onUpdateDownloaded])
 
   return (
     <>

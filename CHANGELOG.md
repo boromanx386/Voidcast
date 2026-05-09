@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- Hardened Electron renderer bridge by removing globally exposed raw `ipcRenderer` access from preload.
+- Added explicit, allowlisted `window.voidcast` methods/events for updater and clipboard-TTS flows, and migrated renderer callers to the allowlisted API.
+- Removed unused insecure `open-win` IPC handler that created a `BrowserWindow` with `nodeIntegration: true` and `contextIsolation: false`.
+
 ## [2.4.0] - 2026-05-08
 
 ### Added
