@@ -1369,8 +1369,9 @@ export default function App() {
   useEffect(() => {
     if (screen === 'options' && optionsTab === 'general') {
       void refreshLongMemories()
+      void refreshReminders()
     }
-  }, [optionsTab, refreshLongMemories, screen])
+  }, [optionsTab, refreshLongMemories, refreshReminders, screen])
 
   // === Send Message ===
   const onSend = async () => {
