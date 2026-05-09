@@ -917,6 +917,15 @@ export async function executeToolCall(
       } catch (e) {
         return e instanceof Error ? `Error: failed to add long memory: ${e.message}` : String(e)
       }
+    } else if (field === 'autoVoice') {
+      const next = parseToolValueAsString(valueRaw).trim().toLowerCase()
+      if (next === 'true' || next === '1' || next === 'yes' || next === 'on') {
+        candidate.autoVoice = true
+      } else if (next === 'false' || next === '0' || next === 'no' || next === 'off') {
+        candidate.autoVoice = false
+      } else {
+        return 'Error: autoVoice expects a boolean value (true/false, on/off, yes/no, 1/0).'
+      }
     } else if (field === 'runwareResolution') {
       const pair = parseResolutionPair(valueRaw)
       if (!pair) {

@@ -346,7 +346,7 @@ const UPDATE_SETTINGS_TOOL: OllamaToolDefinition = {
           type: 'string',
           enum: AGENT_EDITABLE_SETTINGS_FIELDS,
           description:
-            'Setting key to update. Allowed: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
+            'Setting key to update. Allowed: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
         },
         value: {
           type: 'string',

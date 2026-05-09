@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `update_settings` tool now supports `autoVoice` (boolean) for agent-driven toggling of automatic TTS speech.
+
+### Fixed
+
+- `update_settings` changes now immediately refresh the React UI state (previously only `localStorage` was updated, so the UI reflected the change only on the next message).
+- TTS playback for the current assistant reply now respects an `autoVoice` change made by the agent within the same turn (reads the latest setting from storage instead of a stale closure).
+
 ### Security
 
 - Hardened Electron renderer bridge by removing globally exposed raw `ipcRenderer` access from preload.

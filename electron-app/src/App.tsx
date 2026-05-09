@@ -1467,7 +1467,7 @@ export default function App() {
       const visible = getAgentVisibleSettings(settings)
       const settingsHint = [
         'You have an update_settings tool for app configuration.',
-        'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
+        'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
         `Current llmSystemPrompt: ${JSON.stringify(String(visible.llmSystemPrompt ?? ''))}`,
         `Current llmNumCtx: ${String(visible.llmNumCtx ?? '')}`,
         `Current llmTemperature: ${String(visible.llmTemperature ?? '')}`,
@@ -1476,6 +1476,7 @@ export default function App() {
         `Current runwareHeight: ${String(visible.runwareHeight ?? '')}`,
         `Current runwareImageModel: ${String(visible.runwareImageModel ?? '')}`,
         `Current runwareEditModel: ${String(visible.runwareEditModel ?? '')}`,
+        `Current autoVoice: ${String(visible.autoVoice ?? '')}`,
         'Sensitive keys are hidden; never ask to reveal API keys.',
       ].join('\n')
       toolsHintParts.push(settingsHint)
@@ -1586,6 +1587,9 @@ export default function App() {
           onToolResult: ({ name, result, args }: { name: string; result: string; args?: Record<string, unknown> }) => {
             if (!isRunActive()) return
             setToolPhase(toolPhaseForAgentTool(name))
+            if (name === 'update_settings') {
+              setSettings(loadSettings())
+            }
             if (
               name === 'list_directory' ||
               name === 'read_file' ||
@@ -1853,7 +1857,7 @@ export default function App() {
       }
     }
 
-    if (replyText.trim() && settings.autoVoice && ttsOk !== false) {
+    if (replyText.trim() && loadSettings().autoVoice && ttsOk !== false) {
       void onRead({ id: asstId, role: 'assistant', content: replyText })
     }
   }

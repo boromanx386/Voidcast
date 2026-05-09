@@ -171,6 +171,7 @@ export const AGENT_EDITABLE_SETTINGS_FIELDS = [
   'llmTemperature',
   'uiTheme',
   'longMemoryAdd',
+  'autoVoice',
   'runwareResolution',
   'runwareWidth',
   'runwareHeight',
