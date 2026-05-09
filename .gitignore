@@ -18,6 +18,7 @@ tts-server/dist/
 tts-server/*.spec
 
 # IDE / local
+.vscode/
 .cursor/
 .idea/
 *.local
