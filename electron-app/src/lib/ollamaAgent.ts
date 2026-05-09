@@ -42,6 +42,7 @@ import type {
 } from '@/lib/ollama'
 import { mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { runSharedToolLoop } from '@/lib/agentToolLoop'
 
 const MAX_TOOL_ROUNDS = 30
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
@@ -1292,252 +1293,143 @@ export async function runOllamaChatWithTools(
   if (tools.length === 0) {
     throw new Error('runOllamaChatWithTools called with no tools enabled')
   }
-
-  const messages: OllamaApiMessage[] = [...params.initialMessages]
-  let lastAssistantText = ''
-  let persistedAssistantPrefix = ''
-  let persistedThinkingPrefix = ''
-  let lastUsage: OllamaChatUsage | undefined
   let forcedWebDone = false
   let forcedScrapeDone = false
-  const originalUserText = getLastUserText(messages)
+  const originalUserText = getLastUserText(params.initialMessages)
   const originalUserUrl = pickFirstHttpUrl(originalUserText)
   const originalNeedsFresh = shouldForceWebSearch(originalUserText)
   const mustCallTool = shouldRequireToolCall(originalUserText, params.toolsEnabled)
-  let requiredToolRepromptCount = 0
-  let hasExecutedToolInTurn = false
-  const runtimeRecalledImages: Array<{ base64: string; mime: string }> = []
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    if (params.signal?.aborted) {
-      const err = new Error('Aborted')
-      err.name = 'AbortError'
-      throw err
-    }
-
-    const { content, tool_calls, usage, thinking } = await streamOllamaChatOnce({
-      baseUrl: params.baseUrl,
-      model: params.model,
-      messages,
-      modelOptions: params.modelOptions,
-      tools,
-      signal: params.signal,
-      think: params.think,
-      onDelta: (full) => {
-        const combined = `${persistedAssistantPrefix}${full}`
-        lastAssistantText = combined
-        params.onDelta(combined)
-      },
-      onThinkingDelta: (fullRound) => {
-        const combined = `${persistedThinkingPrefix}${fullRound}`
-        params.onThinkingDelta?.(combined)
-      },
-    })
-    lastUsage = mergeOllamaUsage(lastUsage, usage)
-
-    const validCalls = tool_calls.filter((t) => t.function?.name)
-    if (validCalls.length === 0) {
-      // If model skipped tools on the first round, apply one forced call when
-      // user's request clearly needs it (URL scrape or time-sensitive web search).
-      if (round === 0) {
-        if (
-          !forcedScrapeDone &&
-          params.toolsEnabled.scrape &&
-          typeof originalUserUrl === 'string' &&
-          originalUserUrl.length > 0
-        ) {
-          forcedScrapeDone = true
-          params.onToolPhase?.('scrape')
-          const result = await executeToolCall(
-            'scrape_url',
-            { url: originalUserUrl, max_chars: 40000 },
-            params.toolsEnabled,
-            {
-              ttsBaseUrl: params.ttsBaseUrl,
-              signal: params.signal,
-              pdfOutputDir: params.pdfOutputDir,
-              runware: params.runware,
-              userImages: params.userImages,
-              userImageMimes: params.userImageMimes,
-              userImagePaths: params.userImagePaths,
-              userText: originalUserText,
-            },
-          )
-          messages.push({
-            role: 'assistant',
-            content: '',
-            tool_calls: [
-              {
-                type: 'function',
-                function: {
-                  name: 'scrape_url',
-                  arguments: { url: originalUserUrl, max_chars: 40000 },
-                },
-              },
-            ],
-          })
-          messages.push({
-            role: 'tool',
-            tool_name: 'scrape_url',
-            content: result,
-          })
-          hasExecutedToolInTurn = true
-          params.onToolResult?.({ name: 'scrape_url', result, args: { url: originalUserUrl, max_chars: 40000 } })
-          params.onToolPhase?.(null)
-          persistedAssistantPrefix = lastAssistantText
-          if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-            persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-          }
-          if (thinking.trim()) {
-            persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-          }
-          continue
-        }
-        if (
-          !forcedWebDone &&
-          params.toolsEnabled.webSearch &&
-          originalNeedsFresh
-        ) {
-          const forcedQuery = deriveSearchQuery(originalUserText)
-          if (forcedQuery) {
-            forcedWebDone = true
-            params.onToolPhase?.('search')
-            const result = await executeToolCall(
-              'web_search',
-              { query: forcedQuery },
-              params.toolsEnabled,
-              {
-                ttsBaseUrl: params.ttsBaseUrl,
-                signal: params.signal,
-                pdfOutputDir: params.pdfOutputDir,
-                runware: params.runware,
-                userImages: params.userImages,
-                userImageMimes: params.userImageMimes,
-                userImagePaths: params.userImagePaths,
-                userText: originalUserText,
-              },
-            )
-            messages.push({
-              role: 'assistant',
-              content: '',
-              tool_calls: [
-                {
-                  type: 'function',
-                  function: {
-                    name: 'web_search',
-                    arguments: { query: forcedQuery },
-                  },
-                },
-              ],
-            })
-            messages.push({
-              role: 'tool',
-              tool_name: 'web_search',
-              content: result,
-            })
-            hasExecutedToolInTurn = true
-            params.onToolResult?.({ name: 'web_search', result, args: { query: forcedQuery } })
-            params.onToolPhase?.(null)
-            persistedAssistantPrefix = lastAssistantText
-            if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-              persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-            }
-            if (thinking.trim()) {
-              persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-            }
-            continue
-          }
-        }
+  return runSharedToolLoop<OllamaApiMessage, OllamaToolCall>({
+    initialMessages: [...params.initialMessages],
+    maxToolRounds: MAX_TOOL_ROUNDS,
+    maxRequiredToolReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
+    mustCallTool,
+    signal: params.signal,
+    streamRound: async ({ messages, signal, onDelta, onThinkingDelta }) => {
+      const out = await streamOllamaChatOnce({
+        baseUrl: params.baseUrl,
+        model: params.model,
+        messages,
+        modelOptions: params.modelOptions,
+        tools,
+        signal,
+        think: params.think,
+        onDelta,
+        onThinkingDelta,
+      })
+      return {
+        content: out.content,
+        thinking: out.thinking,
+        toolCalls: out.tool_calls,
+        usage: out.usage,
       }
-      if (mustCallTool && !hasExecutedToolInTurn && requiredToolRepromptCount < MAX_REQUIRED_TOOL_REPROMPTS) {
-        requiredToolRepromptCount += 1
-        messages.push({
-          role: 'user',
-          content:
-            'Tool call required: do not answer with plain text. Call the appropriate available tool now and only then provide the final answer from real tool output.',
-        })
-        persistedAssistantPrefix = lastAssistantText
-        if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-          persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-        }
-        if (thinking.trim()) {
-          persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-        }
-        continue
-      }
-      if (mustCallTool && !hasExecutedToolInTurn) {
-        throw new Error('Tool-required request was answered without invoking any tool.')
-      }
-      return { content: lastAssistantText || content, usage: lastUsage }
-    }
-
-    messages.push({
-      role: 'assistant',
-      content: content ?? '',
-      ...(thinking.trim() ? { thinking } : {}),
-      tool_calls: normalizeToolCallsForReplay(validCalls),
-    })
-
-    for (const call of validCalls) {
-      const name = call.function!.name!
-      params.onToolPhase?.(toolPhaseForAgentTool(name))
-
-      const result = await executeToolCall(
-        name,
-        call.function!.arguments,
-        params.toolsEnabled,
-        {
-          ttsBaseUrl: params.ttsBaseUrl,
-          signal: params.signal,
-          pdfOutputDir: params.pdfOutputDir,
-          runware: params.runware,
-          userImages: params.userImages,
-          userImageMimes: params.userImageMimes,
-          userImagePaths: params.userImagePaths,
-          codingProjectPath: params.codingProjectPath,
-          userText: originalUserText,
-        },
-      )
+    },
+    toSharedToolCalls: (calls) =>
+      calls
+        .filter((t) => t.function?.name)
+        .map((call) => ({ name: call.function!.name!, argsRaw: call.function!.arguments, raw: call })),
+    appendAssistantWithToolCalls: ({ messages, content, thinking, toolCalls }) => {
+      messages.push({
+        role: 'assistant',
+        content: content ?? '',
+        ...(thinking.trim() ? { thinking } : {}),
+        tool_calls: normalizeToolCallsForReplay(toolCalls.filter((t) => t.function?.name)),
+      })
+    },
+    appendToolResult: ({ messages, name, result }) => {
       messages.push({
         role: 'tool',
         tool_name: name,
         content: result,
       })
-      hasExecutedToolInTurn = true
-      params.onToolResult?.({ name, result, args: argumentsStringToObject(call.function!.arguments) })
-      if (name === 'image_recall') {
-        const argsObj = argumentsStringToObject(call.function!.arguments)
-        const recall = resolveImageRecallRequest(argsObj, {
-          userImages: params.userImages,
-          userImageMimes: params.userImageMimes,
-          userImagePaths: params.userImagePaths,
-        })
-        if (recall.recalled.length > 0) {
-          for (const img of recall.recalled) {
-            runtimeRecalledImages.push({ base64: img.base64, mime: img.mime })
-          }
-        }
-      }
-    }
-
-    if (runtimeRecalledImages.length > 0) {
-      const consumed = runtimeRecalledImages.splice(0, runtimeRecalledImages.length)
+    },
+    appendToolRequiredReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content:
+          'Tool call required: do not answer with plain text. Call the appropriate available tool now and only then provide the final answer from real tool output.',
+      })
+    },
+    appendRuntimeRecalledImages: (messages, recalled) => {
       messages.push({
         role: 'user',
         content: 'Image recall payload for current turn.',
-        images: consumed.map((x) => x.base64),
+        images: recalled.map((x) => x.base64),
       })
-    }
-
-    params.onToolPhase?.(null)
-    persistedAssistantPrefix = lastAssistantText
-    if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-      persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-    }
-    if (thinking.trim()) {
-      persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-    }
-  }
-
-  return { content: lastAssistantText, usage: lastUsage }
+    },
+    collectRecalledImages: ({ name, argsRaw }) => {
+      if (name !== 'image_recall') return []
+      const argsObj = argumentsStringToObject(argsRaw)
+      const recall = resolveImageRecallRequest(argsObj, {
+        userImages: params.userImages,
+        userImageMimes: params.userImageMimes,
+        userImagePaths: params.userImagePaths,
+      })
+      return recall.recalled.map((img) => ({ base64: img.base64, mime: img.mime }))
+    },
+    onNoToolCalls: async ({ round, runSyntheticTool }) => {
+      if (round !== 0) return false
+      if (
+        !forcedScrapeDone &&
+        params.toolsEnabled.scrape &&
+        typeof originalUserUrl === 'string' &&
+        originalUserUrl.length > 0
+      ) {
+        forcedScrapeDone = true
+        params.onToolPhase?.('scrape')
+        await runSyntheticTool(
+          'scrape_url',
+          { url: originalUserUrl, max_chars: 40000 },
+          () => ({
+            type: 'function',
+            function: {
+              name: 'scrape_url',
+              arguments: { url: originalUserUrl, max_chars: 40000 },
+            },
+          }),
+        )
+        params.onToolPhase?.(null)
+        return true
+      }
+      if (!forcedWebDone && params.toolsEnabled.webSearch && originalNeedsFresh) {
+        const forcedQuery = deriveSearchQuery(originalUserText)
+        if (forcedQuery) {
+          forcedWebDone = true
+          params.onToolPhase?.('search')
+          await runSyntheticTool(
+            'web_search',
+            { query: forcedQuery },
+            () => ({
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: { query: forcedQuery },
+              },
+            }),
+          )
+          params.onToolPhase?.(null)
+          return true
+        }
+      }
+      return false
+    },
+    executeToolCall: (name, argsRaw) =>
+      executeToolCall(name, argsRaw, params.toolsEnabled, {
+        ttsBaseUrl: params.ttsBaseUrl,
+        signal: params.signal,
+        pdfOutputDir: params.pdfOutputDir,
+        runware: params.runware,
+        userImages: params.userImages,
+        userImageMimes: params.userImageMimes,
+        userImagePaths: params.userImagePaths,
+        codingProjectPath: params.codingProjectPath,
+        userText: originalUserText,
+      }),
+    parseArgsForToolResult: argumentsStringToObject,
+    onDelta: params.onDelta,
+    onThinkingDelta: params.onThinkingDelta,
+    onToolPhase: params.onToolPhase,
+    toolPhaseForName: (name) => toolPhaseForAgentTool(name),
+    onToolResult: params.onToolResult,
+  })
 }

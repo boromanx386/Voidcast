@@ -9,6 +9,8 @@ export type AgentToolUiPhase =
   | 'scrape'
   | 'pdf'
   | 'image'
+  /** Chat image recall for multimodal / vision (not Runware generation). */
+  | 'vision'
   | 'music'
   | 'coding_list'
   | 'coding_read'
@@ -35,8 +37,9 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'pdf'
     case 'generate_image':
     case 'edit_image_runware':
-    case 'image_recall':
       return 'image'
+    case 'image_recall':
+      return 'vision'
     case 'generate_music_runware':
       return 'music'
     case 'list_directory':

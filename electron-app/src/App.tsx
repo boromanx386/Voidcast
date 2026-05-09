@@ -27,6 +27,7 @@ import {
   TOOLS_PDF_HINT,
   TOOLS_RUNWARE_IMAGE_HINT,
   TOOLS_RUNWARE_MUSIC_HINT,
+  TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT,
   TOOLS_TRUTH_HINT,
   type HistoryTurn,
 } from '@/lib/chatMessages'
@@ -259,6 +260,48 @@ function buildQueuedImagePathHint(queued: PendingChatImage[]): string {
     `Attached image references for this message (internal catalog indexes, 1 = most recent):`,
     ...lines,
     'Use image_recall for vision-style analysis or edit_image_runware for edits when needed.',
+  ].join('\n')
+}
+
+/** Text-only hint: maps earlier attachments to global tool catalog indexes / paths for image_recall (no base64 in history). */
+function buildHistoricalImageRecallHint(
+  msg: UiMessage,
+  catalog: PendingChatImage[],
+): string {
+  if (msg.role !== 'user' || !msg.images?.length) return ''
+  const lines: string[] = []
+  for (let j = 0; j < msg.images.length; j++) {
+    const b64 = (msg.images[j] || '').trim()
+    if (!b64) continue
+    const path = msg.imagePaths?.[j]?.trim()
+    const key = path
+      ? `path:${path.toLowerCase()}`
+      : `b64:${b64.slice(0, 96)}`
+    let oneBased: number | null = null
+    for (let k = 0; k < catalog.length; k++) {
+      const c = catalog[k]
+      const cKey = c.path?.trim()
+        ? `path:${c.path.trim().toLowerCase()}`
+        : `b64:${(c.base64 || '').slice(0, 96)}`
+      if (cKey === key) {
+        oneBased = k + 1
+        break
+      }
+    }
+    const label =
+      (path || msg.imageNames?.[j] || '').trim() || `attachment ${j + 1}`
+    if (oneBased != null) {
+      lines.push(
+        `- Index ${oneBased} (1-based catalog): ${label}${path ? ` — path: ${path}` : ''}`,
+      )
+    } else {
+      lines.push(`- ${label} (could not match to current image catalog; try re-attaching if needed)`)
+    }
+  }
+  if (!lines.length) return ''
+  return [
+    'Images were attached in this earlier turn. For pixel-accurate vision later, call image_recall with reference_image_indexes (1-based, same order as the internal catalog used by tools) and/or reference_image_paths using the paths below. Earlier turns do not resend raw image bytes in context.',
+    ...lines,
   ].join('\n')
 }
 
@@ -596,6 +639,7 @@ const TOOL_PHASE_UI: Record<
   scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrape' },
   pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
   image: { icon: '◌', label: 'RUNWARE_IMAGE', className: 'image' },
+  vision: { icon: '◎', label: 'IMAGE_RECALL', className: 'vision' },
   music: { icon: '♫', label: 'RUNWARE_MUSIC', className: 'music' },
   coding_list: { icon: '⊢', label: 'CODING_FILES', className: 'coding' },
   coding_read: { icon: '◊', label: 'CODING_READ', className: 'coding' },
@@ -1375,18 +1419,16 @@ export default function App() {
               'File snapshots are stored in the original attachment turn.',
             ].join('\n')
           : ''
+        const imageRecallHint = buildHistoricalImageRecallHint(x, toolImageCatalog)
         const t: HistoryTurn = {
           role: 'user',
-          content: [x.content, fileHint].filter((v) => v.trim().length > 0).join('\n\n') ||
+          content: [x.content, fileHint, imageRecallHint].filter((v) => v.trim().length > 0).join('\n\n') ||
             (x.images?.length
               ? 'Attached image(s) were provided in this message.'
               : x.fileAttachments?.length
                 ? 'Attached file(s) were provided in this message.'
                 : ''),
         }
-        if (x.images?.length && shouldUseVisionForText(x.content)) t.images = x.images
-        if (x.imageNames?.length) t.imageNames = x.imageNames
-        if (x.imagePaths?.length) t.imagePaths = x.imagePaths
         acc.push(t)
         return acc
       }
@@ -1418,6 +1460,7 @@ export default function App() {
           'Use glob_files or list_directory to find paths; git_status / git_diff for repo changes; read_file with start_line/end_line or max_chars on large files; search_files accepts path_prefix.',
         ].join('\n'),
       )
+      toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
       toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
     }
     if (useTools) {

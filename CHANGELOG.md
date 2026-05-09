@@ -10,6 +10,18 @@ All notable changes to this project will be documented in this file.
 - Added explicit, allowlisted `window.voidcast` methods/events for updater and clipboard-TTS flows, and migrated renderer callers to the allowlisted API.
 - Removed unused insecure `open-win` IPC handler that created a `BrowserWindow` with `nodeIntegration: true` and `contextIsolation: false`.
 
+### Added
+
+- Shared agent tool-round engine (`agentToolLoop.ts`) with provider adapters for Ollama and OpenRouter/NVIDIA; neutral tool executor entry (`agentToolExecutor.ts`) and shared helpers (`agentToolUtils.ts`).
+- System hint `TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT`: explains chat-stored absolute paths for attachments (`imagePaths`) and saved generations (`generatedImagePaths`), and that coding tools can copy those files into the project via `execute_command` when paths lie outside the project root.
+
+### Changed
+
+- Refactored `runOllamaChatWithTools` and `runOpenRouterChatWithTools` to use the shared loop while preserving behavior (forced first-round scrape/web on Ollama, tool reprompts, image recall flows).
+- Chat history for prior user turns with images: text now includes index/path hints for `image_recall` instead of resending raw image bytes in every history message (reduces context bloat; aligns with recall-based vision workflow).
+- Extended `TOOLS_RUNWARE_IMAGE_HINT` to document text-only older turns and reliance on `image_recall` for pixels from past messages.
+- Tool UI: `image_recall` maps to tool phase `vision` with a distinct indicator style (`tool-indicator.vision`); Runware generate/edit remain under `image`.
+
 ## [2.4.0] - 2026-05-08
 
 ### Added
