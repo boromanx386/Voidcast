@@ -392,6 +392,38 @@ async function createWindow() {
     return { action: 'deny' }
   })
 
+  // Context menu for copy/paste/select-all
+  win.webContents.on('context-menu', (_event, params) => {
+    const menu = Menu.buildFromTemplate([
+      ...(params.isEditable
+        ? [
+            { label: 'Undo', role: 'undo' as const },
+            { label: 'Redo', role: 'redo' as const },
+            { type: 'separator' as const },
+            { label: 'Cut', role: 'cut' as const },
+            { label: 'Copy', role: 'copy' as const },
+            { label: 'Paste', role: 'paste' as const },
+            { label: 'Delete', role: 'delete' as const },
+            { type: 'separator' as const },
+            { label: 'Select All', role: 'selectAll' as const },
+          ]
+        : [
+            { label: 'Copy', role: 'copy' as const },
+            ...(params.linkURL
+              ? [
+                  {
+                    label: 'Open Link',
+                    click: () => shell.openExternal(params.linkURL),
+                  },
+                ]
+              : []),
+            { type: 'separator' as const },
+            { label: 'Select All', role: 'selectAll' as const },
+          ]),
+    ])
+    menu.popup()
+  })
+
   // Minimize to tray instead of closing
   win.on('close', (event) => {
     if (!isQuitting) {
