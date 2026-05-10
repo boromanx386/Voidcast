@@ -2926,7 +2926,7 @@ export default function App() {
                         onClick={() => commitEdit(m.id)}
                         className="cyber-btn text-xs"
                       >
-                        SAVE
+                        RESEND
                       </button>
                       <button
                         type="button"
