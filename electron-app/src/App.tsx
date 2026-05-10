@@ -742,6 +742,9 @@ export default function App() {
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([])
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editInputValue, setEditInputValue] = useState('')
+  const editingHistoryRef = useRef<UiMessage[] | null>(null)
   const localPreviewLoadingRef = useRef<Set<string>>(new Set())
   const abortRef = useRef<AbortController | null>(null)
   const activeChatRunIdRef = useRef(0)
@@ -1374,21 +1377,25 @@ export default function App() {
   }, [optionsTab, refreshLongMemories, refreshReminders, screen])
 
   // === Send Message ===
-  const onSend = async () => {
-    const text = input.trim()
-    const queued = pendingImages
-    const queuedFiles = pendingFiles
+  const onSend = async (opts?: { text?: string; history?: UiMessage[]; skipAddUserMsg?: boolean }) => {
+    const isEdit = Boolean(opts?.skipAddUserMsg)
+    const text = isEdit ? (opts?.text ?? '') : input.trim()
+    const activeHistory = opts?.history ?? messages
+    const queued = isEdit ? [] : pendingImages
+    const queuedFiles = isEdit ? [] : pendingFiles
     if ((!text && queued.length === 0 && queuedFiles.length === 0) || busy) return
     setError(null)
-    setPendingImages([])
-    setPendingFiles([])
-    setInput('')
+    if (!isEdit) {
+      setPendingImages([])
+      setPendingFiles([])
+      setInput('')
+    }
 
     const imagesBase64 = queued.map((q) => q.base64)
     const imageMimes = queued.map((q) => q.mime)
     const imageNames = queued.map((q) => (q.name || '').trim())
     const imagePaths = queued.map((q) => (q.path || '').trim())
-    const toolImageCatalog = await buildToolImageCatalog(messages, queued)
+    const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
     const useVisionForCurrentMessage = shouldUseVisionForText(text)
     const visionImagesForCurrentMessage = useVisionForCurrentMessage
       ? (imagesBase64.length > 0 ? imagesBase64 : toolImageCatalog.slice(0, 1).map((x) => x.base64))
@@ -1396,39 +1403,46 @@ export default function App() {
     const attachedImageHint = buildQueuedImagePathHint(queued)
     const attachedFileHint = buildQueuedFilePathHint(queuedFiles)
     const ollamaUserText = [text, attachedImageHint, attachedFileHint].filter((x) => x.trim().length > 0).join('\n\n')
-    const userMsg: UiMessage = {
-      id: uid(),
-      role: 'user',
-      content: text,
-      ...(imagesBase64.length > 0
-        ? { images: imagesBase64, imageMimes, imageNames, imagePaths }
-        : {}),
-      ...(queuedFiles.length > 0
-        ? {
-            fileAttachments: queuedFiles.map((f) => ({
-              id: f.id,
-              name: f.name,
-              path: f.path,
-              mime: f.mime,
-              size: f.size,
-              ext: f.ext,
-              content: f.content,
-              truncated: f.truncated,
-            })),
-          }
-        : {}),
+    let userMsg: UiMessage | undefined
+    if (!isEdit) {
+      userMsg = {
+        id: uid(),
+        role: 'user',
+        content: text,
+        ...(imagesBase64.length > 0
+          ? { images: imagesBase64, imageMimes, imageNames, imagePaths }
+          : {}),
+        ...(queuedFiles.length > 0
+          ? {
+              fileAttachments: queuedFiles.map((f) => ({
+                id: f.id,
+                name: f.name,
+                path: f.path,
+                mime: f.mime,
+                size: f.size,
+                ext: f.ext,
+                content: f.content,
+                truncated: f.truncated,
+              })),
+            }
+          : {}),
+      }
     }
     const asstId = uid()
     const runId = activeChatRunIdRef.current + 1
     activeChatRunIdRef.current = runId
     const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
-    setMessages((m) => [...m, userMsg, asstMsg])
+    if (isEdit) {
+      setMessages(() => [...activeHistory, asstMsg])
+    } else {
+      setMessages((m) => [...m, userMsg!, asstMsg])
+    }
     setSessionDirty(true)
     setBusy(true)
     setToolPhase(null)
     setToolResultBanner(null)
 
-    const priorHistory: HistoryTurn[] = messages.reduce<HistoryTurn[]>((acc, x) => {
+    const priorHistory: HistoryTurn[] = activeHistory.reduce<HistoryTurn[]>((acc, x) => {
       if (x.role === 'user') {
         const fileHint = x.fileAttachments?.length
           ? [
@@ -1892,6 +1906,30 @@ export default function App() {
     abortRef.current = null
     setToolPhase(null)
     setBusy(false)
+  }
+
+  const startEdit = (msg: UiMessage) => {
+    if (busy) return
+    setEditingMessageId(msg.id)
+    setEditInputValue(msg.content)
+  }
+
+  const cancelEdit = () => {
+    setEditingMessageId(null)
+    setEditInputValue('')
+  }
+
+  const commitEdit = (msgId: string) => {
+    const idx = messages.findIndex((m) => m.id === msgId)
+    if (idx < 0) return
+    const trimmed = editInputValue.trim()
+    if (!trimmed) return
+    const edited: UiMessage = { ...messages[idx], content: trimmed }
+    const truncated = messages.slice(0, idx + 1).map((m, i) => (i === idx ? edited : m))
+    setMessages(truncated)
+    setEditingMessageId(null)
+    setEditInputValue('')
+    void onSend({ text: trimmed, history: truncated, skipAddUserMsg: true })
   }
 
   const removePendingImage = (index: number) => {
@@ -2612,7 +2650,7 @@ export default function App() {
           {messages.map((m, index) => (
             <div 
               key={m.id} 
-              className={`message-container ${m.role === 'user' ? 'user' : 'assistant'} animate-message-in`}
+              className={`message-container ${m.role === 'user' ? 'user' : 'assistant'} animate-message-in group`}
               style={{ animationDelay: `${index * 0.05}s` }}
             >
               <div className={`message-bubble ${m.role === 'user' ? 'message-user' : 'message-assistant'}`}>
@@ -2855,8 +2893,46 @@ export default function App() {
                       ) : null
                     })()}
                   </div>
+                ) : editingMessageId === m.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      className="voidcast-textarea w-full"
+                      rows={3}
+                      value={editInputValue}
+                      onChange={(e) => setEditInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          commitEdit(m.id)
+                        } else if (e.key === 'Escape') {
+                          cancelEdit()
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => commitEdit(m.id)}
+                        className="cyber-btn text-xs"
+                      >
+                        SAVE
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="px-3 py-1 text-xs font-mono text-void-dim hover:text-void-light"
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-void-white whitespace-pre-wrap break-words space-y-2">
+                  <div
+                    className="text-void-white whitespace-pre-wrap break-words space-y-2 cursor-pointer hover:bg-void-mid/30 rounded px-1 -mx-1 transition-colors"
+                    onClick={() => startEdit(m)}
+                    title="Click to edit"
+                  >
                     {m.images && m.images.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {m.images.map((b64, i) => (
@@ -2890,6 +2966,22 @@ export default function App() {
                         (no text content)
                       </span>
                     )}
+                  </div>
+                )}
+                
+                {/* Actions for user */}
+                {m.role === 'user' && !editingMessageId && (
+                  <div className="mt-2 flex flex-wrap gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(m)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                        border border-void-muted/50 text-void-dim
+                        hover:border-neon-cyan/50 hover:text-neon-cyan
+                        transition-all"
+                    >
+                      ✎ EDIT
+                    </button>
                   </div>
                 )}
                 

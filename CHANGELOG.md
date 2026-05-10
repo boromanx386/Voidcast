@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Edit message**: click any user message to edit its text inline; Save truncates history after that message and regenerates the assistant reply from the edited text. Cancel reverts to the original. Edit mode supports Enter (save) and Escape (cancel) shortcuts.
 - `update_settings` tool now supports `autoVoice` (boolean) for agent-driven toggling of automatic TTS speech.
 - **Reminder tools**: `add_reminder` (general + scheduled) and `list_reminders` (date filter) for agent-driven reminders.
   - New IndexedDB storage layer: `reminderStorage.ts` with CRUD operations.
