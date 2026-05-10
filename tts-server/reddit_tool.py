@@ -250,6 +250,11 @@ def _format_feed(payload: Any, header: str) -> str:
         return f"{header}\n(no posts)"
 
     lines: list[str] = [header]
+    # Collect (idx, post_id, short_title) for the post-index recap; this gives
+    # the LLM one canonical, easy-to-copy mapping at the end of the output so
+    # it does not need to memorize ids from the formatted post blocks above
+    # (LLMs hallucinate short alphanumeric ids easily).
+    index_rows: list[tuple[int, str, str]] = []
     idx = 0
     for child in children:
         if not isinstance(child, dict):
@@ -263,8 +268,20 @@ def _format_feed(payload: Any, header: str) -> str:
             continue
         idx += 1
         lines.append(_format_post_line(idx, cd))
+        post_id = str(cd.get("id") or "")
+        title_short = _truncate(str(cd.get("title") or ""), 80)
+        index_rows.append((idx, post_id, title_short))
     if idx == 0:
         return f"{header}\n(no posts)"
+
+    if index_rows:
+        recap = ["POST_INDEX (copy these ids verbatim into reddit_feed post_url):"]
+        for n, pid, title in index_rows:
+            if pid:
+                recap.append(f"  [{n}] id={pid} — {title}")
+            else:
+                recap.append(f"  [{n}] (no id) — {title}")
+        lines.append("\n".join(recap))
     return "\n\n".join(lines)
 
 

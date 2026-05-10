@@ -24,7 +24,16 @@ export const TOOLS_WEB_SEARCH_HINT = `You have a web_search tool. When the user 
 export const TOOLS_YOUTUBE_HINT = `You have a search_youtube tool. When the user wants YouTube videos on a topic, call search_youtube with query. When they give a YouTube link and want details or a transcript/summary, pass video_url and set get_transcript to true if they want captions. Answer from the tool output.`
 
 /** When Reddit tool is enabled */
-export const TOOLS_REDDIT_HINT = `You have a reddit_feed tool (read-only) for browsing Reddit. Use it when the user mentions a subreddit ("r/<sub>"), shares a reddit.com URL, or asks what Reddit is saying about a topic. Three modes: feed (subreddit + optional sort hot/new/top/rising; t window for top/controversial), search (query, optionally with subreddit), and post fetch (post_url returns one post + top comments). Pass the bare subreddit name without leading "r/". When you want to dive into a specific post you saw in feed/search output, pass the value after "post: " (a reddit.com /r/<sub>/comments/<id>/... URL) as post_url, or pass just the value after "id=" — DO NOT use the "media:" URL (v.redd.it / i.redd.it / imgur etc.), those are media files, not Reddit threads. Answer from the tool output and cite post links when relevant.`
+export const TOOLS_REDDIT_HINT = `You have a reddit_feed tool (read-only) for browsing Reddit. Use it when the user mentions a subreddit ("r/<sub>"), shares a reddit.com URL, or asks what Reddit is saying about a topic. Three modes: feed (subreddit + optional sort hot/new/top/rising; t window for top/controversial), search (query, optionally with subreddit), and post fetch (post_url returns one post + top comments). Pass the bare subreddit name without leading "r/".
+
+When you want to dive into a specific post from feed/search output, pick the id from the POST_INDEX recap at the bottom of the tool output — that block lists every result as "[N] id=<base36> — <title>" precisely so you can copy the id verbatim. Pass that id (or the full reddit.com permalink shown after "post: ") as the post_url argument.
+
+Hard rules — these prevent fetching the wrong thread:
+1. NEVER guess, reconstruct, or shorten a Reddit post id from memory. Copy the exact base36 string character-by-character from the same tool turn that produced the feed.
+2. NEVER use a "media:" URL (v.redd.it / i.redd.it / imgur / external news sites) as post_url — those are media files, not Reddit threads.
+3. If you are not certain which id matches the post the user asked about, call reddit_feed with subreddit + query (search mode) instead of guessing; do not rely on ids from earlier turns once the conversation has moved on.
+
+Answer from the tool output and cite the "post:" permalink when summarizing a thread.`
 
 /** When Weather tool is enabled */
 export const TOOLS_WEATHER_HINT = `You have a get_weather tool. When the user asks about weather, temperature, or forecast for a place, call get_weather with the city name (and forecast: true if they want several days). Answer in natural language using the tool output.`
