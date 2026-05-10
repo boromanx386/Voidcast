@@ -2939,9 +2939,7 @@ export default function App() {
                   </div>
                 ) : (
                   <div
-                    className="text-void-white whitespace-pre-wrap break-words space-y-2 cursor-pointer hover:bg-void-mid/30 rounded px-1 -mx-1 transition-colors"
-                    onClick={() => startEdit(m)}
-                    title="Click to edit"
+                    className="text-void-white whitespace-pre-wrap break-words space-y-2 rounded px-1 -mx-1"
                   >
                     {m.images && m.images.length > 0 && (
                       <div className="flex flex-wrap gap-2">
