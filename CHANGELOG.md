@@ -4,33 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-05-10
+
 ### Added
 
 - **Edit message**: click any user message to edit its text inline; Save truncates history after that message and regenerates the assistant reply from the edited text. Cancel reverts to the original. Edit mode supports Enter (save) and Escape (cancel) shortcuts.
+- **Reminder tools**: full CRUD reminder system for agent-driven notes and scheduled reminders.
+  - `add_reminder` — create general or scheduled reminders (ISO datetime)
+  - `list_reminders` — filter by today, tomorrow, or date ranges
+  - `delete_reminder` — remove by ID or search text
+  - `update_reminder` — reschedule or edit text/tags by search text
+  - New IndexedDB storage layer: `reminderStorage.ts`
+  - Tool definitions in `toolDefinitions.ts`, always available (no toggle)
+  - Tool execution handlers in `ollamaAgent.ts` `executeToolCall`
+  - UI integrated into `GeneralOptionsPanel` with orange accent (same styling as long memory)
+  - New `ClockIcon` component in Lucide outline style
+  - Tool phase: `reminder` with ⧗ icon and orange styling
+  - Agent hints for reminder usage in `App.tsx`
 - `update_settings` tool now supports `autoVoice` (boolean) for agent-driven toggling of automatic TTS speech.
-- **Reminder tools**: `add_reminder` (general + scheduled) and `list_reminders` (date filter) for agent-driven reminders.
-  - New IndexedDB storage layer: `reminderStorage.ts` with CRUD operations.
-  - Tool definitions in `toolDefinitions.ts`, always available (no toggle).
-  - Tool execution handlers in `ollamaAgent.ts` `executeToolCall`.
-  - UI integrated into `GeneralOptionsPanel` with same styling as long memory (orange accent).
-  - New `ClockIcon` component in Lucide outline style.
-  - Tool phase: `reminder` with ⧗ icon and orange styling.
-  - Agent hints for reminder usage in `App.tsx`.
-
-### Fixed
-
-- `update_settings` changes now immediately refresh the React UI state (previously only `localStorage` was updated, so the UI reflected the change only on the next message).
-- TTS playback for the current assistant reply now respects an `autoVoice` change made by the agent within the same turn (reads the latest setting from storage instead of a stale closure).
-- Added missing `--color-neon-orange` CSS variable across all themes (fixes `.tool-indicator.reminder` Tailwind error).
-
-### Security
-
-- Hardened Electron renderer bridge by removing globally exposed raw `ipcRenderer` access from preload.
-- Added explicit, allowlisted `window.voidcast` methods/events for updater and clipboard-TTS flows, and migrated renderer callers to the allowlisted API.
-- Removed unused insecure `open-win` IPC handler that created a `BrowserWindow` with `nodeIntegration: true` and `contextIsolation: false`.
-
-### Added
-
+- **Native context menu** (Electron): right-click on any page element shows copy/paste/select-all menu. Editable fields get Undo/Redo/Cut/Copy/Paste/Delete/Select All; non-editable text gets Copy/Select All; links get Open Link.
 - Shared agent tool-round engine (`agentToolLoop.ts`) with provider adapters for Ollama and OpenRouter/NVIDIA; neutral tool executor entry (`agentToolExecutor.ts`) and shared helpers (`agentToolUtils.ts`).
 - System hint `TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT`: explains chat-stored absolute paths for attachments (`imagePaths`) and saved generations (`generatedImagePaths`), and that coding tools can copy those files into the project via `execute_command` when paths lie outside the project root.
 
@@ -40,6 +32,20 @@ All notable changes to this project will be documented in this file.
 - Chat history for prior user turns with images: text now includes index/path hints for `image_recall` instead of resending raw image bytes in every history message (reduces context bloat; aligns with recall-based vision workflow).
 - Extended `TOOLS_RUNWARE_IMAGE_HINT` to document text-only older turns and reliance on `image_recall` for pixels from past messages.
 - Tool UI: `image_recall` maps to tool phase `vision` with a distinct indicator style (`tool-indicator.vision`); Runware generate/edit remain under `image`.
+
+### Fixed
+
+- **Auto-scroll behavior**: stops forcing scroll-to-bottom during agent streaming; now scrolls only when a new message is added or when the agent finishes (`busy → false`). Users can freely scroll while the assistant is generating.
+- **Reminders not loading in General options**: `refreshReminders()` is now called in the same `useEffect` that loads long memories when opening the General tab.
+- `update_settings` changes now immediately refresh the React UI state (previously only `localStorage` was updated, so the UI reflected the change only on the next message).
+- TTS playback for the current assistant reply now respects an `autoVoice` change made by the agent within the same turn (reads the latest setting from storage instead of a stale closure).
+- Added missing `--color-neon-orange` CSS variable across all themes (fixes `.tool-indicator.reminder` Tailwind error).
+
+### Security
+
+- Hardened Electron renderer bridge by removing globally exposed raw `ipcRenderer` access from preload.
+- Added explicit, allowlisted `window.voidcast` methods/events for updater and clipboard-TTS flows, and migrated renderer callers to the allowlisted API.
+- Removed unused insecure `open-win` IPC handler that created a `BrowserWindow` with `nodeIntegration: true` and `contextIsolation: false`.
 
 ## [2.4.0] - 2026-05-08
 
