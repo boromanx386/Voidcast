@@ -59,6 +59,7 @@ import {
   listMemories,
   searchMemories,
   touchMemoryUsage,
+  updateMemoryText,
   upsertMemories,
 } from '@/lib/longMemoryStorage'
 import {
@@ -1378,6 +1379,11 @@ export default function App() {
     await refreshLongMemories()
   }, [refreshLongMemories])
 
+  const updateLongMemoryById = useCallback(async (id: string, text: string) => {
+    await updateMemoryText(id, text)
+    await refreshLongMemories()
+  }, [refreshLongMemories])
+
   useEffect(() => {
     if (screen === 'options' && optionsTab === 'general') {
       void refreshLongMemories()
@@ -1637,6 +1643,9 @@ export default function App() {
             setToolPhase(toolPhaseForAgentTool(name))
             if (name === 'add_reminder' || name === 'list_reminders' || name === 'delete_reminder' || name === 'update_reminder') {
               void refreshReminders()
+            }
+            if (name === 'update_settings') {
+              setSettings(loadSettings())
             }
             if (
               name === 'list_directory' ||
@@ -1905,7 +1914,7 @@ export default function App() {
       }
     }
 
-    if (replyText.trim() && settings.autoVoice && ttsOk !== false) {
+    if (replyText.trim() && loadSettings().autoVoice && ttsOk !== false) {
       void onRead({ id: asstId, role: 'assistant', content: replyText })
     }
   }
@@ -2339,6 +2348,7 @@ export default function App() {
                 onToggleUseLongMemoryInActiveChat={setUseLongMemoryForActiveChat}
                 longMemories={longMemories}
                 onDeleteLongMemory={deleteLongMemoryById}
+                onUpdateLongMemory={updateLongMemoryById}
                 reminders={reminders}
                 onDeleteReminder={async (id) => {
                   await deleteReminder(id)

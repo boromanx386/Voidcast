@@ -18,6 +18,7 @@ type Props = {
   onToggleUseLongMemoryInActiveChat: (enabled: boolean) => void
   longMemories: LongMemoryItem[]
   onDeleteLongMemory: (id: string) => void
+  onUpdateLongMemory: (id: string, text: string) => void
   reminders: Reminder[]
   onDeleteReminder: (id: string) => void
   onMarkDoneReminder: (id: string) => void
@@ -30,12 +31,31 @@ export function GeneralOptionsPanel({
   onToggleUseLongMemoryInActiveChat,
   longMemories,
   onDeleteLongMemory,
+  onUpdateLongMemory,
   reminders,
   onDeleteReminder,
   onMarkDoneReminder,
 }: Props) {
   const [updateChecking, setUpdateChecking] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null)
+  const [editingMemoryText, setEditingMemoryText] = useState('')
+
+  const startEditMemory = (m: LongMemoryItem) => {
+    setEditingMemoryId(m.id)
+    setEditingMemoryText(m.text)
+  }
+  const commitEditMemory = () => {
+    if (editingMemoryId && editingMemoryText.trim()) {
+      void onUpdateLongMemory(editingMemoryId, editingMemoryText.trim())
+    }
+    setEditingMemoryId(null)
+    setEditingMemoryText('')
+  }
+  const cancelEditMemory = () => {
+    setEditingMemoryId(null)
+    setEditingMemoryText('')
+  }
 
   useEffect(() => {
     const bridge = window.voidcast
@@ -277,15 +297,62 @@ export function GeneralOptionsPanel({
               <div key={m.id} className="rounded border border-void-muted/30 bg-void-black/30 px-2 py-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[10px] font-mono text-neon-green/80 uppercase">{m.kind}</div>
-                  <button
-                    type="button"
-                    className="text-[10px] font-mono text-neon-red/80 hover:text-neon-red"
-                    onClick={() => void onDeleteLongMemory(m.id)}
-                  >
-                    DELETE
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {editingMemoryId !== m.id && (
+                      <button
+                        type="button"
+                        className="text-[10px] font-mono text-neon-cyan/80 hover:text-neon-cyan"
+                        onClick={() => startEditMemory(m)}
+                      >
+                        EDIT
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="text-[10px] font-mono text-neon-red/80 hover:text-neon-red"
+                      onClick={() => void onDeleteLongMemory(m.id)}
+                    >
+                      DELETE
+                    </button>
+                  </div>
                 </div>
-                <div className="text-xs text-void-light">{m.text}</div>
+                {editingMemoryId === m.id ? (
+                  <div className="mt-1 space-y-1">
+                    <textarea
+                      className="w-full rounded border border-void-muted/50 bg-void-black/60 px-2 py-1 text-xs text-void-white outline-none focus:border-neon-cyan/50"
+                      rows={2}
+                      value={editingMemoryText}
+                      onChange={(e) => setEditingMemoryText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          commitEditMemory()
+                        } else if (e.key === 'Escape') {
+                          cancelEditMemory()
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="cyber-btn text-xs"
+                        onClick={commitEditMemory}
+                      >
+                        SAVE
+                      </button>
+                      <button
+                        type="button"
+                        className="px-2 py-0.5 text-[10px] font-mono text-void-dim hover:text-void-light"
+                        onClick={cancelEditMemory}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-void-light">{m.text}</div>
+                )}
               </div>
             ))
           )}

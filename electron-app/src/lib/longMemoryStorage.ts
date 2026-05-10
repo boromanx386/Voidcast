@@ -132,6 +132,23 @@ export async function deleteMemory(id: string): Promise<void> {
   await txDone(tx)
 }
 
+export async function updateMemoryText(id: string, text: string): Promise<void> {
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  const store = tx.objectStore(STORE)
+  const req = store.get(id)
+  await new Promise<void>((resolve, reject) => {
+    req.onsuccess = () => {
+      const row = req.result as LongMemoryItem | undefined
+      if (!row) return resolve()
+      store.put({ ...row, text: text.slice(0, 400), updatedAt: Date.now() })
+      resolve()
+    }
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB update failed'))
+  })
+  await txDone(tx)
+}
+
 export async function touchMemoryUsage(ids: string[]): Promise<void> {
   if (!ids.length) return
   const unique = Array.from(new Set(ids))
