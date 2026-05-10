@@ -101,7 +101,10 @@ function abortedError(): Error {
   return err
 }
 
-export async function runSharedToolLoop<TMessage, TProviderToolCall>(
+export async function runSharedToolLoop<
+  TMessage extends { content?: string | unknown },
+  TProviderToolCall,
+>(
   params: SharedToolLoopParams<TMessage, TProviderToolCall>,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const parseArgs = params.parseArgsForToolResult ?? defaultParseArgs
