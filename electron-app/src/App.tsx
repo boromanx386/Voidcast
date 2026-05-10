@@ -22,6 +22,7 @@ import {
   buildOllamaMessages,
   TOOLS_WEB_SEARCH_HINT,
   TOOLS_YOUTUBE_HINT,
+  TOOLS_REDDIT_HINT,
   TOOLS_WEATHER_HINT,
   TOOLS_SCRAPE_HINT,
   TOOLS_PDF_HINT,
@@ -642,6 +643,7 @@ const TOOL_PHASE_UI: Record<
 > = {
   search: { icon: '⌕', label: 'SEARCHING_NET', className: 'search' },
   youtube: { icon: '▶', label: 'YOUTUBE_PROC', className: 'youtube' },
+  reddit: { icon: '⬢', label: 'REDDIT_FEED', className: 'reddit' },
   weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
   scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrape' },
   pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
@@ -1486,6 +1488,7 @@ export default function App() {
     const toolsHintParts: string[] = []
     if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
     if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
+    if (settings.toolsEnabled.reddit) toolsHintParts.push(TOOLS_REDDIT_HINT)
     if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
     if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
     if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)

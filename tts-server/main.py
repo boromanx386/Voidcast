@@ -42,6 +42,8 @@ from scrape_tool import scrape_public_url_to_text
 
 from pdf_tool import HAS_REPORTLAB, save_pdf_to_folder
 
+from reddit_tool import RedditError, reddit_tool_run
+
 from youtube_tools import (
     HAS_YOUTUBE_TRANSCRIPT,
     HAS_YTDLP,
@@ -123,6 +125,18 @@ class ScrapeRequest(BaseModel):
 class WeatherRequest(BaseModel):
     city: str = Field(..., min_length=1, max_length=200)
     forecast: bool = False
+
+
+class RedditRequest(BaseModel):
+    """reddit_feed: read-only Reddit feed / search / post via public JSON endpoints."""
+
+    subreddit: str | None = Field(default=None, max_length=80)
+    sort: str | None = Field(default=None, max_length=20)
+    time: str | None = Field(default=None, max_length=10)
+    limit: int | None = Field(default=None, ge=1, le=25)
+    query: str | None = Field(default=None, max_length=400)
+    post_url: str | None = Field(default=None, max_length=2048)
+    max_comments: int | None = Field(default=None, ge=1, le=50)
 
 
 class PdfImageItem(BaseModel):
@@ -332,6 +346,7 @@ async def health():
         },
         "tools_scrape": True,
         "tools_weather": True,
+        "tools_reddit": True,
         "tools_pdf": HAS_REPORTLAB,
         "ollama_proxy": OLLAMA_BASE_URL,
         "web_ui": _web_index_file() is not None,
@@ -539,6 +554,31 @@ async def tools_weather(req: WeatherRequest):
         raise HTTPException(
             status_code=503,
             detail=str(e) or "Weather failed",
+        ) from e
+
+
+@app.post("/tools/reddit")
+async def tools_reddit(req: RedditRequest):
+    """Reddit read-only feed / search / post via public JSON endpoints (no auth)."""
+    try:
+        text = await reddit_tool_run(
+            subreddit=req.subreddit,
+            sort=req.sort,
+            time=req.time,
+            limit=req.limit,
+            query=req.query,
+            post_url=req.post_url,
+            max_comments=req.max_comments,
+        )
+        return {"ok": True, "text": text}
+    except RedditError as e:
+        # User-input / Reddit-side error (bad sub, 404, 429, etc.) → 400 with message.
+        return {"ok": False, "text": str(e)}
+    except Exception as e:
+        logger.exception("tools/reddit failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "Reddit tool failed",
         ) from e
 
 

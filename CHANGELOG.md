@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Reddit tool**: read-only `reddit_feed` agent tool via the TTS server (`POST /tools/reddit`) using Reddit's public JSON endpoints (no API key, no OAuth).
+  - Three modes in one tool: subreddit feed (`subreddit` + `sort` hot/new/top/rising/controversial/best, with `time` window for top/controversial), search (`query`, optionally restricted to a subreddit), and post fetch (`post_url` returns post + top comments).
+  - New backend module `tts-server/reddit_tool.py` (httpx + JSON parsing, validates host against an allowlist of `reddit.com` / `redd.it`).
+  - New TS client `electron-app/src/lib/redditTool.ts`.
+  - Tool definition added to `toolDefinitions.ts` and gated by a new `toolsEnabled.reddit` toggle in `ToolsOptionsPanel`.
+  - System hint `TOOLS_REDDIT_HINT` registered in `chatMessages.ts` and applied in `App.tsx` when the toggle is on.
+  - New tool phase `reddit` (⬢ icon, Reddit orange `text-orange-400`) wired through `agentToolPhase.ts` and `App.tsx` `TOOL_PHASE_UI`.
+
 ## [2.4.1] - 2026-05-10
 
 ### Added

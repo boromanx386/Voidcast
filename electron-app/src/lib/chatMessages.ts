@@ -23,6 +23,9 @@ export const TOOLS_WEB_SEARCH_HINT = `You have a web_search tool. When the user 
 /** When YouTube tool is enabled */
 export const TOOLS_YOUTUBE_HINT = `You have a search_youtube tool. When the user wants YouTube videos on a topic, call search_youtube with query. When they give a YouTube link and want details or a transcript/summary, pass video_url and set get_transcript to true if they want captions. Answer from the tool output.`
 
+/** When Reddit tool is enabled */
+export const TOOLS_REDDIT_HINT = `You have a reddit_feed tool (read-only) for browsing Reddit. Use it when the user mentions a subreddit ("r/<sub>"), shares a reddit.com URL, or asks what Reddit is saying about a topic. Three modes: feed (subreddit + optional sort hot/new/top/rising; t window for top/controversial), search (query, optionally with subreddit), and post fetch (post_url returns one post + top comments). Pass the bare subreddit name without leading "r/". Answer from the tool output and cite post links when relevant.`
+
 /** When Weather tool is enabled */
 export const TOOLS_WEATHER_HINT = `You have a get_weather tool. When the user asks about weather, temperature, or forecast for a place, call get_weather with the city name (and forecast: true if they want several days). Answer in natural language using the tool output.`
 

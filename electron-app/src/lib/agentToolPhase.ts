@@ -5,6 +5,7 @@
 export type AgentToolUiPhase =
   | 'search'
   | 'youtube'
+  | 'reddit'
   | 'weather'
   | 'scrape'
   | 'pdf'
@@ -30,6 +31,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'search'
     case 'search_youtube':
       return 'youtube'
+    case 'reddit_feed':
+      return 'reddit'
     case 'get_weather':
       return 'weather'
     case 'scrape_url':

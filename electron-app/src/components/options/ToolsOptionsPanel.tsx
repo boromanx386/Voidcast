@@ -95,6 +95,28 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
         }
       />
 
+      {/* Reddit */}
+      <ToolToggle
+        checked={settings.toolsEnabled.reddit}
+        onChange={(v) =>
+          setSettings((s) => ({
+            ...s,
+            toolsEnabled: { ...s.toolsEnabled, reddit: v },
+          }))
+        }
+        label="REDDIT_FEED"
+        icon="⬢"
+        iconColor="text-orange-400"
+        description={
+          <>
+            <code className="text-orange-400">reddit_feed</code> via TTS server{' '}
+            <code className="text-orange-400">POST /tools/reddit</code>. Read-only:
+            subreddit feeds (hot/new/top/rising), search, and post + top comments via
+            public Reddit JSON endpoints. No API key required.
+          </>
+        }
+      />
+
       {/* Scrape URL */}
       <ToolToggle
         checked={settings.toolsEnabled.scrape}

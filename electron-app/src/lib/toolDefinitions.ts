@@ -127,6 +127,55 @@ const WEB_SEARCH_TOOL: OllamaToolDefinition = {
   },
 }
 
+const REDDIT_FEED_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'reddit_feed',
+    description:
+      'Read-only Reddit access via public JSON endpoints (no API key). Three modes: (A) browse a subreddit feed by passing subreddit + sort; (B) fetch a single post with top comments by passing post_url; (C) search posts by passing query (optionally restricted to a subreddit). Use when the user asks "what is r/<sub> saying", "top posts on Reddit about X", "summarize this Reddit thread", or gives a reddit.com URL. Names are case-sensitive only for display; pass the bare subreddit name without the leading r/.',
+    parameters: {
+      type: 'object',
+      properties: {
+        subreddit: {
+          type: 'string',
+          description:
+            'Subreddit name without "r/" prefix (e.g. "audio", "askreddit"). Omit for the global front page mix in feed mode, or for a global search in query mode.',
+        },
+        sort: {
+          type: 'string',
+          enum: ['hot', 'new', 'top', 'rising', 'controversial', 'best'],
+          description:
+            'Listing sort for feed mode (default "hot"). Only relevant when query and post_url are not set.',
+        },
+        time: {
+          type: 'string',
+          enum: ['hour', 'day', 'week', 'month', 'year', 'all'],
+          description:
+            'Time window for top/controversial listings and search relevance (default "day").',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max posts to return for feed/search mode (default 10, max 25).',
+        },
+        query: {
+          type: 'string',
+          description:
+            'If set, runs a Reddit search instead of a feed. Pair with subreddit to restrict to that sub, or omit subreddit for a global search.',
+        },
+        post_url: {
+          type: 'string',
+          description:
+            'If set, returns one post + top comments. Accepts any reddit.com or redd.it post URL.',
+        },
+        max_comments: {
+          type: 'number',
+          description: 'Max top-level comments to return when post_url is set (default 10, max 50).',
+        },
+      },
+    },
+  },
+}
+
 const SEARCH_YOUTUBE_TOOL: OllamaToolDefinition = {
   type: 'function',
   function: {
@@ -742,6 +791,7 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
+  if (enabled.reddit) out.push(REDDIT_FEED_TOOL)
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
   if (enabled.pdf) out.push(SAVE_PDF_TOOL)
@@ -776,6 +826,7 @@ export function anyToolEnabled(enabled: ToolsEnabled): boolean {
   return (
     enabled.webSearch ||
     enabled.youtube ||
+    enabled.reddit ||
     enabled.weather ||
     enabled.scrape ||
     enabled.pdf ||
