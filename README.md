@@ -4,6 +4,17 @@
 
 Desktop AI chat app (Electron + React) with local Ollama integration, tools API, optional Local TTS, and Runware image/music/TTS support.
 
+### Update 2.4.1 (resume)
+
+- **Edit message**: click any user message to edit inline; Save truncates history after that message and regenerates the assistant reply. Cancel reverts. Supports Enter (save) and Escape (cancel).
+- **Reminder tools**: full CRUD reminder system for agent-driven notes and scheduled reminders (`add_reminder`, `list_reminders`, `delete_reminder`, `update_reminder`). Stored in IndexedDB; visible in General options with orange accent styling.
+- **autoVoice**: `update_settings` tool now supports `autoVoice` (boolean) so the agent can toggle automatic TTS speech on/off.
+- **Native context menu** (Electron): right-click on any element shows copy/paste/select-all. Editable fields get Undo/Redo/Cut/Copy/Paste/Delete/Select All; links get Open Link.
+- **Auto-scroll fix**: stops forcing scroll-to-bottom during agent streaming; now scrolls only when a new message is added or when the agent finishes. Users can freely scroll while the assistant generates.
+- **Security**: hardened Electron renderer bridge by removing globally exposed raw `ipcRenderer`; added explicit allowlisted `window.voidcast` API; removed unused insecure `open-win` IPC handler.
+
+Full notes: see **[2.4.1] - 2026-05-10** in `CHANGELOG.md`.
+
 ### Update 2.4 (resume)
 
 - **Thinking / reasoning in chat**: collapsible **THINKING** block when the model streams traces (Ollama `think`; OpenRouter/NVIDIA `reasoning` / `reasoning_content` where supported).
