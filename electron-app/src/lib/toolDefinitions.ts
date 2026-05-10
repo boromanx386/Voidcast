@@ -165,7 +165,7 @@ const REDDIT_FEED_TOOL: OllamaToolDefinition = {
         post_url: {
           type: 'string',
           description:
-            'If set, returns one post + top comments. Accepts any reddit.com or redd.it post URL.',
+            'If set, returns one post + top comments. Accepts: a full reddit.com /r/<sub>/comments/<id>/... URL (always shown after "post: " in feed/search output), a redd.it short URL, or a bare base36 post id (the value shown after "id=" in feed output, e.g. "1t8kumi"). Never pass a media URL (v.redd.it, i.redd.it, imgur, etc.) — those are not Reddit threads.',
         },
         max_comments: {
           type: 'number',

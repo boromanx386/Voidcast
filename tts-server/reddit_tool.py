@@ -54,6 +54,9 @@ _POST_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 _SHORT_REDDIT_RE = re.compile(r"^https?://redd\.it/([a-z0-9]+)/?", re.IGNORECASE)
+# Bare post id ("1t8kumi") or thing-id form ("t3_1t8kumi"). Reddit IDs are
+# base36 strings; modern ones are 7 chars but older posts are 5–6.
+_BARE_POST_ID_RE = re.compile(r"^(?:t3_)?([a-z0-9]{4,12})$", re.IGNORECASE)
 
 
 class RedditError(ValueError):
@@ -114,10 +117,16 @@ def _truncate(text: str, n: int) -> str:
 
 
 def _post_json_url_from_user_url(post_url: str) -> str:
-    """Convert a public Reddit post URL into its `.json` form."""
+    """Convert a Reddit post URL (or bare post id) into its `.json` form."""
     raw = (post_url or "").strip()
     if not raw:
         raise RedditError("post_url is empty")
+
+    # Bare post id (e.g. "1t8kumi") or thing-id form ("t3_1t8kumi").
+    if "/" not in raw and ":" not in raw:
+        bare = _BARE_POST_ID_RE.match(raw)
+        if bare:
+            return f"https://www.reddit.com/comments/{bare.group(1).lower()}.json"
 
     short = _SHORT_REDDIT_RE.match(raw)
     if short:
@@ -139,7 +148,7 @@ def _post_json_url_from_user_url(post_url: str) -> str:
     if not m:
         raise RedditError(
             "post_url does not look like a Reddit post URL "
-            "(expected /r/<sub>/comments/<id>/...)",
+            "(expected /r/<sub>/comments/<id>/... or a bare post id)",
         )
     sub = m.group(1)
     post_id = m.group(2).lower()
@@ -196,6 +205,7 @@ def _format_post_line(idx: int, data: dict[str, Any]) -> str:
     over_18 = bool(data.get("over_18"))
     spoiler = bool(data.get("spoiler"))
     selftext = str(data.get("selftext") or "")
+    post_id = str(data.get("id") or "")
 
     badges: list[str] = []
     if over_18:
@@ -206,16 +216,22 @@ def _format_post_line(idx: int, data: dict[str, Any]) -> str:
         badges.append(flair)
     badge_str = f" [{' | '.join(badges)}]" if badges else ""
 
+    # Always emit the canonical comments permalink as the primary URL so the
+    # agent can pass it back into reddit_feed(post_url=...) for a deep dive.
+    # External media URL (v.redd.it, i.redd.it, imgur, etc.) goes on a separate
+    # `media:` line only when it differs from the permalink.
     full_link = (
         f"https://www.reddit.com{permalink}" if permalink.startswith("/") else permalink
     )
-    target = url if (url and not is_self and url != full_link) else full_link
 
+    id_part = f" • id={post_id}" if post_id else ""
     out = (
         f"[{idx}] r/{sub} • {title}{badge_str}\n"
-        f"    u/{author} • ↑{score} • 💬{num_comments}\n"
-        f"    {target}"
+        f"    u/{author} • ↑{score} • 💬{num_comments}{id_part}\n"
+        f"    post: {full_link}"
     )
+    if url and not is_self and url and url.strip() != full_link.strip():
+        out += f"\n    media: {url}"
     if is_self and selftext.strip():
         body = _truncate(selftext, 500)
         out += f"\n    {body}"

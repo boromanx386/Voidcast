@@ -14,6 +14,11 @@ All notable changes to this project will be documented in this file.
   - System hint `TOOLS_REDDIT_HINT` registered in `chatMessages.ts` and applied in `App.tsx` when the toggle is on.
   - New tool phase `reddit` (⬢ icon, Reddit orange `text-orange-400`) wired through `agentToolPhase.ts` and `App.tsx` `TOOL_PHASE_UI`.
 
+### Changed
+
+- `reddit_feed` feed/search output now always emits the canonical `post: https://www.reddit.com/r/<sub>/comments/<id>/...` permalink as the primary URL plus a `id=<base36>` field, with external media moved to a secondary `media:` line only when it differs. Previously, video/image posts surfaced only the `v.redd.it` / `i.redd.it` URL, which the agent could not pass back into `post_url` for a deep dive.
+- `reddit_feed` `post_url` argument now also accepts a bare base36 post id (e.g. `1t8kumi`) or thing-id form (`t3_1t8kumi`), not just full URLs. Tool description and `TOOLS_REDDIT_HINT` updated to steer the agent toward the `post:`/`id=` values and away from `media:` URLs.
+
 ## [2.4.1] - 2026-05-10
 
 ### Added
