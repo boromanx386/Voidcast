@@ -1,6 +1,19 @@
 import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 
+/** Strip all http(s) URLs from message content so the model can't recycle
+ *  hallucinated URLs from previous rounds when it skips tool calls. */
+function stripUrlsFromMessages(
+  messages: Array<{ content?: string | unknown }>,
+): void {
+  const urlRegex = /https?:\/\/[^\s)>]+/g
+  for (const msg of messages) {
+    if (typeof msg.content === 'string') {
+      msg.content = msg.content.replace(urlRegex, '[URL removed]')
+    }
+  }
+}
+
 export type SharedToolCall = {
   name: string
   argsRaw: string | Record<string, unknown> | undefined
@@ -149,6 +162,10 @@ export async function runSharedToolLoop<TMessage, TProviderToolCall>(
     }
 
     if (validCalls.length === 0) {
+      // Strip URLs so the model can't recycle hallucinated URLs
+      // from previous rounds when it skips tool calls (e.g. fake image URLs).
+      stripUrlsFromMessages(messages)
+
       const handled = await params.onNoToolCalls?.({
         round,
         messages,
