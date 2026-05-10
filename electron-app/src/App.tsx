@@ -1016,10 +1016,17 @@ export default function App() {
     if (screen === 'options' && optionsTab === 'llm') void loadModels()
   }, [screen, optionsTab, loadModels])
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom only when a new message is added (not during streaming)
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, busy])
+  }, [messages.length])
+
+  // Auto-scroll to bottom when agent finishes (busy goes from true → false)
+  useEffect(() => {
+    if (!busy) {
+      listEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [busy])
 
   // Keyboard shortcuts
   useEffect(() => {
