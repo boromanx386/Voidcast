@@ -1,5 +1,6 @@
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
+export type SttProvider = 'none' | 'openrouter'
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
 
@@ -90,6 +91,10 @@ export type AppSettings = {
   ttsBaseUrl: string
   /** TTS backend provider. local = OmniVoice HTTP server, runware-xai = Runware xAI TTS. */
   ttsProvider: TtsProvider
+  /** STT backend provider. none = disabled, openrouter = OpenRouter Whisper. */
+  sttProvider: SttProvider
+  /** OpenRouter STT model id (Whisper). */
+  openrouterSttModel: string
   voiceInstruct: string
   /** auto = no instruct; design = instruct; clone = ref_audio + optional ref_text */
   voiceMode: VoiceMode
@@ -214,6 +219,8 @@ const defaults: AppSettings = {
   llmSystemPrompt: '',
   ttsBaseUrl: 'http://127.0.0.1:8765',
   ttsProvider: 'local',
+  sttProvider: 'none',
+  openrouterSttModel: 'openai/whisper-large-v3-turbo',
   voiceInstruct: '',
   voiceMode: 'design',
   cloneRefText: '',

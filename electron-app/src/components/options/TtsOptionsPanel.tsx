@@ -171,6 +171,47 @@ export function TtsOptionsPanel({
 
   return (
     <div className="grid gap-4 text-sm">
+      {/* STT Provider */}
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-green">◉</span> STT_PROVIDER
+        </label>
+        <select
+          className="form-select"
+          value={settings.sttProvider}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              sttProvider:
+                e.target.value === 'openrouter' ? 'openrouter' : 'none',
+            }))
+          }
+        >
+          <option value="none">Disabled</option>
+          <option value="openrouter">OpenRouter Whisper</option>
+        </select>
+      </div>
+
+      {settings.sttProvider === 'openrouter' && (
+        <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
+          <p className="text-xs text-void-dim">
+            Uses <span className="font-mono text-neon-green">OPENROUTER_API_KEY</span> from
+            General settings. Click the microphone button in the composer to record and transcribe.
+          </p>
+          <div className="form-group mt-3">
+            <label className="form-label">OPENROUTER_STT_MODEL</label>
+            <input
+              className="cyber-input"
+              value={settings.openrouterSttModel}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, openrouterSttModel: e.target.value }))
+              }
+              placeholder="openai/whisper-large-v3-turbo"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Server URL */}
       <div className="form-group">
         <label className="form-label">

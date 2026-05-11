@@ -12,6 +12,7 @@ import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import { CodeIcon } from '@/components/icons/CodeIcon'
 import { RobotIcon } from '@/components/icons/RobotIcon'
+import { startRecording, blobToBase64, transcribeWithOpenRouter } from '@/lib/stt'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
@@ -707,6 +708,11 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ttsOk, setTtsOk] = useState<boolean | null>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [sttPending, setSttPending] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const recorderRef = useRef<{ stop: () => Promise<Blob> } | null>(null)
+  const recordingTimerRef = useRef<number | null>(null)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
@@ -3272,6 +3278,82 @@ export default function App() {
             >
               +
             </button>
+            {settings.sttProvider === 'openrouter' && (
+              <button
+                type="button"
+                disabled={busy || sttPending}
+                onClick={async () => {
+                  if (isRecording) {
+                    setIsRecording(false)
+                    if (recordingTimerRef.current) {
+                      window.clearInterval(recordingTimerRef.current)
+                      recordingTimerRef.current = null
+                    }
+                    const blob = await recorderRef.current?.stop()
+                    recorderRef.current = null
+                    if (!blob || blob.size === 0) return
+                    setSttPending(true)
+                    try {
+                      const base64 = await blobToBase64(blob)
+                      const text = await transcribeWithOpenRouter({
+                        apiKey: settings.openrouterApiKey,
+                        model: settings.openrouterSttModel,
+                        audioBase64: base64,
+                        format: 'webm',
+                      })
+                      if (text.trim()) {
+                        setInput((prev) => (prev ? prev + ' ' : '') + text.trim())
+                      }
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : String(e))
+                    } finally {
+                      setSttPending(false)
+                      setRecordingDuration(0)
+                    }
+                  } else {
+                    try {
+                      const recorder = await startRecording()
+                      recorderRef.current = recorder
+                      setIsRecording(true)
+                      setRecordingDuration(0)
+                      recordingTimerRef.current = window.setInterval(() => {
+                        setRecordingDuration((d) => d + 1)
+                      }, 1000)
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : String(e))
+                    }
+                  }
+                }}
+                className={`shrink-0 px-3 py-3 mb-px text-xs font-mono border transition-colors disabled:opacity-40 ${
+                  isRecording
+                    ? 'border-neon-red bg-neon-red/10 text-neon-red animate-pulse'
+                    : 'border-void-muted bg-void-black/80 text-neon-green hover:border-neon-green/50 hover:bg-neon-green/5'
+                }`}
+                style={{
+                  clipPath:
+                    'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))',
+                }}
+                title={isRecording ? `Recording ${recordingDuration}s (click to stop)` : sttPending ? 'Transcribing...' : 'Voice input'}
+                aria-label={isRecording ? 'Stop recording' : sttPending ? 'Transcribing' : 'Start voice input'}
+              >
+                {sttPending ? (
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                  </svg>
+                ) : isRecording ? (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                )}
+              </button>
+            )}
             <textarea
               className="voidcast-textarea"
               rows={2}
