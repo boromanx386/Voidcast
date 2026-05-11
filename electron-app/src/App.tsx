@@ -1185,6 +1185,41 @@ export default function App() {
     setPendingImages([])
   }
 
+  const forkSession = (session: ChatSession) => {
+    const now = Date.now()
+    const forked: ChatSession = {
+      id: uid(),
+      title: `${session.title} (fork)`,
+      createdAt: now,
+      updatedAt: now,
+      messages: session.messages,
+      hiddenContextSummary: session.hiddenContextSummary,
+    }
+    const nextState = upsertSession({ sessions, activeSessionId }, forked)
+    setSessions(nextState.sessions)
+    setActiveSessionId(forked.id)
+    saveChatSessions(nextState)
+    setMessages(forked.messages)
+    setAssistantGeneratedImages({})
+    setAssistantSavedImagePaths({})
+    setAssistantImageToolMeta({})
+    setAssistantImageMessageMeta({})
+    setAssistantGeneratedAudios({})
+    setAssistantSavedAudioPaths({})
+    setAssistantAudioToolMeta({})
+    setAssistantAudioMessageMeta({})
+    setHiddenContextSummary(forked.hiddenContextSummary ?? '')
+    setContextUsageInfo(null)
+    setContextWarnDismissed(false)
+    setSessionDirty(false)
+    setToolResultBanner(null)
+    setPendingDeleteId(null)
+    setRenamingSessionId(null)
+    setRenameValue('')
+    setMenuOpen(false)
+    setPendingImages([])
+  }
+
   const setUseLongMemoryForActiveChat = (enabled: boolean) => {
     setSettings((prev) => ({ ...prev, longMemoryDefaultEnabled: enabled }))
   }
@@ -2592,6 +2627,7 @@ export default function App() {
                       onStartDelete={() => setPendingDeleteId(s.id)}
                       onConfirmDelete={() => deleteSession(s.id)}
                       onCancelDelete={() => setPendingDeleteId(null)}
+                      onFork={() => forkSession(s)}
                     />
                   ))}
                 </div>
@@ -2628,6 +2664,7 @@ export default function App() {
                       onStartDelete={() => setPendingDeleteId(s.id)}
                       onConfirmDelete={() => deleteSession(s.id)}
                       onCancelDelete={() => setPendingDeleteId(null)}
+                      onFork={() => forkSession(s)}
                     />
                   ))}
                 </div>
@@ -3516,6 +3553,7 @@ function SessionItem({
   onStartDelete,
   onConfirmDelete,
   onCancelDelete,
+  onFork,
 }: {
   session: ChatSession
   isActive: boolean
@@ -3530,6 +3568,7 @@ function SessionItem({
   onStartDelete: () => void
   onConfirmDelete: () => void
   onCancelDelete: () => void
+  onFork: () => void
 }) {
   return (
     <div className={`session-item ${isActive ? 'active' : ''}`}>
@@ -3576,6 +3615,9 @@ function SessionItem({
             </div>
           </button>
           <div className="flex gap-1 mt-1">
+            <button onClick={onFork} className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-green border border-transparent hover:border-void-dim/30">
+              FORK
+            </button>
             <button onClick={onStartRename} className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-cyan border border-transparent hover:border-void-dim/30">
               REN
             </button>
