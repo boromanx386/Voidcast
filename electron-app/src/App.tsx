@@ -11,6 +11,7 @@ import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import { CodeIcon } from '@/components/icons/CodeIcon'
+import { RobotIcon } from '@/components/icons/RobotIcon'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
@@ -3354,9 +3355,24 @@ export default function App() {
 
       {/* System Status */}
       <div className="system-status">
-        <div className="status-item min-w-0 shrink">
-          <span className={`dot ${ttsOk === true ? 'online' : ttsOk === false ? 'offline' : 'busy'}`} />
-          <span>TTS: {ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}</span>
+        <div className="status-item min-w-0 shrink gap-2">
+          <RobotIcon className="h-3.5 w-3.5 text-void-dim/70 shrink-0" />
+          <span
+            className="truncate text-void-text/80"
+            title={`${settings.llmProvider}: ${settings.llmProvider === 'ollama' ? settings.ollamaModel : settings.llmProvider === 'nvidia' ? settings.nvidiaModel : settings.openrouterModel}`}
+          >
+            {settings.llmProvider === 'ollama'
+              ? settings.ollamaModel
+              : settings.llmProvider === 'nvidia'
+                ? settings.nvidiaModel
+                : settings.openrouterModel}
+          </span>
+          <span className="text-void-dim/30 select-none">|</span>
+          <span className="text-void-dim/60 text-[10px]">TTS</span>
+          <span
+            className={`dot ${ttsOk === true ? 'online' : ttsOk === false ? 'offline' : 'busy'}`}
+            title={`TTS ${ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}`}
+          />
         </div>
         <div className="footer-context-readout flex min-w-0 max-w-[min(100%,22rem)] flex-col items-end gap-0.5 text-right font-mono">
           {contextUsageInfo ? (
