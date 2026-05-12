@@ -208,7 +208,7 @@ const defaults: AppSettings = {
   openrouterModel: 'openrouter/free',
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
-  nvidiaModel: 'z-ai/glm5',
+  nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
   openrouterTtsModel: 'openai/gpt-4o-mini-tts-2025-12-15',
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
@@ -393,10 +393,17 @@ function normalizeLlm(s: AppSettings): AppSettings {
       : defaults.nvidiaBaseUrl
   const nvidiaApiKey =
     typeof s.nvidiaApiKey === 'string' ? s.nvidiaApiKey.trim() : ''
-  const nvidiaModel =
+  let nvidiaModel =
     typeof s.nvidiaModel === 'string' && s.nvidiaModel.trim()
       ? s.nvidiaModel.trim()
       : defaults.nvidiaModel
+  if (llmProvider === 'nvidia') {
+    if (nvidiaModel === 'z-ai/glm5') {
+      nvidiaModel = 'z-ai/glm-5.1'
+    } else if (nvidiaModel === 'z-ai/glm4.7' || nvidiaModel === 'z-ai/glm-4.7') {
+      nvidiaModel = defaults.nvidiaModel
+    }
+  }
   return {
     ...s,
     llmProvider,

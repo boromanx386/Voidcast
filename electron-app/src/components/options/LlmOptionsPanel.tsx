@@ -32,9 +32,9 @@ const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
 ]
 
 const NVIDIA_PRESET_MODELS: Array<{ id: string; label: string }> = [
-  { id: 'z-ai/glm5', label: 'Z.AI GLM 5 (NVIDIA docs)' },
-  { id: 'z-ai/glm-5.1', label: 'Z.AI GLM 5.1 (alt id)' },
-  { id: 'z-ai/glm4.7', label: 'Z.AI GLM 4.7' },
+  { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
+  { id: 'z-ai/glm-5.1', label: 'Z.AI GLM 5.1' },
+  { id: 'stepfun-ai/step-3.5-flash', label: 'StepFun Step 3.5 Flash' },
   { id: 'minimaxai/minimax-m2.7', label: 'MiniMax M2.7' },
   { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
   { id: 'mistralai/mistral-medium-3.5-128b', label: 'Mistral Medium 3.5 128B' },
@@ -304,7 +304,7 @@ export function LlmOptionsPanel({
               onChange={(e) =>
                 setSettings((s) => ({ ...s, nvidiaModel: e.target.value }))
               }
-              placeholder="z-ai/glm5"
+              placeholder="nvidia/nemotron-3-super-120b-a12b"
             />
           </div>
         </>

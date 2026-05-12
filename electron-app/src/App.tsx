@@ -2177,7 +2177,7 @@ export default function App() {
         ? (isWebStandalone() ? 'design' : settings.voiceMode)
         : 'design'
     if (ttsVoiceMode === 'clone' && (!cloneRef?.blob || cloneRef.blob.size === 0)) {
-      setError('VOICE_CLONE: Load reference audio in Settings → TTS')
+      setError('VOICE_CLONE: Load reference audio in Settings → TTS/STT')
       return
     }
     ttsAbortRef.current?.abort()
@@ -2398,13 +2398,14 @@ export default function App() {
               key={tab}
               type="button"
               onClick={() => setOptionsTab(tab)}
+              title={tab === 'tts' ? 'Text-to-speech & speech-to-text' : undefined}
               className={`option-tab flex-1 ${optionsTab === tab ? 'active' : ''}`}
             >
               {tab === 'general' && '◆ GENERAL'}
               {tab === 'llm' && '◇ LLM'}
               {tab === 'runware' && '◌ IMAGE'}
               {tab === 'runwareMusic' && '♫ MUSIC'}
-              {tab === 'tts' && '◉ TTS'}
+              {tab === 'tts' && '◉ TTS/STT'}
               {tab === 'tools' && '⬡ TOOLS'}
             </button>
           ))}
@@ -3525,10 +3526,10 @@ export default function App() {
                 : settings.openrouterModel}
           </span>
           <span className="text-void-dim/30 select-none">|</span>
-          <span className="text-void-dim/60 text-[10px]">TTS</span>
+          <span className="text-void-dim/60 text-[10px]">TTS/STT</span>
           <span
             className={`dot ${ttsOk === true ? 'online' : ttsOk === false ? 'offline' : 'busy'}`}
-            title={`TTS ${ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}`}
+            title={`TTS service ${ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'} (STT uses OpenRouter when enabled)`}
           />
         </div>
         <div className="footer-context-readout flex min-w-0 max-w-[min(100%,22rem)] flex-col items-end gap-0.5 text-right font-mono">
