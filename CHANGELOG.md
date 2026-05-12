@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
   - New tool phase `reddit` (⬢ icon, Reddit orange `text-orange-400`) wired through `agentToolPhase.ts` and `App.tsx` `TOOL_PHASE_UI`.
 - **OpenRouter voice input (STT)**: optional speech-to-text in the chat composer via OpenRouter Whisper (`POST https://openrouter.ai/api/v1/audio/transcriptions`). Enable **STT_PROVIDER** in TTS options (`none` or `openrouter`), set **OPENROUTER_STT_MODEL** (default `openai/whisper-large-v3-turbo`), reuse **OPENROUTER_API_KEY** from General settings, then use the microphone control next to the composer to record (WebM) and append the transcript to the input. New helper module `electron-app/src/lib/stt.ts`; settings fields `sttProvider` and `openrouterSttModel` in `settings.ts`.
 - **Fork chat session**: **FORK** on a session row duplicates that session (same messages and hidden context summary), opens the copy with title suffix `(fork)`, clears per-session UI state (images/audio tool metadata), and persists via existing session storage.
+- **Export chat to Markdown**: **EXP** button on every session row exports the full conversation as a `.md` file. Includes title, export timestamp, role headers, message content, image/file attachment notes. Sanitizes the filename from the session title.
 
 ### Changed
 
