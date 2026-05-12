@@ -1220,6 +1220,42 @@ export default function App() {
     setPendingImages([])
   }
 
+  const exportSessionToMarkdown = (session: ChatSession) => {
+    const lines: string[] = []
+    lines.push(`# ${session.title}`)
+    lines.push('')
+    lines.push(`_Exported: ${new Date().toLocaleString()}_`)
+    lines.push('')
+    for (const m of session.messages) {
+      const role = m.role === 'user' ? 'User' : 'Assistant'
+      lines.push(`## ${role}`)
+      lines.push('')
+      if (m.content.trim()) {
+        lines.push(m.content)
+        lines.push('')
+      }
+      if (m.images?.length) {
+        lines.push(`_(${m.images.length} image(s) attached)_`)
+        lines.push('')
+      }
+      if (m.fileAttachments?.length) {
+        for (const f of m.fileAttachments) {
+          lines.push(`- **File:** ${f.name}`)
+        }
+        lines.push('')
+      }
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${session.title.replace(/[^a-z0-9\u0400-\u04FF\-]/gi, '_').slice(0, 60) || 'chat'}.md`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const setUseLongMemoryForActiveChat = (enabled: boolean) => {
     setSettings((prev) => ({ ...prev, longMemoryDefaultEnabled: enabled }))
   }
@@ -2628,6 +2664,7 @@ export default function App() {
                       onConfirmDelete={() => deleteSession(s.id)}
                       onCancelDelete={() => setPendingDeleteId(null)}
                       onFork={() => forkSession(s)}
+                      onExport={() => exportSessionToMarkdown(s)}
                     />
                   ))}
                 </div>
@@ -2665,6 +2702,7 @@ export default function App() {
                       onConfirmDelete={() => deleteSession(s.id)}
                       onCancelDelete={() => setPendingDeleteId(null)}
                       onFork={() => forkSession(s)}
+                      onExport={() => exportSessionToMarkdown(s)}
                     />
                   ))}
                 </div>
@@ -3554,6 +3592,7 @@ function SessionItem({
   onConfirmDelete,
   onCancelDelete,
   onFork,
+  onExport,
 }: {
   session: ChatSession
   isActive: boolean
@@ -3569,6 +3608,7 @@ function SessionItem({
   onConfirmDelete: () => void
   onCancelDelete: () => void
   onFork: () => void
+  onExport: () => void
 }) {
   return (
     <div className={`session-item ${isActive ? 'active' : ''}`}>
@@ -3617,6 +3657,9 @@ function SessionItem({
           <div className="flex gap-1 mt-1">
             <button onClick={onFork} className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-green border border-transparent hover:border-void-dim/30">
               FORK
+            </button>
+            <button onClick={onExport} className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-cyan border border-transparent hover:border-void-dim/30">
+              EXP
             </button>
             <button onClick={onStartRename} className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-cyan border border-transparent hover:border-void-dim/30">
               REN
