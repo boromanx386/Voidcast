@@ -1,143 +1,129 @@
-# Voidcast Workspace
+# Voidcast
+
+**Desktop AI agent dashboard with free cloud provider aggregation, integrated coding IDE, and cyberpunk terminal UI.**
+
+Connects to **Ollama**, **OpenRouter**, **NVIDIA NIM**, and **Runware** free tiers — one app, zero subscriptions.
 
 ![Voidcast logo](logo.jpg)
 
-Desktop AI chat app (Electron + React) with local Ollama integration, tools API, optional Local TTS, and Runware image/music/TTS support.
+## Why I Built This
 
-### Update 2.4.1 (resume)
+I was paying $60/month for 4 different AI apps. I built Voidcast so I wouldn't have to.
 
-- **Edit message**: click any user message to edit inline; Save truncates history after that message and regenerates the assistant reply. Cancel reverts. Supports Enter (save) and Escape (cancel).
-- **Reminder tools**: full CRUD reminder system for agent-driven notes and scheduled reminders (`add_reminder`, `list_reminders`, `delete_reminder`, `update_reminder`). Stored in IndexedDB; visible in General options with orange accent styling.
-- **autoVoice**: `update_settings` tool now supports `autoVoice` (boolean) so the agent can toggle automatic TTS speech on/off.
-- **Native context menu** (Electron): right-click on any element shows copy/paste/select-all. Editable fields get Undo/Redo/Cut/Copy/Paste/Delete/Select All; links get Open Link.
-- **Auto-scroll fix**: stops forcing scroll-to-bottom during agent streaming; now scrolls only when a new message is added or when the agent finishes. Users can freely scroll while the assistant generates.
-- **Security**: hardened Electron renderer bridge by removing globally exposed raw `ipcRenderer`; added explicit allowlisted `window.voidcast` API; removed unused insecure `open-win` IPC handler.
+It connects to **free cloud APIs** and gives you a single cyberpunk terminal with real tool calling, image/music generation, and a built-in coding IDE.
 
-Full notes: see **[2.4.1] - 2026-05-10** in `CHANGELOG.md`.
+## Provider Stack (All Free Tiers)
 
-### Update 2.4 (resume)
+| Provider | What You Get | Cost |
+|----------|-------------|------|
+| **Ollama** | Open-source models (Llama, Qwen, Gemma, Mistral...) pulled from cloud or run locally | Free |
+| **OpenRouter** | Access to 100+ models: Claude, GPT-4o, DeepSeek, Gemini... via free endpoints | Free tier |
+| **NVIDIA NIM** | Enterprise-grade inference for open-source models | Free tier |
+| **Runware** | Image generation + AI music/soundtrack generation | Free credits |
 
-- **Thinking / reasoning in chat**: collapsible **THINKING** block when the model streams traces (Ollama `think`; OpenRouter/NVIDIA `reasoning` / `reasoning_content` where supported).
-- **NVIDIA Build LLM**: optional cloud provider on `integrate.api.nvidia.com`, presets for common models, desktop fallback proxy for clearer errors; smarter base URL handling and retries on `502`/`504`.
-- **Tool agent**: stricter behavior so the assistant cannot pretend a tool ran without an actual tool call when the user clearly asked for a tool-backed action; after a real tool runs, a normal text wrap-up is allowed (no spurious “tool not called” on success).
-- **OpenRouter**: extra model presets (`inclusionai/ring-2.6-1t:free`, `baidu/cobuddy:free`, `openrouter/owl-alpha`, `poolside/laguna-m.1:free`).
+You just need free accounts and API keys. No credit card required.
 
-Full notes: see **[2.4.0] - 2026-05-08** in `CHANGELOG.md`.
+## Core Features
 
-## Features
+### 🤖 Agent with Tool Calling
+The model decides when to call tools. Not a premium feature — it's the default.
 
-- Desktop chat UI focused on practical AI workflows (Electron + React).
-- Ollama/OpenRouter-based chat orchestration with configurable model and prompt settings.
-- Tool-enabled assistant actions (web search, weather, scraping, YouTube, PDF export).
-- **`save_pdf` PDF export**: rendered by the Python tools server (`POST /tools/pdf`, ReportLab); files are written on the **machine where the tools server runs** into the folder set under Options → Tools → Save as PDF (no dialog). Requires a reachable `TTS_SERVER_URL` with `reportlab` + bundled Noto Sans fonts (included in tools deps / installer bundle).
-- Desktop coding tools (Electron mode, optional per-project folder):
-  - right-side coding panel with file tree, file preview, and terminal output
-  - agent tools for local project work: `list_directory`, `read_file`, `write_file`, `edit_code`
-  - code discovery and repo insight tools: `search_files`, `glob_files`, `git_status`, `git_diff`, `git_log`, `git_show`
-  - command execution with timeout and optional background mode (`execute_command`)
-- Assistant-managed app configuration via `update_settings` tool for selected options:
-  - LLM system prompt, context window, temperature
-  - UI theme
-  - Runware image resolution (`width`, `height`, or `WIDTHxHEIGHT`)
-  - Runware image/edit model selection
-  - manual long-memory add (`longMemoryAdd`)
-- Built-in context summarization/compression for long conversations.
-- Long-memory personalization controls:
-  - header memory action (brain icon) to extract durable memory from current chat
-  - optional agent-driven memory write via `update_settings` (`longMemoryAdd`)
-  - global long-memory toggle in `General` options
-  - memory manager (view/delete saved memory items)
-- Runware media support:
-  - image generation/editing
-  - music generation
-  - xAI TTS via Runware
-- Optional external Local TTS server support (OmniVoice API-compatible).
-- Optional OpenRouter TTS support via GPT-4o Mini TTS model.
-- Cloud-first operation path (works without local GPU/CUDA requirements).
-- Optional power-user local path for users with capable hardware.
-- Windows installer builds with update-ready release artifacts.
+- **Web Search** — real-time DuckDuckGo search
+- **Weather** — current conditions + forecast
+- **YouTube** — search + transcript summaries
+- **Reddit** — browse subreddits, search posts, read threads and comments
+- **Web Scrape** — fetch and summarize any public page
+- **PDF Export** — save any chat session as formatted PDF
+- **Image Generation** — Runware text-to-image
+- **Image Edit** — Runware image transformation
+- **Music Generation** — Runware AI audio/soundtracks
+- **Reminders** — set, list, update, delete scheduled notes
+- **Settings Agent** — change app config via chat commands
 
-## Cloud-first note
+### 💻 Built-in Coding IDE
+Right-side panel with file tree, file preview, and terminal output. The agent acts as a junior dev in your project folder:
 
-This app is oriented to a cloud-friendly workflow and does not require high-end
-local hardware to be useful.
+- `list_directory`, `read_file`, `write_file`, `edit_code`
+- `search_files` (with ripgrep fallback)
+- `glob_files`
+- `git_status`, `git_diff`, `git_log`, `git_show`
+- `execute_command` (with timeout + background support)
 
-### Minimum practical setup (recommended)
+### 🧠 Context Compression
+Custom module that compresses chat history so even smaller free-tier models handle long agent loops without losing coherence.
 
-- Ollama running (chat + tool orchestration)
-- Runware API key/account (media generation: image/music/xAI TTS)
+### 📝 Long-term Memory
+Cross-chat memory stored locally in IndexedDB. The assistant remembers facts about you across sessions — with your control (review before save, delete anytime).
 
-In this scenario, the app works well without GPU/CUDA on the user machine.
+### 🎨 Cyberpunk Terminal UI
+Dark, neon, minimal. Matrix-green theme included. Because staring at a bland white chat box for hours kills the soul.
 
-For typical chat + tool + media calls, an Ollama free-tier style usage profile
-is generally more than enough for testing and normal personal usage.
+### ⚡ UX Power Features
+- **Edit any message inline** — history regenerates from that point
+- **Fork chat session** — explore a different branch of the conversation
+- **Export to Markdown** — entire chat as `.md`
+- **Thinking blocks** — collapsible reasoning for models like DeepSeek, QwQ
+- **Image-aware chat** — paste images, the agent recalls and analyzes them iteratively
 
-### Optional local power-user setup
+## Image-aware Workflow
 
-If you have capable hardware (NVIDIA GPU with CUDA), you can also run local
-LLM/TTS-heavy workloads:
+Voidcast can reuse images from chat history as working context for later turns. The assistant can describe, analyze, compare, and edit prior images — enabling iterative visual workflows inside one conversation instead of isolated one-shot calls.
 
-- local Ollama models on your own machine
-- optional external Local TTS server (OmniVoice stack)
+Combined with strong text-rendering image models, this becomes a serious tool for chart/diagram generation and iterative visual refinement.
 
-Local TTS remains optional and external by design. See:
+## Optional TTS
 
-- `LOCAL_TTS_SETUP.md`
+- **Local TTS** — external OmniVoice-compatible server (for users with capable local hardware)
+- **OpenRouter TTS** — cloud TTS via GPT-4o Mini TTS model
+- **Runware xAI TTS** — cloud text-to-speech via Runware
 
-## Image-aware workflow
+## Tech Stack
 
-Voidcast can reuse images from chat history as working context for later turns.
+- **Electron + React + TypeScript** — Desktop app
+- **Tailwind CSS** — Styling with `theme-matrix.css` cyberpunk theme
+- **Python 3.13** — Bundled tools server (no pip install required for standard features)
+- **IndexedDB** — Local storage for chats, reminders, long memory
 
-This means the assistant can:
+## Installation
 
-- describe and analyze previously generated/attached images
-- evaluate quality and consistency against your prompt goals
-- use older images as references for edit operations
-- compare multiple prior images and suggest improvements
+Download the latest Windows installer from [Releases](https://github.com/boromanx386/Voidcast/releases).
 
-In practice, this enables iterative visual workflows inside one conversation
-instead of isolated one-shot image calls.
+Or run in dev mode:
+```bash
+npm install
+npm run dev
+```
 
-Combined with GPT Image 2.0 model (strong text rendering and chart-friendly output),
-this becomes a serious tool for:
+Requires [Node.js](https://nodejs.org/) and Python 3.12 (for tools server).
 
-- chart/diagram generation with readable labels
-- visual drafts with embedded text
-- iterative image refinement based on prior chat artifacts
+### Configuration
 
-## Long memory (current behavior)
+1. Get free API keys:
+   - [OpenRouter](https://openrouter.ai/) (for GPT-4o, Claude, DeepSeek...)
+   - [NVIDIA NIM](https://build.nvidia.com/) (for enterprise open models)
+   - [Runware](https://runware.ai/) (for images and music)
+   - [Ollama](https://ollama.com/) (for open-source models)
 
-Long memory is now available as a controlled workflow:
+2. Paste them in **Options → Provider API Keys**
 
-- Header memory action (brain icon) runs memory extraction for the current conversation.
-- A preview dialog appears before save so entries can be reviewed/removed.
-- Saved memory is stored locally in IndexedDB (not as raw full transcripts).
-- `General` options contains:
-  - global toggle for long-memory usage across chats
-  - basic memory manager list with delete actions
-- At generation time, when global long memory is enabled, relevant memories are
-  retrieved and injected into model context with a strict size cap.
+3. Select your model and start the agent.
 
-## Roadmap (planned)
-
-Planned product direction for upcoming releases:
+## Roadmap
 
 - Add more practical built-in tools for everyday assistant workflows
-  (research, docs handling, productivity helpers, automation actions).
-- Expand long-memory controls with richer curation (search/edit/tagging and
-  better conflict resolution across memories).
-- Expand support for additional Runware models (image/music/voice) with richer
-  per-model presets and safer default profiles.
-- Add optional integrations with other API providers beyond the current stack,
-  so users can choose the backend that best fits their cost/performance needs.
+- Custom User Tools (Tool Builder)
+- Expand long-memory controls with richer curation (search/edit/tagging)
+- Expand support for additional Runware models with safer default profiles
+- Add optional integrations with other API providers
+- Linux / Mac builds
 
-## Repository layout
+## Repository Layout
 
 - `electron-app/` - Electron renderer/main app
 - `tts-server/` - Python HTTP server for tools (and optional local OmniVoice TTS)
 - `LOCAL_TTS_SETUP.md` - external Local TTS setup guide
 
-## Install (development)
+## Development Setup
 
 From repository root:
 
@@ -149,7 +135,7 @@ From repository root:
 4. Optional (recommended for faster `search_files` in coding tools):
    - install [ripgrep](https://github.com/BurntSushi/ripgrep) and ensure `rg` is on your `PATH`
 
-## Run (development)
+## Run (Development)
 
 - Default dev (tools server + Electron):
   - `npm run dev`
@@ -158,7 +144,7 @@ From repository root:
 - Start local TTS-enabled server (external/heavy deps required):
   - `npm run dev:tts:local`
 
-## Build installer
+## Build Installer
 
 From `electron-app/`:
 
@@ -170,7 +156,7 @@ Output folder:
 
 For manual distribution, `Voidcast_<version>_Setup.exe` is enough.
 
-## Packaging model
+### Packaging Model
 
 Main installer includes:
 
@@ -186,7 +172,34 @@ Local TTS is external by design. See:
 
 - `LOCAL_TTS_SETUP.md`
 
-## Runtime expectations
+## Updates (GitHub Releases)
+
+Updater is wired with `electron-updater` and `electron-builder` GitHub publish config.
+
+Configured in:
+
+- `electron-app/electron-builder.json` (`publish.provider=github`)
+- `electron-app/electron/main/update.ts`
+
+### One Release Flow
+
+1. Bump version in `electron-app/package.json`
+2. Create a GitHub token with repo release permissions
+3. Set token in shell:
+   - PowerShell: `$env:GH_TOKEN = "<your_token>"`
+4. Build + publish from `electron-app/`:
+   - `npm run build:publish`
+
+This publishes release artifacts needed by auto-update (`Setup.exe`, blockmap, latest metadata).
+
+### Client Behavior
+
+- In app, use **Check update** UI
+- If new version exists, app downloads and offers restart/install
+
+Keep Local TTS updates/versioning independent from core app releases.
+
+## Runtime Expectations
 
 App expects `TTS_SERVER_URL` to expose at least:
 
@@ -199,35 +212,8 @@ Tools endpoints (server-side helpers):
 - `POST /tools/weather`
 - `POST /tools/scrape`
 - `POST /tools/youtube`
-- `POST /tools/pdf` (Markdown-lite → PDF; optional embedded images; see `tts-server/pdf_tool.py`)
+- `POST /tools/pdf` (Markdown-lite → PDF; optional embedded images)
 - `POST /tools/runware_proxy`
-
-## Updates (GitHub Releases)
-
-Updater is wired with `electron-updater` and `electron-builder` GitHub publish config.
-
-Configured in:
-
-- `electron-app/electron-builder.json` (`publish.provider=github`)
-- `electron-app/electron/main/update.ts`
-
-### One release flow
-
-1. Bump version in `electron-app/package.json`
-2. Create a GitHub token with repo release permissions
-3. Set token in shell:
-   - PowerShell: `$env:GH_TOKEN = "<your_token>"`
-4. Build + publish from `electron-app/`:
-   - `npm run build:publish`
-
-This publishes release artifacts needed by auto-update (`Setup.exe`, blockmap, latest metadata).
-
-### Client behavior
-
-- In app, use **Check update** UI
-- If new version exists, app downloads and offers restart/install
-
-Keep Local TTS updates/versioning independent from core app releases.
 
 ## License
 
@@ -235,7 +221,7 @@ This repository is released under the MIT License.
 
 - `LICENSE`
 
-## Third-party licenses
+## Third-party Licenses
 
 Third-party notices and dependency license families are documented in:
 
@@ -247,3 +233,7 @@ For full dependency metadata, see:
 - `electron-app/package.json`
 - `tts-server/requirements-tools.txt`
 - `tts-server/requirements-tts.txt`
+
+---
+
+Built with spite and caffeine by a solo dev from Serbia.
