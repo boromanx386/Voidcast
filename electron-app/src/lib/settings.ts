@@ -234,7 +234,7 @@ const defaults: AppSettings = {
   ttsSpeed: 1.0,
   ttsNumStep: 32,
   ttsDurationSec: null,
-  ttsChunkMaxChars: 380,
+  ttsChunkMaxChars: 300,
   runwareXaiVoice: 'auto',
   runwareXaiLanguage: '',
   voiceBakePhrase: 'This is my reference voice for consistent synthesis.',

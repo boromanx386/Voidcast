@@ -602,96 +602,101 @@ export function TtsOptionsPanel({
         </div>
       )}
 
-      {/* Speed Control */}
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-green">▶</span> SPEED_MULTIPLIER
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="range"
-            min={0.25}
-            max={4}
-            step={0.05}
-            className="form-slider flex-1"
-            value={settings.ttsSpeed}
-            onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                ttsSpeed: Number(e.target.value) || 1,
-              }))
-            }
-          />
-          <span className="w-16 text-right font-mono text-neon-cyan">
-            {settings.ttsSpeed.toFixed(2)}x
-          </span>
-        </div>
-      </div>
+      {/* Speed / Steps / Duration — only the local OmniVoice server honors these. */}
+      {settings.ttsProvider === 'local' && (
+        <>
+          {/* Speed Control */}
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-green">▶</span> SPEED_MULTIPLIER
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={0.25}
+                max={4}
+                step={0.05}
+                className="form-slider flex-1"
+                value={settings.ttsSpeed}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    ttsSpeed: Number(e.target.value) || 1,
+                  }))
+                }
+              />
+              <span className="w-16 text-right font-mono text-neon-cyan">
+                {settings.ttsSpeed.toFixed(2)}x
+              </span>
+            </div>
+          </div>
 
-      {/* Diffusion Steps */}
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-yellow">⬡</span> DIFFUSION_STEPS
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="range"
-            min={4}
-            max={128}
-            step={1}
-            className="form-slider flex-1"
-            value={settings.ttsNumStep}
-            onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                ttsNumStep: Math.round(Number(e.target.value)) || 32,
-              }))
-            }
-          />
-          <span className="w-16 text-right font-mono text-neon-cyan">
-            {settings.ttsNumStep}
-          </span>
-        </div>
-        <p className="text-xs text-void-dim mt-1">
-          Lower = faster | Default = 32 | Higher = quality
-        </p>
-      </div>
+          {/* Diffusion Steps */}
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-yellow">⬡</span> DIFFUSION_STEPS
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={4}
+                max={128}
+                step={1}
+                className="form-slider flex-1"
+                value={settings.ttsNumStep}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    ttsNumStep: Math.round(Number(e.target.value)) || 32,
+                  }))
+                }
+              />
+              <span className="w-16 text-right font-mono text-neon-cyan">
+                {settings.ttsNumStep}
+              </span>
+            </div>
+            <p className="text-xs text-void-dim mt-1">
+              Lower = faster | Default = 32 | Higher = quality
+            </p>
+          </div>
 
-      {/* Duration Override */}
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-red">◐</span> DURATION_OVERRIDE (seconds)
-        </label>
-        <input
-          type="number"
-          step={0.5}
-          min={0}
-          placeholder="Auto (null)"
-          className="cyber-input"
-          value={
-            settings.ttsDurationSec == null
-              ? ''
-              : String(settings.ttsDurationSec)
-          }
-          onChange={(e) => {
-            const t = e.target.value.trim()
-            setSettings((s) => ({
-              ...s,
-              ttsDurationSec:
-                t === ''
-                  ? null
-                  : (() => {
-                      const n = Number(t)
-                      if (!Number.isFinite(n) || n <= 0) return null
-                      return n
-                    })(),
-            }))
-          }}
-        />
-        <p className="text-xs text-void-dim mt-1">
-          Fixed output length (single chunk only)
-        </p>
-      </div>
+          {/* Duration Override */}
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-red">◐</span> DURATION_OVERRIDE (seconds)
+            </label>
+            <input
+              type="number"
+              step={0.5}
+              min={0}
+              placeholder="Auto (null)"
+              className="cyber-input"
+              value={
+                settings.ttsDurationSec == null
+                  ? ''
+                  : String(settings.ttsDurationSec)
+              }
+              onChange={(e) => {
+                const t = e.target.value.trim()
+                setSettings((s) => ({
+                  ...s,
+                  ttsDurationSec:
+                    t === ''
+                      ? null
+                      : (() => {
+                          const n = Number(t)
+                          if (!Number.isFinite(n) || n <= 0) return null
+                          return n
+                        })(),
+                }))
+              }}
+            />
+            <p className="text-xs text-void-dim mt-1">
+              Fixed output length (single chunk only)
+            </p>
+          </div>
+        </>
+      )}
 
       {/* Auto Voice Toggle */}
       <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
@@ -726,7 +731,7 @@ export function TtsOptionsPanel({
           onChange={(e) =>
             setSettings((s) => ({
               ...s,
-              ttsChunkMaxChars: Math.round(Number(e.target.value)) || 380,
+              ttsChunkMaxChars: Math.round(Number(e.target.value)) || 300,
             }))
           }
         />

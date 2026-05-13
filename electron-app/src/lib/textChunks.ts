@@ -2,7 +2,7 @@
  * Split long text into shorter segments for TTS — shorter wait for first
  * audio while the next chunk is generated during playback.
  */
-const DEFAULT_MAX = 380
+const DEFAULT_MAX = 300
 
 export function splitIntoTtsChunks(
   text: string,

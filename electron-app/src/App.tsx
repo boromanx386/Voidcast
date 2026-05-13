@@ -2350,7 +2350,7 @@ export default function App() {
     try {
       if (audioUrl) URL.revokeObjectURL(audioUrl)
 
-      const maxC = Math.min(2000, Math.max(80, Math.round(settings.ttsChunkMaxChars) || 380))
+      const maxC = Math.min(2000, Math.max(80, Math.round(settings.ttsChunkMaxChars) || 300))
       const chunks = splitIntoTtsChunks(spoken, maxC)
       const multi = chunks.length > 1
       const durationForChunk = multi ? null : settings.ttsDurationSec
