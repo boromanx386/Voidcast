@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type DragEvent as ReactDragEvent,
 } from 'react'
 import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
@@ -69,8 +70,11 @@ import {
   listReminders,
   deleteReminder,
   markReminderDone,
+  listDueUnnotifiedReminders,
+  markReminderNotified,
   type Reminder,
 } from '@/lib/reminderStorage'
+import { playNotificationSound } from '@/lib/notificationSounds'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
@@ -750,6 +754,8 @@ export default function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([])
+  const [isDragOver, setIsDragOver] = useState(false)
+  const dragCounterRef = useRef(0)
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
@@ -811,6 +817,29 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  /**
+   * Prevent the browser from opening a file when a drop misses our drop target.
+   * Without this the renderer navigates to the dropped image and the chat session is lost.
+   */
+  useEffect(() => {
+    const preventDefault = (e: Event) => {
+      const types = (e as globalThis.DragEvent).dataTransfer?.types
+      if (!types) return
+      for (let i = 0; i < types.length; i++) {
+        if (types[i] === 'Files') {
+          e.preventDefault()
+          return
+        }
+      }
+    }
+    window.addEventListener('dragover', preventDefault)
+    window.addEventListener('drop', preventDefault)
+    return () => {
+      window.removeEventListener('dragover', preventDefault)
+      window.removeEventListener('drop', preventDefault)
+    }
+  }, [])
 
   const codingPanelAvailable = isElectron() && settings.toolsEnabled.coding
 
@@ -1452,6 +1481,68 @@ export default function App() {
     }
   }, [])
 
+  /**
+   * Desktop notifications for due reminders.
+   *
+   * Renderer-side polling (every 30s). Notifications use the browser
+   * `Notification` API which Electron forwards to the OS as native toasts
+   * on Windows. We persist `notifiedAt` on the reminder so a refresh /
+   * restart does not refire the same one. Closed-app notifications would
+   * require OS-level scheduling and are explicitly out of scope.
+   */
+  useEffect(() => {
+    if (!settings.reminderNotificationsEnabled) return
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return
+
+    let cancelled = false
+    let timer: number | null = null
+
+    const tick = async () => {
+      if (cancelled) return
+      if (Notification.permission !== 'granted') return
+      try {
+        const due = await listDueUnnotifiedReminders(Date.now())
+        if (cancelled || due.length === 0) return
+        let firedAny = false
+        for (const r of due) {
+          try {
+            const n = new Notification('VOIDCAST reminder', {
+              body: r.text,
+              tag: r.id,
+              requireInteraction: false,
+            })
+            n.onclick = () => {
+              try {
+                window.focus()
+                setScreen('options')
+                setOptionsTab('general')
+              } catch {
+                // ignore focus errors
+              }
+              n.close()
+            }
+            await markReminderNotified(r.id, Date.now())
+            firedAny = true
+          } catch {
+            // single failure shouldn't block other reminders
+          }
+        }
+        if (firedAny) {
+          void refreshReminders()
+        }
+      } catch {
+        // ignore tick errors
+      }
+    }
+
+    void tick()
+    timer = window.setInterval(() => void tick(), 30_000)
+    return () => {
+      cancelled = true
+      if (timer != null) window.clearInterval(timer)
+    }
+  }, [settings.reminderNotificationsEnabled, refreshReminders])
+
   const deleteLongMemoryById = useCallback(async (id: string) => {
     await deleteMemory(id)
     await refreshLongMemories()
@@ -1984,6 +2075,9 @@ export default function App() {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
       setMessages((prev) => prev.map((m) => m.id === asstId && !m.content.trim() ? { ...m, content: `(ERR: ${msg})` } : m))
+      if (settings.notificationSoundsEnabled) {
+        void playNotificationSound('error', { volume: settings.notificationSoundVolume })
+      }
     } finally {
       if (activeChatRunIdRef.current === runId) {
         setToolPhase(null)
@@ -1992,8 +2086,14 @@ export default function App() {
       }
     }
 
-    if (replyText.trim() && loadSettings().autoVoice && ttsOk !== false) {
-      void onRead({ id: asstId, role: 'assistant', content: replyText })
+    if (replyText.trim()) {
+      const willAutoSpeak = loadSettings().autoVoice && ttsOk !== false
+      if (settings.notificationSoundsEnabled && !willAutoSpeak) {
+        void playNotificationSound('reply', { volume: settings.notificationSoundVolume })
+      }
+      if (willAutoSpeak) {
+        void onRead({ id: asstId, role: 'assistant', content: replyText })
+      }
     }
   }
 
@@ -2033,11 +2133,8 @@ export default function App() {
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const onPickChatAttachments = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    e.target.value = ''
-    if (!files?.length) return
-    const rawList = Array.from(files)
+  const processChatAttachmentFiles = useCallback(async (rawList: File[]) => {
+    if (rawList.length === 0) return
     const imageFiles = rawList.filter(looksLikeImageFile)
     const nonImageFiles = rawList.filter((f) => !looksLikeImageFile(f))
     const newImages: PendingChatImage[] = []
@@ -2104,7 +2201,68 @@ export default function App() {
     if (newFiles.length > 0) {
       setPendingFiles((prev) => [...prev, ...newFiles].slice(0, 8))
     }
+  }, [])
+
+  const onPickChatAttachments = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    e.target.value = ''
+    if (!files?.length) return
+    await processChatAttachmentFiles(Array.from(files))
   }
+
+  const dragContainsFiles = useCallback((e: ReactDragEvent<HTMLDivElement>) => {
+    const types = e.dataTransfer?.types
+    if (!types) return false
+    for (let i = 0; i < types.length; i++) {
+      if (types[i] === 'Files') return true
+    }
+    return false
+  }, [])
+
+  const onChatDragEnter = useCallback(
+    (e: ReactDragEvent<HTMLDivElement>) => {
+      if (busy || editingMessageId) return
+      if (!dragContainsFiles(e)) return
+      e.preventDefault()
+      dragCounterRef.current += 1
+      setIsDragOver(true)
+    },
+    [busy, editingMessageId, dragContainsFiles],
+  )
+
+  const onChatDragOver = useCallback(
+    (e: ReactDragEvent<HTMLDivElement>) => {
+      if (busy || editingMessageId) return
+      if (!dragContainsFiles(e)) return
+      e.preventDefault()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+    },
+    [busy, editingMessageId, dragContainsFiles],
+  )
+
+  const onChatDragLeave = useCallback(
+    (e: ReactDragEvent<HTMLDivElement>) => {
+      if (!dragContainsFiles(e)) return
+      e.preventDefault()
+      dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
+      if (dragCounterRef.current === 0) setIsDragOver(false)
+    },
+    [dragContainsFiles],
+  )
+
+  const onChatDrop = useCallback(
+    async (e: ReactDragEvent<HTMLDivElement>) => {
+      if (!dragContainsFiles(e)) return
+      e.preventDefault()
+      dragCounterRef.current = 0
+      setIsDragOver(false)
+      if (busy || editingMessageId) return
+      const files = e.dataTransfer?.files
+      if (!files?.length) return
+      await processChatAttachmentFiles(Array.from(files))
+    },
+    [busy, editingMessageId, dragContainsFiles, processChatAttachmentFiles],
+  )
 
   const removePendingFile = (index: number) => {
     setPendingFiles((prev) => prev.filter((_, i) => i !== index))
@@ -2476,12 +2634,33 @@ export default function App() {
 
   // === MAIN CHAT SCREEN ===
   return (
-    <div className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}>
+    <div
+      className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}
+      onDragEnter={onChatDragEnter}
+      onDragOver={onChatDragOver}
+      onDragLeave={onChatDragLeave}
+      onDrop={onChatDrop}
+    >
       {uiDystopian && (
         <>
           <CrtOverlay />
           <AmbientParticles />
         </>
+      )}
+      {isDragOver && (
+        <div
+          className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center
+            bg-void-black/70 backdrop-blur-sm border-2 border-dashed border-neon-cyan/60"
+          aria-hidden
+        >
+          <div className="px-6 py-4 font-mono text-sm uppercase tracking-wider text-neon-cyan
+            border border-neon-cyan/40 bg-void-dark/85 rounded">
+            ⬇ DROP FILES TO ATTACH
+            <div className="mt-1 text-[11px] normal-case tracking-normal text-void-dim">
+              Images (PNG / JPEG / WebP …) and supported files (TXT, MD, PDF, DOCX, CSV, JSON, code).
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Header */}

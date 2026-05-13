@@ -2,7 +2,9 @@ import type { AppSettings } from '@/lib/settings'
 import { isElectron } from '@/lib/platform'
 import {
   useEffect,
+  useRef,
   useState,
+  type ChangeEvent,
   type Dispatch,
   type SetStateAction,
 } from 'react'
@@ -10,6 +12,20 @@ import type { LongMemoryItem } from '@/types/longMemory'
 import type { Reminder } from '@/lib/reminderStorage'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import { ClockIcon } from '@/components/icons/ClockIcon'
+import {
+  clearNotificationSound,
+  loadNotificationSound,
+  saveNotificationSound,
+  type NotificationSoundKind,
+} from '@/lib/notificationSoundStorage'
+import {
+  MAX_NOTIFICATION_SOUND_BYTES,
+  invalidateNotificationSoundCache,
+  looksLikeAudioFile,
+  notificationSoundAcceptList,
+  notificationSoundFromFile,
+  playNotificationSound,
+} from '@/lib/notificationSounds'
 
 type Props = {
   settings: AppSettings
@@ -40,6 +56,94 @@ export function GeneralOptionsPanel({
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null)
   const [editingMemoryText, setEditingMemoryText] = useState('')
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>(
+    () => {
+      if (typeof window === 'undefined' || typeof Notification === 'undefined') return 'unsupported'
+      return Notification.permission
+    },
+  )
+
+  const requestNotificationPermission = async () => {
+    if (typeof Notification === 'undefined') {
+      setNotifPermission('unsupported')
+      return
+    }
+    try {
+      const result = await Notification.requestPermission()
+      setNotifPermission(result)
+    } catch {
+      setNotifPermission(Notification.permission)
+    }
+  }
+
+  const [soundFileNames, setSoundFileNames] = useState<
+    Record<NotificationSoundKind, string | null>
+  >({ reply: null, error: null })
+  const [soundError, setSoundError] = useState<string | null>(null)
+  const replyFileInputRef = useRef<HTMLInputElement | null>(null)
+  const errorFileInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const [reply, errorSound] = await Promise.all([
+        loadNotificationSound('reply').catch(() => null),
+        loadNotificationSound('error').catch(() => null),
+      ])
+      if (cancelled) return
+      setSoundFileNames({
+        reply: reply?.fileName ?? null,
+        error: errorSound?.fileName ?? null,
+      })
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const onPickNotificationSound = async (
+    kind: NotificationSoundKind,
+    e: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!looksLikeAudioFile(file)) {
+      setSoundError(`Not an audio file: ${file.name}`)
+      return
+    }
+    if (file.size > MAX_NOTIFICATION_SOUND_BYTES) {
+      setSoundError(
+        `Sound too large (max ${Math.round(MAX_NOTIFICATION_SOUND_BYTES / (1024 * 1024))} MB): ${file.name}`,
+      )
+      return
+    }
+    try {
+      const payload = await notificationSoundFromFile(file)
+      await saveNotificationSound(kind, payload)
+      invalidateNotificationSoundCache(kind)
+      setSoundFileNames((prev) => ({ ...prev, [kind]: payload.fileName }))
+      setSoundError(null)
+    } catch (err) {
+      setSoundError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const onClearNotificationSound = async (kind: NotificationSoundKind) => {
+    try {
+      await clearNotificationSound(kind)
+      invalidateNotificationSoundCache(kind)
+      setSoundFileNames((prev) => ({ ...prev, [kind]: null }))
+      setSoundError(null)
+    } catch (err) {
+      setSoundError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const previewNotificationSound = (kind: NotificationSoundKind) => {
+    void playNotificationSound(kind, { volume: settings.notificationSoundVolume })
+  }
 
   const startEditMemory = (m: LongMemoryItem) => {
     setEditingMemoryId(m.id)
@@ -135,6 +239,120 @@ export function GeneralOptionsPanel({
         </select>
         <p className="text-xs text-void-dim mt-1">
           Minimal, Matrix, and Light use calmer visuals (scanlines/particles off) with gentler contrast.
+        </p>
+      </div>
+
+      <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded space-y-3">
+        <p className="flex items-center gap-2 text-xs font-mono text-neon-green uppercase tracking-wider">
+          <span className="mr-1">♫</span>
+          CHAT_SOUNDS
+        </p>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-neon-green"
+            checked={settings.notificationSoundsEnabled}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, notificationSoundsEnabled: e.target.checked }))
+            }
+          />
+          <span>
+            <span className="text-xs font-mono text-neon-green uppercase tracking-wider">
+              ENABLE_CHAT_SOUNDS
+            </span>
+            <span className="mt-1 block text-xs text-void-dim">
+              Play your selected local audio when an assistant reply finishes or when a chat error occurs.
+            </span>
+          </span>
+        </label>
+
+        <div className="form-group !mb-0">
+          <label className="form-label">
+            VOLUME
+            <span className="ml-3 font-mono text-neon-green">
+              {Math.round(settings.notificationSoundVolume * 100)}%
+            </span>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            className="form-slider w-full"
+            value={settings.notificationSoundVolume}
+            onChange={(e) =>
+              setSettings((s) => ({
+                ...s,
+                notificationSoundVolume: Number(e.target.value) || 0,
+              }))
+            }
+          />
+        </div>
+
+        {(['reply', 'error'] as NotificationSoundKind[]).map((kind) => {
+          const name = soundFileNames[kind]
+          const accent = kind === 'reply' ? 'text-neon-cyan' : 'text-neon-red'
+          const inputRef = kind === 'reply' ? replyFileInputRef : errorFileInputRef
+          return (
+            <div key={kind} className="rounded border border-void-muted/30 bg-void-black/30 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-xs font-mono uppercase tracking-wider ${accent}`}>
+                  {kind === 'reply' ? '✓ ON_REPLY_DONE' : '✗ ON_CHAT_ERROR'}
+                </span>
+                {name && (
+                  <span className="text-[10px] font-mono text-void-dim truncate max-w-[55%]" title={name}>
+                    {name}
+                  </span>
+                )}
+              </div>
+              {!name && (
+                <p className="text-xs text-void-dim">
+                  No sound selected. Pick a local audio file (MP3 / WAV / OGG / M4A / FLAC).
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept={notificationSoundAcceptList()}
+                  className="hidden"
+                  onChange={(e) => void onPickNotificationSound(kind, e)}
+                />
+                <button
+                  type="button"
+                  className="cyber-btn text-xs"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  {name ? 'CHANGE' : 'PICK FILE'}
+                </button>
+                {name && (
+                  <button
+                    type="button"
+                    className="cyber-btn text-xs"
+                    onClick={() => previewNotificationSound(kind)}
+                  >
+                    ▶ PREVIEW
+                  </button>
+                )}
+                {name && (
+                  <button
+                    type="button"
+                    className="cyber-btn text-xs"
+                    onClick={() => void onClearNotificationSound(kind)}
+                  >
+                    CLEAR
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        {soundError && (
+          <p className="text-xs text-neon-red">{soundError}</p>
+        )}
+        <p className="text-[10px] text-void-dim">
+          Max {Math.round(MAX_NOTIFICATION_SOUND_BYTES / (1024 * 1024))} MB per file. Stored locally in IndexedDB on this device.
         </p>
       </div>
 
@@ -364,6 +582,44 @@ export function GeneralOptionsPanel({
           <ClockIcon className="h-4 w-4 shrink-0 text-neon-orange" aria-hidden />
           REMINDERS
         </p>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-neon-orange"
+            checked={settings.reminderNotificationsEnabled}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, reminderNotificationsEnabled: e.target.checked }))
+            }
+          />
+          <span>
+            <span className="text-xs font-mono text-neon-orange uppercase tracking-wider">
+              DESKTOP_NOTIFICATIONS
+            </span>
+            <span className="mt-1 block text-xs text-void-dim">
+              Show a Windows toast when a scheduled reminder is due (requires the app to be running).
+            </span>
+            {notifPermission !== 'granted' && (
+              <span className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-mono text-neon-yellow/90">
+                  {notifPermission === 'unsupported'
+                    ? 'Notifications not supported on this runtime.'
+                    : notifPermission === 'denied'
+                      ? 'Permission denied. Enable Voidcast notifications in Windows Settings → System → Notifications.'
+                      : 'Permission not granted yet.'}
+                </span>
+                {notifPermission !== 'unsupported' && notifPermission !== 'denied' && (
+                  <button
+                    type="button"
+                    className="cyber-btn text-xs"
+                    onClick={() => void requestNotificationPermission()}
+                  >
+                    REQUEST PERMISSION
+                  </button>
+                )}
+              </span>
+            )}
+          </span>
+        </label>
         <div className="space-y-2 max-h-56 overflow-y-auto">
           {reminders.length === 0 ? (
             <p className="text-xs text-void-dim">No reminders yet.</p>

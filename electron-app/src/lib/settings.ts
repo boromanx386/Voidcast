@@ -170,6 +170,12 @@ export type AppSettings = {
   runwareAutoSaveMusic: boolean
   /** If true, app should check updates automatically on startup (desktop). */
   autoUpdate: boolean
+  /** If true, the renderer fires a desktop notification when a scheduled reminder becomes due. */
+  reminderNotificationsEnabled: boolean
+  /** If true, play the user-selected reply/error sound files on chat events. */
+  notificationSoundsEnabled: boolean
+  /** Output volume (0–1) for chat notification sounds. */
+  notificationSoundVolume: number
 }
 
 export const AGENT_EDITABLE_SETTINGS_FIELDS = [
@@ -295,6 +301,9 @@ const defaults: AppSettings = {
   runwareMusicOutputDir: '',
   runwareAutoSaveMusic: false,
   autoUpdate: false,
+  reminderNotificationsEnabled: true,
+  notificationSoundsEnabled: true,
+  notificationSoundVolume: 0.8,
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -612,9 +621,25 @@ function normalizeRunware(s: AppSettings): AppSettings {
   }
 }
 
+function normalizeNotificationSounds(s: AppSettings): AppSettings {
+  const v = Number(s.notificationSoundVolume)
+  return {
+    ...s,
+    notificationSoundsEnabled:
+      typeof s.notificationSoundsEnabled === 'boolean'
+        ? s.notificationSoundsEnabled
+        : defaults.notificationSoundsEnabled,
+    notificationSoundVolume: Number.isFinite(v)
+      ? clamp(v, 0, 1)
+      : defaults.notificationSoundVolume,
+  }
+}
+
 function normalizeAll(s: AppSettings): AppSettings {
-  return normalizeRunware(
-    normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeLlm(s))))),
+  return normalizeNotificationSounds(
+    normalizeRunware(
+      normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeLlm(s))))),
+    ),
   )
 }
 

@@ -10,6 +10,8 @@ export interface Reminder {
   status: 'pending' | 'done' | 'cancelled'
   tags: string[]
   source: 'agent-tool' | 'manual'
+  /** Timestamp when the renderer last fired a desktop notification for this reminder. */
+  notifiedAt?: number
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -157,4 +159,31 @@ export async function searchRemindersByText(query: string): Promise<Reminder[]> 
   const q = query.toLowerCase().trim()
   if (!q) return []
   return all.filter((r) => r.text.toLowerCase().includes(q))
+}
+
+/**
+ * Return reminders that are scheduled, due (`when <= nowMs`), still pending, and
+ * have not been notified yet. Used by the renderer notification tick.
+ */
+export async function listDueUnnotifiedReminders(nowMs: number): Promise<Reminder[]> {
+  const pending = await listReminders({ status: 'pending' })
+  return pending.filter(
+    (r) => r.when != null && r.when <= nowMs && !r.notifiedAt,
+  )
+}
+
+export async function markReminderNotified(id: string, ts: number): Promise<void> {
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  const store = tx.objectStore(STORE)
+  const req = store.get(id)
+  const item: Reminder | undefined = await new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result as Reminder | undefined)
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB get failed'))
+  })
+  if (item) {
+    item.notifiedAt = ts
+    store.put(item)
+  }
+  await txDone(tx)
 }

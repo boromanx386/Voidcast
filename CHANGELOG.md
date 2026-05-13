@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **Drag-and-drop chat attachments**: drop images (PNG / JPEG / WebP / GIF / BMP / AVIF / TIFF / ICO / HEIC / SVG) and supported files (TXT, MD, PDF, DOCX, CSV, JSON, JS, TS, PY, JAVA, CS, HTML, CSS) directly onto the chat screen. Reuses the same limits as the file picker (4 MB / image, max 4 images per message; max 8 files). Drop overlay with hint, gated while a turn is busy or a message is being edited, and a global `dragover`/`drop` guard so a missed drop never navigates the renderer.
+- **Reminder desktop notifications**: scheduled reminders fire a native Windows toast (browser `Notification` API forwarded by Electron) when due. New `Reminder.notifiedAt` field plus `listDueUnnotifiedReminders` / `markReminderNotified` helpers in `reminderStorage.ts`. Renderer ticks every 30 s, deduplicates by `tag = reminder.id`, persists `notifiedAt` so it never refires after a refresh. Clicking the toast focuses the window and opens **Options → General**. New `settings.reminderNotificationsEnabled` (default `true`). General panel exposes the toggle plus a `REQUEST PERMISSION` button when the OS state is `default`, with a help line pointing to Windows Settings when permission is `denied`.
+- **Chat notification sounds**: choose local audio files for two events — assistant reply done (`ON_REPLY_DONE`) and chat error (`ON_CHAT_ERROR`). New `lib/notificationSoundStorage.ts` (IndexedDB `voidcast-notification-sounds-v1` keyed by kind, stores `{ blob, fileName, mime }`) and `lib/notificationSounds.ts` (blob-URL cache, `playNotificationSound(kind, { volume })`, `looksLikeAudioFile`, accept list). Settings `notificationSoundsEnabled` (default `true`) and `notificationSoundVolume` (0–1, default `0.8`, clamped in normalizer). `CHAT_SOUNDS` section in General options (placed directly under `INTERFACE_THEME`): master toggle, volume slider, two slots with **PICK FILE / CHANGE**, **▶ PREVIEW**, **CLEAR**, error banner, 2 MB cap, accepted formats MP3 / WAV / OGG / M4A / AAC / FLAC / WebM. The reply sound is suppressed when **Auto-voice** is on and the TTS server is reachable so it does not collide with the spoken reply.
+
 ## [2.5.0] — 2026-05-12
 
 ### Added
