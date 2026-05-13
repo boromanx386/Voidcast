@@ -771,6 +771,8 @@ export default function App() {
   const ttsAudioCacheOrderRef = useRef<string[]>([])
   const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
   const listEndRef = useRef<HTMLDivElement | null>(null)
+  const chatMessagesRef = useRef<HTMLElement | null>(null)
+  const savedChatScrollRef = useRef(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const chatAttachmentInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -1055,6 +1057,17 @@ export default function App() {
   useEffect(() => {
     if (screen === 'options' && optionsTab === 'llm') void loadModels()
   }, [screen, optionsTab, loadModels])
+
+  // Save/restore chat scroll when switching between chat ↔ options
+  useLayoutEffect(() => {
+    if (screen === 'chat') {
+      if (chatMessagesRef.current) {
+        chatMessagesRef.current.scrollTop = savedChatScrollRef.current
+      }
+    } else if (screen === 'options') {
+      savedChatScrollRef.current = chatMessagesRef.current?.scrollTop || 0
+    }
+  }, [screen])
 
   // Auto-scroll to bottom only when a new message is added (not during streaming)
   useEffect(() => {
@@ -2906,7 +2919,7 @@ export default function App() {
       )}
 
       {/* Chat Messages */}
-      <main className="voidcast-messages min-h-0 flex-1 overflow-y-auto">
+      <main ref={chatMessagesRef} className="voidcast-messages min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl flex flex-col gap-4">
           {/* Empty State */}
           {messages.length === 0 && (
