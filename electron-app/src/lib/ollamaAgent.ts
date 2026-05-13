@@ -42,7 +42,7 @@ import type {
   OllamaModelOptions,
   OllamaToolCall,
 } from '@/lib/ollama'
-import { mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
+import { fetchOllamaWithRetry, mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 
@@ -866,6 +866,8 @@ export async function executeToolCall(
           : ''
     if (!prompt) return 'Error: missing prompt parameter for generate_music_runware.'
     try {
+      // Audio engine tuning (steps, cfg_scale, output_format, seed, guidance_type) is intentionally
+      // sourced from settings only; any values the model attempts to send in tool args are ignored.
       return await invokeRunwareGenerateMusic(
         {
           prompt,
@@ -882,38 +884,12 @@ export async function executeToolCall(
               : typeof args.durationSec === 'number'
                 ? args.durationSec
                 : undefined,
-          steps: typeof args.steps === 'number' ? args.steps : undefined,
-          cfgScale:
-            typeof args.cfg_scale === 'number'
-              ? args.cfg_scale
-              : typeof args.cfgScale === 'number'
-                ? args.cfgScale
-                : undefined,
-          outputFormat:
-            args.output_format === 'MP3' ||
-            args.output_format === 'WAV' ||
-            args.output_format === 'FLAC' ||
-            args.output_format === 'OGG'
-              ? args.output_format
-              : args.outputFormat === 'MP3' ||
-                  args.outputFormat === 'WAV' ||
-                  args.outputFormat === 'FLAC' ||
-                  args.outputFormat === 'OGG'
-                ? args.outputFormat
-                : undefined,
-          seed: typeof args.seed === 'number' ? args.seed : undefined,
           bpm: typeof args.bpm === 'number' ? args.bpm : undefined,
           keyScale:
             typeof args.key_scale === 'string'
               ? args.key_scale
               : typeof args.keyScale === 'string'
                 ? args.keyScale
-                : undefined,
-          guidanceType:
-            args.guidance_type === 'apg' || args.guidance_type === 'cfg'
-              ? args.guidance_type
-              : args.guidanceType === 'apg' || args.guidanceType === 'cfg'
-                ? args.guidanceType
                 : undefined,
           vocalLanguage:
             typeof args.vocal_language === 'string'
@@ -1377,12 +1353,16 @@ export async function streamOllamaChatOnce(options: {
   }
   if (options.think) body.think = true
 
-  const res = await fetch(`${root}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: options.signal,
-    body: JSON.stringify(body),
-  })
+  const res = await fetchOllamaWithRetry(
+    `${root}/api/chat`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: options.signal,
+      body: JSON.stringify(body),
+    },
+    options.signal,
+  )
   if (!res.ok) {
     const errText = await res.text().catch(() => '')
     throw new Error(`Ollama /api/chat ${res.status}: ${errText || res.statusText}`)

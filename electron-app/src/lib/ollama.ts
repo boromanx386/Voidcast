@@ -36,9 +36,91 @@ export type OllamaModelTag = {
   modified_at?: string
 }
 
+/** HTTP statuses we consider transient (worth retrying once or twice). */
+const OLLAMA_RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
+const OLLAMA_MAX_RETRIES = 4
+
+function parseRetryAfterSeconds(value: string | null | undefined): number | undefined {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const asNumber = Number(trimmed)
+  if (Number.isFinite(asNumber) && asNumber >= 0) return asNumber
+  const asDate = Date.parse(trimmed)
+  if (!Number.isFinite(asDate)) return undefined
+  const diffMs = asDate - Date.now()
+  return diffMs > 0 ? diffMs / 1000 : 0
+}
+
+function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timer)
+        reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+        return
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
+  })
+}
+
+/**
+ * Fetch with retry for transient Ollama failures (503 overloaded, 429, 502, 504).
+ * Honors `Retry-After` header when present, otherwise uses exponential backoff
+ * with small jitter. Returns the final Response (caller checks `res.ok`).
+ *
+ * Exported so the agent tool loop (`streamOllamaChatOnce`) and other paths can
+ * reuse the same retry policy across rounds — a 503 in round 1, round 2 after
+ * a tool call, etc. all benefit from the same backoff.
+ */
+export async function fetchOllamaWithRetry(
+  url: string,
+  init: RequestInit,
+  signal?: AbortSignal,
+): Promise<Response> {
+  let lastErr: unknown
+  for (let attempt = 0; attempt < OLLAMA_MAX_RETRIES; attempt += 1) {
+    if (signal?.aborted) {
+      throw Object.assign(new Error('Aborted'), { name: 'AbortError' })
+    }
+    try {
+      const res = await fetch(url, init)
+      if (res.ok || !OLLAMA_RETRYABLE_STATUS.has(res.status)) return res
+      if (attempt >= OLLAMA_MAX_RETRIES - 1) return res
+      const retryAfter = parseRetryAfterSeconds(res.headers.get('retry-after'))
+      const backoffSec = retryAfter ?? 2 ** attempt
+      const jitterMs = Math.floor(Math.random() * 250)
+      await res.body?.cancel().catch(() => undefined)
+      await sleepWithAbort(backoffSec * 1000 + jitterMs, signal)
+      continue
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError') throw e
+      lastErr = e
+      if (attempt >= OLLAMA_MAX_RETRIES - 1) throw e
+      const backoffSec = 2 ** attempt
+      const jitterMs = Math.floor(Math.random() * 250)
+      await sleepWithAbort(backoffSec * 1000 + jitterMs, signal)
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error('Ollama request failed after retries')
+}
+
 export async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   const root = normalizeBaseUrl(baseUrl)
-  const res = await fetch(`${root}/api/tags`)
+  const res = await fetchOllamaWithRetry(`${root}/api/tags`, {})
   if (!res.ok) {
     const errBody = await res.text().catch(() => '')
     throw new Error(
@@ -167,12 +249,16 @@ export async function streamOllamaChat(
   if (options.tools !== undefined) body.tools = options.tools
   if (options.think) body.think = true
 
-  const res = await fetch(`${root}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: options.signal,
-    body: JSON.stringify(body),
-  })
+  const res = await fetchOllamaWithRetry(
+    `${root}/api/chat`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: options.signal,
+      body: JSON.stringify(body),
+    },
+    options.signal,
+  )
   if (!res.ok) {
     const errText = await res.text().catch(() => '')
     throw new Error(`Ollama /api/chat ${res.status}: ${errText || res.statusText}`)

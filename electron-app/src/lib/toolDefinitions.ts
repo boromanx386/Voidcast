@@ -74,7 +74,7 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
   function: {
     name: 'save_pdf',
     description:
-      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images from a prior generate_image/edit_image_runware tool call in this same conversation, pass their public CDN URL(s) in image_urls — the server fetches them on your behalf. PNG/JPEG/WebP supported; embedded images appear after the body text.',
+      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images from a prior generate_image/edit_image_runware tool call in this same conversation, pass their public CDN URL(s) in image_urls — the server fetches them on your behalf. PNG/JPEG/WebP supported. Image placement: by default any image not referenced inline appears after the body text in order. To place an image at a specific spot inside the body, put a standalone markdown image line `![alt](attached:N)` (for the N-th attached image, 0-based) or `![alt](url:N)` (for the N-th image_urls entry, 0-based) on its own line — that exact position in the PDF will receive the image.',
     parameters: {
       type: 'object',
       properties: {
@@ -330,7 +330,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'generate_music_runware',
     description:
-      'MANDATORY: Generate music/audio with Runware ACE-Step v1.5 Turbo from a text prompt. CRITICAL: When the user asks to create/make/generate a song, beat, background music, jingle, soundtrack, or vocals, you MUST call this tool BEFORE responding with any text. Do NOT describe what music you would create - actually call the tool. Do NOT say "Here is the music" or "I created the song" without calling this tool first. Never claim music was generated unless this tool returned a real result with audio_url; if generation fails, report the tool error.',
+      'MANDATORY: Generate music/audio with the Runware ACE-Step music model from a text prompt. CRITICAL: When the user asks to create/make/generate a song, beat, background music, jingle, soundtrack, or vocals, you MUST call this tool BEFORE responding with any text. Do NOT describe what music you would create - actually call the tool. Do NOT say "Here is the music" or "I created the song" without calling this tool first. Never claim music was generated unless this tool returned a real result with audio_url; if generation fails, report the tool error. Audio engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) are controlled by the user in Options - never include them as arguments here.',
     parameters: {
       type: 'object',
       properties: {
@@ -348,23 +348,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
         },
         duration_sec: {
           type: 'number',
-          description: 'Optional duration in seconds (6-300).',
-        },
-        steps: {
-          type: 'number',
-          description: 'Optional number of denoising steps (1-20).',
-        },
-        cfg_scale: {
-          type: 'number',
-          description: 'Optional guidance scale (1-30).',
-        },
-        output_format: {
-          type: 'string',
-          description: 'Optional output format: MP3, WAV, FLAC, or OGG.',
-        },
-        seed: {
-          type: 'number',
-          description: 'Optional fixed seed for reproducible generation.',
+          description: 'Optional duration in seconds (6-300). Only set when the user explicitly asks for a specific length.',
         },
         bpm: {
           type: 'number',
@@ -373,10 +357,6 @@ const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
         key_scale: {
           type: 'string',
           description: 'Optional musical key and scale (for example: "C major", "F# minor").',
-        },
-        guidance_type: {
-          type: 'string',
-          description: 'Optional guidance type: apg or cfg.',
         },
         vocal_language: {
           type: 'string',

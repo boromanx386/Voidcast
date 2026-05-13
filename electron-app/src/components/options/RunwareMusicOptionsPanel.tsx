@@ -1,4 +1,10 @@
-import type { AppSettings } from '@/lib/settings'
+import type { AppSettings, RunwareMusicModelProfile } from '@/lib/settings'
+import {
+  RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID,
+  RUNWARE_CONFIGURED_MUSIC_MODELS,
+  getRunwareMusicProfileForModel,
+  maxStepsForMusicModelId,
+} from '@/lib/settings'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react'
 
@@ -28,15 +34,78 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
     }
   }, [setSettings])
 
+  const activeModelId = settings.runwareMusicModel || RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID
+  const activeProfile = getRunwareMusicProfileForModel(settings, activeModelId)
+  const activeLabel =
+    RUNWARE_CONFIGURED_MUSIC_MODELS.find((m) => m.id === activeModelId)?.label ?? activeModelId
+  const stepsMax = maxStepsForMusicModelId(activeModelId)
+
+  const updateActiveProfile = useCallback(
+    (patch: Partial<RunwareMusicModelProfile>) => {
+      setSettings((s) => {
+        const current = getRunwareMusicProfileForModel(s, activeModelId)
+        const next: RunwareMusicModelProfile = { ...current, ...patch }
+        return {
+          ...s,
+          runwareMusicModelProfiles: {
+            ...s.runwareMusicModelProfiles,
+            [activeModelId]: next,
+          },
+          runwareMusicOutputFormat: next.outputFormat,
+          runwareMusicDurationSec: next.durationSec,
+          runwareMusicSteps: next.steps,
+          runwareMusicCfgScale: next.cfgScale,
+          runwareMusicSeed: next.seed,
+        }
+      })
+    },
+    [setSettings, activeModelId],
+  )
+
   return (
     <div className="grid gap-5 text-sm">
       <div className="border-b border-void-muted/30 pb-3">
         <p className="text-xs font-mono text-void-dim">
           <span className="text-neon-green mr-2">♫</span>
-          Fixed model:{' '}
-          <code className="text-neon-green">ACE-Step v1.5 Turbo</code>{' '}
-          (<code className="text-void-light">runware:ace-step@v1.5-turbo</code>).
+          Active model:{' '}
+          <code className="text-neon-green">{activeLabel}</code>{' '}
+          (<code className="text-void-light">{activeModelId}</code>).
           Uses shared Runware API URL/key from the Runware image tab.
+        </p>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-green mr-2">▸</span>MUSIC_MODEL
+        </label>
+        <select
+          className="form-select"
+          value={activeModelId}
+          onChange={(e) => {
+            const nextId = e.target.value
+            setSettings((s) => {
+              const profile = getRunwareMusicProfileForModel(s, nextId)
+              return {
+                ...s,
+                runwareMusicModel: nextId,
+                runwareMusicOutputFormat: profile.outputFormat,
+                runwareMusicDurationSec: profile.durationSec,
+                runwareMusicSteps: profile.steps,
+                runwareMusicCfgScale: profile.cfgScale,
+                runwareMusicSeed: profile.seed,
+              }
+            })
+          }}
+        >
+          {RUNWARE_CONFIGURED_MUSIC_MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-void-dim mt-2">
+          Each model variant has its own steps/CFG/duration/output-format/seed preset.
+          Switching between variants restores its saved values.
         </p>
       </div>
 
@@ -123,18 +192,13 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
           <label className="form-label">OUTPUT_FORMAT</label>
           <select
             className="form-select"
-            value={settings.runwareMusicOutputFormat}
-            onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareMusicOutputFormat:
-                  e.target.value === 'WAV' ||
-                  e.target.value === 'FLAC' ||
-                  e.target.value === 'OGG'
-                    ? e.target.value
-                    : 'MP3',
-              }))
-            }
+            value={activeProfile.outputFormat}
+            onChange={(e) => {
+              const v = e.target.value
+              const next: 'MP3' | 'WAV' | 'FLAC' | 'OGG' =
+                v === 'WAV' || v === 'FLAC' || v === 'OGG' ? v : 'MP3'
+              updateActiveProfile({ outputFormat: next })
+            }}
           >
             <option value="MP3">MP3</option>
             <option value="WAV">WAV</option>
@@ -150,12 +214,11 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
             max={300}
             step={0.1}
             className="cyber-input"
-            value={settings.runwareMusicDurationSec}
+            value={activeProfile.durationSec}
             onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareMusicDurationSec: clamp(Number(e.target.value) || 60, 6, 300),
-              }))
+              updateActiveProfile({
+                durationSec: clamp(Number(e.target.value) || 60, 6, 300),
+              })
             }
           />
         </div>
@@ -163,19 +226,18 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="form-group">
-          <label className="form-label">STEPS</label>
+          <label className="form-label">STEPS (max {stepsMax})</label>
           <input
             type="number"
             min={1}
-            max={20}
+            max={stepsMax}
             step={1}
             className="cyber-input"
-            value={settings.runwareMusicSteps}
+            value={activeProfile.steps}
             onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareMusicSteps: clamp(Math.round(Number(e.target.value)) || 10, 1, 20),
-              }))
+              updateActiveProfile({
+                steps: clamp(Math.round(Number(e.target.value)) || 1, 1, stepsMax),
+              })
             }
           />
         </div>
@@ -187,12 +249,11 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
             max={30}
             step={0.01}
             className="cyber-input"
-            value={settings.runwareMusicCfgScale}
+            value={activeProfile.cfgScale}
             onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                runwareMusicCfgScale: clamp(Number(e.target.value) || 10, 1, 30),
-              }))
+              updateActiveProfile({
+                cfgScale: clamp(Number(e.target.value) || 10, 1, 30),
+              })
             }
           />
         </div>
@@ -202,12 +263,11 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
         <input
           type="checkbox"
           className="mt-1 h-4 w-4 accent-neon-cyan"
-          checked={settings.runwareMusicSeed != null}
+          checked={activeProfile.seed != null}
           onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              runwareMusicSeed: e.target.checked ? (s.runwareMusicSeed ?? 1337) : null,
-            }))
+            updateActiveProfile({
+              seed: e.target.checked ? (activeProfile.seed ?? 1337) : null,
+            })
           }
         />
         <span className="flex-1">
@@ -218,19 +278,18 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
           <span className="mt-1 block text-xs text-void-dim">
             Keep the same random seed for reproducible results.
           </span>
-          {settings.runwareMusicSeed != null ? (
+          {activeProfile.seed != null ? (
             <input
               type="number"
               min={0}
               max={2147483647}
               step={1}
               className="cyber-input mt-3"
-              value={settings.runwareMusicSeed}
+              value={activeProfile.seed}
               onChange={(e) =>
-                setSettings((s) => ({
-                  ...s,
-                  runwareMusicSeed: clamp(Math.round(Number(e.target.value)) || 0, 0, 2147483647),
-                }))
+                updateActiveProfile({
+                  seed: clamp(Math.round(Number(e.target.value)) || 0, 0, 2147483647),
+                })
               }
             />
           ) : null}

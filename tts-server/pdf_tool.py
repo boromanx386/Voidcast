@@ -166,13 +166,37 @@ _EMOJI_RE = re.compile(
 )
 
 
+# Single-asterisk emphasis (`*italic*`). No italic font is bundled, so we strip
+# the markers (preserves readability) while still letting `**bold**` survive
+# for the rich renderer downstream.
+#
+# Guards:
+#   - Negative lookbehind/lookahead on `\w` and `*` so that `5*4` and `**bold**`
+#     are NOT touched.
+#   - The match cannot span newlines, so a stray `*` won't eat half a paragraph.
+#   - Underscore italics are intentionally NOT supported: too many real-world
+#     collisions with `snake_case` and Python dunders like `__name__`.
+_ITALIC_STAR_RE = re.compile(r"(?<![\w\*])\*(\S(?:[^\*\n]*?\S)?)\*(?![\w\*])")
+
+
+def _strip_italic_markers(text: str) -> str:
+    """Remove `*x*` italic markers while keeping `**bold**` intact."""
+
+    sentinel = "\x02BOLD\x02"
+    s = text.replace("**", sentinel)
+    s = _ITALIC_STAR_RE.sub(r"\1", s)
+    return s.replace(sentinel, "**")
+
+
 def _normalize_for_pdf(text: str) -> str:
     t = text.replace("\r\n", "\n").replace("\r", "\n")
     for src, dst in _REPLACEMENTS.items():
         t = t.replace(src, dst)
     for ch in _DASH_LIKE:
         t = t.replace(ch, "-")
-    return _EMOJI_RE.sub("", t)
+    t = _EMOJI_RE.sub("", t)
+    t = _strip_italic_markers(t)
+    return t
 
 
 # ----------------------- Markdown-lite parsing -----------------------
@@ -367,6 +391,13 @@ class _Ctx:
         self.c = c
         self.y: float = PAGE_H - MARGIN_T
         self.colors = _palette()
+        # Image pools and "used inline" tracking for trailing render.
+        self.attached_pool: list[dict[str, Any]] = []
+        self.url_pool: list[dict[str, Any]] = []
+        self.used_attached: set[int] = set()
+        self.used_url: set[int] = set()
+        self.drawn_images: int = 0
+        self.skipped_images: int = 0
 
     def ensure_space(self, need: float) -> None:
         if self.y - need >= MARGIN_B:
@@ -511,11 +542,15 @@ def _draw_table(ctx: _Ctx, rows: list[list[str]]) -> None:
 
     for ri, row in enumerate(rows):
         is_header = ri == 0
-        cell_lines: list[list[str]] = []
+        cell_lines: list[list[list[tuple[str, bool]]]] = []
         for ci, cell in enumerate(row):
             text = cell.replace("|", " ")
             inner_w = max(20.0, (col_widths[ci] if ci < len(col_widths) else 0) - pad * 2)
-            cell_lines.append(_wrap_plain_paragraph(text, inner_w, cell_size, False))
+            rich = _wrap_rich_paragraph(text, inner_w, cell_size)
+            if is_header:
+                # Header cells render fully bold regardless of inline markers.
+                rich = [[(t, True) for t, _ in parts] for parts in rich]
+            cell_lines.append(rich if rich else [[("", False)]])
 
         rows_max = max((len(cl) for cl in cell_lines), default=1)
         row_height = rows_max * lh + pad * 2
@@ -523,9 +558,10 @@ def _draw_table(ctx: _Ctx, rows: list[list[str]]) -> None:
         ctx.ensure_space(row_height + 2)
 
         x = MARGIN_L
+        cell_color = title_col if is_header else body_col
         for ci in range(ncols):
             cw = col_widths[ci] if ci < len(col_widths) else 0
-            lines = cell_lines[ci] if ci < len(cell_lines) else [""]
+            lines = cell_lines[ci] if ci < len(cell_lines) else [[("", False)]]
             if is_header:
                 ctx.c.setFillColor(head_bg)
                 ctx.c.rect(
@@ -547,15 +583,14 @@ def _draw_table(ctx: _Ctx, rows: list[list[str]]) -> None:
                 fill=0,
             )
             ly = ctx.y - pad - cell_size
-            for line in lines:
-                _draw_text_run(
+            for line_parts in lines:
+                _draw_rich_line(
                     ctx.c,
-                    line,
+                    line_parts,
                     x + pad,
                     ly,
                     cell_size,
-                    is_header,
-                    title_col if is_header else body_col,
+                    cell_color,
                 )
                 ly -= lh
             x += cw
@@ -565,6 +600,9 @@ def _draw_table(ctx: _Ctx, rows: list[list[str]]) -> None:
 def _classify_and_render_block(ctx: _Ctx, raw_block: str) -> None:
     block = raw_block.strip()
     if not block:
+        return
+
+    if _try_render_inline_image_block(ctx, block):
         return
 
     if _is_ascii_rule(block):
@@ -661,39 +699,184 @@ def _scale_image_to_layout(iw: float, ih: float) -> tuple[float, float]:
     return w, h
 
 
-def _draw_embedded_images(
-    ctx: _Ctx,
-    sources: list[dict[str, Any]],
-) -> tuple[int, int]:
-    drawn = 0
-    skipped = 0
-    for src in sources:
-        try:
-            reader = ImageReader(BytesIO(src["bytes"]))
-            iw, ih = reader.getSize()
-        except Exception:
-            skipped += 1
-            continue
-        w, h = _scale_image_to_layout(iw, ih)
-        ctx.ensure_space(h + 20)
-        ctx.y -= 10
-        ctx.y -= h
-        try:
-            ctx.c.drawImage(
-                reader,
-                MARGIN_L,
-                ctx.y,
-                width=w,
-                height=h,
-                preserveAspectRatio=True,
-                anchor="nw",
-                mask="auto",
-            )
-            drawn += 1
-        except Exception:
-            skipped += 1
+def _draw_one_image(ctx: _Ctx, src: dict[str, Any]) -> bool:
+    """Draw a single image at the current cursor; updates ctx counters.
+
+    Returns True on success, False if the image was unreadable or rejected.
+    """
+    try:
+        reader = ImageReader(BytesIO(src["bytes"]))
+        iw, ih = reader.getSize()
+    except Exception:
+        ctx.skipped_images += 1
+        return False
+    w, h = _scale_image_to_layout(iw, ih)
+    ctx.ensure_space(h + 20)
+    ctx.y -= 10
+    ctx.y -= h
+    try:
+        ctx.c.drawImage(
+            reader,
+            MARGIN_L,
+            ctx.y,
+            width=w,
+            height=h,
+            preserveAspectRatio=True,
+            anchor="nw",
+            mask="auto",
+        )
+        ctx.drawn_images += 1
         ctx.y -= 12
-    return drawn, skipped
+        return True
+    except Exception:
+        ctx.skipped_images += 1
+        ctx.y -= 12
+        return False
+
+
+# Sentinel used to mark "render inline image here" inside the Markdown stream.
+# The 0x01 byte cannot legally appear in JSON-decoded user content, so this is
+# safe to use as a unique paragraph token after `_preprocess_inline_images`.
+_IMG_SENTINEL_PREFIX = "\x01<<VC_IMG:"
+_IMG_SENTINEL_SUFFIX = ">>\x01"
+
+# Standalone `![alt](attached:N)` / `![alt](url:N)` on its own line.
+_INLINE_IMAGE_LINE_RE = re.compile(
+    r"^\s*!\[[^\]]*\]\(\s*(attached|url)\s*:\s*(\d+)\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _norm_heading_text(s: str) -> str:
+    """Aggressive normalization for comparing heading text against the title.
+
+    Folds whitespace, lowercases, drops trailing punctuation, and removes
+    common decorative chars so that small wording drift between title and
+    first heading doesn't defeat the duplicate-detection.
+    """
+    t = s.lower().strip()
+    # Drop trailing punctuation we don't care about (`.`, `:`, `…`, etc.).
+    t = re.sub(r"[\.\:\;\!\?\u2026]+\s*$", "", t)
+    # Strip backticks/quotes around the line.
+    t = re.sub(r"[`\"\u2018\u2019\u201C\u201D]", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _titles_overlap(heading: str, title: str) -> bool:
+    """Return True when `heading` is effectively the same as `title`.
+
+    Considers exact match, and prefix match in either direction when both
+    sides are long enough (≥ 12 normalized chars). The prefix rule handles
+    cases like title="X (maj 2026)" vs heading="X" that LLMs commonly emit.
+    """
+    a = _norm_heading_text(heading)
+    b = _norm_heading_text(title)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    if len(a) < 12 or len(b) < 12:
+        return False
+    return a.startswith(b) or b.startswith(a)
+
+
+def _strip_duplicate_first_heading(body: str, title: str) -> str:
+    """Drop a leading `# Heading` line that mirrors the document title.
+
+    Operates on the already-normalized body so it sees the same characters
+    the title block was rendered with. Only the first non-empty line is
+    considered — and only when it's a Markdown heading.
+    """
+    if not body or not title:
+        return body
+    lines = body.split("\n")
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i >= len(lines):
+        return body
+    first = lines[i].lstrip()
+    if not first.startswith("#"):
+        return body
+    heading_text = re.sub(r"^#+\s*", "", first).strip()
+    if not _titles_overlap(heading_text, title):
+        return body
+    # Remove the heading line and any blank lines immediately following it so
+    # the next block lifts up cleanly.
+    del lines[i]
+    while i < len(lines) and not lines[i].strip():
+        del lines[i]
+    return "\n".join(lines)
+
+
+def _preprocess_inline_images(body: str) -> str:
+    """Convert standalone markdown image lines into sentinel paragraphs.
+
+    Recognizes lines of the form `![alt](attached:N)` or `![alt](url:N)` where
+    `N` is a 0-based index into the attached images / `image_urls` payload.
+    The transformed block is wrapped in blank lines so the existing block
+    splitter isolates it as its own block, allowing inline placement.
+    """
+
+    if not body:
+        return body
+    out: list[str] = []
+    for raw in body.split("\n"):
+        m = _INLINE_IMAGE_LINE_RE.match(raw)
+        if not m:
+            out.append(raw)
+            continue
+        kind = m.group(1).lower()
+        idx = m.group(2)
+        sentinel = f"{_IMG_SENTINEL_PREFIX}{kind}:{idx}{_IMG_SENTINEL_SUFFIX}"
+        if out and out[-1].strip() != "":
+            out.append("")
+        out.append(sentinel)
+        out.append("")
+    return "\n".join(out)
+
+
+def _try_render_inline_image_block(ctx: _Ctx, block: str) -> bool:
+    """If `block` is a single image sentinel, draw the referenced image.
+
+    Returns True when the block was consumed as an inline image (whether or
+    not the image was actually drawable); the caller should then skip normal
+    block classification for it.
+    """
+
+    s = block.strip()
+    if not (s.startswith(_IMG_SENTINEL_PREFIX) and s.endswith(_IMG_SENTINEL_SUFFIX)):
+        return False
+    inner = s[len(_IMG_SENTINEL_PREFIX) : -len(_IMG_SENTINEL_SUFFIX)]
+    kind, _sep, idx_str = inner.partition(":")
+    try:
+        idx = int(idx_str)
+    except ValueError:
+        return True
+    if kind == "attached":
+        if 0 <= idx < len(ctx.attached_pool):
+            _draw_one_image(ctx, ctx.attached_pool[idx])
+            ctx.used_attached.add(idx)
+    elif kind == "url":
+        if 0 <= idx < len(ctx.url_pool):
+            _draw_one_image(ctx, ctx.url_pool[idx])
+            ctx.used_url.add(idx)
+    # Unknown/out-of-range references are silently dropped to keep the body
+    # render readable even when the agent passes a bad index.
+    return True
+
+
+def _draw_trailing_images(ctx: _Ctx) -> None:
+    """Draw any pool images that were not placed inline via sentinels."""
+    for i, item in enumerate(ctx.attached_pool):
+        if i in ctx.used_attached:
+            continue
+        _draw_one_image(ctx, item)
+    for i, item in enumerate(ctx.url_pool):
+        if i in ctx.used_url:
+            continue
+        _draw_one_image(ctx, item)
 
 
 # ----------------------- File naming helpers -----------------------
@@ -942,7 +1125,8 @@ def _build_pdf_to_path(
     out_path: Path,
     title: str,
     body: str,
-    images: list[dict[str, Any]] | None,
+    attached_images: list[dict[str, Any]] | None,
+    url_images: list[dict[str, Any]] | None,
 ) -> tuple[int, int]:
     _register_fonts()
     c = canvas.Canvas(str(out_path), pagesize=(PAGE_W, PAGE_H))
@@ -950,23 +1134,25 @@ def _build_pdf_to_path(
     c.setCreator("Voidcast save_pdf")
 
     ctx = _Ctx(c)
+    ctx.attached_pool = list(attached_images or [])
+    ctx.url_pool = list(url_images or [])
 
     title_text = title.strip()
     if title_text:
         _draw_title_block(ctx, title_text)
 
     body_norm = _normalize_for_pdf(body)
+    body_norm = _strip_duplicate_first_heading(body_norm, title_text)
+    body_norm = _preprocess_inline_images(body_norm)
     blocks = [b.strip() for b in re.split(r"\n\n+", body_norm) if b.strip()]
     for block in blocks:
         _classify_and_render_block(ctx, block)
 
-    drawn = 0
-    skipped = 0
-    if images:
-        drawn, skipped = _draw_embedded_images(ctx, images)
+    if ctx.attached_pool or ctx.url_pool:
+        _draw_trailing_images(ctx)
 
     c.save()
-    return drawn, skipped
+    return ctx.drawn_images, ctx.skipped_images
 
 
 def save_pdf_to_folder(
@@ -1031,10 +1217,14 @@ def save_pdf_to_folder(
             for msg in url_errors:
                 logger.info("save_pdf url skipped: %s", msg)
 
-    all_images = (decoded + url_decoded) or None
-
     try:
-        drawn, skipped = _build_pdf_to_path(out_path, title_text, raw, all_images)
+        drawn, skipped = _build_pdf_to_path(
+            out_path,
+            title_text,
+            raw,
+            decoded or None,
+            url_decoded or None,
+        )
     except Exception as e:  # noqa: BLE001 - any rendering failure
         # Best-effort: clean up zero-byte file from a failed save.
         try:

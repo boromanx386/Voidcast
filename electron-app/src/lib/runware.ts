@@ -30,6 +30,8 @@ export type RunwareImageConfig = {
   negativePrompt?: string
   /** Optional defaults for Runware music generation (ACE-Step). */
   musicDefaults?: {
+    /** Active ACE-Step variant model id (turbo or base). */
+    model?: string
     outputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
     durationSec: number
     steps: number
@@ -104,6 +106,27 @@ export type RunwareModelOption = {
 
 const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
 export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo'
+export const RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID = 'runware:ace-step@v1.5-base'
+
+export const RUNWARE_ACE_STEP_MUSIC_MODEL_IDS = [
+  RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID,
+  RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID,
+] as const
+
+export type RunwareMusicModelId = (typeof RUNWARE_ACE_STEP_MUSIC_MODEL_IDS)[number]
+
+const RUNWARE_ACE_STEP_MUSIC_MODEL_SET = new Set<string>(
+  RUNWARE_ACE_STEP_MUSIC_MODEL_IDS.map((x) => x.toLowerCase()),
+)
+
+export function isRunwareMusicModelId(modelId: string): boolean {
+  return RUNWARE_ACE_STEP_MUSIC_MODEL_SET.has(modelId.trim().toLowerCase())
+}
+
+/** Max inference steps per ACE-Step music variant (turbo is capped much lower). */
+export function maxStepsForMusicModel(modelId: string): number {
+  return modelId === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID ? 300 : 20
+}
 
 export const RUNWARE_ALLOWED_EDIT_MODEL_IDS = [
   RUNWARE_FLUX_9B_MODEL_ID,
@@ -959,8 +982,12 @@ export async function invokeRunwareGenerateMusic(
   if (!apiKey) throw new Error('Runware API key is not set. Configure it in Options -> Runware.')
 
   const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')
-  const model = RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID
   const defaults = config.musicDefaults
+  const requestedModel = (defaults?.model || '').trim()
+  const model = isRunwareMusicModelId(requestedModel)
+    ? requestedModel
+    : RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID
+  const stepsMax = maxStepsForMusicModel(model)
   const outputFormat = normalizeRunwareAudioOutputFormat(req.outputFormat ?? defaults?.outputFormat)
   const durationSec = clamp(
     asFiniteNumber(req.durationSec) ?? defaults?.durationSec ?? 60,
@@ -968,9 +995,9 @@ export async function invokeRunwareGenerateMusic(
     300,
   )
   const steps = clamp(
-    Math.round(asFiniteNumber(req.steps) ?? defaults?.steps ?? 10),
+    Math.round(asFiniteNumber(req.steps) ?? defaults?.steps ?? (model === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID ? 100 : 10)),
     1,
-    20,
+    stepsMax,
   )
   const cfgScale = clamp(
     asFiniteNumber(req.cfgScale) ?? defaults?.cfgScale ?? 10,

@@ -16,6 +16,15 @@ export type RunwareModelProfile = {
   gptQuality?: 'auto' | 'low' | 'medium' | 'high'
 }
 
+/** Per-variant defaults for the ACE-Step music model family. */
+export type RunwareMusicModelProfile = {
+  outputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
+  durationSec: number
+  steps: number
+  cfgScale: number
+  seed: number | null
+}
+
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
 export const RUNWARE_GPT_IMAGE_2_MODEL_ID = 'openai:gpt-image@2'
 export const RUNWARE_Z_IMAGE_TURBO_MODEL_ID = 'runware:z-image@turbo'
@@ -24,6 +33,20 @@ export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
   { id: RUNWARE_Z_IMAGE_TURBO_MODEL_ID, label: 'Z Image Turbo' },
   { id: RUNWARE_GPT_IMAGE_2_MODEL_ID, label: 'GPT Image 2' },
 ]
+
+export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo'
+export const RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID = 'runware:ace-step@v1.5-base'
+export const RUNWARE_CONFIGURED_MUSIC_MODELS: Array<{ id: string; label: string }> = [
+  { id: RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID, label: 'ACE-Step v1.5 Turbo' },
+  { id: RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID, label: 'ACE-Step v1.5 Base' },
+]
+const configuredMusicModelIdSet = new Set<string>(
+  RUNWARE_CONFIGURED_MUSIC_MODELS.map((m) => m.id),
+)
+/** Per-model UI/clamp cap for inference steps (turbo caps low, base allows up to 300). */
+export function maxStepsForMusicModelId(modelId: string): number {
+  return modelId === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID ? 300 : 20
+}
 
 /** Per-tool toggles; extend with new keys as tools are added */
 export type ToolsEnabled = {
@@ -150,19 +173,23 @@ export type AppSettings = {
   runwareImageOutputDir: string
   /** If true, each generated image is saved automatically to output folder. */
   runwareAutoSaveImages: boolean
-  /** Runware music output format. */
+  /** Active Runware music model id (ACE-Step turbo or base). */
+  runwareMusicModel: string
+  /** Per-variant defaults for the ACE-Step music family. */
+  runwareMusicModelProfiles: Record<string, RunwareMusicModelProfile>
+  /** Runware music output format (legacy/back-compat; mirrors active profile.outputFormat). */
   runwareMusicOutputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG'
-  /** Runware music duration in seconds. */
+  /** Runware music duration in seconds (legacy/back-compat; mirrors active profile.durationSec). */
   runwareMusicDurationSec: number
-  /** Runware music inference steps. */
+  /** Runware music inference steps (legacy/back-compat; mirrors active profile.steps). */
   runwareMusicSteps: number
-  /** Runware music guidance scale. */
+  /** Runware music guidance scale (legacy/back-compat; mirrors active profile.cfgScale). */
   runwareMusicCfgScale: number
   /** Runware music guidance type. */
   runwareMusicGuidanceType: 'apg' | 'cfg'
   /** Runware music vocals language (ISO 639-1 code or unknown). */
   runwareMusicVocalLanguage: string
-  /** Optional fixed Runware seed for reproducible music generation. */
+  /** Optional fixed Runware seed for reproducible music generation (legacy/back-compat). */
   runwareMusicSeed: number | null
   /** Auto-save generated Runware music to this folder (desktop app). */
   runwareMusicOutputDir: string
@@ -291,6 +318,23 @@ const defaults: AppSettings = {
   runwareNegativePrompt: '',
   runwareImageOutputDir: '',
   runwareAutoSaveImages: false,
+  runwareMusicModel: RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID,
+  runwareMusicModelProfiles: {
+    [RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID]: {
+      outputFormat: 'MP3',
+      durationSec: 60,
+      steps: 10,
+      cfgScale: 10,
+      seed: null,
+    },
+    [RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID]: {
+      outputFormat: 'MP3',
+      durationSec: 60,
+      steps: 100,
+      cfgScale: 10,
+      seed: null,
+    },
+  },
   runwareMusicOutputFormat: 'MP3',
   runwareMusicDurationSec: 60,
   runwareMusicSteps: 10,
@@ -529,6 +573,78 @@ function normalizeRunware(s: AppSettings): AppSettings {
     : null
   const musicOutputDir =
     typeof s.runwareMusicOutputDir === 'string' ? s.runwareMusicOutputDir.trim() : ''
+
+  const legacyMusicProfile: RunwareMusicModelProfile = {
+    outputFormat: musicOutputFormat,
+    durationSec: Number.isFinite(musicDuration)
+      ? clamp(musicDuration, 6, 300)
+      : defaults.runwareMusicDurationSec,
+    steps: Number.isFinite(musicSteps)
+      ? clamp(Math.round(musicSteps), 1, 300)
+      : defaults.runwareMusicSteps,
+    cfgScale: Number.isFinite(musicCfg)
+      ? clamp(musicCfg, 1, 30)
+      : defaults.runwareMusicCfgScale,
+    seed: musicSeed,
+  }
+  const parsedMusicProfiles =
+    s.runwareMusicModelProfiles && typeof s.runwareMusicModelProfiles === 'object'
+      ? (s.runwareMusicModelProfiles as Record<string, Partial<RunwareMusicModelProfile>>)
+      : {}
+  const normalizedMusicProfiles: Record<string, RunwareMusicModelProfile> = {}
+  for (const m of RUNWARE_CONFIGURED_MUSIC_MODELS) {
+    const isBase = m.id === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID
+    // Turbo profile migrates from legacy top-level music fields if no profile is stored yet.
+    // Base profile falls back to docs defaults; legacy fields don't apply because they were turbo-shaped.
+    const fallback =
+      isBase
+        ? defaults.runwareMusicModelProfiles[m.id]
+        : (parsedMusicProfiles[m.id]
+            ? defaults.runwareMusicModelProfiles[m.id]
+            : legacyMusicProfile)
+    const incoming = parsedMusicProfiles[m.id] ?? {}
+    const incomingOutputFormatRaw =
+      typeof incoming.outputFormat === 'string' ? incoming.outputFormat.trim().toUpperCase() : ''
+    const incomingOutputFormat: 'MP3' | 'WAV' | 'FLAC' | 'OGG' =
+      incomingOutputFormatRaw === 'WAV' ||
+      incomingOutputFormatRaw === 'FLAC' ||
+      incomingOutputFormatRaw === 'OGG' ||
+      incomingOutputFormatRaw === 'MP3'
+        ? incomingOutputFormatRaw
+        : fallback.outputFormat
+    const incomingDuration = Number(incoming.durationSec)
+    const incomingSteps = Number(incoming.steps)
+    const incomingCfg = Number(incoming.cfgScale)
+    const incomingSeedRaw = Number(incoming.seed)
+    const incomingSeed =
+      incoming.seed == null
+        ? fallback.seed
+        : Number.isFinite(incomingSeedRaw)
+          ? clamp(Math.round(incomingSeedRaw), 0, 2147483647)
+          : null
+    const stepsCap = maxStepsForMusicModelId(m.id)
+    normalizedMusicProfiles[m.id] = {
+      outputFormat: incomingOutputFormat,
+      durationSec: Number.isFinite(incomingDuration)
+        ? clamp(incomingDuration, 6, 300)
+        : fallback.durationSec,
+      steps: Number.isFinite(incomingSteps)
+        ? clamp(Math.round(incomingSteps), 1, stepsCap)
+        : clamp(Math.round(fallback.steps), 1, stepsCap),
+      cfgScale: Number.isFinite(incomingCfg) ? clamp(incomingCfg, 1, 30) : fallback.cfgScale,
+      seed: incomingSeed,
+    }
+  }
+  const requestedMusicModelRaw =
+    typeof s.runwareMusicModel === 'string' ? s.runwareMusicModel.trim() : ''
+  const safeMusicModel = configuredMusicModelIdSet.has(requestedMusicModelRaw)
+    ? requestedMusicModelRaw
+    : defaults.runwareMusicModel
+  const activeMusicProfile =
+    normalizedMusicProfiles[safeMusicModel] ??
+    defaults.runwareMusicModelProfiles[safeMusicModel] ??
+    defaults.runwareMusicModelProfiles[defaults.runwareMusicModel]
+
   const legacyProfile: RunwareModelProfile = {
     width: Number.isFinite(width) ? clamp(Math.round(width), 256, 2048) : defaults.runwareWidth,
     height: Number.isFinite(height)
@@ -600,19 +716,15 @@ function normalizeRunware(s: AppSettings): AppSettings {
       typeof s.runwareAutoSaveImages === 'boolean'
         ? s.runwareAutoSaveImages
         : defaults.runwareAutoSaveImages,
-    runwareMusicOutputFormat: musicOutputFormat,
-    runwareMusicDurationSec: Number.isFinite(musicDuration)
-      ? clamp(musicDuration, 6, 300)
-      : defaults.runwareMusicDurationSec,
-    runwareMusicSteps: Number.isFinite(musicSteps)
-      ? clamp(Math.round(musicSteps), 1, 20)
-      : defaults.runwareMusicSteps,
-    runwareMusicCfgScale: Number.isFinite(musicCfg)
-      ? clamp(musicCfg, 1, 30)
-      : defaults.runwareMusicCfgScale,
+    runwareMusicModel: safeMusicModel,
+    runwareMusicModelProfiles: normalizedMusicProfiles,
+    runwareMusicOutputFormat: activeMusicProfile.outputFormat,
+    runwareMusicDurationSec: activeMusicProfile.durationSec,
+    runwareMusicSteps: activeMusicProfile.steps,
+    runwareMusicCfgScale: activeMusicProfile.cfgScale,
     runwareMusicGuidanceType: musicGuidanceType,
     runwareMusicVocalLanguage: musicVocalLanguage,
-    runwareMusicSeed: musicSeed,
+    runwareMusicSeed: activeMusicProfile.seed,
     runwareMusicOutputDir: musicOutputDir,
     runwareAutoSaveMusic:
       typeof s.runwareAutoSaveMusic === 'boolean'
@@ -722,6 +834,17 @@ export function getRunwareProfileForModel(
   const fallback = defaults.runwareModelProfiles[modelId]
   if (fallback) return fallback
   return defaults.runwareModelProfiles[defaults.runwareImageModel]
+}
+
+export function getRunwareMusicProfileForModel(
+  s: Pick<AppSettings, 'runwareMusicModelProfiles'>,
+  modelId: string,
+): RunwareMusicModelProfile {
+  const incoming = s.runwareMusicModelProfiles?.[modelId]
+  if (incoming) return incoming
+  const fallback = defaults.runwareMusicModelProfiles[modelId]
+  if (fallback) return fallback
+  return defaults.runwareMusicModelProfiles[defaults.runwareMusicModel]
 }
 
 export async function fetchDesktopSyncedSettings(

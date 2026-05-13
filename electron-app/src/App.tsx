@@ -83,6 +83,7 @@ import { isElectron, isWebStandalone } from '@/lib/platform'
 import {
   fetchDesktopSyncedSettings,
   getAgentVisibleSettings,
+  getRunwareMusicProfileForModel,
   getRunwareProfileForModel,
   loadSettings,
   normalizeSettingsCandidate,
@@ -1741,6 +1742,10 @@ export default function App() {
       settings,
       settings.runwareEditModel,
     )
+    const activeRunwareMusicProfile = getRunwareMusicProfileForModel(
+      settings,
+      settings.runwareMusicModel,
+    )
 
     const ac = new AbortController()
     abortRef.current = ac
@@ -1776,13 +1781,14 @@ export default function App() {
             },
             negativePrompt: settings.runwareNegativePrompt,
             musicDefaults: {
-              outputFormat: settings.runwareMusicOutputFormat,
-              durationSec: settings.runwareMusicDurationSec,
-              steps: settings.runwareMusicSteps,
-              cfgScale: settings.runwareMusicCfgScale,
+              model: settings.runwareMusicModel,
+              outputFormat: activeRunwareMusicProfile.outputFormat,
+              durationSec: activeRunwareMusicProfile.durationSec,
+              steps: activeRunwareMusicProfile.steps,
+              cfgScale: activeRunwareMusicProfile.cfgScale,
               guidanceType: settings.runwareMusicGuidanceType,
               vocalLanguage: settings.runwareMusicVocalLanguage,
-              seed: settings.runwareMusicSeed ?? undefined,
+              seed: activeRunwareMusicProfile.seed ?? undefined,
             },
           },
           userImages: toolImageCatalog.map((x) => x.base64),
