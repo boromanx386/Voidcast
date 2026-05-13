@@ -166,6 +166,27 @@ function resolvePdfAttachedImages(
   }))
 }
 
+/**
+ * Parse `image_urls` from save_pdf args. Accepts a single string, array of
+ * strings, or comma-separated list. Only public http(s) URLs are forwarded —
+ * the Python server enforces SSRF + size limits before fetching.
+ */
+function resolvePdfImageUrls(args: Record<string, unknown>): string[] {
+  const raw = args.image_urls ?? args.imageUrls
+  const out: string[] = []
+  const push = (v: unknown) => {
+    if (typeof v !== 'string') return
+    const s = v.trim()
+    if (/^https?:\/\//i.test(s)) out.push(s)
+  }
+  if (Array.isArray(raw)) {
+    for (const item of raw) push(item)
+  } else if (typeof raw === 'string') {
+    for (const part of raw.split(/[\s,]+/)) push(part)
+  }
+  return [...new Set(out)]
+}
+
 function normalizeToolCallsForReplay(calls: OllamaToolCall[]): OllamaToolCall[] {
   return calls
     .filter((t) => t.function?.name)
@@ -677,6 +698,7 @@ export async function executeToolCall(
       userImages: ctx.userImages,
       userImageMimes: ctx.userImageMimes,
     })
+    const imageUrls = resolvePdfImageUrls(args as Record<string, unknown>)
     try {
       return await invokeSavePdf({
         ttsBaseUrl: ctx.ttsBaseUrl,
@@ -685,6 +707,7 @@ export async function executeToolCall(
         filename,
         outputDir: dir,
         images: images.length ? images : undefined,
+        imageUrls: imageUrls.length ? imageUrls : undefined,
         signal: ctx.signal,
       })
     } catch (e) {

@@ -74,7 +74,7 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
   function: {
     name: 'save_pdf',
     description:
-      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. When the user attached image(s) to their message and wants them in the PDF, set embed_attached_images true and/or attached_image_indices (0-based). PNG and JPEG embed in the PDF after the text.',
+      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images from a prior generate_image/edit_image_runware tool call in this same conversation, pass their public CDN URL(s) in image_urls — the server fetches them on your behalf. PNG/JPEG/WebP supported; embedded images appear after the body text.',
     parameters: {
       type: 'object',
       properties: {
@@ -101,6 +101,12 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
           items: { type: 'integer', minimum: 0 },
           description:
             'Optional 0-based indices into the images attached with the user message (first image is 0). Use this for a subset instead of embed_attached_images.',
+        },
+        image_urls: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Optional list of public http(s) image URLs to fetch and embed (PNG/JPEG/WebP). Use this when you want to include an image produced by generate_image or edit_image_runware in the same chat — copy its `image_url:` value into this array. Up to 8 URLs; the tools server enforces size and SSRF limits.',
         },
       },
       required: ['content'],

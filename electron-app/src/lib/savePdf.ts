@@ -14,6 +14,12 @@ export type SavePdfOptions = {
   outputDir: string
   /** Base64 + optional MIME; from the current user message when saving chat images. */
   images?: { mime?: string; base64: string }[]
+  /**
+   * Public http(s) URLs of additional images to embed (PNG/JPEG/WebP). Used for
+   * AI-generated images that only exist as a CDN URL in this turn (e.g. the
+   * `image_url:` line returned by `generate_image` / `edit_image_runware`).
+   */
+  imageUrls?: string[]
   signal?: AbortSignal
 }
 
@@ -35,12 +41,17 @@ export async function invokeSavePdf(opts: SavePdfOptions): Promise<string> {
     )
   }
 
+  const cleanUrls = opts.imageUrls
+    ?.map((u) => (typeof u === 'string' ? u.trim() : ''))
+    .filter((u) => /^https?:\/\//i.test(u))
+
   const body = {
     content: opts.content,
     title: opts.title?.trim() || undefined,
     filename: opts.filename?.trim() || undefined,
     output_dir: opts.outputDir,
     images: opts.images?.length ? opts.images : undefined,
+    image_urls: cleanUrls?.length ? cleanUrls : undefined,
   }
 
   let res: Response

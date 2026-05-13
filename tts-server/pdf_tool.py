@@ -10,13 +10,26 @@ from __future__ import annotations
 
 import base64
 import binascii
+import ipaddress
+import logging
 import os
 import re
+import socket
 import sys
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Any, TypedDict
+from urllib.parse import urlparse
+
+try:
+    import httpx  # noqa: F401 - imported lazily inside fetch helper
+
+    HAS_HTTPX = True
+except ImportError:  # pragma: no cover - tools deps always include httpx
+    HAS_HTTPX = False
+
+logger = logging.getLogger("tts-server.pdf")
 
 try:
     from reportlab.lib.colors import Color
@@ -33,6 +46,10 @@ except ImportError:  # pragma: no cover - import guard
 
 MAX_CONTENT_CHARS = 400_000
 MAX_IMAGES_TOTAL_BYTES = 48 * 1024 * 1024
+MAX_URL_IMAGES = 8
+URL_FETCH_TIMEOUT_S = 25.0
+URL_FETCH_MAX_REDIRECTS = 5
+URL_FETCH_USER_AGENT = "Voidcast/1.0 (save_pdf image fetch)"
 
 PAGE_W = 595.28
 PAGE_H = 841.89
@@ -704,6 +721,154 @@ def _unique_file_path(directory: Path, file_name: str) -> Path:
     return directory / f"{stem}-{int(datetime.now().timestamp())}{suffix}"
 
 
+def _is_private_or_loopback(host: str) -> bool:
+    h = host.strip().lower()
+    if not h:
+        return True
+    if h == "localhost" or h.endswith(".localhost"):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+        return (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+        )
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(h, None, type=socket.SOCK_STREAM)
+    except OSError:
+        return True
+    for info in infos:
+        sockaddr = info[4]
+        if not sockaddr:
+            continue
+        ip_str = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return True
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+        ):
+            return True
+    return False
+
+
+_CT_TO_MIME: dict[str, str] = {
+    "image/png": "image/png",
+    "image/jpeg": "image/jpeg",
+    "image/jpg": "image/jpeg",
+}
+
+
+def _mime_from_response(content_type: str | None, url: str) -> str | None:
+    ct = (content_type or "").split(";", 1)[0].strip().lower()
+    if ct in _CT_TO_MIME:
+        return _CT_TO_MIME[ct]
+    # Fall back to URL path extension when CDN does not set a useful CT.
+    path = urlparse(url).path.lower()
+    if path.endswith(".png"):
+        return "image/png"
+    if path.endswith(".jpg") or path.endswith(".jpeg"):
+        return "image/jpeg"
+    if path.endswith(".webp"):
+        return "image/webp"
+    return None
+
+
+def _fetch_url_images(
+    urls: list[str],
+    running_total: int,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Fetch each URL → bytes (PNG/JPEG/WebP) with SSRF protection.
+
+    Returns (decoded, errors). `errors` is human-readable per-URL skip reasons
+    used to inform the agent why an image couldn't be embedded.
+    """
+
+    if not urls:
+        return [], []
+    if not HAS_HTTPX:
+        return [], ["httpx not installed; cannot fetch image URLs"]
+
+    import httpx as _httpx  # local import keeps module importable in odd envs
+
+    decoded: list[dict[str, Any]] = []
+    errors: list[str] = []
+    total = running_total
+
+    with _httpx.Client(
+        timeout=URL_FETCH_TIMEOUT_S,
+        follow_redirects=True,
+        max_redirects=URL_FETCH_MAX_REDIRECTS,
+        headers={"User-Agent": URL_FETCH_USER_AGENT},
+        limits=_httpx.Limits(max_connections=4),
+    ) as client:
+        for raw in urls[:MAX_URL_IMAGES]:
+            url = (raw or "").strip()
+            if not url:
+                continue
+            try:
+                parsed = urlparse(url)
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"{url!r}: invalid URL ({e})")
+                continue
+            if parsed.scheme not in ("http", "https"):
+                errors.append(f"{url!r}: only http(s) URLs are allowed")
+                continue
+            host = parsed.hostname or ""
+            if not host or _is_private_or_loopback(host):
+                errors.append(f"{url!r}: host is local/private/unreachable")
+                continue
+
+            try:
+                r = client.get(url)
+            except _httpx.TimeoutException:
+                errors.append(f"{url!r}: timed out")
+                continue
+            except Exception as e:  # noqa: BLE001 - network errors are user-facing
+                errors.append(f"{url!r}: fetch failed ({e})")
+                continue
+
+            if not (200 <= r.status_code < 300):
+                errors.append(f"{url!r}: HTTP {r.status_code}")
+                continue
+
+            mime = _mime_from_response(r.headers.get("content-type"), url)
+            if mime is None:
+                errors.append(f"{url!r}: unsupported content-type")
+                continue
+
+            data = r.content
+            if not data:
+                errors.append(f"{url!r}: empty response body")
+                continue
+
+            total += len(data)
+            if total > MAX_IMAGES_TOTAL_BYTES:
+                errors.append(
+                    f"{url!r}: would exceed image payload limit ({MAX_IMAGES_TOTAL_BYTES} bytes)"
+                )
+                break
+
+            decoded.append({"bytes": data, "mime": mime})
+
+    if len(urls) > MAX_URL_IMAGES:
+        errors.append(
+            f"only the first {MAX_URL_IMAGES} URLs were fetched (got {len(urls)})"
+        )
+
+    return decoded, errors
+
+
 def _decode_payload_images(
     incoming: list[dict[str, Any]] | None,
 ) -> tuple[list[dict[str, Any]], str | None]:
@@ -811,6 +976,7 @@ def save_pdf_to_folder(
     title: str | None = None,
     filename: str | None = None,
     images: list[dict[str, Any]] | None = None,
+    image_urls: list[str] | None = None,
 ) -> SavePdfResult:
     """Render Markdown-lite ``content`` and write a PDF inside ``output_dir``.
 
@@ -856,8 +1022,19 @@ def save_pdf_to_folder(
     if err is not None:
         return {"ok": False, "text": err}
 
+    url_decoded: list[dict[str, Any]] = []
+    url_errors: list[str] = []
+    if image_urls:
+        running = sum(len(item.get("bytes", b"")) for item in decoded)
+        url_decoded, url_errors = _fetch_url_images(image_urls, running)
+        if url_errors:
+            for msg in url_errors:
+                logger.info("save_pdf url skipped: %s", msg)
+
+    all_images = (decoded + url_decoded) or None
+
     try:
-        drawn, skipped = _build_pdf_to_path(out_path, title_text, raw, decoded or None)
+        drawn, skipped = _build_pdf_to_path(out_path, title_text, raw, all_images)
     except Exception as e:  # noqa: BLE001 - any rendering failure
         # Best-effort: clean up zero-byte file from a failed save.
         try:
@@ -868,11 +1045,15 @@ def save_pdf_to_folder(
         return {"ok": False, "text": str(e)}
 
     extra = ""
-    requested = len(decoded)
-    if requested > 0:
+    total_requested = len(decoded) + len(url_decoded) + len(url_errors)
+    if total_requested > 0:
         extra = f"\nEmbedded {drawn} image(s)"
         if skipped > 0:
             extra += f" ({skipped} skipped as unsupported/corrupt)"
+        if url_errors:
+            extra += f"; {len(url_errors)} URL(s) failed: " + "; ".join(url_errors[:3])
+            if len(url_errors) > 3:
+                extra += f" (+{len(url_errors) - 3} more)"
         extra += "."
 
     return {
