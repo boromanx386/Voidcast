@@ -1,88 +1,69 @@
-/* Blood Moon shell — crimson void, arterial neon for html[data-ui-theme="blood-moon"] */
+/* Blood Moon — dark, clean, black text in balloons */
 
 html[data-ui-theme='blood-moon'] {
-  --color-void-black: 12 0 4;
-  --color-void-dark: 22 0 10;
-  --color-void-mid: 35 0 18;
-  --color-void-muted: 65 10 30;
-  --color-void-dim: 110 25 55;
-  --color-void-text: 190 90 120;
-  --color-void-light: 230 150 175;
-  --color-void-white: 255 220 235;
+  --color-void-black: 10 10 12;
+  --color-void-dark: 18 18 22;
+  --color-void-mid: 28 28 34;
+  --color-void-muted: 55 55 65;
+  --color-void-dim: 120 120 135;
+  --color-void-text: 200 200 210;
+  --color-void-light: 240 240 245;
+  --color-void-white: 255 255 255;
 
-  --color-neon-cyan: 255 30 60;
-  --color-neon-cyan-dim: 200 20 45;
-  --color-neon-magenta: 255 80 110;
-  --color-neon-magenta-dim: 200 50 80;
-  --color-neon-green: 255 60 90;
-  --color-neon-green-dim: 210 40 70;
-  --color-neon-yellow: 255 140 100;
-  --color-neon-red: 255 20 20;
-  --color-neon-purple: 180 40 100;
+  --color-neon-cyan: 220 40 60;
+  --color-neon-magenta: 255 60 80;
+  --color-neon-green: 220 40 60;
+  --color-neon-yellow: 255 80 60;
+  --color-neon-red: 255 40 40;
+  --color-neon-purple: 180 50 80;
   --color-neon-orange: 255 100 60;
 
-  --color-glitch-red: 255 40 70;
-  --color-glitch-blue: 220 50 90;
-  --color-glitch-green: 200 40 80;
-
-  --ui-accent-rgb: 255,30,60;
+  --ui-accent-rgb: 220,40,60;
 }
 
 html[data-ui-theme='blood-moon'] body {
-  background: #0c0004 !important;
-  color: #ffdce8 !important;
-  text-shadow: 0 0 2px rgba(255, 30, 60, 0.15) !important;
+  background: #0a0a0c !important;
+  color: #e8e8ec !important;
+  text-shadow: none !important;
   font-family:
-    'Rajdhani',
-    'Orbitron',
     'JetBrains Mono',
+    'Inter',
     system-ui,
     sans-serif !important;
 }
 
 html[data-ui-theme='blood-moon'] ::selection {
-  background: rgba(255, 30, 60, 0.25);
+  background: rgba(220, 40, 60, 0.3);
   color: #ffffff;
 }
 
 html[data-ui-theme='blood-moon'] ::-webkit-scrollbar-track {
-  background: #160008;
+  background: #121216;
 }
 
 html[data-ui-theme='blood-moon'] ::-webkit-scrollbar-thumb {
-  background: #4a0a1e;
-  box-shadow: 0 0 6px rgba(255, 30, 60, 0.25);
+  background: #3a3a44;
 }
 
 html[data-ui-theme='blood-moon'] ::-webkit-scrollbar-thumb:hover {
-  background: #6e1030;
-}
-
-html[data-ui-theme='blood-moon'] textarea:focus,
-html[data-ui-theme='blood-moon'] input:focus,
-html[data-ui-theme='blood-moon'] select:focus {
-  box-shadow: 0 0 0 2px rgba(255, 30, 60, 0.3);
+  background: #50505c;
 }
 
 html[data-ui-theme='blood-moon'] .voidcast-app {
-  background:
-    radial-gradient(900px 420px at 50% -25%, rgba(255, 30, 60, 0.06), transparent 60%),
-    radial-gradient(600px 600px at 85% 85%, rgba(255, 80, 110, 0.04), transparent 50%),
-    #0c0004;
+  background: #0a0a0c;
 }
 
 html[data-ui-theme='blood-moon'] .voidcast-header,
 html[data-ui-theme='blood-moon'] .voidcast-input-area,
 html[data-ui-theme='blood-moon'] .voidcast-sidebar {
-  background: rgba(22, 0, 10, 0.82);
-  border-color: rgba(110, 25, 55, 0.45);
-  backdrop-filter: blur(8px);
+  background: rgba(18, 18, 22, 0.95);
+  border-color: rgba(55, 55, 65, 0.5);
+  backdrop-filter: blur(6px);
 }
 
 html[data-ui-theme='blood-moon'] .voidcast-header::after,
 html[data-ui-theme='blood-moon'] .voidcast-input-area::before {
-  background: linear-gradient(90deg, transparent, rgba(255, 30, 60, 0.35), transparent);
-  opacity: 0.22;
+  display: none;
 }
 
 html[data-ui-theme='blood-moon'] .glitch-text,
@@ -91,11 +72,7 @@ html[data-ui-theme='blood-moon'] .glitch-text::after,
 html[data-ui-theme='blood-moon'] .crt-overlay,
 html[data-ui-theme='blood-moon'] .ambient-particles {
   animation: none !important;
-}
-
-html[data-ui-theme='blood-moon'] .glitch-text::before,
-html[data-ui-theme='blood-moon'] .glitch-text::after {
-  display: none;
+  display: none !important;
 }
 
 html[data-ui-theme='blood-moon'] .cyber-btn,
@@ -104,17 +81,18 @@ html[data-ui-theme='blood-moon'] .cyber-panel,
 html[data-ui-theme='blood-moon'] .send-btn,
 html[data-ui-theme='blood-moon'] .voidcast-textarea,
 html[data-ui-theme='blood-moon'] .form-select {
-  border-color: rgba(110, 25, 55, 0.5);
+  border-color: rgba(55, 55, 65, 0.6);
 }
 
 html[data-ui-theme='blood-moon'] .cyber-btn {
-  background: rgba(255, 30, 60, 0.06);
+  background: rgba(220, 40, 60, 0.08);
+  color: #e8e8ec;
 }
 
 html[data-ui-theme='blood-moon'] .cyber-btn:hover {
-  background: rgba(255, 30, 60, 0.12);
-  border-color: rgba(255, 30, 60, 0.5);
-  box-shadow: 0 0 20px rgba(255, 30, 60, 0.15);
+  background: rgba(220, 40, 60, 0.15);
+  border-color: rgba(220, 40, 60, 0.4);
+  box-shadow: none;
 }
 
 html[data-ui-theme='blood-moon'] .cyber-btn::before,
@@ -123,39 +101,54 @@ html[data-ui-theme='blood-moon'] .corner-tl,
 html[data-ui-theme='blood-moon'] .corner-tr,
 html[data-ui-theme='blood-moon'] .corner-bl,
 html[data-ui-theme='blood-moon'] .corner-br {
-  opacity: 0.6;
+  display: none;
 }
 
 html[data-ui-theme='blood-moon'] .voidcast-textarea,
 html[data-ui-theme='blood-moon'] .cyber-input,
 html[data-ui-theme='blood-moon'] .form-select {
-  background: rgba(12, 0, 4, 0.7);
+  background: rgba(10, 10, 12, 0.9);
+  color: #e8e8ec;
 }
 
 html[data-ui-theme='blood-moon'] .voidcast-textarea:focus,
 html[data-ui-theme='blood-moon'] .cyber-input:focus {
-  border-color: rgba(255, 30, 60, 0.4);
-  box-shadow: 0 0 0 2px rgba(255, 30, 60, 0.15);
+  border-color: rgba(220, 40, 60, 0.4);
+  box-shadow: 0 0 0 2px rgba(220, 40, 60, 0.1);
 }
 
-html[data-ui-theme='blood-moon'] .message-user {
-  border-color: rgba(255, 30, 60, 0.25);
-  background: rgba(22, 0, 10, 0.5);
+html[data-ui-theme='blood-moon'] textarea:focus,
+html[data-ui-theme='blood-moon'] input:focus,
+html[data-ui-theme='blood-moon'] select:focus {
+  box-shadow: 0 0 0 2px rgba(220, 40, 60, 0.15);
 }
 
+html[data-ui-theme='blood-moon'] .message-user,
 html[data-ui-theme='blood-moon'] .message-assistant {
-  border-color: rgba(110, 25, 55, 0.35);
-  background: rgba(22, 0, 10, 0.3);
+  border-color: rgba(55, 55, 65, 0.35);
+  background: rgba(24, 24, 30, 0.92);
+  color: #d0d0da !important;
+}
+
+html[data-ui-theme='blood-moon'] .message-user code,
+html[data-ui-theme='blood-moon'] .message-assistant code {
+  background: rgba(0, 0, 0, 0.25);
+  color: #e8e8ec;
+}
+
+html[data-ui-theme='blood-moon'] .message-user pre,
+html[data-ui-theme='blood-moon'] .message-assistant pre {
+  background: rgba(0, 0, 0, 0.2);
 }
 
 html[data-ui-theme='blood-moon'] .option-tab.active {
-  background: rgba(255, 30, 60, 0.12);
-  border-color: rgba(255, 30, 60, 0.4);
-  color: rgb(var(--color-void-white));
+  background: rgba(220, 40, 60, 0.1);
+  border-color: rgba(220, 40, 60, 0.35);
+  color: #ffffff;
 }
 
 html[data-ui-theme='blood-moon'] .system-status {
-  color: rgba(255, 30, 60, 0.7);
+  color: rgba(220, 40, 60, 0.7);
 }
 
 html[data-ui-theme='blood-moon'] .tool-indicator,
@@ -167,29 +160,30 @@ html[data-ui-theme='blood-moon'] .neon-text-cyan,
 html[data-ui-theme='blood-moon'] .neon-text-magenta,
 html[data-ui-theme='blood-moon'] .neon-text-green,
 html[data-ui-theme='blood-moon'] .chromatic-hover:hover {
-  text-shadow: 0 0 8px rgba(255, 30, 60, 0.5);
+  text-shadow: none !important;
 }
 
 html[data-ui-theme='blood-moon'] .gradient-text,
 html[data-ui-theme='blood-moon'] .gradient-text-green {
-  background: linear-gradient(90deg, rgb(var(--color-neon-cyan)), rgb(var(--color-neon-magenta)));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  color: #e8e8ec;
 }
 
 html[data-ui-theme='blood-moon'] .bg-void-mid\/70 {
-  background-color: rgba(35, 0, 18, 0.7) !important;
+  background-color: rgba(28, 28, 34, 0.7) !important;
 }
 
 html[data-ui-theme='blood-moon'] .bg-void-dark\/80 {
-  background-color: rgba(22, 0, 10, 0.8) !important;
+  background-color: rgba(18, 18, 22, 0.8) !important;
 }
 
 html[data-ui-theme='blood-moon'] .border-void-muted\/50 {
-  border-color: rgba(65, 10, 30, 0.5) !important;
+  border-color: rgba(55, 55, 65, 0.5) !important;
 }
 
 html[data-ui-theme='blood-moon'] .border-neon-cyan\/20 {
-  border-color: rgba(255, 30, 60, 0.2) !important;
+  border-color: rgba(220, 40, 60, 0.2) !important;
 }
