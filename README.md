@@ -1,46 +1,70 @@
 # Voidcast
 
-**Desktop AI agent dashboard with free cloud provider aggregation, integrated coding IDE, and cyberpunk terminal UI.**
+**Desktop AI agent environment with built-in coding tools and real tool calling.**
 
-Connects to **Ollama**, **OpenRouter**, **NVIDIA NIM**, and **Runware** free tiers — one app, zero subscriptions.
+One app. Four themes. Connects to your existing API accounts — no subscriptions.
 
-![Voidcast logo](logo.jpg)
+![Voidcast Screenshot](screenshot.png)
 
-## Why I Built This
+---
 
-I was paying $60/month for 4 different AI apps. I built Voidcast so I wouldn't have to.
+## What You Can Do
 
-It connects to **free cloud APIs** and gives you a single cyberpunk terminal with real tool calling, image/music generation, and a built-in coding IDE.
+**Browse and create without leaving chat**  
+Agent invokes search, Reddit, YouTube, weather, image generation, and music generation — results appear inline.
 
-## Provider Stack (All Free Tiers)
+**Control the app from chat**  
+Change themes, toggle voice, or update settings directly via natural commands in the conversation.
 
-| Provider | What You Get | Cost |
-|----------|-------------|------|
-| **Ollama** | Open-source models (Llama, Qwen, Gemma, Mistral...) pulled from cloud or run locally | Free |
-| **OpenRouter** | Access to 100+ models: Claude, GPT-4o, DeepSeek, Gemini... via free endpoints | Free tier |
-| **NVIDIA NIM** | Enterprise-grade inference for open-source models | Free tier |
-| **Runware** | Image generation + AI music/soundtrack generation | Free credits |
+**Work with your code**  
+The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel.
 
-You just need free accounts and API keys. No credit card required.
+**It remembers**  
+Remembers facts across sessions. Asks before saving anything.
 
-## Core Features
+---
 
-### 🤖 Agent with Tool Calling
-The model decides when to call tools. Not a premium feature — it's the default.
+## Get Started (One Click)
+
+| Windows | Status |
+|---------|--------|
+| [Download Installer](https://github.com/boromanx386/Voidcast/releases) | One-click setup. No Python. No pip. No terminal. |
+
+1. Download `Voidcast_Setup.exe` from [Releases](https://github.com/boromanx386/Voidcast/releases)
+2. Run it. Next → Next → Done.
+3. Add your API keys in **Options → Provider API Keys**.
+4. Start the agent.
+
+> 💡 **First launch to first chat: under 60 seconds.**
+
+Requires Windows 10/11. The installer bundles the Python tools server — no manual setup needed.
+
+---
+
+## The Agent & Tools
+
+Voidcast runs an **agent tool loop**: the model decides when to call a tool, the app executes it, and the result goes back to the model.
+
+Available tools:
 
 - **Web Search** — real-time DuckDuckGo search
 - **Weather** — current conditions + forecast
-- **YouTube** — search + transcript summaries
-- **Reddit** — browse subreddits, search posts, read threads and comments
-- **Web Scrape** — fetch and summarize any public page
+- **YouTube** — search videos + fetch transcripts
+- **Reddit** — browse subreddits, search posts, read threads
+- **Web Scrape** — fetch and summarize public pages
 - **PDF Export** — save any chat session as formatted PDF
 - **Image Generation** — Runware text-to-image
 - **Image Edit** — Runware image transformation
-- **Music Generation** — Runware AI audio/soundtracks
+- **Music / Audio Generation** — Runware AI soundtracks
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
 
-### 💻 Built-in Coding IDE
+The agent loop supports both **local models via Ollama** and **cloud endpoints via OpenRouter and NVIDIA NIM**.
+
+---
+
+## Coding Tools
+
 Right-side panel with file tree, file preview, and terminal output. The agent acts as a junior dev in your project folder:
 
 - `list_directory`, `read_file`, `write_file`, `edit_code`
@@ -49,200 +73,149 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `git_status`, `git_diff`, `git_log`, `git_show`
 - `execute_command` (with timeout + background support)
 
-### 🧠 Context Compression
-Custom module that compresses chat history so even smaller free-tier models handle long agent loops without losing coherence.
-
-### 📝 Long-term Memory
-Cross-chat memory stored locally in IndexedDB. The assistant remembers facts about you across sessions — with your control (review before save, delete anytime).
-
-### 🎨 Cyberpunk Terminal UI
-Dark, neon, minimal. Matrix-green theme included. Because staring at a bland white chat box for hours kills the soul.
-
-### ⚡ UX Power Features
-- **Edit any message inline** — history regenerates from that point
-- **Fork chat session** — explore a different branch of the conversation
-- **Export to Markdown** — entire chat as `.md`
-- **Thinking blocks** — collapsible reasoning for models like DeepSeek, QwQ
-- **Image-aware chat** — paste images, the agent recalls and analyzes them iteratively
-
-## Image-aware Workflow
-
-Voidcast can reuse images from chat history as working context for later turns. The assistant can describe, analyze, compare, and edit prior images — enabling iterative visual workflows inside one conversation instead of isolated one-shot calls.
-
-Combined with strong text-rendering image models, this becomes a serious tool for chart/diagram generation and iterative visual refinement.
-
-## Optional TTS
-
-- **Local TTS** — external OmniVoice-compatible server (for users with capable local hardware)
-- **OpenRouter TTS** — cloud TTS via GPT-4o Mini TTS model
-- **Runware xAI TTS** — cloud text-to-speech via Runware
-
-## Tech Stack
-
-- **Electron + React + TypeScript** — Desktop app
-- **Tailwind CSS** — Styling with `theme-matrix.css` cyberpunk theme
-- **Python 3.12+** — Bundled tools server (no pip install required for standard features)
-- **IndexedDB** — Local storage for chats, reminders, long memory
-
-## Installation
-
-Download the latest Windows installer from [Releases](https://github.com/boromanx386/Voidcast/releases).
-
-Or run in dev mode:
-```bash
-# Root workspace dependencies
-npm install
-
-# Electron app dependencies
-cd electron-app && npm install
-
-# Start everything (tools server + Electron)
-npm run dev
-```
-
-Requires **Node.js 20+** and **Python 3.12+** (for tools server).
-
-> **Note:** Currently Windows-only. Linux and Mac builds are on the [roadmap](#roadmap).
-
-### Configuration
-
-1. Get free API keys:
-   - [OpenRouter](https://openrouter.ai/) (for GPT-4o, Claude, DeepSeek...)
-   - [NVIDIA NIM](https://build.nvidia.com/) (for enterprise open models)
-   - [Runware](https://runware.ai/) (for images and music)
-   - [Ollama](https://ollama.com/) (for open-source models)
-
-2. Paste them in **Options → Provider API Keys**
-
-3. Select your model and start the agent.
-
-## Roadmap
-
-- Add more practical built-in tools for everyday assistant workflows
-- Custom User Tools (Tool Builder)
-- Expand long-memory controls with richer curation (search/edit/tagging)
-- Expand support for additional Runware models with safer default profiles
-- Add optional integrations with other API providers
-- Linux / Mac builds
-
-## Repository Layout
-
-- `electron-app/` - Electron renderer/main app
-- `tts-server/` - Python HTTP server for tools (and optional local OmniVoice TTS)
-- `LOCAL_TTS_SETUP.md` - external Local TTS setup guide
-
-## Development Setup
-
-From repository root:
-
-1. Install Node dependencies:
-   - `npm install`
-2. Create Python virtual env in repo root (`.venv`)
-3. Install Python tools deps:
-   - `pip install -r tts-server/requirements-tools.txt`
-4. Optional (recommended for faster `search_files` in coding tools):
-   - install [ripgrep](https://github.com/BurntSushi/ripgrep) and ensure `rg` is on your `PATH`
-
-## Run (Development)
-
-| Command | What it does |
-|---------|-------------|
-| `npm run dev` | Start tools server + Electron app (default) |
-| `npm run dev:tts` | Start tools server only |
-| `npm run dev:tts:local` | Start with local OmniVoice TTS (requires external setup) |
-
-## Build Installer
-
-From `electron-app/`:
-
-- `npm run build`
-
-Output folder:
-
-- `electron-app/release/<version>/`
-
-For manual distribution, `Voidcast_<version>_Setup.exe` is enough.
-
-### Packaging Model
-
-Main installer includes:
-
-- Electron app
-- Python tools server resources
-- Bundled tools-only backend executable (`voidcast-tools-server.exe`) so web search / scrape / YouTube / **PDF** tools work without a separate Python install (fonts bundled via PyInstaller `--add-data`).
-
-Main installer does **not** include:
-
-- Local OmniVoice TTS heavy dependencies (`torch`, model packages, model cache)
-
-Local TTS is external by design. See:
-
-- `LOCAL_TTS_SETUP.md`
-
-## Updates (GitHub Releases)
-
-Updater is wired with `electron-updater` and `electron-builder` GitHub publish config.
-
-Configured in:
-
-- `electron-app/electron-builder.json` (`publish.provider=github`)
-- `electron-app/electron/main/update.ts`
-
-### Release Flow
-
-1. Bump version in `electron-app/package.json`
-2. Create a **classic GitHub Personal Access Token** with the `repo` scope
-3. Set it as environment variable:
-   - **PowerShell:** `$env:GH_TOKEN = "<your_token>"`
-   - **CMD:** `set GH_TOKEN=<your_token>`
-   - **Bash:** `export GH_TOKEN=<your_token>`
-4. Build + publish from `electron-app/`:
-   - `npm run build:publish`
-
-This publishes release artifacts needed by auto-update (`Setup.exe`, blockmap, latest metadata).
-
-### Client Behavior
-
-- In app, use **Check update** UI
-- If new version exists, app downloads and offers restart/install
-
-Keep Local TTS updates/versioning independent from core app releases.
-
-## Runtime Expectations
-
-App expects `TTS_SERVER_URL` to expose at least:
-
-- `GET /health`
-- `POST /tts` (only available when local TTS stack is installed/enabled)
-
-Tools endpoints (server-side helpers):
-
-- `POST /tools/search`
-- `POST /tools/weather`
-- `POST /tools/scrape`
-- `POST /tools/youtube`
-- `POST /tools/pdf` (Markdown-lite → PDF; optional embedded images)
-- `POST /tools/runware_proxy`
-
-## License
-
-This repository is released under the MIT License.
-
-- `LICENSE`
-
-## Third-party Licenses
-
-Third-party notices and dependency license families are documented in:
-
-- `THIRD_PARTY_NOTICES.md`
-
-For full dependency metadata, see:
-
-- `package-lock.json`
-- `electron-app/package.json`
-- `tts-server/requirements-tools.txt`
-- `tts-server/requirements-tts.txt`
+All coding operations are scoped to your configured project directory.
 
 ---
 
-Built with spite and caffeine by a solo dev from Serbia.
+## Runs on Free Cloud APIs
+
+Voidcast does not charge anything. It connects to free tiers of providers you can sign up for:
+
+| Provider | What You Get |
+|----------|-------------|
+| **OpenRouter** | Claude, GPT-4o, DeepSeek, Gemini + 100 others |
+| **Ollama** | Open-source models (Llama, Qwen, Gemma, Mistral...) |
+| **NVIDIA NIM** | Enterprise-grade inference for open models |
+| **Runware** | Image generation + AI music |
+
+All you need are free accounts and API keys. No credit card required.
+
+---
+
+## Context Compression
+
+Local and small-context models hit a wall after long chats. Voidcast uses a custom module to compress conversation history so the agent can maintain coherence across long tool loops without losing the thread.
+
+---
+
+## Long-Term Memory
+
+Cross-chat memory is stored locally in IndexedDB. The assistant can remember facts about you across sessions, with your control:
+
+- Review before save
+- Delete anytime
+- Confidence and importance scoring
+
+---
+
+## Image-Aware Chat
+
+Paste images into the chat. The assistant can analyze them and, when needed, recall them from conversation history for iterative visual work.
+
+---
+
+## Themes & UI
+
+Four built-in themes: **Dark** (default), **Matrix**, **Minimal**, and **Light**. Switch anytime in Options.
+
+Other UX features:
+- **Edit any message inline** — history regenerates from that point
+- **Fork chat session** — explore a different branch of the conversation
+- **Export to Markdown** — entire chat as `.md`
+- **Thinking blocks** — collapsible reasoning for models like DeepSeek, QwQ, etc.
+
+---
+
+## Speech & Audio
+
+- **Text-to-Speech** — Local OmniVoice (requires `.venv` setup, see `LOCAL_TTS_SETUP.md`), Runware xAI, or OpenRouter TTS
+- **Speech-to-Text** — OpenRouter Whisper (push-to-talk)
+
+---
+
+## Tech Stack
+
+- **Electron + React + TypeScript**
+- **Tailwind CSS**
+- **Python 3.12** (bundled tools server)
+- **IndexedDB** (local storage)
+- **Ripgrep** (optional, for fast file search)
+
+---
+
+## Development & Building
+
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Development mode
+
+```bash
+npm run dev
+```
+
+This starts both the Electron main process and Vite dev server with HMR.
+
+### Building the production app
+
+```bash
+npm run build
+```
+
+This compiles both the main process and renderer, then packages the app with `electron-builder`.
+
+### Packaging Model
+
+Voidcast uses a **bundled Python tools server** for reliable operation:
+
+- **Development**: Starts a local Python HTTP server on `localhost:8000`
+- **Production**: The server is bundled into the packaged app and launched automatically
+
+This approach ensures all users get the same environment without manual Python setup.
+
+---
+
+## Runtime Expectations
+
+The bundled Python server exposes these endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /search` | Web search |
+| `POST /scrape` | Web scraping |
+| `POST /pdf` | PDF export |
+| `POST /weather` | Weather data |
+| `POST /image` | Image generation |
+| `POST /runware` | Runware image/music |
+
+---
+
+## Repository Layout
+
+```
+├── electron-app/         # Main Electron application
+├── local-tools-server/   # Python tools server
+│   ├── main.py           # FastAPI server
+│   └── requirements.txt  # Python dependencies
+├── assets/               # Application assets (icons, images)
+└── releases/             # Build output directory
+```
+
+---
+
+## License & Third-Party
+
+MIT License.
+
+Voidcast uses:
+- **Electron** — MIT
+- **Tailwind CSS** — MIT
+- **Lucide Icons** — ISC
+- **Runware** — Commercial API (free tier available)
+
+---
+
+Built by a solo dev. Issues and PRs welcome.

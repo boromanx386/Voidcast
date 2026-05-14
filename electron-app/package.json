@@ -2,7 +2,7 @@
   "name": "voidcast",
   "version": "2.5.2",
   "main": "dist-electron/main/index.js",
-  "description": "Voidcast — local LLM chat with TTS (Ollama + voice).",
+  "description": "Desktop AI agent with multi-provider tool calling, integrated coding IDE, and TTS/STT.",
   "author": "https://github.com/boromanx386/Voidcast",
   "repository": {
     "type": "git",
