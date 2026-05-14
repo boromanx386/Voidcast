@@ -2973,7 +2973,7 @@ export default function App() {
                 {/* Role indicator */}
                 <div className="message-meta">
                   <span className={`message-role ${m.role === 'user' ? 'text-neon-purple' : 'text-neon-cyan'}`}>
-                    {m.role === 'user' ? 'USER' : 'VOIDCAST_AI'}
+                    {m.role === 'user' ? 'USER' : 'Void Agent'}
                   </span>
                 </div>
                 
