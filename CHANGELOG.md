@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **Runware music guidance-type selector** in **Options → Runware Music**: pick between `apg` (Adaptive Projected Guidance, docs default) and `cfg` (Classifier-Free Guidance). The setting already existed (`runwareMusicGuidanceType`) and was wired through `musicDefaults.guidanceType`, but had no UI control — switching to `cfg` typically produces louder, more contrast-heavy mixes when ACE-Step output feels too quiet.
 
+### Fixed
+
+- **Chat scroll position when returning from Options**: previously the chat `<main>` was unmounted while the Options screen was rendered (`if (screen === 'options') return ...` returns a parallel JSX tree), and the existing save/restore `useLayoutEffect` only captured `scrollTop` *after* the unmount — `chatMessagesRef.current` was already `null`, so it always saved `0` and the next return scrolled to the top. Now the scroll position is tracked continuously via an `onScroll` handler on the chat `<main>` and stored in `savedChatScrollRef`; the `useLayoutEffect` on `screen` change still restores it after the `<main>` re-mounts. Auto-scroll effects on `[messages.length]` and `[busy]` don't refire on screen toggles because their dependencies don't change, so the restored position sticks.
+
 ### Changed
 
 - **Ollama transient-error retries**: `streamOllamaChat`, `streamOllamaChatOnce` (agent tool loop), and `fetchOllamaModels` now retry on `408`, `425`, `429`, `500`, `502`, `503`, `504` (e.g. hosted Ollama returning `503 model is temporarily overloaded`). Up to 4 attempts with exponential backoff + small jitter, and honors the `Retry-After` header when the server sends one. Each tool round is wrapped — a transient 503 after a tool call no longer aborts the conversation, the same backoff applies on every model round. Cancellation via the existing `AbortSignal` interrupts both the in-flight request and the backoff sleep, so user stop/regenerate still feels instant. The shared retry helper `fetchOllamaWithRetry` is exported from `ollama.ts` so other call sites can reuse the same policy.

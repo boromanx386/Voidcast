@@ -7,6 +7,7 @@ import {
   useState,
   type ChangeEvent,
   type DragEvent as ReactDragEvent,
+  type UIEvent as ReactUIEvent,
 } from 'react'
 import './App.css'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
@@ -1058,16 +1059,19 @@ export default function App() {
     if (screen === 'options' && optionsTab === 'llm') void loadModels()
   }, [screen, optionsTab, loadModels])
 
-  // Save/restore chat scroll when switching between chat ↔ options
+  // Save/restore chat scroll when switching between chat ↔ options.
+  // The chat <main> is unmounted while options is shown, so we can't capture
+  // scrollTop from a screen-change effect (ref is already null by then). Instead
+  // we track it continuously via onScroll on the <main> and only restore here.
   useLayoutEffect(() => {
-    if (screen === 'chat') {
-      if (chatMessagesRef.current) {
-        chatMessagesRef.current.scrollTop = savedChatScrollRef.current
-      }
-    } else if (screen === 'options') {
-      savedChatScrollRef.current = chatMessagesRef.current?.scrollTop || 0
+    if (screen === 'chat' && chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = savedChatScrollRef.current
     }
   }, [screen])
+
+  const onChatScroll = useCallback((e: ReactUIEvent<HTMLElement>) => {
+    savedChatScrollRef.current = e.currentTarget.scrollTop
+  }, [])
 
   // Auto-scroll to bottom only when a new message is added (not during streaming)
   useEffect(() => {
@@ -2919,7 +2923,11 @@ export default function App() {
       )}
 
       {/* Chat Messages */}
-      <main ref={chatMessagesRef} className="voidcast-messages min-h-0 flex-1 overflow-y-auto">
+      <main
+        ref={chatMessagesRef}
+        onScroll={onChatScroll}
+        className="voidcast-messages min-h-0 flex-1 overflow-y-auto"
+      >
         <div className="mx-auto max-w-3xl flex flex-col gap-4">
           {/* Empty State */}
           {messages.length === 0 && (
