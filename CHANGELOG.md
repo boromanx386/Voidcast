@@ -4,12 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [2.5.2] — 2026-05-14
 
-### Added
-
-- **Runware music guidance-type selector** in **Options → Runware Music**: pick between `apg` (Adaptive Projected Guidance, docs default) and `cfg` (Classifier-Free Guidance). The setting already existed (`runwareMusicGuidanceType`) and was wired through `musicDefaults.guidanceType`, but had no UI control — switching to `cfg` typically produces louder, more contrast-heavy mixes when ACE-Step output feels too quiet.
-
 ### Fixed
 
+- **Runware audio `unsupportedParameter` on `settings.guidanceType`**: Runware tightened the allow-list for `audioInference` (2026-05-14) and now rejects requests that include `settings.guidanceType` with `{"code":"unsupportedParameter","allowedValues":"'lyrics','bpm','keyScale','timeSignature','vocalLanguage','coverConditioningScale','repaintingStart','repaintingEnd'"}`. The renderer no longer forwards `guidanceType` in the audio payload (`invokeRunwareGenerateMusic` in `lib/runware.ts`), and the short-lived `GUIDANCE_TYPE` dropdown in `RunwareMusicOptionsPanel` has been removed since it can no longer affect the API. The `runwareMusicGuidanceType` setting is still parsed/normalized so older stored configs continue to load without errors; the value is just dropped at send time.
 - **Chat scroll position when returning from Options**: previously the chat `<main>` was unmounted while the Options screen was rendered (`if (screen === 'options') return ...` returns a parallel JSX tree), and the existing save/restore `useLayoutEffect` only captured `scrollTop` *after* the unmount — `chatMessagesRef.current` was already `null`, so it always saved `0` and the next return scrolled to the top. Now the scroll position is tracked continuously via an `onScroll` handler on the chat `<main>` and stored in `savedChatScrollRef`; the `useLayoutEffect` on `screen` change still restores it after the `<main>` re-mounts. Auto-scroll effects on `[messages.length]` and `[busy]` don't refire on screen toggles because their dependencies don't change, so the restored position sticks.
 
 ### Changed

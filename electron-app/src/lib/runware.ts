@@ -1013,8 +1013,11 @@ export async function invokeRunwareGenerateMusic(
   const keyScale = (req.keyScale || '').trim()
   const taskUUID = makeTaskUuid()
 
+  // Runware removed `guidanceType` from the audio-inference allow-list (2026-05-14);
+  // sending it now triggers `unsupportedParameter`. We keep parsing it from settings for
+  // back-compat but no longer forward it. The model picks its own guidance internally.
+  void guidanceType
   const settings: Record<string, unknown> = {
-    guidanceType,
     vocalLanguage,
   }
   if (lyrics) settings.lyrics = lyrics

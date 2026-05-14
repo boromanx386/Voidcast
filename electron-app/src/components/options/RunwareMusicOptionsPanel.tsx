@@ -259,27 +259,6 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
         </div>
       </div>
 
-      <div className="form-group">
-        <label className="form-label">GUIDANCE_TYPE</label>
-        <select
-          className="form-select"
-          value={settings.runwareMusicGuidanceType}
-          onChange={(e) => {
-            const v = e.target.value
-            setSettings((s) => ({
-              ...s,
-              runwareMusicGuidanceType: v === 'cfg' ? 'cfg' : 'apg',
-            }))
-          }}
-        >
-          <option value="apg">apg (Adaptive Projected Guidance, default)</option>
-          <option value="cfg">cfg (Classifier-Free Guidance)</option>
-        </select>
-        <p className="text-xs text-void-dim mt-2">
-          Controls how guidance is applied during diffusion. <code className="text-neon-green">apg</code> is the docs default; <code className="text-neon-green">cfg</code> often yields louder, more contrast-heavy mixes.
-        </p>
-      </div>
-
       <label className="flex items-start gap-3 p-4 bg-void-black/50 border border-void-muted/30">
         <input
           type="checkbox"
