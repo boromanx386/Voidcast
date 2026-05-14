@@ -161,6 +161,11 @@ const EMPTY_STATE_VARIANTS = {
     'You are all set. Ask anything.',
     'Session is ready. Type to continue.',
   ],
+  'blood-moon': [
+    'The void is listening. Feed it a prompt.',
+    'Crimson channel open. Transmit when ready.',
+    'Blood moon rising. Await your command.',
+  ],
 } as const
 
 function deriveSessionTitle(messages: UiMessage[]): string {
@@ -2540,7 +2545,9 @@ export default function App() {
           ? EMPTY_STATE_VARIANTS.matrix
           : settings.uiTheme === 'light'
             ? EMPTY_STATE_VARIANTS.light
-          : EMPTY_STATE_VARIANTS.minimal
+            : settings.uiTheme === 'blood-moon'
+              ? EMPTY_STATE_VARIANTS['blood-moon']
+              : EMPTY_STATE_VARIANTS.minimal
     return variants[emptyStateSeed % variants.length]
   }, [settings.uiTheme, emptyStateSeed])
 

@@ -228,7 +228,7 @@ function deriveSearchQuery(userText: string): string {
 
 const AGENT_EDITABLE_SETTINGS_FIELD_SET = new Set<string>(AGENT_EDITABLE_SETTINGS_FIELDS)
 const CONFIGURED_RUNWARE_MODEL_IDS = new Set<string>(RUNWARE_CONFIGURED_MODELS.map((x) => x.id))
-const UI_THEME_SET = new Set<UiTheme>(['dystopian', 'minimal', 'matrix', 'light'])
+const UI_THEME_SET = new Set<UiTheme>(['dystopian', 'minimal', 'matrix', 'light', 'blood-moon'])
 const LONG_MEMORY_KIND_SET = new Set<LongMemoryKind>([
   'preference',
   'project',

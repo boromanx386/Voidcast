@@ -4,8 +4,8 @@ export type SttProvider = 'none' | 'openrouter'
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
 
-/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper) */
-export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light'
+/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper), blood-moon (crimson void) */
+export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon'
 
 export type RunwareModelProfile = {
   width: number
@@ -523,7 +523,7 @@ function normalizePdfDir(s: AppSettings): AppSettings {
 function normalizeUiTheme(s: AppSettings): AppSettings {
   const t = s.uiTheme
   const uiTheme: UiTheme =
-    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' ? t : 'minimal'
+    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' || t === 'blood-moon' ? t : 'minimal'
   return { ...s, uiTheme }
 }
 
