@@ -1029,6 +1029,12 @@ export async function invokeRunwareGenerateMusic(
     settings.timeSignature = req.timeSignature
   }
 
+  // Runware also stripped `CFGScale` from audioInference on 2026-05-14 (returns
+  // `unsupportedCFGScaleForModel` even though their docs still mention it). Keep the
+  // value parsed for back-compat but don't forward it. Same reasoning for negativePrompt,
+  // which was historically only meaningful with CFGScale > 1 — leave it for now and
+  // remove only if a future error rejects it.
+  void cfgScale
   const payload: Record<string, unknown> = {
     taskType: 'audioInference',
     taskUUID,
@@ -1039,7 +1045,6 @@ export async function invokeRunwareGenerateMusic(
     positivePrompt: prompt,
     duration: durationSec,
     steps,
-    CFGScale: cfgScale,
     settings,
   }
   if (negativePrompt) payload.negativePrompt = negativePrompt

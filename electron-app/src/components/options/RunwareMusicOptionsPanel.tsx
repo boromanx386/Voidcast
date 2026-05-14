@@ -224,39 +224,21 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="form-group">
-          <label className="form-label">STEPS (max {stepsMax})</label>
-          <input
-            type="number"
-            min={1}
-            max={stepsMax}
-            step={1}
-            className="cyber-input"
-            value={activeProfile.steps}
-            onChange={(e) =>
-              updateActiveProfile({
-                steps: clamp(Math.round(Number(e.target.value)) || 1, 1, stepsMax),
-              })
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">CFG_SCALE</label>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            step={0.01}
-            className="cyber-input"
-            value={activeProfile.cfgScale}
-            onChange={(e) =>
-              updateActiveProfile({
-                cfgScale: clamp(Number(e.target.value) || 10, 1, 30),
-              })
-            }
-          />
-        </div>
+      <div className="form-group">
+        <label className="form-label">STEPS (max {stepsMax})</label>
+        <input
+          type="number"
+          min={1}
+          max={stepsMax}
+          step={1}
+          className="cyber-input"
+          value={activeProfile.steps}
+          onChange={(e) =>
+            updateActiveProfile({
+              steps: clamp(Math.round(Number(e.target.value)) || 1, 1, stepsMax),
+            })
+          }
+        />
       </div>
 
       <label className="flex items-start gap-3 p-4 bg-void-black/50 border border-void-muted/30">
