@@ -81,7 +81,7 @@ Combined with strong text-rendering image models, this becomes a serious tool fo
 
 - **Electron + React + TypeScript** — Desktop app
 - **Tailwind CSS** — Styling with `theme-matrix.css` cyberpunk theme
-- **Python 3.13** — Bundled tools server (no pip install required for standard features)
+- **Python 3.12+** — Bundled tools server (no pip install required for standard features)
 - **IndexedDB** — Local storage for chats, reminders, long memory
 
 ## Installation
@@ -90,11 +90,19 @@ Download the latest Windows installer from [Releases](https://github.com/boroman
 
 Or run in dev mode:
 ```bash
+# Root workspace dependencies
 npm install
+
+# Electron app dependencies
+cd electron-app && npm install
+
+# Start everything (tools server + Electron)
 npm run dev
 ```
 
-Requires [Node.js](https://nodejs.org/) and Python 3.12 (for tools server).
+Requires **Node.js 20+** and **Python 3.12+** (for tools server).
+
+> **Note:** Currently Windows-only. Linux and Mac builds are on the [roadmap](#roadmap).
 
 ### Configuration
 
@@ -137,12 +145,11 @@ From repository root:
 
 ## Run (Development)
 
-- Default dev (tools server + Electron):
-  - `npm run dev`
-- Start tools server only:
-  - `npm run dev:tts`
-- Start local TTS-enabled server (external/heavy deps required):
-  - `npm run dev:tts:local`
+| Command | What it does |
+|---------|-------------|
+| `npm run dev` | Start tools server + Electron app (default) |
+| `npm run dev:tts` | Start tools server only |
+| `npm run dev:tts:local` | Start with local OmniVoice TTS (requires external setup) |
 
 ## Build Installer
 
@@ -181,12 +188,14 @@ Configured in:
 - `electron-app/electron-builder.json` (`publish.provider=github`)
 - `electron-app/electron/main/update.ts`
 
-### One Release Flow
+### Release Flow
 
 1. Bump version in `electron-app/package.json`
-2. Create a GitHub token with repo release permissions
-3. Set token in shell:
-   - PowerShell: `$env:GH_TOKEN = "<your_token>"`
+2. Create a **classic GitHub Personal Access Token** with the `repo` scope
+3. Set it as environment variable:
+   - **PowerShell:** `$env:GH_TOKEN = "<your_token>"`
+   - **CMD:** `set GH_TOKEN=<your_token>`
+   - **Bash:** `export GH_TOKEN=<your_token>`
 4. Build + publish from `electron-app/`:
    - `npm run build:publish`
 
