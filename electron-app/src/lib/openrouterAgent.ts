@@ -11,11 +11,7 @@ import {
 import { executeToolCall } from '@/lib/agentToolExecutor'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
-import {
-  getLastUserText,
-  parseToolArguments,
-  shouldRequireToolCall,
-} from '@/lib/agentToolUtils'
+import { parseToolArguments } from '@/lib/agentToolUtils'
 
 const MAX_TOOL_ROUNDS = 18
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
@@ -67,13 +63,11 @@ export async function runOpenRouterChatWithTools(
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
-  const originalUserText = getLastUserText(params.initialMessages)
-  const mustCallTool = shouldRequireToolCall(originalUserText, params.toolsEnabled)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
     initialMessages,
     maxToolRounds: MAX_TOOL_ROUNDS,
     maxRequiredToolReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
-    mustCallTool,
+    mustCallTool: false,
     signal: params.signal,
     streamRound: async ({ messages, signal, onDelta, onThinkingDelta }) => {
       const res = await streamOpenRouterChat({

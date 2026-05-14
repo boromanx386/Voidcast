@@ -1679,6 +1679,7 @@ export default function App() {
     const useTools = anyToolEnabled(settings.toolsEnabled)
     const runtimeTimeHint = buildRuntimeTimeHint()
     const toolsHintParts: string[] = []
+    if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
     if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
     if (settings.toolsEnabled.reddit) toolsHintParts.push(TOOLS_REDDIT_HINT)
@@ -1722,7 +1723,6 @@ export default function App() {
       ].join('\n')
       toolsHintParts.push(remindersHint)
     }
-    if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
     const retrievedLongMemory = activeSessionUseLongMemory
       ? await searchMemories({
           query: [text, hiddenContextSummary].filter(Boolean).join('\n'),

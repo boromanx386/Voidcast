@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- **Agent tool-call decision making**: removed `shouldRequireToolCall` keyword-matching heuristic from `agentToolUtils.ts`, `ollamaAgent.ts`, and `openrouterAgent.ts`. Both Ollama and OpenRouter agents now pass `mustCallTool: false` to the shared tool loop, letting the model decide autonomously whether to invoke a tool based on the tool descriptions in the system prompt instead of being forced by regex keywords.
+- **`TOOLS_TRUTH_HINT` placement and wording**: moved from the end to the **beginning** of the tools hint block in `App.tsx` so it stays in the high-attention region of the system prompt across long sessions. Text tightened to an explicit mandatory rule starting with `Tool-call truth (highest priority):`.
+
 ## [2.5.2] — 2026-05-14
 
 ### Fixed

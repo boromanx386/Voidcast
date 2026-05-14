@@ -70,8 +70,10 @@ export const TOOLS_RUNWARE_MUSIC_HINT = `You have a Runware music tool named gen
  */
 export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolute file paths for attached images (user turns) and for locally saved generated images (assistant turns). Coding tools read/write only inside the coding project folder. To use a chat image inside the project (assets/, public/, etc.), copy it with execute_command from that absolute path to a relative destination under the project root; then use read_file or normal project edits.`
 
-/** When any tools are enabled — reduces false claims about tool execution */
-export const TOOLS_TRUTH_HINT = `You have access to tools listed in this prompt. When you need to perform an action that a tool can do (write files, run commands, search the web, generate images/music, etc.), you MUST call the appropriate tool. You must NEVER claim you performed such an action in text alone — always use the tool. Never claim you saved a file, searched the web, or ran a tool unless you actually invoked that tool in this turn and received its result message. If you show sample or fictional data, say clearly it is illustrative only — do not imply it was exported to a real file.`
+/** When any tools are enabled — reduces false claims about tool execution.
+ *  Kept short and placed FIRST in the tools hint block so it stays in the
+ *  high-attention region of the system prompt across long sessions. */
+export const TOOLS_TRUTH_HINT = `Tool-call truth (highest priority): never claim you generated an image, saved a file, ran a command, searched the web, edited code, exported a PDF, or produced music unless you actually invoked the matching tool on THIS turn and received its tool result. If you only have illustrative or sample content, state explicitly that it is an example — do not imply a real file, URL, or output exists.`
 export const ATTACHMENT_TRUTH_HINT = `If the chat context already includes attached file snapshots or quoted file text, analyze that provided content directly. Do not say you cannot access local files/tools unless no snapshot/content was provided.`
 
 /** @deprecated use TOOLS_WEB_SEARCH_HINT */
