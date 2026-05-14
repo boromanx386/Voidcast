@@ -255,7 +255,7 @@ const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'edit_image_runware',
     description:
-      'Edit or transform images with Runware using attached chat images as references. Use when the user asks to modify an existing image or combine details from attached images.',
+      'MANDATORY: Edit or transform images with Runware using attached chat images as references. CRITICAL: When the user asks to modify, change, edit, transform, or combine existing image(s), you MUST call this tool BEFORE responding with any text. Do NOT describe how the edited image would look - actually call the tool. Do NOT say "Here is the edited image" without calling this tool first. Never claim an image was edited or transformed unless this tool returned a real result with image_url; if editing fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {
@@ -450,7 +450,7 @@ const CODING_WRITE_FILE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'write_file',
     description:
-      'Write full file content in the configured coding project directory. This overwrites file content; read the file first when changing existing code.',
+      'MANDATORY: Write full file content in the configured coding project directory. CRITICAL: When the user asks to create a new file, save code, or replace a file\'s contents, you MUST call this tool BEFORE responding with any text. Do NOT show the file contents in chat and claim it was saved - actually call the tool. Do NOT say "File created" or "Saved to ..." without calling this tool first. Never claim a file was written unless this tool returned a successful result in this turn. This overwrites file content; read the file first when changing existing code.',
     parameters: {
       type: 'object',
       properties: {
@@ -473,7 +473,7 @@ const CODING_EDIT_CODE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'edit_code',
     description:
-      'Edit existing file content by replacing a target snippet with new text inside the configured coding project directory.',
+      'MANDATORY: Edit existing file content by replacing a target snippet with new text inside the configured coding project directory. CRITICAL: When the user asks to change, fix, refactor, rename, or modify code inside an existing file, you MUST call this tool BEFORE responding with any text. Do NOT show the patched code in chat and claim it was applied - actually call the tool. Do NOT say "I changed ..." or "Updated the function" without calling this tool first. Never claim a file was edited unless this tool returned a successful result in this turn.',
     parameters: {
       type: 'object',
       properties: {
@@ -638,7 +638,7 @@ const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
   function: {
     name: 'execute_command',
     description:
-      'Execute a shell command in the configured coding project directory and return stdout/stderr.',
+      'MANDATORY: Execute a shell command in the configured coding project directory and return stdout/stderr. CRITICAL: When the user asks to run, execute, build, test, install, start, stop, or invoke any command/script, you MUST call this tool BEFORE responding with any text. Do NOT show example terminal output and claim the command ran - actually call the tool. Do NOT say "I ran the command" or paste fake stdout without calling this tool first. Never claim a command produced output unless this tool returned a real result with stdout/stderr in this turn.',
     parameters: {
       type: 'object',
       properties: {
