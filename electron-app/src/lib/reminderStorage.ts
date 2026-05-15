@@ -1,3 +1,5 @@
+import { makeUuidV4 } from '@/lib/runwareUuid'
+
 const DB_NAME = 'voidcast-reminders-v1'
 const STORE = 'reminders'
 const DB_VERSION = 1
@@ -7,11 +9,17 @@ export interface Reminder {
   text: string
   when: number | null
   createdAt: number
+  /** Last mutation time (sync merge). */
+  updatedAt: number
   status: 'pending' | 'done' | 'cancelled'
   tags: string[]
   source: 'agent-tool' | 'manual'
   /** Timestamp when the renderer last fired a desktop notification for this reminder. */
   notifiedAt?: number
+}
+
+function reminderUpdatedAt(item: Reminder): number {
+  return item.updatedAt > 0 ? item.updatedAt : item.createdAt
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -58,11 +66,13 @@ export async function addReminder(candidate: {
   const db = await openDb()
   const tx = db.transaction(STORE, 'readwrite')
   const store = tx.objectStore(STORE)
+  const now = Date.now()
   const item: Reminder = {
-    id: crypto.randomUUID(),
+    id: makeUuidV4(),
     text: candidate.text.trim(),
     when: candidate.when ?? null,
-    createdAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
     status: 'pending',
     tags: normalizeTags(candidate.tags),
     source: candidate.source ?? 'manual',
@@ -128,6 +138,7 @@ export async function markReminderDone(id: string): Promise<void> {
   })
   if (item) {
     item.status = 'done'
+    item.updatedAt = Date.now()
     store.put(item)
   }
   await txDone(tx)
@@ -149,6 +160,7 @@ export async function updateReminder(
   if (patch.text !== undefined) item.text = patch.text.trim()
   if (patch.when !== undefined) item.when = patch.when
   if (patch.tags !== undefined) item.tags = normalizeTags(patch.tags)
+  item.updatedAt = Date.now()
   store.put(item)
   await txDone(tx)
   return item
@@ -187,3 +199,51 @@ export async function markReminderNotified(id: string, ts: number): Promise<void
   }
   await txDone(tx)
 }
+
+export async function importReminderItems(items: Reminder[]): Promise<void> {
+  if (items.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  const store = tx.objectStore(STORE)
+  for (const raw of items) {
+    const createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now()
+    const updatedAt =
+      Number.isFinite(raw.updatedAt) && raw.updatedAt > 0 ? raw.updatedAt : createdAt
+    store.put({
+      ...raw,
+      createdAt,
+      updatedAt,
+    })
+  }
+  await txDone(tx)
+}
+
+export async function applyReminderDeletes(
+  deletedIds: string[],
+  deletedAt: Record<string, number>,
+): Promise<void> {
+  if (deletedIds.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  const store = tx.objectStore(STORE)
+  for (const id of deletedIds) {
+    const tomb = deletedAt[id]
+    if (tomb == null) {
+      store.delete(id)
+      continue
+    }
+    const req = store.get(id)
+    await new Promise<void>((resolve) => {
+      req.onsuccess = () => {
+        const row = req.result as Reminder | undefined
+        if (!row) return resolve()
+        if (tomb >= reminderUpdatedAt(row)) store.delete(id)
+        resolve()
+      }
+      req.onerror = () => resolve()
+    })
+  }
+  await txDone(tx)
+}
+
+export { reminderUpdatedAt }

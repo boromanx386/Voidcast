@@ -58,6 +58,7 @@ from cloud_secrets import (
     get_runware_key,
     register_secrets,
 )
+from user_data import apply_sync, get_snapshot
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
@@ -185,6 +186,13 @@ class CloudSecretsRequest(BaseModel):
     openrouterApiKey: str = Field(default="", max_length=2048)
     runwareApiKey: str = Field(default="", max_length=2048)
     nvidiaApiKey: str = Field(default="", max_length=2048)
+
+
+class UserDataSyncRequest(BaseModel):
+    longMemories: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    reminders: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    deletedMemoryIds: list[str] = Field(default_factory=list, max_length=500)
+    deletedReminderIds: list[str] = Field(default_factory=list, max_length=500)
 
 
 class TtsRequest(BaseModel):
@@ -666,6 +674,19 @@ async def tools_cloud_secrets_status():
         "runware": bool(get_runware_key()),
         "nvidia": bool(get_nvidia_key()),
     }
+
+
+@app.get("/tools/user-data")
+async def tools_user_data_get():
+    """Long memory + reminders snapshot for LAN web ↔ desktop sync (no API keys)."""
+    return get_snapshot()
+
+
+@app.post("/tools/user-data-sync")
+async def tools_user_data_sync(req: UserDataSyncRequest):
+    """Merge long memory + reminders from any LAN client (bidirectional sync)."""
+    apply_sync(req.model_dump())
+    return get_snapshot()
 
 
 _RUNWARE_UUID_V4_RE = re.compile(

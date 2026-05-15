@@ -508,6 +508,10 @@ export function GeneralOptionsPanel({
           <BrainIcon className="h-4 w-4 shrink-0 text-neon-cyan" aria-hidden />
           LONG_MEMORY
         </p>
+        <p className="text-[10px] text-void-dim leading-relaxed">
+          Long memory and reminders sync both ways via the TTS server while desktop and server are
+          running (~30s).
+        </p>
         <label className="flex items-start gap-3">
           <input
             type="checkbox"

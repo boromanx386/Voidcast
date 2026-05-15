@@ -81,6 +81,12 @@ import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { pushCloudSecretsToServer } from '@/lib/cloudSecrets'
+import {
+  recordMemoryDeleted,
+  recordReminderDeleted,
+  scheduleUserDataSync,
+  syncUserDataNow,
+} from '@/lib/userDataSync'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import {
   getAgentVisibleSettings,
@@ -1476,8 +1482,15 @@ export default function App() {
     setError(null)
     try {
       const compressed = await compressConversationContext({
-        baseUrl: settings.ollamaBaseUrl,
-        model: settings.ollamaModel,
+        provider: settings.llmProvider,
+        ollamaBaseUrl: settings.ollamaBaseUrl,
+        ollamaModel: settings.ollamaModel,
+        openrouterBaseUrl: settings.openrouterBaseUrl,
+        openrouterApiKey: settings.openrouterApiKey,
+        openrouterModel: settings.openrouterModel,
+        nvidiaBaseUrl: settings.nvidiaBaseUrl,
+        nvidiaApiKey: settings.nvidiaApiKey,
+        nvidiaModel: settings.nvidiaModel,
         turns,
         existingSummary: hiddenContextSummary,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
@@ -1545,6 +1558,7 @@ export default function App() {
     try {
       await upsertMemories(memoryCandidates, activeSessionId ?? 'draft')
       await dedupeMemories()
+      scheduleUserDataSync(settings.ttsBaseUrl)
       setLongMemories(await listMemories(100))
       setMemoryPreviewOpen(false)
       setMemoryCandidates([])
@@ -1570,6 +1584,18 @@ export default function App() {
       // ignore
     }
   }, [])
+
+  const syncUserDataAndRefresh = useCallback(async () => {
+    await syncUserDataNow(settings.ttsBaseUrl)
+    await refreshLongMemories()
+    await refreshReminders()
+  }, [settings.ttsBaseUrl, refreshLongMemories, refreshReminders])
+
+  useEffect(() => {
+    void syncUserDataAndRefresh()
+    const heartbeat = window.setInterval(() => scheduleUserDataSync(settings.ttsBaseUrl), 30_000)
+    return () => window.clearInterval(heartbeat)
+  }, [settings.ttsBaseUrl, syncUserDataAndRefresh])
 
   /**
    * Desktop notifications for due reminders.
@@ -1635,20 +1661,22 @@ export default function App() {
 
   const deleteLongMemoryById = useCallback(async (id: string) => {
     await deleteMemory(id)
+    recordMemoryDeleted(id)
+    scheduleUserDataSync(settings.ttsBaseUrl)
     await refreshLongMemories()
-  }, [refreshLongMemories])
+  }, [refreshLongMemories, settings.ttsBaseUrl])
 
   const updateLongMemoryById = useCallback(async (id: string, text: string) => {
     await updateMemoryText(id, text)
+    scheduleUserDataSync(settings.ttsBaseUrl)
     await refreshLongMemories()
-  }, [refreshLongMemories])
+  }, [refreshLongMemories, settings.ttsBaseUrl])
 
   useEffect(() => {
     if (screen === 'options' && optionsTab === 'general') {
-      void refreshLongMemories()
-      void refreshReminders()
+      void syncUserDataAndRefresh()
     }
-  }, [optionsTab, refreshLongMemories, refreshReminders, screen])
+  }, [optionsTab, screen, syncUserDataAndRefresh])
 
   // === Send Message ===
   const onSend = async (opts?: { text?: string; history?: UiMessage[]; skipAddUserMsg?: boolean }) => {
@@ -1913,9 +1941,12 @@ export default function App() {
             setToolPhase(toolPhaseForAgentTool(name))
             if (name === 'add_reminder' || name === 'list_reminders' || name === 'delete_reminder' || name === 'update_reminder') {
               void refreshReminders()
+              scheduleUserDataSync(settings.ttsBaseUrl)
             }
             if (name === 'update_settings') {
               setSettings(loadSettings())
+              void refreshLongMemories()
+              scheduleUserDataSync(settings.ttsBaseUrl)
             }
             if (
               name === 'list_directory' ||
@@ -2692,10 +2723,13 @@ export default function App() {
                 reminders={reminders}
                 onDeleteReminder={async (id) => {
                   await deleteReminder(id)
+                  recordReminderDeleted(id)
+                  scheduleUserDataSync(settings.ttsBaseUrl)
                   await refreshReminders()
                 }}
                 onMarkDoneReminder={async (id) => {
                   await markReminderDone(id)
+                  scheduleUserDataSync(settings.ttsBaseUrl)
                   await refreshReminders()
                 }}
               />

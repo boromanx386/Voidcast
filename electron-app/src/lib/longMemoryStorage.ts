@@ -1,3 +1,4 @@
+import { makeUuidV4 } from '@/lib/runwareUuid'
 import type { LongMemoryCandidate, LongMemoryItem } from '@/types/longMemory'
 
 const DB_NAME = 'voidcast-long-memory-v1'
@@ -102,7 +103,7 @@ export async function upsertMemories(
       const text = normalizeText(c.text)
       if (!text) return null
       return {
-        id: crypto.randomUUID(),
+        id: makeUuidV4(),
         kind: c.kind,
         text: text.slice(0, 400),
         tags: normalizeTags(c.tags),
@@ -194,6 +195,43 @@ export async function dedupeMemories(): Promise<number> {
   for (const id of toDelete) store.delete(id)
   await txDone(tx)
   return toDelete.length
+}
+
+export async function importMemoryItems(items: LongMemoryItem[]): Promise<void> {
+  if (items.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  const store = tx.objectStore(STORE)
+  for (const item of items) store.put(item)
+  await txDone(tx)
+}
+
+export async function applyMemoryDeletes(
+  deletedIds: string[],
+  deletedAt: Record<string, number>,
+): Promise<void> {
+  if (deletedIds.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  const store = tx.objectStore(STORE)
+  for (const id of deletedIds) {
+    const tomb = deletedAt[id]
+    if (tomb == null) {
+      store.delete(id)
+      continue
+    }
+    const req = store.get(id)
+    await new Promise<void>((resolve) => {
+      req.onsuccess = () => {
+        const row = req.result as LongMemoryItem | undefined
+        if (!row) return resolve()
+        if (tomb >= row.updatedAt) store.delete(id)
+        resolve()
+      }
+      req.onerror = () => resolve()
+    })
+  }
+  await txDone(tx)
 }
 
 export async function searchMemories(params: {

@@ -1,17 +1,8 @@
-import type { OllamaApiMessage, OllamaModelOptions } from '@/lib/ollama'
-import { normalizeBaseUrl } from '@/lib/settings'
+import type { LlmProvider } from '@/lib/settings'
+import { streamOllamaChat, type OllamaApiMessage, type OllamaModelOptions } from '@/lib/ollama'
+import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 
 type ContextTurn = { role: 'user' | 'assistant'; content: string }
-
-function compactModelOptions(
-  o: OllamaModelOptions | undefined,
-): Record<string, number> | undefined {
-  if (!o) return undefined
-  const out: Record<string, number> = {}
-  if (o.temperature !== undefined) out.temperature = o.temperature
-  if (o.num_ctx !== undefined) out.num_ctx = o.num_ctx
-  return Object.keys(out).length ? out : undefined
-}
 
 function buildTranscript(turns: ContextTurn[]): string {
   return turns
@@ -24,14 +15,20 @@ function buildTranscript(turns: ContextTurn[]): string {
  * This summary is never shown as a chat message.
  */
 export async function compressConversationContext(params: {
-  baseUrl: string
-  model: string
+  provider: LlmProvider
+  ollamaBaseUrl: string
+  ollamaModel: string
+  openrouterBaseUrl: string
+  openrouterApiKey: string
+  openrouterModel: string
+  nvidiaBaseUrl?: string
+  nvidiaApiKey?: string
+  nvidiaModel?: string
   turns: ContextTurn[]
   existingSummary?: string
   modelOptions?: OllamaModelOptions
   signal?: AbortSignal
 }): Promise<string> {
-  const root = normalizeBaseUrl(params.baseUrl)
   const transcript = buildTranscript(params.turns)
   if (!transcript.trim()) return params.existingSummary?.trim() ?? ''
 
@@ -50,27 +47,30 @@ export async function compressConversationContext(params: {
     { role: 'system', content: system },
     { role: 'user', content: userPrompt },
   ]
+  const modelOptions = { ...params.modelOptions, temperature: 0.2 }
 
-  const body: Record<string, unknown> = {
-    model: params.model,
-    messages,
-    stream: false,
+  let content = ''
+  if (params.provider === 'openrouter' || params.provider === 'nvidia') {
+    const out = await streamOpenRouterChat({
+      baseUrl: params.provider === 'nvidia' ? (params.nvidiaBaseUrl || '') : params.openrouterBaseUrl,
+      apiKey: params.provider === 'nvidia' ? (params.nvidiaApiKey || '') : params.openrouterApiKey,
+      model: params.provider === 'nvidia' ? (params.nvidiaModel || '') : params.openrouterModel,
+      messages: ollamaMessagesToOpenRouter(messages),
+      modelOptions,
+      signal: params.signal,
+      onDelta: () => undefined,
+    })
+    content = out.content
+  } else {
+    const out = await streamOllamaChat({
+      baseUrl: params.ollamaBaseUrl,
+      model: params.ollamaModel,
+      messages,
+      modelOptions,
+      signal: params.signal,
+      onDelta: () => undefined,
+    })
+    content = out.content
   }
-  const opts = compactModelOptions(params.modelOptions)
-  if (opts) body.options = { ...opts, temperature: 0.2 }
-
-  const res = await fetch(`${root}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: params.signal,
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '')
-    throw new Error(`Ollama /api/chat ${res.status}: ${errText || res.statusText}`)
-  }
-  const data = (await res.json()) as {
-    message?: { content?: string }
-  }
-  return data.message?.content?.trim() ?? ''
+  return content.trim()
 }
