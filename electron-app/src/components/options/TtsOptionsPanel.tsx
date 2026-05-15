@@ -1,5 +1,6 @@
 import type { AppSettings } from '@/lib/settings'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
+import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import { synthesizeSpeech } from '@/lib/tts'
 import {
@@ -171,6 +172,13 @@ export function TtsOptionsPanel({
 
   return (
     <div className="grid gap-4 text-sm">
+      {isWebStandalone() ? (
+        <p className="text-xs text-void-dim border border-void-muted/30 rounded px-3 py-2">
+          Voice input (STT) is not available in the phone/browser build. Use the desktop app if you
+          need microphone transcription.
+        </p>
+      ) : (
+        <>
       {/* STT Provider */}
       <div className="form-group">
         <label className="form-label">
@@ -210,6 +218,8 @@ export function TtsOptionsPanel({
             />
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Server URL */}
@@ -685,10 +695,12 @@ export function TtsOptionsPanel({
               <span className="text-neon-red">◐</span> DURATION_OVERRIDE (seconds)
             </label>
             <input
-              type="number"
-              step={0.5}
-              min={0}
-              placeholder="Auto (null)"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              spellCheck={false}
+              enterKeyHint="done"
+              placeholder="Auto (empty)"
               className="cyber-input"
               value={
                 settings.ttsDurationSec == null
@@ -740,18 +752,12 @@ export function TtsOptionsPanel({
         <label className="form-label">
           <span className="text-neon-cyan">⬡</span> CHUNK_SIZE (chars)
         </label>
-        <input
-          type="number"
-          step={20}
+        <NumericSettingInput
           min={80}
           max={2000}
-          className="cyber-input"
           value={settings.ttsChunkMaxChars}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              ttsChunkMaxChars: Math.round(Number(e.target.value)) || 300,
-            }))
+          onCommit={(ttsChunkMaxChars) =>
+            setSettings((s) => ({ ...s, ttsChunkMaxChars }))
           }
         />
         <p className="text-xs text-void-dim mt-1">

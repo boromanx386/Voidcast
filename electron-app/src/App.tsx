@@ -2666,7 +2666,7 @@ export default function App() {
               {tab === 'llm' && '◇ LLM'}
               {tab === 'runware' && '◌ IMAGE'}
               {tab === 'runwareMusic' && '♫ MUSIC'}
-              {tab === 'tts' && '◉ TTS/STT'}
+              {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
               {tab === 'tools' && '⬡ TOOLS'}
             </button>
           ))}
@@ -3640,7 +3640,7 @@ export default function App() {
             >
               +
             </button>
-            {settings.sttProvider === 'openrouter' && (
+            {settings.sttProvider === 'openrouter' && !isWebStandalone() && (
               <button
                 type="button"
                 disabled={busy || sttPending}
@@ -3813,10 +3813,10 @@ export default function App() {
                 : settings.openrouterModel}
           </span>
           <span className="text-void-dim/30 select-none">|</span>
-          <span className="text-void-dim/60 text-[10px]">TTS/STT</span>
+          <span className="text-void-dim/60 text-[10px]">{isWebStandalone() ? 'TTS' : 'TTS/STT'}</span>
           <span
             className={`dot ${ttsOk === true ? 'online' : ttsOk === false ? 'offline' : 'busy'}`}
-            title={`TTS service ${ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'} (STT uses OpenRouter when enabled)`}
+            title={`TTS service ${ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}`}
           />
         </div>
         <div className="footer-context-readout flex min-w-0 max-w-[min(100%,22rem)] flex-col items-end gap-0.5 text-right font-mono">

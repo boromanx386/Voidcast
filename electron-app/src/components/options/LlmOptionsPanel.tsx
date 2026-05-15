@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import type { Dispatch, SetStateAction } from 'react'
 
@@ -387,23 +388,11 @@ export function LlmOptionsPanel({
             {settings.llmNumCtx.toLocaleString()} tokens
           </span>
         </label>
-        <input
-          type="number"
-          step={256}
+        <NumericSettingInput
           min={512}
           max={262144}
-          className="cyber-input"
           value={settings.llmNumCtx}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              llmNumCtx: clamp(
-                Math.round(Number(e.target.value)) || 8192,
-                512,
-                262144,
-              ),
-            }))
-          }
+          onCommit={(llmNumCtx) => setSettings((s) => ({ ...s, llmNumCtx }))}
         />
         <p className="text-xs text-void-dim mt-1">
           Model context window (Ollama options.num_ctx)
@@ -420,22 +409,12 @@ export function LlmOptionsPanel({
               : `${settings.llmMaxHistoryMessages} msgs`}
           </span>
         </label>
-        <input
-          type="number"
-          step={1}
+        <NumericSettingInput
           min={0}
           max={500}
-          className="cyber-input"
           value={settings.llmMaxHistoryMessages}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              llmMaxHistoryMessages: clamp(
-                Math.round(Number(e.target.value)) || 0,
-                0,
-                500,
-              ),
-            }))
+          onCommit={(llmMaxHistoryMessages) =>
+            setSettings((s) => ({ ...s, llmMaxHistoryMessages }))
           }
         />
         <p className="text-xs text-void-dim mt-1">

@@ -777,6 +777,7 @@ function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
       openrouterBaseUrl: openRouterApiBaseForRuntime(),
       nvidiaBaseUrl: nvidiaApiBaseForRuntime(),
       voiceMode: 'design',
+      sttProvider: 'none',
     })
   }
   return s

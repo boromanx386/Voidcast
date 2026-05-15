@@ -7,6 +7,7 @@ import {
   type RunwareModelProfile,
 } from '@/lib/settings'
 import { isElectron, isWebStandalone } from '@/lib/platform'
+import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 
 type Props = {
@@ -15,10 +16,6 @@ type Props = {
 }
 
 const RUNWARE_FLUX_MODEL_ID = 'runware:400@6'
-
-function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, n))
-}
 
 export function RunwareOptionsPanel({ settings, setSettings }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
@@ -48,8 +45,6 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
   const imageMaxSide = isGptImage2Selected ? 3840 : 2048
   const editMinSide = isGptImage2EditSelected ? 480 : isZImageTurboEditSelected ? 128 : 256
   const editMaxSide = isGptImage2EditSelected ? 3840 : 2048
-  const sideStep = 16
-
   const browseImageFolder = useCallback(async () => {
     const vc = isElectron() ? window.voidcast?.pickDirectory : undefined
     if (!vc) return
@@ -219,36 +214,24 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="form-group">
-          <label className="form-label">IMAGE_WIDTH</label>
-          <input
-            type="number"
+          <label className="form-label">IMAGE_WIDTH ({imageMinSide}–{imageMaxSide})</label>
+          <NumericSettingInput
             min={imageMinSide}
             max={imageMaxSide}
-            step={sideStep}
-            className="cyber-input"
             value={activeImageProfile.width}
-            onChange={(e) =>
-              updateProfile(selectedImageModel, (current) => ({
-                ...current,
-                width: clamp(Math.round(Number(e.target.value)) || 1024, imageMinSide, imageMaxSide),
-              }))
+            onCommit={(width) =>
+              updateProfile(selectedImageModel, (current) => ({ ...current, width }))
             }
           />
         </div>
         <div className="form-group">
-          <label className="form-label">IMAGE_HEIGHT</label>
-          <input
-            type="number"
+          <label className="form-label">IMAGE_HEIGHT ({imageMinSide}–{imageMaxSide})</label>
+          <NumericSettingInput
             min={imageMinSide}
             max={imageMaxSide}
-            step={sideStep}
-            className="cyber-input"
             value={activeImageProfile.height}
-            onChange={(e) =>
-              updateProfile(selectedImageModel, (current) => ({
-                ...current,
-                height: clamp(Math.round(Number(e.target.value)) || 1024, imageMinSide, imageMaxSide),
-              }))
+            onCommit={(height) =>
+              updateProfile(selectedImageModel, (current) => ({ ...current, height }))
             }
           />
         </div>
@@ -258,36 +241,25 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
         {!isGptImage2Selected ? (
           <>
             <div className="form-group">
-              <label className="form-label">IMAGE_STEPS</label>
-              <input
-                type="number"
+              <label className="form-label">IMAGE_STEPS (1–80)</label>
+              <NumericSettingInput
                 min={1}
                 max={80}
-                step={1}
-                className="cyber-input"
                 value={activeImageProfile.steps}
-                onChange={(e) =>
-                  updateProfile(selectedImageModel, (current) => ({
-                    ...current,
-                    steps: clamp(Math.round(Number(e.target.value)) || 4, 1, 80),
-                  }))
+                onCommit={(steps) =>
+                  updateProfile(selectedImageModel, (current) => ({ ...current, steps }))
                 }
               />
             </div>
             <div className="form-group">
-              <label className="form-label">IMAGE_CFG_SCALE</label>
-              <input
-                type="number"
+              <label className="form-label">IMAGE_CFG_SCALE (0–30)</label>
+              <NumericSettingInput
+                integer={false}
                 min={0}
                 max={30}
-                step={0.1}
-                className="cyber-input"
                 value={activeImageProfile.cfgScale}
-                onChange={(e) =>
-                  updateProfile(selectedImageModel, (current) => ({
-                    ...current,
-                    cfgScale: clamp(Number(e.target.value) || 0, 0, 30),
-                  }))
+                onCommit={(cfgScale) =>
+                  updateProfile(selectedImageModel, (current) => ({ ...current, cfgScale }))
                 }
               />
             </div>
@@ -346,36 +318,24 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="form-group">
-          <label className="form-label">EDIT_WIDTH</label>
-          <input
-            type="number"
+          <label className="form-label">EDIT_WIDTH ({editMinSide}–{editMaxSide})</label>
+          <NumericSettingInput
             min={editMinSide}
             max={editMaxSide}
-            step={sideStep}
-            className="cyber-input"
             value={activeEditProfile.width}
-            onChange={(e) =>
-              updateProfile(selectedEditModel, (current) => ({
-                ...current,
-                width: clamp(Math.round(Number(e.target.value)) || 1024, editMinSide, editMaxSide),
-              }))
+            onCommit={(width) =>
+              updateProfile(selectedEditModel, (current) => ({ ...current, width }))
             }
           />
         </div>
         <div className="form-group">
-          <label className="form-label">EDIT_HEIGHT</label>
-          <input
-            type="number"
+          <label className="form-label">EDIT_HEIGHT ({editMinSide}–{editMaxSide})</label>
+          <NumericSettingInput
             min={editMinSide}
             max={editMaxSide}
-            step={sideStep}
-            className="cyber-input"
             value={activeEditProfile.height}
-            onChange={(e) =>
-              updateProfile(selectedEditModel, (current) => ({
-                ...current,
-                height: clamp(Math.round(Number(e.target.value)) || 1024, editMinSide, editMaxSide),
-              }))
+            onCommit={(height) =>
+              updateProfile(selectedEditModel, (current) => ({ ...current, height }))
             }
           />
         </div>
@@ -385,36 +345,25 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
         {!isGptImage2EditSelected ? (
           <>
             <div className="form-group">
-              <label className="form-label">EDIT_STEPS</label>
-              <input
-                type="number"
+              <label className="form-label">EDIT_STEPS (1–80)</label>
+              <NumericSettingInput
                 min={1}
                 max={80}
-                step={1}
-                className="cyber-input"
                 value={activeEditProfile.steps}
-                onChange={(e) =>
-                  updateProfile(selectedEditModel, (current) => ({
-                    ...current,
-                    steps: clamp(Math.round(Number(e.target.value)) || 4, 1, 80),
-                  }))
+                onCommit={(steps) =>
+                  updateProfile(selectedEditModel, (current) => ({ ...current, steps }))
                 }
               />
             </div>
             <div className="form-group">
-              <label className="form-label">EDIT_CFG_SCALE</label>
-              <input
-                type="number"
+              <label className="form-label">EDIT_CFG_SCALE (0–30)</label>
+              <NumericSettingInput
+                integer={false}
                 min={0}
                 max={30}
-                step={0.1}
-                className="cyber-input"
                 value={activeEditProfile.cfgScale}
-                onChange={(e) =>
-                  updateProfile(selectedEditModel, (current) => ({
-                    ...current,
-                    cfgScale: clamp(Number(e.target.value) || 0, 0, 30),
-                  }))
+                onCommit={(cfgScale) =>
+                  updateProfile(selectedEditModel, (current) => ({ ...current, cfgScale }))
                 }
               />
             </div>

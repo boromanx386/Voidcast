@@ -6,15 +6,12 @@ import {
   maxStepsForMusicModelId,
 } from '@/lib/settings'
 import { isElectron, isWebStandalone } from '@/lib/platform'
+import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react'
 
 type Props = {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
-}
-
-function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, n))
 }
 
 export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
@@ -207,37 +204,24 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">DURATION_SEC</label>
-          <input
-            type="number"
+          <label className="form-label">DURATION_SEC (6–300)</label>
+          <NumericSettingInput
+            integer={false}
             min={6}
             max={300}
-            step={0.1}
-            className="cyber-input"
             value={activeProfile.durationSec}
-            onChange={(e) =>
-              updateActiveProfile({
-                durationSec: clamp(Number(e.target.value) || 60, 6, 300),
-              })
-            }
+            onCommit={(durationSec) => updateActiveProfile({ durationSec })}
           />
         </div>
       </div>
 
       <div className="form-group">
-        <label className="form-label">STEPS (max {stepsMax})</label>
-        <input
-          type="number"
+        <label className="form-label">STEPS (1–{stepsMax})</label>
+        <NumericSettingInput
           min={1}
           max={stepsMax}
-          step={1}
-          className="cyber-input"
           value={activeProfile.steps}
-          onChange={(e) =>
-            updateActiveProfile({
-              steps: clamp(Math.round(Number(e.target.value)) || 1, 1, stepsMax),
-            })
-          }
+          onCommit={(steps) => updateActiveProfile({ steps })}
         />
       </div>
 
@@ -261,18 +245,12 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
             Keep the same random seed for reproducible results.
           </span>
           {activeProfile.seed != null ? (
-            <input
-              type="number"
+            <NumericSettingInput
+              className="cyber-input mt-3"
               min={0}
               max={2147483647}
-              step={1}
-              className="cyber-input mt-3"
-              value={activeProfile.seed}
-              onChange={(e) =>
-                updateActiveProfile({
-                  seed: clamp(Math.round(Number(e.target.value)) || 0, 0, 2147483647),
-                })
-              }
+              value={activeProfile.seed ?? 0}
+              onCommit={(seed) => updateActiveProfile({ seed })}
             />
           ) : null}
         </span>
