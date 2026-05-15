@@ -1,5 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
-import { isElectron } from '@/lib/platform'
+import { isElectron, isLanWebClient } from '@/lib/platform'
 import {
   useEffect,
   useRef,
@@ -359,6 +359,18 @@ export function GeneralOptionsPanel({
         </p>
       </div>
 
+      {isLanWebClient() ? (
+        <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
+          <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-2">
+            CLOUD_API_KEYS
+          </p>
+          <p className="text-xs text-void-dim leading-relaxed">
+            API keys are configured only in the desktop Voidcast app (General options). This
+            browser session uses the TTS server proxy — keys never appear on your phone.
+          </p>
+        </div>
+      ) : (
+        <>
       <div className="form-group">
         <label className="form-label">
           <span className="text-neon-yellow mr-2">⚿</span> RUNWARE_API_KEY
@@ -374,7 +386,7 @@ export function GeneralOptionsPanel({
           autoComplete="off"
         />
         <p className="text-xs text-neon-yellow/80 mt-1">
-          Stored locally on this device (desktop app storage).
+          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
         </p>
         <a
           href="https://runware.ai/"
@@ -401,7 +413,7 @@ export function GeneralOptionsPanel({
           autoComplete="off"
         />
         <p className="text-xs text-neon-cyan/80 mt-1">
-          Stored locally on this device (desktop app storage).
+          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
         </p>
         <a
           href="https://openrouter.ai/keys"
@@ -428,7 +440,7 @@ export function GeneralOptionsPanel({
           autoComplete="off"
         />
         <p className="text-xs text-neon-cyan/80 mt-1">
-          Stored locally on this device (desktop app storage).
+          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
         </p>
         <a
           href="https://build.nvidia.com/"
@@ -439,6 +451,8 @@ export function GeneralOptionsPanel({
           Get NVIDIA API key
         </a>
       </div>
+        </>
+      )}
 
       {isElectron() && (
         <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">

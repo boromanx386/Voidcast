@@ -224,7 +224,9 @@ export type AgentEditableSettingsField = (typeof AGENT_EDITABLE_SETTINGS_FIELDS)
 import {
   defaultOllamaBaseUrlForRuntime,
   defaultTtsBaseUrlForRuntime,
-  isWebStandalone,
+  isLanWebClient,
+  nvidiaApiBaseForRuntime,
+  openRouterApiBaseForRuntime,
 } from '@/lib/platform'
 
 const STORAGE_KEY = 'voidcast-settings-v1'
@@ -755,17 +757,27 @@ function normalizeAll(s: AppSettings): AppSettings {
   )
 }
 
+function stripCloudSecrets(s: AppSettings): AppSettings {
+  return {
+    ...s,
+    openrouterApiKey: '',
+    runwareApiKey: '',
+    nvidiaApiKey: '',
+  }
+}
+
 function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
-  if (typeof window !== 'undefined' && isWebStandalone()) {
-    return {
+  if (typeof window !== 'undefined' && isLanWebClient()) {
+    return stripCloudSecrets({
       ...s,
       ttsBaseUrl: defaultTtsBaseUrlForRuntime(),
       ollamaBaseUrl: ollamaUrlShouldUseDesktopProxy(s.ollamaBaseUrl)
         ? defaultOllamaBaseUrlForRuntime()
         : s.ollamaBaseUrl,
-      // Browser/LAN UI has no desktop WAV clone file; synced "clone" would fail. TTS uses instruct (+ optional anchor baked on this device).
+      openrouterBaseUrl: openRouterApiBaseForRuntime(),
+      nvidiaBaseUrl: nvidiaApiBaseForRuntime(),
       voiceMode: 'design',
-    }
+    })
   }
   return s
 }
@@ -810,7 +822,9 @@ export function loadSettings(): AppSettings {
 }
 
 export function saveSettings(s: AppSettings): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+  const toSave =
+    typeof window !== 'undefined' && isLanWebClient() ? stripCloudSecrets(s) : s
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
 }
 
 export function getAgentVisibleSettings(settings: AppSettings): Partial<AppSettings> {
@@ -845,28 +859,4 @@ export function getRunwareMusicProfileForModel(
   const fallback = defaults.runwareMusicModelProfiles[modelId]
   if (fallback) return fallback
   return defaults.runwareMusicModelProfiles[defaults.runwareMusicModel]
-}
-
-export async function fetchDesktopSyncedSettings(
-  ttsBaseUrl: string,
-): Promise<Partial<AppSettings> | null> {
-  const root = normalizeBaseUrl(ttsBaseUrl || defaultTtsBaseUrlForRuntime())
-  try {
-    const res = await fetch(`${root}/tools/desktop-settings`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
-    if (!res.ok) return null
-    const body = (await res.json().catch(() => ({}))) as {
-      ok?: boolean
-      hasSettings?: boolean
-      settings?: Partial<AppSettings>
-    }
-    if (!body.ok || !body.hasSettings || !body.settings || typeof body.settings !== 'object') {
-      return null
-    }
-    return body.settings
-  } catch {
-    return null
-  }
 }

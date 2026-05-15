@@ -2,7 +2,8 @@ import { normalizeBaseUrl } from './settings'
 import type { VoiceMode } from './settings'
 import type { RunwareXaiVoice, TtsProvider } from './settings'
 import type { StoredVoiceAnchor, VoiceAnchorSourceMode } from './voiceAnchorStorage'
-import { isElectron } from './platform'
+import { cloudProxySetupHint, isElectron, usesServerCloudProxy } from './platform'
+import { makeRunwareTaskUuid } from './runwareUuid'
 
 /** Electron/Chromium often mishandles Blob in FormData; JSON+base64 is reliable. */
 function errorMessage(e: unknown): string {
@@ -93,14 +94,17 @@ export async function synthesizeSpeech(options: {
   signal?: AbortSignal
 }): Promise<Blob> {
   if (options.ttsProvider === 'openrouter-tts') {
+    const viaProxy = usesServerCloudProxy()
     const apiKey = (options.openrouterApiKey || '').trim()
-    if (!apiKey) {
+    if (!viaProxy && !apiKey) {
       throw new Error('OpenRouter API key is missing. Set it in Options -> General.')
     }
     const model =
       options.openrouterTtsModel?.trim() ||
       'openai/gpt-4o-mini-tts-2025-12-15'
-    const root = 'https://openrouter.ai/api/v1'
+    const root = viaProxy
+      ? `${normalizeBaseUrl(options.ttsBaseUrl || '')}/api/openrouter/api/v1`
+      : 'https://openrouter.ai/api/v1'
     const payload: Record<string, unknown> = {
       model,
       input: options.text,
@@ -108,13 +112,14 @@ export async function synthesizeSpeech(options: {
     }
     const voice = options.openrouterTtsVoice?.trim() || 'alloy'
     payload.voice = voice
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (!viaProxy && apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`
+    }
     try {
       const res = await fetch(`${root}/audio/speech`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         signal: options.signal,
         body: JSON.stringify(payload),
       })
@@ -136,15 +141,13 @@ export async function synthesizeSpeech(options: {
   }
 
   if (options.ttsProvider === 'runware-xai') {
+    const viaProxy = usesServerCloudProxy()
     const apiKey = (options.runwareApiKey || '').trim()
-    if (!apiKey) {
+    if (!viaProxy && !apiKey) {
       throw new Error('Runware API key is missing. Set it in Options -> General.')
     }
     const root = normalizeBaseUrl(options.runwareApiBaseUrl || 'https://api.runware.ai/v1')
-    const taskUUID =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const taskUUID = makeRunwareTaskUuid()
     const language = (options.runwareXaiLanguage || '').trim()
     const payload: Record<string, unknown> = {
       taskType: 'audioInference',
@@ -214,15 +217,18 @@ export async function synthesizeSpeech(options: {
           'Runware proxy URL is missing. Open app from desktop TTS server address so requests can be forwarded server-side.',
         )
       }
+      const proxyBodyPayload: Record<string, unknown> = {
+        api_base_url: root,
+        tasks: [payload],
+      }
+      if (!viaProxy && apiKey) {
+        proxyBodyPayload.api_key = apiKey
+      }
       const proxyRes = await fetch(`${proxyRoot}/tools/runware_proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: options.signal,
-        body: JSON.stringify({
-          api_base_url: root,
-          api_key: apiKey,
-          tasks: [payload],
-        }),
+        body: JSON.stringify(proxyBodyPayload),
       })
       const proxyBody = (await proxyRes.json().catch(() => ({}))) as {
         ok?: boolean
@@ -394,6 +400,35 @@ export async function synthesizeSpeech(options: {
   return await res.blob()
 }
 
+async function checkServerCloudSecret(
+  ttsBaseUrl: string,
+  slot: 'openrouter' | 'runware',
+): Promise<{ ok: boolean; detail?: string }> {
+  const root = normalizeBaseUrl(ttsBaseUrl || '')
+  if (!root) {
+    return { ok: false, detail: 'TTS server URL is missing' }
+  }
+  try {
+    const res = await fetch(`${root}/tools/cloud-secrets-status`)
+    if (!res.ok) {
+      return { ok: false, detail: `Server status HTTP ${res.status}` }
+    }
+    const body = (await res.json()) as {
+      openrouter?: boolean
+      runware?: boolean
+    }
+    const ready = slot === 'openrouter' ? Boolean(body.openrouter) : Boolean(body.runware)
+    return ready
+      ? { ok: true }
+      : { ok: false, detail: cloudProxySetupHint() }
+  } catch (e) {
+    return {
+      ok: false,
+      detail: e instanceof Error ? e.message : String(e),
+    }
+  }
+}
+
 export async function checkTtsHealth(options: {
   ttsBaseUrl: string
   ttsProvider?: TtsProvider
@@ -404,13 +439,18 @@ export async function checkTtsHealth(options: {
   detail?: string
 }> {
   if (options.ttsProvider === 'runware-xai') {
+    if (usesServerCloudProxy()) {
+      return checkServerCloudSecret(options.ttsBaseUrl, 'runware')
+    }
     const hasKey = Boolean((options.runwareApiKey || '').trim())
     return hasKey
       ? { ok: true }
       : { ok: false, detail: 'Runware API key missing' }
   }
   if (options.ttsProvider === 'openrouter-tts') {
-    // For OpenRouter TTS we rely on API key presence; detailed network errors surface at call time.
+    if (usesServerCloudProxy()) {
+      return checkServerCloudSecret(options.ttsBaseUrl, 'openrouter')
+    }
     const hasKey = Boolean((options.openrouterApiKey || '').trim())
     return hasKey
       ? { ok: true }

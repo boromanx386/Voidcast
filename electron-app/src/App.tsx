@@ -80,14 +80,13 @@ import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { invokeSaveImageFromUrl } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
+import { pushCloudSecretsToServer } from '@/lib/cloudSecrets'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import {
-  fetchDesktopSyncedSettings,
   getAgentVisibleSettings,
   getRunwareMusicProfileForModel,
   getRunwareProfileForModel,
   loadSettings,
-  normalizeSettingsCandidate,
   saveSettings,
   type AppSettings,
 } from '@/lib/settings'
@@ -124,6 +123,8 @@ type PendingChatImage = {
   mime: string
   name?: string
   path?: string
+  /** Catalog source — used in index hints for image_recall / edit_image_runware. */
+  kind?: 'attachment' | 'generated' | 'pending'
 }
 
 type PendingChatFile = FileAttachmentSnapshot
@@ -268,20 +269,42 @@ function toConversationTurns(messages: UiMessage[]): Array<{ role: 'user' | 'ass
     )
 }
 
+function catalogItemKey(item: PendingChatImage): string {
+  const path = item.path?.trim()
+  if (path) return `path:${path.toLowerCase()}`
+  return `b64:${item.base64.slice(0, 96)}`
+}
+
+function buildImageCatalogHint(catalog: PendingChatImage[]): string {
+  if (!catalog.length) return ''
+  const lines = catalog.map((item, i) => {
+    const label = (item.path || item.name || '').trim() || '(unnamed image)'
+    const kind =
+      item.kind === 'generated'
+        ? 'generated'
+        : item.kind === 'pending'
+          ? 'attached (this message)'
+          : 'attached'
+    return `- Index ${i + 1}: [${kind}] ${label}${item.path ? ` — ${item.path}` : ''}`
+  })
+  return [
+    'Session image catalog (index 1 = most recent image in this chat, including generated).',
+    'Use reference_image_indexes and/or reference_image_paths with image_recall or edit_image_runware:',
+    ...lines,
+  ].join('\n')
+}
+
 function buildQueuedImagePathHint(queued: PendingChatImage[]): string {
   if (!queued.length) return ''
   const lines: string[] = []
-  let idx = 1
-  for (let i = queued.length - 1; i >= 0; i--) {
+  for (let i = 0; i < queued.length; i++) {
     const q = queued[i]
     const label = (q.path || q.name || '').trim() || '(unnamed image)'
-    lines.push(`- ${idx}: ${label}`)
-    idx += 1
+    lines.push(`- ${label}`)
   }
   return [
-    `Attached image references for this message (internal catalog indexes, 1 = most recent):`,
+    'Images attached to this message (indexes are listed in the session catalog below when Runware image tools are on).',
     ...lines,
-    'Use image_recall for vision-style analysis or edit_image_runware for edits when needed.',
   ].join('\n')
 }
 
@@ -297,15 +320,12 @@ function buildHistoricalImageRecallHint(
     if (!b64) continue
     const path = msg.imagePaths?.[j]?.trim()
     const key = path
-      ? `path:${path.toLowerCase()}`
-      : `b64:${b64.slice(0, 96)}`
+      ? catalogItemKey({ base64: b64, mime: '', path })
+      : catalogItemKey({ base64: b64, mime: '' })
     let oneBased: number | null = null
     for (let k = 0; k < catalog.length; k++) {
       const c = catalog[k]
-      const cKey = c.path?.trim()
-        ? `path:${c.path.trim().toLowerCase()}`
-        : `b64:${(c.base64 || '').slice(0, 96)}`
-      if (cKey === key) {
+      if (catalogItemKey(c) === key) {
         oneBased = k + 1
         break
       }
@@ -358,62 +378,121 @@ function buildQueuedFilePathHint(queued: PendingChatFile[]): string {
   ].join('\n')
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+async function fetchCatalogImageFromUrl(
+  url: string,
+  name?: string,
+): Promise<PendingChatImage | null> {
+  const u = url.trim()
+  if (!u.startsWith('http://') && !u.startsWith('https://')) return null
+  try {
+    const res = await fetch(u, { signal: AbortSignal.timeout(20_000) })
+    if (!res.ok) return null
+    const mimeRaw = (res.headers.get('content-type') || 'image/png').split(';')[0].trim().toLowerCase()
+    const mime = mimeRaw.startsWith('image/') ? mimeRaw : 'image/png'
+    const buf = await res.arrayBuffer()
+    if (buf.byteLength < 16) return null
+    return {
+      base64: arrayBufferToBase64(buf),
+      mime,
+      name: name?.trim() || u,
+      kind: 'generated',
+    }
+  } catch {
+    return null
+  }
+}
+
+async function pushAssistantGeneratedImages(
+  chronological: PendingChatImage[],
+  msg: UiMessage,
+): Promise<void> {
+  const readImageFile = window.voidcast?.readImageFile
+  const paths = msg.generatedImagePaths || []
+  const urls = msg.generatedImageUrls || []
+  const urlKeysAdded = new Set<string>()
+
+  if (isElectron() && readImageFile) {
+    for (let j = 0; j < paths.length; j++) {
+      const p = (paths[j] || '').trim()
+      if (!p) continue
+      try {
+        const res = await readImageFile({ path: p })
+        if (!res.ok || !res.file?.base64?.trim()) continue
+        chronological.push({
+          base64: res.file.base64.replace(/\s+/g, ''),
+          mime: res.file.mime || 'image/png',
+          name: res.file.name || urls[j],
+          path: res.file.path || p,
+          kind: 'generated',
+        })
+        const pairedUrl = (urls[j] || '').trim()
+        if (pairedUrl) urlKeysAdded.add(pairedUrl)
+      } catch {
+        // Ignore unreadable files; keep catalog build best-effort.
+      }
+    }
+  }
+
+  for (let j = 0; j < urls.length; j++) {
+    const url = (urls[j] || '').trim()
+    if (!url || urlKeysAdded.has(url)) continue
+    urlKeysAdded.add(url)
+    const fetched = await fetchCatalogImageFromUrl(url, paths[j] || url)
+    if (fetched) chronological.push(fetched)
+  }
+}
+
+/**
+ * Session image catalog for tools: chronological chat order (old→new), then reversed
+ * so index 1 = most recent (pending attach, then latest generated, then older images).
+ */
 async function buildToolImageCatalog(
   history: UiMessage[],
   queued: PendingChatImage[],
 ): Promise<PendingChatImage[]> {
-  const out: PendingChatImage[] = []
-  const seenKeys = new Set<string>()
-  const tryPush = (item: PendingChatImage) => {
-    const key = item.path?.trim()
-      ? `path:${item.path.trim().toLowerCase()}`
-      : `b64:${item.base64.slice(0, 96)}`
-    if (seenKeys.has(key)) return
-    seenKeys.add(key)
-    out.push(item)
-  }
-  for (let i = queued.length - 1; i >= 0; i--) {
-    tryPush(queued[i])
-  }
-  for (let i = history.length - 1; i >= 0; i--) {
-    const msg = history[i]
-    if (msg.role !== 'user' || !msg.images?.length) continue
-    for (let j = (msg.images.length - 1); j >= 0; j--) {
-      const base64 = (msg.images[j] || '').trim()
-      if (!base64) continue
-      tryPush({
-        base64,
-        mime: (msg.imageMimes?.[j] || 'image/png').trim() || 'image/png',
-        name: msg.imageNames?.[j],
-        path: msg.imagePaths?.[j],
-      })
+  const chronological: PendingChatImage[] = []
+
+  for (const msg of history) {
+    if (msg.role === 'user' && msg.images?.length) {
+      for (let j = 0; j < msg.images.length; j++) {
+        const base64 = (msg.images[j] || '').trim()
+        if (!base64) continue
+        chronological.push({
+          base64,
+          mime: (msg.imageMimes?.[j] || 'image/png').trim() || 'image/png',
+          name: msg.imageNames?.[j],
+          path: msg.imagePaths?.[j],
+          kind: 'attachment',
+        })
+      }
+    }
+    if (msg.role === 'assistant') {
+      await pushAssistantGeneratedImages(chronological, msg)
     }
   }
 
-  const readImageFile = window.voidcast?.readImageFile
-  if (isElectron() && readImageFile) {
-    for (let i = history.length - 1; i >= 0; i--) {
-      const msg = history[i]
-      if (msg.role !== 'assistant' || !msg.generatedImagePaths?.length) continue
-      for (let j = msg.generatedImagePaths.length - 1; j >= 0; j--) {
-        const p = (msg.generatedImagePaths[j] || '').trim()
-        if (!p) continue
-        const pathKey = `path:${p.toLowerCase()}`
-        if (seenKeys.has(pathKey)) continue
-        try {
-          const res = await readImageFile({ path: p })
-          if (!res.ok || !res.file?.base64?.trim()) continue
-          tryPush({
-            base64: res.file.base64.replace(/\s+/g, ''),
-            mime: res.file.mime || 'image/png',
-            name: res.file.name || msg.generatedImageUrls?.[j],
-            path: res.file.path || p,
-          })
-        } catch {
-          // Ignore unreadable files; keep catalog build best-effort.
-        }
-      }
-    }
+  for (const q of queued) {
+    chronological.push({ ...q, kind: q.kind ?? 'pending' })
+  }
+
+  const seen = new Set<string>()
+  const out: PendingChatImage[] = []
+  for (let i = chronological.length - 1; i >= 0; i--) {
+    const item = chronological[i]
+    const key = catalogItemKey(item)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(item)
   }
   return out
 }
@@ -905,44 +984,31 @@ export default function App() {
     })
   }, [settings.autoUpdate])
 
-  // Desktop source-of-truth sync for phone/web clients.
+  // Register cloud API keys on the local TTS server for LAN web proxy (keys never sent to phone).
   useEffect(() => {
-    if (isWebStandalone()) return
+    if (!isElectron()) return
     const root = settings.ttsBaseUrl.trim().replace(/\/+$/, '')
     if (!root) return
-    const syncNow = () =>
-      void fetch(`${root}/tools/desktop-settings-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings }),
+    const push = () =>
+      void pushCloudSecretsToServer(root, {
+        openrouterApiKey: settings.openrouterApiKey,
+        runwareApiKey: settings.runwareApiKey,
+        nvidiaApiKey: settings.nvidiaApiKey,
       }).catch(() => {
-        // Best-effort sync only; desktop app must stay usable offline.
+        // Best-effort; web client shows 503 if keys were not registered.
       })
-    const timer = window.setTimeout(syncNow, 250)
-    const heartbeat = window.setInterval(syncNow, 10000)
+    const timer = window.setTimeout(push, 250)
+    const heartbeat = window.setInterval(push, 30000)
     return () => {
       window.clearTimeout(timer)
       window.clearInterval(heartbeat)
     }
-  }, [settings])
-
-  // Web/LAN client pulls latest desktop settings on startup + polling.
-  useEffect(() => {
-    if (!isWebStandalone()) return
-    let cancelled = false
-    const pull = () => {
-      void fetchDesktopSyncedSettings(settings.ttsBaseUrl).then((synced) => {
-        if (cancelled || !synced) return
-        setSettings((prev) => normalizeSettingsCandidate({ ...prev, ...synced }))
-      })
-    }
-    pull()
-    const interval = window.setInterval(pull, 5000)
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [settings.ttsBaseUrl])
+  }, [
+    settings.ttsBaseUrl,
+    settings.openrouterApiKey,
+    settings.runwareApiKey,
+    settings.nvidiaApiKey,
+  ])
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute('data-ui-theme', settings.uiTheme)
@@ -1609,8 +1675,14 @@ export default function App() {
       ? (imagesBase64.length > 0 ? imagesBase64 : toolImageCatalog.slice(0, 1).map((x) => x.base64))
       : []
     const attachedImageHint = buildQueuedImagePathHint(queued)
+    const imageCatalogHint =
+      settings.toolsEnabled.runwareImage && toolImageCatalog.length > 0
+        ? buildImageCatalogHint(toolImageCatalog)
+        : ''
     const attachedFileHint = buildQueuedFilePathHint(queuedFiles)
-    const ollamaUserText = [text, attachedImageHint, attachedFileHint].filter((x) => x.trim().length > 0).join('\n\n')
+    const ollamaUserText = [text, attachedImageHint, imageCatalogHint, attachedFileHint]
+      .filter((x) => x.trim().length > 0)
+      .join('\n\n')
     let userMsg: UiMessage | undefined
     if (!isEdit) {
       userMsg = {
@@ -3590,6 +3662,7 @@ export default function App() {
                         model: settings.openrouterSttModel,
                         audioBase64: base64,
                         format: 'webm',
+                        ttsBaseUrl: settings.ttsBaseUrl,
                       })
                       if (text.trim()) {
                         setInput((prev) => (prev ? prev + ' ' : '') + text.trim())

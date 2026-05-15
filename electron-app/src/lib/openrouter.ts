@@ -1,5 +1,5 @@
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
-import { isElectron } from './platform'
+import { isElectron, usesServerCloudProxy } from './platform'
 import { normalizeBaseUrl } from './settings'
 
 export type OpenRouterContentPart =
@@ -261,13 +261,17 @@ export async function streamOpenRouterChat(
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (!usesServerCloudProxy() && options.apiKey.trim()) {
+        headers.Authorization = `Bearer ${options.apiKey.trim()}`
+      }
+
       try {
         res = await fetchWithHardAbort(`${root}/chat/completions`, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${options.apiKey}`,
-            'Content-Type': 'application/json',
-          },
+          headers,
           signal: options.signal,
           body: JSON.stringify(body),
         }, options.signal)

@@ -1,3 +1,6 @@
+import { usesServerCloudProxy } from '@/lib/platform'
+import { normalizeBaseUrl } from '@/lib/settings'
+
 export type SttProvider = 'none' | 'openrouter'
 
 export async function startRecording(): Promise<{
@@ -44,13 +47,19 @@ export async function transcribeWithOpenRouter(options: {
   audioBase64: string
   format?: string
   signal?: AbortSignal
+  ttsBaseUrl?: string
 }): Promise<string> {
-  const res = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+  const viaProxy = usesServerCloudProxy()
+  const root = viaProxy
+    ? `${normalizeBaseUrl(options.ttsBaseUrl || window.location.origin)}/api/openrouter/api/v1`
+    : 'https://openrouter.ai/api/v1'
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (!viaProxy && options.apiKey.trim()) {
+    headers.Authorization = `Bearer ${options.apiKey.trim()}`
+  }
+  const res = await fetch(`${root}/audio/transcriptions`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${options.apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     signal: options.signal,
     body: JSON.stringify({
       model: options.model,

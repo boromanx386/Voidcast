@@ -241,8 +241,17 @@ export function TtsOptionsPanel({
       {settings.ttsProvider === 'runware-xai' && (
         <div className="bg-void-black/50 border border-neon-yellow/25 p-4 rounded">
           <p className="text-xs text-void-dim">
-            Uses <span className="font-mono text-neon-yellow">RUNWARE_API_KEY</span> from
-            General settings. Local TTS URL/clone/anchor options are ignored in this mode.
+            {isWebStandalone() ? (
+              <>
+                Runware TTS via server proxy (key from desktop General). Local clone/anchor
+                options are ignored.
+              </>
+            ) : (
+              <>
+                Uses <span className="font-mono text-neon-yellow">RUNWARE_API_KEY</span> from
+                General settings. Local TTS URL/clone/anchor options are ignored in this mode.
+              </>
+            )}
           </p>
           <div className="grid sm:grid-cols-2 gap-3 mt-3">
             <div className="form-group">
@@ -292,8 +301,18 @@ export function TtsOptionsPanel({
       {settings.ttsProvider === 'openrouter-tts' && (
         <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
           <p className="text-xs text-void-dim">
-            Uses <span className="font-mono text-neon-cyan">OPENROUTER_API_KEY</span> from
-            General settings to call OpenRouter TTS (`openai/gpt-4o-mini-tts-2025-12-15` by default).
+            {isWebStandalone() ? (
+              <>
+                OpenRouter TTS via server proxy (key from desktop General). Default model{' '}
+                <span className="font-mono text-void-light">gpt-4o-mini-tts-2025-12-15</span>.
+              </>
+            ) : (
+              <>
+                Uses <span className="font-mono text-neon-cyan">OPENROUTER_API_KEY</span> from
+                General settings to call OpenRouter TTS (
+                <span className="font-mono">openai/gpt-4o-mini-tts-2025-12-15</span> by default).
+              </>
+            )}
           </p>
           <div className="grid sm:grid-cols-2 gap-3 mt-3">
             <div className="form-group">

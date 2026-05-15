@@ -25,6 +25,7 @@ import logging
 import os
 import re
 import tempfile
+import uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -50,6 +51,14 @@ from youtube_tools import (
     youtube_tool_run,
 )
 
+from cloud_secrets import (
+    client_may_register,
+    get_nvidia_key,
+    get_openrouter_key,
+    get_runware_key,
+    register_secrets,
+)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
 
@@ -57,6 +66,13 @@ WEB_UI_DIR = Path(__file__).resolve().parent / "web-ui"
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip(
     "/"
 )
+# Host only — web client paths include /api/v1/... after /api/openrouter/
+OPENROUTER_UPSTREAM = os.environ.get(
+    "OPENROUTER_BASE_URL", "https://openrouter.ai"
+).rstrip("/")
+NVIDIA_UPSTREAM = os.environ.get(
+    "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com"
+).rstrip("/")
 
 
 def _web_index_file() -> Path | None:
@@ -85,8 +101,6 @@ _model: Any = None
 _sampling_rate: int = 24000
 _load_error: str | None = None
 _infer_lock = asyncio.Lock()
-_desktop_settings_cache: dict[str, Any] | None = None
-_desktop_settings_updated_at: str | None = None
 
 # Prefer `ddgs` — the `duckduckgo_search` package was renamed and its DDGS often returns no results.
 try:
@@ -163,12 +177,14 @@ class RunwareProxyRequest(BaseModel):
     api_base_url: str = Field(
         default="https://api.runware.ai/v1", min_length=1, max_length=2048
     )
-    api_key: str = Field(..., min_length=1, max_length=2048)
+    api_key: str = Field(default="", max_length=2048)
     tasks: list[dict[str, Any]] = Field(..., min_length=1, max_length=8)
 
 
-class DesktopSettingsSyncRequest(BaseModel):
-    settings: dict[str, Any] = Field(default_factory=dict)
+class CloudSecretsRequest(BaseModel):
+    openrouterApiKey: str = Field(default="", max_length=2048)
+    runwareApiKey: str = Field(default="", max_length=2048)
+    nvidiaApiKey: str = Field(default="", max_length=2048)
 
 
 class TtsRequest(BaseModel):
@@ -629,6 +645,53 @@ async def tools_pdf(req: PdfRequest):
     }
 
 
+@app.post("/tools/cloud-secrets")
+async def tools_cloud_secrets(request: Request, req: CloudSecretsRequest):
+    """Register cloud API keys from the desktop app (loopback or VOIDCAST_SECRETS_TOKEN)."""
+    if not client_may_register(
+        request.client.host if request.client else None,
+        request.headers.get("x-voidcast-secrets-token"),
+    ):
+        raise HTTPException(status_code=403, detail="Not allowed to register cloud secrets")
+    register_secrets(req.model_dump())
+    return {"ok": True}
+
+
+@app.get("/tools/cloud-secrets-status")
+async def tools_cloud_secrets_status():
+    """Whether cloud API keys are available for LAN web proxy (no secret values)."""
+    return {
+        "ok": True,
+        "openrouter": bool(get_openrouter_key()),
+        "runware": bool(get_runware_key()),
+        "nvidia": bool(get_nvidia_key()),
+    }
+
+
+_RUNWARE_UUID_V4_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def _normalize_runware_tasks(tasks: list[Any]) -> list[Any]:
+    """Runware rejects non-UUIDv4 taskUUID values (common on plain-HTTP mobile clients)."""
+    out: list[Any] = []
+    for item in tasks:
+        if not isinstance(item, dict):
+            out.append(item)
+            continue
+        task = dict(item)
+        raw = task.get("taskUUID") or task.get("task_uuid")
+        if isinstance(raw, str) and _RUNWARE_UUID_V4_RE.match(raw.strip()):
+            task["taskUUID"] = raw.strip().lower()
+        else:
+            task["taskUUID"] = str(uuid.uuid4())
+        task.pop("task_uuid", None)
+        out.append(task)
+    return out
+
+
 @app.post("/tools/runware_proxy")
 async def tools_runware_proxy(req: RunwareProxyRequest):
     """Proxy Runware tasks through local server to avoid renderer CORS/network issues."""
@@ -639,11 +702,15 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
         raise HTTPException(
             status_code=400, detail="Runware base URL must use https://"
         )
-    key = req.api_key.strip()
+    key = req.api_key.strip() or get_runware_key()
     if not key:
-        raise HTTPException(status_code=400, detail="api_key is required")
+        raise HTTPException(
+            status_code=503,
+            detail="Runware API key not configured on server (desktop General or RUNWARE_API_KEY env)",
+        )
     if not req.tasks:
         raise HTTPException(status_code=400, detail="tasks must not be empty")
+    tasks = _normalize_runware_tasks(list(req.tasks))
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(120.0, connect=20.0)
@@ -654,7 +721,7 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {key}",
                 },
-                json=req.tasks,
+                json=tasks,
             )
         data = r.json() if r.content else {}
         if not r.is_success:
@@ -680,29 +747,82 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
         ) from e
 
 
-@app.post("/tools/desktop-settings-sync")
-async def tools_desktop_settings_sync(req: DesktopSettingsSyncRequest):
-    """Cache desktop app settings for LAN web clients (phone/browser)."""
-    global _desktop_settings_cache, _desktop_settings_updated_at
-    incoming = req.settings if isinstance(req.settings, dict) else {}
-    if not incoming:
-        raise HTTPException(status_code=400, detail="settings payload is required")
-    _desktop_settings_cache = incoming
-    _desktop_settings_updated_at = datetime.utcnow().isoformat() + "Z"
-    return {"ok": True, "updatedAt": _desktop_settings_updated_at}
+_HOP_BY_HOP = {
+    "connection",
+    "transfer-encoding",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "upgrade",
+}
 
-
-@app.get("/tools/desktop-settings")
-async def tools_desktop_settings():
-    """Return last synced desktop settings for web/LAN clients."""
-    if _desktop_settings_cache is None:
-        return {"ok": True, "hasSettings": False}
-    return {
-        "ok": True,
-        "hasSettings": True,
-        "updatedAt": _desktop_settings_updated_at,
-        "settings": _desktop_settings_cache,
+_STRIP_FWD = frozenset(
+    {
+        "host",
+        "connection",
+        "content-length",
+        "transfer-encoding",
+        "authorization",
     }
+)
+
+
+async def _reverse_proxy(
+    request: Request,
+    upstream_base: str,
+    full_path: str,
+    *,
+    bearer_key: str,
+) -> StreamingResponse:
+    target = f"{upstream_base.rstrip('/')}/{full_path}"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+
+    body = await request.body()
+    fwd_headers = {
+        k: v
+        for k, v in request.headers.items()
+        if k.lower() not in _STRIP_FWD
+    }
+    fwd_headers["Authorization"] = f"Bearer {bearer_key}"
+
+    client = httpx.AsyncClient(
+        timeout=httpx.Timeout(600.0, connect=60.0),
+        follow_redirects=False,
+    )
+    try:
+        upstream_req = client.build_request(
+            request.method,
+            target,
+            headers=fwd_headers,
+            content=body if body else None,
+        )
+        upstream = await client.send(upstream_req, stream=True)
+    except Exception:
+        await client.aclose()
+        raise
+
+    out_headers = {
+        k: v
+        for k, v in upstream.headers.items()
+        if k.lower() not in _HOP_BY_HOP and k.lower() != "content-length"
+    }
+
+    async def body_iter() -> Any:
+        try:
+            async for chunk in upstream.aiter_raw():
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        body_iter(),
+        status_code=upstream.status_code,
+        headers=out_headers,
+    )
 
 
 @app.api_route(
@@ -719,13 +839,7 @@ async def ollama_proxy(request: Request, full_path: str):
     fwd_headers = {
         k: v
         for k, v in request.headers.items()
-        if k.lower()
-        not in (
-            "host",
-            "connection",
-            "content-length",
-            "transfer-encoding",
-        )
+        if k.lower() not in _STRIP_FWD
     }
 
     client = httpx.AsyncClient(
@@ -744,20 +858,10 @@ async def ollama_proxy(request: Request, full_path: str):
         await client.aclose()
         raise
 
-    hop_by_hop = {
-        "connection",
-        "transfer-encoding",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailers",
-        "upgrade",
-    }
     out_headers = {
         k: v
         for k, v in upstream.headers.items()
-        if k.lower() not in hop_by_hop and k.lower() != "content-length"
+        if k.lower() not in _HOP_BY_HOP and k.lower() != "content-length"
     }
 
     async def body_iter() -> Any:
@@ -773,6 +877,38 @@ async def ollama_proxy(request: Request, full_path: str):
         status_code=upstream.status_code,
         headers=out_headers,
     )
+
+
+@app.api_route(
+    "/api/openrouter/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+)
+async def openrouter_proxy(request: Request, full_path: str):
+    """Proxy OpenRouter for LAN web clients; API key stays on server."""
+    key = get_openrouter_key()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenRouter API key not configured (desktop General or OPENROUTER_API_KEY env)",
+        )
+    return await _reverse_proxy(
+        request, OPENROUTER_UPSTREAM, full_path, bearer_key=key
+    )
+
+
+@app.api_route(
+    "/api/nvidia/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+)
+async def nvidia_proxy(request: Request, full_path: str):
+    """Proxy NVIDIA integrate API for LAN web clients."""
+    key = get_nvidia_key()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="NVIDIA API key not configured (desktop General or NVIDIA_API_KEY env)",
+        )
+    return await _reverse_proxy(request, NVIDIA_UPSTREAM, full_path, bearer_key=key)
 
 
 @app.post("/tts")

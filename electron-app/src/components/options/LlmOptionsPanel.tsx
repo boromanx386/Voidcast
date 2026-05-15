@@ -201,13 +201,21 @@ export function LlmOptionsPanel({
               <span className="text-neon-purple mr-2">◇</span> OPENROUTER_BASE_URL
             </label>
             <input
-              className="cyber-input"
+              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+              readOnly={isWebStandalone()}
               value={settings.openrouterBaseUrl}
               onChange={(e) =>
                 setSettings((s) => ({ ...s, openrouterBaseUrl: e.target.value }))
               }
               placeholder="https://openrouter.ai/api/v1"
             />
+            {isWebStandalone() && (
+              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+                Proxied through the TTS host at{' '}
+                <code className="text-neon-purple">/api/openrouter/*</code> using keys from the
+                desktop app.
+              </p>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">
@@ -259,13 +267,21 @@ export function LlmOptionsPanel({
               <span className="text-neon-purple mr-2">◇</span> NVIDIA_BASE_URL
             </label>
             <input
-              className="cyber-input"
+              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+              readOnly={isWebStandalone()}
               value={settings.nvidiaBaseUrl}
               onChange={(e) =>
                 setSettings((s) => ({ ...s, nvidiaBaseUrl: e.target.value }))
               }
               placeholder="https://integrate.api.nvidia.com/v1"
             />
+            {isWebStandalone() && (
+              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+                Proxied through the TTS host at{' '}
+                <code className="text-neon-purple">/api/nvidia/*</code> using keys from the desktop
+                app.
+              </p>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">
@@ -478,7 +494,9 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Keep API key local on this device (stored in browser localStorage)
+              {isWebStandalone()
+                ? 'API key stays on desktop; requests use the TTS server proxy'
+                : 'Keep API key on this desktop (forwarded to TTS server for LAN web)'}
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
