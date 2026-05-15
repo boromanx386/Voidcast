@@ -353,7 +353,7 @@ async function createWindow() {
     : appIconPath
 
   win = new BrowserWindow({
-    title: 'Voidcast',
+    title: '',
     autoHideMenuBar: true,
     icon: windowIcon,
     show: false, // Start hidden until ready

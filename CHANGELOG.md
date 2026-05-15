@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Mobile chat URL overflow**: long Reddit/HTTPS links no longer spill past the message bubble on narrow viewports. `ChatMarkdown` now breaks links and list text (`break-all`, `overflow-wrap: anywhere`, `min-w-0` on flex list rows); message bubbles and the mobile messages scroller clip horizontal overflow.
+
 ### Changed
+
+- **Desktop window title**: cleared the Electron `BrowserWindow` title and `index.html` `<title>` so the Windows title bar no longer shows "Voidcast" (the taskbar may still use the executable name from the installer).
 
 - **Agent tool-call decision making**: removed `shouldRequireToolCall` keyword-matching heuristic from `agentToolUtils.ts`, `ollamaAgent.ts`, and `openrouterAgent.ts`. Both Ollama and OpenRouter agents now pass `mustCallTool: false` to the shared tool loop, letting the model decide autonomously whether to invoke a tool based on the tool descriptions in the system prompt instead of being forced by regex keywords.
 - **`TOOLS_TRUTH_HINT` placement and wording**: moved from the end to the **beginning** of the tools hint block in `App.tsx` so it stays in the high-attention region of the system prompt across long sessions. Text tightened to an explicit mandatory rule starting with `Tool-call truth (highest priority):`.

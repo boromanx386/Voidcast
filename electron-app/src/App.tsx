@@ -3086,7 +3086,7 @@ export default function App() {
                 
                 {/* Content */}
                 {m.role === 'assistant' ? (
-                  <div className="space-y-3">
+                  <div className="min-w-0 space-y-3">
                     {(() => {
                       const cached = assistantRenderCache[m.id]
                       const markdownContent = cached?.markdownContent || stripRunwareAudioUrlLines(m.content)
@@ -3352,7 +3352,7 @@ export default function App() {
                   </div>
                 ) : (
                   <div
-                    className="text-void-white whitespace-pre-wrap break-words space-y-2 rounded px-1 -mx-1"
+                    className="min-w-0 max-w-full overflow-hidden text-void-white whitespace-pre-wrap break-words [overflow-wrap:anywhere] space-y-2 rounded px-1 -mx-1"
                   >
                     {m.images && m.images.length > 0 && (
                       <div className="flex flex-wrap gap-2">
