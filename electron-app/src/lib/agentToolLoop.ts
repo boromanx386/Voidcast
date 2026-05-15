@@ -1,5 +1,6 @@
 import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { assistantClaimsImageWithoutTool } from '@/lib/agentToolUtils'
 
 /** Strip all http(s) URLs from message content so the model can't recycle
  *  hallucinated URLs from previous rounds when it skips tool calls. */
@@ -52,6 +53,10 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     round: number
   }) => void
   appendToolRequiredReprompt: (messages: TMessage[]) => void
+  /** When true, reprompt if the model claims an image URL/result without calling image tools. */
+  guardFalseImageClaims?: boolean
+  appendFalseImageClaimReprompt?: (messages: TMessage[]) => void
+  maxFalseImageClaimReprompts?: number
   appendRuntimeRecalledImages?: (
     messages: TMessage[],
     recalled: Array<{ base64: string; mime: string }>,
@@ -115,7 +120,20 @@ export async function runSharedToolLoop<
   let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   let requiredToolRepromptCount = 0
+  let falseImageClaimRepromptCount = 0
   let hasExecutedToolInTurn = false
+  let hasExecutedImageToolInTurn = false
+  const maxFalseImageClaimReprompts = params.maxFalseImageClaimReprompts ?? 2
+
+  const persistPrefixesAfterReprompt = (thinking: string) => {
+    persistedAssistantPrefix = lastAssistantText
+    if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
+      persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
+    }
+    if (thinking.trim()) {
+      persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
+    }
+  }
 
   for (let round = 0; round < params.maxToolRounds; round++) {
     if (params.signal?.aborted) throw abortedError()
@@ -177,13 +195,27 @@ export async function runSharedToolLoop<
         runSyntheticTool,
       })
       if (handled) {
-        persistedAssistantPrefix = lastAssistantText
-        if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-          persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-        }
-        if (thinking.trim()) {
-          persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-        }
+        persistPrefixesAfterReprompt(thinking)
+        continue
+      }
+
+      const assistantText = (lastAssistantText || content).trim()
+      if (
+        params.guardFalseImageClaims &&
+        params.appendFalseImageClaimReprompt &&
+        !hasExecutedImageToolInTurn &&
+        assistantClaimsImageWithoutTool(assistantText) &&
+        falseImageClaimRepromptCount < maxFalseImageClaimReprompts
+      ) {
+        falseImageClaimRepromptCount += 1
+        params.appendAssistantWithToolCalls({
+          messages,
+          content: assistantText,
+          thinking,
+          toolCalls: [],
+        })
+        params.appendFalseImageClaimReprompt(messages)
+        persistPrefixesAfterReprompt(thinking)
         continue
       }
 
@@ -194,13 +226,7 @@ export async function runSharedToolLoop<
       ) {
         requiredToolRepromptCount += 1
         params.appendToolRequiredReprompt(messages)
-        persistedAssistantPrefix = lastAssistantText
-        if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-          persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-        }
-        if (thinking.trim()) {
-          persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-        }
+        persistPrefixesAfterReprompt(thinking)
         continue
       }
       if (params.mustCallTool && !hasExecutedToolInTurn) {
@@ -230,6 +256,9 @@ export async function runSharedToolLoop<
         round,
       })
       hasExecutedToolInTurn = true
+      if (shared.name === 'generate_image' || shared.name === 'edit_image_runware') {
+        hasExecutedImageToolInTurn = true
+      }
       params.onToolResult?.({
         name: shared.name,
         result,

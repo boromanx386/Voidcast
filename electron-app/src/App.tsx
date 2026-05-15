@@ -460,7 +460,7 @@ function stripRunwareAudioUrlLines(text: string): string {
 }
 
 function stripGeneratedImageLinkArtifacts(text: string, urls: string[]): string {
-  if (!text.trim() || urls.length === 0) return text
+  if (!text.trim()) return text
   let out = text
   for (const url of urls) {
     const esc = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -1129,19 +1129,20 @@ export default function App() {
     > = {}
     for (const m of messages) {
       if (m.role !== 'assistant') continue
-      const generatedUrls = dedupeNonEmpty([
+      // Only URLs confirmed by a real generate_image / edit_image_runware tool result.
+      // Do not trust image_url: lines copied into assistant text without a tool call.
+      const trustedImageUrls = dedupeNonEmpty([
         ...(m.generatedImageUrls || []),
         ...(assistantGeneratedImages[m.id] || []),
-        ...extractRunwareImageUrls(m.content),
       ])
       const markdownContent = desktopRuntime
         ? stripGeneratedImageLinkArtifacts(
             stripRunwareAudioUrlLines(m.content),
-            generatedUrls,
+            trustedImageUrls,
           )
         : stripRunwareAudioUrlLines(m.content)
       const markdownImageUrls = new Set(extractMarkdownImageUrls(m.content))
-      const inlineImageUrls = generatedUrls.filter((u) => !markdownImageUrls.has(u))
+      const inlineImageUrls = trustedImageUrls.filter((u) => !markdownImageUrls.has(u))
       const localImagePaths = desktopRuntime
         ? dedupeNonEmpty([
             ...(m.generatedImagePaths || []),

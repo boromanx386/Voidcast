@@ -11,7 +11,7 @@ import {
 import { executeToolCall } from '@/lib/agentToolExecutor'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
-import { parseToolArguments } from '@/lib/agentToolUtils'
+import { FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, parseToolArguments } from '@/lib/agentToolUtils'
 
 const MAX_TOOL_ROUNDS = 18
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
@@ -113,6 +113,14 @@ export async function runOpenRouterChatWithTools(
         role: 'user',
         content:
           'Tool call required: do not answer with plain text. Call the appropriate available tool now and only then provide the final answer from real tool output.',
+      })
+    },
+    guardFalseImageClaims: params.toolsEnabled.runwareImage,
+    maxFalseImageClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
+    appendFalseImageClaimReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
       })
     },
     appendRuntimeRecalledImages: (messages, recalled) => {

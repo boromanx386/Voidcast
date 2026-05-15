@@ -45,6 +45,7 @@ import type {
 import { fetchOllamaWithRetry, mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
+import { FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE } from '@/lib/agentToolUtils'
 
 const MAX_TOOL_ROUNDS = 30
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
@@ -1522,6 +1523,14 @@ export async function runOllamaChatWithTools(
         role: 'user',
         content:
           'Tool call required: do not answer with plain text. Call the appropriate available tool now and only then provide the final answer from real tool output.',
+      })
+    },
+    guardFalseImageClaims: params.toolsEnabled.runwareImage,
+    maxFalseImageClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
+    appendFalseImageClaimReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
       })
     },
     appendRuntimeRecalledImages: (messages, recalled) => {
