@@ -4,16 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.5.3] — 2026-05-15
+
+### Added
+
+- **Blood Moon theme**: new `blood-moon` interface theme (dark monochrome with red accents) selectable in **Options → General**. Registered in `settings.ts`, `main.tsx`, and `theme-blood-moon.css`.
+- **Bidirectional long-memory and reminder sync**: desktop and LAN web can merge entries through the TTS server (`POST /tools/user-data`, `tts-server/user_data.py`). New `userDataSync.ts` orchestrates pull/push; storage layers in `longMemoryStorage.ts` and `reminderStorage.ts` gain merge helpers. Context compression (`contextCompress.ts`) now respects the active LLM provider. Plain-HTTP clients use `makeUuidV4` from `runwareUuid.ts` when `crypto.randomUUID` is unavailable. Launcher script renamed `start-tts.bat` → `start-tts-local.bat`.
+- **Shared `NumericSettingInput`**: reusable options control for numeric fields with mobile-friendly steppers (used in Runware image/music panels and LLM/TTS options) instead of raw `<input type="number">` rows.
+
 ### Fixed
 
 - **Mobile chat URL overflow**: long Reddit/HTTPS links no longer spill past the message bubble on narrow viewports. `ChatMarkdown` now breaks links and list text (`break-all`, `overflow-wrap: anywhere`, `min-w-0` on flex list rows); message bubbles and the mobile messages scroller clip horizontal overflow.
+- **Runware image hallucination guard**: assistant turns that claim an `image_url` without a matching `generate_image` / `edit_image_runware` tool result trigger an automatic reprompt (`agentToolLoop.ts`, `agentToolUtils.ts`). The chat UI only renders Runware images from confirmed tool metadata, not URLs pasted in assistant prose.
+- **Chronological image catalog for edit/recall**: tool hints and catalog indexing now follow chat order (1 = newest, including generated images). Generated CDN URLs are fetched into the catalog when not auto-saved; per-turn catalog hints steer the model on which attachment index to pass to `edit_image_runware`.
+- **LAN web without local API keys**: phone/tablet web UI strips local secrets from settings and syncs cloud keys (OpenRouter, Runware, etc.) through `tts-server/cloud_secrets.py` so generation still works on the LAN build without embedding keys in the browser bundle.
+- **STT disabled on mobile web**: microphone / OpenRouter transcription controls are hidden on phone layouts where recording is unreliable (`platform.ts`).
 
 ### Changed
 
 - **Desktop window title**: cleared the Electron `BrowserWindow` title and `index.html` `<title>` so the Windows title bar no longer shows "Voidcast" (the taskbar may still use the executable name from the installer).
-
+- **Header label**: AI panel title renamed to **Void Agent** (was generic "AI").
+- **Blood Moon theme polish**: second pass replaced the initial crimson-void palette (heavy gradients, glitch RGB, display fonts) with calmer monochrome (`10 10 12` background) and red reserved for accents only; body uses JetBrains Mono / Inter.
 - **Agent tool-call decision making**: removed `shouldRequireToolCall` keyword-matching heuristic from `agentToolUtils.ts`, `ollamaAgent.ts`, and `openrouterAgent.ts`. Both Ollama and OpenRouter agents now pass `mustCallTool: false` to the shared tool loop, letting the model decide autonomously whether to invoke a tool based on the tool descriptions in the system prompt instead of being forced by regex keywords.
-- **`TOOLS_TRUTH_HINT` placement and wording**: moved from the end to the **beginning** of the tools hint block in `App.tsx` so it stays in the high-attention region of the system prompt across long sessions. Text tightened to an explicit mandatory rule starting with `Tool-call truth (highest priority):`.
+- **`TOOLS_TRUTH_HINT` placement and wording**: moved from the end to the **beginning** of the tools hint block in `App.tsx` so it stays in the high-attention region of the system prompt across long sessions. Text tightened to an explicit mandatory rule starting with `Tool-call truth (highest priority):`. Side-effect tool hints (`save_pdf`, music, etc.) gained stronger **MANDATORY** / **CRITICAL** phrasing in the same pass.
 
 ## [2.5.2] — 2026-05-14
 
