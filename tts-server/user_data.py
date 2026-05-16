@@ -79,24 +79,17 @@ def _merge_reminder_item(item: dict[str, Any]) -> None:
         _deleted_reminder_at.pop(item_id, None)
     prev = _reminders.get(item_id)
     if prev is None:
-        _reminders[item_id] = item
-        return
-    if _item_updated_at(prev) <= updated:
+        merged = dict(item)
+    elif _item_updated_at(prev) <= updated:
         merged = dict(item)
     else:
         merged = dict(prev)
-        newer = item if _item_updated_at(item) >= _item_updated_at(prev) else prev
-        older = prev if newer is item else item
-        merged = dict(newer)
-        for key in ("notifiedAt",):
-            a = newer.get(key)
-            b = older.get(key)
-            if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-                merged[key] = max(int(a), int(b))
-            elif isinstance(a, (int, float)):
-                merged[key] = int(a)
-            elif isinstance(b, (int, float)):
-                merged[key] = int(b)
+    for source in (item, prev) if prev is not None else (item,):
+        raw = source.get("notifiedAt")
+        if isinstance(raw, (int, float)) and int(raw) > 0:
+            existing = merged.get("notifiedAt")
+            if not isinstance(existing, (int, float)) or int(raw) > int(existing):
+                merged["notifiedAt"] = int(raw)
     _reminders[item_id] = merged
 
 

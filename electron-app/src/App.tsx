@@ -1659,7 +1659,9 @@ export default function App() {
               }
               n.close()
             }
-            await markReminderNotified(r.id, Date.now())
+            const notifiedTs = Date.now()
+            await markReminderNotified(r.id, notifiedTs)
+            scheduleUserDataSync(settings.ttsBaseUrl)
             firedAny = true
           } catch {
             // single failure shouldn't block other reminders
@@ -1679,7 +1681,7 @@ export default function App() {
       cancelled = true
       if (timer != null) window.clearInterval(timer)
     }
-  }, [settings.reminderNotificationsEnabled, refreshReminders])
+  }, [settings.reminderNotificationsEnabled, settings.ttsBaseUrl, refreshReminders])
 
   const deleteLongMemoryById = useCallback(async (id: string) => {
     await deleteMemory(id)

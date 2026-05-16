@@ -180,7 +180,10 @@ export async function searchRemindersByText(query: string): Promise<Reminder[]> 
 export async function listDueUnnotifiedReminders(nowMs: number): Promise<Reminder[]> {
   const pending = await listReminders({ status: 'pending' })
   return pending.filter(
-    (r) => r.when != null && r.when <= nowMs && !r.notifiedAt,
+    (r) =>
+      r.when != null &&
+      r.when <= nowMs &&
+      (r.notifiedAt == null || r.notifiedAt === 0),
   )
 }
 
@@ -195,9 +198,16 @@ export async function markReminderNotified(id: string, ts: number): Promise<void
   })
   if (item) {
     item.notifiedAt = ts
+    item.updatedAt = ts
     store.put(item)
   }
   await txDone(tx)
+}
+
+function maxNotifiedAt(a?: number, b?: number): number | undefined {
+  const vals = [a, b].filter((x): x is number => typeof x === 'number' && x > 0)
+  if (vals.length === 0) return undefined
+  return Math.max(...vals)
 }
 
 export async function importReminderItems(items: Reminder[]): Promise<void> {
@@ -209,10 +219,17 @@ export async function importReminderItems(items: Reminder[]): Promise<void> {
     const createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now()
     const updatedAt =
       Number.isFinite(raw.updatedAt) && raw.updatedAt > 0 ? raw.updatedAt : createdAt
+    const existing: Reminder | undefined = await new Promise((resolve) => {
+      const req = store.get(raw.id)
+      req.onsuccess = () => resolve(req.result as Reminder | undefined)
+      req.onerror = () => resolve(undefined)
+    })
+    const notifiedAt = maxNotifiedAt(existing?.notifiedAt, raw.notifiedAt)
     store.put({
       ...raw,
       createdAt,
       updatedAt,
+      ...(notifiedAt != null ? { notifiedAt } : {}),
     })
   }
   await txDone(tx)
