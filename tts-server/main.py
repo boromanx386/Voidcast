@@ -63,7 +63,23 @@ from user_data import apply_sync, get_snapshot
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
 
-WEB_UI_DIR = Path(__file__).resolve().parent / "web-ui"
+def resolve_web_ui_dir() -> Path:
+    """Find Vite `web-ui` output (dev, Electron resources cwd, or VOIDCAST_WEB_UI_DIR)."""
+    env = os.environ.get("VOIDCAST_WEB_UI_DIR", "").strip()
+    if env:
+        return Path(env)
+    candidates = (
+        Path.cwd() / "web-ui",
+        Path(__file__).resolve().parent / "web-ui",
+    )
+    for directory in candidates:
+        for name in ("index.html", "index.web.html"):
+            if (directory / name).is_file():
+                return directory
+    return candidates[0]
+
+
+WEB_UI_DIR = resolve_web_ui_dir()
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip(
     "/"
 )

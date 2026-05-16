@@ -20,11 +20,17 @@
       "to": "tts-server",
       "filter": [
         "tools_main.py",
+        "tools_exe_entry.py",
         "main.py",
+        "cloud_secrets.py",
+        "user_data.py",
         "scrape_tool.py",
+        "reddit_tool.py",
+        "pdf_tool.py",
         "youtube_tools.py",
         "requirements-tools.txt",
         "requirements.txt",
+        "fonts/**",
         "web-ui/**"
       ]
     },

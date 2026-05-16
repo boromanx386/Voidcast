@@ -115,7 +115,12 @@ function getBundledToolsExePath(): string {
     : path.join(process.env.APP_ROOT, '..', 'tts-server', 'dist', 'voidcast-tools-server.exe')
 }
 
-async function isToolsServerHealthy(baseUrl = 'http://127.0.0.1:8765'): Promise<boolean> {
+/** Bind on all interfaces so LAN phones can reach the web UI and API proxy (override via VOIDCAST_TOOLS_HOST). */
+const TOOLS_SERVER_HOST = process.env.VOIDCAST_TOOLS_HOST?.trim() || '0.0.0.0'
+const TOOLS_SERVER_PORT = process.env.VOIDCAST_TOOLS_PORT?.trim() || '8765'
+const TOOLS_SERVER_HEALTH_URL = `http://127.0.0.1:${TOOLS_SERVER_PORT}`
+
+async function isToolsServerHealthy(baseUrl = TOOLS_SERVER_HEALTH_URL): Promise<boolean> {
   try {
     const res = await fetch(`${baseUrl}/health`)
     return res.ok
@@ -135,6 +140,9 @@ function startToolsServerWithCommand(
       env: {
         ...process.env,
         OMNIVOICE_ENABLE_TTS: '0',
+        VOIDCAST_TOOLS_HOST: TOOLS_SERVER_HOST,
+        VOIDCAST_TOOLS_PORT: TOOLS_SERVER_PORT,
+        VOIDCAST_WEB_UI_DIR: path.join(cwd, 'web-ui'),
       },
       windowsHide: true,
     })
@@ -191,9 +199,9 @@ async function ensureToolsServerRunning(): Promise<void> {
       'uvicorn',
       'tools_main:app',
       '--host',
-      '127.0.0.1',
+      TOOLS_SERVER_HOST,
       '--port',
-      '8765',
+      TOOLS_SERVER_PORT,
       '--app-dir',
       cwd,
     ]
@@ -211,7 +219,9 @@ async function ensureToolsServerRunning(): Promise<void> {
       if (!ok) continue
       for (let i = 0; i < 12; i++) {
         if (await isToolsServerHealthy()) {
-          console.log('[tools-server] Ready on http://127.0.0.1:8765')
+          console.log(
+            `[tools-server] Ready on http://${TOOLS_SERVER_HOST}:${TOOLS_SERVER_PORT} (phone: http://<this-PC-LAN-IP>:${TOOLS_SERVER_PORT})`,
+          )
           return
         }
         await new Promise((r) => setTimeout(r, 500))

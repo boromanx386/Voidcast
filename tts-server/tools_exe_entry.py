@@ -17,7 +17,7 @@ from tools_main import app  # noqa: E402
 
 
 def main() -> None:
-    host = os.environ.get("VOIDCAST_TOOLS_HOST", "127.0.0.1")
+    host = os.environ.get("VOIDCAST_TOOLS_HOST", "0.0.0.0")
     port_raw = os.environ.get("VOIDCAST_TOOLS_PORT", "8765")
     try:
         port = int(port_raw)

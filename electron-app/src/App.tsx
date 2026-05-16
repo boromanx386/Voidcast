@@ -233,7 +233,7 @@ function buildRuntimeTimeHint(now = new Date()): string {
 }
 
 const VISION_TRIGGER_RE =
-  /\b(analyze|analyse|describe|what(?:'s| is) in|inspect|ocr|read(?: the)? text|caption|scan|classify|identify)\b/i
+  /\b(analyze|analyse|describe|what(?:'s| is) in|inspect|ocr|read(?: the)? text|caption|scan|classify|identify|opis[iu]|analiziraj|šta\s+(?:je\s+)?na|šta\s+vidiš|procitaj|pročitaj)\b/i
 
 function shouldUseVisionForText(text: string): boolean {
   return VISION_TRIGGER_RE.test(text)
@@ -281,7 +281,10 @@ function catalogItemKey(item: PendingChatImage): string {
   return `b64:${item.base64.slice(0, 96)}`
 }
 
-function buildImageCatalogHint(catalog: PendingChatImage[]): string {
+function buildImageCatalogHint(
+  catalog: PendingChatImage[],
+  pendingCount = 0,
+): string {
   if (!catalog.length) return ''
   const lines = catalog.map((item, i) => {
     const label = (item.path || item.name || '').trim() || '(unnamed image)'
@@ -293,9 +296,13 @@ function buildImageCatalogHint(catalog: PendingChatImage[]): string {
           : 'attached'
     return `- Index ${i + 1}: [${kind}] ${label}${item.path ? ` — ${item.path}` : ''}`
   })
+  const currentAttachLead =
+    pendingCount > 0
+      ? `Images attached in THIS message are index 1${pendingCount > 1 ? `–${pendingCount}` : ''} — describe those, not older generated images unless the user explicitly asks about an older one.`
+      : 'Index 1 = most recent image in the session (including generated).'
   return [
-    'Session image catalog (index 1 = most recent image in this chat, including generated).',
-    'Use reference_image_indexes and/or reference_image_paths with image_recall or edit_image_runware:',
+    'Session image catalog for image_recall / edit_image_runware:',
+    currentAttachLead,
     ...lines,
   ].join('\n')
 }
@@ -458,14 +465,20 @@ async function pushAssistantGeneratedImages(
   }
 }
 
-/**
- * Session image catalog for tools: chronological chat order (old→new), then reversed
- * so index 1 = most recent (pending attach, then latest generated, then older images).
- */
-async function buildToolImageCatalog(
-  history: UiMessage[],
-  queued: PendingChatImage[],
-): Promise<PendingChatImage[]> {
+function dedupeCatalogNewestFirst(items: PendingChatImage[]): PendingChatImage[] {
+  const seen = new Set<string>()
+  const out: PendingChatImage[] = []
+  for (const item of items) {
+    const key = catalogItemKey(item)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(item)
+  }
+  return out
+}
+
+/** History only (no current-message queue): chat order old→new, returned newest-first. */
+async function buildSessionImageCatalog(history: UiMessage[]): Promise<PendingChatImage[]> {
   const chronological: PendingChatImage[] = []
 
   for (const msg of history) {
@@ -487,20 +500,29 @@ async function buildToolImageCatalog(
     }
   }
 
-  for (const q of queued) {
-    chronological.push({ ...q, kind: q.kind ?? 'pending' })
-  }
-
-  const seen = new Set<string>()
-  const out: PendingChatImage[] = []
+  const newestFirst: PendingChatImage[] = []
   for (let i = chronological.length - 1; i >= 0; i--) {
-    const item = chronological[i]
-    const key = catalogItemKey(item)
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(item)
+    newestFirst.push(chronological[i]!)
   }
-  return out
+  return dedupeCatalogNewestFirst(newestFirst)
+}
+
+/**
+ * Tool catalog: current-message attachments first (index 1 = newest attach), then older session images.
+ */
+async function buildToolImageCatalog(
+  history: UiMessage[],
+  queued: PendingChatImage[],
+): Promise<PendingChatImage[]> {
+  const pendingNewestFirst = [...queued].reverse().map((q) => ({
+    ...q,
+    kind: 'pending' as const,
+  }))
+  const pendingKeys = new Set(pendingNewestFirst.map(catalogItemKey))
+  const session = (await buildSessionImageCatalog(history)).filter(
+    (item) => !pendingKeys.has(catalogItemKey(item)),
+  )
+  return [...pendingNewestFirst, ...session]
 }
 
 const RUNWARE_IMAGE_URL_LINE_RE = /^\s*image_url:\s*(https?:\/\/\S+)\s*$/gim
@@ -1698,14 +1720,18 @@ export default function App() {
     const imageNames = queued.map((q) => (q.name || '').trim())
     const imagePaths = queued.map((q) => (q.path || '').trim())
     const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
-    const useVisionForCurrentMessage = shouldUseVisionForText(text)
+    const hasCurrentAttach = imagesBase64.length > 0
+    const useVisionForCurrentMessage =
+      hasCurrentAttach || shouldUseVisionForText(text)
     const visionImagesForCurrentMessage = useVisionForCurrentMessage
-      ? (imagesBase64.length > 0 ? imagesBase64 : toolImageCatalog.slice(0, 1).map((x) => x.base64))
+      ? hasCurrentAttach
+        ? imagesBase64
+        : toolImageCatalog.slice(0, 1).map((x) => x.base64)
       : []
     const attachedImageHint = buildQueuedImagePathHint(queued)
     const imageCatalogHint =
       settings.toolsEnabled.runwareImage && toolImageCatalog.length > 0
-        ? buildImageCatalogHint(toolImageCatalog)
+        ? buildImageCatalogHint(toolImageCatalog, queued.length)
         : ''
     const attachedFileHint = buildQueuedFilePathHint(queuedFiles)
     const ollamaUserText = [text, attachedImageHint, imageCatalogHint, attachedFileHint]

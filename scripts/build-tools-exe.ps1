@@ -18,6 +18,18 @@ if (!(Test-Path $fontsDir)) {
   throw "Missing PDF fonts at $fontsDir (need NotoSans-Regular.ttf and NotoSans-Bold.ttf)."
 }
 
+$webUiDir = Join-Path $ttsDir "web-ui"
+$webIndex = Join-Path $webUiDir "index.web.html"
+if (!(Test-Path $webIndex)) {
+  Write-Host "[tools-exe] web-ui missing; running npm run build:web..."
+  Push-Location (Join-Path $repoRoot "electron-app")
+  npm run build:web | Out-Host
+  Pop-Location
+}
+if (!(Test-Path $webIndex)) {
+  throw "Missing $webIndex. Run from repo: cd electron-app; npm run build:web"
+}
+
 Write-Host "[tools-exe] Ensuring PyInstaller is available..."
 & $venvPython -m pip install -r $toolsReq | Out-Host
 & $venvPython -m pip install pyinstaller | Out-Host
@@ -36,6 +48,7 @@ Write-Host "[tools-exe] Building one-file tools backend..."
   --specpath $ttsDir `
   --paths $ttsDir `
   --add-data "$fontsDir;fonts" `
+  --add-data "$webUiDir;web-ui" `
   --exclude-module torch `
   --exclude-module torchaudio `
   --exclude-module omnivoice `
