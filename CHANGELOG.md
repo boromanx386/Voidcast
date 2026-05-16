@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Tool-round chat stream**: the in-progress assistant reply text is cleared between model rounds (after tools / forced reprompts), so each stream shows only the current round’s answer. **THINKING** still accumulates across rounds in the same bubble (`---` separators). API history still keeps full turns for the model.
+
 ## [2.5.3] — 2026-05-15
 
 ### Added

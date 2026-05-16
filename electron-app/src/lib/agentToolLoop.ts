@@ -106,6 +106,19 @@ function abortedError(): Error {
   return err
 }
 
+/** Clear streamed reply text only; thinking stays accumulated across tool rounds. */
+function clearStreamedAssistantContent(params: { onDelta: (fullText: string) => void }) {
+  params.onDelta('')
+}
+
+function appendThinkingRound(
+  prefix: string,
+  thinking: string,
+): string {
+  if (!thinking.trim()) return prefix
+  return `${prefix}${thinking.trim()}\n\n---\n\n`
+}
+
 export async function runSharedToolLoop<
   TMessage extends { content?: string | unknown },
   TProviderToolCall,
@@ -116,7 +129,6 @@ export async function runSharedToolLoop<
   const messages = [...params.initialMessages]
   const runtimeRecalledImages: Array<{ base64: string; mime: string }> = []
   let lastAssistantText = ''
-  let persistedAssistantPrefix = ''
   let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   let requiredToolRepromptCount = 0
@@ -125,16 +137,6 @@ export async function runSharedToolLoop<
   let hasExecutedImageToolInTurn = false
   const maxFalseImageClaimReprompts = params.maxFalseImageClaimReprompts ?? 2
 
-  const persistPrefixesAfterReprompt = (thinking: string) => {
-    persistedAssistantPrefix = lastAssistantText
-    if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-      persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-    }
-    if (thinking.trim()) {
-      persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-    }
-  }
-
   for (let round = 0; round < params.maxToolRounds; round++) {
     if (params.signal?.aborted) throw abortedError()
 
@@ -142,15 +144,21 @@ export async function runSharedToolLoop<
       messages,
       signal: params.signal,
       onDelta: (full) => {
-        const combined = `${persistedAssistantPrefix}${full}`
-        lastAssistantText = combined
-        params.onDelta(combined)
+        lastAssistantText = full
+        params.onDelta(full)
       },
       onThinkingDelta: (fullRound) => {
-        const combined = `${persistedThinkingPrefix}${fullRound}`
-        params.onThinkingDelta?.(combined)
+        params.onThinkingDelta?.(`${persistedThinkingPrefix}${fullRound}`)
       },
     })
+
+    lastAssistantText = content ?? lastAssistantText
+    if (lastAssistantText) {
+      params.onDelta(lastAssistantText)
+    }
+    if (thinking.trim()) {
+      params.onThinkingDelta?.(`${persistedThinkingPrefix}${thinking}`)
+    }
 
     lastUsage = usage ?? lastUsage
     const sharedCalls = params.toSharedToolCalls(toolCalls)
@@ -183,8 +191,6 @@ export async function runSharedToolLoop<
     }
 
     if (validCalls.length === 0) {
-      // Strip URLs so the model can't recycle hallucinated URLs
-      // from previous rounds when it skips tool calls (e.g. fake image URLs).
       stripUrlsFromMessages(messages)
 
       const handled = await params.onNoToolCalls?.({
@@ -195,7 +201,9 @@ export async function runSharedToolLoop<
         runSyntheticTool,
       })
       if (handled) {
-        persistPrefixesAfterReprompt(thinking)
+        lastAssistantText = ''
+        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
+        clearStreamedAssistantContent(params)
         continue
       }
 
@@ -215,7 +223,9 @@ export async function runSharedToolLoop<
           toolCalls: [],
         })
         params.appendFalseImageClaimReprompt(messages)
-        persistPrefixesAfterReprompt(thinking)
+        lastAssistantText = ''
+        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
+        clearStreamedAssistantContent(params)
         continue
       }
 
@@ -226,7 +236,9 @@ export async function runSharedToolLoop<
       ) {
         requiredToolRepromptCount += 1
         params.appendToolRequiredReprompt(messages)
-        persistPrefixesAfterReprompt(thinking)
+        lastAssistantText = ''
+        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
+        clearStreamedAssistantContent(params)
         continue
       }
       if (params.mustCallTool && !hasExecutedToolInTurn) {
@@ -280,13 +292,9 @@ export async function runSharedToolLoop<
     }
 
     params.onToolPhase?.(null)
-    persistedAssistantPrefix = lastAssistantText
-    if (persistedAssistantPrefix.trim() && !persistedAssistantPrefix.endsWith('\n\n')) {
-      persistedAssistantPrefix = `${persistedAssistantPrefix.trimEnd()}\n\n`
-    }
-    if (thinking.trim()) {
-      persistedThinkingPrefix += `${thinking.trim()}\n\n---\n\n`
-    }
+    lastAssistantText = ''
+    persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
+    clearStreamedAssistantContent(params)
   }
 
   return { content: lastAssistantText, usage: lastUsage }
