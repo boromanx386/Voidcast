@@ -74,7 +74,7 @@ interface VoidcastBridge {
     endLine?: number
     maxChars?: number
     allowLargeRead?: boolean
-  }) => Promise<{ ok: true; content: string } | { ok: false; error?: string }>
+  }) => Promise<{ ok: true; content: string; lineEndings: 'crlf' | 'lf' } | { ok: false; error?: string }>
 
   codingWriteFile: (payload: {
     projectPath: string

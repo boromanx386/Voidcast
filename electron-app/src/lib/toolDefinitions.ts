@@ -483,11 +483,12 @@ const CODING_EDIT_CODE_TOOL: OllamaToolDefinition = {
         },
         find_text: {
           type: 'string',
-          description: 'Exact text snippet to find in the file.',
+          description:
+            'Text snippet to find. Use \\n for line breaks even on CRLF (Windows) files — matching is EOL-aware.',
         },
         replace_text: {
           type: 'string',
-          description: 'Replacement text snippet.',
+          description: 'Replacement text snippet (\\n line breaks are fine on CRLF files).',
         },
         replace_all: {
           type: 'boolean',

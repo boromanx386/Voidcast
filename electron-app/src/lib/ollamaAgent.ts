@@ -1169,6 +1169,7 @@ export async function executeToolCall(
         startLine,
         endLine,
         maxChars,
+        forToolDisplay: true,
       })
     ).text
   }

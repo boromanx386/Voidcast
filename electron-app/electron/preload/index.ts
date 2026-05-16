@@ -67,7 +67,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     allowLargeRead?: boolean
   }) =>
     ipcRenderer.invoke('voidcast:coding-read-file', payload) as Promise<
-      | { ok: true; content: string }
+      | { ok: true; content: string; lineEndings: 'crlf' | 'lf' }
       | { ok: false; error?: string }
     >,
   codingWriteFile: (payload: { projectPath: string; path: string; content: string }) =>

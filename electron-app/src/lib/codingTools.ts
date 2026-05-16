@@ -1,4 +1,9 @@
 import type { CodingFileNode, CodingToolResult } from '@/types/coding'
+import {
+  applySnippetEdit,
+  readFileToolDisplayPrefix,
+  type FileLineEndings,
+} from '@/lib/codingEol'
 
 function missingBridgeResult(action: string): CodingToolResult {
   return { ok: false, text: `${action} is available only in Electron desktop.` }
@@ -29,6 +34,8 @@ export async function invokeReadCodingFile(
     endLine?: number
     maxChars?: number
     allowLargeRead?: boolean
+    /** When true, prepend a one-line CRLF hint for the model (not used for internal edit_code reads). */
+    forToolDisplay?: boolean
   },
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingReadFile
@@ -41,7 +48,14 @@ export async function invokeReadCodingFile(
     maxChars: options?.maxChars,
     allowLargeRead: options?.allowLargeRead,
   })
-  return { ok: res.ok, text: res.ok ? res.content : res.error || 'Read failed.' }
+  if (!res.ok) return { ok: false, text: res.error || 'Read failed.' }
+  const lineEndings: FileLineEndings = res.lineEndings ?? 'lf'
+  const numberedView = options?.startLine !== undefined || options?.endLine !== undefined
+  const prefix =
+    options?.forToolDisplay === true
+      ? readFileToolDisplayPrefix(lineEndings, numberedView)
+      : ''
+  return { ok: true, text: `${prefix}${res.content}` }
 }
 
 export async function invokeWriteCodingFile(projectPath: string, path: string, content: string): Promise<CodingToolResult> {
@@ -61,22 +75,25 @@ export async function invokeEditCodingFile(
   const read = await invokeReadCodingFile(projectPath, path, { allowLargeRead: true })
   if (!read.ok) return read
   if (!findText) return { ok: false, text: 'find_text must not be empty.' }
-  if (!read.text.includes(findText)) {
+
+  const applied = applySnippetEdit(read.text, findText, replaceText, replaceAll)
+  if (!applied.ok) {
     const lineCount = read.text.split(/\r?\n/).length
-    const crlf = read.text.includes('\r\n')
-    const eolHint =
-      crlf && findText.includes('\n') && !findText.includes('\r\n')
-        ? ' File uses CRLF line endings; find_text may need carriage returns where you used newline-only breaks.'
-        : ''
     return {
       ok: false,
-      text: `Target snippet not found (${lineCount} lines; match must be exact, including spaces).${eolHint} Re-read the file with read_file if needed.`,
+      text: `Target snippet not found (${lineCount} lines; spaces must match). On Windows/CRLF files you can use \\n in find_text — matching is EOL-aware. Prefer edit_code over rewriting the whole file.`,
     }
   }
-  const next = replaceAll ? read.text.split(findText).join(replaceText) : read.text.replace(findText, replaceText)
-  const write = await invokeWriteCodingFile(projectPath, path, next)
+
+  const write = await invokeWriteCodingFile(projectPath, path, applied.next)
   if (!write.ok) return write
-  return { ok: true, text: `Edited ${path} (${replaceAll ? 'all matches' : 'first match'})` }
+  const modeNote =
+    applied.mode === 'exact'
+      ? replaceAll
+        ? 'all matches'
+        : 'first match'
+      : `${applied.mode === 'crlf-expanded' ? 'CRLF-adjusted' : 'EOL-normalized'} ${replaceAll ? 'all matches' : 'first match'}`
+  return { ok: true, text: `Edited ${path} (${modeNote})` }
 }
 
 export async function invokeSearchCodingFiles(

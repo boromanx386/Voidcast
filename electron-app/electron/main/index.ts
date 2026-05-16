@@ -1267,7 +1267,8 @@ ipcMain.handle(
         out = `${out}${lineRangeNote}`
       }
 
-      return { ok: true as const, content: out }
+      const lineEndings = content.includes('\r\n') ? ('crlf' as const) : ('lf' as const)
+      return { ok: true as const, content: out, lineEndings }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }
