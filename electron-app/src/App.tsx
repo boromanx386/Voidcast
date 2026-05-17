@@ -113,6 +113,7 @@ import {
   sessionCodingProjectPath,
   type CodingContextMemo,
 } from '@/lib/codingContextMemo'
+import { formatEditedFileMemoEntry } from '@/lib/codingEol'
 import {
   clearCloneRef,
   loadCloneRef,
@@ -2099,7 +2100,7 @@ export default function App() {
                     else if (s !== undefined) entry = `${entry} (from line ${s})`
                     else if (e !== undefined) entry = `${entry} (to line ${e})`
                   } else if (name === 'edit_code' && entry) {
-                    entry = `${entry} (edited)`
+                    entry = formatEditedFileMemoEntry(entry, result)
                   } else if (name === 'write_file' && entry) {
                     entry = `${entry} (written)`
                   }

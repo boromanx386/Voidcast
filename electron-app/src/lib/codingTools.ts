@@ -93,7 +93,8 @@ export async function invokeEditCodingFile(
         ? 'all matches'
         : 'first match'
       : `${applied.mode === 'crlf-expanded' ? 'CRLF-adjusted' : 'EOL-normalized'} ${replaceAll ? 'all matches' : 'first match'}`
-  return { ok: true, text: `Edited ${path} (${modeNote})` }
+  const lineNote = `lines ${applied.startLine}-${applied.endLine}`
+  return { ok: true, text: `Edited ${path} (${lineNote}, ${modeNote})` }
 }
 
 export async function invokeSearchCodingFiles(

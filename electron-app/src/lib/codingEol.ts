@@ -27,8 +27,55 @@ function replaceSnippet(
 export type SnippetEditMode = 'exact' | 'crlf-expanded' | 'normalized'
 
 export type SnippetEditResult =
-  | { ok: true; next: string; mode: SnippetEditMode }
+  | { ok: true; next: string; mode: SnippetEditMode; startLine: number; endLine: number }
   | { ok: false }
+
+function lineNumberAt(text: string, index: number): number {
+  if (index <= 0) return 1
+  return text.slice(0, index).split(/\r?\n/).length
+}
+
+function snippetLineCount(text: string): number {
+  if (!text) return 0
+  return text.split(/\r?\n/).length
+}
+
+function editLineRange(
+  fileText: string,
+  matchIndex: number,
+  findUsed: string,
+  replaceText: string,
+): { startLine: number; endLine: number } {
+  const startLine = lineNumberAt(fileText, matchIndex)
+  const span = Math.max(snippetLineCount(findUsed) || 1, snippetLineCount(replaceText) || 1)
+  return { startLine, endLine: startLine + span - 1 }
+}
+
+function firstMatchIndex(text: string, find: string, replaceAll: boolean): number {
+  if (!find) return -1
+  return replaceAll ? text.indexOf(find) : text.indexOf(find)
+}
+
+function applyReplaceWithRange(
+  fileText: string,
+  findUsed: string,
+  replaceUsed: string,
+  replaceAll: boolean,
+  mode: SnippetEditMode,
+  /** Text used for line numbers (original file or LF view). */
+  lineText: string,
+): SnippetEditResult {
+  const matchIndex = firstMatchIndex(lineText, findUsed, replaceAll)
+  if (matchIndex < 0) return { ok: false }
+  const { startLine, endLine } = editLineRange(lineText, matchIndex, findUsed, replaceUsed)
+  return {
+    ok: true,
+    next: replaceSnippet(fileText, findUsed, replaceUsed, replaceAll),
+    mode,
+    startLine,
+    endLine,
+  }
+}
 
 /**
  * Apply find/replace on file text. Tries exact match first, then CRLF expansion, then LF-normalized match
@@ -43,11 +90,7 @@ export function applySnippetEdit(
   if (!findText) return { ok: false }
 
   if (fileText.includes(findText)) {
-    return {
-      ok: true,
-      next: replaceSnippet(fileText, findText, replaceText, replaceAll),
-      mode: 'exact',
-    }
+    return applyReplaceWithRange(fileText, findText, replaceText, replaceAll, 'exact', fileText)
   }
 
   const eol = detectFileLineEndings(fileText)
@@ -56,25 +99,56 @@ export function applySnippetEdit(
     const findCrlf = findText.replace(/\n/g, '\r\n')
     const replaceCrlf = replaceText.replace(/\n/g, '\r\n')
     if (fileText.includes(findCrlf)) {
-      return {
-        ok: true,
-        next: replaceSnippet(fileText, findCrlf, replaceCrlf, replaceAll),
-        mode: 'crlf-expanded',
-      }
+      return applyReplaceWithRange(
+        fileText,
+        findCrlf,
+        replaceCrlf,
+        replaceAll,
+        'crlf-expanded',
+        fileText,
+      )
     }
   }
 
   const findLf = toLf(findText)
-  if (findLf && toLf(fileText).includes(findLf)) {
-    const nextLf = replaceSnippet(toLf(fileText), findLf, toLf(replaceText), replaceAll)
+  const fileLf = toLf(fileText)
+  if (findLf && fileLf.includes(findLf)) {
+    const replaceLf = toLf(replaceText)
+    const matchIndex = firstMatchIndex(fileLf, findLf, replaceAll)
+    if (matchIndex < 0) return { ok: false }
+    const { startLine, endLine } = editLineRange(fileLf, matchIndex, findLf, replaceLf)
+    const nextLf = replaceSnippet(fileLf, findLf, replaceLf, replaceAll)
     return {
       ok: true,
       next: restoreLineEndings(nextLf, eol),
       mode: 'normalized',
+      startLine,
+      endLine,
     }
   }
 
   return { ok: false }
+}
+
+/** Parse `Edited path (lines 12-18, …)` tool results for coding context memo. */
+export function parseEditedLineRangeFromToolResult(result: string): {
+  startLine: number
+  endLine: number
+} | null {
+  const m = result.trim().match(/\(lines (\d+)-(\d+)/)
+  if (!m) return null
+  const startLine = Number.parseInt(m[1], 10)
+  const endLine = Number.parseInt(m[2], 10)
+  if (!Number.isFinite(startLine) || !Number.isFinite(endLine) || startLine < 1 || endLine < startLine) {
+    return null
+  }
+  return { startLine, endLine }
+}
+
+export function formatEditedFileMemoEntry(path: string, toolResult: string): string {
+  const range = parseEditedLineRangeFromToolResult(toolResult)
+  if (range) return `${path} (edited lines ${range.startLine}-${range.endLine})`
+  return `${path} (edited)`
 }
 
 const READ_FILE_CRLF_HINT =
