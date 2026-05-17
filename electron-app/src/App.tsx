@@ -39,9 +39,10 @@ import {
 import {
   MAX_CHAT_IMAGES,
   MAX_IMAGE_BYTES,
+  CHAT_IMAGE_ACCEPT,
   readImageFileAsBase64,
   imageDataUrl,
-  looksLikeImageFile,
+  splitChatAttachmentFiles,
 } from '@/lib/imageAttachment'
 import {
   chatFileAcceptList,
@@ -2443,20 +2444,22 @@ export default function App() {
 
   const processChatAttachmentFiles = useCallback(async (rawList: File[]) => {
     if (rawList.length === 0) return
-    const imageFiles = rawList.filter(looksLikeImageFile)
-    const nonImageFiles = rawList.filter((f) => !looksLikeImageFile(f))
+    const { imageFiles, nonImageFiles } = await splitChatAttachmentFiles(rawList)
     const newImages: PendingChatImage[] = []
     const newFiles: PendingChatFile[] = []
 
     for (const file of imageFiles) {
       if (file.size > MAX_IMAGE_BYTES) {
-        setError(`Image too large (max ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB): ${file.name}`)
+        setError(`Image too large (max ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB): ${file.name || 'image'}`)
         continue
       }
       try {
         const { base64, mime } = await readImageFileAsBase64(file)
-        if (!base64.trim()) continue
-        newImages.push({ base64, mime, name: file.name })
+        if (!base64.trim()) {
+          setError(`Could not read image: ${file.name || 'attachment'}`)
+          continue
+        }
+        newImages.push({ base64, mime, name: file.name || 'image' })
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       }
@@ -2494,7 +2497,12 @@ export default function App() {
       })
     }
 
-    if (newImages.length === 0 && newFiles.length === 0) return
+    if (newImages.length === 0 && newFiles.length === 0) {
+      if (rawList.length > 0) {
+        setError('Could not load attachment. On phone use Gallery and JPEG/PNG screenshots.')
+      }
+      return
+    }
     setError(null)
     if (newImages.length > 0) {
       setPendingImages((prev) => {
@@ -2512,10 +2520,24 @@ export default function App() {
   }, [])
 
   const onPickChatAttachments = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    e.target.value = ''
-    if (!files?.length) return
-    await processChatAttachmentFiles(Array.from(files))
+    const input = e.target
+    const picked = input.files
+    if (!picked || picked.length === 0) return
+    // Snapshot before reset — Android gallery can drop File refs after input.value = ''.
+    const files: File[] = []
+    for (let i = 0; i < picked.length; i++) {
+      const f = picked[i]!
+      const name = f.name?.trim() || `image-${Date.now()}.jpg`
+      const type = f.type?.trim() || 'image/jpeg'
+      try {
+        const buf = await f.arrayBuffer()
+        files.push(new File([buf], name, { type, lastModified: f.lastModified }))
+      } catch {
+        files.push(f)
+      }
+    }
+    input.value = ''
+    await processChatAttachmentFiles(files)
   }
 
   const dragContainsFiles = useCallback((e: ReactDragEvent<HTMLDivElement>) => {
@@ -2614,7 +2636,9 @@ export default function App() {
         setError(e instanceof Error ? e.message : String(e))
       }
     }
-    chatAttachmentInputRef.current?.click()
+    if (!isWebStandalone()) {
+      chatAttachmentInputRef.current?.click()
+    }
   }, [busy])
 
   // === Audio Playback ===
@@ -3803,12 +3827,21 @@ export default function App() {
       <footer className="voidcast-input-area">
         <div className="mx-auto max-w-3xl">
           <input
+            id="voidcast-chat-attach-input"
             ref={chatAttachmentInputRef}
             type="file"
-            accept={`image/png,image/jpeg,image/jpg,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif,${chatFileAcceptList()}`}
+            accept={
+              isWebStandalone()
+                ? CHAT_IMAGE_ACCEPT
+                : `${CHAT_IMAGE_ACCEPT},${chatFileAcceptList()}`
+            }
             multiple
-            className="hidden"
-            aria-hidden
+            className={
+              isWebStandalone()
+                ? 'sr-only'
+                : 'hidden'
+            }
+            aria-hidden={!isWebStandalone()}
             onChange={(e) => void onPickChatAttachments(e)}
           />
           {pendingImages.length > 0 && (
@@ -3856,20 +3889,35 @@ export default function App() {
             </div>
           )}
           <div className="input-wrapper">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void openChatAttachmentPicker()}
-              className="shrink-0 px-3 py-3 mb-px text-xs font-mono border border-void-muted bg-void-black/80 text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5 transition-colors disabled:opacity-40"
-              style={{
-                clipPath:
-                  'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))',
-              }}
-              title="Attach image or file"
-              aria-label="Attach files and images"
-            >
-              +
-            </button>
+            {isWebStandalone() ? (
+              <label
+                htmlFor="voidcast-chat-attach-input"
+                className={`shrink-0 px-3 py-3 mb-px text-xs font-mono border border-void-muted bg-void-black/80 text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5 transition-colors inline-flex items-center justify-center cursor-pointer ${busy ? 'opacity-40 pointer-events-none' : ''}`}
+                style={{
+                  clipPath:
+                    'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))',
+                }}
+                title="Attach image from gallery"
+                aria-label="Attach image from gallery"
+              >
+                +
+              </label>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void openChatAttachmentPicker()}
+                className="shrink-0 px-3 py-3 mb-px text-xs font-mono border border-void-muted bg-void-black/80 text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5 transition-colors disabled:opacity-40"
+                style={{
+                  clipPath:
+                    'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))',
+                }}
+                title="Attach image or file"
+                aria-label="Attach files and images"
+              >
+                +
+              </button>
+            )}
             {settings.sttProvider === 'openrouter' && !isWebStandalone() && (
               <button
                 type="button"

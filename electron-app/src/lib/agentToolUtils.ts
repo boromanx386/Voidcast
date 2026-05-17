@@ -100,21 +100,45 @@ const ASSISTANT_IMAGE_DELIVERY_RE =
   /\b(here(?:'s| is)|evo (?:je|ti)?)\s+(?:your\s+|the\s+)?(?:(?:generated|edited|modified)\s+)?(?:image|picture|slika)\b/i
 const ASSISTANT_IMAGE_ACTION_CLAIM_RE =
   /\b(i(?:'ve| have)?\s+(?:generated|created|made|drawn|edited|modified))\s+(?:an?\s+)?(?:image|picture|slika)\b/i
-const RUNWARE_IMAGE_HOST_RE = /https?:\/\/[^\s)>]*(?:runware\.ai|im\.runware)/i
+/** Runware image CDN host only — not api.runware.ai and not music audio_url lines. */
+const RUNWARE_IMAGE_CDN_RE = /https?:\/\/[^\s)>]*\bim\.runware\b/i
+
+const MUSIC_USER_REQUEST_RE =
+  /\b(music|song|songs|beat|beats|soundtrack|jingle|pesm[aue]|muzik|audio\s+track|generate\s+music|napravi\s+pesmu|runware\s+music)\b/i
+
+export function isMusicFocusedUserText(text: string): boolean {
+  return MUSIC_USER_REQUEST_RE.test(text.trim())
+}
+
+function stripMusicUrlArtifacts(text: string): string {
+  return text
+    .replace(/^\s*audio_url:\s*https?:\/\/\S+\s*$/gim, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
 
 /**
  * True when assistant text looks like it delivered a Runware image (URL or claim)
  * without a generate_image / edit_image_runware tool result in this turn.
  */
 export function assistantClaimsImageWithoutTool(text: string): boolean {
-  const t = text.trim()
+  const t = stripMusicUrlArtifacts(text)
   if (!t) return false
   if (ASSISTANT_IMAGE_URL_LINE_RE.test(t)) return true
   if (ASSISTANT_MARKDOWN_IMAGE_HTTP_RE.test(t)) return true
-  if (RUNWARE_IMAGE_HOST_RE.test(t)) return true
+  if (RUNWARE_IMAGE_CDN_RE.test(t)) return true
   if (ASSISTANT_IMAGE_ACTION_CLAIM_RE.test(t) && /https?:\/\//.test(t)) return true
   if (ASSISTANT_IMAGE_DELIVERY_RE.test(t) && /https?:\/\//.test(t)) return true
   return false
+}
+
+/** Skip image guard when the user asked for music (audio_url / generate_music_runware turn). */
+export function shouldGuardFalseImageClaims(
+  assistantText: string,
+  rawUserText: string,
+): boolean {
+  if (isMusicFocusedUserText(rawUserText)) return false
+  return assistantClaimsImageWithoutTool(assistantText)
 }
 
 /** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */

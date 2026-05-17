@@ -1,6 +1,6 @@
 import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
-import { assistantClaimsImageWithoutTool } from '@/lib/agentToolUtils'
+import { shouldGuardFalseImageClaims } from '@/lib/agentToolUtils'
 
 /** Strip all http(s) URLs from message content so the model can't recycle
  *  hallucinated URLs from previous rounds when it skips tool calls. */
@@ -55,6 +55,8 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   appendToolRequiredReprompt: (messages: TMessage[]) => void
   /** When true, reprompt if the model claims an image URL/result without calling image tools. */
   guardFalseImageClaims?: boolean
+  /** User-typed message for this turn (skip image guard on music requests). */
+  guardFalseImageClaimsUserText?: string
   appendFalseImageClaimReprompt?: (messages: TMessage[]) => void
   maxFalseImageClaimReprompts?: number
   appendRuntimeRecalledImages?: (
@@ -212,7 +214,7 @@ export async function runSharedToolLoop<
         params.guardFalseImageClaims &&
         params.appendFalseImageClaimReprompt &&
         !hasExecutedImageToolInTurn &&
-        assistantClaimsImageWithoutTool(assistantText) &&
+        shouldGuardFalseImageClaims(assistantText, params.guardFalseImageClaimsUserText ?? '') &&
         falseImageClaimRepromptCount < maxFalseImageClaimReprompts
       ) {
         falseImageClaimRepromptCount += 1

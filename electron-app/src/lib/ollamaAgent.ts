@@ -1521,6 +1521,7 @@ export async function runOllamaChatWithTools(
       })
     },
     guardFalseImageClaims: params.toolsEnabled.runwareImage,
+    guardFalseImageClaimsUserText: rawUserText,
     maxFalseImageClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     appendFalseImageClaimReprompt: (messages) => {
       messages.push({

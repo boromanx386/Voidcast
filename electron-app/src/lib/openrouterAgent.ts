@@ -118,6 +118,7 @@ export async function runOpenRouterChatWithTools(
       })
     },
     guardFalseImageClaims: params.toolsEnabled.runwareImage,
+    guardFalseImageClaimsUserText: params.rawUserText ?? '',
     maxFalseImageClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     appendFalseImageClaimReprompt: (messages) => {
       messages.push({

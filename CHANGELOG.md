@@ -17,6 +17,8 @@ All notable changes to this project will be documented in this file.
 - **`edit_code` on CRLF files (Windows)**: matches `find_text` with exact, CRLF-expanded, or LF-normalized strategies while preserving on-disk line endings; `read_file` exposes `lineEndings` and adds a model-only CRLF hint.
 - **Image catalog + attach vision**: catalog index **1 = current attachment**; vision runs on attach; ordering distinguishes attachments vs generated images more reliably.
 - **Forced `web_search`**: uses raw user text only, with tighter freshness heuristics (fewer false triggers).
+- **Android / web image attachment**: `splitChatAttachmentFiles` + `probeFileAsImage` decode gallery files with empty `type` or no extension (`createImageBitmap` → `readAsDataURL` fallback). File input snapshot clones via `arrayBuffer()` before `input.value = ''` to stop Android from dropping `File` refs. Web standalone uses a visible `<label>` pointing to `sr-only` input instead of hidden `display: none` + programmatic `click()`. Better error messages guide users to JPEG/PNG on phone (`imageAttachment.ts`, `App.tsx`).
+- **Music false image claim guard**: `generate_music_runware` turns no longer trigger the image hallucination reprompt. `isMusicFocusedUserText()` detects music requests; `shouldGuardFalseImageClaims()` skips the guard when the user asked for music. `stripMusicUrlArtifacts()` removes `audio_url:` lines before image claim analysis. `RUNWARE_IMAGE_CDN_RE` tightened to `im.runware` only, excluding `api.runware.ai` (`agentToolUtils.ts`, `agentToolLoop.ts`, `ollamaAgent.ts`, `openrouterAgent.ts`).
 
 ### Changed
 
