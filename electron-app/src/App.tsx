@@ -145,6 +145,19 @@ type CodingContextMemo = {
   recentFiles: string[]
   recentSearches: string[]
   recentCommands: string[]
+  recentGitOps: string[]
+  recentFailures: string[]
+}
+
+function emptyCodingContextMemo(): CodingContextMemo {
+  return {
+    lastDirectory: '',
+    recentFiles: [],
+    recentSearches: [],
+    recentCommands: [],
+    recentGitOps: [],
+    recentFailures: [],
+  }
 }
 
 const EMPTY_STATE_VARIANTS = {
@@ -250,6 +263,31 @@ function pushRecentUnique(values: string[], next: string, limit = 8): string[] {
   return [trimmed, ...without].slice(0, limit)
 }
 
+/** Narrow failure detection for coding context memo (avoid matching arbitrary "not found" in file bodies). */
+function isCodingToolFailure(toolName: string, result: string): boolean {
+  const r = result.trim()
+  if (!r) return false
+
+  if (r.startsWith('Error:')) return true
+
+  if (toolName === 'execute_command') return !r.startsWith('$ ')
+  if (toolName === 'write_file') return !r.startsWith('Saved ')
+  if (toolName === 'edit_code') return !r.startsWith('Edited ')
+
+  if (r.endsWith(' failed.')) return true
+  if (r.startsWith('Target snippet not found')) return true
+  if (r.startsWith('find_text must not be empty.')) return true
+  if (r.startsWith('File appears to be binary')) return true
+  if (r.startsWith('File is too large to read')) return true
+  if (r.includes('is available only in Electron desktop')) return true
+  if (r.startsWith('Not a git repository.')) return true
+  if (r.startsWith('Missing projectPath') || r.startsWith('Missing coding project')) return true
+  if (r.startsWith('Path escapes project root')) return true
+  if (r.startsWith('Git command timed out')) return true
+
+  return false
+}
+
 function buildCodingMemoHint(memo: CodingContextMemo): string {
   const lines: string[] = [
     'Coding context memory from this chat session:',
@@ -257,6 +295,8 @@ function buildCodingMemoHint(memo: CodingContextMemo): string {
     `- Recently opened/edited files: ${memo.recentFiles.length ? memo.recentFiles.join(', ') : '(none yet)'}`,
     `- Recent searches: ${memo.recentSearches.length ? memo.recentSearches.join(' | ') : '(none yet)'}`,
     `- Recent commands: ${memo.recentCommands.length ? memo.recentCommands.join(' | ') : '(none yet)'}`,
+    `- Recent git operations: ${memo.recentGitOps.length ? memo.recentGitOps.join(' | ') : '(none yet)'}`,
+    `- Recent failures: ${memo.recentFailures.length ? memo.recentFailures.join(' | ') : '(none yet)'}`,
     'Prefer reusing this context before scanning the whole project again.',
   ]
   return lines.join('\n')
@@ -839,12 +879,10 @@ export default function App() {
   const [showCodingPanel, setShowCodingPanel] = useState(false)
   const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
   const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
-  const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>({
-    lastDirectory: '',
-    recentFiles: [],
-    recentSearches: [],
-    recentCommands: [],
-  })
+  const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(emptyCodingContextMemo)
+  const codingProjectPathForMemoRef = useRef(
+    (settings.coding.projectPath || settings.codingProjectPath || '').trim(),
+  )
   const [toolResultBanner, setToolResultBanner] = useState<
     { kind: 'pdf'; text: string } | null
   >(null)
@@ -1288,6 +1326,24 @@ export default function App() {
     }
   }, [desktopRuntime, localImagePreviews, messages])
 
+  const applyCodingProjectPath = useCallback((path: string) => {
+    const trimmed = path.trim()
+    if (codingProjectPathForMemoRef.current !== trimmed) {
+      codingProjectPathForMemoRef.current = trimmed
+      setCodingContextMemo(emptyCodingContextMemo())
+    }
+    setSettings((s) => {
+      const cur = (s.coding.projectPath || s.codingProjectPath || '').trim()
+      if (cur === trimmed) return s
+      return {
+        ...s,
+        coding: { ...s.coding, enabled: true, projectPath: trimmed },
+        codingProjectPath: trimmed,
+        toolsEnabled: { ...s.toolsEnabled, coding: true },
+      }
+    })
+  }, [])
+
   // === Session Actions ===
   const newChat = () => {
     abortRef.current?.abort()
@@ -1313,6 +1369,7 @@ export default function App() {
     setPendingImages([])
     setError(null)
     setToolResultBanner(null)
+    setCodingContextMemo(emptyCodingContextMemo())
     setMenuOpen(false)
   }
 
@@ -1998,6 +2055,8 @@ export default function App() {
               name === 'glob_files' ||
               name === 'git_status' ||
               name === 'git_diff' ||
+              name === 'git_log' ||
+              name === 'git_show' ||
               name === 'execute_command'
             ) {
               setCodingContextMemo((prev) => {
@@ -2005,16 +2064,60 @@ export default function App() {
                 if (name === 'list_directory') {
                   const p = typeof args?.path === 'string' ? args.path : ''
                   next.lastDirectory = p || '.'
+                } else if (name === 'glob_files') {
+                  const p = typeof args?.path_prefix === 'string' ? args.path_prefix : ''
+                  if (p) next.lastDirectory = p
                 } else if (name === 'read_file' || name === 'write_file' || name === 'edit_code') {
                   const p = typeof args?.path === 'string' ? args.path : ''
-                  next.recentFiles = pushRecentUnique(next.recentFiles, p)
+                  let entry = p
+                  if (name === 'read_file' && entry) {
+                    const s = typeof args?.start_line === 'number' ? args.start_line : undefined
+                    const e = typeof args?.end_line === 'number' ? args.end_line : undefined
+                    if (s !== undefined && e !== undefined) entry = `${entry} (lines ${s}-${e})`
+                    else if (s !== undefined) entry = `${entry} (from line ${s})`
+                    else if (e !== undefined) entry = `${entry} (to line ${e})`
+                  } else if (name === 'edit_code' && entry) {
+                    entry = `${entry} (edited)`
+                  } else if (name === 'write_file' && entry) {
+                    entry = `${entry} (written)`
+                  }
+                  if (entry) next.recentFiles = pushRecentUnique(next.recentFiles, entry)
                 } else if (name === 'search_files') {
                   const q = typeof args?.query === 'string' ? args.query : ''
                   next.recentSearches = pushRecentUnique(next.recentSearches, q, 6)
+                } else if (name === 'git_status' || name === 'git_diff' || name === 'git_log' || name === 'git_show') {
+                  let label = name
+                  if (name === 'git_log') {
+                    const p = typeof args?.path === 'string' ? args.path : ''
+                    label = p ? `git_log -- ${p}` : 'git_log'
+                  } else if (name === 'git_show') {
+                    const ref = typeof args?.ref === 'string' ? args.ref : ''
+                    const p = typeof args?.path === 'string' ? args.path : ''
+                    label = p ? `git_show ${ref || 'HEAD'} -- ${p}` : `git_show ${ref || 'HEAD'}`
+                  } else if (name === 'git_diff') {
+                    const p = typeof args?.path === 'string' ? args.path : ''
+                    const staged = args?.staged === true
+                    label = p ? `git_diff${staged ? ' --staged' : ''} -- ${p}` : `git_diff${staged ? ' --staged' : ''}`
+                  }
+                  next.recentGitOps = pushRecentUnique(next.recentGitOps, label, 6)
                 } else if (name === 'execute_command') {
                   const c = typeof args?.command === 'string' ? args.command : ''
                   next.recentCommands = pushRecentUnique(next.recentCommands, c, 6)
                 }
+
+                if (isCodingToolFailure(name, result)) {
+                  let failureLabel = name
+                  if (name === 'edit_code' || name === 'read_file' || name === 'write_file') {
+                    const p = typeof args?.path === 'string' ? args.path : ''
+                    if (p) failureLabel = `${name} (${p})`
+                  } else if (name === 'execute_command') {
+                    const c = typeof args?.command === 'string' ? args.command : ''
+                    if (c) failureLabel = `${name}: ${c.split(' ')[0]}`
+                  }
+                  const failureEntry = `${failureLabel}: ${result.slice(0, 120)}`
+                  next.recentFailures = pushRecentUnique(next.recentFailures, failureEntry, 6)
+                }
+
                 return next
               })
             }
@@ -2804,7 +2907,11 @@ export default function App() {
             ) : optionsTab === 'runwareMusic' ? (
               <RunwareMusicOptionsPanel settings={settings} setSettings={setSettings} />
             ) : (
-              <ToolsOptionsPanel settings={settings} setSettings={setSettings} />
+              <ToolsOptionsPanel
+                settings={settings}
+                setSettings={setSettings}
+                onCodingProjectPathApplied={applyCodingProjectPath}
+              />
             )}
           </div>
         </main>
@@ -3881,14 +3988,7 @@ export default function App() {
           onCodingUiChange={(patch) =>
             setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
           }
-          onUpdateProjectPath={(path) =>
-            setSettings((s) => ({
-              ...s,
-              coding: { ...s.coding, enabled: true, projectPath: path },
-              codingProjectPath: path,
-              toolsEnabled: { ...s.toolsEnabled, coding: true },
-            }))
-          }
+          onUpdateProjectPath={applyCodingProjectPath}
         />
       )}
       </div>

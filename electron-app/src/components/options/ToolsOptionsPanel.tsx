@@ -5,9 +5,11 @@ import { useCallback, useState, type Dispatch, type SetStateAction } from 'react
 type Props = {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
+  /** Commits project path (browse / blur) and resets coding context memo when path changes. */
+  onCodingProjectPathApplied?: (path: string) => void
 }
 
-export function ToolsOptionsPanel({ settings, setSettings }: Props) {
+export function ToolsOptionsPanel({ settings, setSettings, onCodingProjectPathApplied }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
 
   const browsePdfFolder = useCallback(async () => {
@@ -31,17 +33,21 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
     try {
       const r = await vc()
       if (r.ok && r.path) {
-        setSettings((s) => ({
-          ...s,
-          coding: { ...s.coding, projectPath: r.path, enabled: true },
-          codingProjectPath: r.path,
-          toolsEnabled: { ...s.toolsEnabled, coding: true },
-        }))
+        if (onCodingProjectPathApplied) {
+          onCodingProjectPathApplied(r.path)
+        } else {
+          setSettings((s) => ({
+            ...s,
+            coding: { ...s.coding, projectPath: r.path, enabled: true },
+            codingProjectPath: r.path,
+            toolsEnabled: { ...s.toolsEnabled, coding: true },
+          }))
+        }
       }
     } finally {
       setPickBusy(false)
     }
-  }, [setSettings])
+  }, [setSettings, onCodingProjectPathApplied])
 
   return (
     <div className="grid gap-4 text-sm">
@@ -264,6 +270,7 @@ export function ToolsOptionsPanel({ settings, setSettings }: Props) {
                     codingProjectPath: e.target.value,
                   }))
                 }
+                onBlur={(e) => onCodingProjectPathApplied?.(e.target.value)}
               />
               <button type="button" disabled={pickBusy} className="cyber-btn text-xs" onClick={() => void browseCodingFolder()}>
                 {pickBusy ? '...' : 'BROWSE'}
