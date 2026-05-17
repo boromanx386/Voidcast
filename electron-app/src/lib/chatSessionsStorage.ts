@@ -1,3 +1,4 @@
+import { normalizeCodingContextMemo } from '@/lib/codingContextMemo'
 import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
 /** Drop image payloads before localStorage — avoids quota blowups (MVP). */
@@ -38,11 +39,21 @@ function isSessionLike(v: unknown): v is ChatSession {
   )
 }
 
+function normalizeSession(raw: ChatSession): ChatSession {
+  const projectPath = (raw.codingProjectPath ?? raw.codingContextMemo?.projectPath ?? '').trim()
+  if (!raw.codingContextMemo) return raw
+  return {
+    ...raw,
+    codingProjectPath: projectPath || raw.codingProjectPath,
+    codingContextMemo: normalizeCodingContextMemo(raw.codingContextMemo, projectPath),
+  }
+}
+
 function normalizeState(raw: unknown): ChatSessionsState {
   if (!raw || typeof raw !== 'object') return { ...EMPTY_STATE }
   const r = raw as Partial<ChatSessionsState>
   const sessions = Array.isArray(r.sessions)
-    ? r.sessions.filter(isSessionLike).sort((a, b) => b.updatedAt - a.updatedAt)
+    ? r.sessions.filter(isSessionLike).map(normalizeSession).sort((a, b) => b.updatedAt - a.updatedAt)
     : []
   const activeSessionId =
     typeof r.activeSessionId === 'string' && sessions.some((x) => x.id === r.activeSessionId)

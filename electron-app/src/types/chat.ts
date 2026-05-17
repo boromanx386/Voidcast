@@ -36,6 +36,8 @@ export type UiMessage = {
   generatedImagePaths?: string[]
 }
 
+import type { CodingContextMemo } from '@/lib/codingContextMemo'
+
 export type ChatSessionMessage = UiMessage
 
 export type ChatSession = {
@@ -49,6 +51,10 @@ export type ChatSession = {
    * Never rendered as a visible chat message.
    */
   hiddenContextSummary?: string
+  /** Coding tool context for this session (files read, failures, commands, etc.). */
+  codingContextMemo?: CodingContextMemo
+  /** Project path this memo was built against; invalidated when settings path changes. */
+  codingProjectPath?: string
 }
 
 export type ChatSessionsState = {

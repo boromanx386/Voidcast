@@ -97,6 +97,23 @@ import {
   type AppSettings,
 } from '@/lib/settings'
 import {
+  buildCodingMemoHint,
+  commandResultSnippet,
+  emptyCodingContextMemo,
+  getCodingProjectPath,
+  isCodingToolFailure,
+  normalizeCodingContextMemo,
+  pushRecentCommand,
+  pushRecentUnique,
+  mergeCodingProjectPathIntoSettings,
+  patchSessionCodingState,
+  resolveMemoForNewChat,
+  resolveMemoForSession,
+  saveProjectCodingMemo,
+  sessionCodingProjectPath,
+  type CodingContextMemo,
+} from '@/lib/codingContextMemo'
+import {
   clearCloneRef,
   loadCloneRef,
   saveCloneRef,
@@ -138,26 +155,6 @@ type PendingChatFile = FileAttachmentSnapshot
 type LocalImagePreview = {
   base64: string
   mime: string
-}
-
-type CodingContextMemo = {
-  lastDirectory: string
-  recentFiles: string[]
-  recentSearches: string[]
-  recentCommands: string[]
-  recentGitOps: string[]
-  recentFailures: string[]
-}
-
-function emptyCodingContextMemo(): CodingContextMemo {
-  return {
-    lastDirectory: '',
-    recentFiles: [],
-    recentSearches: [],
-    recentCommands: [],
-    recentGitOps: [],
-    recentFailures: [],
-  }
 }
 
 const EMPTY_STATE_VARIANTS = {
@@ -254,52 +251,6 @@ function shouldUseVisionForText(text: string): boolean {
 
 function dedupeNonEmpty(values: string[]): string[] {
   return Array.from(new Set(values.map((x) => x.trim()).filter(Boolean)))
-}
-
-function pushRecentUnique(values: string[], next: string, limit = 8): string[] {
-  const trimmed = next.trim()
-  if (!trimmed) return values
-  const without = values.filter((v) => v !== trimmed)
-  return [trimmed, ...without].slice(0, limit)
-}
-
-/** Narrow failure detection for coding context memo (avoid matching arbitrary "not found" in file bodies). */
-function isCodingToolFailure(toolName: string, result: string): boolean {
-  const r = result.trim()
-  if (!r) return false
-
-  if (r.startsWith('Error:')) return true
-
-  if (toolName === 'execute_command') return !r.startsWith('$ ')
-  if (toolName === 'write_file') return !r.startsWith('Saved ')
-  if (toolName === 'edit_code') return !r.startsWith('Edited ')
-
-  if (r.endsWith(' failed.')) return true
-  if (r.startsWith('Target snippet not found')) return true
-  if (r.startsWith('find_text must not be empty.')) return true
-  if (r.startsWith('File appears to be binary')) return true
-  if (r.startsWith('File is too large to read')) return true
-  if (r.includes('is available only in Electron desktop')) return true
-  if (r.startsWith('Not a git repository.')) return true
-  if (r.startsWith('Missing projectPath') || r.startsWith('Missing coding project')) return true
-  if (r.startsWith('Path escapes project root')) return true
-  if (r.startsWith('Git command timed out')) return true
-
-  return false
-}
-
-function buildCodingMemoHint(memo: CodingContextMemo): string {
-  const lines: string[] = [
-    'Coding context memory from this chat session:',
-    `- Last listed directory: ${memo.lastDirectory || '(none yet)'}`,
-    `- Recently opened/edited files: ${memo.recentFiles.length ? memo.recentFiles.join(', ') : '(none yet)'}`,
-    `- Recent searches: ${memo.recentSearches.length ? memo.recentSearches.join(' | ') : '(none yet)'}`,
-    `- Recent commands: ${memo.recentCommands.length ? memo.recentCommands.join(' | ') : '(none yet)'}`,
-    `- Recent git operations: ${memo.recentGitOps.length ? memo.recentGitOps.join(' | ') : '(none yet)'}`,
-    `- Recent failures: ${memo.recentFailures.length ? memo.recentFailures.join(' | ') : '(none yet)'}`,
-    'Prefer reusing this context before scanning the whole project again.',
-  ]
-  return lines.join('\n')
 }
 
 function toConversationTurns(messages: UiMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
@@ -879,10 +830,10 @@ export default function App() {
   const [showCodingPanel, setShowCodingPanel] = useState(false)
   const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
   const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
-  const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(emptyCodingContextMemo)
-  const codingProjectPathForMemoRef = useRef(
-    (settings.coding.projectPath || settings.codingProjectPath || '').trim(),
+  const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(() =>
+    emptyCodingContextMemo(getCodingProjectPath(loadSettings())),
   )
+  const codingProjectPathForMemoRef = useRef(getCodingProjectPath(loadSettings()))
   const [toolResultBanner, setToolResultBanner] = useState<
     { kind: 'pdf'; text: string } | null
   >(null)
@@ -1100,6 +1051,14 @@ export default function App() {
     setAssistantAudioToolMeta({})
     setAssistantAudioMessageMeta({})
     setHiddenContextSummary(active?.hiddenContextSummary ?? '')
+    const baseSettings = loadSettings()
+    const fallbackPath = getCodingProjectPath(baseSettings)
+    const projectPath = sessionCodingProjectPath(active ?? undefined, fallbackPath)
+    if (projectPath !== fallbackPath) {
+      setSettings(mergeCodingProjectPathIntoSettings(baseSettings, projectPath))
+    }
+    codingProjectPathForMemoRef.current = projectPath
+    setCodingContextMemo(resolveMemoForSession(active ?? undefined, projectPath))
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
     setSessionDirty(false)
@@ -1121,10 +1080,15 @@ export default function App() {
       if (idx < 0) return prev
       const current = prev[idx]
       const nextHiddenContextSummary = hiddenContextSummary.trim() || undefined
+      const projectPath = getCodingProjectPath(settings)
+      const nextMemo = normalizeCodingContextMemo(codingContextMemo, projectPath)
       const sameMessagesRef = current.messages === messages
       const sameHiddenSummary =
         (current.hiddenContextSummary ?? '') === (nextHiddenContextSummary ?? '')
-      if (sameMessagesRef && sameHiddenSummary) return prev
+      const sameMemo =
+        JSON.stringify(current.codingContextMemo ?? null) === JSON.stringify(nextMemo)
+      const sameCodingPath = (current.codingProjectPath ?? '') === projectPath
+      if (sameMessagesRef && sameHiddenSummary && sameMemo && sameCodingPath) return prev
 
       const next = [...prev]
       next[idx] = {
@@ -1132,12 +1096,32 @@ export default function App() {
         updatedAt: Date.now(),
         messages,
         hiddenContextSummary: nextHiddenContextSummary,
+        codingContextMemo: nextMemo,
+        codingProjectPath: projectPath || undefined,
       }
       next.sort((a, b) => b.updatedAt - a.updatedAt)
       return next
     })
     setSessionDirty(false)
-  }, [messages, hiddenContextSummary, activeSessionId, sessionsHydrated])
+  }, [
+    messages,
+    hiddenContextSummary,
+    codingContextMemo,
+    activeSessionId,
+    sessionsHydrated,
+    settings.coding.projectPath,
+    settings.codingProjectPath,
+  ])
+
+  // Persist cross-session project snapshot (failures, files, commands) for new chats on same repo.
+  useEffect(() => {
+    const projectPath = getCodingProjectPath(settings)
+    if (!projectPath) return
+    const t = window.setTimeout(() => {
+      saveProjectCodingMemo(projectPath, codingContextMemo)
+    }, 400)
+    return () => window.clearTimeout(t)
+  }, [codingContextMemo, settings.coding.projectPath, settings.codingProjectPath])
 
   // TTS health check
   const refreshTts = useCallback(async () => {
@@ -1326,23 +1310,45 @@ export default function App() {
     }
   }, [desktopRuntime, localImagePreviews, messages])
 
+  const syncCodingProjectPathToSettings = useCallback((path: string) => {
+    const trimmed = path.trim()
+    codingProjectPathForMemoRef.current = trimmed
+    setSettings((s) => mergeCodingProjectPathIntoSettings(s, trimmed))
+  }, [])
+
+  /** User picked a new folder — reset memo for the new project. */
   const applyCodingProjectPath = useCallback((path: string) => {
     const trimmed = path.trim()
     if (codingProjectPathForMemoRef.current !== trimmed) {
       codingProjectPathForMemoRef.current = trimmed
-      setCodingContextMemo(emptyCodingContextMemo())
+      setCodingContextMemo(emptyCodingContextMemo(trimmed))
     }
-    setSettings((s) => {
-      const cur = (s.coding.projectPath || s.codingProjectPath || '').trim()
-      if (cur === trimmed) return s
-      return {
-        ...s,
-        coding: { ...s.coding, enabled: true, projectPath: trimmed },
-        codingProjectPath: trimmed,
-        toolsEnabled: { ...s.toolsEnabled, coding: true },
-      }
-    })
+    setSettings((s) => mergeCodingProjectPathIntoSettings(s, trimmed))
   }, [])
+
+  const restoreCodingContextForSession = useCallback(
+    (session: ChatSession, options?: { flushActiveSessionId?: string | null }) => {
+      const fallbackPath = getCodingProjectPath(settings)
+      const path = sessionCodingProjectPath(session, fallbackPath)
+      const memo = resolveMemoForSession(session, path)
+
+      const flushId = options?.flushActiveSessionId
+      if (flushId) {
+        setSessions((prev) =>
+          patchSessionCodingState(
+            prev,
+            flushId,
+            getCodingProjectPath(settings),
+            codingContextMemo,
+          ),
+        )
+      }
+
+      syncCodingProjectPathToSettings(path)
+      setCodingContextMemo(memo)
+    },
+    [settings, codingContextMemo, syncCodingProjectPathToSettings],
+  )
 
   // === Session Actions ===
   const newChat = () => {
@@ -1369,13 +1375,16 @@ export default function App() {
     setPendingImages([])
     setError(null)
     setToolResultBanner(null)
-    setCodingContextMemo(emptyCodingContextMemo())
+    setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
     setMenuOpen(false)
   }
 
   const openSession = (session: ChatSession) => {
     abortRef.current?.abort()
     ttsAbortRef.current?.abort()
+    const flushId =
+      activeSessionId && activeSessionId !== session.id ? activeSessionId : null
+    restoreCodingContextForSession(session, { flushActiveSessionId: flushId })
     setMessages(session.messages)
     setAssistantGeneratedImages({})
     setAssistantSavedImagePaths({})
@@ -1407,6 +1416,8 @@ export default function App() {
       updatedAt: now,
       messages: session.messages,
       hiddenContextSummary: session.hiddenContextSummary,
+      codingContextMemo: session.codingContextMemo,
+      codingProjectPath: session.codingProjectPath,
     }
     const nextState = upsertSession({ sessions, activeSessionId }, forked)
     setSessions(nextState.sessions)
@@ -1431,6 +1442,10 @@ export default function App() {
     setRenameValue('')
     setMenuOpen(false)
     setPendingImages([])
+    restoreCodingContextForSession(forked, {
+      flushActiveSessionId:
+        activeSessionId && activeSessionId !== forked.id ? activeSessionId : null,
+    })
   }
 
   const exportSessionToMarkdown = (session: ChatSession) => {
@@ -1484,6 +1499,11 @@ export default function App() {
       updatedAt: now,
       messages,
       hiddenContextSummary: hiddenContextSummary.trim() || undefined,
+      codingContextMemo: normalizeCodingContextMemo(
+        codingContextMemo,
+        getCodingProjectPath(settings),
+      ),
+      codingProjectPath: getCodingProjectPath(settings) || undefined,
     }
     const nextState = upsertSession({ sessions, activeSessionId }, next)
     setSessions(nextState.sessions)
@@ -1508,6 +1528,7 @@ export default function App() {
       setAssistantAudioToolMeta({})
       setAssistantAudioMessageMeta({})
       setHiddenContextSummary(next?.hiddenContextSummary ?? '')
+      if (next) restoreCodingContextForSession(next)
     } else {
       setMessages([])
       setAssistantGeneratedImages({})
@@ -1519,6 +1540,7 @@ export default function App() {
       setAssistantAudioToolMeta({})
       setAssistantAudioMessageMeta({})
       setHiddenContextSummary('')
+      setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
     }
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -2102,7 +2124,12 @@ export default function App() {
                   next.recentGitOps = pushRecentUnique(next.recentGitOps, label, 6)
                 } else if (name === 'execute_command') {
                   const c = typeof args?.command === 'string' ? args.command : ''
-                  next.recentCommands = pushRecentUnique(next.recentCommands, c, 6)
+                  const ok = !isCodingToolFailure('execute_command', result)
+                  next.recentCommands = pushRecentCommand(
+                    next.recentCommands,
+                    { command: c, ok, snippet: commandResultSnippet(result) },
+                    6,
+                  )
                 }
 
                 if (isCodingToolFailure(name, result)) {
@@ -2118,7 +2145,7 @@ export default function App() {
                   next.recentFailures = pushRecentUnique(next.recentFailures, failureEntry, 6)
                 }
 
-                return next
+                return normalizeCodingContextMemo(next, getCodingProjectPath(settings))
               })
             }
 
