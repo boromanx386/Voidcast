@@ -906,7 +906,7 @@ export async function executeToolCall(
     } else if (field === 'uiTheme') {
       const next = parseToolValueAsString(valueRaw).trim().toLowerCase() as UiTheme
       if (!UI_THEME_SET.has(next)) {
-        return 'Error: uiTheme must be one of: dystopian, minimal, matrix, light.'
+        return 'Error: uiTheme must be one of: dystopian, minimal, matrix, light, blood-moon.'
       }
       candidate.uiTheme = next
     } else if (field === 'longMemoryAdd') {

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Ollama think levels**: boolean thinking toggle replaced with **off / low / medium / high / on** in LLM options (`settings.ts`, `ollama.ts`).
+
+### Fixed
+
+- **LAN install + phone web UI**: tools server binds **`0.0.0.0`**; web UI resolves from Electron resources and is bundled in the PyInstaller tools exe and Windows installer (`copy-web-ui-to-install.ps1`, `electron-builder.json`).
+- **Reminder toast duplicates after sync**: `notifiedAt` is preserved across LAN/user-data merge and `updatedAt` bumps when a toast fires, so the 30s heartbeat does not re-notify the same reminder.
+- **`edit_code` on CRLF files (Windows)**: matches `find_text` with exact, CRLF-expanded, or LF-normalized strategies while preserving on-disk line endings; `read_file` exposes `lineEndings` and adds a model-only CRLF hint.
+- **Image catalog + attach vision**: catalog index **1 = current attachment**; vision runs on attach; ordering distinguishes attachments vs generated images more reliably.
+- **Forced `web_search`**: uses raw user text only, with tighter freshness heuristics (fewer false triggers).
+
 ### Changed
 
 - **Tool-round chat stream**: the in-progress assistant reply text is cleared between model rounds (after tools / forced reprompts), so each stream shows only the current round’s answer. **THINKING** still accumulates across rounds in the same bubble (`---` separators). API history still keeps full turns for the model.
