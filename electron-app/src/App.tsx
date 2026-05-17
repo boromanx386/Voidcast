@@ -51,7 +51,7 @@ import {
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
-import { streamOllamaChat, fetchOllamaModels } from '@/lib/ollama'
+import { streamOllamaChat, fetchOllamaModels, isThinkingUiEnabled } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
@@ -888,6 +888,8 @@ export default function App() {
   const savedChatScrollRef = useRef(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const chatAttachmentInputRef = useRef<HTMLInputElement | null>(null)
+  const thinkingScrollRef = useRef<HTMLDivElement | null>(null)
+  const [thinkingPinned, setThinkingPinned] = useState(true)
 
   const downloadImage = useCallback(async (url: string) => {
     try {
@@ -1183,6 +1185,13 @@ export default function App() {
       listEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [busy])
+
+  // Auto-scroll thinking div to bottom during streaming (when pinned)
+  useEffect(() => {
+    if (thinkingPinned && thinkingScrollRef.current) {
+      thinkingScrollRef.current.scrollTop = thinkingScrollRef.current.scrollHeight
+    }
+  }, [messages])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1883,6 +1892,7 @@ export default function App() {
         newUserImages: visionImagesForCurrentMessage.length > 0
           ? visionImagesForCurrentMessage
           : undefined,
+        includeThinkingInHistory: isThinkingUiEnabled(settings.llmThinkLevel),
       },
     )
     const activeRunwareProfile = getRunwareProfileForModel(
@@ -1908,6 +1918,7 @@ export default function App() {
       if (useTools) {
         const commonToolParams = {
           initialMessages: history,
+          rawUserText: text,
           modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
           toolsEnabled: settings.toolsEnabled,
           ttsBaseUrl: settings.ttsBaseUrl,
@@ -1947,12 +1958,14 @@ export default function App() {
           userImagePaths: toolImageCatalog.map((x) => x.path || ''),
           codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
           signal: ac.signal,
-          onThinkingDelta: (thinking: string) => {
-            if (!isRunActive()) return
-            setMessages((prev) =>
-              prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-            )
-          },
+          onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+            ? (thinking: string) => {
+                if (!isRunActive()) return
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                )
+              }
+            : undefined,
           onDelta: (full: string) => {
             if (!isRunActive()) return
             setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
@@ -2172,7 +2185,7 @@ export default function App() {
           : await runOllamaChatWithTools({
               baseUrl: settings.ollamaBaseUrl,
               model: settings.ollamaModel,
-              think: settings.llmThinkingEnabled,
+              thinkLevel: settings.llmThinkLevel,
               ...commonToolParams,
             })
         replyText = out.content
@@ -2186,12 +2199,14 @@ export default function App() {
               messages: ollamaMessagesToOpenRouter(history),
               modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
               signal: ac.signal,
-              onThinkingDelta: (thinking) => {
-                if (!isRunActive()) return
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                )
-              },
+              onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                ? (thinking) => {
+                    if (!isRunActive()) return
+                    setMessages((prev) =>
+                      prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                    )
+                  }
+                : undefined,
               onDelta: (full) => {
                 if (!isRunActive()) return
                 setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
@@ -2203,13 +2218,15 @@ export default function App() {
               messages: history,
               modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
               signal: ac.signal,
-              think: settings.llmThinkingEnabled,
-              onThinkingDelta: (thinking) => {
-                if (!isRunActive()) return
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                )
-              },
+              thinkLevel: settings.llmThinkLevel,
+              onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                ? (thinking) => {
+                    if (!isRunActive()) return
+                    setMessages((prev) =>
+                      prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                    )
+                  }
+                : undefined,
               onDelta: (full) => {
                 if (!isRunActive()) return
                 setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: full } : m))
@@ -3146,10 +3163,26 @@ export default function App() {
                               className="rounded border border-neon-cyan/25 bg-void-black/40"
                               open={busy && index === messages.length - 1}
                             >
-                              <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-neon-cyan/90 hover:text-neon-cyan">
-                                THINKING
+                              <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-neon-cyan/90 hover:text-neon-cyan flex items-center gap-2">
+                                <span>THINKING</span>
+                                {busy && index === messages.length - 1 ? (
+                                  <button
+                                    type="button"
+                                    className="ml-auto text-[10px] px-1.5 py-0.5 rounded border border-neon-cyan/30 hover:bg-neon-cyan/10 transition-colors"
+                                    title={thinkingPinned ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'}
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      setThinkingPinned((p) => !p)
+                                    }}
+                                  >
+                                    {thinkingPinned ? '📌 FOLLOW ON' : '📍 FOLLOW OFF'}
+                                  </button>
+                                ) : null}
                               </summary>
-                              <div className="max-h-64 overflow-y-auto border-t border-void-muted/30 px-3 py-2 text-xs font-mono text-void-dim whitespace-pre-wrap break-words">
+                              <div
+                                ref={thinkingScrollRef}
+                                className="max-h-64 overflow-y-auto border-t border-void-muted/30 px-3 py-2 text-xs font-mono text-void-dim whitespace-pre-wrap break-words"
+                              >
                                 {m.thinking}
                               </div>
                             </details>

@@ -1,4 +1,14 @@
-import { normalizeBaseUrl } from './settings'
+import { normalizeBaseUrl, type LlmThinkLevel } from './settings'
+
+export function toOllamaThinkBodyValue(level: LlmThinkLevel): boolean | string {
+  if (level === 'off') return false
+  if (level === 'on') return true
+  return level
+}
+
+export function isThinkingUiEnabled(level: LlmThinkLevel): boolean {
+  return level !== 'off'
+}
 
 /** Tool call fragment from Ollama stream (merged across chunks) */
 export type OllamaToolCall = {
@@ -156,8 +166,8 @@ export type StreamOllamaChatParams = {
   messages: OllamaApiMessage[]
   signal?: AbortSignal
   onDelta: (fullText: string) => void
-  /** When true, sends Ollama `think: true` and streams `message.thinking` separately. */
-  think?: boolean
+  /** Ollama `think` body value; always sent so models that default to thinking can be turned off. */
+  thinkLevel?: LlmThinkLevel
   /** Accumulated thinking text for the current assistant message. */
   onThinkingDelta?: (fullThinking: string) => void
   /** Sent as request `options` (temperature, num_ctx, …). */
@@ -247,7 +257,7 @@ export async function streamOllamaChat(
   }
   if (opts) body.options = opts
   if (options.tools !== undefined) body.tools = options.tools
-  if (options.think) body.think = true
+  body.think = toOllamaThinkBodyValue(options.thinkLevel ?? 'off')
 
   const res = await fetchOllamaWithRetry(
     `${root}/api/chat`,
@@ -294,7 +304,7 @@ export async function streamOllamaChat(
       if (chunk.error) throw new Error(chunk.error)
       usage = mergeOllamaUsage(usage, parseChatStreamUsage(obj))
       const thinkPiece = chunk.message?.thinking
-      if (thinkPiece) {
+      if (thinkPiece && isThinkingUiEnabled(options.thinkLevel ?? 'off')) {
         fullThinking += thinkPiece
         options.onThinkingDelta?.(fullThinking)
       }
@@ -315,7 +325,7 @@ export async function streamOllamaChat(
       if (last.error) throw new Error(last.error)
       usage = mergeOllamaUsage(usage, parseChatStreamUsage(last))
       const thinkPiece = last.message?.thinking
-      if (thinkPiece) {
+      if (thinkPiece && isThinkingUiEnabled(options.thinkLevel ?? 'off')) {
         fullThinking += thinkPiece
         options.onThinkingDelta?.(fullThinking)
       }

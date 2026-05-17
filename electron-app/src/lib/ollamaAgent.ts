@@ -43,16 +43,26 @@ import type {
   OllamaModelOptions,
   OllamaToolCall,
 } from '@/lib/ollama'
-import { fetchOllamaWithRetry, mergeOllamaUsage, parseChatStreamUsage } from '@/lib/ollama'
+import {
+  fetchOllamaWithRetry,
+  isThinkingUiEnabled,
+  mergeOllamaUsage,
+  parseChatStreamUsage,
+  toOllamaThinkBodyValue,
+} from '@/lib/ollama'
+import type { LlmThinkLevel } from '@/lib/settings'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
-import { FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE } from '@/lib/agentToolUtils'
+import {
+  deriveSearchQuery,
+  FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
+  getLastUserText,
+  pickFirstHttpUrl,
+  shouldForceWebSearchOnRoundZero,
+} from '@/lib/agentToolUtils'
 
-const MAX_TOOL_ROUNDS = 30
+const MAX_TOOL_ROUNDS = 70
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
-const HTTP_URL_RE = /(https?:\/\/[^\s)]+)(?=[\s)]|$)/i
-const FRESHNESS_RE =
-  /\b(today|latest|recent|newest|breaking|update|updates|news|current|currently|202\d|danas|najnovije|trenutno|vesti)\b/i
 
 function compactModelOptions(
   o: OllamaModelOptions | undefined,
@@ -201,31 +211,6 @@ function normalizeToolCallsForReplay(calls: OllamaToolCall[]): OllamaToolCall[] 
         arguments: argumentsStringToObject(tc.function!.arguments),
       },
     }))
-}
-
-function getLastUserText(messages: OllamaApiMessage[]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (m.role === 'user') return (m.content || '').trim()
-  }
-  return ''
-}
-
-function pickFirstHttpUrl(text: string): string | null {
-  const m = text.match(HTTP_URL_RE)
-  return m?.[1]?.trim() || null
-}
-
-function shouldForceWebSearch(userText: string): boolean {
-  if (!userText.trim()) return false
-  return FRESHNESS_RE.test(userText)
-}
-
-function deriveSearchQuery(userText: string): string {
-  const noUrls = userText.replace(/https?:\/\/\S+/gi, ' ')
-  const single = noUrls.replace(/\s+/g, ' ').trim()
-  if (!single) return userText.slice(0, 220).trim()
-  return single.length > 220 ? single.slice(0, 220).trim() : single
 }
 
 const AGENT_EDITABLE_SETTINGS_FIELD_SET = new Set<string>(AGENT_EDITABLE_SETTINGS_FIELDS)
@@ -1307,7 +1292,7 @@ export async function streamOllamaChatOnce(options: {
   tools: unknown[] | undefined
   signal?: AbortSignal
   onDelta: (fullText: string) => void
-  think?: boolean
+  thinkLevel?: LlmThinkLevel
   onThinkingDelta?: (fullThinking: string) => void
 }): Promise<{
   content: string
@@ -1326,7 +1311,8 @@ export async function streamOllamaChatOnce(options: {
   if (options.tools !== undefined && options.tools.length > 0) {
     body.tools = options.tools
   }
-  if (options.think) body.think = true
+  body.think = toOllamaThinkBodyValue(options.thinkLevel ?? 'off')
+  const streamThinking = isThinkingUiEnabled(options.thinkLevel ?? 'off')
 
   const res = await fetchOllamaWithRetry(
     `${root}/api/chat`,
@@ -1382,7 +1368,7 @@ export async function streamOllamaChatOnce(options: {
         mergeToolCallDeltas(toolCalls, msg.tool_calls)
       }
       const thinkPiece = msg?.thinking
-      if (thinkPiece) {
+      if (thinkPiece && streamThinking) {
         fullThinking += thinkPiece
         options.onThinkingDelta?.(fullThinking)
       }
@@ -1410,7 +1396,7 @@ export async function streamOllamaChatOnce(options: {
         mergeToolCallDeltas(toolCalls, last.message.tool_calls)
       }
       const thinkPiece = last.message?.thinking
-      if (thinkPiece) {
+      if (thinkPiece && streamThinking) {
         fullThinking += thinkPiece
         options.onThinkingDelta?.(fullThinking)
       }
@@ -1442,8 +1428,8 @@ export type RunChatWithToolsParams = {
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
-  /** Ollama: send `think: true` when enabled in settings. */
-  think?: boolean
+  /** Ollama `think` level from settings. */
+  thinkLevel?: LlmThinkLevel
   /** Accumulated thinking across tool rounds + current stream. */
   onThinkingDelta?: (fullThinking: string) => void
   /** Called when a tool phase starts; pass null to clear (e.g. before next model stream). */
@@ -1460,6 +1446,8 @@ export type RunChatWithToolsParams = {
   /** Optional source paths matching `userImages` indexes. */
   userImagePaths?: string[]
   codingProjectPath?: string
+  /** User-typed message only (no catalog/file hint blocks). Used for forced web_search / scrape heuristics. */
+  rawUserText?: string
 }
 
 /**
@@ -1474,9 +1462,9 @@ export async function runOllamaChatWithTools(
   }
   let forcedWebDone = false
   let forcedScrapeDone = false
-  const originalUserText = getLastUserText(params.initialMessages)
-  const originalUserUrl = pickFirstHttpUrl(originalUserText)
-  const originalNeedsFresh = shouldForceWebSearch(originalUserText)
+  const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
+  const originalUserUrl = pickFirstHttpUrl(rawUserText)
+  const originalNeedsFresh = shouldForceWebSearchOnRoundZero(rawUserText, params.toolsEnabled)
   return runSharedToolLoop<OllamaApiMessage, OllamaToolCall>({
     initialMessages: [...params.initialMessages],
     maxToolRounds: MAX_TOOL_ROUNDS,
@@ -1491,9 +1479,11 @@ export async function runOllamaChatWithTools(
         modelOptions: params.modelOptions,
         tools,
         signal,
-        think: params.think,
+        thinkLevel: params.thinkLevel,
         onDelta,
-        onThinkingDelta,
+        onThinkingDelta: params.thinkLevel && isThinkingUiEnabled(params.thinkLevel)
+          ? onThinkingDelta
+          : undefined,
       })
       return {
         content: out.content,
@@ -1507,10 +1497,12 @@ export async function runOllamaChatWithTools(
         .filter((t) => t.function?.name)
         .map((call) => ({ name: call.function!.name!, argsRaw: call.function!.arguments, raw: call })),
     appendAssistantWithToolCalls: ({ messages, content, thinking, toolCalls }) => {
+      const includeThinking =
+        params.thinkLevel != null && isThinkingUiEnabled(params.thinkLevel)
       messages.push({
         role: 'assistant',
         content: content ?? '',
-        ...(thinking.trim() ? { thinking } : {}),
+        ...(includeThinking && thinking.trim() ? { thinking } : {}),
         tool_calls: normalizeToolCallsForReplay(toolCalls.filter((t) => t.function?.name)),
       })
     },
@@ -1578,7 +1570,7 @@ export async function runOllamaChatWithTools(
         return true
       }
       if (!forcedWebDone && params.toolsEnabled.webSearch && originalNeedsFresh) {
-        const forcedQuery = deriveSearchQuery(originalUserText)
+        const forcedQuery = deriveSearchQuery(rawUserText)
         if (forcedQuery) {
           forcedWebDone = true
           params.onToolPhase?.('search')
@@ -1609,11 +1601,14 @@ export async function runOllamaChatWithTools(
         userImageMimes: params.userImageMimes,
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
-        userText: originalUserText,
+        userText: rawUserText,
       }),
     parseArgsForToolResult: argumentsStringToObject,
     onDelta: params.onDelta,
-    onThinkingDelta: params.onThinkingDelta,
+    onThinkingDelta:
+      params.thinkLevel && isThinkingUiEnabled(params.thinkLevel)
+        ? params.onThinkingDelta
+        : undefined,
     onToolPhase: params.onToolPhase,
     toolPhaseForName: (name) => toolPhaseForAgentTool(name),
     onToolResult: params.onToolResult,

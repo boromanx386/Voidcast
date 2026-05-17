@@ -98,6 +98,8 @@ export function buildOllamaMessages(
     longTermMemoryContext?: string
     /** Raw base64 strings for the latest user message (vision). */
     newUserImages?: string[]
+    /** When false, prior assistant `thinking` is omitted from the API payload. */
+    includeThinkingInHistory?: boolean
   },
 ): OllamaApiMessage[] {
   const max = opts.maxHistoryMessages
@@ -129,7 +131,7 @@ export function buildOllamaMessages(
       out.push({ role: 'user', content: m.content, images: m.images })
     } else if (m.role === 'assistant') {
       const a: OllamaApiMessage = { role: 'assistant', content: m.content }
-      if (m.thinking?.trim()) {
+      if (opts.includeThinkingInHistory !== false && m.thinking?.trim()) {
         a.thinking = m.thinking
       }
       out.push(a)

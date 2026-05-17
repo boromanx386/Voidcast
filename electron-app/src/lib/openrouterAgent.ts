@@ -54,6 +54,8 @@ export type RunOpenRouterChatWithToolsParams = {
   userImageMimes?: string[]
   userImagePaths?: string[]
   codingProjectPath?: string
+  /** Ignored by OpenRouter path (no round-0 synthetic web); kept for shared App call site. */
+  rawUserText?: string
 }
 
 export async function runOpenRouterChatWithTools(

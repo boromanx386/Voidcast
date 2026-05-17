@@ -4,6 +4,9 @@ export type SttProvider = 'none' | 'openrouter'
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
 
+/** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
+export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
+
 /** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper), blood-moon (crimson void) */
 export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon'
 
@@ -105,10 +108,10 @@ export type AppSettings = {
   /** Default for new chats: whether to include long-term memory retrieval. */
   longMemoryDefaultEnabled: boolean
   /**
-   * Ollama: send `think: true` so reasoning-capable models stream `message.thinking`.
-   * OpenRouter/NVIDIA still surface `reasoning` when the model returns it (no extra flag).
+   * Ollama `think` level. Thinking models default to on unless `think: false` is sent.
+   * OpenRouter/NVIDIA reasoning in the UI is shown when level is not `off`.
    */
-  llmThinkingEnabled: boolean
+  llmThinkLevel: LlmThinkLevel
   /** System message prepended to each request */
   llmSystemPrompt: string
   ttsBaseUrl: string
@@ -250,7 +253,7 @@ const defaults: AppSettings = {
   llmNumCtx: 8192,
   llmMaxHistoryMessages: 0,
   longMemoryDefaultEnabled: false,
-  llmThinkingEnabled: true,
+  llmThinkLevel: 'on',
   llmSystemPrompt: '',
   ttsBaseUrl: 'http://127.0.0.1:8765',
   ttsProvider: 'local',
@@ -421,6 +424,21 @@ function normalizeTools(s: AppSettings): AppSettings {
   }
 }
 
+const LLM_THINK_LEVELS = new Set<LlmThinkLevel>(['off', 'low', 'medium', 'high', 'on'])
+
+export function normalizeLlmThinkLevel(
+  saved: Record<string, unknown> | AppSettings,
+  fallback: LlmThinkLevel = defaults.llmThinkLevel,
+): LlmThinkLevel {
+  const raw = (saved as Record<string, unknown>).llmThinkLevel
+  if (typeof raw === 'string' && LLM_THINK_LEVELS.has(raw as LlmThinkLevel)) {
+    return raw as LlmThinkLevel
+  }
+  const legacy = (saved as Record<string, unknown>).llmThinkingEnabled
+  if (typeof legacy === 'boolean') return legacy ? 'on' : 'off'
+  return fallback
+}
+
 function normalizeLlm(s: AppSettings): AppSettings {
   const providerRaw = typeof s.llmProvider === 'string' ? s.llmProvider : ''
   const llmProvider: LlmProvider =
@@ -479,10 +497,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
       typeof s.longMemoryDefaultEnabled === 'boolean'
         ? s.longMemoryDefaultEnabled
         : defaults.longMemoryDefaultEnabled,
-    llmThinkingEnabled:
-      typeof s.llmThinkingEnabled === 'boolean'
-        ? s.llmThinkingEnabled
-        : defaults.llmThinkingEnabled,
+    llmThinkLevel: normalizeLlmThinkLevel(s, defaults.llmThinkLevel),
     llmSystemPrompt:
       typeof s.llmSystemPrompt === 'string' ? s.llmSystemPrompt : '',
   }

@@ -361,22 +361,29 @@ export function LlmOptionsPanel({
       </div>
 
       <div className="form-group">
-        <label className="form-label !flex flex-row items-center justify-between gap-3">
-          <span className="inline-flex min-w-0 items-center gap-2 pr-1">
-            <span className="min-w-0 leading-snug">THINKING_STREAM (Ollama)</span>
-          </span>
-          <input
-            type="checkbox"
-            className="h-4 w-4 shrink-0 accent-neon-cyan"
-            checked={settings.llmThinkingEnabled}
-            onChange={(e) =>
-              setSettings((s) => ({ ...s, llmThinkingEnabled: e.target.checked }))
-            }
-          />
+        <label className="form-label" htmlFor="llm-think-level">
+          <span className="text-neon-purple mr-2">◇</span> THINKING_LEVEL
         </label>
+        <select
+          id="llm-think-level"
+          className="form-input font-mono"
+          value={settings.llmThinkLevel}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              llmThinkLevel: e.target.value as typeof s.llmThinkLevel,
+            }))
+          }
+        >
+          <option value="off">OFF — think: false</option>
+          <option value="low">LOW — GPT-OSS / levels</option>
+          <option value="medium">MEDIUM</option>
+          <option value="high">HIGH</option>
+          <option value="on">ON — think: true</option>
+        </select>
         <p className="text-xs text-void-dim mt-1">
-          Sends <code className="text-neon-purple/90">think: true</code> to Ollama so models that support it stream a separate trace. OpenRouter
-          shows reasoning when the model provides it.
+          Thinking models default to reasoning unless <code className="text-neon-purple/90">think: false</code> is sent.
+          Qwen/DeepSeek use ON/OFF; GPT-OSS uses low/medium/high. OpenRouter reasoning follows the same level (hidden when OFF).
         </p>
       </div>
 
