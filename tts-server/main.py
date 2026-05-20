@@ -59,6 +59,7 @@ from cloud_secrets import (
     register_secrets,
 )
 from user_data import apply_sync, get_snapshot
+from host_tool_config import get_snapshot as get_host_tool_config_snapshot, register_host_tool_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
@@ -202,6 +203,10 @@ class CloudSecretsRequest(BaseModel):
     openrouterApiKey: str = Field(default="", max_length=2048)
     runwareApiKey: str = Field(default="", max_length=2048)
     nvidiaApiKey: str = Field(default="", max_length=2048)
+
+
+class HostToolConfigRequest(BaseModel):
+    pdfOutputDir: str = Field(default="", max_length=4096)
 
 
 class UserDataSyncRequest(BaseModel):
@@ -690,6 +695,24 @@ async def tools_cloud_secrets_status():
         "runware": bool(get_runware_key()),
         "nvidia": bool(get_nvidia_key()),
     }
+
+
+@app.post("/tools/host-tool-config")
+async def tools_host_tool_config_register(request: Request, req: HostToolConfigRequest):
+    """Register host paths (e.g. PDF folder) from the desktop app (loopback or VOIDCAST_SECRETS_TOKEN)."""
+    if not client_may_register(
+        request.client.host if request.client else None,
+        request.headers.get("x-voidcast-secrets-token"),
+    ):
+        raise HTTPException(status_code=403, detail="Not allowed to register host tool config")
+    register_host_tool_config(req.model_dump())
+    return {"ok": True}
+
+
+@app.get("/tools/host-tool-config")
+async def tools_host_tool_config_get():
+    """PDF output folder on the PC running the tools server (for LAN web UI)."""
+    return get_host_tool_config_snapshot()
 
 
 @app.get("/tools/user-data")

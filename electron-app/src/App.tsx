@@ -83,6 +83,11 @@ import { invokeSaveImageFromUrl } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { pushCloudSecretsToServer } from '@/lib/cloudSecrets'
 import {
+  fetchHostToolConfig,
+  pushHostToolConfigToServer,
+  resolvePdfOutputDir,
+} from '@/lib/hostToolConfig'
+import {
   recordMemoryDeleted,
   recordReminderDeleted,
   scheduleUserDataSync,
@@ -793,6 +798,9 @@ function ToolIndicator({ phase }: { phase: AgentToolUiPhase | null }) {
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
+  /** PDF folder on the PC running the tools server (from desktop push; used on LAN web). */
+  const [hostPdfOutputDir, setHostPdfOutputDir] = useState('')
+  const effectivePdfOutputDir = resolvePdfOutputDir(settings.pdfOutputDir, hostPdfOutputDir)
   const [appVersion, setAppVersion] = useState('2.2.0')
   const [screen, setScreen] = useState<Screen>('chat')
   const [optionsTab, setOptionsTab] = useState<OptionsTab>('general')
@@ -1030,6 +1038,22 @@ export default function App() {
     settings.runwareApiKey,
     settings.nvidiaApiKey,
   ])
+
+  useEffect(() => {
+    if (!isElectron()) return
+    const root = settings.ttsBaseUrl.trim().replace(/\/+$/, '')
+    if (!root || !settings.toolsEnabled.pdf) return
+    const push = () =>
+      void pushHostToolConfigToServer(root, {
+        pdfOutputDir: settings.pdfOutputDir,
+      }).catch(() => {})
+    const timer = window.setTimeout(push, 300)
+    const heartbeat = window.setInterval(push, 30000)
+    return () => {
+      window.clearTimeout(timer)
+      window.clearInterval(heartbeat)
+    }
+  }, [settings.ttsBaseUrl, settings.toolsEnabled.pdf, settings.pdfOutputDir])
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute('data-ui-theme', settings.uiTheme)
@@ -1699,6 +1723,9 @@ export default function App() {
 
   const syncUserDataAndRefresh = useCallback(async () => {
     await syncUserDataNow(settings.ttsBaseUrl)
+    if (isWebStandalone()) {
+      setHostPdfOutputDir(await fetchHostToolConfig(settings.ttsBaseUrl))
+    }
     await refreshLongMemories()
     await refreshReminders()
   }, [settings.ttsBaseUrl, refreshLongMemories, refreshReminders])
@@ -2003,7 +2030,7 @@ export default function App() {
           modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
           toolsEnabled: settings.toolsEnabled,
           ttsBaseUrl: settings.ttsBaseUrl,
-          pdfOutputDir: settings.pdfOutputDir,
+          pdfOutputDir: effectivePdfOutputDir,
           runware: {
             apiBaseUrl: settings.runwareApiBaseUrl,
             apiKey: settings.runwareApiKey,
@@ -2963,6 +2990,7 @@ export default function App() {
                 settings={settings}
                 setSettings={setSettings}
                 onCodingProjectPathApplied={applyCodingProjectPath}
+                effectivePdfOutputDir={effectivePdfOutputDir}
               />
             )}
           </div>

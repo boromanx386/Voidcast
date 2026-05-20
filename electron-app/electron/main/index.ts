@@ -9,6 +9,7 @@ import {
   shell,
   Tray,
   nativeImage,
+  nativeTheme,
   type NativeImage,
   type OpenDialogOptions,
 } from 'electron'
@@ -118,6 +119,9 @@ function getBundledToolsExePath(): string {
 /** Bind on all interfaces so LAN phones can reach the web UI and API proxy (override via VOIDCAST_TOOLS_HOST). */
 const TOOLS_SERVER_HOST = process.env.VOIDCAST_TOOLS_HOST?.trim() || '0.0.0.0'
 const TOOLS_SERVER_PORT = process.env.VOIDCAST_TOOLS_PORT?.trim() || '8765'
+
+/** Matches default `--color-void-black` in `index.css` (rgb 10 10 15). */
+const WIN_CHROME_BACKGROUND = '#0a0a0f'
 const TOOLS_SERVER_HEALTH_URL = `http://127.0.0.1:${TOOLS_SERVER_PORT}`
 
 async function isToolsServerHealthy(baseUrl = TOOLS_SERVER_HEALTH_URL): Promise<boolean> {
@@ -358,6 +362,11 @@ async function createWindow() {
     Menu.setApplicationMenu(null)
   }
 
+  // Windows 10/11: dark caption/title bar even when the OS theme is light.
+  if (process.platform === 'win32') {
+    nativeTheme.themeSource = 'dark'
+  }
+
   const windowIcon = process.platform === 'win32'
     ? (createZoomedWindowIcon(appIconPath) ?? appIconPath)
     : appIconPath
@@ -367,6 +376,7 @@ async function createWindow() {
     autoHideMenuBar: true,
     icon: windowIcon,
     show: false, // Start hidden until ready
+    ...(process.platform === 'win32' ? { backgroundColor: WIN_CHROME_BACKGROUND } : {}),
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production

@@ -22,7 +22,10 @@ Change themes, toggle voice, or update settings directly via natural commands in
 The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. It also remembers your coding context across sessions — recent files, directories, searches, git operations, command results, and tool failures are persisted per-project and restored when you reopen a repo.
 
 **It remembers**  
-Remembers facts across sessions — only when you ask for it.
+Remembers facts across sessions (and can sync them with the LAN web UI on the same PC).
+
+**Use it from your phone**  
+On the same Wi‑Fi, or over a private mesh VPN (e.g. **Tailscale**), the bundled tools server serves a web chat UI — handy when you are not at the desk but your PC is still online.
 
 ---
 
@@ -56,6 +59,27 @@ You choose whether updates run automatically; nothing is forced without your tog
 
 ---
 
+## LAN & phone (Wi‑Fi or Tailscale)
+
+The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces), not only localhost. On your phone or tablet, open:
+
+`http://<host>:8765`
+
+Use the PC’s **LAN IPv4** on home Wi‑Fi (`ipconfig` — e.g. `192.168.1.42`), or the machine’s **Tailscale IP** / MagicDNS name when you are on cellular or another network (install Tailscale on both the PC and the phone, same tailnet). Similar mesh VPNs (**ZeroTier**, **WireGuard**, etc.) work the same way: reach the PC on a private address, then use port **8765**.
+
+> **Not Tailwind CSS** — that is the UI framework in the repo. For remote phone access, people usually mean **Tailscale** (or another VPN), not the CSS toolkit.
+
+> **Security:** the web UI is meant for **your** machines on a trusted network. Do not port-forward **8765** to the public internet without extra protection — there is no login on the LAN build. Prefer Tailscale (or similar) over raw exposure.
+
+- **Web chat UI** — same agent, tools, and sessions as the desktop app, served from the bundled server.
+- **API keys on the phone** — the browser build does not embed secrets. Configure keys once on the **desktop** (**Options → General → CLOUD_API_KEYS**); the phone loads them from the host via **`POST /tools/cloud-secrets`** (only while the PC app is running and reachable on the LAN).
+- **Sync** — long-term memory and reminders can merge between desktop and LAN web through **`GET /tools/user-data`** / **`POST /tools/user-data-sync`** on that same host.
+- **Mobile limits** — speech-to-text is hidden on phone layouts where recording is unreliable; use desktop for STT.
+
+Firewall: allow inbound TCP **8765** on the PC if the phone cannot connect.
+
+---
+
 ## The Agent & Tools
 
 Voidcast runs an **agent tool loop**: the model decides when to call a tool, the app executes it, and the result goes back to the model.
@@ -67,15 +91,25 @@ Available tools:
 - **YouTube** — search videos + fetch transcripts
 - **Reddit** — browse subreddits, search posts, read threads
 - **Web Scrape** — fetch and summarize public pages
-- **PDF Export** — save any chat session as formatted PDF
+- **PDF Export** — agent writes a formatted PDF to a folder you configure (Python tools server / ReportLab)
 - **Image Generation** — Runware text-to-image
 - **Image Edit** — Runware image transformation
-- **Music / Audio Generation** — Runware AI soundtracks
+- **Music / Audio Generation** — Runware AI soundtracks (ACE-Step v1.5 Turbo and Base; see below)
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 
-The agent loop supports both **local models via Ollama** and **cloud endpoints via Ollama, OpenRouter and NVIDIA NIM**.
+The agent loop supports **Ollama** (local or cloud), **OpenRouter**, and **NVIDIA NIM**.
+
+### Music (Runware)
+
+In **Options → Runware Music**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20) or **ACE-Step v1.5 Base** (higher quality, steps up to 300). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
+
+### PDF Export
+
+Enable **SAVE_PDF** and set **PDF_OUTPUT_DIR** in **Options → Tools** (folder on the host running the tools server). The agent calls `save_pdf`; files land there with no save dialog.
+
+Supports Markdown-lite (headings, lists, tables, bold). Images can come from chat attachments or Runware URLs from a prior image/music turn. Works on desktop and LAN web.
 
 ---
 
@@ -90,6 +124,8 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `execute_command` (with timeout + background support)
 
 All coding operations are scoped to your configured project directory.
+
+**Project memory:** recent files, directories, command outcomes, and tool failures are stored **per project** in browser `localStorage` and survive app restarts. Opening the same repo again hydrates that snapshot into new chats; the active session still keeps live search/git hints for the current thread.
 
 **Faster code search (optional):** install [ripgrep](https://github.com/BurntSushi/ripgrep) and put `rg` on your system `PATH`. `search_files` then uses it for large trees; without it, the same tool falls back to a built-in walk (slower, same results style).
 
@@ -106,17 +142,17 @@ Voidcast does not charge anything. It connects to free tiers of providers you ca
 | **NVIDIA NIM** | Enterprise-grade inference for open models |
 | **Runware** | Image generation, image edit, and AI music (pay-per-use, typically pennies) |
 
-All you need are free accounts and API keys. Chat LLMs can stay on free tiers (Ollama, or cloud free credits); **TTS, STT, and image/music runs are very cheap** — usually cents per session, not dollars.
+All you need are free accounts and API keys. Chat LLMs can stay on free tiers; **TTS, STT, and image/music runs are very cheap** — usually cents per session, not dollars.
 
 **Multimodal pricing:** OpenRouter Whisper (STT) and TTS voices bill per minute or request at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 
-**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, Runware, or Ollama directly from your PC.
+**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, Runware, or Ollama directly from your PC. On LAN web, keys are read from the desktop host over your network, not baked into the phone browser build.
 
 ---
 
 ## Context Compression
 
-Local and small-context models hit a wall after long chats. Voidcast uses a custom module to compress conversation history so the agent can maintain coherence across long tool loops without losing the thread.
+Local and small-context models hit a wall after long chats. When the context nears the model limit, Voidcast **summarizes older turns locally** (provider-aware) and keeps recent messages plus tool results, so long agent loops can continue without silently dropping the whole thread.
 
 ---
 
@@ -127,12 +163,17 @@ Cross-chat memory is stored locally in IndexedDB:
 - Saved when you ask the agent to remember something
 - Edit or delete anytime in **Options → General**
 - Optional **USE_LONG_MEMORY_GLOBALLY** to include memories in every chat
+- **Desktop ↔ LAN sync** — when phone and PC use the same tools host, entries can merge via the user-data API (see **LAN & phone**)
+
+**Reminders** also live locally, with optional **desktop notifications** (Windows toast when due). Reminders participate in the same LAN sync as long memory.
 
 ---
 
 ## Image-Aware Chat
 
 Paste images into the chat. The assistant can analyze them and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware from the same thread.
+
+For **charts, diagrams, and infographics**, pick **GPT Image 2** (`openai:gpt-image@2`) in **Options → Runware Image** (generation and/or edit), describe what you want in chat, then ask the agent to export a PDF — it can pass the Runware `image_url` from the prior turn into `save_pdf` so the graphic is **embedded in the document** (not just linked in markdown). Same flow works on desktop and LAN web.
 
 ---
 
@@ -141,10 +182,13 @@ Paste images into the chat. The assistant can analyze them and, when needed, rec
 Five built-in themes: **Minimal** (default), **Dystopian**, **Matrix**, **Light**, and **Blood Moon**. Switch anytime in Options or via chat.
 
 Other UX features:
+- **Drag-and-drop** — drop images and supported text/code files onto the chat (same limits as the file picker)
 - **Edit any message inline** — history regenerates from that point
 - **Fork chat session** — explore a different branch of the conversation
 - **Export to Markdown** — entire chat as `.md`
-- **Thinking blocks** — collapsible reasoning for models like DeepSeek, QwQ, etc.
+- **Thinking blocks** — collapsible reasoning; for Ollama, choose **off / low / medium / high / on** in LLM options
+- **Chat sounds** — optional local audio files for reply done and errors (**Options → General**)
+- **Reminder toasts** — native notification when a reminder is due (toggle in General)
 
 ---
 
@@ -210,19 +254,26 @@ This approach ensures all users get the same environment without manual Python s
 
 ## Runtime Expectations
 
-The bundled Python server (default `http://127.0.0.1:8765`) exposes endpoints such as:
+The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost-only in dev is fine too). Common endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
+| `GET /` | LAN web chat UI (static bundle) |
 | `GET /health` | Server health check |
 | `POST /tools/search` | Web search |
 | `POST /tools/scrape` | Web scraping |
 | `POST /tools/weather` | Weather data |
 | `POST /tools/youtube` | YouTube search / transcripts |
 | `POST /tools/reddit` | Reddit feed / posts |
-| `POST /tools/pdf` | PDF export |
+| `POST /tools/pdf` | PDF export (`save_pdf`) |
 | `POST /tools/runware_proxy` | Runware image / music proxy |
+| `POST /tools/cloud-secrets` | Push cloud API keys to the host for LAN clients |
+| `GET /tools/cloud-secrets-status` | Whether LAN clients can read keys from this host |
+| `GET /tools/user-data` | Fetch long memory + reminders for sync |
+| `POST /tools/user-data-sync` | Merge long memory + reminders (desktop ↔ LAN) |
 | `POST /tts` | Text-to-speech (local OmniVoice setup) |
+
+Coding tools run inside the Electron app (not as separate HTTP routes). Image edit/generation and settings updates go through the desktop agent or the LAN web proxy to the same backends.
 
 ---
 
@@ -232,7 +283,9 @@ The bundled Python server (default `http://127.0.0.1:8765`) exposes endpoints su
 ├── electron-app/         # Main Electron application
 ├── tts-server/           # Python tools + TTS server
 │   ├── main.py           # Combined FastAPI app (tools + web UI)
+│   ├── pdf_tool.py       # ReportLab PDF renderer for save_pdf
 │   ├── tools_main.py     # Tools-only entry for dev
+│   ├── fonts/            # Noto Sans TTFs (bundled into tools exe)
 │   └── requirements.txt  # Python dependencies
 ├── assets/               # Application assets (icons, images)
 └── releases/             # Build output directory

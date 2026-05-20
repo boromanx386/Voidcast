@@ -23,6 +23,7 @@
         "tools_exe_entry.py",
         "main.py",
         "cloud_secrets.py",
+        "host_tool_config.py",
         "user_data.py",
         "scrape_tool.py",
         "reddit_tool.py",
