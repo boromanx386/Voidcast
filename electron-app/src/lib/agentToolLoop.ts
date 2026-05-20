@@ -72,7 +72,7 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     name: string
     argsRaw: string | Record<string, unknown> | undefined
     result: string
-  }) => Array<{ base64: string; mime: string }>
+  }) => Array<{ base64: string; mime: string }> | Promise<Array<{ base64: string; mime: string }>>
   onNoToolCalls?: (ctx: {
     round: number
     messages: TMessage[]
@@ -311,7 +311,7 @@ export async function runSharedToolLoop<
         args: parseArgs(shared.argsRaw),
       })
       if (params.collectRecalledImages) {
-        const recalled = params.collectRecalledImages({
+        const recalled = await params.collectRecalledImages({
           name: shared.name,
           argsRaw: shared.argsRaw,
           result,

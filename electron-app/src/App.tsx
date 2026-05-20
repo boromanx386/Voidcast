@@ -1970,6 +1970,11 @@ export default function App() {
         ].join('\n'),
       )
       toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
+      if (settings.toolsEnabled.runwareImage) {
+        toolsHintParts.push(
+          'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
+        )
+      }
       toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
     }
     if (useTools) {

@@ -9,6 +9,7 @@ import {
   type OpenRouterToolCall,
 } from '@/lib/openrouter'
 import { executeToolCall } from '@/lib/agentToolExecutor'
+import { resolveImageRecallRequest } from '@/lib/ollamaAgent'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import { FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE, parseToolArguments } from '@/lib/agentToolUtils'
@@ -144,25 +145,23 @@ export async function runOpenRouterChatWithTools(
         ],
       })
     },
-    collectRecalledImages: ({ name, result }) => {
+    collectRecalledImages: async ({ name, argsRaw }) => {
       if (name !== 'image_recall') return []
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(result)
-      } catch {
-        parsed = null
-      }
-      const payload = parsed as { recalled_images?: Array<{ index: number; mime: string }> } | null
-      if (!payload?.recalled_images?.length) return []
-      const recalled: Array<{ base64: string; mime: string }> = []
-      for (const ref of payload.recalled_images) {
-        const oneBased = Math.round(ref.index) - 1
-        if (oneBased < 0) continue
-        const base64 = params.userImages?.[oneBased]
-        if (!base64) continue
-        recalled.push({ base64, mime: ref.mime || 'image/png' })
-      }
-      return recalled
+      const argsObj =
+        typeof argsRaw === 'string'
+          ? parseToolArguments(argsRaw)
+          : (argsRaw as Record<string, unknown>) ?? {}
+      const recall = await resolveImageRecallRequest(
+        argsObj,
+        {
+          userImages: params.userImages,
+          userImageMimes: params.userImageMimes,
+          userImagePaths: params.userImagePaths,
+          codingProjectPath: params.codingProjectPath,
+        },
+        { codingEnabled: params.toolsEnabled.coding },
+      )
+      return recall.recalled.map((img) => ({ base64: img.base64, mime: img.mime }))
     },
     executeToolCall: (name, argsRaw) =>
       executeToolCall(name, argsRaw, params.toolsEnabled, {

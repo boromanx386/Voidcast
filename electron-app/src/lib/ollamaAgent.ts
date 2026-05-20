@@ -37,6 +37,7 @@ import {
   invokeSearchCodingFiles,
   invokeWriteCodingFile,
 } from '@/lib/codingTools'
+import { loadProjectImageRecalls, resolveInsideCodingProject } from '@/lib/imageProjectRecall'
 import type {
   OllamaApiMessage,
   OllamaChatUsage,
@@ -454,6 +455,7 @@ type ResolvedRecallImage = {
   mime: string
   base64: string
   path?: string
+  recallSource?: 'catalog' | 'project_file'
 }
 
 function parseDataImageUri(value: string): { mime: string; base64: string } | null {
@@ -499,13 +501,13 @@ function resolveCatalogImageByOneBasedIndex(
 
 type ImageRecallToolResult = {
   ok: boolean
-  source: 'internal_catalog'
+  source: 'internal_catalog' | 'mixed' | 'project_file'
   purpose?: 'vision' | 'edit'
-  recalled_images: Array<{ index: number; mime: string; path?: string }>
+  recalled_images: Array<{ index: number; mime: string; path?: string; source?: string }>
   errors?: string[]
 }
 
-function resolveImageRecallRequest(
+export async function resolveImageRecallRequest(
   args: Record<string, unknown>,
   ctx: {
     userImages?: string[]
@@ -513,19 +515,23 @@ function resolveImageRecallRequest(
     userImagePaths?: string[]
     codingProjectPath?: string
   },
-): {
+  options?: { codingEnabled?: boolean },
+): Promise<{
   purpose?: 'vision' | 'edit'
   recalled: ResolvedRecallImage[]
   errors: string[]
   maxAvailable: number
-} {
+}> {
   const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths)
   const indexes = selected.indexes
   const purposeRaw = typeof args.purpose === 'string' ? args.purpose.trim().toLowerCase() : ''
   const purpose: 'vision' | 'edit' | undefined =
     purposeRaw === 'vision' ? 'vision' : purposeRaw === 'edit' ? 'edit' : undefined
   const recalled: ResolvedRecallImage[] = []
-  const errors: string[] = selected.missingPaths.map((p) => `path not found in catalog: ${p}`)
+  const errors: string[] = []
+  for (const p of selected.missingPaths) {
+    errors.push(`path not found in catalog: ${p}`)
+  }
   for (const idx of indexes) {
     const hit = resolveCatalogImageByOneBasedIndex(
       ctx.userImages,
@@ -537,7 +543,37 @@ function resolveImageRecallRequest(
       errors.push(`index ${idx}: not found or not convertible to base64`)
       continue
     }
-    recalled.push(hit)
+    recalled.push({ ...hit, recallSource: 'catalog' })
+  }
+  const projectRoot = (ctx.codingProjectPath || '').trim()
+  if (options?.codingEnabled && projectRoot && selected.missingPaths.length > 0) {
+    const project = await loadProjectImageRecalls(projectRoot, selected.missingPaths)
+    const loadedAbs = project.recalled.map((x) => normalizePathForMatch(x.path))
+    for (let i = errors.length - 1; i >= 0; i--) {
+      const m = errors[i]?.match(/^path not found in catalog: (.+)$/)
+      if (!m) continue
+      const req = (m[1] || '').trim()
+      const reqNorm = normalizePathForMatch(req)
+      const resolved = resolveInsideCodingProject(projectRoot, req)
+      const resolvedNorm = resolved ? normalizePathForMatch(resolved) : ''
+      if (
+        loadedAbs.some(
+          (abs) => abs === reqNorm || (resolvedNorm && abs === resolvedNorm),
+        )
+      ) {
+        errors.splice(i, 1)
+      }
+    }
+    for (const err of project.errors) errors.push(err)
+    for (const img of project.recalled) {
+      recalled.push({
+        index: img.index,
+        mime: img.mime,
+        base64: img.base64,
+        path: img.path,
+        recallSource: 'project_file',
+      })
+    }
   }
   return {
     purpose,
@@ -854,23 +890,31 @@ export async function executeToolCall(
       return 'Error: image_recall tool is disabled in settings.'
     }
     const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths)
-    const indexes = selected.indexes
-    if (!indexes.length) {
+    const requestedPaths = parseImagePaths(args.reference_image_paths)
+    if (!selected.indexes.length && !requestedPaths.length && !parseImageIndexes(args.reference_image_indexes).length) {
       return 'Error: missing image references for image_recall. Provide reference_image_indexes and/or reference_image_paths.'
     }
-    const recall = resolveImageRecallRequest(args, ctx)
+    const recall = await resolveImageRecallRequest(args, ctx, {
+      codingEnabled: toolsEnabled.coding,
+    })
     if (!recall.recalled.length) {
       const max = recall.maxAvailable
-      return `Error: image_recall could not resolve any requested images. Available image count: ${max}.`
+      const detail = recall.errors.length ? ` ${recall.errors.join(' ')}` : ''
+      return `Error: image_recall could not resolve any requested images. Available catalog image count: ${max}.${detail}`
     }
+    const hasCatalog = recall.recalled.some((x) => x.recallSource === 'catalog')
+    const hasProject = recall.recalled.some((x) => x.recallSource === 'project_file')
+    const source: ImageRecallToolResult['source'] =
+      hasCatalog && hasProject ? 'mixed' : hasProject ? 'project_file' : 'internal_catalog'
     const payload: ImageRecallToolResult = {
       ok: true,
-      source: 'internal_catalog',
+      source,
       purpose: recall.purpose,
       recalled_images: recall.recalled.map((x) => ({
         index: x.index,
         mime: x.mime,
         path: x.path,
+        source: x.recallSource,
       })),
       ...(recall.errors.length > 0 ? { errors: recall.errors } : {}),
     }
@@ -1612,14 +1656,19 @@ export async function runOllamaChatWithTools(
         images: recalled.map((x) => x.base64),
       })
     },
-    collectRecalledImages: ({ name, argsRaw }) => {
+    collectRecalledImages: async ({ name, argsRaw }) => {
       if (name !== 'image_recall') return []
       const argsObj = argumentsStringToObject(argsRaw)
-      const recall = resolveImageRecallRequest(argsObj, {
-        userImages: params.userImages,
-        userImageMimes: params.userImageMimes,
-        userImagePaths: params.userImagePaths,
-      })
+      const recall = await resolveImageRecallRequest(
+        argsObj,
+        {
+          userImages: params.userImages,
+          userImageMimes: params.userImageMimes,
+          userImagePaths: params.userImagePaths,
+          codingProjectPath: params.codingProjectPath,
+        },
+        { codingEnabled: params.toolsEnabled.coding },
+      )
       return recall.recalled.map((img) => ({ base64: img.base64, mime: img.mime }))
     },
     onNoToolCalls: async ({ round, runSyntheticTool }) => {

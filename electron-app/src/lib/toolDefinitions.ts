@@ -311,7 +311,7 @@ const IMAGE_RECALL_TOOL: OllamaToolDefinition = {
   function: {
     name: 'image_recall',
     description:
-      'Recall image bytes from the internal conversation image catalog so the model can analyze or edit historical images in the current runtime turn.',
+      'Recall image bytes for vision or edit prep in the current runtime turn. Resolves reference_image_indexes and/or reference_image_paths against the session image catalog. When coding tools are enabled, reference_image_paths can also name PNG/JPEG/WebP/GIF/BMP files inside the configured coding project folder (absolute path or path relative to project root).',
     parameters: {
       type: 'object',
       properties: {
@@ -323,7 +323,7 @@ const IMAGE_RECALL_TOOL: OllamaToolDefinition = {
         reference_image_paths: {
           type: 'string',
           description:
-            'Optional absolute image path(s) from chat history (single path or comma/newline-separated list).',
+            'Optional image path(s): session catalog absolute paths from chat, and/or project-relative/absolute paths under the coding project root when coding tools are on (comma/newline-separated).',
         },
         purpose: {
           type: 'string',

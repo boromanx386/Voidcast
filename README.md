@@ -27,6 +27,11 @@ Remembers facts across sessions (and can sync them with the LAN web UI on the sa
 **Use it from your phone**  
 On the same Wi‑Fi, or over a private mesh VPN (e.g. **Tailscale**), the bundled tools server serves a web chat UI — handy when you are not at the desk but your PC is still online.
 
+<p align="center">
+  <img src="demos/voidcast-chat-personality-hello.png" width="700" alt="Chat personality and UI"/>
+</p>
+<p align="center"><em>Agent replies with personality, inline tool results, and context-aware memory.</em></p>
+
 ---
 
 ## Get Started (One Click)
@@ -101,6 +106,11 @@ Available tools:
 
 The agent loop supports **Ollama** (local or cloud), **OpenRouter**, and **NVIDIA NIM**.
 
+<p align="center">
+  <img src="demos/voidcast-chat-reddit-briefing.png" width="700" alt="Reddit briefing in chat"/>
+</p>
+<p align="center"><em>Agent pulls Reddit threads and formats them inline with links and emoji.</em></p>
+
 ### Music (Runware)
 
 In **Options → Runware Music**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20) or **ACE-Step v1.5 Base** (higher quality, steps up to 300). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
@@ -110,6 +120,11 @@ In **Options → Runware Music**, pick **ACE-Step v1.5 Turbo** (fast defaults, s
 Enable **SAVE_PDF** and set **PDF_OUTPUT_DIR** in **Options → Tools** (folder on the host running the tools server). The agent calls `save_pdf`; files land there with no save dialog.
 
 Supports Markdown-lite (headings, lists, tables, bold). Images can come from chat attachments or Runware URLs from a prior image/music turn. Works on desktop and LAN web.
+
+<p align="center">
+  <img src="demos/voidcast-chat-pdf-export-with-chart.png" width="700" alt="PDF export with embedded chart"/>
+</p>
+<p align="center"><em>Ask the agent to generate a chart and export it as a formatted PDF.</em></p>
 
 ---
 
@@ -124,6 +139,11 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `execute_command` (with timeout + background support)
 
 All coding operations are scoped to your configured project directory.
+
+<p align="center">
+  <img src="demos/voidcast-coding-panel-git-status.png" width="700" alt="Coding panel with git status"/>
+</p>
+<p align="center"><em>File tree, preview, terminal, and git status — all in one panel.</em></p>
 
 **Project memory:** recent files, directories, command outcomes, and tool failures are stored **per project** in browser `localStorage` and survive app restarts. Opening the same repo again hydrates that snapshot into new chats; the active session still keeps live search/git hints for the current thread.
 
@@ -167,11 +187,21 @@ Cross-chat memory is stored locally in IndexedDB:
 
 **Reminders** also live locally, with optional **desktop notifications** (Windows toast when due). Reminders participate in the same LAN sync as long memory.
 
+<p align="center">
+  <img src="demos/voidcast-options-general-memory-reminders.png" width="700" alt="Long-term memory settings"/>
+</p>
+<p align="center"><em>Edit or delete memories and reminders directly in Options.</em></p>
+
 ---
 
 ## Image-Aware Chat
 
 Paste images into the chat. The assistant can analyze them and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware from the same thread.
+
+<p align="center">
+  <img src="demos/voidcast-chat-image-edit-scene-transfer.png" width="700" alt="Image editing in chat"/>
+</p>
+<p align="center"><em>Paste an image and ask the agent to transform it — results appear inline.</em></p>
 
 For **charts, diagrams, and infographics**, pick **GPT Image 2** (`openai:gpt-image@2`) in **Options → Runware Image** (generation and/or edit), describe what you want in chat, then ask the agent to export a PDF — it can pass the Runware `image_url` from the prior turn into `save_pdf` so the graphic is **embedded in the document** (not just linked in markdown). Same flow works on desktop and LAN web.
 
