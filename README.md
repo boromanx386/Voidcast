@@ -19,7 +19,7 @@ Agent invokes search, Reddit, YouTube, weather, image generation and edit, music
 Change themes, toggle voice, or update settings directly via natural commands in the conversation.
 
 **Work with your code**  
-The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel.
+The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. It also remembers your coding context across sessions — recent files, directories, searches, git operations, command results, and tool failures are persisted per-project and restored when you reopen a repo.
 
 **It remembers**  
 Remembers facts across sessions — only when you ask for it.
@@ -73,6 +73,7 @@ Available tools:
 - **Music / Audio Generation** — Runware AI soundtracks
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
+- **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 
 The agent loop supports both **local models via Ollama** and **cloud endpoints via Ollama, OpenRouter and NVIDIA NIM**.
 

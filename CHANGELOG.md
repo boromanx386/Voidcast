@@ -2,23 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.5.5] — 2026-05-20
 
 ### Added
 
-- **Ollama think levels**: boolean thinking toggle replaced with **off / low / medium / high / on** in LLM options (`settings.ts`, `ollama.ts`).
 - **Coding context memory persistence and modularization**: extracted `CodingContextMemo` logic from `App.tsx` into a dedicated `codingContextMemo.ts` module with full type safety. Introduced per-project `localStorage` persistence (`voidcast-coding-project-memo-v1`) so recent files, directories, searches, git operations, command history, and failures survive app restarts. Session memory (`recentSearches`, `recentGitOps`) is kept in the active chat; project snapshots (`recentFiles`, `recentFailures`, `recentCommands`, `lastDirectory`) hydrate new chats when the same repo is reopened. `resolveMemoForSession` handles the cross-layer merge. `edit_code` and `write_file` now append `(edited)` / `(written)` labels to `recentFiles`. `execute_command` entries store `{ command, ok, snippet }` with a 150-character output preview (`commandResultSnippet`), so the assistant can see whether `npm run build` succeeded without re-running it. Tool failures are tracked with specific error text and tool name (`recentFailures`). `isCodingToolFailure()` validates failure format per-tool to avoid false positives from normal output. Backward-compatible `normalizeCommandEntry` migrates old string-format command entries.
 - **Edit line range tracking**: `edit_code` results now include exact start/end line numbers (e.g. `lines 2102-2104`) parsed from the CRLF-aware `applySnippetEdit` in `codingEol.ts`. `formatEditedFileMemoEntry()` extracts this range and stores `App.tsx (edited lines 2102-2104)` in `recentFiles`, so the assistant knows precisely where changes occurred without re-reading the file.
+- **Ollama think levels**: boolean thinking toggle replaced with **off / low / medium / high / on** in LLM options (`settings.ts`, `ollama.ts`).
 
 ### Fixed
 
+- **Android / web image attachment**: `splitChatAttachmentFiles` + `probeFileAsImage` decode gallery files with empty `type` or no extension (`createImageBitmap` → `readAsDataURL` fallback). File input snapshot clones via `arrayBuffer()` before `input.value = ''` to stop Android from dropping `File` refs. Web standalone uses a visible `<label>` pointing to `sr-only` input instead of hidden `display: none` + programmatic `click()`. Better error messages guide users to JPEG/PNG on phone (`imageAttachment.ts`, `App.tsx`).
+- **Music false image claim guard**: `generate_music_runware` turns no longer trigger the image hallucination reprompt. `isMusicFocusedUserText()` detects music requests; `shouldGuardFalseImageClaims()` skips the guard when the user asked for music. `stripMusicUrlArtifacts()` removes `audio_url:` lines before image claim analysis. `RUNWARE_IMAGE_CDN_RE` tightened to `im.runware` only, excluding `api.runware.ai` (`agentToolUtils.ts`, `agentToolLoop.ts`, `ollamaAgent.ts`, `openrouterAgent.ts`).
 - **LAN install + phone web UI**: tools server binds **`0.0.0.0`**; web UI resolves from Electron resources and is bundled in the PyInstaller tools exe and Windows installer (`copy-web-ui-to-install.ps1`, `electron-builder.json`).
 - **Reminder toast duplicates after sync**: `notifiedAt` is preserved across LAN/user-data merge and `updatedAt` bumps when a toast fires, so the 30s heartbeat does not re-notify the same reminder.
 - **`edit_code` on CRLF files (Windows)**: matches `find_text` with exact, CRLF-expanded, or LF-normalized strategies while preserving on-disk line endings; `read_file` exposes `lineEndings` and adds a model-only CRLF hint.
 - **Image catalog + attach vision**: catalog index **1 = current attachment**; vision runs on attach; ordering distinguishes attachments vs generated images more reliably.
 - **Forced `web_search`**: uses raw user text only, with tighter freshness heuristics (fewer false triggers).
-- **Android / web image attachment**: `splitChatAttachmentFiles` + `probeFileAsImage` decode gallery files with empty `type` or no extension (`createImageBitmap` → `readAsDataURL` fallback). File input snapshot clones via `arrayBuffer()` before `input.value = ''` to stop Android from dropping `File` refs. Web standalone uses a visible `<label>` pointing to `sr-only` input instead of hidden `display: none` + programmatic `click()`. Better error messages guide users to JPEG/PNG on phone (`imageAttachment.ts`, `App.tsx`).
-- **Music false image claim guard**: `generate_music_runware` turns no longer trigger the image hallucination reprompt. `isMusicFocusedUserText()` detects music requests; `shouldGuardFalseImageClaims()` skips the guard when the user asked for music. `stripMusicUrlArtifacts()` removes `audio_url:` lines before image claim analysis. `RUNWARE_IMAGE_CDN_RE` tightened to `im.runware` only, excluding `api.runware.ai` (`agentToolUtils.ts`, `agentToolLoop.ts`, `ollamaAgent.ts`, `openrouterAgent.ts`).
+- **Blood Moon theme validation**: `uiTheme` validation message and tool description now include `blood-moon` as a valid option (`ollamaAgent.ts`, `toolDefinitions.ts`, `App.tsx`).
 
 ### Changed
 
