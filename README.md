@@ -2,17 +2,17 @@
 
 **Desktop AI agent with real tool calling — search, images, music and code from one chat. One-click Windows install.**
 
-Bring your own API keys (OpenRouter, NVIDIA NIM, Runware) or install **Ollama** locally — all support free tiers. **Voidcast is free.**
+Bring your own API keys (OpenRouter, NVIDIA NIM, Runware) or install **Ollama** — all support free tiers. **Voidcast is free.**
 
 ![Voidcast](logo.jpg)
 
-### Quick demo (~39s)
+*Voidcast is a solo hobby project — I built it for myself to learn AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
+
+### Quick demo (~39s) — sound on!
 
 https://github.com/user-attachments/assets/e7700e45-ca2c-40a0-b3d0-ffbdd3cf1c1c
 
 <p align="center"><em>User: switch theme to Blood Moon and turn voice on — the agent replies with TTS and changes the UI live.</em></p>
-
-*Voidcast is a solo hobby project — I built it for myself to learn AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
 ---
 
