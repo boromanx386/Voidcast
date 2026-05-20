@@ -6,6 +6,12 @@ Bring your own API keys (OpenRouter, NVIDIA NIM, Runware) or install **Ollama** 
 
 ![Voidcast](logo.jpg)
 
+### Quick demo (~39s)
+
+https://github.com/user-attachments/assets/e7700e45-ca2c-40a0-b3d0-ffbdd3cf1c1c
+
+<p align="center"><em>User: switch theme to Blood Moon and turn voice on — the agent replies with TTS and changes the UI live.</em></p>
+
 *Voidcast is a solo hobby project — I built it for myself to learn AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
 ---
@@ -22,15 +28,7 @@ Change themes, toggle voice, or update settings directly via natural commands in
 The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. It also remembers your coding context across sessions — recent files, directories, searches, git operations, command results, and tool failures are persisted per-project and restored when you reopen a repo.
 
 **It remembers**  
-Remembers facts across sessions (and can sync them with the LAN web UI on the same PC).
-
-**Use it from your phone**  
-On the same Wi‑Fi, or over a private mesh VPN (e.g. **Tailscale**), the bundled tools server serves a web chat UI — handy when you are not at the desk but your PC is still online.
-
-<p align="center">
-  <img src="demos/voidcast-chat-personality-hello.png" width="700" alt="Chat personality and UI"/>
-</p>
-<p align="center"><em>Agent replies with personality, inline tool results, and context-aware memory.</em></p>
+Remembers facts across sessions 
 
 ---
 
@@ -61,27 +59,6 @@ In **Options → General**:
 - When disabled, use **`CHECK FOR UPDATE`** anytime for a manual check.
 
 You choose whether updates run automatically; nothing is forced without your toggle.
-
----
-
-## LAN & phone (Wi‑Fi or Tailscale)
-
-The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces), not only localhost. On your phone or tablet, open:
-
-`http://<host>:8765`
-
-Use the PC’s **LAN IPv4** on home Wi‑Fi (`ipconfig` — e.g. `192.168.1.42`), or the machine’s **Tailscale IP** / MagicDNS name when you are on cellular or another network (install Tailscale on both the PC and the phone, same tailnet). Similar mesh VPNs (**ZeroTier**, **WireGuard**, etc.) work the same way: reach the PC on a private address, then use port **8765**.
-
-> **Not Tailwind CSS** — that is the UI framework in the repo. For remote phone access, people usually mean **Tailscale** (or another VPN), not the CSS toolkit.
-
-> **Security:** the web UI is meant for **your** machines on a trusted network. Do not port-forward **8765** to the public internet without extra protection — there is no login on the LAN build. Prefer Tailscale (or similar) over raw exposure.
-
-- **Web chat UI** — same agent, tools, and sessions as the desktop app, served from the bundled server.
-- **API keys on the phone** — the browser build does not embed secrets. Configure keys once on the **desktop** (**Options → General → CLOUD_API_KEYS**); the phone loads them from the host via **`POST /tools/cloud-secrets`** (only while the PC app is running and reachable on the LAN).
-- **Sync** — long-term memory and reminders can merge between desktop and LAN web through **`GET /tools/user-data`** / **`POST /tools/user-data-sync`** on that same host.
-- **Mobile limits** — speech-to-text is hidden on phone layouts where recording is unreliable; use desktop for STT.
-
-Firewall: allow inbound TCP **8765** on the PC if the phone cannot connect.
 
 ---
 
@@ -183,7 +160,7 @@ Cross-chat memory is stored locally in IndexedDB:
 - Saved when you ask the agent to remember something
 - Edit or delete anytime in **Options → General**
 - Optional **USE_LONG_MEMORY_GLOBALLY** to include memories in every chat
-- **Desktop ↔ LAN sync** — when phone and PC use the same tools host, entries can merge via the user-data API (see **LAN & phone**)
+- **Desktop ↔ LAN sync** — when phone and PC use the same tools host, entries can merge via the user-data API (see **LAN web UI** below)
 
 **Reminders** also live locally, with optional **desktop notifications** (Windows toast when due). Reminders participate in the same LAN sync as long memory.
 
@@ -228,6 +205,27 @@ Other UX features:
 - **Speech-to-Text** — OpenRouter Whisper (push-to-talk; inexpensive per recording)
 
 Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for typical costs.
+
+---
+
+## LAN web UI — chat from your phone
+
+The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces). On your phone or tablet, open:
+
+`http://<host>:8765`
+
+Use the PC’s **LAN IPv4** on home Wi‑Fi (`ipconfig` — e.g. `192.168.1.42`), or the machine’s **Tailscale** IP / MagicDNS name when you are away from home (install Tailscale on both the PC and the phone, same tailnet). Similar mesh VPNs (**ZeroTier**, **WireGuard**, etc.) work the same way: reach the PC on a private address, then use port **8765**.
+
+> **Not Tailwind CSS** — that is the UI framework in the repo. For remote phone access, people usually mean **Tailscale** (or another VPN), not the CSS toolkit.
+
+> **Security:** the web UI is for **your** machines on a trusted network. Do not port-forward **8765** to the public internet without extra protection — there is no login on the LAN build. Prefer Tailscale (or similar) over raw exposure.
+
+- **Web chat UI** — same agent, tools, and sessions as the desktop app, served from the bundled server on your PC.
+- **API keys on the phone** — the browser build does not embed secrets. Configure keys once on the **desktop** (**Options → General → CLOUD_API_KEYS**); the phone loads them from the host via **`POST /tools/cloud-secrets`** (only while the PC app is running and reachable).
+- **Sync** — long-term memory and reminders can merge between desktop and LAN web through **`GET /tools/user-data`** / **`POST /tools/user-data-sync`** on that same host.
+- **Mobile limits** — speech-to-text is hidden on phone layouts where recording is unreliable; use desktop for STT.
+
+Firewall: allow inbound TCP **8765** on the PC if the phone cannot connect.
 
 ---
 
