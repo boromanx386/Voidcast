@@ -56,6 +56,7 @@ import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import {
   deriveSearchQuery,
   FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
+  FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
   getLastUserText,
   pickFirstHttpUrl,
   shouldForceWebSearchOnRoundZero,
@@ -197,6 +198,62 @@ function resolvePdfImageUrls(args: Record<string, unknown>): string[] {
     for (const part of raw.split(/[\s,]+/)) push(part)
   }
   return [...new Set(out)]
+}
+
+/** Local paths from image_paths, generated_image_indexes, or mistaken image_urls entries. */
+function resolvePdfImagePaths(
+  args: Record<string, unknown>,
+  ctx: { userImages?: string[]; userImageMimes?: string[]; userImagePaths?: string[] },
+): { paths: string[]; extraImages: { base64: string; mime: string }[] } {
+  const paths: string[] = []
+  const extraImages: { base64: string; mime: string }[] = []
+
+  const pushPath = (p: string) => {
+    const s = p.trim()
+    if (!s || /^https?:\/\//i.test(s)) return
+    paths.push(s)
+  }
+
+  for (const p of parseImagePaths(args.image_paths ?? args.imagePaths)) {
+    pushPath(p)
+  }
+
+  const indexes = parseImageIndexes(args.generated_image_indexes ?? args.generatedImageIndexes)
+  for (const idx of indexes) {
+    const path = (ctx.userImagePaths?.[idx - 1] || '').trim()
+    if (path) {
+      pushPath(path)
+      continue
+    }
+    const raw = (ctx.userImages?.[idx - 1] || '').trim()
+    if (!raw) continue
+    const mimeRaw = (ctx.userImageMimes?.[idx - 1] || 'image/png').trim().toLowerCase()
+    const mime = /^image\/[a-z0-9.+-]+$/.test(mimeRaw) ? mimeRaw : 'image/png'
+    const base64 = raw.startsWith('data:image/')
+      ? raw.replace(/^data:image\/[a-z0-9.+-]+;base64,/i, '').replace(/\s+/g, '')
+      : raw.replace(/\s+/g, '')
+    if (base64) extraImages.push({ base64, mime })
+  }
+
+  const rawUrls = args.image_urls ?? args.imageUrls
+  const pushMaybePath = (v: unknown) => {
+    if (typeof v !== 'string') return
+    const s = v.trim()
+    if (!s || /^https?:\/\//i.test(s)) return
+    if (/^[a-zA-Z]:\\/.test(s) || s.startsWith('\\\\') || s.startsWith('/')) {
+      pushPath(s)
+    }
+  }
+  if (Array.isArray(rawUrls)) {
+    for (const item of rawUrls) pushMaybePath(item)
+  } else if (typeof rawUrls === 'string') {
+    for (const part of rawUrls.split(/[\n,]+/)) pushMaybePath(part)
+  }
+
+  return {
+    paths: [...new Set(paths)],
+    extraImages,
+  }
 }
 
 function normalizeToolCallsForReplay(calls: OllamaToolCall[]): OllamaToolCall[] {
@@ -657,6 +714,15 @@ export async function executeToolCall(
       userImageMimes: ctx.userImageMimes,
     })
     const imageUrls = resolvePdfImageUrls(args as Record<string, unknown>)
+    const { paths: imagePaths, extraImages } = resolvePdfImagePaths(
+      args as Record<string, unknown>,
+      {
+        userImages: ctx.userImages,
+        userImageMimes: ctx.userImageMimes,
+        userImagePaths: ctx.userImagePaths,
+      },
+    )
+    const allImages = [...images, ...extraImages]
     try {
       return await invokeSavePdf({
         ttsBaseUrl: ctx.ttsBaseUrl,
@@ -664,8 +730,9 @@ export async function executeToolCall(
         title,
         filename,
         outputDir: dir,
-        images: images.length ? images : undefined,
+        images: allImages.length ? allImages : undefined,
         imageUrls: imageUrls.length ? imageUrls : undefined,
+        imagePaths: imagePaths.length ? imagePaths : undefined,
         signal: ctx.signal,
       })
     } catch (e) {
@@ -1527,6 +1594,15 @@ export async function runOllamaChatWithTools(
       messages.push({
         role: 'user',
         content: FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
+      })
+    },
+    guardFalseMusicClaims: params.toolsEnabled.runwareMusic,
+    guardFalseMusicClaimsUserText: rawUserText,
+    maxFalseMusicClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
+    appendFalseMusicClaimReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
       })
     },
     appendRuntimeRecalledImages: (messages, recalled) => {

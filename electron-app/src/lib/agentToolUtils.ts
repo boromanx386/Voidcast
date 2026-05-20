@@ -141,6 +141,52 @@ export function shouldGuardFalseImageClaims(
   return assistantClaimsImageWithoutTool(assistantText)
 }
 
+const ASSISTANT_AUDIO_URL_LINE_RE = /^\s*audio_url:\s*https?:\/\//im
+const ASSISTANT_MUSIC_DELIVERY_RE =
+  /\b(here(?:'s| is)|evo (?:je|ti)?)\s+(?:your\s+|the\s+)?(?:(?:generated|created)\s+)?(?:song|music|track|beat|audio|pesm[aue])\b/i
+const ASSISTANT_MUSIC_ACTION_CLAIM_RE =
+  /\b(i(?:'ve| have)?\s+(?:generated|created|made|composed))\s+(?:a\s+)?(?:song|music|track|beat|audio|pesm[aue])\b/i
+
+const IMAGE_USER_REQUEST_RE =
+  /\b(generate_image|edit_image|draw|slika|picture|chart|diagram|infographic|image)\b/i
+
+export function isImageFocusedUserText(text: string): boolean {
+  const t = text.trim()
+  if (!t) return false
+  if (isMusicFocusedUserText(t)) return false
+  return IMAGE_USER_REQUEST_RE.test(t)
+}
+
+/**
+ * True when assistant text looks like it delivered Runware music (URL or claim)
+ * without a generate_music_runware tool result in this turn.
+ */
+export function assistantClaimsMusicWithoutTool(text: string): boolean {
+  const t = text.trim()
+  if (!t) return false
+  if (ASSISTANT_AUDIO_URL_LINE_RE.test(t)) return true
+  if (ASSISTANT_MUSIC_ACTION_CLAIM_RE.test(t) && /https?:\/\//.test(t)) return true
+  if (ASSISTANT_MUSIC_DELIVERY_RE.test(t) && /https?:\/\//.test(t)) return true
+  return false
+}
+
+/** Skip music guard when the user asked for an image, not audio. */
+export function shouldGuardFalseMusicClaims(
+  assistantText: string,
+  rawUserText: string,
+): boolean {
+  if (isImageFocusedUserText(rawUserText)) return false
+  return assistantClaimsMusicWithoutTool(assistantText)
+}
+
+/** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */
+export const FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE = [
+  '[Internal — not for the user] Your last message described or linked music/audio without calling generate_music_runware.',
+  'Fix it now: call generate_music_runware immediately using the user’s original request, then wait for the tool result.',
+  'In your next user-visible reply: short caption only (title/mood of the track). Do NOT paste audio_url lines, apologize, mention mistakes, fake links, tools, or reprompts.',
+  'If you cannot run the tool, say briefly that music generation is unavailable — no extra explanation.',
+].join(' ')
+
 /** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */
 export const FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE = [
   '[Internal — not for the user] Your last message described or linked an image without calling generate_image or edit_image_runware.',

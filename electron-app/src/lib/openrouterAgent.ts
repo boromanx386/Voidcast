@@ -11,7 +11,7 @@ import {
 import { executeToolCall } from '@/lib/agentToolExecutor'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
-import { FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, parseToolArguments } from '@/lib/agentToolUtils'
+import { FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE, parseToolArguments } from '@/lib/agentToolUtils'
 
 const MAX_TOOL_ROUNDS = 18
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
@@ -124,6 +124,15 @@ export async function runOpenRouterChatWithTools(
       messages.push({
         role: 'user',
         content: FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
+      })
+    },
+    guardFalseMusicClaims: params.toolsEnabled.runwareMusic,
+    guardFalseMusicClaimsUserText: params.rawUserText ?? '',
+    maxFalseMusicClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
+    appendFalseMusicClaimReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
       })
     },
     appendRuntimeRecalledImages: (messages, recalled) => {

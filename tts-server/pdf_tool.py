@@ -1052,6 +1052,77 @@ def _fetch_url_images(
     return decoded, errors
 
 
+_PATH_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
+
+
+def _mime_from_path(path: Path) -> str | None:
+    ext = path.suffix.lower()
+    if ext in {".png"}:
+        return "image/png"
+    if ext in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if ext == ".webp":
+        return "image/webp"
+    if ext == ".gif":
+        return "image/gif"
+    if ext == ".bmp":
+        return "image/bmp"
+    return None
+
+
+def _read_path_images(
+    paths: list[str],
+    running_total: int,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Read local image files (session catalog / generatedImagePaths) into bytes."""
+
+    decoded: list[dict[str, Any]] = []
+    errors: list[str] = []
+    total = running_total
+
+    for raw in paths[:MAX_URL_IMAGES]:
+        p = str(raw or "").strip()
+        if not p:
+            continue
+        try:
+            path = Path(p).expanduser().resolve()
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{p!r}: invalid path ({e})")
+            continue
+        if not path.is_file():
+            errors.append(f"{p!r}: not a file")
+            continue
+        if path.suffix.lower() not in _PATH_IMAGE_EXT:
+            errors.append(f"{p!r}: unsupported extension (PNG/JPEG/WebP/GIF/BMP only)")
+            continue
+        mime = _mime_from_path(path)
+        if not mime:
+            errors.append(f"{p!r}: could not determine image type")
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError as e:
+            errors.append(f"{p!r}: read failed ({e})")
+            continue
+        if not data:
+            errors.append(f"{p!r}: empty file")
+            continue
+        total += len(data)
+        if total > MAX_IMAGES_TOTAL_BYTES:
+            errors.append(
+                f"{p!r}: would exceed image payload limit ({MAX_IMAGES_TOTAL_BYTES} bytes)"
+            )
+            break
+        decoded.append({"bytes": data, "mime": mime})
+
+    if len(paths) > MAX_URL_IMAGES:
+        errors.append(
+            f"only the first {MAX_URL_IMAGES} local paths were read (got {len(paths)})"
+        )
+
+    return decoded, errors
+
+
 def _decode_payload_images(
     incoming: list[dict[str, Any]] | None,
 ) -> tuple[list[dict[str, Any]], str | None]:
@@ -1163,6 +1234,7 @@ def save_pdf_to_folder(
     filename: str | None = None,
     images: list[dict[str, Any]] | None = None,
     image_urls: list[str] | None = None,
+    image_paths: list[str] | None = None,
 ) -> SavePdfResult:
     """Render Markdown-lite ``content`` and write a PDF inside ``output_dir``.
 
@@ -1208,6 +1280,15 @@ def save_pdf_to_folder(
     if err is not None:
         return {"ok": False, "text": err}
 
+    path_errors: list[str] = []
+    if image_paths:
+        running = sum(len(item.get("bytes", b"")) for item in decoded)
+        path_decoded, path_errors = _read_path_images(image_paths, running)
+        decoded.extend(path_decoded)
+        if path_errors:
+            for msg in path_errors:
+                logger.info("save_pdf path skipped: %s", msg)
+
     url_decoded: list[dict[str, Any]] = []
     url_errors: list[str] = []
     if image_urls:
@@ -1235,11 +1316,15 @@ def save_pdf_to_folder(
         return {"ok": False, "text": str(e)}
 
     extra = ""
-    total_requested = len(decoded) + len(url_decoded) + len(url_errors)
+    total_requested = len(decoded) + len(url_decoded) + len(url_errors) + len(path_errors)
     if total_requested > 0:
         extra = f"\nEmbedded {drawn} image(s)"
         if skipped > 0:
             extra += f" ({skipped} skipped as unsupported/corrupt)"
+        if path_errors:
+            extra += f"; {len(path_errors)} local path(s) failed: " + "; ".join(path_errors[:3])
+            if len(path_errors) > 3:
+                extra += f" (+{len(path_errors) - 3} more)"
         if url_errors:
             extra += f"; {len(url_errors)} URL(s) failed: " + "; ".join(url_errors[:3])
             if len(url_errors) > 3:

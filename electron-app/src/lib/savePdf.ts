@@ -20,6 +20,8 @@ export type SavePdfOptions = {
    * `image_url:` line returned by `generate_image` / `edit_image_runware`).
    */
   imageUrls?: string[]
+  /** Absolute local image paths (read on the tools server host). */
+  imagePaths?: string[]
   signal?: AbortSignal
 }
 
@@ -45,6 +47,10 @@ export async function invokeSavePdf(opts: SavePdfOptions): Promise<string> {
     ?.map((u) => (typeof u === 'string' ? u.trim() : ''))
     .filter((u) => /^https?:\/\//i.test(u))
 
+  const cleanPaths = opts.imagePaths
+    ?.map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter(Boolean)
+
   const body = {
     content: opts.content,
     title: opts.title?.trim() || undefined,
@@ -52,6 +58,7 @@ export async function invokeSavePdf(opts: SavePdfOptions): Promise<string> {
     output_dir: opts.outputDir,
     images: opts.images?.length ? opts.images : undefined,
     image_urls: cleanUrls?.length ? cleanUrls : undefined,
+    image_paths: cleanPaths?.length ? cleanPaths : undefined,
   }
 
   let res: Response

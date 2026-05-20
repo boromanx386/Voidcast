@@ -1,6 +1,6 @@
 import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
-import { shouldGuardFalseImageClaims } from '@/lib/agentToolUtils'
+import { shouldGuardFalseImageClaims, shouldGuardFalseMusicClaims } from '@/lib/agentToolUtils'
 
 /** Strip all http(s) URLs from message content so the model can't recycle
  *  hallucinated URLs from previous rounds when it skips tool calls. */
@@ -59,6 +59,11 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   guardFalseImageClaimsUserText?: string
   appendFalseImageClaimReprompt?: (messages: TMessage[]) => void
   maxFalseImageClaimReprompts?: number
+  /** When true, reprompt if the model claims music/audio without calling generate_music_runware. */
+  guardFalseMusicClaims?: boolean
+  guardFalseMusicClaimsUserText?: string
+  appendFalseMusicClaimReprompt?: (messages: TMessage[]) => void
+  maxFalseMusicClaimReprompts?: number
   appendRuntimeRecalledImages?: (
     messages: TMessage[],
     recalled: Array<{ base64: string; mime: string }>,
@@ -135,9 +140,12 @@ export async function runSharedToolLoop<
   let lastUsage: OllamaChatUsage | undefined
   let requiredToolRepromptCount = 0
   let falseImageClaimRepromptCount = 0
+  let falseMusicClaimRepromptCount = 0
   let hasExecutedToolInTurn = false
   let hasExecutedImageToolInTurn = false
+  let hasExecutedMusicToolInTurn = false
   const maxFalseImageClaimReprompts = params.maxFalseImageClaimReprompts ?? 2
+  const maxFalseMusicClaimReprompts = params.maxFalseMusicClaimReprompts ?? 2
 
   for (let round = 0; round < params.maxToolRounds; round++) {
     if (params.signal?.aborted) throw abortedError()
@@ -232,6 +240,27 @@ export async function runSharedToolLoop<
       }
 
       if (
+        params.guardFalseMusicClaims &&
+        params.appendFalseMusicClaimReprompt &&
+        !hasExecutedMusicToolInTurn &&
+        shouldGuardFalseMusicClaims(assistantText, params.guardFalseMusicClaimsUserText ?? '') &&
+        falseMusicClaimRepromptCount < maxFalseMusicClaimReprompts
+      ) {
+        falseMusicClaimRepromptCount += 1
+        params.appendAssistantWithToolCalls({
+          messages,
+          content: assistantText,
+          thinking,
+          toolCalls: [],
+        })
+        params.appendFalseMusicClaimReprompt(messages)
+        lastAssistantText = ''
+        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
+        clearStreamedAssistantContent(params)
+        continue
+      }
+
+      if (
         params.mustCallTool &&
         !hasExecutedToolInTurn &&
         requiredToolRepromptCount < params.maxRequiredToolReprompts
@@ -272,6 +301,9 @@ export async function runSharedToolLoop<
       hasExecutedToolInTurn = true
       if (shared.name === 'generate_image' || shared.name === 'edit_image_runware') {
         hasExecutedImageToolInTurn = true
+      }
+      if (shared.name === 'generate_music_runware') {
+        hasExecutedMusicToolInTurn = true
       }
       params.onToolResult?.({
         name: shared.name,

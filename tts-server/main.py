@@ -189,6 +189,8 @@ class PdfRequest(BaseModel):
     # Public http(s) image URLs (PNG/JPEG/WebP). Used to embed AI-generated
     # images (e.g. Runware `image_url` from a prior `generate_image` call).
     image_urls: list[str] | None = Field(default=None, max_length=16)
+    # Absolute local paths (generatedImagePaths / session catalog). Read on the tools server host.
+    image_paths: list[str] | None = Field(default=None, max_length=16)
 
 
 class RunwareProxyRequest(BaseModel):
@@ -647,6 +649,11 @@ async def tools_pdf(req: PdfRequest):
         if req.image_urls
         else None
     )
+    image_paths_payload: list[str] | None = (
+        [p for p in req.image_paths if isinstance(p, str) and p.strip()]
+        if req.image_paths
+        else None
+    )
 
     try:
         result = await asyncio.to_thread(
@@ -657,6 +664,7 @@ async def tools_pdf(req: PdfRequest):
             filename=req.filename,
             images=images_payload,
             image_urls=image_urls_payload,
+            image_paths=image_paths_payload,
         )
     except Exception as e:
         logger.exception("tools/pdf failed: %s", e)

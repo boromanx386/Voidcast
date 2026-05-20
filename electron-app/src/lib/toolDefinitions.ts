@@ -74,7 +74,7 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
   function: {
     name: 'save_pdf',
     description:
-      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images from a prior generate_image/edit_image_runware tool call in this same conversation, pass their public CDN URL(s) in image_urls — the server fetches them on your behalf. PNG/JPEG/WebP supported. Image placement: by default any image not referenced inline appears after the body text in order. To place an image at a specific spot inside the body, put a standalone markdown image line `![alt](attached:N)` (for the N-th attached image, 0-based) or `![alt](url:N)` (for the N-th image_urls entry, 0-based) on its own line — that exact position in the PDF will receive the image.',
+      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images saved in this chat session, pass absolute local paths in image_paths and/or 1-based session catalog indexes in generated_image_indexes (same indexes as image_recall — paths from the catalog block are preferred); (c) only if no local path exists, use public http(s) CDN URLs in image_urls. PNG/JPEG/WebP supported. Image placement: by default any image not referenced inline appears after the body text in order. To place an image at a specific spot inside the body, put a standalone markdown image line `![alt](attached:N)` (for the N-th attached/local-path image in combined order, 0-based) or `![alt](url:N)` (for the N-th image_urls entry, 0-based) on its own line — that exact position in the PDF will receive the image.',
     parameters: {
       type: 'object',
       properties: {
@@ -106,7 +106,18 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
           type: 'array',
           items: { type: 'string' },
           description:
-            'Optional list of public http(s) image URLs to fetch and embed (PNG/JPEG/WebP). Use this when you want to include an image produced by generate_image or edit_image_runware in the same chat — copy its `image_url:` value into this array. Up to 8 URLs; the tools server enforces size and SSRF limits.',
+            'Optional public http(s) image URLs to fetch and embed (PNG/JPEG/WebP). Fallback when no local path exists for a generated image. Prefer image_paths or generated_image_indexes for Runware outputs saved locally.',
+        },
+        image_paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Optional absolute local file paths to embed (PNG/JPEG/WebP). Use paths from the session image catalog for generate_image / edit_image_runware outputs (e.g. Q:\\...\\voidcast\\....jpg). The tools server reads them on the host PC.',
+        },
+        generated_image_indexes: {
+          type: 'string',
+          description:
+            'Optional 1-based session catalog indexes for generated/attached images to embed (same numbering as image_recall). Example: "1" for the most recent catalog image. Resolves to local path when available.',
         },
       },
       required: ['content'],
@@ -330,7 +341,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'generate_music_runware',
     description:
-      'MANDATORY: Generate music/audio with the Runware ACE-Step music model from a text prompt. CRITICAL: When the user asks to create/make/generate a song, beat, background music, jingle, soundtrack, or vocals, you MUST call this tool BEFORE responding with any text. Do NOT describe what music you would create - actually call the tool. Do NOT say "Here is the music" or "I created the song" without calling this tool first. Never claim music was generated unless this tool returned a real result with audio_url; if generation fails, report the tool error. Audio engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) are controlled by the user in Options - never include them as arguments here.',
+      'MANDATORY: Generate music/audio with the Runware ACE-Step music model from a text prompt. CRITICAL: When the user asks to create/make/generate a song, beat, background music, jingle, soundtrack, or vocals, you MUST call this tool BEFORE responding with any text. Do NOT describe what music you would create - actually call the tool. Do NOT say "Here is the music" or "I created the song" without calling this tool first. Never claim music was generated unless this tool returned a real result with audio_url; if generation fails, report the tool error. After success, give a short caption only — do NOT paste audio_url or http(s) links in chat (the app shows the player). Audio engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) are controlled by the user in Options - never include them as arguments here.',
     parameters: {
       type: 'object',
       properties: {

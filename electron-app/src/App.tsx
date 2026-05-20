@@ -564,6 +564,18 @@ function stripRunwareAudioUrlLines(text: string): string {
   return text.replace(RUNWARE_AUDIO_URL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
+function stripGeneratedAudioLinkArtifacts(text: string, urls: string[]): string {
+  let out = stripRunwareAudioUrlLines(text)
+  for (const url of urls) {
+    const esc = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const mdLink = new RegExp(`\\[([^\\]]+)\\]\\(${esc}\\)`, 'g')
+    const plain = new RegExp(esc, 'g')
+    out = out.replace(mdLink, '$1')
+    out = out.replace(plain, '')
+  }
+  return out.replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function stripGeneratedImageLinkArtifacts(text: string, urls: string[]): string {
   if (!text.trim()) return text
   let out = text
@@ -1286,12 +1298,22 @@ export default function App() {
         ...(m.generatedImageUrls || []),
         ...(assistantGeneratedImages[m.id] || []),
       ])
+      const trustedAudioUrls = dedupeNonEmpty([...(assistantGeneratedAudios[m.id] || [])])
       const markdownContent = desktopRuntime
-        ? stripGeneratedImageLinkArtifacts(
-            stripRunwareAudioUrlLines(m.content),
-            trustedImageUrls,
+        ? stripGeneratedAudioLinkArtifacts(
+            stripGeneratedImageLinkArtifacts(
+              m.content,
+              trustedImageUrls,
+            ),
+            trustedAudioUrls,
           )
-        : stripRunwareAudioUrlLines(m.content)
+        : stripGeneratedAudioLinkArtifacts(
+            stripGeneratedImageLinkArtifacts(
+              stripRunwareAudioUrlLines(m.content),
+              trustedImageUrls,
+            ),
+            trustedAudioUrls,
+          )
       const markdownImageUrls = new Set(extractMarkdownImageUrls(m.content))
       const inlineImageUrls = trustedImageUrls.filter((u) => !markdownImageUrls.has(u))
       const localImagePaths = desktopRuntime
@@ -1303,7 +1325,7 @@ export default function App() {
       out[m.id] = { markdownContent, inlineImageUrls, localImagePaths }
     }
     return out
-  }, [messages, assistantGeneratedImages, assistantSavedImagePaths, desktopRuntime])
+  }, [messages, assistantGeneratedImages, assistantGeneratedAudios, assistantSavedImagePaths, desktopRuntime])
 
   useEffect(() => {
     const readImageFile = window.voidcast?.readImageFile
@@ -1954,11 +1976,12 @@ export default function App() {
       const visible = getAgentVisibleSettings(settings)
       const settingsHint = [
         'You have an update_settings tool for app configuration.',
-        'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
+        'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
         `Current llmSystemPrompt: ${JSON.stringify(String(visible.llmSystemPrompt ?? ''))}`,
         `Current llmNumCtx: ${String(visible.llmNumCtx ?? '')}`,
         `Current llmTemperature: ${String(visible.llmTemperature ?? '')}`,
         `Current uiTheme: ${String(visible.uiTheme ?? '')}`,
+        `Current autoVoice: ${String(visible.autoVoice ?? '')}`,
         `Current runwareWidth: ${String(visible.runwareWidth ?? '')}`,
         `Current runwareHeight: ${String(visible.runwareHeight ?? '')}`,
         `Current runwareImageModel: ${String(visible.runwareImageModel ?? '')}`,
@@ -3321,7 +3344,11 @@ export default function App() {
                   <div className="min-w-0 space-y-3">
                     {(() => {
                       const cached = assistantRenderCache[m.id]
-                      const markdownContent = cached?.markdownContent || stripRunwareAudioUrlLines(m.content)
+                      const trustedAudio = dedupeNonEmpty([...(assistantGeneratedAudios[m.id] || [])])
+                      const markdownContent = cached?.markdownContent || stripGeneratedAudioLinkArtifacts(
+                        stripRunwareAudioUrlLines(m.content),
+                        trustedAudio,
+                      )
                       const inlineImageUrls = cached?.inlineImageUrls || []
                       const localImagePaths = cached?.localImagePaths || []
                       const renderItems = localImagePaths.length > 0
@@ -3486,12 +3513,10 @@ export default function App() {
                       )
                     })()}
                     {(() => {
-                      const inlineAudioUrls = Array.from(
-                        new Set([
-                          ...(assistantGeneratedAudios[m.id] || []),
-                          ...extractRunwareAudioUrls(m.content),
-                        ]),
-                      )
+                      // Only URLs confirmed by a real generate_music_runware tool result.
+                      const inlineAudioUrls = dedupeNonEmpty([
+                        ...(assistantGeneratedAudios[m.id] || []),
+                      ])
                       return inlineAudioUrls.length > 0 ? (
                         <div className="space-y-2">
                           {inlineAudioUrls.map((url, i) => {
