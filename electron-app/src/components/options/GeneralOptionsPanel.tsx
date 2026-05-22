@@ -245,6 +245,27 @@ export function GeneralOptionsPanel({
         </p>
       </div>
 
+      <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-neon-cyan"
+            checked={settings.autoSaveChat}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, autoSaveChat: e.target.checked }))
+            }
+          />
+          <span>
+            <span className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
+              AUTO_SAVE_CHAT
+            </span>
+            <span className="mt-1 block text-xs text-void-dim">
+              Automatically save chat sessions as you go. Turn off to show a manual save button in the header.
+            </span>
+          </span>
+        </label>
+      </div>
+
       <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded space-y-3">
         <p className="flex items-center gap-2 text-xs font-mono text-neon-green uppercase tracking-wider">
           <span className="mr-1">♫</span>

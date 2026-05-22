@@ -200,6 +200,8 @@ export type AppSettings = {
   runwareAutoSaveMusic: boolean
   /** If true, app should check updates automatically on startup (desktop). */
   autoUpdate: boolean
+  /** If true, chat sessions are auto-saved. When off, a manual save button appears. */
+  autoSaveChat: boolean
   /** If true, the renderer fires a desktop notification when a scheduled reminder becomes due. */
   reminderNotificationsEnabled: boolean
   /** If true, play the user-selected reply/error sound files on chat events. */
@@ -350,6 +352,7 @@ const defaults: AppSettings = {
   runwareMusicOutputDir: '',
   runwareAutoSaveMusic: false,
   autoUpdate: false,
+  autoSaveChat: true,
   reminderNotificationsEnabled: true,
   notificationSoundsEnabled: true,
   notificationSoundVolume: 0.8,

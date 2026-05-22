@@ -1276,7 +1276,9 @@ export default function App() {
   )
   const activeSessionUseLongMemory = settings.longMemoryDefaultEnabled
   const canStop = busy
-  const canSaveSession = messages.length > 0 && !busy && !activeSessionId
+  const canSaveSession = settings.autoSaveChat
+    ? messages.length > 0 && !busy && !activeSessionId
+    : messages.length > 0 && !busy && sessionDirty
   const todaySessions = useMemo(() => sessions.filter((s) => isToday(s.updatedAt)), [sessions])
   const olderSessions = useMemo(() => sessions.filter((s) => !isToday(s.updatedAt)), [sessions])
   const desktopRuntime = isElectron()
@@ -3065,7 +3067,7 @@ export default function App() {
         {/* Menu Button */}
         <button
           type="button"
-          aria-label="Menu"
+          aria-label="Open sessions menu"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((v) => !v)}
           className="group relative flex h-8 w-8 shrink-0 items-center justify-center
@@ -3073,10 +3075,11 @@ export default function App() {
             transition-all duration-300 hover:shadow-[0_0_12px_rgba(var(--ui-accent-rgb),0.25)]"
           style={{ clipPath: 'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)' }}
         >
-          <span className="flex flex-col gap-1">
-            <span className="h-0.5 w-4 bg-void-light transition-colors group-hover:bg-neon-cyan" />
-            <span className="h-0.5 w-4 bg-void-light transition-colors group-hover:bg-neon-cyan" />
-            <span className="h-0.5 w-4 bg-void-light transition-colors group-hover:bg-neon-cyan" />
+          <span
+            className="font-mono text-lg text-neon-cyan transition-colors group-hover:text-neon-cyan"
+            aria-hidden
+          >
+            ⌘
           </span>
         </button>
 
@@ -4084,9 +4087,8 @@ export default function App() {
           
           {/* Input hints (attachments + unsaved only; model list lives in LLM options) */}
           {(pendingImages.length > 0 ||
-            pendingFiles.length > 0 ||
-            sessionDirty) && (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
+            pendingFiles.length > 0) && (
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
               <span>
                 {pendingImages.length > 0 && (
                   <span className="text-neon-cyan/70">
@@ -4106,9 +4108,7 @@ export default function App() {
                   </span>
                 )}
               </span>
-              {sessionDirty && (
-                <span className="text-neon-yellow/70 animate-pulse">UNSAVED</span>
-              )}
+              
             </div>
           )}
         </div>
