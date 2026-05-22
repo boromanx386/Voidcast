@@ -38,6 +38,8 @@ import {
   invokeWriteCodingFile,
 } from '@/lib/codingTools'
 import { loadProjectImageRecalls, resolveInsideCodingProject } from '@/lib/imageProjectRecall'
+import { describeImagesWithSubAgent, formatSubAgentResultsForAgent } from '@/lib/subAgent'
+import type { SubAgentConfig } from '@/lib/settings'
 import type {
   OllamaApiMessage,
   OllamaChatUsage,
@@ -599,6 +601,12 @@ export async function executeToolCall(
     codingProjectPath?: string
     /** Latest user message text for override-policy checks. */
     userText?: string
+    /** Sub-agent config for image_recall delegation. */
+    subAgent?: SubAgentConfig
+    /** Keys for sub-agent API calls (from main app settings). */
+    ollamaBaseUrl?: string
+    openrouterBaseUrl?: string
+    openrouterApiKey?: string
   },
 ): Promise<string> {
   const args =
@@ -902,6 +910,55 @@ export async function executeToolCall(
       const detail = recall.errors.length ? ` ${recall.errors.join(' ')}` : ''
       return `Error: image_recall could not resolve any requested images. Available catalog image count: ${max}.${detail}`
     }
+
+    // ── Sub-agent (Predlog 1): describe images via separate model ──
+    const subAgentConfig = ctx.subAgent
+    const useSubAgent =
+      subAgentConfig?.enabled &&
+      recall.purpose !== 'edit' && // edit needs actual base64
+      recall.recalled.length > 0
+
+    if (useSubAgent) {
+      const descriptions = await describeImagesWithSubAgent(
+        recall.recalled.map((img) => ({
+          base64: img.base64,
+          mime: img.mime,
+          path: img.path,
+          index: img.index,
+        })),
+        subAgentConfig,
+        {
+          ollamaBaseUrl: ctx.ollamaBaseUrl || 'http://localhost:11434',
+          openrouterBaseUrl: ctx.openrouterBaseUrl || 'https://openrouter.ai/api/v1',
+          openrouterApiKey: ctx.openrouterApiKey || '',
+        },
+        ctx.userText,
+        ctx.signal,
+      )
+      const formatted = formatSubAgentResultsForAgent(descriptions)
+      const hasCatalog = recall.recalled.some((x) => x.recallSource === 'catalog')
+      const hasProject = recall.recalled.some((x) => x.recallSource === 'project_file')
+      const source: ImageRecallToolResult['source'] =
+        hasCatalog && hasProject ? 'mixed' : hasProject ? 'project_file' : 'internal_catalog'
+      const payload: ImageRecallToolResult = {
+        ok: true,
+        source,
+        purpose: recall.purpose,
+        recalled_images: recall.recalled.map((x) => ({
+          index: x.index,
+          mime: x.mime,
+          path: x.path,
+          source: x.recallSource,
+        })),
+        ...(recall.errors.length > 0 ? { errors: recall.errors } : {}),
+      }
+      const subNote = formatted
+        ? `\n\n${formatted}`
+        : '\n\n[Sub-agent returned no descriptions.]'
+      return JSON.stringify(payload) + subNote
+    }
+
+    // ── Standard path: return metadata (base64 handled by collectRecalledImages) ──
     const hasCatalog = recall.recalled.some((x) => x.recallSource === 'catalog')
     const hasProject = recall.recalled.some((x) => x.recallSource === 'project_file')
     const source: ImageRecallToolResult['source'] =
@@ -1559,6 +1616,12 @@ export type RunChatWithToolsParams = {
   codingProjectPath?: string
   /** User-typed message only (no catalog/file hint blocks). Used for forced web_search / scrape heuristics. */
   rawUserText?: string
+  /** Sub-agent config for image_recall delegation. */
+  subAgent?: SubAgentConfig
+  /** Keys for sub-agent API calls (from main app settings). */
+  ollamaBaseUrlForSubAgent?: string
+  openrouterBaseUrlForSubAgent?: string
+  openrouterApiKeyForSubAgent?: string
 }
 
 /**
@@ -1658,6 +1721,9 @@ export async function runOllamaChatWithTools(
     },
     collectRecalledImages: async ({ name, argsRaw }) => {
       if (name !== 'image_recall') return []
+      // When vision sub-agent is active, descriptions are already in the tool result —
+      // do NOT push base64 into messages (main model can't use them).
+      if (params.subAgent?.enabled) return []
       const argsObj = argumentsStringToObject(argsRaw)
       const recall = await resolveImageRecallRequest(
         argsObj,
@@ -1728,6 +1794,10 @@ export async function runOllamaChatWithTools(
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
         userText: rawUserText,
+        subAgent: params.subAgent,
+        ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
+        openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
+        openrouterApiKey: params.openrouterApiKeyForSubAgent,
       }),
     parseArgsForToolResult: argumentsStringToObject,
     onDelta: params.onDelta,

@@ -21,6 +21,7 @@ import { RunwareOptionsPanel } from './components/options/RunwareOptionsPanel'
 import { RunwareMusicOptionsPanel } from '@/components/options/RunwareMusicOptionsPanel'
 import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
+import { SubAgentOptionsPanel } from '@/components/options/SubAgentOptionsPanel'
 import { CodingPanel } from '@/components/CodingPanel'
 import {
   buildOllamaMessages,
@@ -142,7 +143,7 @@ import type { LongMemoryCandidate, LongMemoryItem } from '@/types/longMemory'
 import type { TerminalLine } from '@/types/coding'
 
 type Screen = 'chat' | 'options'
-type OptionsTab = 'general' | 'llm' | 'runware' | 'runwareMusic' | 'tts' | 'tools'
+type OptionsTab = 'general' | 'llm' | 'runware' | 'runwareMusic' | 'tts' | 'tools' | 'subAgent'
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -1222,7 +1223,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (screen === 'options' && optionsTab === 'llm') void loadModels()
+    if (screen === 'options' && (optionsTab === 'llm' || optionsTab === 'subAgent')) void loadModels()
   }, [screen, optionsTab, loadModels])
 
   // Save/restore chat scroll when switching between chat ↔ options.
@@ -1869,8 +1870,11 @@ export default function App() {
     const imagePaths = queued.map((q) => (q.path || '').trim())
     const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
     const hasCurrentAttach = imagesBase64.length > 0
+    // When sub-agent is enabled, NEVER send images to the main model —
+    // it delegates vision to the sub-agent via image_recall tool.
     const useVisionForCurrentMessage =
-      hasCurrentAttach || shouldUseVisionForText(text)
+      !settings.subAgent.enabled &&
+      (hasCurrentAttach || shouldUseVisionForText(text))
     const visionImagesForCurrentMessage = useVisionForCurrentMessage
       ? hasCurrentAttach
         ? imagesBase64
@@ -2100,6 +2104,10 @@ export default function App() {
           userImageMimes: toolImageCatalog.map((x) => x.mime),
           userImagePaths: toolImageCatalog.map((x) => x.path || ''),
           codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
+          subAgent: settings.subAgent,
+          ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
+          openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,
+          openrouterApiKeyForSubAgent: settings.openrouterApiKey,
           signal: ac.signal,
           onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
             ? (thinking: string) => {
@@ -2949,7 +2957,7 @@ export default function App() {
 
         {/* Tabs */}
         <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['general', 'llm', 'runware', 'runwareMusic', 'tts', 'tools'] as OptionsTab[]).map((tab) => (
+          {(['general', 'llm', 'runware', 'runwareMusic', 'tts', 'tools', 'subAgent'] as OptionsTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -2963,6 +2971,7 @@ export default function App() {
               {tab === 'runwareMusic' && '♫ MUSIC'}
               {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
               {tab === 'tools' && '⬡ TOOLS'}
+              {tab === 'subAgent' && '⬢ SUB'}
             </button>
           ))}
         </div>
@@ -3022,6 +3031,15 @@ export default function App() {
               <RunwareOptionsPanel settings={settings} setSettings={setSettings} />
             ) : optionsTab === 'runwareMusic' ? (
               <RunwareMusicOptionsPanel settings={settings} setSettings={setSettings} />
+            ) : optionsTab === 'subAgent' ? (
+              <SubAgentOptionsPanel
+                settings={settings}
+                setSettings={setSettings}
+                loadModels={loadModels}
+                modelsLoading={modelsLoading}
+                ollamaModels={ollamaModels}
+                modelsError={modelsError}
+              />
             ) : (
               <ToolsOptionsPanel
                 settings={settings}

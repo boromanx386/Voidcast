@@ -1,5 +1,5 @@
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
-import type { ToolsEnabled } from '@/lib/settings'
+import type { ToolsEnabled, SubAgentConfig } from '@/lib/settings'
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
 import type { RunwareImageConfig } from '@/lib/runware'
 import {
@@ -57,6 +57,12 @@ export type RunOpenRouterChatWithToolsParams = {
   codingProjectPath?: string
   /** Ignored by OpenRouter path (no round-0 synthetic web); kept for shared App call site. */
   rawUserText?: string
+  /** Sub-agent config for image_recall delegation. */
+  subAgent?: SubAgentConfig
+  /** Keys for sub-agent API calls (from main app settings). */
+  ollamaBaseUrlForSubAgent?: string
+  openrouterBaseUrlForSubAgent?: string
+  openrouterApiKeyForSubAgent?: string
 }
 
 export async function runOpenRouterChatWithTools(
@@ -147,6 +153,8 @@ export async function runOpenRouterChatWithTools(
     },
     collectRecalledImages: async ({ name, argsRaw }) => {
       if (name !== 'image_recall') return []
+      // When vision sub-agent is active, descriptions are already in the tool result.
+      if (params.subAgent?.enabled) return []
       const argsObj =
         typeof argsRaw === 'string'
           ? parseToolArguments(argsRaw)
@@ -173,6 +181,10 @@ export async function runOpenRouterChatWithTools(
         userImageMimes: params.userImageMimes,
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
+        subAgent: params.subAgent,
+        ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
+        openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
+        openrouterApiKey: params.openrouterApiKeyForSubAgent,
       }),
     parseArgsForToolResult: parseToolArguments,
     onDelta: params.onDelta,

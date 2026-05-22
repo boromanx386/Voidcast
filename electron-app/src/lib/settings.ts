@@ -28,6 +28,18 @@ export type RunwareMusicModelProfile = {
   seed: number | null
 }
 
+/** Sub-agent config — delegates tasks (vision, etc.) to a separate model. */
+export type SubAgentConfig = {
+  /** When true, image_recall runs sub-agent instead of returning base64. */
+  enabled: boolean
+  /** Sub-agent model id (e.g. 'llava:13b', 'gpt-4o'). Provider is auto-detected. */
+  model: string
+  /** Max tokens per image description (default 300). */
+  maxTokensPerImage?: number
+  /** Custom prompt template. Use {query} placeholder for user's question. */
+  promptTemplate?: string
+}
+
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
 export const RUNWARE_GPT_IMAGE_2_MODEL_ID = 'openai:gpt-image@2'
 export const RUNWARE_Z_IMAGE_TURBO_MODEL_ID = 'runware:z-image@turbo'
@@ -208,6 +220,8 @@ export type AppSettings = {
   notificationSoundsEnabled: boolean
   /** Output volume (0–1) for chat notification sounds. */
   notificationSoundVolume: number
+  /** Sub-agent for delegating tasks (vision, etc.) to a separate model. */
+  subAgent: SubAgentConfig
 }
 
 export const AGENT_EDITABLE_SETTINGS_FIELDS = [
@@ -356,6 +370,12 @@ const defaults: AppSettings = {
   reminderNotificationsEnabled: true,
   notificationSoundsEnabled: true,
   notificationSoundVolume: 0.8,
+  subAgent: {
+    enabled: false,
+    model: 'llava:13b',
+    maxTokensPerImage: 300,
+    promptTemplate: '',
+  },
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -532,6 +552,23 @@ function normalizeTts(s: AppSettings): AppSettings {
     ttsProvider,
     runwareXaiVoice,
     runwareXaiLanguage,
+  }
+}
+
+function normalizeSubAgent(s: AppSettings): AppSettings {
+  const raw = s.subAgent
+  if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
+  const enabled = raw.enabled === true
+  const model = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
+  const maxTokensPerImage =
+    typeof raw.maxTokensPerImage === 'number' && Number.isFinite(raw.maxTokensPerImage)
+      ? Math.max(50, Math.min(4096, Math.round(raw.maxTokensPerImage)))
+      : defaults.subAgent.maxTokensPerImage
+  const promptTemplate =
+    typeof raw.promptTemplate === 'string' ? raw.promptTemplate.trim() : ''
+  return {
+    ...s,
+    subAgent: { enabled, model, maxTokensPerImage, promptTemplate },
   }
 }
 
@@ -770,7 +807,7 @@ function normalizeNotificationSounds(s: AppSettings): AppSettings {
 function normalizeAll(s: AppSettings): AppSettings {
   return normalizeNotificationSounds(
     normalizeRunware(
-      normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeLlm(s))))),
+      normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s)))))),
     ),
   )
 }
