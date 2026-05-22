@@ -190,6 +190,11 @@ const EMPTY_STATE_VARIANTS = {
     'Crimson channel open. Transmit when ready.',
     'Blood moon rising. Await your command.',
   ],
+  obsidian: [
+    'The archive is silent. Enter your query.',
+    'Channel stable. Transmit when ready.',
+    'Obsidian surface awaits your mark.',
+  ],
 } as const
 
 function deriveSessionTitle(messages: UiMessage[]): string {
@@ -2908,7 +2913,9 @@ export default function App() {
             ? EMPTY_STATE_VARIANTS.light
             : settings.uiTheme === 'blood-moon'
               ? EMPTY_STATE_VARIANTS['blood-moon']
-              : EMPTY_STATE_VARIANTS.minimal
+              : settings.uiTheme === 'obsidian'
+                ? EMPTY_STATE_VARIANTS.obsidian
+                : EMPTY_STATE_VARIANTS.minimal
     return variants[emptyStateSeed % variants.length]
   }, [settings.uiTheme, emptyStateSeed])
 
@@ -4059,7 +4066,7 @@ export default function App() {
             <textarea
               className="voidcast-textarea"
               rows={2}
-              placeholder="TRANSMIT_MESSAGE..."
+              placeholder="Type a message..."
               value={input}
               disabled={busy}
               onChange={(e) => setInput(e.target.value)}

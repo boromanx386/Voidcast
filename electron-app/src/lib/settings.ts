@@ -8,7 +8,7 @@ export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
 
 /** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper), blood-moon (crimson void) */
-export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon'
+export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian'
 
 export type RunwareModelProfile = {
   width: number
@@ -543,7 +543,7 @@ function normalizePdfDir(s: AppSettings): AppSettings {
 function normalizeUiTheme(s: AppSettings): AppSettings {
   const t = s.uiTheme
   const uiTheme: UiTheme =
-    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' || t === 'blood-moon' ? t : 'minimal'
+    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' || t === 'blood-moon' || t === 'obsidian' ? t : 'minimal'
   return { ...s, uiTheme }
 }
 

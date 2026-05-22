@@ -1,0 +1,195 @@
+/* Obsidian — neutral dark, no neon, muted accents */
+
+html[data-ui-theme='obsidian'] {
+  --color-void-black: 13 13 16;
+  --color-void-dark: 22 22 26;
+  --color-void-mid: 32 32 38;
+  --color-void-muted: 55 55 65;
+  --color-void-dim: 120 120 135;
+  --color-void-text: 200 200 210;
+  --color-void-light: 230 230 235;
+  --color-void-white: 240 240 245;
+
+  --color-neon-cyan: 140 150 165;
+  --color-neon-magenta: 160 165 175;
+  --color-neon-green: 140 150 165;
+  --color-neon-yellow: 180 185 195;
+  --color-neon-red: 180 100 100;
+  --color-neon-purple: 150 155 165;
+  --color-neon-orange: 170 175 185;
+
+  --ui-accent-rgb: 140,150,165;
+}
+
+html[data-ui-theme='obsidian'] body {
+  background: #0d0d10 !important;
+  color: #d4d4dc !important;
+  text-shadow: none !important;
+  font-family:
+    'JetBrains Mono',
+    'Inter',
+    system-ui,
+    sans-serif !important;
+}
+
+html[data-ui-theme='obsidian'] ::selection {
+  background: rgba(140, 150, 165, 0.25);
+  color: #ffffff;
+}
+
+html[data-ui-theme='obsidian'] ::-webkit-scrollbar-track {
+  background: #16161a;
+}
+
+html[data-ui-theme='obsidian'] ::-webkit-scrollbar-thumb {
+  background: #3a3a44;
+}
+
+html[data-ui-theme='obsidian'] ::-webkit-scrollbar-thumb:hover {
+  background: #50505c;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-app {
+  background: #0d0d10;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-header,
+html[data-ui-theme='obsidian'] .voidcast-input-area,
+html[data-ui-theme='obsidian'] .voidcast-sidebar {
+  background: rgba(22, 22, 26, 0.95);
+  border-color: rgba(55, 55, 65, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+html[data-ui-theme='obsidian'] .voidcast-header::after,
+html[data-ui-theme='obsidian'] .voidcast-input-area::before {
+  display: none;
+}
+
+html[data-ui-theme='obsidian'] .glitch-text,
+html[data-ui-theme='obsidian'] .glitch-text::before,
+html[data-ui-theme='obsidian'] .glitch-text::after,
+html[data-ui-theme='obsidian'] .crt-overlay,
+html[data-ui-theme='obsidian'] .ambient-particles {
+  animation: none !important;
+  display: none !important;
+}
+
+html[data-ui-theme='obsidian'] .cyber-btn,
+html[data-ui-theme='obsidian'] .cyber-input,
+html[data-ui-theme='obsidian'] .cyber-panel,
+html[data-ui-theme='obsidian'] .send-btn,
+html[data-ui-theme='obsidian'] .voidcast-textarea,
+html[data-ui-theme='obsidian'] .form-select {
+  border-color: rgba(55, 55, 65, 0.6);
+}
+
+html[data-ui-theme='obsidian'] .cyber-btn {
+  background: rgba(140, 150, 165, 0.08);
+  color: #d4d4dc;
+}
+
+html[data-ui-theme='obsidian'] .cyber-btn:hover {
+  background: rgba(140, 150, 165, 0.15);
+  border-color: rgba(140, 150, 165, 0.35);
+  box-shadow: none;
+}
+
+html[data-ui-theme='obsidian'] .cyber-btn::before,
+html[data-ui-theme='obsidian'] .cyber-panel::before,
+html[data-ui-theme='obsidian'] .corner-tl,
+html[data-ui-theme='obsidian'] .corner-tr,
+html[data-ui-theme='obsidian'] .corner-bl,
+html[data-ui-theme='obsidian'] .corner-br {
+  display: none;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-textarea,
+html[data-ui-theme='obsidian'] .cyber-input,
+html[data-ui-theme='obsidian'] .form-select {
+  background: rgba(13, 13, 16, 0.9);
+  color: #d4d4dc;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-textarea:focus,
+html[data-ui-theme='obsidian'] .cyber-input:focus {
+  border-color: rgba(140, 150, 165, 0.4);
+  box-shadow: 0 0 0 2px rgba(140, 150, 165, 0.1);
+}
+
+html[data-ui-theme='obsidian'] textarea:focus,
+html[data-ui-theme='obsidian'] input:focus,
+html[data-ui-theme='obsidian'] select:focus {
+  box-shadow: 0 0 0 2px rgba(140, 150, 165, 0.15);
+}
+
+html[data-ui-theme='obsidian'] .message-user,
+html[data-ui-theme='obsidian'] .message-assistant {
+  border-color: rgba(55, 55, 65, 0.35);
+  background: rgba(26, 26, 31, 0.92);
+  color: #c8c8d4 !important;
+}
+
+html[data-ui-theme='obsidian'] .message-user strong,
+html[data-ui-theme='obsidian'] .message-assistant strong {
+  color: #e0e0e8;
+  font-weight: 700;
+}
+
+html[data-ui-theme='obsidian'] .message-user code,
+html[data-ui-theme='obsidian'] .message-assistant code {
+  background: rgba(0, 0, 0, 0.25);
+  color: #d4d4dc;
+}
+
+html[data-ui-theme='obsidian'] .message-user pre,
+html[data-ui-theme='obsidian'] .message-assistant pre {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+html[data-ui-theme='obsidian'] .option-tab.active {
+  background: rgba(140, 150, 165, 0.1);
+  border-color: rgba(140, 150, 165, 0.3);
+  color: #ffffff;
+}
+
+html[data-ui-theme='obsidian'] .system-status {
+  color: rgba(140, 150, 165, 0.7);
+}
+
+html[data-ui-theme='obsidian'] .tool-indicator,
+html[data-ui-theme='obsidian'] .hover-glow-cyan:hover,
+html[data-ui-theme='obsidian'] .hover-glow-magenta:hover,
+html[data-ui-theme='obsidian'] .text-shadow-neon,
+html[data-ui-theme='obsidian'] .text-shadow-glow,
+html[data-ui-theme='obsidian'] .neon-text-cyan,
+html[data-ui-theme='obsidian'] .neon-text-magenta,
+html[data-ui-theme='obsidian'] .neon-text-green,
+html[data-ui-theme='obsidian'] .chromatic-hover:hover {
+  text-shadow: none !important;
+}
+
+html[data-ui-theme='obsidian'] .gradient-text,
+html[data-ui-theme='obsidian'] .gradient-text-green {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  color: #d4d4dc;
+}
+
+html[data-ui-theme='obsidian'] .bg-void-mid\/70 {
+  background-color: rgba(32, 32, 38, 0.7) !important;
+}
+
+html[data-ui-theme='obsidian'] .bg-void-dark\/80 {
+  background-color: rgba(22, 22, 26, 0.8) !important;
+}
+
+html[data-ui-theme='obsidian'] .border-void-muted\/50 {
+  border-color: rgba(55, 55, 65, 0.5) !important;
+}
+
+html[data-ui-theme='obsidian'] .border-neon-cyan\/20 {
+  border-color: rgba(140, 150, 165, 0.2) !important;
+}

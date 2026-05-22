@@ -273,7 +273,7 @@ function normalizeToolCallsForReplay(calls: OllamaToolCall[]): OllamaToolCall[] 
 
 const AGENT_EDITABLE_SETTINGS_FIELD_SET = new Set<string>(AGENT_EDITABLE_SETTINGS_FIELDS)
 const CONFIGURED_RUNWARE_MODEL_IDS = new Set<string>(RUNWARE_CONFIGURED_MODELS.map((x) => x.id))
-const UI_THEME_SET = new Set<UiTheme>(['dystopian', 'minimal', 'matrix', 'light', 'blood-moon'])
+const UI_THEME_SET = new Set<UiTheme>(['dystopian', 'minimal', 'matrix', 'light', 'blood-moon', 'obsidian'])
 const LONG_MEMORY_KIND_SET = new Set<LongMemoryKind>([
   'preference',
   'project',
@@ -1017,7 +1017,7 @@ export async function executeToolCall(
     } else if (field === 'uiTheme') {
       const next = parseToolValueAsString(valueRaw).trim().toLowerCase() as UiTheme
       if (!UI_THEME_SET.has(next)) {
-        return 'Error: uiTheme must be one of: dystopian, minimal, matrix, light, blood-moon.'
+        return 'Error: uiTheme must be one of: dystopian, minimal, matrix, light, blood-moon, obsidian.'
       }
       candidate.uiTheme = next
     } else if (field === 'longMemoryAdd') {
