@@ -202,7 +202,6 @@ export function SubAgentOptionsPanel({
                 <NumericSettingInput
                   min={512}
                   max={131072}
-                  step={512}
                   value={sub.contextTokens ?? 8192}
                   onCommit={(contextTokens) =>
                     setSettings((s) => ({
