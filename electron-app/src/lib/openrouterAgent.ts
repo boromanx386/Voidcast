@@ -1,5 +1,6 @@
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
 import type { ToolsEnabled, SubAgentConfig } from '@/lib/settings'
+import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
 import type { RunwareImageConfig } from '@/lib/runware'
 import {
@@ -63,6 +64,7 @@ export type RunOpenRouterChatWithToolsParams = {
   ollamaBaseUrlForSubAgent?: string
   openrouterBaseUrlForSubAgent?: string
   openrouterApiKeyForSubAgent?: string
+  subAgentUi?: SubAgentUiCallbacks
 }
 
 export async function runOpenRouterChatWithTools(
@@ -185,6 +187,7 @@ export async function runOpenRouterChatWithTools(
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
         openrouterApiKey: params.openrouterApiKeyForSubAgent,
+        subAgentUi: params.subAgentUi,
       }),
     parseArgsForToolResult: parseToolArguments,
     onDelta: params.onDelta,

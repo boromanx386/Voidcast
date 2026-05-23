@@ -38,6 +38,8 @@ export type SubAgentConfig = {
   outputTokens?: number
   /** Context window size sent to Ollama as num_ctx (default 4096). Ignored by OpenRouter. */
   contextTokens?: number
+  /** When true, show the floating analysis panel during image_recall (default on). */
+  showAnalysisWindow?: boolean
 }
 
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
@@ -375,6 +377,7 @@ const defaults: AppSettings = {
     model: 'llava:13b',
     outputTokens: 1024,
     contextTokens: 8192,
+    showAnalysisWindow: true,
   },
 }
 
@@ -572,9 +575,10 @@ function normalizeSubAgent(s: AppSettings): AppSettings {
     typeof raw.contextTokens === 'number' && Number.isFinite(raw.contextTokens)
       ? Math.max(512, Math.min(131072, Math.round(raw.contextTokens)))
       : defaults.subAgent.contextTokens
+  const showAnalysisWindow = raw.showAnalysisWindow !== false
   return {
     ...s,
-    subAgent: { enabled, model, outputTokens, contextTokens },
+    subAgent: { enabled, model, outputTokens, contextTokens, showAnalysisWindow },
   }
 }
 

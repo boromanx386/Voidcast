@@ -89,6 +89,27 @@ export function SubAgentOptionsPanel({
 
       {sub.enabled && (
         <>
+          <div className="form-group">
+            <label className="form-label flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="cyber-checkbox"
+                checked={sub.showAnalysisWindow !== false}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    subAgent: { ...s.subAgent, showAnalysisWindow: e.target.checked },
+                  }))
+                }
+              />
+              <span className="text-neon-cyan">⬡ SHOW_ANALYSIS_WINDOW</span>
+            </label>
+            <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+              Floating panel on the right while image_recall runs the vision sub-agent
+              (progress and descriptions). Off = same behavior, no on-screen panel.
+            </p>
+          </div>
+
           {/* Model dropdown — Ollama + OpenRouter presets. Provider auto-detected. */}
           <div className="form-group">
             <div className="flex items-center justify-between mb-2">

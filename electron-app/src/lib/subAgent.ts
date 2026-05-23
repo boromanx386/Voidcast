@@ -16,8 +16,14 @@ import { usesServerCloudProxy } from './platform'
 
 // ── provider auto-detection ──────────────────────────────────────────────
 
+export type SubAgentUiCallbacks = {
+  onStart?: (imageCount: number) => void
+  onProgress?: (current: number, total: number) => void
+  onDone?: (formatted: string) => void
+}
+
 /** Ollama models use `:` (e.g. llava:13b, qwen2.5:7b). Everything else → OpenRouter. */
-function detectProvider(model: string): 'ollama' | 'openrouter' {
+export function detectSubAgentProvider(model: string): 'ollama' | 'openrouter' {
   if (!model) return 'ollama'
   // Ollama tags always have `:version` — OpenRouter/NVIDIA use `/` or plain names
   if (model.includes(':') && !model.includes('/')) return 'ollama'
@@ -183,7 +189,7 @@ async function describeSingleImage(
   userQuery: string | undefined,
   signal?: AbortSignal,
 ): Promise<string> {
-  const provider = detectProvider(config.model)
+  const provider = detectSubAgentProvider(config.model)
   const prompt = buildPrompt(userQuery)
   const maxTokens = config.outputTokens ?? 1024
 
@@ -215,10 +221,15 @@ export async function describeImagesWithSubAgent(
   keys: SubAgentKeys,
   userQuery: string | undefined,
   signal?: AbortSignal,
+  ui?: SubAgentUiCallbacks,
 ): Promise<SubAgentDescribeResult[]> {
   const results: SubAgentDescribeResult[] = []
+  const total = images.length
+  if (total > 0) ui?.onStart?.(total)
 
-  for (const img of images) {
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i]!
+    ui?.onProgress?.(i + 1, total)
     if (signal?.aborted) {
       results.push({
         index: img.index,
@@ -245,6 +256,7 @@ export async function describeImagesWithSubAgent(
     }
   }
 
+  if (total > 0) ui?.onDone?.(formatSubAgentResultsForAgent(results))
   return results
 }
 

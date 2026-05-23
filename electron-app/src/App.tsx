@@ -59,6 +59,7 @@ import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrout
 import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
 import { compressConversationContext } from '@/lib/contextCompress'
 import { extractLongMemoryCandidates } from '@/lib/longMemoryExtract'
+import { detectSubAgentProvider, type SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
   deleteMemory,
   dedupeMemories,
@@ -833,6 +834,9 @@ export default function App() {
   const [longMemoryBusy, setLongMemoryBusy] = useState(false)
   const [memoryCandidates, setMemoryCandidates] = useState<LongMemoryCandidate[]>([])
   const [memoryPreviewOpen, setMemoryPreviewOpen] = useState(false)
+  const [subAgentPanelOpen, setSubAgentPanelOpen] = useState(false)
+  const [subAgentPanelBusy, setSubAgentPanelBusy] = useState(false)
+  const [subAgentPanelText, setSubAgentPanelText] = useState('')
   const [longMemories, setLongMemories] = useState<LongMemoryItem[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [sessionDirty, setSessionDirty] = useState(false)
@@ -1709,6 +1713,24 @@ export default function App() {
     }
   }, [activeSessionId, busy, contextCompressBusy, hiddenContextSummary, messages, settings])
 
+  const subAgentUi = useMemo<SubAgentUiCallbacks>(
+    () => ({
+      onStart: (imageCount) => {
+        setSubAgentPanelOpen(true)
+        setSubAgentPanelBusy(true)
+        setSubAgentPanelText(`SUB_AGENT: analyzing ${imageCount} image(s)…`)
+      },
+      onProgress: (current, total) => {
+        setSubAgentPanelText(`SUB_AGENT: image ${current}/${total}…`)
+      },
+      onDone: (formatted) => {
+        setSubAgentPanelBusy(false)
+        setSubAgentPanelText(formatted || '[Sub-agent returned no descriptions.]')
+      },
+    }),
+    [],
+  )
+
   const extractLongMemoryNow = useCallback(async () => {
     if (busy || longMemoryBusy) return
     const turns = toConversationTurns(messages)
@@ -1716,17 +1738,28 @@ export default function App() {
     setLongMemoryBusy(true)
     setError(null)
     try {
+      const useSub = settings.subAgent.enabled
+      const subModel = settings.subAgent.model
+      const subProvider = detectSubAgentProvider(subModel)
+      const memLlmProvider = useSub
+        ? subProvider === 'ollama'
+          ? 'ollama'
+          : 'openrouter'
+        : settings.llmProvider
       const candidates = await extractLongMemoryCandidates({
-        provider: settings.llmProvider,
+        provider: memLlmProvider,
         ollamaBaseUrl: settings.ollamaBaseUrl,
-        ollamaModel: settings.ollamaModel,
+        ollamaModel: useSub && subProvider === 'ollama' ? subModel : settings.ollamaModel,
         openrouterBaseUrl: settings.openrouterBaseUrl,
         openrouterApiKey: settings.openrouterApiKey,
-        openrouterModel: settings.openrouterModel,
+        openrouterModel: useSub && subProvider !== 'ollama' ? subModel : settings.openrouterModel,
         nvidiaBaseUrl: settings.nvidiaBaseUrl,
         nvidiaApiKey: settings.nvidiaApiKey,
         nvidiaModel: settings.nvidiaModel,
-        modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
+        modelOptions: {
+          temperature: settings.llmTemperature,
+          num_ctx: useSub ? (settings.subAgent.contextTokens ?? 8192) : settings.llmNumCtx,
+        },
         turns,
       })
       if (candidates.length === 0) {
@@ -1740,7 +1773,7 @@ export default function App() {
     } finally {
       setLongMemoryBusy(false)
     }
-  }, [busy, longMemoryBusy, messages, settings])
+  }, [busy, longMemoryBusy, messages, settings.subAgent, settings.llmProvider, settings])
 
   const confirmSaveLongMemory = useCallback(async () => {
     if (!memoryCandidates.length) {
@@ -2136,6 +2169,10 @@ export default function App() {
           ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
           openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,
           openrouterApiKeyForSubAgent: settings.openrouterApiKey,
+          subAgentUi:
+            settings.subAgent.enabled && settings.subAgent.showAnalysisWindow !== false
+              ? subAgentUi
+              : undefined,
           signal: ac.signal,
           onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
             ? (thinking: string) => {
@@ -3876,6 +3913,48 @@ export default function App() {
               className={`context-fill ${contextUsageInfo.ratio > 0.9 ? 'danger' : contextUsageInfo.ratio > 0.7 ? 'warning' : ''}`}
               style={{ width: `${Math.min(100, contextUsageInfo.ratio * 100)}%` }}
             />
+          </div>
+        </div>
+      )}
+
+      {subAgentPanelOpen &&
+        settings.subAgent.enabled &&
+        settings.subAgent.showAnalysisWindow !== false && (
+        <div
+          className="fixed right-4 top-20 z-[65] w-[min(22rem,calc(100vw-2rem))] max-h-[min(70vh,32rem)] flex flex-col rounded border border-neon-cyan/40 bg-void-dark/95 shadow-lg backdrop-blur-sm"
+          role="dialog"
+          aria-label="Sub-agent vision analysis"
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-void-muted/30 px-3 py-2">
+            <div className="text-xs font-mono text-neon-cyan">
+              {subAgentPanelBusy ? 'SUB_AGENT · WORKING' : 'SUB_AGENT · ANALYSIS'}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSubAgentPanelOpen(false)
+                setSubAgentPanelBusy(false)
+                setSubAgentPanelText('')
+              }}
+              className="px-2 py-0.5 text-[10px] font-mono text-void-dim hover:text-void-light"
+            >
+              CLOSE
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 py-2">
+            {subAgentPanelBusy ? (
+              <div className="flex items-center gap-2 text-xs font-mono text-void-dim">
+                <span
+                  className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-void-dim border-t-neon-cyan"
+                  aria-hidden
+                />
+                {subAgentPanelText}
+              </div>
+            ) : (
+              <pre className="whitespace-pre-wrap break-words text-xs font-mono text-void-light">
+                {subAgentPanelText}
+              </pre>
+            )}
           </div>
         </div>
       )}

@@ -38,7 +38,11 @@ import {
   invokeWriteCodingFile,
 } from '@/lib/codingTools'
 import { loadProjectImageRecalls, resolveInsideCodingProject } from '@/lib/imageProjectRecall'
-import { describeImagesWithSubAgent, formatSubAgentResultsForAgent } from '@/lib/subAgent'
+import {
+  describeImagesWithSubAgent,
+  formatSubAgentResultsForAgent,
+  type SubAgentUiCallbacks,
+} from '@/lib/subAgent'
 import type { SubAgentConfig } from '@/lib/settings'
 import type {
   OllamaApiMessage,
@@ -607,6 +611,8 @@ export async function executeToolCall(
     ollamaBaseUrl?: string
     openrouterBaseUrl?: string
     openrouterApiKey?: string
+    /** UI hooks while sub-agent describes images (header-style panel in App). */
+    subAgentUi?: SubAgentUiCallbacks
   },
 ): Promise<string> {
   const args =
@@ -934,6 +940,7 @@ export async function executeToolCall(
         },
         ctx.userText,
         ctx.signal,
+        ctx.subAgentUi,
       )
       const formatted = formatSubAgentResultsForAgent(descriptions)
       const hasCatalog = recall.recalled.some((x) => x.recallSource === 'catalog')
@@ -1622,6 +1629,7 @@ export type RunChatWithToolsParams = {
   ollamaBaseUrlForSubAgent?: string
   openrouterBaseUrlForSubAgent?: string
   openrouterApiKeyForSubAgent?: string
+  subAgentUi?: SubAgentUiCallbacks
 }
 
 /**
@@ -1798,6 +1806,7 @@ export async function runOllamaChatWithTools(
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
         openrouterApiKey: params.openrouterApiKeyForSubAgent,
+        subAgentUi: params.subAgentUi,
       }),
     parseArgsForToolResult: argumentsStringToObject,
     onDelta: params.onDelta,
