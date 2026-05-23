@@ -188,25 +188,53 @@ export function SubAgentOptionsPanel({
             </p>
           </div>
 
-          {/* Max tokens */}
+          {/* Context window & output tokens */}
           <div className="form-group">
-            <label className="form-label">
-              <span className="text-neon-cyan mr-2">◈</span> MAX_TOKENS_PER_IMAGE
-              <span className="ml-3 font-mono text-neon-cyan">
-                {sub.maxTokensPerImage ?? 300}
-              </span>
-            </label>
-            <NumericSettingInput
-              min={50}
-              max={4096}
-              value={sub.maxTokensPerImage ?? 300}
-              onCommit={(maxTokensPerImage) =>
-                setSettings((s) => ({
-                  ...s,
-                  subAgent: { ...s.subAgent, maxTokensPerImage },
-                }))
-              }
-            />
+            <div className="grid grid-cols-2 gap-4">
+              {/* Context window — Ollama only */}
+              <div>
+                <label className="form-label">
+                  <span className="text-neon-cyan mr-2">◈</span> CONTEXT_TOKENS
+                  <span className="ml-3 font-mono text-neon-cyan">
+                    {sub.contextTokens ?? 8192}
+                  </span>
+                </label>
+                <NumericSettingInput
+                  min={512}
+                  max={131072}
+                  step={512}
+                  value={sub.contextTokens ?? 8192}
+                  onCommit={(contextTokens) =>
+                    setSettings((s) => ({
+                      ...s,
+                      subAgent: { ...s.subAgent, contextTokens },
+                    }))
+                  }
+                />
+                <p className="text-xs text-void-dim mt-1">Ollama num_ctx (OpenRouter ignores)</p>
+              </div>
+              {/* Max output */}
+              <div>
+                <label className="form-label">
+                  <span className="text-neon-cyan mr-2">◈</span> OUTPUT_TOKENS
+                  <span className="ml-3 font-mono text-neon-cyan">
+                    {sub.outputTokens ?? 1024}
+                  </span>
+                </label>
+                <NumericSettingInput
+                  min={50}
+                  max={4096}
+                  value={sub.outputTokens ?? 1024}
+                  onCommit={(outputTokens) =>
+                    setSettings((s) => ({
+                      ...s,
+                      subAgent: { ...s.subAgent, outputTokens },
+                    }))
+                  }
+                />
+                <p className="text-xs text-void-dim mt-1">Max generated tokens per call</p>
+              </div>
+            </div>
           </div>
         </>
       )}

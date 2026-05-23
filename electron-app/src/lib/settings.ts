@@ -34,8 +34,10 @@ export type SubAgentConfig = {
   enabled: boolean
   /** Sub-agent model id (e.g. 'llava:13b', 'gpt-4o'). Provider is auto-detected. */
   model: string
-  /** Max tokens per image description (default 300). */
-  maxTokensPerImage?: number
+  /** Max generated tokens per sub-agent call (default 1024). */
+  outputTokens?: number
+  /** Context window size sent to Ollama as num_ctx (default 4096). Ignored by OpenRouter. */
+  contextTokens?: number
 }
 
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
@@ -371,7 +373,8 @@ const defaults: AppSettings = {
   subAgent: {
     enabled: false,
     model: 'llava:13b',
-    maxTokensPerImage: 1024,
+    outputTokens: 1024,
+    contextTokens: 8192,
   },
 }
 
@@ -557,13 +560,21 @@ function normalizeSubAgent(s: AppSettings): AppSettings {
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
   const enabled = raw.enabled === true
   const model = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
-  const maxTokensPerImage =
-    typeof raw.maxTokensPerImage === 'number' && Number.isFinite(raw.maxTokensPerImage)
-      ? Math.max(50, Math.min(4096, Math.round(raw.maxTokensPerImage)))
-      : defaults.subAgent.maxTokensPerImage
+  // outputTokens — migrate old maxTokensPerImage key if present
+  const rawAny = raw as any
+  const outputTokens =
+    typeof raw.outputTokens === 'number' && Number.isFinite(raw.outputTokens)
+      ? Math.max(50, Math.min(4096, Math.round(raw.outputTokens)))
+      : typeof rawAny.maxTokensPerImage === 'number' && Number.isFinite(rawAny.maxTokensPerImage)
+        ? Math.max(50, Math.min(4096, Math.round(rawAny.maxTokensPerImage)))
+        : defaults.subAgent.outputTokens
+  const contextTokens =
+    typeof raw.contextTokens === 'number' && Number.isFinite(raw.contextTokens)
+      ? Math.max(512, Math.min(131072, Math.round(raw.contextTokens)))
+      : defaults.subAgent.contextTokens
   return {
     ...s,
-    subAgent: { enabled, model, maxTokensPerImage },
+    subAgent: { enabled, model, outputTokens, contextTokens },
   }
 }
 

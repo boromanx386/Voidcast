@@ -73,6 +73,7 @@ async function describeWithOllama(
   img: SubAgentImageInput,
   model: string,
   maxTokens: number,
+  contextTokens: number,
   ollamaBaseUrl: string,
   prompt: string,
   signal?: AbortSignal,
@@ -94,6 +95,7 @@ async function describeWithOllama(
     options: {
       temperature: 0.2,
       num_predict: maxTokens,
+      num_ctx: contextTokens,
     },
   }
 
@@ -183,7 +185,9 @@ async function describeSingleImage(
 ): Promise<string> {
   const provider = detectProvider(config.model)
   const prompt = buildPrompt(userQuery)
-  const maxTokens = config.maxTokensPerImage ?? 300
+  const maxTokens = config.outputTokens ?? 1024
+
+  const ctxTokens = config.contextTokens ?? 8192
 
   if (provider === 'openrouter') {
     return describeWithOpenRouter(
@@ -193,7 +197,7 @@ async function describeSingleImage(
     )
   }
   return describeWithOllama(
-    img, config.model, maxTokens,
+    img, config.model, maxTokens, ctxTokens,
     keys.ollamaBaseUrl,
     prompt, signal,
   )

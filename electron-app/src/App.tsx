@@ -1115,10 +1115,37 @@ export default function App() {
     saveChatSessions({ sessions, activeSessionId })
   }, [sessions, activeSessionId, sessionsHydrated])
 
-  // Auto-update only previously saved sessions.
-  // If activeSessionId is null, this remains an unsaved draft until user clicks SAVE.
+  // Auto-update sessions in state. When autoSaveChat is ON, auto-create new sessions too.
+  // When OFF and no session ID, remains an unsaved draft until user clicks SAVE.
   useEffect(() => {
-    if (!sessionsHydrated || !activeSessionId) return
+    if (!sessionsHydrated) return
+    if (messages.length === 0) return
+
+    // AutoSave OFF + no session ID → nothing to auto-update (manual save needed)
+    if (!settings.autoSaveChat && !activeSessionId) return
+
+    // AutoSave ON + no session ID yet → auto-create the session on first message
+    if (!activeSessionId && settings.autoSaveChat) {
+      const newId = uid()
+      const now = Date.now()
+      const projectPath = getCodingProjectPath(settings)
+      const newSession: ChatSession = {
+        id: newId,
+        title: deriveSessionTitle(messages),
+        createdAt: now,
+        updatedAt: now,
+        messages,
+        hiddenContextSummary: hiddenContextSummary.trim() || undefined,
+        codingContextMemo: normalizeCodingContextMemo(codingContextMemo, projectPath),
+        codingProjectPath: projectPath || undefined,
+      }
+      setSessions((prev) => [...prev, newSession].sort((a, b) => b.updatedAt - a.updatedAt))
+      setActiveSessionId(newId)
+      setSessionDirty(false)
+      return
+    }
+
+    // activeSessionId exists — update existing session
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === activeSessionId)
       if (idx < 0) return prev
@@ -1155,6 +1182,7 @@ export default function App() {
     sessionsHydrated,
     settings.coding.projectPath,
     settings.codingProjectPath,
+    settings.autoSaveChat,
   ])
 
   // Persist cross-session project snapshot (failures, files, commands) for new chats on same repo.
@@ -1283,7 +1311,7 @@ export default function App() {
   const activeSessionUseLongMemory = settings.longMemoryDefaultEnabled
   const canStop = busy
   const canSaveSession = settings.autoSaveChat
-    ? messages.length > 0 && !busy && !activeSessionId
+    ? false
     : messages.length > 0 && !busy && sessionDirty
   const todaySessions = useMemo(() => sessions.filter((s) => isToday(s.updatedAt)), [sessions])
   const olderSessions = useMemo(() => sessions.filter((s) => !isToday(s.updatedAt)), [sessions])
