@@ -208,29 +208,6 @@ export function SubAgentOptionsPanel({
               }
             />
           </div>
-
-          {/* Prompt template */}
-          <div className="form-group">
-            <label className="form-label">
-              <span className="text-neon-cyan mr-2">◈</span> PROMPT_TEMPLATE
-            </label>
-            <textarea
-              className="cyber-input min-h-[80px]"
-              value={sub.promptTemplate || ''}
-              onChange={(e) =>
-                setSettings((s) => ({
-                  ...s,
-                  subAgent: { ...s.subAgent, promptTemplate: e.target.value },
-                }))
-              }
-              placeholder="Describe this image concisely..."
-              rows={3}
-            />
-            <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-              Leave empty for the default prompt. Use {'{query}'} to inject the user's
-              question so the sub-agent knows what to look for.
-            </p>
-          </div>
         </>
       )}
     </div>

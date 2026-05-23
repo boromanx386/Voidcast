@@ -36,8 +36,6 @@ export type SubAgentConfig = {
   model: string
   /** Max tokens per image description (default 300). */
   maxTokensPerImage?: number
-  /** Custom prompt template. Use {query} placeholder for user's question. */
-  promptTemplate?: string
 }
 
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
@@ -374,7 +372,6 @@ const defaults: AppSettings = {
     enabled: false,
     model: 'llava:13b',
     maxTokensPerImage: 300,
-    promptTemplate: '',
   },
 }
 
@@ -564,11 +561,9 @@ function normalizeSubAgent(s: AppSettings): AppSettings {
     typeof raw.maxTokensPerImage === 'number' && Number.isFinite(raw.maxTokensPerImage)
       ? Math.max(50, Math.min(4096, Math.round(raw.maxTokensPerImage)))
       : defaults.subAgent.maxTokensPerImage
-  const promptTemplate =
-    typeof raw.promptTemplate === 'string' ? raw.promptTemplate.trim() : ''
   return {
     ...s,
-    subAgent: { enabled, model, maxTokensPerImage, promptTemplate },
+    subAgent: { enabled, model, maxTokensPerImage },
   }
 }
 
