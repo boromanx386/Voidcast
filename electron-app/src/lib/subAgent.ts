@@ -59,7 +59,7 @@ function toDataUri(base64: string, mime: string): string {
 }
 
 const DEFAULT_DESCRIBE_PROMPT =
-  'Describe this image concisely for a non-vision AI assistant. Include: what it shows, key text/numbers visible, colors, layout, and any notable details. Be brief — 3 to 5 sentences maximum. Do not add meta-commentary.'
+  'Describe this image concisely for a non-vision AI assistant. Include: what it shows, key text/numbers visible, colors, layout, and any notable details. Do not add meta-commentary.'
 
 function buildPrompt(userQuery: string | undefined): string {
   const q = (userQuery || '').trim()

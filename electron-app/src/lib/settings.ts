@@ -371,7 +371,7 @@ const defaults: AppSettings = {
   subAgent: {
     enabled: false,
     model: 'llava:13b',
-    maxTokensPerImage: 300,
+    maxTokensPerImage: 1024,
   },
 }
 
