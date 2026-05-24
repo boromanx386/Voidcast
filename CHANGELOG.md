@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.7] — UNRELEASED
+
+### Added
+
+- **Sub-agent vision**: non-vision main agents can now delegate image description to a separate vision-capable model (Ollama multimodal or OpenRouter). When `image_recall` is called with `purpose: vision`, the sub-agent describes the image and the text result is appended to the tool output — the main agent never sees raw base64.
+- **Sub-agent `contextTokens`**: configurable `num_ctx` sent to Ollama sub-agent calls (default 8192, max 128K). OpenRouter ignores this parameter.
+- **Sub-agent provider auto-detection**: if the sub-agent model name contains `:` (e.g. `llava:13b`) it routes to Ollama; otherwise it routes to OpenRouter.
+
+### Changed
+
+- **`autoSaveChat` now works as intended**: when ON, new chat sessions are auto-created and saved on the first message (previously only already-saved sessions were auto-updated). When OFF, a save button appears for manual saving; once manually saved, the session auto-updates on subsequent messages.
+- **Sub-agent output config**: `maxTokensPerImage` renamed to `outputTokens` (default 300 → 1024). Old key is migrated automatically.
+- **Sub-agent prompt**: removed the hardcoded "3 to 5 sentences" limit — `max_tokens` is now the only output cap.
+- **Sub-agent UI**: `contextTokens` and `outputTokens` sliders side by side in the same row.
+
 ## [2.5.5] — 2026-05-20
 
 ### Added

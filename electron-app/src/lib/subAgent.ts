@@ -67,7 +67,7 @@ function toDataUri(base64: string, mime: string): string {
 const DEFAULT_DESCRIBE_PROMPT =
   'Describe this image concisely for a non-vision AI assistant. Include: what it shows, key text/numbers visible, colors, layout, and any notable details. Do not add meta-commentary.'
 
-function buildPrompt(userQuery: string | undefined): string {
+export function buildPrompt(userQuery: string | undefined): string {
   const q = (userQuery || '').trim()
   if (!q) return DEFAULT_DESCRIBE_PROMPT
   return `${DEFAULT_DESCRIBE_PROMPT}\n\nThe user asked: "${q}"\nTailor your description to answer the user's question.`

@@ -255,7 +255,7 @@ const STORAGE_KEY = 'voidcast-settings-v1'
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
 const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'runwareApiKey'] as const
 
-const defaults: AppSettings = {
+export const defaults: AppSettings = {
   llmProvider: 'ollama',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: 'llama3.2',
@@ -558,7 +558,7 @@ function normalizeTts(s: AppSettings): AppSettings {
   }
 }
 
-function normalizeSubAgent(s: AppSettings): AppSettings {
+export function normalizeSubAgent(s: AppSettings): AppSettings {
   const raw = s.subAgent
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
   const enabled = raw.enabled === true
