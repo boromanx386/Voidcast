@@ -45,10 +45,38 @@ export type SubAgentConfig = {
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
 export const RUNWARE_GPT_IMAGE_2_MODEL_ID = 'openai:gpt-image@2'
 export const RUNWARE_Z_IMAGE_TURBO_MODEL_ID = 'runware:z-image@turbo'
+export const RUNWARE_LOCAL_WAN2GP_MODEL_ID = 'local:wan2gp-flux-klein-9b'
+
+export interface Wan2gpModelConfig {
+  model_type: string
+  transformer_quantization: string
+  default_steps: number
+  default_cfg: number
+  /** Wan2GP: 0 = video, 1 = image (see docs/API.md). */
+  image_mode: number
+  default_resolution: string
+  /** Flux Klein uses embedded_guidance_scale; most others use guidance_scale. */
+  cfg_field: 'guidance_scale' | 'embedded_guidance_scale'
+  media_kind: 'image' | 'video'
+}
+
+export const WAN2GP_MODEL_CONFIGS: Record<string, Wan2gpModelConfig> = {
+  [RUNWARE_LOCAL_WAN2GP_MODEL_ID]: {
+    model_type: 'flux2_klein_9b',
+    transformer_quantization: 'int8',
+    default_steps: 4,
+    default_cfg: 1.0,
+    image_mode: 1,
+    default_resolution: '1024x1024',
+    cfg_field: 'embedded_guidance_scale',
+    media_kind: 'image',
+  },
+}
 export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
   { id: RUNWARE_FLUX_9B_MODEL_ID, label: 'FLUX 9B' },
   { id: RUNWARE_Z_IMAGE_TURBO_MODEL_ID, label: 'Z Image Turbo' },
   { id: RUNWARE_GPT_IMAGE_2_MODEL_ID, label: 'GPT Image 2' },
+  { id: RUNWARE_LOCAL_WAN2GP_MODEL_ID, label: 'Local | Flux Klein 9B' },
 ]
 
 export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo'
@@ -81,6 +109,8 @@ export type ToolsEnabled = {
   runwareImage: boolean
   /** Generate music/audio via Runware ACE-Step model */
   runwareMusic: boolean
+  /** Local video/image generation via Wan2GP */
+  wan2gp: boolean
   /** Local coding tools (file read/write/search + terminal command execution) */
   coding: boolean
 }
@@ -166,6 +196,8 @@ export type AppSettings = {
   pdfOutputDir: string
   /** Visual chrome: cyberpunk shell vs calmer zinc/indigo layout */
   uiTheme: UiTheme
+  /** Wan2GP installation folder (empty = not configured) */
+  wan2gpHome: string
   /** Runware REST base URL */
   runwareApiBaseUrl: string
   /** Runware API key (stored locally on this device) */
@@ -297,6 +329,7 @@ export const defaults: AppSettings = {
     reddit: false,
     runwareImage: false,
     runwareMusic: false,
+    wan2gp: false,
     coding: false,
   },
   coding: {
@@ -309,6 +342,7 @@ export const defaults: AppSettings = {
   codingProjectPath: '',
   pdfOutputDir: '',
   uiTheme: 'minimal',
+  wan2gpHome: '',
   runwareApiBaseUrl: 'https://api.runware.ai/v1',
   runwareApiKey: '',
   runwareImageModel: RUNWARE_FLUX_9B_MODEL_ID,
@@ -336,6 +370,12 @@ export const defaults: AppSettings = {
       height: 1024,
       steps: 8,
       cfgScale: 1,
+    },
+    [RUNWARE_LOCAL_WAN2GP_MODEL_ID]: {
+      width: 1024,
+      height: 1024,
+      steps: 4,
+      cfgScale: 1.0,
     },
   },
   runwareNegativePrompt: '',
@@ -437,6 +477,8 @@ function normalizeTools(s: AppSettings): AppSettings {
         typeof te?.runwareMusic === 'boolean'
           ? te.runwareMusic
           : defaults.toolsEnabled.runwareMusic,
+      wan2gp:
+        typeof te?.wan2gp === 'boolean' ? te.wan2gp : defaults.toolsEnabled.wan2gp,
       coding: codingEnabled,
     },
     coding: {

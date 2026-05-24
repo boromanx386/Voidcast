@@ -1,6 +1,8 @@
 import {
   AGENT_EDITABLE_SETTINGS_FIELDS,
   RUNWARE_CONFIGURED_MODELS,
+  RUNWARE_LOCAL_WAN2GP_MODEL_ID,
+  WAN2GP_MODEL_CONFIGS,
   loadSettings,
   normalizeBaseUrl,
   normalizeSettingsCandidate,
@@ -27,6 +29,7 @@ import {
   invokeRunwareGenerateMusic,
   type RunwareImageConfig,
 } from '@/lib/runware'
+import { invokeWan2gpGenerate } from '@/lib/wan2gp'
 import {
   invokeExecuteCodingCommand,
   invokeEditCodingFile,
@@ -599,6 +602,10 @@ export async function executeToolCall(
     /** Required for save_pdf when the tool is enabled */
     pdfOutputDir?: string
     runware?: RunwareImageConfig
+    /** Path to Wan2GP installation folder. When set and model is local, routes generation through Wan2GP. */
+    wan2gpHome?: string
+    /** Folder for Wan2GP outputs (init output_dir); falls back to Wan2GP/outputs. */
+    wan2gpOutputDir?: string
     userImages?: string[]
     userImageMimes?: string[]
     userImagePaths?: string[]
@@ -793,9 +800,6 @@ export async function executeToolCall(
     if (!toolsEnabled.runwareImage) {
       return 'Error: generate_image tool is disabled in settings.'
     }
-    if (!ctx.runware) {
-      return 'Error: Runware settings are missing.'
-    }
     const prompt =
       typeof args.prompt === 'string'
         ? args.prompt.trim()
@@ -803,6 +807,62 @@ export async function executeToolCall(
           ? args.positivePrompt.trim()
           : ''
     if (!prompt) return 'Error: missing prompt parameter for generate_image.'
+
+    // Route to local Wan2GP when the selected model is "Local (Wan2GP)"
+    const modelId =
+      typeof args.model === 'string'
+        ? args.model
+        : ctx.runware?.model ?? ''
+    if (modelId === RUNWARE_LOCAL_WAN2GP_MODEL_ID) {
+      const home = ctx.wan2gpHome?.trim()
+      if (!home) {
+        return 'Error: Local Wan2GP model is selected but WAN2GP_HOME is not configured in Settings → General.'
+      }
+      const modelCfg = WAN2GP_MODEL_CONFIGS[modelId]
+      const canOverrideSteps = userRequestedStepsOverride(ctx.userText || '')
+      const canOverrideCfg = userRequestedCfgOverride(ctx.userText || '')
+      try {
+        return await invokeWan2gpGenerate(
+          {
+            prompt,
+            negativePrompt:
+              typeof args.negative_prompt === 'string'
+                ? args.negative_prompt
+                : typeof args.negativePrompt === 'string'
+                  ? args.negativePrompt
+                  : undefined,
+            width: typeof args.width === 'number' ? args.width : undefined,
+            height: typeof args.height === 'number' ? args.height : undefined,
+            steps:
+              canOverrideSteps && typeof args.steps === 'number'
+                ? args.steps
+                : modelCfg?.default_steps,
+            cfgScale:
+              canOverrideCfg && typeof args.cfg_scale === 'number'
+                ? args.cfg_scale
+                : canOverrideCfg && typeof args.cfgScale === 'number'
+                  ? args.cfgScale
+                  : modelCfg?.default_cfg,
+            modelType: modelCfg?.model_type,
+            modelLabel:
+              RUNWARE_CONFIGURED_MODELS.find((m) => m.id === modelId)?.label ?? modelId,
+            transformerQuantization: modelCfg?.transformer_quantization,
+            modelConfig: modelCfg,
+            wan2gpHome: home,
+            outputDir: ctx.wan2gpOutputDir?.trim() || undefined,
+          },
+          ctx.ttsBaseUrl,
+          ctx.signal,
+        )
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e)
+      }
+    }
+
+    // Runware path (default)
+    if (!ctx.runware) {
+      return 'Error: Runware settings are missing.'
+    }
     const canOverrideSteps = userRequestedStepsOverride(ctx.userText || '')
     const canOverrideCfg = userRequestedCfgOverride(ctx.userText || '')
     try {
@@ -827,7 +887,7 @@ export async function executeToolCall(
               : canOverrideCfg && typeof args.cfgScale === 'number'
                 ? args.cfgScale
                 : undefined,
-          model: typeof args.model === 'string' ? args.model : undefined,
+          model: modelId || undefined,
         },
         ctx.runware,
         ctx.signal,
@@ -1614,6 +1674,10 @@ export type RunChatWithToolsParams = {
   /** After each tool runs; use to show real outcomes (e.g. PDF path) in the UI. */
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   runware?: RunwareImageConfig
+  /** Path to Wan2GP installation folder. When set and model is local, routes generation through Wan2GP. */
+  wan2gpHome?: string
+  /** Folder for Wan2GP outputs (init output_dir); falls back to Wan2GP/outputs. */
+  wan2gpOutputDir?: string
   /** Attached images from the latest user message (raw base64). */
   userImages?: string[]
   /** MIME list matching `userImages` indexes. */
@@ -1797,6 +1861,8 @@ export async function runOllamaChatWithTools(
         signal: params.signal,
         pdfOutputDir: params.pdfOutputDir,
         runware: params.runware,
+        wan2gpHome: params.wan2gpHome,
+        wan2gpOutputDir: params.wan2gpOutputDir,
         userImages: params.userImages,
         userImageMimes: params.userImageMimes,
         userImagePaths: params.userImagePaths,

@@ -52,6 +52,10 @@ export type RunOpenRouterChatWithToolsParams = {
   pdfOutputDir?: string
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   runware?: RunwareImageConfig
+  /** Path to Wan2GP installation folder. When set and model is local, routes generation through Wan2GP. */
+  wan2gpHome?: string
+  /** Folder for Wan2GP outputs (init output_dir); falls back to Wan2GP/outputs. */
+  wan2gpOutputDir?: string
   userImages?: string[]
   userImageMimes?: string[]
   userImagePaths?: string[]
@@ -179,6 +183,8 @@ export async function runOpenRouterChatWithTools(
         signal: params.signal,
         pdfOutputDir: params.pdfOutputDir,
         runware: params.runware,
+        wan2gpHome: params.wan2gpHome,
+        wan2gpOutputDir: params.wan2gpOutputDir,
         userImages: params.userImages,
         userImageMimes: params.userImageMimes,
         userImagePaths: params.userImagePaths,

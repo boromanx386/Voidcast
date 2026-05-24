@@ -2161,6 +2161,8 @@ export default function App() {
               seed: activeRunwareMusicProfile.seed ?? undefined,
             },
           },
+          wan2gpHome: settings.wan2gpHome,
+          wan2gpOutputDir: settings.runwareImageOutputDir.trim() || undefined,
           userImages: toolImageCatalog.map((x) => x.base64),
           userImageMimes: toolImageCatalog.map((x) => x.mime),
           userImagePaths: toolImageCatalog.map((x) => x.path || ''),
@@ -2326,9 +2328,28 @@ export default function App() {
             }
             if (name === 'generate_image' || name === 'edit_image_runware') {
               const urls = extractRunwareImageUrls(result)
+              const paths = extractSavedImagePaths(result)
               const meta = parseRunwareImageToolMeta(result)
               if (meta) {
                 setAssistantImageMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
+              }
+              if (paths.length > 0) {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== asstId) return m
+                    return {
+                      ...m,
+                      generatedImagePaths: dedupeNonEmpty([
+                        ...(m.generatedImagePaths || []),
+                        ...paths,
+                      ]),
+                    }
+                  }),
+                )
+                setAssistantSavedImagePaths((prev) => {
+                  const cur = prev[asstId] || []
+                  return { ...prev, [asstId]: Array.from(new Set([...cur, ...paths])) }
+                })
               }
               if (urls.length > 0) {
                 setMessages((prev) =>
@@ -2366,31 +2387,29 @@ export default function App() {
                       }).catch((e) => (e instanceof Error ? e.message : String(e)))
                       saved.push(txt)
                     }
-                    if (saved.length > 0) {
-                      const savedPaths = extractSavedImagePaths(saved.join('\n'))
-                      if (savedPaths.length > 0) {
-                        setMessages((prev) =>
-                          prev.map((m) => {
-                            if (m.id !== asstId) return m
-                            return {
-                              ...m,
-                              generatedImagePaths: dedupeNonEmpty([
-                                ...(m.generatedImagePaths || []),
-                                ...savedPaths,
-                              ]),
-                              generatedImageUrls: dedupeNonEmpty([
-                                ...(m.generatedImageUrls || []),
-                                ...urls,
-                              ]),
-                            }
-                          }),
-                        )
-                        setAssistantSavedImagePaths((prev) => {
-                          const cur = prev[asstId] || []
-                          const next = Array.from(new Set([...cur, ...savedPaths]))
-                          return { ...prev, [asstId]: next }
-                        })
-                      }
+                    const savedPaths = extractSavedImagePaths(saved.join('\n'))
+                    if (savedPaths.length > 0) {
+                      setMessages((prev) =>
+                        prev.map((m) => {
+                          if (m.id !== asstId) return m
+                          return {
+                            ...m,
+                            generatedImagePaths: dedupeNonEmpty([
+                              ...(m.generatedImagePaths || []),
+                              ...savedPaths,
+                            ]),
+                            generatedImageUrls: dedupeNonEmpty([
+                              ...(m.generatedImageUrls || []),
+                              ...urls,
+                            ]),
+                          }
+                        }),
+                      )
+                      setAssistantSavedImagePaths((prev) => {
+                        const cur = prev[asstId] || []
+                        const next = Array.from(new Set([...cur, ...savedPaths]))
+                        return { ...prev, [asstId]: next }
+                      })
                     }
                   })()
                 }

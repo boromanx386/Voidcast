@@ -1762,8 +1762,9 @@ async function toChatFileSnapshot(filePath: string): Promise<{
 
 ipcMain.handle('voidcast:read-image-file', async (_evt, payload: { path?: string }) => {
   try {
-    const fp = String(payload?.path ?? '').trim()
-    if (!fp) return { ok: false as const, error: 'Missing image path.' }
+    const raw = String(payload?.path ?? '').trim()
+    if (!raw) return { ok: false as const, error: 'Missing image path.' }
+    const fp = path.resolve(raw)
     const buf = await readFile(fp)
     return {
       ok: true as const,

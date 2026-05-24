@@ -475,6 +475,44 @@ export function GeneralOptionsPanel({
           Get NVIDIA API key
         </a>
       </div>
+
+      <div className="bg-void-black/50 border border-neon-purple/25 p-4 rounded space-y-3">
+        <p className="text-xs font-mono text-neon-purple uppercase tracking-wider">
+          <span className="mr-2">⬡</span> LOCAL_WAN2GP
+        </p>
+        <div className="form-group !mb-0">
+          <label className="form-label text-neon-purple/80">INSTALLATION_FOLDER</label>
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="text"
+              spellCheck={false}
+              className="cyber-input flex-1 min-w-[12rem]"
+              value={settings.wan2gpHome}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, wan2gpHome: e.target.value }))
+              }
+              placeholder="Q:\\coding\\Wan2GP"
+            />
+            <button
+              type="button"
+              className="cyber-btn text-xs"
+              onClick={async () => {
+                const vc = isElectron() ? window.voidcast?.pickDirectory : undefined
+                if (!vc) return
+                const r = await vc()
+                if (r.ok && r.path) {
+                  setSettings((s) => ({ ...s, wan2gpHome: r.path }))
+                }
+              }}
+            >
+              BROWSE
+            </button>
+          </div>
+          <p className="text-xs text-void-dim mt-1">
+            Path to your local Wan2GP installation. Used for video/image generation without cloud APIs.
+          </p>
+        </div>
+      </div>
         </>
       )}
 

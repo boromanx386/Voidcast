@@ -21,9 +21,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import json
 import logging
 import os
 import re
+import shutil
+import subprocess
 import tempfile
 import uuid
 from datetime import datetime
@@ -199,6 +202,26 @@ class RunwareProxyRequest(BaseModel):
     )
     api_key: str = Field(default="", max_length=2048)
     tasks: list[dict[str, Any]] = Field(..., min_length=1, max_length=8)
+
+
+class Wan2gpRequest(BaseModel):
+    """Payload for POST /tools/wan2gp — run Wan2GP generation through its venv Python."""
+
+    wan2gp_home: str = Field(
+        default="", min_length=0, max_length=4096,
+        description="Path to Wan2GP installation. Falls back to WAN2GP_HOME env var."
+    )
+    output_dir: str = Field(
+        default="", min_length=0, max_length=4096,
+        description="Override Wan2GP output folder (init output_dir). Empty = Wan2GP config default.",
+    )
+    settings: dict[str, Any] = Field(
+        ..., description="Wan2GP task dict (model_type, prompt, steps, cfg, …)"
+    )
+    timeout_sec: int = Field(
+        default=600, ge=10, le=3600,
+        description="Max generation time in seconds."
+    )
 
 
 class CloudSecretsRequest(BaseModel):
@@ -813,6 +836,170 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
         raise HTTPException(
             status_code=503, detail=str(e) or "Runware proxy failed"
         ) from e
+
+
+# ---------------------------------------------------------------------------
+# Wan2GP bridge helpers
+# ---------------------------------------------------------------------------
+
+def _resolve_wan2gp_home(wan2gp_home: str) -> Path | None:
+    """Resolve Wan2GP install path: explicit arg → WAN2GP_HOME env → auto-detect."""
+    if wan2gp_home.strip():
+        p = Path(wan2gp_home.strip())
+        if p.is_dir():
+            return p.resolve()
+    env = os.environ.get("WAN2GP_HOME", "").strip()
+    if env:
+        p = Path(env)
+        if p.is_dir():
+            return p.resolve()
+    candidates = [
+        Path.home() / "Wan2GP",
+        Path("C:/Wan2GP"),
+    ]
+    for c in candidates:
+        if c.is_dir():
+            return c.resolve()
+    return None
+
+
+def _find_wan2gp_python(wan2gp_root: Path) -> str | None:
+    """Find python executable inside Wan2GP root (venv or conda env)."""
+    # venv layout
+    venv_python = wan2gp_root / "venv" / "Scripts" / "python.exe"
+    if venv_python.is_file():
+        return str(venv_python)
+    # conda layout (python.exe directly in venv root)
+    conda_python = wan2gp_root / "venv" / "python.exe"
+    if conda_python.is_file():
+        return str(conda_python)
+    # maybe venv is in root itself
+    root_python = wan2gp_root / "python.exe"
+    if root_python.is_file():
+        return str(root_python)
+    # fallback: system python
+    sys_python = shutil.which("python")
+    if sys_python:
+        logger.warning("Wan2GP: using system python %s — env mismatch possible", sys_python)
+        return sys_python
+    return None
+
+
+_BRIDGE_SCRIPT = (Path(__file__).resolve().parent / "bridges" / "wan2gp_bridge.py")
+
+
+def _parse_bridge_stdout(stdout: str) -> dict:
+    """Parse bridge JSON; WanGP may print banner lines on stdout before the JSON line."""
+    text = (stdout or "").strip()
+    if not text:
+        return {}
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        pass
+    for line in reversed(text.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(line)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            continue
+    start = text.rfind("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        parsed = json.loads(text[start : end + 1])
+        return parsed if isinstance(parsed, dict) else {}
+    raise json.JSONDecodeError("no JSON object in bridge stdout", text, 0)
+
+
+@app.post("/tools/wan2gp")
+async def tools_wan2gp(req: Wan2gpRequest):
+    """Run Wan2GP generation through its own venv Python (subprocess bridge)."""
+    wan2gp_root = _resolve_wan2gp_home(req.wan2gp_home)
+    if wan2gp_root is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Wan2GP not found. Set WAN2GP_HOME env var or pass wan2gp_home.",
+        )
+    python_exe = _find_wan2gp_python(wan2gp_root)
+    if python_exe is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No Python found in Wan2GP installation (venv/ missing?).",
+        )
+    if not _BRIDGE_SCRIPT.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="wan2gp_bridge.py missing from Voidcast installation.",
+        )
+
+    payload = json.dumps({
+        "action": "generate",
+        "settings": req.settings,
+        "output_dir": req.output_dir.strip(),
+    })
+
+    try:
+        proc = await asyncio.to_thread(
+            subprocess.run,
+            [python_exe, str(_BRIDGE_SCRIPT), str(wan2gp_root)],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=req.timeout_sec,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=504,
+            detail=f"Wan2GP generation timed out after {req.timeout_sec}s",
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Python not found at {python_exe}. Check Wan2GP installation.",
+        )
+
+    logger.info(
+        "Wan2GP bridge exit=%d stdout=%d stderr=%d",
+        proc.returncode, len(proc.stdout), len(proc.stderr),
+    )
+
+    if proc.stderr.strip():
+        logger.info("Wan2GP bridge stderr:\n%s", proc.stderr.strip())
+
+    try:
+        result = _parse_bridge_stdout(proc.stdout)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Bridge returned invalid JSON. stdout={proc.stdout[:500]} stderr={proc.stderr[:500]}",
+        )
+
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=503, detail="Bridge returned non-object JSON")
+
+    image_files = result.get("image_files") or []
+    video_files = result.get("video_files") or []
+    generated_files = result.get("generated_files") or []
+    errors = result.get("errors") or []
+    has_media = bool(image_files or video_files or generated_files)
+    if result.get("ok") or has_media:
+        return {
+            "ok": True,
+            "generated_files": generated_files,
+            "image_files": image_files,
+            "video_files": video_files,
+            "output_dir": result.get("output_dir", ""),
+            "errors": errors,
+        }
+    error_text = "; ".join(str(e) for e in errors) if errors else "Unknown Wan2GP error"
+    return {"ok": False, "text": error_text, "errors": errors}
+
+# ---------------------------------------------------------------------------
 
 
 _HOP_BY_HOP = {

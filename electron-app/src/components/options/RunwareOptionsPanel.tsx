@@ -15,6 +15,8 @@ type Props = {
   setSettings: Dispatch<SetStateAction<AppSettings>>
 }
 
+import { RUNWARE_LOCAL_WAN2GP_MODEL_ID } from '@/lib/settings'
+
 const RUNWARE_FLUX_MODEL_ID = 'runware:400@6'
 
 export function RunwareOptionsPanel({ settings, setSettings }: Props) {
@@ -41,6 +43,8 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
   const isGptImage2EditSelected = selectedEditModel === RUNWARE_GPT_IMAGE_2_MODEL_ID
   const isZImageTurboSelected = selectedImageModel === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
   const isZImageTurboEditSelected = selectedEditModel === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
+  const isLocalWan2gpSelected = selectedImageModel === RUNWARE_LOCAL_WAN2GP_MODEL_ID
+  const isLocalWan2gpEditSelected = selectedEditModel === RUNWARE_LOCAL_WAN2GP_MODEL_ID
   const imageMinSide = isGptImage2Selected ? 480 : isZImageTurboSelected ? 128 : 256
   const imageMaxSide = isGptImage2Selected ? 3840 : 2048
   const editMinSide = isGptImage2EditSelected ? 480 : isZImageTurboEditSelected ? 128 : 256
@@ -91,7 +95,10 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
       <div className="border-b border-void-muted/30 pb-3">
         <p className="text-xs font-mono text-void-dim">
           <span className="text-neon-green mr-2">◌</span>
-          Runware uses configured models only. Current profile:{' '}
+          {isLocalWan2gpSelected
+            ? 'Local Wan2GP generation — no cloud API needed.'
+            : 'Runware uses configured models only.'}{' '}
+          Current profile:{' '}
           {configuredLabelById.get(selectedImageModel) ?? selectedImageModel}.
         </p>
       </div>
@@ -174,6 +181,7 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
         </div>
       )}
 
+      {!isLocalWan2gpSelected && (
       <div className="form-group">
         <label className="form-label">
           <span className="text-neon-purple mr-2">◇</span> RUNWARE_API_BASE_URL
@@ -187,6 +195,14 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
           placeholder="https://api.runware.ai/v1"
         />
       </div>
+      )}
+      {isLocalWan2gpSelected && !settings.wan2gpHome && (
+        <div className="bg-void-black/50 border border-neon-yellow/25 p-3 rounded">
+          <p className="text-xs text-neon-yellow/90">
+            Wan2GP installation folder is not set. Go to General Options → Local Wan2GP to configure it.
+          </p>
+        </div>
+      )}
 
       <div className="form-group">
         <label className="form-label mb-2">
