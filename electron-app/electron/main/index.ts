@@ -133,13 +133,30 @@ function portFromEndpoint(endpoint: string): string | null {
   return match?.[1] ?? null
 }
 
-function runCommandCapture(
-  command: string,
-  args: string[],
-  timeoutMs = 10_000,
-): Promise<{ ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }> {
+type CapturedCommandResult =
+  | { ok: true; stdout: string; stderr: string; code: number }
+  | { ok: false; error: string }
+
+function captureSpawnCommand(params: {
+  command: string
+  args: string[]
+  cwd?: string
+  timeoutMs: number
+  timeoutLabel?: string
+  notFoundMessage?: string
+  trimOutput?: boolean
+}): Promise<CapturedCommandResult> {
+  const {
+    command,
+    args,
+    cwd,
+    timeoutMs,
+    timeoutLabel = command,
+    notFoundMessage,
+    trimOutput = true,
+  } = params
   return new Promise((resolve) => {
-    const child = spawn(command, args, { shell: false, windowsHide: true })
+    const child = spawn(command, args, { cwd, shell: false, windowsHide: true })
     let stdout = ''
     let stderr = ''
     let settled = false
@@ -151,7 +168,7 @@ function runCommandCapture(
       } catch {
         /* ignore */
       }
-      resolve({ ok: false, error: `${command} timed out after ${Math.round(timeoutMs / 1000)}s.` })
+      resolve({ ok: false, error: `${timeoutLabel} timed out after ${Math.round(timeoutMs / 1000)}s.` })
     }, timeoutMs)
     child.stdout?.on('data', (chunk) => {
       stdout += String(chunk)
@@ -163,15 +180,35 @@ function runCommandCapture(
       if (settled) return
       settled = true
       clearTimeout(timer)
-      resolve({ ok: false, error: err.message })
+      const code = (err as NodeJS.ErrnoException).code
+      resolve({
+        ok: false,
+        error:
+          notFoundMessage && (code === 'ENOENT' || err.message.includes('ENOENT'))
+            ? notFoundMessage
+            : err.message,
+      })
     })
     child.on('close', (code) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      resolve({ ok: true, stdout, stderr, code: code ?? 0 })
+      resolve({
+        ok: true,
+        stdout: trimOutput ? stdout.trimEnd() : stdout,
+        stderr: trimOutput ? stderr.trimEnd() : stderr,
+        code: code ?? 0,
+      })
     })
   })
+}
+
+function runCommandCapture(
+  command: string,
+  args: string[],
+  timeoutMs = 10_000,
+): Promise<CapturedCommandResult> {
+  return captureSpawnCommand({ command, args, timeoutMs, trimOutput: false })
 }
 
 async function listListeningPidsOnPort(port: string): Promise<number[]> {
@@ -1100,47 +1137,14 @@ function runGitCapture(
   cwd: string,
   args: string[],
   timeoutMs = GIT_COMMAND_TIMEOUT_MS,
-): Promise<{ ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }> {
-  return new Promise((resolve) => {
-    const child = spawn('git', args, { cwd, shell: false, windowsHide: true })
-    let stdout = ''
-    let stderr = ''
-    let settled = false
-    const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      try {
-        child.kill()
-      } catch {
-        /* ignore */
-      }
-      resolve({ ok: false, error: `Git command timed out after ${Math.round(timeoutMs / 1000)}s.` })
-    }, timeoutMs)
-    child.stdout?.on('data', (chunk) => {
-      stdout += String(chunk)
-    })
-    child.stderr?.on('data', (chunk) => {
-      stderr += String(chunk)
-    })
-    child.on('error', (err) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      const code = (err as NodeJS.ErrnoException).code
-      resolve({
-        ok: false,
-        error:
-          code === 'ENOENT' || err.message.includes('ENOENT')
-            ? 'Git executable not found on PATH.'
-            : err.message,
-      })
-    })
-    child.on('close', (code) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolve({ ok: true, stdout: stdout.trimEnd(), stderr: stderr.trimEnd(), code: code ?? 0 })
-    })
+): Promise<CapturedCommandResult> {
+  return captureSpawnCommand({
+    command: 'git',
+    args,
+    cwd,
+    timeoutMs,
+    timeoutLabel: 'Git command',
+    notFoundMessage: 'Git executable not found on PATH.',
   })
 }
 
@@ -1171,47 +1175,14 @@ function runRipgrepCapture(
   cwd: string,
   args: string[],
   timeoutMs = RIPGREP_TIMEOUT_MS,
-): Promise<{ ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }> {
-  return new Promise((resolve) => {
-    const child = spawn('rg', args, { cwd, shell: false, windowsHide: true })
-    let stdout = ''
-    let stderr = ''
-    let settled = false
-    const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      try {
-        child.kill()
-      } catch {
-        /* ignore */
-      }
-      resolve({ ok: false, error: `ripgrep timed out after ${Math.round(timeoutMs / 1000)}s.` })
-    }, timeoutMs)
-    child.stdout?.on('data', (chunk) => {
-      stdout += String(chunk)
-    })
-    child.stderr?.on('data', (chunk) => {
-      stderr += String(chunk)
-    })
-    child.on('error', (err) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      const code = (err as NodeJS.ErrnoException).code
-      resolve({
-        ok: false,
-        error:
-          code === 'ENOENT' || err.message.includes('ENOENT')
-            ? 'ENOENT'
-            : err.message,
-      })
-    })
-    child.on('close', (code) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolve({ ok: true, stdout: stdout.trimEnd(), stderr: stderr.trimEnd(), code: code ?? 0 })
-    })
+): Promise<CapturedCommandResult> {
+  return captureSpawnCommand({
+    command: 'rg',
+    args,
+    cwd,
+    timeoutMs,
+    timeoutLabel: 'ripgrep',
+    notFoundMessage: 'ENOENT',
   })
 }
 

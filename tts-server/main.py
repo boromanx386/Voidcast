@@ -844,7 +844,7 @@ async def _reverse_proxy(
     upstream_base: str,
     full_path: str,
     *,
-    bearer_key: str,
+    bearer_key: str | None = None,
 ) -> StreamingResponse:
     target = f"{upstream_base.rstrip('/')}/{full_path}"
     if request.url.query:
@@ -856,7 +856,8 @@ async def _reverse_proxy(
         for k, v in request.headers.items()
         if k.lower() not in _STRIP_FWD
     }
-    fwd_headers["Authorization"] = f"Bearer {bearer_key}"
+    if bearer_key:
+        fwd_headers["Authorization"] = f"Bearer {bearer_key}"
 
     client = httpx.AsyncClient(
         timeout=httpx.Timeout(600.0, connect=60.0),
@@ -901,52 +902,7 @@ async def _reverse_proxy(
 )
 async def ollama_proxy(request: Request, full_path: str):
     """Reverse proxy to Ollama (default http://127.0.0.1:11434). Set OLLAMA_BASE_URL."""
-    target = f"{OLLAMA_BASE_URL}/{full_path}"
-    if request.url.query:
-        target = f"{target}?{request.url.query}"
-
-    body = await request.body()
-    fwd_headers = {
-        k: v
-        for k, v in request.headers.items()
-        if k.lower() not in _STRIP_FWD
-    }
-
-    client = httpx.AsyncClient(
-        timeout=httpx.Timeout(600.0, connect=60.0),
-        follow_redirects=False,
-    )
-    try:
-        upstream_req = client.build_request(
-            request.method,
-            target,
-            headers=fwd_headers,
-            content=body if body else None,
-        )
-        upstream = await client.send(upstream_req, stream=True)
-    except Exception:
-        await client.aclose()
-        raise
-
-    out_headers = {
-        k: v
-        for k, v in upstream.headers.items()
-        if k.lower() not in _HOP_BY_HOP and k.lower() != "content-length"
-    }
-
-    async def body_iter() -> Any:
-        try:
-            async for chunk in upstream.aiter_raw():
-                yield chunk
-        finally:
-            await upstream.aclose()
-            await client.aclose()
-
-    return StreamingResponse(
-        body_iter(),
-        status_code=upstream.status_code,
-        headers=out_headers,
-    )
+    return await _reverse_proxy(request, OLLAMA_BASE_URL, full_path)
 
 
 @app.api_route(
