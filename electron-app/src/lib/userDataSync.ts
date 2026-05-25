@@ -30,42 +30,85 @@ export type UserDataSnapshot = {
 let syncInFlight: Promise<boolean> | null = null
 let syncQueued = false
 
-function loadPendingIds(key: string): string[] {
-  if (typeof window === 'undefined') return []
+type DeleteAtMap = Record<string, number>
+
+function sanitizeDeleteAtMap(raw: unknown): DeleteAtMap {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: DeleteAtMap = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (!key) continue
+    const ts = Number(value)
+    if (Number.isFinite(ts) && ts > 0) out[key] = Math.trunc(ts)
+  }
+  return out
+}
+
+function loadPendingDeleteMap(key: string): DeleteAtMap {
+  if (typeof window === 'undefined') return {}
   try {
     const raw = localStorage.getItem(key)
-    if (!raw) return []
+    if (!raw) return {}
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter((x): x is string => typeof x === 'string' && x.length > 0)
-      : []
+    if (Array.isArray(parsed)) {
+      // Backward-compatible migration from old `string[]` payloads.
+      const ts = Date.now()
+      const out: DeleteAtMap = {}
+      for (const id of parsed) {
+        if (typeof id === 'string' && id.length > 0) out[id] = ts
+      }
+      return out
+    }
+    return sanitizeDeleteAtMap(parsed)
   } catch {
-    return []
+    return {}
   }
 }
 
-function savePendingIds(key: string, ids: string[]): void {
+function savePendingDeleteMap(key: string, map: DeleteAtMap): void {
   if (typeof window === 'undefined') return
-  const unique = Array.from(new Set(ids))
-  if (unique.length === 0) localStorage.removeItem(key)
-  else localStorage.setItem(key, JSON.stringify(unique))
+  const cleaned = sanitizeDeleteAtMap(map)
+  if (Object.keys(cleaned).length === 0) localStorage.removeItem(key)
+  else localStorage.setItem(key, JSON.stringify(cleaned))
 }
 
-export function recordMemoryDeleted(id: string): void {
-  const ids = loadPendingIds(PENDING_MEM_DELETES_KEY)
-  if (!ids.includes(id)) ids.push(id)
-  savePendingIds(PENDING_MEM_DELETES_KEY, ids)
+function mergeDeleteAtMaps(...maps: Array<DeleteAtMap | undefined>): DeleteAtMap {
+  const merged: DeleteAtMap = {}
+  for (const map of maps) {
+    if (!map) continue
+    for (const [id, rawTs] of Object.entries(map)) {
+      const ts = Number(rawTs)
+      if (!Number.isFinite(ts) || ts <= 0) continue
+      const next = Math.trunc(ts)
+      merged[id] = Math.max(merged[id] ?? 0, next)
+    }
+  }
+  return merged
 }
 
-export function recordReminderDeleted(id: string): void {
-  const ids = loadPendingIds(PENDING_REM_DELETES_KEY)
-  if (!ids.includes(id)) ids.push(id)
-  savePendingIds(PENDING_REM_DELETES_KEY, ids)
+function deleteIdsSet(ids: string[], deletedAt: DeleteAtMap): Set<string> {
+  return new Set([
+    ...ids.filter((id) => typeof id === 'string' && id.length > 0),
+    ...Object.keys(deletedAt),
+  ])
+}
+
+export function recordMemoryDeleted(id: string, deletedAt = Date.now()): void {
+  if (!id) return
+  const map = loadPendingDeleteMap(PENDING_MEM_DELETES_KEY)
+  map[id] = Math.max(map[id] ?? 0, deletedAt)
+  savePendingDeleteMap(PENDING_MEM_DELETES_KEY, map)
+}
+
+export function recordReminderDeleted(id: string, deletedAt = Date.now()): void {
+  if (!id) return
+  const map = loadPendingDeleteMap(PENDING_REM_DELETES_KEY)
+  map[id] = Math.max(map[id] ?? 0, deletedAt)
+  savePendingDeleteMap(PENDING_REM_DELETES_KEY, map)
 }
 
 function clearPendingDeletes(): void {
-  savePendingIds(PENDING_MEM_DELETES_KEY, [])
-  savePendingIds(PENDING_REM_DELETES_KEY, [])
+  savePendingDeleteMap(PENDING_MEM_DELETES_KEY, {})
+  savePendingDeleteMap(PENDING_REM_DELETES_KEY, {})
 }
 
 function itemUpdatedAtMs(item: { updatedAt?: number; createdAt?: number }): number {
@@ -119,17 +162,69 @@ function parseSnapshot(data: unknown): UserDataSnapshot | null {
     ? d.deletedReminderIds.filter((x): x is string => typeof x === 'string')
     : []
   const deletedMemoryAt =
-    d.deletedMemoryAt && typeof d.deletedMemoryAt === 'object'
-      ? (d.deletedMemoryAt as Record<string, number>)
-      : {}
+    d.deletedMemoryAt && typeof d.deletedMemoryAt === 'object' ? sanitizeDeleteAtMap(d.deletedMemoryAt) : {}
   const deletedReminderAt =
     d.deletedReminderAt && typeof d.deletedReminderAt === 'object'
-      ? (d.deletedReminderAt as Record<string, number>)
+      ? sanitizeDeleteAtMap(d.deletedReminderAt)
       : {}
   return {
     updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : null,
     longMemories,
     reminders,
+    deletedMemoryIds,
+    deletedReminderIds,
+    deletedMemoryAt,
+    deletedReminderAt,
+  }
+}
+
+export type UserDataSyncPlan = {
+  activeMemories: LongMemoryItem[]
+  activeReminders: Reminder[]
+  deletedMemoryIds: string[]
+  deletedReminderIds: string[]
+  deletedMemoryAt: DeleteAtMap
+  deletedReminderAt: DeleteAtMap
+}
+
+export function planUserDataSync(params: {
+  localMemories: LongMemoryItem[]
+  localReminders: Reminder[]
+  remote: UserDataSnapshot | null
+  pendingMemoryDeletes?: DeleteAtMap
+  pendingReminderDeletes?: DeleteAtMap
+}): UserDataSyncPlan {
+  const mergedMemories = mergeMemories(params.localMemories, params.remote?.longMemories ?? [])
+  const mergedReminders = mergeReminders(params.localReminders, params.remote?.reminders ?? [])
+  const deletedMemoryAt = mergeDeleteAtMaps(
+    params.remote?.deletedMemoryAt ?? {},
+    params.pendingMemoryDeletes,
+  )
+  const deletedReminderAt = mergeDeleteAtMaps(
+    params.remote?.deletedReminderAt ?? {},
+    params.pendingReminderDeletes,
+  )
+  const deletedMemoryIds = Array.from(
+    deleteIdsSet(params.remote?.deletedMemoryIds ?? [], deletedMemoryAt),
+  )
+  const deletedReminderIds = Array.from(
+    deleteIdsSet(params.remote?.deletedReminderIds ?? [], deletedReminderAt),
+  )
+  const deletedMemoryIdSet = new Set(deletedMemoryIds)
+  const deletedReminderIdSet = new Set(deletedReminderIds)
+  const activeMemories = mergedMemories.filter((m) => {
+    if (!deletedMemoryIdSet.has(m.id)) return true
+    const tomb = deletedMemoryAt[m.id]
+    return tomb != null ? tomb < m.updatedAt : false
+  })
+  const activeReminders = mergedReminders.filter((r) => {
+    if (!deletedReminderIdSet.has(r.id)) return true
+    const tomb = deletedReminderAt[r.id]
+    return tomb != null ? tomb < reminderUpdatedAt(r) : false
+  })
+  return {
+    activeMemories,
+    activeReminders,
     deletedMemoryIds,
     deletedReminderIds,
     deletedMemoryAt,
@@ -157,6 +252,8 @@ async function pushSnapshot(
     reminders: Reminder[]
     deletedMemoryIds: string[]
     deletedReminderIds: string[]
+    deletedMemoryAt: DeleteAtMap
+    deletedReminderAt: DeleteAtMap
   },
 ): Promise<UserDataSnapshot | null> {
   try {
@@ -180,50 +277,33 @@ export async function syncUserDataNow(ttsBaseUrl?: string): Promise<boolean> {
   if (typeof window === 'undefined') return false
   const root = normalizeBaseUrl(ttsBaseUrl?.trim() || defaultTtsBaseUrlForRuntime())
 
-  const pendingMemDeletes = loadPendingIds(PENDING_MEM_DELETES_KEY)
-  const pendingRemDeletes = loadPendingIds(PENDING_REM_DELETES_KEY)
+  const pendingMemDeletes = loadPendingDeleteMap(PENDING_MEM_DELETES_KEY)
+  const pendingRemDeletes = loadPendingDeleteMap(PENDING_REM_DELETES_KEY)
 
   const localMemories = await listMemories(2000)
   const localReminders = await listReminders()
   const remote = await fetchRemoteSnapshot(root)
 
-  const mergedMemories = mergeMemories(
+  const plan = planUserDataSync({
     localMemories,
-    remote?.longMemories ?? [],
-  )
-  const mergedReminders = mergeReminders(
     localReminders,
-    remote?.reminders ?? [],
-  )
-
-  const deletedMemoryIds = Array.from(
-    new Set([...(remote?.deletedMemoryIds ?? []), ...pendingMemDeletes]),
-  )
-  const deletedReminderIds = Array.from(
-    new Set([...(remote?.deletedReminderIds ?? []), ...pendingRemDeletes]),
-  )
-  const deletedMemoryAt = remote?.deletedMemoryAt ?? {}
-  const deletedReminderAt = remote?.deletedReminderAt ?? {}
-
-  const activeMemories = mergedMemories.filter((m) => {
-    const tomb = deletedMemoryAt[m.id]
-    return tomb == null || tomb < m.updatedAt
-  })
-  const activeReminders = mergedReminders.filter((r) => {
-    const tomb = deletedReminderAt[r.id]
-    return tomb == null || tomb < reminderUpdatedAt(r)
+    remote,
+    pendingMemoryDeletes: pendingMemDeletes,
+    pendingReminderDeletes: pendingRemDeletes,
   })
 
-  await applyMemoryDeletes(deletedMemoryIds, deletedMemoryAt)
-  await applyReminderDeletes(deletedReminderIds, deletedReminderAt)
-  await importMemoryItems(activeMemories)
-  await importReminderItems(activeReminders)
+  await applyMemoryDeletes(plan.deletedMemoryIds, plan.deletedMemoryAt)
+  await applyReminderDeletes(plan.deletedReminderIds, plan.deletedReminderAt)
+  await importMemoryItems(plan.activeMemories)
+  await importReminderItems(plan.activeReminders)
 
   const pushed = await pushSnapshot(root, {
-    longMemories: activeMemories,
-    reminders: activeReminders,
-    deletedMemoryIds,
-    deletedReminderIds,
+    longMemories: plan.activeMemories,
+    reminders: plan.activeReminders,
+    deletedMemoryIds: plan.deletedMemoryIds,
+    deletedReminderIds: plan.deletedReminderIds,
+    deletedMemoryAt: plan.deletedMemoryAt,
+    deletedReminderAt: plan.deletedReminderAt,
   })
 
   if (pushed) clearPendingDeletes()

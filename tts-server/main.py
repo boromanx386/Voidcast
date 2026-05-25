@@ -216,6 +216,8 @@ class UserDataSyncRequest(BaseModel):
     reminders: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
     deletedMemoryIds: list[str] = Field(default_factory=list, max_length=500)
     deletedReminderIds: list[str] = Field(default_factory=list, max_length=500)
+    deletedMemoryAt: dict[str, int] = Field(default_factory=dict)
+    deletedReminderAt: dict[str, int] = Field(default_factory=dict)
 
 
 class TtsRequest(BaseModel):

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **Reminder / long-memory delete sync**: user-data sync now carries delete timestamps end-to-end and the tools server persists tombstones on disk, so deleted reminders / memories no longer reappear from stale LAN snapshots or after a tools-server restart.
+- **Packaged tools-server ownership on Windows**: the installed app now clears stale listeners on `:8765`, starts only the bundled `voidcast-tools-server.exe`, and kills the full child process tree on tray **Quit**, so packaged builds no longer leave behind orphan Python/tools-server processes.
+
 ## [2.5.7]
 
 ### Added

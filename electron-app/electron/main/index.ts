@@ -17,7 +17,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
@@ -124,6 +124,142 @@ const TOOLS_SERVER_PORT = process.env.VOIDCAST_TOOLS_PORT?.trim() || '8765'
 const WIN_CHROME_BACKGROUND = '#0a0a0f'
 const TOOLS_SERVER_HEALTH_URL = `http://127.0.0.1:${TOOLS_SERVER_PORT}`
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function portFromEndpoint(endpoint: string): string | null {
+  const match = endpoint.trim().match(/:(\d+)$/)
+  return match?.[1] ?? null
+}
+
+function runCommandCapture(
+  command: string,
+  args: string[],
+  timeoutMs = 10_000,
+): Promise<{ ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { shell: false, windowsHide: true })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      try {
+        child.kill()
+      } catch {
+        /* ignore */
+      }
+      resolve({ ok: false, error: `${command} timed out after ${Math.round(timeoutMs / 1000)}s.` })
+    }, timeoutMs)
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk)
+    })
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk)
+    })
+    child.on('error', (err) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ ok: false, error: err.message })
+    })
+    child.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ ok: true, stdout, stderr, code: code ?? 0 })
+    })
+  })
+}
+
+async function listListeningPidsOnPort(port: string): Promise<number[]> {
+  if (process.platform !== 'win32') return []
+  const result = await runCommandCapture('netstat', ['-ano', '-p', 'tcp'])
+  if (!result.ok || result.code !== 0) return []
+  const pids = new Set<number>()
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const parts = line.trim().split(/\s+/)
+    if (parts.length < 5) continue
+    if (parts[0].toUpperCase() !== 'TCP') continue
+    if (parts[3].toUpperCase() !== 'LISTENING') continue
+    if (portFromEndpoint(parts[1]) !== port) continue
+    const pid = Number(parts[4])
+    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid) pids.add(pid)
+  }
+  return Array.from(pids)
+}
+
+async function killProcessTree(pid: number): Promise<void> {
+  if (!Number.isInteger(pid) || pid <= 0) return
+  if (process.platform === 'win32') {
+    await runCommandCapture('taskkill', ['/PID', String(pid), '/T', '/F'], 15_000)
+    return
+  }
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch {
+    // ignore kill errors
+  }
+}
+
+function killProcessTreeSync(pid: number): void {
+  if (!Number.isInteger(pid) || pid <= 0) return
+  if (process.platform === 'win32') {
+    try {
+      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { shell: false, windowsHide: true })
+    } catch {
+      // ignore kill errors
+    }
+    return
+  }
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch {
+    // ignore kill errors
+  }
+}
+
+async function killTrackedToolsServer(): Promise<void> {
+  const pid = toolsServerProcess?.pid
+  if (typeof pid === 'number' && pid > 0) {
+    await killProcessTree(pid)
+  } else if (toolsServerProcess && !toolsServerProcess.killed) {
+    try {
+      toolsServerProcess.kill()
+    } catch {
+      // ignore kill errors
+    }
+  }
+  toolsServerProcess = null
+}
+
+function killTrackedToolsServerSync(): void {
+  const pid = toolsServerProcess?.pid
+  if (typeof pid === 'number' && pid > 0) {
+    killProcessTreeSync(pid)
+  } else if (toolsServerProcess && !toolsServerProcess.killed) {
+    try {
+      toolsServerProcess.kill()
+    } catch {
+      // ignore kill errors
+    }
+  }
+  toolsServerProcess = null
+}
+
+async function killProcessesListeningOnToolsPort(): Promise<boolean> {
+  const pids = await listListeningPidsOnPort(TOOLS_SERVER_PORT)
+  if (pids.length === 0) return false
+  for (const pid of pids) await killProcessTree(pid)
+  for (let i = 0; i < 20; i++) {
+    if ((await listListeningPidsOnPort(TOOLS_SERVER_PORT)).length === 0) return true
+    await sleepMs(250)
+  }
+  return false
+}
+
 async function isToolsServerHealthy(baseUrl = TOOLS_SERVER_HEALTH_URL): Promise<boolean> {
   try {
     const res = await fetch(`${baseUrl}/health`)
@@ -195,7 +331,20 @@ async function ensureToolsServerRunning(): Promise<void> {
   if (toolsServerStarting) return
   toolsServerStarting = true
   try {
-    if (await isToolsServerHealthy()) return
+    if (app.isPackaged) {
+      const portCleared = await killProcessesListeningOnToolsPort()
+      if (portCleared) {
+        console.warn(
+          `[tools-server] Removed stale process on port ${TOOLS_SERVER_PORT} before packaged startup.`,
+        )
+      } else if (await isToolsServerHealthy()) {
+        console.warn(
+          `[tools-server] Port ${TOOLS_SERVER_PORT} is already occupied by another healthy process; packaged app will try bundled server only.`,
+        )
+      }
+    } else if (await isToolsServerHealthy()) {
+      return
+    }
     const cwd = getToolsServerDir()
     const bundledExe = getBundledToolsExePath()
     const args = [
@@ -214,9 +363,9 @@ async function ensureToolsServerRunning(): Promise<void> {
     if (!app.isPackaged) {
       const devPython = path.join(process.env.APP_ROOT, '..', '.venv', 'Scripts', 'python.exe')
       candidates.push({ command: devPython, args })
+      candidates.push({ command: 'py', args: ['-3', ...args] })
+      candidates.push({ command: 'python', args })
     }
-    candidates.push({ command: 'py', args: ['-3', ...args] })
-    candidates.push({ command: 'python', args })
 
     for (const candidate of candidates) {
       const ok = await startToolsServerWithCommand(candidate.command, candidate.args, cwd)
@@ -230,11 +379,12 @@ async function ensureToolsServerRunning(): Promise<void> {
         }
         await new Promise((r) => setTimeout(r, 500))
       }
-      toolsServerProcess?.kill()
-      toolsServerProcess = null
+      await killTrackedToolsServer()
     }
     console.warn(
-      '[tools-server] Auto-start failed. Build may be missing bundled tools executable.',
+      app.isPackaged
+        ? '[tools-server] Bundled tools server failed to start. Packaged app will not fall back to system Python.'
+        : '[tools-server] Auto-start failed. Build may be missing bundled tools executable.',
     )
   } finally {
     toolsServerStarting = false
@@ -474,10 +624,7 @@ async function createWindow() {
 }
 
 app.on('will-quit', () => {
-  if (toolsServerProcess && !toolsServerProcess.killed) {
-    toolsServerProcess.kill()
-    toolsServerProcess = null
-  }
+  killTrackedToolsServerSync()
   globalShortcut.unregisterAll()
 })
 
