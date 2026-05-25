@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.5.7] — UNRELEASED
+## [2.5.7]
 
 ### Added
 
