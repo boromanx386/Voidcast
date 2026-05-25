@@ -124,15 +124,6 @@ const TOOLS_SERVER_PORT = process.env.VOIDCAST_TOOLS_PORT?.trim() || '8765'
 const WIN_CHROME_BACKGROUND = '#0a0a0f'
 const TOOLS_SERVER_HEALTH_URL = `http://127.0.0.1:${TOOLS_SERVER_PORT}`
 
-function sleepMs(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function portFromEndpoint(endpoint: string): string | null {
-  const match = endpoint.trim().match(/:(\d+)$/)
-  return match?.[1] ?? null
-}
-
 type CapturedCommandResult =
   | { ok: true; stdout: string; stderr: string; code: number }
   | { ok: false; error: string }
@@ -211,23 +202,6 @@ function runCommandCapture(
   return captureSpawnCommand({ command, args, timeoutMs, trimOutput: false })
 }
 
-async function listListeningPidsOnPort(port: string): Promise<number[]> {
-  if (process.platform !== 'win32') return []
-  const result = await runCommandCapture('netstat', ['-ano', '-p', 'tcp'])
-  if (!result.ok || result.code !== 0) return []
-  const pids = new Set<number>()
-  for (const line of result.stdout.split(/\r?\n/)) {
-    const parts = line.trim().split(/\s+/)
-    if (parts.length < 5) continue
-    if (parts[0].toUpperCase() !== 'TCP') continue
-    if (parts[3].toUpperCase() !== 'LISTENING') continue
-    if (portFromEndpoint(parts[1]) !== port) continue
-    const pid = Number(parts[4])
-    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid) pids.add(pid)
-  }
-  return Array.from(pids)
-}
-
 async function killProcessTree(pid: number): Promise<void> {
   if (!Number.isInteger(pid) || pid <= 0) return
   if (process.platform === 'win32') {
@@ -284,17 +258,6 @@ function killTrackedToolsServerSync(): void {
     }
   }
   toolsServerProcess = null
-}
-
-async function killProcessesListeningOnToolsPort(): Promise<boolean> {
-  const pids = await listListeningPidsOnPort(TOOLS_SERVER_PORT)
-  if (pids.length === 0) return false
-  for (const pid of pids) await killProcessTree(pid)
-  for (let i = 0; i < 20; i++) {
-    if ((await listListeningPidsOnPort(TOOLS_SERVER_PORT)).length === 0) return true
-    await sleepMs(250)
-  }
-  return false
 }
 
 async function isToolsServerHealthy(baseUrl = TOOLS_SERVER_HEALTH_URL): Promise<boolean> {
@@ -368,18 +331,7 @@ async function ensureToolsServerRunning(): Promise<void> {
   if (toolsServerStarting) return
   toolsServerStarting = true
   try {
-    if (app.isPackaged) {
-      const portCleared = await killProcessesListeningOnToolsPort()
-      if (portCleared) {
-        console.warn(
-          `[tools-server] Removed stale process on port ${TOOLS_SERVER_PORT} before packaged startup.`,
-        )
-      } else if (await isToolsServerHealthy()) {
-        console.warn(
-          `[tools-server] Port ${TOOLS_SERVER_PORT} is already occupied by another healthy process; packaged app will try bundled server only.`,
-        )
-      }
-    } else if (await isToolsServerHealthy()) {
+    if (await isToolsServerHealthy()) {
       return
     }
     const cwd = getToolsServerDir()
