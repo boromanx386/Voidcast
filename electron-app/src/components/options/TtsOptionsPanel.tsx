@@ -172,58 +172,90 @@ export function TtsOptionsPanel({
 
   return (
     <div className="grid gap-4 text-sm">
-      {isWebStandalone() ? (
-        <p className="text-xs text-void-dim border border-void-muted/30 rounded px-3 py-2">
-          Voice input (STT) is not available in the phone/browser build. Use the desktop app if you
-          need microphone transcription.
-        </p>
-      ) : (
-        <>
-      {/* STT Provider */}
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-green">◉</span> STT_PROVIDER
-        </label>
-        <select
-          className="form-select"
-          value={settings.sttProvider}
-          onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              sttProvider:
-                e.target.value === 'openrouter' ? 'openrouter' : 'none',
-            }))
-          }
-        >
-          <option value="none">Disabled</option>
-          <option value="openrouter">OpenRouter Whisper</option>
-        </select>
+      <div className="rounded border border-neon-green/25 bg-neon-green/[0.04] p-4 space-y-3">
+        <div>
+          <p className="flex items-center gap-2 text-xs font-mono text-neon-green uppercase tracking-wider">
+            <span>◉</span>
+            <span>Speech To Text</span>
+          </p>
+          <p className="mt-1 text-xs text-void-dim">
+            Microphone input for the composer. This section only affects speech-to-text.
+          </p>
+        </div>
+        {isWebStandalone() ? (
+          <p className="rounded border border-void-muted/30 bg-void-black/30 px-3 py-2 text-xs text-void-dim">
+            Voice input (STT) is not available in the phone/browser build. Use the desktop app if you
+            need microphone transcription.
+          </p>
+        ) : (
+          <>
+            <div className="form-group">
+              <label className="form-label">
+                <span className="text-neon-green">◉</span> STT_PROVIDER
+              </label>
+              <select
+                className="form-select"
+                value={settings.sttProvider}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    sttProvider:
+                      e.target.value === 'openrouter' ? 'openrouter' : 'none',
+                  }))
+                }
+              >
+                <option value="none">Disabled</option>
+                <option value="openrouter">OpenRouter Whisper</option>
+              </select>
+            </div>
+
+            {settings.sttProvider === 'openrouter' && (
+              <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
+                <p className="text-xs text-void-dim">
+                  Uses <span className="font-mono text-neon-green">OPENROUTER_API_KEY</span> from
+                  General settings. Click the microphone button in the composer to record and transcribe.
+                </p>
+                <div className="form-group mt-3">
+                  <label className="form-label">OPENROUTER_STT_MODEL</label>
+                  <input
+                    className="cyber-input"
+                    value={settings.openrouterSttModel}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, openrouterSttModel: e.target.value }))
+                    }
+                    placeholder="openai/whisper-large-v3-turbo"
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {settings.sttProvider === 'openrouter' && (
-        <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
-          <p className="text-xs text-void-dim">
-            Uses <span className="font-mono text-neon-green">OPENROUTER_API_KEY</span> from
-            General settings. Click the microphone button in the composer to record and transcribe.
+      <div className="rounded border border-neon-cyan/25 bg-neon-cyan/[0.03] p-4 space-y-4">
+        <div>
+          <p className="flex items-center gap-2 text-xs font-mono text-neon-cyan uppercase tracking-wider">
+            <span>◈</span>
+            <span>Text To Speech</span>
           </p>
-          <div className="form-group mt-3">
-            <label className="form-label">OPENROUTER_STT_MODEL</label>
-            <input
-              className="cyber-input"
-              value={settings.openrouterSttModel}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, openrouterSttModel: e.target.value }))
-              }
-              placeholder="openai/whisper-large-v3-turbo"
-            />
-          </div>
+          <p className="mt-1 text-xs text-void-dim">
+            Speech output settings, providers, and voice controls for reading responses aloud.
+          </p>
         </div>
-      )}
-        </>
-      )}
 
-      {/* Server URL */}
-      <div className="form-group">
+        {isElectron() && (
+          <div className="rounded border border-neon-cyan/20 bg-void-black/40 px-3 py-2">
+            <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
+              <span className="mr-2">⌘</span>TTS_SHORTCUT
+            </p>
+            <p className="mt-1 text-xs text-void-dim">
+              Global shortcut: <code className="text-neon-cyan">Ctrl+Alt+Shift+V</code>. Reads current
+              clipboard text with the active TTS settings while Voidcast is running.
+            </p>
+          </div>
+        )}
+
+        <div className="form-group">
         <label className="form-label">
           <span className="text-neon-cyan">◈</span> TTS_PROVIDER
         </label>
@@ -246,7 +278,7 @@ export function TtsOptionsPanel({
           <option value="runware-xai">Runware xAI TTS (`xai:tts@0`)</option>
           <option value="openrouter-tts">OpenRouter GPT-4o Mini TTS</option>
         </select>
-      </div>
+        </div>
 
       {settings.ttsProvider === 'runware-xai' && (
         <div className="bg-void-black/50 border border-neon-yellow/25 p-4 rounded">
@@ -398,28 +430,14 @@ export function TtsOptionsPanel({
       </div>
       )}
 
-      {/* Refresh Button */}
-      <button
-        type="button"
-        className="cyber-btn text-sm self-start"
-        onClick={() => void refreshTts()}
-      >
-        <span className="mr-2">↻</span> CHECK_TTS_STATUS
-      </button>
-
-      {/* Clipboard TTS Info (Electron only) */}
-      {isElectron() && settings.ttsProvider === 'local' && (
-        <div className="bg-void-black/50 border border-void-muted/30 p-3 rounded">
-          <p className="text-xs font-mono text-void-text">
-            <span className="text-neon-magenta font-semibold">CLIPBOARD_TTS:</span>{' '}
-            Copy text anywhere → press{' '}
-            <kbd className="mx-1 px-2 py-0.5 bg-void-mid border border-void-dim text-neon-cyan font-mono text-xs">
-              CTRL+ALT+SHIFT+V
-            </kbd>{' '}
-            while Voidcast is running.
-          </p>
-        </div>
-      )}
+        {/* Refresh Button */}
+        <button
+          type="button"
+          className="cyber-btn text-sm self-start"
+          onClick={() => void refreshTts()}
+        >
+          <span className="mr-2">↻</span> CHECK_TTS_STATUS
+        </button>
 
       {/* Voice Mode Selection */}
       {settings.ttsProvider === 'local' && (
@@ -747,22 +765,23 @@ export function TtsOptionsPanel({
         </span>
       </label>
 
-      {/* Chunk Size */}
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan">⬡</span> CHUNK_SIZE (chars)
-        </label>
-        <NumericSettingInput
-          min={80}
-          max={2000}
-          value={settings.ttsChunkMaxChars}
-          onCommit={(ttsChunkMaxChars) =>
-            setSettings((s) => ({ ...s, ttsChunkMaxChars }))
-          }
-        />
-        <p className="text-xs text-void-dim mt-1">
-          Long responses split into chunks for streaming playback
-        </p>
+        {/* Chunk Size */}
+        <div className="form-group">
+          <label className="form-label">
+            <span className="text-neon-cyan">⬡</span> CHUNK_SIZE (chars)
+          </label>
+          <NumericSettingInput
+            min={80}
+            max={2000}
+            value={settings.ttsChunkMaxChars}
+            onCommit={(ttsChunkMaxChars) =>
+              setSettings((s) => ({ ...s, ttsChunkMaxChars }))
+            }
+          />
+          <p className="text-xs text-void-dim mt-1">
+            Long responses split into chunks for streaming playback
+          </p>
+        </div>
       </div>
     </div>
   )
