@@ -67,7 +67,7 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
           Active model:{' '}
           <code className="text-neon-green">{activeLabel}</code>{' '}
           (<code className="text-void-light">{activeModelId}</code>).
-          Uses shared Runware API URL/key from the Runware image tab.
+          Uses the shared provider API URL/key from the Image tab.
         </p>
       </div>
 
@@ -121,7 +121,7 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
         <span className="flex-1">
           <span className="font-mono text-sm text-void-light">
             <span className="text-neon-green mr-2">◈</span>
-            ENABLE_RUNWARE_MUSIC_TOOL
+            ENABLE_MUSIC_TOOL
           </span>
           <span className="mt-1 block text-xs text-void-dim">
             Enables <code className="text-neon-green">generate_music_runware</code> for text-to-audio generation.
@@ -156,7 +156,7 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
       {settings.runwareAutoSaveMusic && isElectron() && (
         <div className="form-group">
           <label className="form-label">
-            <span className="text-neon-green mr-2">▸</span>RUNWARE_MUSIC_OUTPUT_DIR
+            <span className="text-neon-green mr-2">▸</span>MUSIC_OUTPUT_DIR
           </label>
           <div className="flex flex-wrap gap-2">
             <input

@@ -821,6 +821,10 @@ export async function executeToolCall(
       const modelCfg = WAN2GP_MODEL_CONFIGS[modelId]
       const canOverrideSteps = userRequestedStepsOverride(ctx.userText || '')
       const canOverrideCfg = userRequestedCfgOverride(ctx.userText || '')
+      const defaultWidth = ctx.runware?.width
+      const defaultHeight = ctx.runware?.height
+      const defaultSteps = ctx.runware?.steps ?? modelCfg?.default_steps
+      const defaultCfgScale = ctx.runware?.cfgScale ?? modelCfg?.default_cfg
       try {
         return await invokeWan2gpGenerate(
           {
@@ -831,18 +835,28 @@ export async function executeToolCall(
                 : typeof args.negativePrompt === 'string'
                   ? args.negativePrompt
                   : undefined,
-            width: typeof args.width === 'number' ? args.width : undefined,
-            height: typeof args.height === 'number' ? args.height : undefined,
+            width:
+              typeof args.width === 'number'
+                ? args.width
+                : typeof defaultWidth === 'number'
+                  ? defaultWidth
+                  : undefined,
+            height:
+              typeof args.height === 'number'
+                ? args.height
+                : typeof defaultHeight === 'number'
+                  ? defaultHeight
+                  : undefined,
             steps:
               canOverrideSteps && typeof args.steps === 'number'
                 ? args.steps
-                : modelCfg?.default_steps,
+                : defaultSteps,
             cfgScale:
               canOverrideCfg && typeof args.cfg_scale === 'number'
                 ? args.cfg_scale
                 : canOverrideCfg && typeof args.cfgScale === 'number'
                   ? args.cfgScale
-                  : modelCfg?.default_cfg,
+                  : defaultCfgScale,
             modelType: modelCfg?.model_type,
             modelLabel:
               RUNWARE_CONFIGURED_MODELS.find((m) => m.id === modelId)?.label ?? modelId,

@@ -97,7 +97,7 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
           <span className="text-neon-green mr-2">◌</span>
           {isLocalWan2gpSelected
             ? 'Local Wan2GP generation — no cloud API needed.'
-            : 'Runware uses configured models only.'}{' '}
+            : 'Cloud image generation uses the configured provider/models only.'}{' '}
           Current profile:{' '}
           {configuredLabelById.get(selectedImageModel) ?? selectedImageModel}.
         </p>
@@ -118,10 +118,10 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
         <span className="flex-1">
           <span className="font-mono text-sm text-void-light">
             <span className="text-neon-green mr-2">◈</span>
-            ENABLE_RUNWARE_IMAGE_TOOL
+            ENABLE_IMAGE_TOOL
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Allows the LLM to call Runware tools <code className="text-neon-green">generate_image</code> and <code className="text-neon-green">edit_image_runware</code>.
+            Allows the LLM to call image tools <code className="text-neon-green">generate_image</code> and <code className="text-neon-green">edit_image_runware</code>.
           </span>
         </span>
       </label>
@@ -153,7 +153,7 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
       {settings.runwareAutoSaveImages && isElectron() && (
         <div className="form-group">
           <label className="form-label">
-            <span className="text-neon-green mr-2">▸</span>RUNWARE_IMAGE_OUTPUT_DIR
+            <span className="text-neon-green mr-2">▸</span>IMAGE_OUTPUT_DIR
           </label>
           <div className="flex flex-wrap gap-2">
             <input
