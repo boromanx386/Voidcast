@@ -6,7 +6,7 @@ Bring your own API keys (OpenRouter, NVIDIA NIM, Runware) or install **Ollama** 
 
 ![Voidcast](logo.jpg)
 
-*Voidcast is a solo hobby project — I built it for myself to learn AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
+*Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
 ### Quick demo (~39s) — sound on!
 
@@ -40,7 +40,7 @@ Remembers facts across sessions
 
 1. Download `Voidcast_Setup.exe` from [Releases](https://github.com/boromanx386/Voidcast/releases)
 2. Run it. Next → Next → Done.
-3. Add your API keys in **Options → General → CLOUD_API_KEYS** (stored only on this PC).
+3. Add your API keys in **Options → General → CLOUD_API_KEYS** (stored only on your PC).
 4. Start the agent.
 
 > 💡 **First launch to first chat: under 60 seconds.**
