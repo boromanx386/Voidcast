@@ -1,4 +1,5 @@
 import type { OllamaApiMessage } from '@/lib/ollama'
+import type { UiMessage } from '@/types/chat'
 
 export type HistoryTurn = {
   role: 'user' | 'assistant'
@@ -13,10 +14,6 @@ export type HistoryTurn = {
   imagePaths?: string[]
 }
 
-/**
- * Build Ollama messages: optional system, trimmed history, new user turn.
- * `maxHistoryMessages` = 0 means no limit (all prior messages).
- */
 /** When Web search tool is enabled */
 export const TOOLS_WEB_SEARCH_HINT = `You have a web_search tool. When the user asks for current news, recent facts, anything time-sensitive, or asks "check online", you MUST call web_search first and then answer from tool results. Prioritize recency and explicitly mention when sources look stale.`
 
@@ -79,12 +76,42 @@ export const ATTACHMENT_TRUTH_HINT = `If the chat context already includes attac
 /** @deprecated use TOOLS_WEB_SEARCH_HINT */
 export const TOOLS_SYSTEM_HINT = TOOLS_WEB_SEARCH_HINT
 
+/**
+ * Effective UI index: messages before this are covered only by hiddenContextSummary.
+ * Legacy sessions with summary but no index treat all current messages as compressed.
+ */
+export function resolveContextCompressedThroughIndex(
+  hiddenContextSummary: string | undefined,
+  contextCompressedThroughIndex: number | undefined,
+  messageCount: number,
+): number {
+  if (!hiddenContextSummary?.trim()) return 0
+  const count = Math.max(0, Math.round(messageCount))
+  const stored = Math.max(0, Math.round(contextCompressedThroughIndex ?? 0))
+  if (stored > 0) return Math.min(stored, count)
+  return count
+}
+
+/** UI messages to include in the LLM prior-history (after context compression). */
+export function sliceUiHistoryForContext(
+  messages: UiMessage[],
+  hiddenContextSummary: string | undefined,
+  contextCompressedThroughIndex: number | undefined,
+): UiMessage[] {
+  const through = resolveContextCompressedThroughIndex(
+    hiddenContextSummary,
+    contextCompressedThroughIndex,
+    messages.length,
+  )
+  if (through <= 0) return messages
+  return messages.slice(through)
+}
+
 export function buildOllamaMessages(
   priorMessages: HistoryTurn[],
   newUserContent: string,
   opts: {
     systemPrompt: string
-    maxHistoryMessages: number
     /** Merged after user system prompt when tools are on */
     toolsSystemHint?: string
     /** Runtime context (e.g. local time/date/timezone) */
@@ -102,12 +129,6 @@ export function buildOllamaMessages(
     includeThinkingInHistory?: boolean
   },
 ): OllamaApiMessage[] {
-  const max = opts.maxHistoryMessages
-  const slice =
-    max > 0 && priorMessages.length > max
-      ? priorMessages.slice(-max)
-      : priorMessages
-
   const out: OllamaApiMessage[] = []
   const hint = opts.toolsSystemHint?.trim()
   const runtimeHint = opts.runtimeSystemHint?.trim()
@@ -126,7 +147,7 @@ export function buildOllamaMessages(
   if (sys) {
     out.push({ role: 'system', content: sys })
   }
-  for (const m of slice) {
+  for (const m of priorMessages) {
     if (m.role === 'user' && m.images?.length) {
       out.push({ role: 'user', content: m.content, images: m.images })
     } else if (m.role === 'assistant') {

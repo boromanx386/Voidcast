@@ -51,6 +51,11 @@ export type ChatSession = {
    * Never rendered as a visible chat message.
    */
   hiddenContextSummary?: string
+  /**
+   * Messages before this index are omitted from the LLM payload when
+   * hiddenContextSummary is set (still visible in the chat UI).
+   */
+  contextCompressedThroughIndex?: number
   /** Coding tool context for this session (files read, failures, commands, etc.). */
   codingContextMemo?: CodingContextMemo
   /** Project path this memo was built against; invalidated when settings path changes. */

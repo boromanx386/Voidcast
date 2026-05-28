@@ -25,6 +25,8 @@ import { SubAgentOptionsPanel } from '@/components/options/SubAgentOptionsPanel'
 import { CodingPanel } from '@/components/CodingPanel'
 import {
   buildOllamaMessages,
+  resolveContextCompressedThroughIndex,
+  sliceUiHistoryForContext,
   TOOLS_WEB_SEARCH_HINT,
   TOOLS_YOUTUBE_HINT,
   TOOLS_REDDIT_HINT,
@@ -56,8 +58,12 @@ import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPha
 import { streamOllamaChat, fetchOllamaModels, isThinkingUiEnabled } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
-import { estimateContextUsage, type ContextUsageInfo } from '@/lib/contextUsage'
 import { compressConversationContext } from '@/lib/contextCompress'
+import {
+  CONTEXT_COMPRESS_RATIO_RESET,
+  estimateContextUsage,
+  type ContextUsageInfo,
+} from '@/lib/contextUsage'
 import { extractLongMemoryCandidates } from '@/lib/longMemoryExtract'
 import { detectSubAgentProvider, type SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
@@ -820,7 +826,7 @@ export default function App() {
   /** PDF folder on the PC running the tools server (from desktop push; used on LAN web). */
   const [hostPdfOutputDir, setHostPdfOutputDir] = useState('')
   const effectivePdfOutputDir = resolvePdfOutputDir(settings.pdfOutputDir, hostPdfOutputDir)
-  const [appVersion, setAppVersion] = useState('2.2.0')
+  const [appVersion, setAppVersion] = useState('2.6.1')
   const [screen, setScreen] = useState<Screen>('chat')
   const [optionsTab, setOptionsTab] = useState<OptionsTab>('general')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -828,9 +834,11 @@ export default function App() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [hiddenContextSummary, setHiddenContextSummary] = useState('')
+  const [contextCompressedThroughIndex, setContextCompressedThroughIndex] = useState(0)
   const [contextUsageInfo, setContextUsageInfo] = useState<ContextUsageInfo | null>(null)
   const [contextWarnDismissed, setContextWarnDismissed] = useState(false)
   const [contextCompressBusy, setContextCompressBusy] = useState(false)
+  const contextOverflowLatchRef = useRef(false)
   const [longMemoryBusy, setLongMemoryBusy] = useState(false)
   const [memoryCandidates, setMemoryCandidates] = useState<LongMemoryCandidate[]>([])
   const [memoryPreviewOpen, setMemoryPreviewOpen] = useState(false)
@@ -1084,10 +1092,25 @@ export default function App() {
   // Load sessions from storage
   useEffect(() => {
     const state = loadChatSessions()
-    setSessions(state.sessions)
+    let sessionsMigrated = false
+    const sessions = state.sessions.map((s) => {
+      if (!s.hiddenContextSummary?.trim()) return s
+      const through = resolveContextCompressedThroughIndex(
+        s.hiddenContextSummary,
+        s.contextCompressedThroughIndex,
+        s.messages.length,
+      )
+      if ((s.contextCompressedThroughIndex ?? 0) === through) return s
+      sessionsMigrated = true
+      return { ...s, contextCompressedThroughIndex: through }
+    })
+    setSessions(sessions)
+    if (sessionsMigrated) {
+      saveChatSessions({ sessions, activeSessionId: state.activeSessionId })
+    }
     setActiveSessionId(state.activeSessionId)
     const active = state.activeSessionId
-      ? state.sessions.find((s) => s.id === state.activeSessionId)
+      ? sessions.find((s) => s.id === state.activeSessionId)
       : null
     setMessages(active?.messages ?? [])
     setAssistantGeneratedImages({})
@@ -1099,6 +1122,13 @@ export default function App() {
     setAssistantAudioToolMeta({})
     setAssistantAudioMessageMeta({})
     setHiddenContextSummary(active?.hiddenContextSummary ?? '')
+    setContextCompressedThroughIndex(
+      resolveContextCompressedThroughIndex(
+        active?.hiddenContextSummary,
+        active?.contextCompressedThroughIndex,
+        active?.messages.length ?? 0,
+      ),
+    )
     const baseSettings = loadSettings()
     const fallbackPath = getCodingProjectPath(baseSettings)
     const projectPath = sessionCodingProjectPath(active ?? undefined, fallbackPath)
@@ -1140,6 +1170,9 @@ export default function App() {
         updatedAt: now,
         messages,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
+        contextCompressedThroughIndex: hiddenContextSummary.trim()
+          ? contextCompressedThroughIndex
+          : undefined,
         codingContextMemo: normalizeCodingContextMemo(codingContextMemo, projectPath),
         codingProjectPath: projectPath || undefined,
       }
@@ -1155,15 +1188,21 @@ export default function App() {
       if (idx < 0) return prev
       const current = prev[idx]
       const nextHiddenContextSummary = hiddenContextSummary.trim() || undefined
+      const nextCompressedThrough = nextHiddenContextSummary
+        ? contextCompressedThroughIndex
+        : undefined
       const projectPath = getCodingProjectPath(settings)
       const nextMemo = normalizeCodingContextMemo(codingContextMemo, projectPath)
       const sameMessagesRef = current.messages === messages
       const sameHiddenSummary =
         (current.hiddenContextSummary ?? '') === (nextHiddenContextSummary ?? '')
+      const sameCompressedThrough =
+        (current.contextCompressedThroughIndex ?? 0) === (nextCompressedThrough ?? 0)
       const sameMemo =
         JSON.stringify(current.codingContextMemo ?? null) === JSON.stringify(nextMemo)
       const sameCodingPath = (current.codingProjectPath ?? '') === projectPath
-      if (sameMessagesRef && sameHiddenSummary && sameMemo && sameCodingPath) return prev
+      if (sameMessagesRef && sameHiddenSummary && sameCompressedThrough && sameMemo && sameCodingPath)
+        return prev
 
       const next = [...prev]
       next[idx] = {
@@ -1171,6 +1210,7 @@ export default function App() {
         updatedAt: Date.now(),
         messages,
         hiddenContextSummary: nextHiddenContextSummary,
+        contextCompressedThroughIndex: nextCompressedThrough,
         codingContextMemo: nextMemo,
         codingProjectPath: projectPath || undefined,
       }
@@ -1181,6 +1221,7 @@ export default function App() {
   }, [
     messages,
     hiddenContextSummary,
+    contextCompressedThroughIndex,
     codingContextMemo,
     activeSessionId,
     sessionsHydrated,
@@ -1452,6 +1493,8 @@ export default function App() {
     setAssistantAudioToolMeta({})
     setAssistantAudioMessageMeta({})
     setHiddenContextSummary('')
+    setContextCompressedThroughIndex(0)
+    contextOverflowLatchRef.current = false
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
     setActiveSessionId(null)
@@ -1482,7 +1525,24 @@ export default function App() {
     setAssistantSavedAudioPaths({})
     setAssistantAudioToolMeta({})
     setAssistantAudioMessageMeta({})
+    const through = resolveContextCompressedThroughIndex(
+      session.hiddenContextSummary,
+      session.contextCompressedThroughIndex,
+      session.messages.length,
+    )
     setHiddenContextSummary(session.hiddenContextSummary ?? '')
+    setContextCompressedThroughIndex(through)
+    if (
+      session.hiddenContextSummary?.trim() &&
+      (session.contextCompressedThroughIndex ?? 0) !== through
+    ) {
+      const updated = { ...session, contextCompressedThroughIndex: through, updatedAt: Date.now() }
+      setSessions((prev) => {
+        const next = prev.map((s) => (s.id === session.id ? updated : s))
+        saveChatSessions({ sessions: next, activeSessionId: session.id })
+        return next
+      })
+    }
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
     setActiveSessionId(session.id)
@@ -1504,6 +1564,7 @@ export default function App() {
       updatedAt: now,
       messages: session.messages,
       hiddenContextSummary: session.hiddenContextSummary,
+      contextCompressedThroughIndex: session.contextCompressedThroughIndex,
       codingContextMemo: session.codingContextMemo,
       codingProjectPath: session.codingProjectPath,
     }
@@ -1521,6 +1582,13 @@ export default function App() {
     setAssistantAudioToolMeta({})
     setAssistantAudioMessageMeta({})
     setHiddenContextSummary(forked.hiddenContextSummary ?? '')
+    setContextCompressedThroughIndex(
+      resolveContextCompressedThroughIndex(
+        forked.hiddenContextSummary,
+        forked.contextCompressedThroughIndex,
+        forked.messages.length,
+      ),
+    )
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
     setSessionDirty(false)
@@ -1587,6 +1655,9 @@ export default function App() {
       updatedAt: now,
       messages,
       hiddenContextSummary: hiddenContextSummary.trim() || undefined,
+      contextCompressedThroughIndex: hiddenContextSummary.trim()
+        ? contextCompressedThroughIndex
+        : undefined,
       codingContextMemo: normalizeCodingContextMemo(
         codingContextMemo,
         getCodingProjectPath(settings),
@@ -1616,6 +1687,13 @@ export default function App() {
       setAssistantAudioToolMeta({})
       setAssistantAudioMessageMeta({})
       setHiddenContextSummary(next?.hiddenContextSummary ?? '')
+      setContextCompressedThroughIndex(
+        resolveContextCompressedThroughIndex(
+          next?.hiddenContextSummary,
+          next?.contextCompressedThroughIndex,
+          next?.messages.length ?? 0,
+        ),
+      )
       if (next) restoreCodingContextForSession(next)
     } else {
       setMessages([])
@@ -1628,6 +1706,8 @@ export default function App() {
       setAssistantAudioToolMeta({})
       setAssistantAudioMessageMeta({})
       setHiddenContextSummary('')
+      setContextCompressedThroughIndex(0)
+      contextOverflowLatchRef.current = false
       setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
     }
     setContextUsageInfo(null)
@@ -1695,23 +1775,56 @@ export default function App() {
       })
       const nextSummary = compressed.trim()
       if (!nextSummary) return
+      const throughIndex = messages.length
       setHiddenContextSummary(nextSummary)
+      setContextCompressedThroughIndex(throughIndex)
       setContextWarnDismissed(true)
+
       if (activeSessionId) {
         setSessions((prev) => {
           const updated = prev.map((s) =>
-            s.id === activeSessionId ? { ...s, hiddenContextSummary: nextSummary, updatedAt: Date.now() } : s
+            s.id === activeSessionId
+              ? {
+                  ...s,
+                  hiddenContextSummary: nextSummary,
+                  contextCompressedThroughIndex: throughIndex,
+                  updatedAt: Date.now(),
+                }
+              : s,
           )
           saveChatSessions({ sessions: updated, activeSessionId })
           return updated
         })
       }
     } catch (e) {
+      contextOverflowLatchRef.current = false
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setContextCompressBusy(false)
     }
   }, [activeSessionId, busy, contextCompressBusy, hiddenContextSummary, messages, settings])
+
+  useEffect(() => {
+    if (!contextUsageInfo) return
+    if (contextUsageInfo.ratio < CONTEXT_COMPRESS_RATIO_RESET) {
+      contextOverflowLatchRef.current = false
+      return
+    }
+    if (!contextUsageInfo.shouldCompress) return
+    if (!settings.contextAutoCompress) return
+    if (busy || contextCompressBusy || contextOverflowLatchRef.current) return
+    if (messages.length < 4) return
+
+    contextOverflowLatchRef.current = true
+    void summarizeContextNow()
+  }, [
+    busy,
+    contextCompressBusy,
+    contextUsageInfo,
+    messages.length,
+    settings.contextAutoCompress,
+    summarizeContextNow,
+  ])
 
   const subAgentUi = useMemo<SubAgentUiCallbacks>(
     () => ({
@@ -1989,7 +2102,12 @@ export default function App() {
     setToolPhase(null)
     setToolResultBanner(null)
 
-    const priorHistory: HistoryTurn[] = activeHistory.reduce<HistoryTurn[]>((acc, x) => {
+    const historyForApi: UiMessage[] = sliceUiHistoryForContext(
+      activeHistory,
+      hiddenContextSummary,
+      contextCompressedThroughIndex,
+    )
+    const priorHistory: HistoryTurn[] = historyForApi.reduce<HistoryTurn[]>((acc, x) => {
       if (x.role === 'user') {
         const fileHint = x.fileAttachments?.length
           ? [
@@ -2092,7 +2210,6 @@ export default function App() {
       ollamaUserText,
       {
         systemPrompt: settings.llmSystemPrompt,
-        maxHistoryMessages: settings.llmMaxHistoryMessages,
         runtimeSystemHint: runtimeTimeHint,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         longTermMemoryContext: longMemoryContext,
@@ -2507,7 +2624,7 @@ export default function App() {
 
       const usageInfo = estimateContextUsage(usage, settings.llmNumCtx)
       setContextUsageInfo(usageInfo)
-      if (usageInfo?.shouldWarn) setContextWarnDismissed(false)
+      if (usageInfo?.shouldWarn && !settings.contextAutoCompress) setContextWarnDismissed(false)
       // Audio is rendered in a dedicated chat bubble from tool results,
       // so we don't append raw audio_url lines into assistant markdown content.
       if (retrievedLongMemory.length > 0) {
@@ -3880,8 +3997,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Context Warning */}
-      {contextUsageInfo?.shouldWarn && !contextWarnDismissed && (
+      {/* Context: manual warning with COMPRESS, or auto-compress status only */}
+      {contextUsageInfo?.shouldWarn &&
+        !settings.contextAutoCompress &&
+        !contextWarnDismissed && (
         <div className="border-t border-neon-yellow/30 bg-neon-yellow/5 px-4 py-3 mx-4 my-2 rounded">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm font-mono text-neon-yellow">
@@ -3907,12 +4026,22 @@ export default function App() {
               </button>
             </div>
           </div>
-          {/* Context bar */}
           <div className="context-bar mt-2">
             <div
               className={`context-fill ${contextUsageInfo.ratio > 0.9 ? 'danger' : contextUsageInfo.ratio > 0.7 ? 'warning' : ''}`}
               style={{ width: `${Math.min(100, contextUsageInfo.ratio * 100)}%` }}
             />
+          </div>
+        </div>
+      )}
+      {settings.contextAutoCompress &&
+        contextUsageInfo?.shouldCompress &&
+        (contextCompressBusy || busy) && (
+        <div className="border-t border-neon-cyan/25 bg-neon-cyan/5 px-4 py-2 mx-4 my-2 rounded">
+          <div className="text-sm font-mono text-neon-cyan">
+            <span className="opacity-70">CONTEXT:</span>
+            {' '}CTX {Math.round(contextUsageInfo.ratio * 100)}%
+            {contextCompressBusy ? ' · auto-compressing…' : ' · auto-compress when idle'}
           </div>
         </div>
       )}

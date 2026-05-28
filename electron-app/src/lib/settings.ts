@@ -114,11 +114,8 @@ export type AppSettings = {
   llmTemperature: number
   /** Ollama options.num_ctx — context window size in tokens */
   llmNumCtx: number
-  /**
-   * Max prior user/assistant messages per request; 0 = no limit.
-   * System prompt is always sent separately.
-   */
-  llmMaxHistoryMessages: number
+  /** Auto-run context compression when prompt usage reaches ~90% of num_ctx. */
+  contextAutoCompress: boolean
   /** Default for new chats: whether to include long-term memory retrieval. */
   longMemoryDefaultEnabled: boolean
   /**
@@ -269,7 +266,7 @@ export const defaults: AppSettings = {
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
   llmNumCtx: 8192,
-  llmMaxHistoryMessages: 0,
+  contextAutoCompress: true,
   longMemoryDefaultEnabled: false,
   llmThinkLevel: 'on',
   llmSystemPrompt: '',
@@ -475,7 +472,6 @@ function normalizeLlm(s: AppSettings): AppSettings {
         : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
-  const hist = Number(s.llmMaxHistoryMessages)
   const openrouterBaseUrl =
     typeof s.openrouterBaseUrl === 'string' && s.openrouterBaseUrl.trim()
       ? s.openrouterBaseUrl.trim()
@@ -516,9 +512,10 @@ function normalizeLlm(s: AppSettings): AppSettings {
     llmNumCtx: Number.isFinite(ctx)
       ? clamp(Math.round(ctx), 512, 262144)
       : defaults.llmNumCtx,
-    llmMaxHistoryMessages: Number.isFinite(hist)
-      ? clamp(Math.round(hist), 0, 500)
-      : defaults.llmMaxHistoryMessages,
+    contextAutoCompress:
+      typeof s.contextAutoCompress === 'boolean'
+        ? s.contextAutoCompress
+        : defaults.contextAutoCompress,
     longMemoryDefaultEnabled:
       typeof s.longMemoryDefaultEnabled === 'boolean'
         ? s.longMemoryDefaultEnabled

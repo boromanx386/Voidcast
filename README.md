@@ -149,7 +149,7 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 
 ## Context Compression
 
-Local and small-context models hit a wall after long chats. When the context nears the model limit, Voidcast **summarizes older turns locally** (provider-aware) and keeps recent messages plus tool results, so long agent loops can continue without silently dropping the whole thread.
+Local and small-context models hit a wall after long chats. When prompt usage nears the model limit (~90% of `num_ctx`), Voidcast can **auto-compress** (toggle in **Options → LLM**): it summarizes older turns into a hidden memory buffer (provider-aware) and injects that into the system prompt on later turns. **The full chat stays visible in the UI**; only new messages after compression are sent again as raw turns to the model. Use **COMPRESS** in the context warning banner to compress manually when auto is off.
 
 ---
 

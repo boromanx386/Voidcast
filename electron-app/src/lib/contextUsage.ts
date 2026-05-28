@@ -14,6 +14,8 @@ export type ContextUsageInfo = {
 
 export const CONTEXT_WARN_RATIO = 0.78
 export const CONTEXT_COMPRESS_RATIO = 0.9
+/** Below this prompt ratio, auto-compress may run again after a prior compression. */
+export const CONTEXT_COMPRESS_RATIO_RESET = 0.85
 
 /**
  * Convert Ollama usage counters into context-window utilization estimate.

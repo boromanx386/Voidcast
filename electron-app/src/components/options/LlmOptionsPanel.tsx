@@ -406,26 +406,21 @@ export function LlmOptionsPanel({
         </p>
       </div>
 
-      {/* History Messages */}
       <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-yellow mr-2">◐</span> HISTORY_MESSAGES
-          <span className="ml-3 font-mono text-neon-cyan">
-            {settings.llmMaxHistoryMessages === 0
-              ? 'FULL'
-              : `${settings.llmMaxHistoryMessages} msgs`}
-          </span>
+        <label className="flex items-center gap-2 text-sm font-mono text-void-light cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-neon-cyan"
+            checked={settings.contextAutoCompress}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, contextAutoCompress: e.target.checked }))
+            }
+          />
+          <span className="text-neon-yellow mr-1">◐</span>
+          AUTO_COMPRESS at 90% context usage
         </label>
-        <NumericSettingInput
-          min={0}
-          max={500}
-          value={settings.llmMaxHistoryMessages}
-          onCommit={(llmMaxHistoryMessages) =>
-            setSettings((s) => ({ ...s, llmMaxHistoryMessages }))
-          }
-        />
         <p className="text-xs text-void-dim mt-1">
-          Last N messages sent · <span className="text-neon-cyan">0</span> = full history
+          Summarizes older turns into hidden memory; chat UI stays full. Manual COMPRESS still works when off.
         </p>
       </div>
 

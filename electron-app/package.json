@@ -1,6 +1,6 @@
 {
   "name": "voidcast",
-  "version": "2.5.9",
+  "version": "2.6.1",
   "main": "dist-electron/main/index.js",
   "description": "Desktop AI agent with multi-provider tool calling, integrated coding IDE, and TTS/STT.",
   "author": "https://github.com/boromanx386/Voidcast",

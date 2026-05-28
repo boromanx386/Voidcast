@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.6.1]
+
+### Added
+
+- **Context compression (chat memory)**: long threads summarize into a hidden session buffer (provider-aware) while the full chat stays in the UI; older turns are omitted from the LLM payload via `contextCompressedThroughIndex`. **AUTO_COMPRESS** toggle in Options → LLM (default on at ~90% `num_ctx`); manual **COMPRESS** remains when auto is off.
+
+### Changed
+
+- **Context compression UX**: with auto-compress on, the yellow COMPRESS/IGNORE banner at ~78% is hidden; a short status line appears only while compressing or waiting for an idle turn. Removed **HISTORY_MESSAGES** from LLM options (always full history in UI).
+
+### Fixed
+
+- **Legacy compressed sessions**: chats with a summary but no compress index are migrated on load so the API does not resend the full thread plus the summary.
+
 ## [2.5.9]
 
 ### Fixed
