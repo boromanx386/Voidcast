@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Sub-agent vision in history**: after `image_recall` runs the vision sub-agent, descriptions are saved on the chat session and replayed once in prior-turn context next to the matching image (user attachments and saved generated paths). No duplicate injection in the live catalog block or cache-short-circuit on repeat tool calls.
+
 ## [2.6.1]
 
 ### Added

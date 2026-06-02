@@ -37,6 +37,7 @@ export type UiMessage = {
 }
 
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
+import type { ImageVisionCache } from '@/lib/imageVisionCache'
 
 export type ChatSessionMessage = UiMessage
 
@@ -60,6 +61,8 @@ export type ChatSession = {
   codingContextMemo?: CodingContextMemo
   /** Project path this memo was built against; invalidated when settings path changes. */
   codingProjectPath?: string
+  /** Sub-agent vision descriptions keyed by image catalog key (path or base64 prefix). */
+  imageVisionCache?: ImageVisionCache
 }
 
 export type ChatSessionsState = {

@@ -1,6 +1,7 @@
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
 import type { ToolsEnabled, SubAgentConfig } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
+import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
 import type { RunwareImageConfig } from '@/lib/runware'
 import {
@@ -65,6 +66,7 @@ export type RunOpenRouterChatWithToolsParams = {
   openrouterBaseUrlForSubAgent?: string
   openrouterApiKeyForSubAgent?: string
   subAgentUi?: SubAgentUiCallbacks
+  onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
 }
 
 export async function runOpenRouterChatWithTools(
@@ -188,6 +190,7 @@ export async function runOpenRouterChatWithTools(
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
         openrouterApiKey: params.openrouterApiKeyForSubAgent,
         subAgentUi: params.subAgentUi,
+        onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
       }),
     parseArgsForToolResult: parseToolArguments,
     onDelta: params.onDelta,

@@ -308,7 +308,9 @@ def _format_post_with_comments(payload: Any, max_comments: int) -> str:
     lines: list[str] = ["POST"]
     lines.append(_format_post_line(1, post))
 
-    comments_payload = payload[1] if len(payload) > 1 and isinstance(payload[1], dict) else None
+    comments_payload = (
+        payload[1] if len(payload) > 1 and isinstance(payload[1], dict) else None
+    )
     if comments_payload:
         comment_children = (comments_payload.get("data") or {}).get("children") or []
         shown = 0

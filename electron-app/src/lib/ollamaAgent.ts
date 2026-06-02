@@ -39,6 +39,10 @@ import {
 } from '@/lib/codingTools'
 import { loadProjectImageRecalls, resolveInsideCodingProject } from '@/lib/imageProjectRecall'
 import {
+  cacheEntriesFromDescribeResults,
+  type ImageVisionCache,
+} from '@/lib/imageVisionCache'
+import {
   describeImagesWithSubAgent,
   formatSubAgentResultsForAgent,
   type SubAgentUiCallbacks,
@@ -613,6 +617,8 @@ export async function executeToolCall(
     openrouterApiKey?: string
     /** UI hooks while sub-agent describes images (header-style panel in App). */
     subAgentUi?: SubAgentUiCallbacks
+    /** Persist sub-agent descriptions onto the session (for later history context). */
+    onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   },
 ): Promise<string> {
   const args =
@@ -925,13 +931,14 @@ export async function executeToolCall(
       recall.recalled.length > 0
 
     if (useSubAgent) {
+      const recalledForCache = recall.recalled.map((img) => ({
+        base64: img.base64,
+        mime: img.mime,
+        path: img.path,
+        index: img.index,
+      }))
       const descriptions = await describeImagesWithSubAgent(
-        recall.recalled.map((img) => ({
-          base64: img.base64,
-          mime: img.mime,
-          path: img.path,
-          index: img.index,
-        })),
+        recalledForCache,
         subAgentConfig,
         {
           ollamaBaseUrl: ctx.ollamaBaseUrl || 'http://localhost:11434',
@@ -942,6 +949,10 @@ export async function executeToolCall(
         ctx.signal,
         ctx.subAgentUi,
       )
+      const newEntries = cacheEntriesFromDescribeResults(recalledForCache, descriptions)
+      if (Object.keys(newEntries).length > 0) {
+        ctx.onImageVisionCacheUpdate?.(newEntries)
+      }
       const formatted = formatSubAgentResultsForAgent(descriptions)
       const hasCatalog = recall.recalled.some((x) => x.recallSource === 'catalog')
       const hasProject = recall.recalled.some((x) => x.recallSource === 'project_file')
@@ -1630,6 +1641,7 @@ export type RunChatWithToolsParams = {
   openrouterBaseUrlForSubAgent?: string
   openrouterApiKeyForSubAgent?: string
   subAgentUi?: SubAgentUiCallbacks
+  onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
 }
 
 /**
@@ -1807,6 +1819,7 @@ export async function runOllamaChatWithTools(
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
         openrouterApiKey: params.openrouterApiKeyForSubAgent,
         subAgentUi: params.subAgentUi,
+        onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
       }),
     parseArgsForToolResult: argumentsStringToObject,
     onDelta: params.onDelta,

@@ -127,6 +127,12 @@ import {
   sessionCodingProjectPath,
   type CodingContextMemo,
 } from '@/lib/codingContextMemo'
+import {
+  imageCatalogKey,
+  mergeImageVisionCache,
+  normalizeImageVisionCache,
+  type ImageVisionCache,
+} from '@/lib/imageVisionCache'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
 import {
   clearCloneRef,
@@ -287,9 +293,7 @@ function toConversationTurns(messages: UiMessage[]): Array<{ role: 'user' | 'ass
 }
 
 function catalogItemKey(item: PendingChatImage): string {
-  const path = item.path?.trim()
-  if (path) return `path:${path.toLowerCase()}`
-  return `b64:${item.base64.slice(0, 96)}`
+  return imageCatalogKey(item)
 }
 
 function buildImageCatalogHint(
@@ -332,13 +336,15 @@ function buildQueuedImagePathHint(queued: PendingChatImage[]): string {
   ].join('\n')
 }
 
-/** Text-only hint: maps earlier attachments to global tool catalog indexes / paths for image_recall (no base64 in history). */
+/** Text-only hint: maps earlier attachments to catalog indexes; includes stored vision analysis when available. */
 function buildHistoricalImageRecallHint(
   msg: UiMessage,
   catalog: PendingChatImage[],
+  visionCache: ImageVisionCache = {},
 ): string {
   if (msg.role !== 'user' || !msg.images?.length) return ''
   const lines: string[] = []
+  let hasVision = false
   for (let j = 0; j < msg.images.length; j++) {
     const b64 = (msg.images[j] || '').trim()
     if (!b64) continue
@@ -347,18 +353,24 @@ function buildHistoricalImageRecallHint(
       ? catalogItemKey({ base64: b64, mime: '', path })
       : catalogItemKey({ base64: b64, mime: '' })
     let oneBased: number | null = null
+    let catalogItem: PendingChatImage | null = null
     for (let k = 0; k < catalog.length; k++) {
       const c = catalog[k]
       if (catalogItemKey(c) === key) {
         oneBased = k + 1
+        catalogItem = c
         break
       }
     }
     const label =
       (path || msg.imageNames?.[j] || '').trim() || `attachment ${j + 1}`
+    const desc = catalogItem ? visionCache[imageCatalogKey(catalogItem)] : undefined
+    if (desc) hasVision = true
     if (oneBased != null) {
       lines.push(
-        `- Index ${oneBased} (1-based catalog): ${label}${path ? ` — path: ${path}` : ''}`,
+        desc
+          ? `- Index ${oneBased} (1-based catalog): ${label}${path ? ` — path: ${path}` : ''}\n  Vision analysis: ${desc}`
+          : `- Index ${oneBased} (1-based catalog): ${label}${path ? ` — path: ${path}` : ''}`,
       )
     } else {
       lines.push(`- ${label} (could not match to current image catalog; try re-attaching if needed)`)
@@ -366,9 +378,29 @@ function buildHistoricalImageRecallHint(
   }
   if (!lines.length) return ''
   return [
-    'Images were attached in this earlier turn. For pixel-accurate vision later, call image_recall with reference_image_indexes (1-based, same order as the internal catalog used by tools) and/or reference_image_paths using the paths below. Earlier turns do not resend raw image bytes in context.',
+    hasVision
+      ? 'Images from this earlier turn (vision analysis included where available):'
+      : 'Images were attached in this earlier turn. For pixel-accurate vision later, call image_recall with reference_image_indexes (1-based, same order as the internal catalog used by tools) and/or reference_image_paths using the paths below. Earlier turns do not resend raw image bytes in context.',
     ...lines,
   ].join('\n')
+}
+
+function buildAssistantImageVisionHint(
+  msg: UiMessage,
+  visionCache: ImageVisionCache = {},
+): string {
+  if (msg.role !== 'assistant') return ''
+  const paths = dedupeNonEmpty(msg.generatedImagePaths || [])
+  if (!paths.length) return ''
+  const lines: string[] = []
+  for (const p of paths) {
+    const desc = visionCache[imageCatalogKey({ path: p, base64: '' })]
+    if (desc) {
+      lines.push(`- ${p}\n  Vision analysis: ${desc}`)
+    }
+  }
+  if (!lines.length) return ''
+  return ['Generated image(s) from this turn:', ...lines].join('\n')
 }
 
 function buildQueuedFilePathHint(queued: PendingChatFile[]): string {
@@ -873,6 +905,7 @@ export default function App() {
   const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(() =>
     emptyCodingContextMemo(getCodingProjectPath(loadSettings())),
   )
+  const [imageVisionCache, setImageVisionCache] = useState<ImageVisionCache>({})
   const codingProjectPathForMemoRef = useRef(getCodingProjectPath(loadSettings()))
   const [toolResultBanner, setToolResultBanner] = useState<
     { kind: 'pdf'; text: string } | null
@@ -1137,6 +1170,7 @@ export default function App() {
     }
     codingProjectPathForMemoRef.current = projectPath
     setCodingContextMemo(resolveMemoForSession(active ?? undefined, projectPath))
+    setImageVisionCache(normalizeImageVisionCache(active?.imageVisionCache))
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
     setSessionDirty(false)
@@ -1175,6 +1209,7 @@ export default function App() {
           : undefined,
         codingContextMemo: normalizeCodingContextMemo(codingContextMemo, projectPath),
         codingProjectPath: projectPath || undefined,
+        imageVisionCache: normalizeImageVisionCache(imageVisionCache),
       }
       setSessions((prev) => [...prev, newSession].sort((a, b) => b.updatedAt - a.updatedAt))
       setActiveSessionId(newId)
@@ -1201,7 +1236,10 @@ export default function App() {
       const sameMemo =
         JSON.stringify(current.codingContextMemo ?? null) === JSON.stringify(nextMemo)
       const sameCodingPath = (current.codingProjectPath ?? '') === projectPath
-      if (sameMessagesRef && sameHiddenSummary && sameCompressedThrough && sameMemo && sameCodingPath)
+      const nextVisionCache = normalizeImageVisionCache(imageVisionCache)
+      const sameVisionCache =
+        JSON.stringify(current.imageVisionCache ?? null) === JSON.stringify(nextVisionCache)
+      if (sameMessagesRef && sameHiddenSummary && sameCompressedThrough && sameMemo && sameCodingPath && sameVisionCache)
         return prev
 
       const next = [...prev]
@@ -1213,6 +1251,7 @@ export default function App() {
         contextCompressedThroughIndex: nextCompressedThrough,
         codingContextMemo: nextMemo,
         codingProjectPath: projectPath || undefined,
+        imageVisionCache: nextVisionCache,
       }
       next.sort((a, b) => b.updatedAt - a.updatedAt)
       return next
@@ -1223,6 +1262,7 @@ export default function App() {
     hiddenContextSummary,
     contextCompressedThroughIndex,
     codingContextMemo,
+    imageVisionCache,
     activeSessionId,
     sessionsHydrated,
     settings.coding.projectPath,
@@ -1463,20 +1503,33 @@ export default function App() {
 
       const flushId = options?.flushActiveSessionId
       if (flushId) {
-        setSessions((prev) =>
-          patchSessionCodingState(
+        setSessions((prev) => {
+          const patched = patchSessionCodingState(
             prev,
             flushId,
             getCodingProjectPath(settings),
             codingContextMemo,
-          ),
-        )
+          )
+          const idx = patched.findIndex((s) => s.id === flushId)
+          if (idx < 0) return patched
+          const cur = patched[idx]!
+          const nextVisionCache = normalizeImageVisionCache(imageVisionCache)
+          if (
+            JSON.stringify(cur.imageVisionCache ?? null) === JSON.stringify(nextVisionCache)
+          ) {
+            return patched
+          }
+          const next = [...patched]
+          next[idx] = { ...cur, updatedAt: Date.now(), imageVisionCache: nextVisionCache }
+          return next
+        })
       }
 
       syncCodingProjectPathToSettings(path)
       setCodingContextMemo(memo)
+      setImageVisionCache(normalizeImageVisionCache(session.imageVisionCache))
     },
-    [settings, codingContextMemo, syncCodingProjectPathToSettings],
+    [settings, codingContextMemo, imageVisionCache, syncCodingProjectPathToSettings],
   )
 
   // === Session Actions ===
@@ -1507,6 +1560,7 @@ export default function App() {
     setError(null)
     setToolResultBanner(null)
     setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
+    setImageVisionCache({})
     setMenuOpen(false)
   }
 
@@ -1567,6 +1621,7 @@ export default function App() {
       contextCompressedThroughIndex: session.contextCompressedThroughIndex,
       codingContextMemo: session.codingContextMemo,
       codingProjectPath: session.codingProjectPath,
+      imageVisionCache: session.imageVisionCache,
     }
     const nextState = upsertSession({ sessions, activeSessionId }, forked)
     setSessions(nextState.sessions)
@@ -1663,6 +1718,7 @@ export default function App() {
         getCodingProjectPath(settings),
       ),
       codingProjectPath: getCodingProjectPath(settings) || undefined,
+      imageVisionCache: normalizeImageVisionCache(imageVisionCache),
     }
     const nextState = upsertSession({ sessions, activeSessionId }, next)
     setSessions(nextState.sessions)
@@ -1709,6 +1765,7 @@ export default function App() {
       setContextCompressedThroughIndex(0)
       contextOverflowLatchRef.current = false
       setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
+      setImageVisionCache({})
     }
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
@@ -2116,7 +2173,7 @@ export default function App() {
               'File snapshots are stored in the original attachment turn.',
             ].join('\n')
           : ''
-        const imageRecallHint = buildHistoricalImageRecallHint(x, toolImageCatalog)
+        const imageRecallHint = buildHistoricalImageRecallHint(x, toolImageCatalog, imageVisionCache)
         const t: HistoryTurn = {
           role: 'user',
           content: [x.content, fileHint, imageRecallHint].filter((v) => v.trim().length > 0).join('\n\n') ||
@@ -2131,9 +2188,10 @@ export default function App() {
       }
       // Some providers reject empty assistant turns (common right after abort).
       if (!x.content.trim() && !x.thinking?.trim()) return acc
+      const imageVisionHint = buildAssistantImageVisionHint(x, imageVisionCache)
       acc.push({
         role: 'assistant',
-        content: x.content,
+        content: [x.content, imageVisionHint].filter((v) => v.trim().length > 0).join('\n\n'),
         ...(x.thinking?.trim() ? { thinking: x.thinking } : {}),
       })
       return acc
@@ -2290,6 +2348,9 @@ export default function App() {
             settings.subAgent.enabled && settings.subAgent.showAnalysisWindow !== false
               ? subAgentUi
               : undefined,
+          onImageVisionCacheUpdate: (entries: ImageVisionCache) => {
+            setImageVisionCache((prev) => mergeImageVisionCache(prev, entries))
+          },
           signal: ac.signal,
           onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
             ? (thinking: string) => {

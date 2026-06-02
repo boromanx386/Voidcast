@@ -1,4 +1,5 @@
 import { normalizeCodingContextMemo } from '@/lib/codingContextMemo'
+import { normalizeImageVisionCache } from '@/lib/imageVisionCache'
 import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
 /** Drop image payloads before localStorage — avoids quota blowups (MVP). */
@@ -41,11 +42,16 @@ function isSessionLike(v: unknown): v is ChatSession {
 
 function normalizeSession(raw: ChatSession): ChatSession {
   const projectPath = (raw.codingProjectPath ?? raw.codingContextMemo?.projectPath ?? '').trim()
-  if (!raw.codingContextMemo) return raw
+  const imageVisionCache = normalizeImageVisionCache(raw.imageVisionCache)
+  const hasVisionCache = Object.keys(imageVisionCache).length > 0
+  if (!raw.codingContextMemo) {
+    return hasVisionCache ? { ...raw, imageVisionCache } : raw
+  }
   return {
     ...raw,
     codingProjectPath: projectPath || raw.codingProjectPath,
     codingContextMemo: normalizeCodingContextMemo(raw.codingContextMemo, projectPath),
+    ...(hasVisionCache ? { imageVisionCache } : {}),
   }
 }
 
