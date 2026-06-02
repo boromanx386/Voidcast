@@ -1,34 +1,37 @@
 """
 Reddit read-only tool for the assistant.
 
-Uses Reddit's public JSON endpoints (no API key, no OAuth). A valid
-User-Agent header is required — Reddit returns 429/403 to default
-clients (`httpx`, `urllib`, `python-requests`).
+Reddit blocks unauthenticated `.json` API access (HTTP 403). This module uses
+public Atom RSS feeds instead — no Reddit app / OAuth required.
 
-Endpoints used:
-  - Feed:    https://www.reddit.com/r/{sub}/{sort}.json?limit=N&t=time
-  - r/all:   https://www.reddit.com/{sort}.json?limit=N&t=time     (when no subreddit)
-  - Post:    https://www.reddit.com/r/{sub}/comments/{id}.json
-  - Search:  https://www.reddit.com/r/{sub}/search.json?q=Q&restrict_sr=on
-             https://www.reddit.com/search.json?q=Q                 (global)
+Optional future path: set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET (+ username/
+password for script apps) to use oauth.reddit.com JSON again when Reddit grants
+API access (see Responsible Builder Policy).
+
+RSS endpoints:
+  - Feed:   https://www.reddit.com/r/{sub}/{sort}.rss?limit=N[&t=time]
+  - r/all:  https://www.reddit.com/{sort}.rss?limit=N
+  - Search: https://www.reddit.com/search.rss?q=Q  (or /r/{sub}/search.rss)
+  - Post:   https://www.reddit.com/r/{sub}/comments/{id}/.rss
 """
 
 from __future__ import annotations
 
+import os
 import re
+import xml.etree.ElementTree as ET
+from html import unescape
 from typing import Any
 
 import httpx
+from bs4 import BeautifulSoup
 
-# Reddit's public JSON endpoints aggressively 403 on app-style User-Agents
-# (e.g. "MyApp/1.0", "python:foo:v1") in 2024+. A standard desktop browser UA
-# passes the same anti-bot filter. We do not log in, send cookies, or scrape
-# at scale — calls are single-shot and rate-limited at the tool layer.
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/120.0.0.0 Safari/537.36"
 )
+ATOM_NS = "http://www.w3.org/2005/Atom"
 FETCH_TIMEOUT_S = 20.0
 MAX_BODY_BYTES = 4 * 1024 * 1024
 MAX_LIMIT = 25
@@ -54,13 +57,23 @@ _POST_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 _SHORT_REDDIT_RE = re.compile(r"^https?://redd\.it/([a-z0-9]+)/?", re.IGNORECASE)
-# Bare post id ("1t8kumi") or thing-id form ("t3_1t8kumi"). Reddit IDs are
-# base36 strings; modern ones are 7 chars but older posts are 5–6.
 _BARE_POST_ID_RE = re.compile(r"^(?:t3_)?([a-z0-9]{4,12})$", re.IGNORECASE)
-
-
 class RedditError(ValueError):
     """User-facing reddit tool error."""
+
+
+def _oauth_configured() -> bool:
+    return bool(
+        os.environ.get("REDDIT_CLIENT_ID", "").strip()
+        and os.environ.get("REDDIT_CLIENT_SECRET", "").strip()
+    )
+
+
+def _request_headers() -> dict[str, str]:
+    return {
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
 
 def _clamp(n: Any, lo: int, hi: int, default: int) -> int:
@@ -116,21 +129,51 @@ def _truncate(text: str, n: int) -> str:
     return t[: max(0, n - 1)].rstrip() + "…"
 
 
-def _post_json_url_from_user_url(post_url: str) -> str:
-    """Convert a Reddit post URL (or bare post id) into its `.json` form."""
+def _strip_html(html: str) -> str:
+    if not html:
+        return ""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n", strip=True)
+    return unescape(re.sub(r"\n{3,}", "\n\n", text)).strip()
+
+
+def _thing_id(atom_id: str) -> tuple[str, str]:
+    """Return (kind, id) from Atom id like t3_abc or t1_xyz."""
+    raw = (atom_id or "").strip()
+    if "_" in raw:
+        kind, rest = raw.split("_", 1)
+        return kind.lower(), rest.lower()
+    return "", raw.lower()
+
+
+def _author_name(atom_author: str) -> str:
+    s = (atom_author or "").strip()
+    if s.startswith("/u/"):
+        return s[3:]
+    return s
+
+
+def _sub_from_link(link: str) -> str:
+    m = re.search(r"/r/([A-Za-z0-9_]+)/", link or "", re.IGNORECASE)
+    return m.group(1) if m else ""
+
+
+def _post_rss_url_from_user_url(post_url: str) -> str:
+    """Convert a Reddit post URL (or bare post id) into its thread `.rss` URL."""
     raw = (post_url or "").strip()
     if not raw:
         raise RedditError("post_url is empty")
 
-    # Bare post id (e.g. "1t8kumi") or thing-id form ("t3_1t8kumi").
     if "/" not in raw and ":" not in raw:
         bare = _BARE_POST_ID_RE.match(raw)
         if bare:
-            return f"https://www.reddit.com/comments/{bare.group(1).lower()}.json"
+            return f"https://www.reddit.com/comments/{bare.group(1).lower()}/.rss"
 
     short = _SHORT_REDDIT_RE.match(raw)
     if short:
-        return f"https://www.reddit.com/comments/{short.group(1)}.json"
+        return f"https://www.reddit.com/comments/{short.group(1)}/.rss"
 
     try:
         u = httpx.URL(raw)
@@ -152,22 +195,55 @@ def _post_json_url_from_user_url(post_url: str) -> str:
         )
     sub = m.group(1)
     post_id = m.group(2).lower()
-    return f"https://www.reddit.com/r/{sub}/comments/{post_id}.json"
+    return f"https://www.reddit.com/r/{sub}/comments/{post_id}/.rss"
 
 
-async def _fetch_json(client: httpx.AsyncClient, url: str) -> Any:
-    # NOTE: omitting Accept is intentional — Reddit's anti-bot filter rejects
-    # `Accept: application/json` and `Accept: */*` while passing requests with
-    # no Accept header. The .json URL suffix already forces a JSON response.
+def _parse_atom_entries(body: bytes) -> list[dict[str, Any]]:
     try:
-        res = await client.get(
-            url,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept-Language": "en-US,en;q=0.9",
-            },
-            timeout=FETCH_TIMEOUT_S,
+        root = ET.fromstring(body)
+    except ET.ParseError as e:
+        raise RedditError("Reddit RSS was not valid XML") from e
+
+    entries: list[dict[str, Any]] = []
+    for entry in root.findall(f"{{{ATOM_NS}}}entry"):
+        title_el = entry.find(f"{{{ATOM_NS}}}title")
+        id_el = entry.find(f"{{{ATOM_NS}}}id")
+        link_el = entry.find(f"{{{ATOM_NS}}}link")
+        content_el = entry.find(f"{{{ATOM_NS}}}content")
+        author_parent = entry.find(f"{{{ATOM_NS}}}author")
+        author_name_el = (
+            author_parent.find(f"{{{ATOM_NS}}}name")
+            if author_parent is not None
+            else None
         )
+
+        title = (title_el.text or "").strip() if title_el is not None else ""
+        atom_id = (id_el.text or "").strip() if id_el is not None else ""
+        link = ""
+        if link_el is not None:
+            link = (link_el.get("href") or link_el.text or "").strip()
+        html_body = (content_el.text or "") if content_el is not None else ""
+        author = _author_name(
+            (author_name_el.text or "").strip() if author_name_el is not None else "",
+        )
+        kind, thing_id = _thing_id(atom_id)
+        entries.append(
+            {
+                "kind": kind,
+                "id": thing_id,
+                "title": title,
+                "link": link,
+                "author": author,
+                "body": _strip_html(html_body),
+                "subreddit": _sub_from_link(link),
+            },
+        )
+    return entries
+
+
+async def _fetch_rss(client: httpx.AsyncClient, url: str) -> list[dict[str, Any]]:
+    try:
+        res = await client.get(url, headers=_request_headers(), timeout=FETCH_TIMEOUT_S)
     except httpx.TimeoutException as e:
         raise RedditError("Reddit request timed out") from e
     except Exception as e:
@@ -177,8 +253,8 @@ async def _fetch_json(client: httpx.AsyncClient, url: str) -> Any:
         raise RedditError("Reddit returned 404 (subreddit or post not found)")
     if res.status_code in (403, 429):
         raise RedditError(
-            f"Reddit refused request (HTTP {res.status_code}); subreddit "
-            "may be private/quarantined or rate limited.",
+            f"Reddit refused request (HTTP {res.status_code}). "
+            "RSS access may be rate-limited — try again later.",
         )
     if not res.is_success:
         raise RedditError(f"Reddit HTTP {res.status_code}")
@@ -186,154 +262,89 @@ async def _fetch_json(client: httpx.AsyncClient, url: str) -> Any:
     if len(res.content) > MAX_BODY_BYTES:
         raise RedditError("Reddit response too large")
 
-    try:
-        return res.json()
-    except Exception as e:
-        raise RedditError("Reddit response was not valid JSON") from e
+    ct = (res.headers.get("content-type") or "").lower()
+    if "html" in ct and b"<feed" not in res.content[:800]:
+        raise RedditError(
+            "Reddit returned HTML instead of RSS (blocked or wrong URL).",
+        )
+
+    return _parse_atom_entries(res.content)
 
 
-def _format_post_line(idx: int, data: dict[str, Any]) -> str:
-    title = _truncate(str(data.get("title") or "(no title)"), 220)
-    sub = str(data.get("subreddit") or "")
-    author = str(data.get("author") or "")
-    score = int(data.get("score") or 0)
-    num_comments = int(data.get("num_comments") or 0)
-    permalink = str(data.get("permalink") or "")
-    url = str(data.get("url") or "")
-    flair = str(data.get("link_flair_text") or "").strip()
-    is_self = bool(data.get("is_self"))
-    over_18 = bool(data.get("over_18"))
-    spoiler = bool(data.get("spoiler"))
-    selftext = str(data.get("selftext") or "")
-    post_id = str(data.get("id") or "")
+def _format_rss_post_line(idx: int, row: dict[str, Any], *, include_body: bool) -> str:
+    title = _truncate(str(row.get("title") or "(no title)"), 220)
+    sub = str(row.get("subreddit") or "")
+    author = str(row.get("author") or "")
+    link = str(row.get("link") or "")
+    post_id = str(row.get("id") or "")
+    body = str(row.get("body") or "")
 
-    badges: list[str] = []
-    if over_18:
-        badges.append("NSFW")
-    if spoiler:
-        badges.append("SPOILER")
-    if flair:
-        badges.append(flair)
-    badge_str = f" [{' | '.join(badges)}]" if badges else ""
-
-    # Always emit the canonical comments permalink as the primary URL so the
-    # agent can pass it back into reddit_feed(post_url=...) for a deep dive.
-    # External media URL (v.redd.it, i.redd.it, imgur, etc.) goes on a separate
-    # `media:` line only when it differs from the permalink.
-    full_link = (
-        f"https://www.reddit.com{permalink}" if permalink.startswith("/") else permalink
-    )
-
+    sub_part = f"r/{sub} • " if sub else ""
     id_part = f" • id={post_id}" if post_id else ""
     out = (
-        f"[{idx}] r/{sub} • {title}{badge_str}\n"
-        f"    u/{author} • ↑{score} • 💬{num_comments}{id_part}\n"
-        f"    post: {full_link}"
+        f"[{idx}] {sub_part}{title}\n"
+        f"    u/{author}{id_part}\n"
+        f"    post: {link}"
     )
-    if url and not is_self and url and url.strip() != full_link.strip():
-        out += f"\n    media: {url}"
-    if is_self and selftext.strip():
-        body = _truncate(selftext, 500)
-        out += f"\n    {body}"
+    if include_body and body:
+        out += f"\n    {_truncate(body, 500)}"
     return out
 
 
-def _format_feed(payload: Any, header: str) -> str:
-    if not isinstance(payload, dict):
-        raise RedditError("Reddit returned unexpected payload (not a listing)")
-    data = payload.get("data") or {}
-    children = data.get("children") if isinstance(data, dict) else None
-    if not isinstance(children, list):
-        raise RedditError("Reddit returned unexpected listing structure")
-
-    if not children:
+def _format_rss_feed(entries: list[dict[str, Any]], header: str, limit: int) -> str:
+    posts = [e for e in entries if e.get("kind") == "t3"]
+    if not posts:
         return f"{header}\n(no posts)"
 
-    lines: list[str] = [header]
-    # Collect (idx, post_id, short_title) for the post-index recap; this gives
-    # the LLM one canonical, easy-to-copy mapping at the end of the output so
-    # it does not need to memorize ids from the formatted post blocks above
-    # (LLMs hallucinate short alphanumeric ids easily).
+    lines: list[str] = [f"{header} (via RSS)"]
     index_rows: list[tuple[int, str, str]] = []
-    idx = 0
-    for child in children:
-        if not isinstance(child, dict):
-            continue
-        kind = child.get("kind")
-        cd = child.get("data")
-        if kind != "t3" or not isinstance(cd, dict):
-            continue
-        if cd.get("stickied") and idx >= 1:
-            # Keep the first sticky (often relevant), skip later ones to leave room for real posts.
-            continue
-        idx += 1
-        lines.append(_format_post_line(idx, cd))
-        post_id = str(cd.get("id") or "")
-        title_short = _truncate(str(cd.get("title") or ""), 80)
-        index_rows.append((idx, post_id, title_short))
-    if idx == 0:
-        return f"{header}\n(no posts)"
+    for idx, row in enumerate(posts[:limit], start=1):
+        lines.append(_format_rss_post_line(idx, row, include_body=True))
+        index_rows.append(
+            (idx, str(row.get("id") or ""), _truncate(str(row.get("title") or ""), 80)),
+        )
 
-    if index_rows:
-        recap = ["POST_INDEX (copy these ids verbatim into reddit_feed post_url):"]
-        for n, pid, title in index_rows:
-            if pid:
-                recap.append(f"  [{n}] id={pid} — {title}")
-            else:
-                recap.append(f"  [{n}] (no id) — {title}")
-        lines.append("\n".join(recap))
+    recap = ["POST_INDEX (copy these ids verbatim into reddit_feed post_url):"]
+    for n, pid, title in index_rows:
+        if pid:
+            recap.append(f"  [{n}] id={pid} — {title}")
+        else:
+            recap.append(f"  [{n}] (no id) — {title}")
+    lines.append("\n".join(recap))
     return "\n\n".join(lines)
 
 
-def _format_comment(idx: int, cd: dict[str, Any], depth: int = 0) -> str:
-    author = str(cd.get("author") or "[deleted]")
-    score = int(cd.get("score") or 0)
-    body = _truncate(str(cd.get("body") or ""), 600)
-    indent = "    " * (depth + 1)
-    return f"{indent}[{idx}] u/{author} • ↑{score}\n{indent}{body}"
+def _format_rss_post_with_comments(
+    entries: list[dict[str, Any]],
+    max_comments: int,
+) -> str:
+    posts = [e for e in entries if e.get("kind") == "t3"]
+    comments = [e for e in entries if e.get("kind") == "t1"]
+    if not posts:
+        raise RedditError("Reddit RSS thread has no post entry")
 
+    lines: list[str] = ["POST (via RSS)"]
+    lines.append(_format_rss_post_line(1, posts[0], include_body=True))
 
-def _format_post_with_comments(payload: Any, max_comments: int) -> str:
-    if not isinstance(payload, list) or len(payload) < 1:
-        raise RedditError("Reddit returned unexpected post payload")
+    shown = 0
+    comment_lines: list[str] = []
+    for row in comments:
+        if shown >= max_comments:
+            break
+        body = str(row.get("body") or "").strip()
+        if not body:
+            continue
+        shown += 1
+        author = str(row.get("author") or "[deleted]")
+        comment_lines.append(
+            f"    [{shown}] u/{author}\n    {_truncate(body, 600)}",
+        )
 
-    post_listing = payload[0] if isinstance(payload[0], dict) else None
-    if not post_listing:
-        raise RedditError("Reddit post payload missing post listing")
-    children = (post_listing.get("data") or {}).get("children") or []
-    if not children or not isinstance(children[0], dict):
-        raise RedditError("Reddit post payload has no post data")
-    post = children[0].get("data") or {}
-
-    lines: list[str] = ["POST"]
-    lines.append(_format_post_line(1, post))
-
-    comments_payload = (
-        payload[1] if len(payload) > 1 and isinstance(payload[1], dict) else None
-    )
-    if comments_payload:
-        comment_children = (comments_payload.get("data") or {}).get("children") or []
-        shown = 0
-        comment_lines: list[str] = []
-        for ch in comment_children:
-            if shown >= max_comments:
-                break
-            if not isinstance(ch, dict):
-                continue
-            if ch.get("kind") != "t1":
-                continue
-            cd = ch.get("data") or {}
-            if not isinstance(cd, dict):
-                continue
-            if not str(cd.get("body") or "").strip():
-                continue
-            shown += 1
-            comment_lines.append(_format_comment(shown, cd, depth=0))
-        if comment_lines:
-            lines.append(f"\nTOP COMMENTS ({shown})")
-            lines.extend(comment_lines)
-        else:
-            lines.append("\nTOP COMMENTS\n    (no comments)")
+    if comment_lines:
+        lines.append(f"\nTOP COMMENTS ({shown})")
+        lines.extend(comment_lines)
+    else:
+        lines.append("\nTOP COMMENTS\n    (no comments)")
     return "\n\n".join(lines)
 
 
@@ -356,51 +367,49 @@ async def reddit_tool_run(
     purl = str(post_url or "").strip()
     max_c = _clamp(max_comments, 1, MAX_COMMENTS, DEFAULT_COMMENTS)
 
+    if _oauth_configured():
+        # OAuth JSON path can be wired here when credentials are available.
+        pass
+
     async with httpx.AsyncClient(
         timeout=FETCH_TIMEOUT_S,
         follow_redirects=True,
         limits=httpx.Limits(max_connections=4),
     ) as client:
-        # Mode A: post + comments
         if purl:
-            json_url = _post_json_url_from_user_url(purl)
-            payload = await _fetch_json(client, json_url)
-            return _format_post_with_comments(payload, max_c)
+            rss_url = _post_rss_url_from_user_url(purl)
+            entries = await _fetch_rss(client, rss_url)
+            return _format_rss_post_with_comments(entries, max_c)
 
-        # Mode B: search
         if q:
-            params = {
+            params: dict[str, str] = {
                 "q": q,
                 "limit": str(limit_v),
                 "sort": "relevance",
                 "t": time_v,
-                "raw_json": "1",
             }
             if sub:
-                base = f"https://www.reddit.com/r/{sub}/search.json"
+                base = f"https://www.reddit.com/r/{sub}/search.rss"
                 params["restrict_sr"] = "on"
                 header = f"REDDIT SEARCH r/{sub} • q={q!r}"
             else:
-                base = "https://www.reddit.com/search.json"
+                base = "https://www.reddit.com/search.rss"
                 header = f"REDDIT SEARCH • q={q!r}"
             url = str(httpx.URL(base, params=params))
-            payload = await _fetch_json(client, url)
-            return _format_feed(payload, header)
+            entries = await _fetch_rss(client, url)
+            return _format_rss_feed(entries, header, limit_v)
 
-        # Mode C: feed
-        params = {"limit": str(limit_v), "raw_json": "1"}
+        params = {"limit": str(limit_v)}
         if sort_v in ("top", "controversial"):
             params["t"] = time_v
         if sub:
-            base = f"https://www.reddit.com/r/{sub}/{sort_v}.json"
+            base = f"https://www.reddit.com/r/{sub}/{sort_v}.rss"
             header = f"REDDIT r/{sub} • {sort_v}"
-            if "t" in params:
-                header += f" • t={params['t']}"
         else:
-            base = f"https://www.reddit.com/{sort_v}.json"
+            base = f"https://www.reddit.com/{sort_v}.rss"
             header = f"REDDIT r/all • {sort_v}"
-            if "t" in params:
-                header += f" • t={params['t']}"
+        if "t" in params:
+            header += f" • t={params['t']}"
         url = str(httpx.URL(base, params=params))
-        payload = await _fetch_json(client, url)
-        return _format_feed(payload, header)
+        entries = await _fetch_rss(client, url)
+        return _format_rss_feed(entries, header, limit_v)

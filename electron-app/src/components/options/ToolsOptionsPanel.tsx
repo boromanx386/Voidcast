@@ -125,7 +125,8 @@ export function ToolsOptionsPanel({
             <code className="text-orange-400">reddit_feed</code> via TTS server{' '}
             <code className="text-orange-400">POST /tools/reddit</code>. Read-only:
             subreddit feeds (hot/new/top/rising), search, and post + top comments via
-            public Reddit JSON endpoints. No API key required.
+            Reddit RSS (no Reddit developer app — Reddit no longer allows self-service API
+            apps).
           </>
         }
       />
