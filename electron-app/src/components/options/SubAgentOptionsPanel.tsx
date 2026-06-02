@@ -25,9 +25,12 @@ const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
   { id: 'z-ai/glm-4.7-flash', label: 'Z.AI GLM 4.7 Flash' },
   { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7' },
   { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (Free)' },
+  { id: 'minimax/minimax-m3', label: 'MiniMax M3' },
+  { id: 'moonshotai/kimi-k2.6:free', label: 'Moonshot Kimi K2.6 (Free)' },
+  { id: 'stepfun/step-3.7-flash', label: 'StepFun Step 3.7 Flash' },
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
   { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'NVIDIA Nemotron 3 Super 120B A12B (Free)' },
-  { id: 'inclusionai/ring-2.6-1t:free', label: 'Inclusion Ring 2.6 1T (Free)' },
+  { id: 'inclusionai/ring-2.6-1t', label: 'Inclusion Ring 2.6 1T' },
   { id: 'baidu/cobuddy:free', label: 'Baidu CoBuddy (Free)' },
   { id: 'openrouter/owl-alpha', label: 'OpenRouter Owl Alpha' },
   { id: 'poolside/laguna-m.1:free', label: 'Poolside Laguna M.1 (Free)' },
@@ -203,9 +206,9 @@ export function SubAgentOptionsPanel({
               }
             />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-              Ollama models (e.g. llava:13b) use your Ollama URL. OpenRouter presets use
-              Options → LLM OpenRouter base URL and API key. image_recall with purpose=edit
-              always bypasses the sub-agent.
+              Ollama models (e.g. llava:13b) use Options → LLM Ollama base URL regardless of
+              main LLM provider. OpenRouter presets use Options → LLM OpenRouter base URL and
+              API key. image_recall with purpose=edit always bypasses the sub-agent.
             </p>
           </div>
 

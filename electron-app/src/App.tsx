@@ -1304,14 +1304,9 @@ export default function App() {
     return () => window.clearInterval(t)
   }, [refreshTts])
 
-  // Load Ollama models
-  const loadModels = useCallback(async () => {
-    if (settings.llmProvider !== 'ollama') {
-      setModelsError(null)
-      setOllamaModels([])
-      setModelsLoading(false)
-      return
-    }
+  // Load Ollama models (sub-agent + LLM when provider is Ollama). Not gated on llmProvider
+  // so SUB tab can list local vision models while main chat uses OpenRouter/NVIDIA.
+  const loadOllamaModels = useCallback(async () => {
     setModelsError(null)
     setModelsLoading(true)
     try {
@@ -1323,9 +1318,11 @@ export default function App() {
     } finally {
       setModelsLoading(false)
     }
-  }, [settings.llmProvider, settings.ollamaBaseUrl])
+  }, [settings.ollamaBaseUrl])
 
-  useEffect(() => { void loadModels() }, [loadModels])
+  const loadModels = loadOllamaModels
+
+  useEffect(() => { void loadOllamaModels() }, [loadOllamaModels])
 
   useEffect(() => {
     void loadCloneRef().then((r) => { if (r) setCloneRef(r) })
@@ -1336,8 +1333,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (screen === 'options' && (optionsTab === 'llm' || optionsTab === 'subAgent')) void loadModels()
-  }, [screen, optionsTab, loadModels])
+    if (screen === 'options' && (optionsTab === 'llm' || optionsTab === 'subAgent')) void loadOllamaModels()
+  }, [screen, optionsTab, loadOllamaModels])
 
   // Save/restore chat scroll when switching between chat ↔ options.
   // The chat <main> is unmounted while options is shown, so we can't capture
