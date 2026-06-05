@@ -1,10 +1,8 @@
 # Voidcast
 
-**Desktop AI agent with real tool calling — search, images, music and code from one chat. One-click Windows install.**
-
-Bring your own API keys (OpenRouter, NVIDIA NIM, Runware) or install **Ollama** — all support free tiers. **Voidcast is free.**
-
 ![Voidcast](logo.jpg)
+
+**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, or NVIDIA NIM, and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
 *Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
