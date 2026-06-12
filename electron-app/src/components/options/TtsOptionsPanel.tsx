@@ -1,4 +1,15 @@
 import type { AppSettings } from '@/lib/settings'
+import {
+  OPENROUTER_TTS_MODEL_DEFAULT,
+  OPENROUTER_TTS_MODEL_PRESETS,
+  openRouterTtsVoicesForModel,
+  RUNWARE_TTS_MODEL_DEFAULT,
+  RUNWARE_TTS_MODEL_PRESETS,
+  RUNWARE_TTS_VOICE_LABELS,
+  runwareTtsLanguagePlaceholder,
+  runwareTtsSupportsLanguage,
+  runwareTtsVoicesForModel,
+} from '@/lib/settings'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isElectron, isWebStandalone } from '@/lib/platform'
@@ -95,22 +106,6 @@ type Props = {
   onClearVoiceAnchor: () => Promise<void>
 }
 
-const OPENROUTER_TTS_VOICES = [
-  '',
-  'alloy',
-  'ash',
-  'ballad',
-  'coral',
-  'echo',
-  'fable',
-  'onyx',
-  'nova',
-  'sage',
-  'shimmer',
-  'verse',
-  'marin',
-  'cedar',
-] as const
 
 export function TtsOptionsPanel({
   settings,
@@ -140,6 +135,7 @@ export function TtsOptionsPanel({
         openrouterTtsVoice: settings.openrouterTtsVoice,
         runwareApiBaseUrl: settings.runwareApiBaseUrl,
         runwareApiKey: settings.runwareApiKey,
+        runwareTtsModel: settings.runwareTtsModel,
         runwareXaiVoice: settings.runwareXaiVoice,
         runwareXaiLanguage: settings.runwareXaiLanguage,
         text: settings.voiceBakePhrase,
@@ -275,8 +271,8 @@ export function TtsOptionsPanel({
           }
         >
           <option value="local">Local OmniVoice (`/tts`)</option>
-          <option value="runware-xai">Runware xAI TTS (`xai:tts@0`)</option>
-          <option value="openrouter-tts">OpenRouter GPT-4o Mini TTS</option>
+          <option value="runware-xai">Runware cloud TTS</option>
+          <option value="openrouter-tts">OpenRouter cloud TTS</option>
         </select>
         </div>
 
@@ -285,8 +281,9 @@ export function TtsOptionsPanel({
           <p className="text-xs text-void-dim">
             {isWebStandalone() ? (
               <>
-                Runware TTS via server proxy (key from desktop General). Local clone/anchor
-                options are ignored.
+                Runware TTS via server proxy (key from desktop General). Default model{' '}
+                <span className="font-mono text-void-light">{RUNWARE_TTS_MODEL_DEFAULT}</span>.
+                Local clone/anchor options are ignored.
               </>
             ) : (
               <>
@@ -297,45 +294,81 @@ export function TtsOptionsPanel({
           </p>
           <div className="grid sm:grid-cols-2 gap-3 mt-3">
             <div className="form-group">
-              <label className="form-label">XAI_VOICE</label>
+              <label className="form-label">RUNWARE_TTS_MODEL</label>
               <select
                 className="form-select"
-                value={settings.runwareXaiVoice}
-                onChange={(e) =>
+                value={
+                  RUNWARE_TTS_MODEL_PRESETS.some((m) => m.id === settings.runwareTtsModel)
+                    ? settings.runwareTtsModel
+                    : '__custom__'
+                }
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === '__custom__') {
+                    setSettings((s) => ({ ...s, runwareTtsModel: '', runwareXaiVoice: '' }))
+                    return
+                  }
                   setSettings((s) => ({
                     ...s,
-                    runwareXaiVoice:
-                      e.target.value === 'una' ||
-                      e.target.value === 'leo' ||
-                      e.target.value === 'eve' ||
-                      e.target.value === 'ara' ||
-                      e.target.value === 'sal' ||
-                      e.target.value === 'rex'
-                        ? e.target.value
-                        : 'auto',
+                    runwareTtsModel: v,
+                    runwareXaiVoice: '',
                   }))
-                }
+                }}
               >
-                <option value="auto">auto</option>
-                <option value="eve">eve</option>
-                <option value="ara">ara</option>
-                <option value="leo">leo</option>
-                <option value="rex">rex</option>
-                <option value="sal">sal</option>
-                <option value="una">una</option>
+                {RUNWARE_TTS_MODEL_PRESETS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+                <option value="__custom__">Custom model id…</option>
               </select>
+              {!RUNWARE_TTS_MODEL_PRESETS.some((m) => m.id === settings.runwareTtsModel) && (
+                <input
+                  className="cyber-input mt-2"
+                  value={settings.runwareTtsModel}
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, runwareTtsModel: e.target.value }))
+                  }
+                  placeholder={RUNWARE_TTS_MODEL_DEFAULT}
+                />
+              )}
             </div>
             <div className="form-group">
-              <label className="form-label">XAI_LANGUAGE (optional)</label>
-              <input
-                className="cyber-input"
-                value={settings.runwareXaiLanguage}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, runwareXaiLanguage: e.target.value }))
+              <label className="form-label">RUNWARE_TTS_VOICE (optional)</label>
+              <select
+                className="form-select"
+                value={
+                  runwareTtsVoicesForModel(settings.runwareTtsModel).includes(
+                    settings.runwareXaiVoice,
+                  )
+                    ? settings.runwareXaiVoice
+                    : ''
                 }
-                placeholder="en, de, es-ES..."
-              />
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, runwareXaiVoice: e.target.value }))
+                }
+              >
+                <option value="">(model default)</option>
+                {runwareTtsVoicesForModel(settings.runwareTtsModel).map((v) => (
+                  <option key={v} value={v}>
+                    {RUNWARE_TTS_VOICE_LABELS[v] || v}
+                  </option>
+                ))}
+              </select>
             </div>
+            {runwareTtsSupportsLanguage(settings.runwareTtsModel) && (
+              <div className="form-group sm:col-span-2">
+                <label className="form-label">RUNWARE_TTS_LANGUAGE (optional)</label>
+                <input
+                  className="cyber-input"
+                  value={settings.runwareXaiLanguage}
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, runwareXaiLanguage: e.target.value }))
+                  }
+                  placeholder={runwareTtsLanguagePlaceholder(settings.runwareTtsModel)}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -346,39 +379,76 @@ export function TtsOptionsPanel({
             {isWebStandalone() ? (
               <>
                 OpenRouter TTS via server proxy (key from desktop General). Default model{' '}
-                <span className="font-mono text-void-light">gpt-4o-mini-tts-2025-12-15</span>.
+                <span className="font-mono text-void-light">{OPENROUTER_TTS_MODEL_DEFAULT}</span>.
               </>
             ) : (
               <>
                 Uses <span className="font-mono text-neon-cyan">OPENROUTER_API_KEY</span> from
                 General settings to call OpenRouter TTS (
-                <span className="font-mono">openai/gpt-4o-mini-tts-2025-12-15</span> by default).
+                <span className="font-mono">{OPENROUTER_TTS_MODEL_DEFAULT}</span> by default).
+                OpenAI GPT-4o Mini TTS was removed from OpenRouter; saved settings migrate
+                automatically.
               </>
             )}
           </p>
           <div className="grid sm:grid-cols-2 gap-3 mt-3">
             <div className="form-group">
               <label className="form-label">OPENROUTER_TTS_MODEL</label>
-              <input
-                className="cyber-input"
-                value={settings.openrouterTtsModel}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, openrouterTtsModel: e.target.value }))
+              <select
+                className="form-select"
+                value={
+                  OPENROUTER_TTS_MODEL_PRESETS.some((m) => m.id === settings.openrouterTtsModel)
+                    ? settings.openrouterTtsModel
+                    : '__custom__'
                 }
-                placeholder="openai/gpt-4o-mini-tts-2025-12-15"
-              />
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === '__custom__') {
+                    setSettings((s) => ({ ...s, openrouterTtsModel: '', openrouterTtsVoice: '' }))
+                    return
+                  }
+                  setSettings((s) => ({
+                    ...s,
+                    openrouterTtsModel: v,
+                    openrouterTtsVoice: '',
+                  }))
+                }}
+              >
+                {OPENROUTER_TTS_MODEL_PRESETS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+                <option value="__custom__">Custom model id…</option>
+              </select>
+              {!OPENROUTER_TTS_MODEL_PRESETS.some((m) => m.id === settings.openrouterTtsModel) && (
+                <input
+                  className="cyber-input mt-2"
+                  value={settings.openrouterTtsModel}
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, openrouterTtsModel: e.target.value }))
+                  }
+                  placeholder={OPENROUTER_TTS_MODEL_DEFAULT}
+                />
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">OPENROUTER_TTS_VOICE (optional)</label>
               <select
                 className="form-select"
-                value={OPENROUTER_TTS_VOICES.includes(settings.openrouterTtsVoice as any) ? settings.openrouterTtsVoice : ''}
+                value={
+                  openRouterTtsVoicesForModel(settings.openrouterTtsModel).includes(
+                    settings.openrouterTtsVoice,
+                  )
+                    ? settings.openrouterTtsVoice
+                    : ''
+                }
                 onChange={(e) =>
                   setSettings((s) => ({ ...s, openrouterTtsVoice: e.target.value }))
                 }
               >
                 <option value="">(model default)</option>
-                {OPENROUTER_TTS_VOICES.filter((v) => v).map((v) => (
+                {openRouterTtsVoicesForModel(settings.openrouterTtsModel).map((v) => (
                   <option key={v} value={v}>
                     {v}
                   </option>

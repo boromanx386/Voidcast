@@ -1,6 +1,13 @@
-import { normalizeBaseUrl } from './settings'
+import {
+  buildRunwareTtsSpeechPayload,
+  normalizeBaseUrl,
+  normalizeRunwareTtsModel,
+  openRouterTtsDefaultVoice,
+  OPENROUTER_TTS_MODEL_DEFAULT,
+  RUNWARE_TTS_MODEL_DEFAULT,
+} from './settings'
 import type { VoiceMode } from './settings'
-import type { RunwareXaiVoice, TtsProvider } from './settings'
+import type { TtsProvider } from './settings'
 import type { StoredVoiceAnchor, VoiceAnchorSourceMode } from './voiceAnchorStorage'
 import { cloudProxySetupHint, isElectron, usesServerCloudProxy } from './platform'
 import { makeRunwareTaskUuid } from './runwareUuid'
@@ -9,6 +16,39 @@ import { makeRunwareTaskUuid } from './runwareUuid'
 function errorMessage(e: unknown): string {
   if (e instanceof Error && e.message.trim()) return e.message.trim()
   return String(e)
+}
+
+/** Wrap raw 16-bit LE mono PCM (OpenRouter TTS default) for browser playback. */
+function pcm16leMonoToWav(pcm: ArrayBuffer, sampleRate = 24000): Blob {
+  const pcmBytes = new Uint8Array(pcm)
+  const dataSize = pcmBytes.byteLength
+  const buffer = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(buffer)
+  const writeStr = (offset: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i))
+  }
+  writeStr(0, 'RIFF')
+  view.setUint32(4, 36 + dataSize, true)
+  writeStr(8, 'WAVE')
+  writeStr(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeStr(36, 'data')
+  view.setUint32(40, dataSize, true)
+  new Uint8Array(buffer, 44).set(pcmBytes)
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+function openRouterTtsResponseFormat(model: string): 'mp3' | 'pcm' {
+  const id = model.trim().toLowerCase()
+  // Gemini TTS on OpenRouter rejects mp3.
+  if (id.includes('gemini') && id.includes('tts')) return 'pcm'
+  return 'mp3'
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -79,7 +119,8 @@ export async function synthesizeSpeech(options: {
   openrouterTtsVoice?: string
   runwareApiBaseUrl?: string
   runwareApiKey?: string
-  runwareXaiVoice?: RunwareXaiVoice
+  runwareTtsModel?: string
+  runwareXaiVoice?: string
   runwareXaiLanguage?: string
   text: string
   voiceMode: VoiceMode
@@ -101,16 +142,17 @@ export async function synthesizeSpeech(options: {
     }
     const model =
       options.openrouterTtsModel?.trim() ||
-      'openai/gpt-4o-mini-tts-2025-12-15'
+      OPENROUTER_TTS_MODEL_DEFAULT
     const root = viaProxy
       ? `${normalizeBaseUrl(options.ttsBaseUrl || '')}/api/openrouter/api/v1`
       : 'https://openrouter.ai/api/v1'
+    const responseFormat = openRouterTtsResponseFormat(model)
     const payload: Record<string, unknown> = {
       model,
       input: options.text,
-      response_format: 'mp3',
+      response_format: responseFormat,
     }
-    const voice = options.openrouterTtsVoice?.trim() || 'alloy'
+    const voice = options.openrouterTtsVoice?.trim() || openRouterTtsDefaultVoice(model)
     payload.voice = voice
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (!viaProxy && apiKey) {
@@ -134,6 +176,9 @@ export async function synthesizeSpeech(options: {
         throw new Error('OpenRouter TTS returned empty audio payload.')
       }
       const arr = await blob.arrayBuffer()
+      if (responseFormat === 'pcm') {
+        return pcm16leMonoToWav(arr)
+      }
       return new Blob([arr], { type: 'audio/mpeg' })
     } catch (e) {
       throw new Error(errorMessage(e))
@@ -147,19 +192,21 @@ export async function synthesizeSpeech(options: {
       throw new Error('Runware API key is missing. Set it in Options -> General.')
     }
     const root = normalizeBaseUrl(options.runwareApiBaseUrl || 'https://api.runware.ai/v1')
+    const model = normalizeRunwareTtsModel(options.runwareTtsModel || RUNWARE_TTS_MODEL_DEFAULT)
     const taskUUID = makeRunwareTaskUuid()
     const language = (options.runwareXaiLanguage || '').trim()
     const payload: Record<string, unknown> = {
       taskType: 'audioInference',
       taskUUID,
-      model: 'xai:tts@0',
+      model,
       outputType: 'base64Data',
       outputFormat: 'MP3',
-      speech: {
-        text: options.text,
-        voice: options.runwareXaiVoice || 'auto',
-        ...(language ? { language } : {}),
-      },
+      speech: buildRunwareTtsSpeechPayload(
+        model,
+        options.text,
+        options.runwareXaiVoice || '',
+        language,
+      ),
     }
     const decodeRunwareAudioBody = (body: {
       data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>

@@ -1,6 +1,269 @@
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
 export type SttProvider = 'none' | 'openrouter'
+
+/** Default OpenRouter TTS model (OpenAI gpt-4o-mini-tts was removed from OpenRouter). */
+export const OPENROUTER_TTS_MODEL_DEFAULT = 'google/gemini-3.1-flash-tts-preview'
+
+const RETIRED_OPENROUTER_TTS_MODELS = new Set([
+  'openai/gpt-4o-mini-tts-2025-12-15',
+  'openai/gpt-4o-mini-tts',
+  'gpt-4o-mini-tts-2025-12-15',
+  'gpt-4o-mini-tts',
+])
+
+const OPENAI_TTS_VOICES = new Set([
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'fable',
+  'onyx',
+  'nova',
+  'sage',
+  'shimmer',
+  'verse',
+  'marin',
+  'cedar',
+])
+
+export const OPENROUTER_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> = [
+  { id: OPENROUTER_TTS_MODEL_DEFAULT, label: 'Google Gemini 3.1 Flash TTS' },
+  { id: 'hexgrad/kokoro-82m', label: 'hexgrad Kokoro 82M (cheapest)' },
+  { id: 'mistralai/voxtral-mini-tts-2603', label: 'Mistral Voxtral Mini TTS' },
+  { id: 'x-ai/grok-voice-tts-1.0', label: 'xAI Grok Voice TTS' },
+  { id: 'microsoft/mai-voice-2', label: 'Microsoft MAI-Voice-2' },
+  { id: 'canopylabs/orpheus-3b-0.1-ft', label: 'Canopy Orpheus 3B' },
+]
+
+export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
+  [OPENROUTER_TTS_MODEL_DEFAULT]: [
+    'Zephyr',
+    'Puck',
+    'Charon',
+    'Kore',
+    'Fenrir',
+    'Aoede',
+    'Leda',
+    'Orus',
+  ],
+  'hexgrad/kokoro-82m': [
+    'af_bella',
+    'af_heart',
+    'af_sarah',
+    'am_adam',
+    'am_michael',
+    'bf_emma',
+    'bm_george',
+  ],
+  'mistralai/voxtral-mini-tts-2603': [
+    'en_paul_neutral',
+    'en_paul_happy',
+    'en_paul_sad',
+    'en_paul_excited',
+    'en_paul_frustrated',
+  ],
+  'x-ai/grok-voice-tts-1.0': ['eve', 'ara', 'rex', 'sal', 'leo'],
+  'microsoft/mai-voice-2': [
+    'en-US-Harper:MAI-Voice-2',
+    'es-MX-Valeria:MAI-Voice-2',
+    'fr-FR-Soleil:MAI-Voice-2',
+    'de-DE-Klaus:MAI-Voice-2',
+  ],
+  'canopylabs/orpheus-3b-0.1-ft': ['tara', 'leah', 'jess', 'leo', 'dan'],
+}
+
+export function openRouterTtsVoicesForModel(model: string): readonly string[] {
+  const id = model.trim()
+  return OPENROUTER_TTS_VOICES_BY_MODEL[id] ?? OPENROUTER_TTS_VOICES_BY_MODEL[OPENROUTER_TTS_MODEL_DEFAULT]
+}
+
+export function openRouterTtsDefaultVoice(model: string): string {
+  return openRouterTtsVoicesForModel(model)[0] || 'Kore'
+}
+
+export function normalizeOpenRouterTtsModel(model: string | undefined): string {
+  const trimmed = (model || '').trim()
+  if (!trimmed || RETIRED_OPENROUTER_TTS_MODELS.has(trimmed) || trimmed.startsWith('openai/gpt-4o-mini-tts')) {
+    return OPENROUTER_TTS_MODEL_DEFAULT
+  }
+  return trimmed
+}
+
+export const RUNWARE_TTS_MODEL_DEFAULT = 'xai:tts@0'
+
+const INWORLD_TTS_VOICES = [
+  'Serena',
+  'Claire',
+  'James',
+  'Olivia',
+  'Liam',
+  'Graham',
+  'Ethan',
+  'Victoria',
+  'Alex',
+  'Ashley',
+  'Hank',
+  'Julia',
+  'Mark',
+  'Sarah',
+  'Theodore',
+] as const
+
+const GEMINI_RUNWARE_TTS_VOICES = [
+  'Zephyr',
+  'Kore',
+  'Puck',
+  'Charon',
+  'Fenrir',
+  'Aoede',
+  'Leda',
+  'Orus',
+] as const
+
+export const RUNWARE_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> = [
+  { id: RUNWARE_TTS_MODEL_DEFAULT, label: 'xAI Grok Voice TTS' },
+  { id: 'google:gemini@3.1-flash-tts', label: 'Google Gemini 3.1 Flash TTS' },
+  { id: 'inworld:tts@1.5-max', label: 'Inworld TTS 1.5 Max' },
+  { id: 'inworld:tts@1.5-mini', label: 'Inworld TTS 1.5 Mini' },
+  { id: 'minimax:speech@2.8', label: 'MiniMax Speech 2.8' },
+  { id: 'alibaba:qwen@3-tts-1.7b-customvoice', label: 'Qwen3-TTS 1.7B CustomVoice' },
+  { id: 'fishaudio:s2.1@pro', label: 'Fish Audio S2.1 Pro' },
+]
+
+export const RUNWARE_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
+  [RUNWARE_TTS_MODEL_DEFAULT]: ['auto', 'eve', 'ara', 'leo', 'rex', 'sal', 'una'],
+  'google:gemini@3.1-flash-tts': GEMINI_RUNWARE_TTS_VOICES,
+  'inworld:tts@1.5-max': INWORLD_TTS_VOICES,
+  'inworld:tts@1.5-mini': INWORLD_TTS_VOICES,
+  'minimax:speech@2.8': [
+    'English_expressive_narrator',
+    'English_radiant_girl',
+    'English_magnetic_voiced_man',
+    'English_CalmWoman',
+    'English_Gentle-voiced_man',
+    'English_CaptivatingStoryteller',
+    'English_Trustworth_Man',
+    'English_PlayfulGirl',
+  ],
+  'alibaba:qwen@3-tts-1.7b-customvoice': [
+    'vivian',
+    'serena',
+    'ryan',
+    'aiden',
+    'dylan',
+    'eric',
+    'sohee',
+    'ono_anna',
+    'uncle_fu',
+  ],
+  'fishaudio:s2.1@pro': [
+    'b347db033a6549378b48d00acb0d06cd',
+    'bf322df2096a46f18c579d0baa36f41d',
+    '933563129e564b19a115bedd57b7406a',
+    'e3cd384158934cc9a01029cd7d278634',
+    '79d0bd3e4e5444b18f7b6d89b5927bf1',
+  ],
+}
+
+export const RUNWARE_TTS_VOICE_LABELS: Record<string, string> = {
+  b347db033a6549378b48d00acb0d06cd: 'Selene',
+  bf322df2096a46f18c579d0baa36f41d: 'Adrian',
+  '933563129e564b19a115bedd57b7406a': 'Sarah',
+  e3cd384158934cc9a01029cd7d278634: 'Laura',
+  '79d0bd3e4e5444b18f7b6d89b5927bf1': 'Jordan',
+}
+
+export function runwareTtsVoicesForModel(model: string): readonly string[] {
+  const id = model.trim()
+  return RUNWARE_TTS_VOICES_BY_MODEL[id] ?? RUNWARE_TTS_VOICES_BY_MODEL[RUNWARE_TTS_MODEL_DEFAULT]
+}
+
+export function runwareTtsDefaultVoice(model: string): string {
+  return runwareTtsVoicesForModel(model)[0] || 'auto'
+}
+
+export function normalizeRunwareTtsModel(model: string | undefined): string {
+  const trimmed = (model || '').trim()
+  return trimmed || RUNWARE_TTS_MODEL_DEFAULT
+}
+
+export function runwareTtsSupportsLanguage(model: string): boolean {
+  const id = model.trim()
+  return (
+    id === RUNWARE_TTS_MODEL_DEFAULT ||
+    id === 'minimax:speech@2.8' ||
+    id === 'alibaba:qwen@3-tts-1.7b-customvoice'
+  )
+}
+
+export function runwareTtsLanguagePlaceholder(model: string): string {
+  const id = model.trim()
+  if (id === 'alibaba:qwen@3-tts-1.7b-customvoice') return 'English, Auto, Chinese…'
+  if (id === 'minimax:speech@2.8') return 'en, auto, de, es…'
+  return 'en, de, es-ES…'
+}
+
+function mapRunwareTtsLanguage(model: string, language: string): string | undefined {
+  const lang = language.trim()
+  const id = model.trim()
+  if (id === RUNWARE_TTS_MODEL_DEFAULT) {
+    return lang || undefined
+  }
+  if (id === 'minimax:speech@2.8') {
+    return lang || 'auto'
+  }
+  if (id === 'alibaba:qwen@3-tts-1.7b-customvoice') {
+    if (!lang) return 'Auto'
+    const lower = lang.toLowerCase()
+    const qwenMap: Record<string, string> = {
+      auto: 'Auto',
+      en: 'English',
+      english: 'English',
+      zh: 'Chinese',
+      chinese: 'Chinese',
+      ja: 'Japanese',
+      japanese: 'Japanese',
+      ko: 'Korean',
+      korean: 'Korean',
+      de: 'German',
+      german: 'German',
+      fr: 'French',
+      french: 'French',
+      ru: 'Russian',
+      russian: 'Russian',
+      pt: 'Portuguese',
+      portuguese: 'Portuguese',
+      es: 'Spanish',
+      spanish: 'Spanish',
+      it: 'Italian',
+      italian: 'Italian',
+    }
+    return qwenMap[lower] || lang
+  }
+  return undefined
+}
+
+export function buildRunwareTtsSpeechPayload(
+  model: string,
+  text: string,
+  voice: string,
+  language: string,
+): Record<string, unknown> {
+  const id = normalizeRunwareTtsModel(model)
+  const speech: Record<string, unknown> = {
+    text,
+    voice: voice.trim() || runwareTtsDefaultVoice(id),
+  }
+  const mappedLanguage = mapRunwareTtsLanguage(id, language)
+  if (mappedLanguage) {
+    speech.language = mappedLanguage
+  }
+  return speech
+}
+
+/** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
 
@@ -106,7 +369,7 @@ export type AppSettings = {
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   nvidiaModel: string
-  /** Default OpenRouter TTS model id (GPT-4o Mini TTS). */
+  /** Default OpenRouter TTS model id. */
   openrouterTtsModel: string
   /** Optional OpenRouter TTS voice id/preset. */
   openrouterTtsVoice: string
@@ -148,7 +411,9 @@ export type AppSettings = {
   /** Long text split into chunks; approximate chars per chunk */
   ttsChunkMaxChars: number
   /** xAI TTS voice id when Runware xAI provider is selected. */
-  runwareXaiVoice: RunwareXaiVoice
+  runwareXaiVoice: string
+  /** Runware TTS model id for cloud speech synthesis. */
+  runwareTtsModel: string
   /** Optional xAI language code (auto-detect when empty). */
   runwareXaiLanguage: string
   /** Short line spoken when baking a voice anchor (auto/design → consistent chunks) */
@@ -262,7 +527,7 @@ export const defaults: AppSettings = {
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
   nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
-  openrouterTtsModel: 'openai/gpt-4o-mini-tts-2025-12-15',
+  openrouterTtsModel: OPENROUTER_TTS_MODEL_DEFAULT,
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
   llmNumCtx: 8192,
@@ -283,6 +548,7 @@ export const defaults: AppSettings = {
   ttsDurationSec: null,
   ttsChunkMaxChars: 300,
   runwareXaiVoice: 'auto',
+  runwareTtsModel: RUNWARE_TTS_MODEL_DEFAULT,
   runwareXaiLanguage: '',
   voiceBakePhrase: 'This is my reference voice for consistent synthesis.',
   toolsEnabled: {
@@ -534,24 +800,31 @@ function normalizeTts(s: AppSettings): AppSettings {
       : providerRaw === 'openrouter-tts'
         ? 'openrouter-tts'
         : 'local'
-  const voiceRaw = typeof s.runwareXaiVoice === 'string' ? s.runwareXaiVoice : ''
-  const runwareXaiVoice: RunwareXaiVoice =
-    voiceRaw === 'una' ||
-    voiceRaw === 'leo' ||
-    voiceRaw === 'eve' ||
-    voiceRaw === 'ara' ||
-    voiceRaw === 'sal' ||
-    voiceRaw === 'rex' ||
-    voiceRaw === 'auto'
-      ? voiceRaw
-      : defaults.runwareXaiVoice
+  const voiceRaw = typeof s.runwareXaiVoice === 'string' ? s.runwareXaiVoice.trim() : ''
+  const previousRunwareModel =
+    typeof s.runwareTtsModel === 'string' ? s.runwareTtsModel.trim() : ''
+  const runwareTtsModel = normalizeRunwareTtsModel(previousRunwareModel)
+  const runwareModelChanged =
+    Boolean(previousRunwareModel) && runwareTtsModel !== previousRunwareModel
+  const runwareXaiVoice =
+    runwareModelChanged || !voiceRaw ? runwareTtsDefaultVoice(runwareTtsModel) : voiceRaw
   const runwareXaiLanguage =
     typeof s.runwareXaiLanguage === 'string' ? s.runwareXaiLanguage.trim() : ''
+  const previousModel =
+    typeof s.openrouterTtsModel === 'string' ? s.openrouterTtsModel.trim() : ''
+  const openrouterTtsModel = normalizeOpenRouterTtsModel(previousModel)
+  const orTtsVoiceRaw = typeof s.openrouterTtsVoice === 'string' ? s.openrouterTtsVoice.trim() : ''
+  const modelChanged = openrouterTtsModel !== previousModel
+  const openrouterTtsVoice =
+    modelChanged && OPENAI_TTS_VOICES.has(orTtsVoiceRaw) ? '' : orTtsVoiceRaw
   return {
     ...s,
     ttsProvider,
     runwareXaiVoice,
+    runwareTtsModel,
     runwareXaiLanguage,
+    openrouterTtsModel,
+    openrouterTtsVoice,
   }
 }
 
