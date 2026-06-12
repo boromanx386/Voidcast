@@ -8,6 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+vite.config.web.js
+vite.config.web.d.ts
 dist
 dist-ssr
 dist-electron
