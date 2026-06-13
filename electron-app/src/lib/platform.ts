@@ -57,3 +57,9 @@ export function nvidiaApiBaseForRuntime(desktopUrl?: string): string {
   const u = (desktopUrl || '').trim()
   return u || 'https://integrate.api.nvidia.com/v1'
 }
+
+export function runwareLlmApiBaseForRuntime(desktopUrl?: string): string {
+  if (isLanWebClient()) return `${window.location.origin}/api/runware/v1`
+  const u = (desktopUrl || '').trim()
+  return u || 'https://api.runware.ai/v1'
+}

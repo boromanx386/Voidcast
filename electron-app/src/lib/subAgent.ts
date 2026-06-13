@@ -22,10 +22,10 @@ export type SubAgentUiCallbacks = {
   onDone?: (formatted: string) => void
 }
 
-/** Ollama models use `:` (e.g. llava:13b, qwen2.5:7b). Everything else → OpenRouter. */
+/** Ollama models use `:` (e.g. llava:13b, qwen2.5:7b). Runware LLM ids use `@` (e.g. minimax:m2.7@0). */
 export function detectSubAgentProvider(model: string): 'ollama' | 'openrouter' {
   if (!model) return 'ollama'
-  // Ollama tags always have `:version` — OpenRouter/NVIDIA use `/` or plain names
+  if (model.includes('@')) return 'openrouter'
   if (model.includes(':') && !model.includes('/')) return 'ollama'
   return 'openrouter'
 }

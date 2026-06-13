@@ -91,6 +91,9 @@ OPENROUTER_UPSTREAM = os.environ.get(
 NVIDIA_UPSTREAM = os.environ.get(
     "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com"
 ).rstrip("/")
+RUNWARE_UPSTREAM = os.environ.get(
+    "RUNWARE_BASE_URL", "https://api.runware.ai"
+).rstrip("/")
 
 
 def _web_index_file() -> Path | None:
@@ -935,6 +938,21 @@ async def nvidia_proxy(request: Request, full_path: str):
             detail="NVIDIA API key not configured (desktop General or NVIDIA_API_KEY env)",
         )
     return await _reverse_proxy(request, NVIDIA_UPSTREAM, full_path, bearer_key=key)
+
+
+@app.api_route(
+    "/api/runware/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+)
+async def runware_llm_proxy(request: Request, full_path: str):
+    """Proxy Runware OpenAI-compatible LLM API for LAN web clients."""
+    key = get_runware_key()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="Runware API key not configured (desktop General or RUNWARE_API_KEY env)",
+        )
+    return await _reverse_proxy(request, RUNWARE_UPSTREAM, full_path, bearer_key=key)
 
 
 @app.post("/tts")

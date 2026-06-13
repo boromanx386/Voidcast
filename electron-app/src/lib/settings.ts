@@ -265,7 +265,64 @@ export function buildRunwareTtsSpeechPayload(
 
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
-export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
+export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'runware'
+
+export const RUNWARE_LLM_MODEL_DEFAULT = 'minimax:m2.7@0'
+
+/** Legacy/wrong Kimi ids → canonical Runware AIR id. */
+const RUNWARE_LLM_MODEL_ALIASES: Record<string, string> = {
+  'moonshotai:kimi@2.6': 'moonshotai:kimi@k2.6',
+  'moonshotai/kimi-k2.6': 'moonshotai:kimi@k2.6',
+  'moonshotai/kimi-k2.6:free': 'moonshotai:kimi@k2.6',
+  'moonshotai-kimi-k2-6': 'moonshotai:kimi@k2.6',
+}
+
+export function normalizeRunwareLlmModelId(model: string): string {
+  const trimmed = model.trim()
+  if (!trimmed) return RUNWARE_LLM_MODEL_DEFAULT
+  const lower = trimmed.toLowerCase()
+  if (lower.startsWith('xai:grok@') || lower === 'xai-grok-4-3' || lower === 'grok-4.3') {
+    return RUNWARE_LLM_MODEL_DEFAULT
+  }
+  return RUNWARE_LLM_MODEL_ALIASES[trimmed] ?? trimmed
+}
+
+export function isRunwareMinimaxM3Model(model: string): boolean {
+  const id = normalizeRunwareLlmModelId(model).toLowerCase()
+  return id.startsWith('minimax:m3')
+}
+
+/** Closed-source models proxied by Runware (Anthropic, OpenAI, Google Gemini). */
+export function isRunwarePassthroughLlmModel(model: string): boolean {
+  const id = normalizeRunwareLlmModelId(model).toLowerCase()
+  if (id.startsWith('anthropic:')) return true
+  if (id.startsWith('openai:gpt@')) return true
+  if (id.startsWith('google:gemini@')) return true
+  return false
+}
+
+export const RUNWARE_LLM_PRESET_MODELS: Array<{ id: string; label: string }> = [
+  { id: RUNWARE_LLM_MODEL_DEFAULT, label: 'MiniMax M2.7 (coding · reasoning stream)' },
+  { id: 'minimax:m2.5@0', label: 'MiniMax M2.5' },
+  { id: 'minimax:m3@0', label: 'MiniMax M3 (1M ctx · split thinking)' },
+  { id: 'deepseek:v4@flash', label: 'DeepSeek V4 Flash' },
+  { id: 'deepseek:v4@pro', label: 'DeepSeek V4 Pro' },
+  { id: 'google:gemma@4-31b', label: 'Gemma 4 31B' },
+  { id: 'alibaba:qwen@3.5-27b', label: 'Qwen 3.5 27B' },
+  { id: 'zai:glm@5.1', label: 'GLM 5.1' },
+  { id: 'moonshotai:kimi@k2.6', label: 'Kimi K2.6 (multimodal)' },
+  { id: 'anthropic:claude@opus-4.8', label: 'Claude Opus 4.8' },
+  { id: 'anthropic:claude@opus-4.7', label: 'Claude Opus 4.7 (1M ctx)' },
+  { id: 'anthropic:claude@sonnet-4.6', label: 'Claude Sonnet 4.6' },
+  { id: 'anthropic:claude@fable-5', label: 'Claude Fable 5 (long-horizon coding)' },
+  { id: 'openai:gpt@5.5', label: 'GPT-5.5' },
+  { id: 'openai:gpt@5.4-pro', label: 'GPT-5.4 Pro' },
+  { id: 'openai:gpt@5.4-mini', label: 'GPT-5.4 Mini (400K ctx)' },
+  { id: 'openai:gpt@5.4-nano', label: 'GPT-5.4 Nano' },
+  { id: 'google:gemini@3.1-pro', label: 'Gemini 3.1 Pro' },
+  { id: 'google:gemini@3.5-flash', label: 'Gemini 3.5 Flash' },
+  { id: 'google:gemini@3.1-flash-lite', label: 'Gemini 3.1 Flash Lite' },
+]
 
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
@@ -369,6 +426,8 @@ export type AppSettings = {
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   nvidiaModel: string
+  /** Runware LLM model id (OpenAI-compatible /chat/completions). */
+  runwareLlmModel: string
   /** Default OpenRouter TTS model id. */
   openrouterTtsModel: string
   /** Optional OpenRouter TTS voice id/preset. */
@@ -383,7 +442,7 @@ export type AppSettings = {
   longMemoryDefaultEnabled: boolean
   /**
    * Ollama `think` level. Thinking models default to on unless `think: false` is sent.
-   * OpenRouter/NVIDIA reasoning in the UI is shown when level is not `off`.
+   * OpenRouter/NVIDIA/Runware reasoning in the UI is shown when level is not `off`.
    */
   llmThinkLevel: LlmThinkLevel
   /** System message prepended to each request */
@@ -510,6 +569,7 @@ import {
   isLanWebClient,
   nvidiaApiBaseForRuntime,
   openRouterApiBaseForRuntime,
+  runwareLlmApiBaseForRuntime,
 } from '@/lib/platform'
 
 const STORAGE_KEY = 'voidcast-settings-v1'
@@ -527,6 +587,7 @@ export const defaults: AppSettings = {
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
   nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
+  runwareLlmModel: RUNWARE_LLM_MODEL_DEFAULT,
   openrouterTtsModel: OPENROUTER_TTS_MODEL_DEFAULT,
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
@@ -735,7 +796,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? 'openrouter'
       : providerRaw === 'nvidia'
         ? 'nvidia'
-        : 'ollama'
+        : providerRaw === 'runware'
+          ? 'runware'
+          : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
   const openrouterBaseUrl =
@@ -765,6 +828,11 @@ function normalizeLlm(s: AppSettings): AppSettings {
       nvidiaModel = defaults.nvidiaModel
     }
   }
+  let runwareLlmModel = normalizeRunwareLlmModelId(
+    typeof s.runwareLlmModel === 'string' && s.runwareLlmModel.trim()
+      ? s.runwareLlmModel.trim()
+      : defaults.runwareLlmModel,
+  )
   return {
     ...s,
     llmProvider,
@@ -774,6 +842,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     nvidiaBaseUrl,
     nvidiaApiKey,
     nvidiaModel,
+    runwareLlmModel,
     llmTemperature: Number.isFinite(t) ? clamp(t, 0, 2) : defaults.llmTemperature,
     llmNumCtx: Number.isFinite(ctx)
       ? clamp(Math.round(ctx), 512, 262144)
@@ -1111,6 +1180,7 @@ function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
         : s.ollamaBaseUrl,
       openrouterBaseUrl: openRouterApiBaseForRuntime(),
       nvidiaBaseUrl: nvidiaApiBaseForRuntime(),
+      runwareApiBaseUrl: runwareLlmApiBaseForRuntime(),
       voiceMode: 'design',
       sttProvider: 'none',
     })

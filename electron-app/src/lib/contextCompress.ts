@@ -1,6 +1,8 @@
-import type { LlmProvider } from '@/lib/settings'
+import type { AppSettings, LlmProvider } from '@/lib/settings'
+import { isCloudLlmProvider, resolveCloudLlmConfig } from '@/lib/cloudLlm'
 import { streamOllamaChat, type OllamaApiMessage, type OllamaModelOptions } from '@/lib/ollama'
-import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
+import { streamOpenRouterChat } from '@/lib/openrouter'
+import { ollamaMessagesToCloudChat } from '@/lib/runwareLlm'
 
 type ContextTurn = { role: 'user' | 'assistant'; content: string }
 
@@ -15,15 +17,9 @@ function buildTranscript(turns: ContextTurn[]): string {
  * This summary is never shown as a chat message.
  */
 export async function compressConversationContext(params: {
+  settings: AppSettings
   provider: LlmProvider
-  ollamaBaseUrl: string
-  ollamaModel: string
-  openrouterBaseUrl: string
-  openrouterApiKey: string
-  openrouterModel: string
-  nvidiaBaseUrl?: string
-  nvidiaApiKey?: string
-  nvidiaModel?: string
+  modelOverride?: string
   turns: ContextTurn[]
   existingSummary?: string
   modelOptions?: OllamaModelOptions
@@ -50,21 +46,27 @@ export async function compressConversationContext(params: {
   const modelOptions = { ...params.modelOptions, temperature: 0.2 }
 
   let content = ''
-  if (params.provider === 'openrouter' || params.provider === 'nvidia') {
+  if (isCloudLlmProvider(params.provider)) {
+    const cloud = resolveCloudLlmConfig(params.settings, {
+      provider: params.provider,
+      modelOverride: params.modelOverride,
+    })
+    if (!cloud) throw new Error('Cloud LLM settings are missing.')
     const out = await streamOpenRouterChat({
-      baseUrl: params.provider === 'nvidia' ? (params.nvidiaBaseUrl || '') : params.openrouterBaseUrl,
-      apiKey: params.provider === 'nvidia' ? (params.nvidiaApiKey || '') : params.openrouterApiKey,
-      model: params.provider === 'nvidia' ? (params.nvidiaModel || '') : params.openrouterModel,
-      messages: ollamaMessagesToOpenRouter(messages),
+      baseUrl: cloud.baseUrl,
+      apiKey: cloud.apiKey,
+      model: cloud.model,
+      messages: ollamaMessagesToCloudChat(messages, cloud.baseUrl, params.provider, cloud.model),
       modelOptions,
+      thinkLevel: params.settings.llmThinkLevel,
       signal: params.signal,
       onDelta: () => undefined,
     })
     content = out.content
   } else {
     const out = await streamOllamaChat({
-      baseUrl: params.ollamaBaseUrl,
-      model: params.ollamaModel,
+      baseUrl: params.settings.ollamaBaseUrl,
+      model: params.modelOverride?.trim() || params.settings.ollamaModel,
       messages,
       modelOptions,
       signal: params.signal,

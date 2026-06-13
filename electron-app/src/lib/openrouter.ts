@@ -1,6 +1,8 @@
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
 import { isElectron, usesServerCloudProxy } from './platform'
-import { normalizeBaseUrl } from './settings'
+import { isRunwareLlmBaseUrl, runwareChatRequestExtras, sanitizeRunwareAssistantText } from './runwareLlm'
+import { isRunwarePassthroughLlmModel, normalizeBaseUrl, type LlmThinkLevel } from './settings'
+import { sanitizeToolsForPassthroughLlm, type OllamaToolDefinition } from './toolDefinitions'
 
 export type OpenRouterContentPart =
   | { type: 'text'; text: string }
@@ -15,6 +17,8 @@ export type OpenRouterMessage =
       tool_calls?: OpenRouterToolCall[]
       /** Replay for reasoning models (OpenRouter / upstream). */
       reasoning?: string | null
+      /** Runware / OpenAI reasoning models use snake_case replay. */
+      reasoning_content?: string | null
     }
   | { role: 'tool'; content: string; tool_call_id: string; name?: string }
 
@@ -45,6 +49,8 @@ export type StreamOpenRouterChatParams = {
   onThinkingDelta?: (fullReasoning: string) => void
   modelOptions?: OllamaModelOptions
   tools?: unknown
+  /** When set and base URL is Runware, maps to `thinking_level` on the request. */
+  thinkLevel?: LlmThinkLevel
 }
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
@@ -237,19 +243,27 @@ export async function streamOpenRouterChat(
     normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1'),
   )
   const isNvidia = root.includes('integrate.api.nvidia.com')
+  const isRunware = isRunwareLlmBaseUrl(root)
+  const apiLabel = isRunware ? 'Runware' : isNvidia ? 'NVIDIA' : 'OpenRouter'
   const canUseElectronNvidiaProxy =
     isElectron() &&
     isNvidia &&
     Boolean(window.voidcast?.llmChatProxy)
 
   const extra = compactOpenRouterOptions(options.modelOptions)
-  const models = isNvidia
-    ? [options.model]
-    : options.model === FALLBACK_MODEL
+  const models =
+    isNvidia || isRunware
       ? [options.model]
-      : [options.model, FALLBACK_MODEL]
+      : options.model === FALLBACK_MODEL
+        ? [options.model]
+        : [options.model, FALLBACK_MODEL]
   let res: Response | null = null
   let lastErr = ''
+
+  const toolsForRequest =
+    isRunware && isRunwarePassthroughLlmModel(options.model) && Array.isArray(options.tools)
+      ? sanitizeToolsForPassthroughLlm(options.tools as OllamaToolDefinition[])
+      : options.tools
 
   for (const model of models) {
     for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
@@ -258,8 +272,19 @@ export async function streamOpenRouterChat(
         messages: options.messages,
         stream: true,
       }
-      if (extra) Object.assign(body, extra)
-      if (options.tools !== undefined) body.tools = options.tools
+      if (extra && !(isRunware && isRunwarePassthroughLlmModel(options.model))) {
+        Object.assign(body, extra)
+      }
+      if (options.tools !== undefined) body.tools = toolsForRequest
+      if (isRunware) {
+        Object.assign(body, runwareChatRequestExtras(options.model, options.thinkLevel))
+        if (!isRunwarePassthroughLlmModel(options.model) && options.modelOptions?.num_ctx) {
+          body.max_completion_tokens = Math.min(
+            Math.max(Math.round(options.modelOptions.num_ctx / 2), 256),
+            32768,
+          )
+        }
+      }
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -314,7 +339,7 @@ export async function streamOpenRouterChat(
       if (res.ok) break
 
       const err = await parseOpenRouterError(res)
-      lastErr = `OpenRouter /chat/completions ${res.status}: ${err.text || res.statusText}`
+      lastErr = `${apiLabel} /chat/completions ${res.status}: ${err.text || res.statusText}`
       if (!RETRYABLE_STATUS.has(res.status)) {
         throw new Error(lastErr)
       }
@@ -330,7 +355,7 @@ export async function streamOpenRouterChat(
   }
 
   if (!res || !res.ok) {
-    throw new Error(lastErr || 'OpenRouter /chat/completions request failed')
+    throw new Error(lastErr || `${apiLabel} /chat/completions request failed`)
   }
   if (!res.body) throw new Error('No response body')
 
@@ -341,6 +366,17 @@ export async function streamOpenRouterChat(
   let fullReasoning = ''
   const toolCalls: OpenRouterToolCall[] = []
   let usage: OpenRouterUsage | undefined
+
+  const emitRunwareStreamState = () => {
+    const sanitized = sanitizeRunwareAssistantText({
+      rawContent: full,
+      streamedReasoning: fullReasoning,
+      onDelta: options.onDelta,
+      onThinkingDelta: options.onThinkingDelta,
+    })
+    full = sanitized.content
+    fullReasoning = sanitized.reasoning
+  }
 
   while (true) {
     if (options.signal?.aborted) throwAbortError()
@@ -384,15 +420,19 @@ export async function streamOpenRouterChat(
       const rPiece = pickReasoningDelta(delta) || pickReasoningDelta(msg)
       if (rPiece) {
         fullReasoning += rPiece
-        options.onThinkingDelta?.(fullReasoning)
+        if (isRunware) emitRunwareStreamState()
+        else options.onThinkingDelta?.(fullReasoning)
       }
       const piece = delta?.content ?? msg?.content
       if (piece) {
         full += piece
-        options.onDelta(full)
+        if (isRunware) emitRunwareStreamState()
+        else options.onDelta(full)
       }
     }
   }
+
+  if (isRunware) emitRunwareStreamState()
 
   return {
     content: full,

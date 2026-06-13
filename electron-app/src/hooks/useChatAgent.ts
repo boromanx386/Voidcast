@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from 'react'
 import { buildAgentTurnContext } from '@/lib/buildAgentTurnContext'
+import { resolveCloudLlmConfig } from '@/lib/cloudLlm'
 import { uid } from '@/lib/chatUid'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import { applyAgentToolResult, type AgentToolResultPayload } from '@/lib/applyAgentToolResult'
@@ -25,7 +26,8 @@ import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { streamOllamaChat, isThinkingUiEnabled } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
-import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
+import { streamOpenRouterChat } from '@/lib/openrouter'
+import { ollamaMessagesToCloudChat } from '@/lib/runwareLlm'
 import { playNotificationSound } from '@/lib/notificationSounds'
 import { loadSettings, type AppSettings } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
@@ -186,15 +188,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     setError(null)
     try {
       const compressed = await compressConversationContext({
+        settings,
         provider: settings.llmProvider,
-        ollamaBaseUrl: settings.ollamaBaseUrl,
-        ollamaModel: settings.ollamaModel,
-        openrouterBaseUrl: settings.openrouterBaseUrl,
-        openrouterApiKey: settings.openrouterApiKey,
-        openrouterModel: settings.openrouterModel,
-        nvidiaBaseUrl: settings.nvidiaBaseUrl,
-        nvidiaApiKey: settings.nvidiaApiKey,
-        nvidiaModel: settings.nvidiaModel,
         turns,
         existingSummary: hiddenContextSummary,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
@@ -459,87 +454,71 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               )
             },
           }
-          const out =
-            settings.llmProvider === 'openrouter' || settings.llmProvider === 'nvidia'
-              ? await runOpenRouterChatWithTools({
-                  baseUrl:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaBaseUrl
-                      : settings.openrouterBaseUrl,
-                  apiKey:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaApiKey
-                      : settings.openrouterApiKey,
-                  model:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaModel
-                      : settings.openrouterModel,
-                  ...commonToolParams,
-                })
-              : await runOllamaChatWithTools({
-                  baseUrl: settings.ollamaBaseUrl,
-                  model: settings.ollamaModel,
-                  thinkLevel: settings.llmThinkLevel,
-                  ...commonToolParams,
-                })
+          const cloudLlm = resolveCloudLlmConfig(settings)
+          const out = cloudLlm
+            ? await runOpenRouterChatWithTools({
+                baseUrl: cloudLlm.baseUrl,
+                apiKey: cloudLlm.apiKey,
+                model: cloudLlm.model,
+                thinkLevel: settings.llmThinkLevel,
+                ...commonToolParams,
+              })
+            : await runOllamaChatWithTools({
+                baseUrl: settings.ollamaBaseUrl,
+                model: settings.ollamaModel,
+                thinkLevel: settings.llmThinkLevel,
+                ...commonToolParams,
+              })
           replyText = out.content
           usage = out.usage
         } else {
-          const out =
-            settings.llmProvider === 'openrouter' || settings.llmProvider === 'nvidia'
-              ? await streamOpenRouterChat({
-                  baseUrl:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaBaseUrl
-                      : settings.openrouterBaseUrl,
-                  apiKey:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaApiKey
-                      : settings.openrouterApiKey,
-                  model:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaModel
-                      : settings.openrouterModel,
-                  messages: ollamaMessagesToOpenRouter(history),
-                  modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-                  signal: ac.signal,
-                  onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
-                    ? (thinking) => {
-                        if (!isRunActive()) return
-                        setMessages((prev) =>
-                          prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                        )
-                      }
-                    : undefined,
-                  onDelta: (full) => {
-                    if (!isRunActive()) return
-                    setMessages((prev) =>
-                      prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
-                    )
-                  },
-                })
-              : await streamOllamaChat({
-                  baseUrl: settings.ollamaBaseUrl,
-                  model: settings.ollamaModel,
-                  messages: history,
-                  modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-                  signal: ac.signal,
-                  thinkLevel: settings.llmThinkLevel,
-                  onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
-                    ? (thinking) => {
-                        if (!isRunActive()) return
-                        setMessages((prev) =>
-                          prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                        )
-                      }
-                    : undefined,
-                  onDelta: (full) => {
-                    if (!isRunActive()) return
-                    setMessages((prev) =>
-                      prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
-                    )
-                  },
-                })
+          const cloudLlm = resolveCloudLlmConfig(settings)
+          const out = cloudLlm
+            ? await streamOpenRouterChat({
+                baseUrl: cloudLlm.baseUrl,
+                apiKey: cloudLlm.apiKey,
+                model: cloudLlm.model,
+                messages: ollamaMessagesToCloudChat(history, cloudLlm.baseUrl, settings.llmProvider, cloudLlm.model),
+                modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
+                thinkLevel: settings.llmThinkLevel,
+                signal: ac.signal,
+                onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                  ? (thinking) => {
+                      if (!isRunActive()) return
+                      setMessages((prev) =>
+                        prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                      )
+                    }
+                  : undefined,
+                onDelta: (full) => {
+                  if (!isRunActive()) return
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
+                  )
+                },
+              })
+            : await streamOllamaChat({
+                baseUrl: settings.ollamaBaseUrl,
+                model: settings.ollamaModel,
+                messages: history,
+                modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
+                signal: ac.signal,
+                thinkLevel: settings.llmThinkLevel,
+                onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                  ? (thinking) => {
+                      if (!isRunActive()) return
+                      setMessages((prev) =>
+                        prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                      )
+                    }
+                  : undefined,
+                onDelta: (full) => {
+                  if (!isRunActive()) return
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
+                  )
+                },
+              })
           replyText = out.content
           usage = out.usage
         }

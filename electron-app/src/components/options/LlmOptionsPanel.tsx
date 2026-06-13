@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { RUNWARE_LLM_PRESET_MODELS } from '@/lib/settings'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import type { Dispatch, SetStateAction } from 'react'
@@ -77,13 +78,16 @@ export function LlmOptionsPanel({
                   ? 'openrouter'
                   : e.target.value === 'nvidia'
                     ? 'nvidia'
-                    : 'ollama',
+                    : e.target.value === 'runware'
+                      ? 'runware'
+                      : 'ollama',
             }))
           }
         >
           <option value="ollama">Ollama (local)</option>
           <option value="openrouter">OpenRouter (cloud)</option>
           <option value="nvidia">NVIDIA (cloud)</option>
+          <option value="runware">Runware (cloud)</option>
         </select>
       </div>
 
@@ -330,6 +334,75 @@ export function LlmOptionsPanel({
         </>
       )}
 
+      {settings.llmProvider === 'runware' && (
+        <>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-purple mr-2">◇</span> RUNWARE_BASE_URL
+            </label>
+            <input
+              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+              readOnly={isWebStandalone()}
+              value={settings.runwareApiBaseUrl}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, runwareApiBaseUrl: e.target.value }))
+              }
+              placeholder="https://api.runware.ai/v1"
+            />
+            {isWebStandalone() && (
+              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+                Proxied through the TTS host at{' '}
+                <code className="text-neon-purple">/api/runware/*</code> using keys from the desktop
+                app.
+              </p>
+            )}
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> RUNWARE_LLM_MODEL
+            </label>
+            <select
+              className="form-select mb-3"
+              value={
+                RUNWARE_LLM_PRESET_MODELS.some((m) => m.id === settings.runwareLlmModel)
+                  ? settings.runwareLlmModel
+                  : settings.runwareLlmModel
+                    ? `__custom__${settings.runwareLlmModel}`
+                    : ''
+              }
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v || v.startsWith('__custom__')) return
+                setSettings((s) => ({ ...s, runwareLlmModel: v }))
+              }}
+            >
+              {RUNWARE_LLM_PRESET_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              {settings.runwareLlmModel &&
+                !RUNWARE_LLM_PRESET_MODELS.some((m) => m.id === settings.runwareLlmModel) && (
+                  <option value={`__custom__${settings.runwareLlmModel}`}>
+                    {settings.runwareLlmModel} (manual)
+                  </option>
+                )}
+            </select>
+            <input
+              className="cyber-input"
+              value={settings.runwareLlmModel}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, runwareLlmModel: e.target.value }))
+              }
+              placeholder="minimax:m2.7@0"
+            />
+            <p className="text-xs text-void-dim mt-1">
+              API key is configured in General options under RUNWARE_API_KEY.
+            </p>
+          </div>
+        </>
+      )}
+
       {/* Temperature */}
       <div className="form-group">
         <label className="form-label">
@@ -386,7 +459,7 @@ export function LlmOptionsPanel({
         </select>
         <p className="text-xs text-void-dim mt-1">
           Thinking models default to reasoning unless <code className="text-neon-purple/90">think: false</code> is sent.
-          Qwen/DeepSeek use ON/OFF; GPT-OSS uses low/medium/high. OpenRouter reasoning follows the same level (hidden when OFF).
+          Qwen/DeepSeek use ON/OFF; GPT-OSS uses low/medium/high. OpenRouter/NVIDIA/Runware reasoning follows the same level (hidden when OFF).
         </p>
       </div>
 
@@ -449,7 +522,14 @@ export function LlmOptionsPanel({
       {/* Model Info Panel */}
       <div className="bg-void-black/50 border border-neon-cyan/20 p-4">
         <p className="text-xs font-mono text-neon-cyan mb-3 uppercase tracking-wider">
-          <span className="mr-2">◈</span>{settings.llmProvider === 'openrouter' ? 'OPENROUTER_NOTES' : settings.llmProvider === 'nvidia' ? 'NVIDIA_NOTES' : 'RECOMMENDED_MODELS'}
+          <span className="mr-2">◈</span>
+          {settings.llmProvider === 'openrouter'
+            ? 'OPENROUTER_NOTES'
+            : settings.llmProvider === 'nvidia'
+              ? 'NVIDIA_NOTES'
+              : settings.llmProvider === 'runware'
+                ? 'RUNWARE_NOTES'
+                : 'RECOMMENDED_MODELS'}
         </p>
         {settings.llmProvider === 'ollama' && <ul className="text-xs font-mono text-void-dim space-y-1">
           <li className="flex items-center gap-2">
@@ -501,6 +581,39 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
               Some upstream providers may require reasoning replay in multi-turn chats.
+            </li>
+          </ul>
+        )}
+        {settings.llmProvider === 'runware' && (
+          <ul className="text-xs font-mono text-void-dim space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Open-source models fold system into user; Claude/GPT/Gemini keep standard{' '}
+              <code className="text-void-light/90">role: system</code>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Frontier presets use Runware AIR ids (e.g.{' '}
+              <code className="text-void-light/90">anthropic:claude@opus-4.8</code>,{' '}
+              <code className="text-void-light/90">openai:gpt@5.5</code>)
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Reasoning: M2.7 streams <code className="text-void-light/90">reasoning_content</code>; M3 needs{' '}
+              <code className="text-void-light/90">split_thinking</code> (auto when thinking is ON)
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              Kimi model id is <code className="text-void-light/90">moonshotai:kimi@k2.6</code> (not{' '}
+              <code className="text-void-light/90">@2.6</code>)
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Keep Runware API key in General options; pay-per-token billing
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              Tool-calling quality depends on the selected Runware model.
             </li>
           </ul>
         )}

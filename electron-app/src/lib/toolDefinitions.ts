@@ -571,7 +571,13 @@ const CODING_GIT_STATUS_TOOL: OllamaToolDefinition = {
       'Show git branch and short working-tree status for the coding project (modified, staged, untracked paths). Use to see what changed before or after edits. Requires the project folder to be a git repository.',
     parameters: {
       type: 'object',
-      properties: {},
+      properties: {
+        short: {
+          type: 'boolean',
+          description: 'If true, return a shorter status summary. Default false.',
+        },
+      },
+      required: [],
     },
   },
 }
@@ -783,6 +789,51 @@ const UPDATE_REMINDER_TOOL: OllamaToolDefinition = {
       required: ['search_text'],
     },
   },
+}
+
+function normalizeToolParameterSchema(schema: OllamaToolParameterSchema): OllamaToolParameterSchema {
+  const out: OllamaToolParameterSchema = { type: schema.type }
+  if (schema.description) out.description = schema.description
+  if (schema.enum?.length) out.enum = [...schema.enum]
+  if (schema.items) {
+    out.items = {
+      type: schema.items.type,
+      ...(schema.items.minimum !== undefined ? { minimum: schema.items.minimum } : {}),
+    }
+  }
+  return out
+}
+
+/**
+ * Anthropic / OpenAI pass-through validators reject empty `properties` objects and
+ * readonly enum tuples. Run before sending tools to Runware frontier models.
+ */
+export function sanitizeToolsForPassthroughLlm(tools: OllamaToolDefinition[]): OllamaToolDefinition[] {
+  return tools.map((tool) => {
+    const params = tool.function.parameters
+    const rawProps = params.properties ?? {}
+    const properties = Object.fromEntries(
+      Object.entries(rawProps).map(([key, schema]) => [key, normalizeToolParameterSchema(schema)]),
+    )
+    if (Object.keys(properties).length === 0) {
+      properties._unused = {
+        type: 'string',
+        description: 'Unused placeholder for schema compatibility. Omit when calling this tool.',
+      }
+    }
+    return {
+      type: 'function',
+      function: {
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: {
+          type: 'object',
+          properties,
+          required: [...(params.required ?? [])],
+        },
+      },
+    }
+  })
 }
 
 export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
