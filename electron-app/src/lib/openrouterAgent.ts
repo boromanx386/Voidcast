@@ -1,5 +1,5 @@
-import { buildOllamaToolsList, sanitizeToolsForPassthroughLlm } from '@/lib/toolDefinitions'
-import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
+import { buildOllamaToolsList } from '@/lib/toolDefinitions'
+import type { ToolsEnabled, SubAgentConfig } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
@@ -10,11 +10,6 @@ import {
   type OpenRouterMessage,
   type OpenRouterToolCall,
 } from '@/lib/openrouter'
-import {
-  appendRunwareAssistantReasoning,
-  ollamaMessagesToRunwareChat,
-  shouldUseRunwareHostedChatFormat,
-} from '@/lib/runwareLlm'
 import { executeToolCall } from '@/lib/agentToolExecutor'
 import { resolveImageRecallRequest } from '@/lib/ollamaAgent'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
@@ -47,7 +42,6 @@ export type RunOpenRouterChatWithToolsParams = {
   baseUrl: string
   apiKey: string
   model: string
-  thinkLevel?: LlmThinkLevel
   initialMessages: OllamaApiMessage[]
   modelOptions?: OllamaModelOptions
   toolsEnabled: ToolsEnabled
@@ -79,16 +73,9 @@ export async function runOpenRouterChatWithTools(
   params: RunOpenRouterChatWithToolsParams,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const tools = buildOllamaToolsList(params.toolsEnabled)
-  const toolsForRequest =
-    shouldUseRunwareHostedChatFormat(params.baseUrl, 'runware', params.model)
-      ? tools
-      : sanitizeToolsForPassthroughLlm(tools)
-  if (toolsForRequest.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
+  if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
-  const useRunwareHostedFormat = shouldUseRunwareHostedChatFormat(params.baseUrl, 'runware', params.model)
-  const initialMessages: OpenRouterMessage[] = useRunwareHostedFormat
-    ? ollamaMessagesToRunwareChat(params.initialMessages)
-    : ollamaMessagesToOpenRouter(params.initialMessages)
+  const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
     initialMessages,
     maxToolRounds: MAX_TOOL_ROUNDS,
@@ -102,8 +89,7 @@ export async function runOpenRouterChatWithTools(
         model: params.model,
         messages,
         modelOptions: params.modelOptions,
-        tools: toolsForRequest,
-        thinkLevel: params.thinkLevel,
+        tools,
         signal,
         onDelta,
         onThinkingDelta,
@@ -120,17 +106,12 @@ export async function runOpenRouterChatWithTools(
         .filter((t) => t.function?.name)
         .map((call) => ({ name: call.function.name, argsRaw: call.function.arguments, raw: call })),
     appendAssistantWithToolCalls: ({ messages, content, thinking, toolCalls }) => {
-      const assistant: OpenRouterMessage = {
+      messages.push({
         role: 'assistant',
         content,
         ...(thinking.trim() ? { reasoning: thinking.trim() } : {}),
         tool_calls: toOpenRouterToolCalls(toolCalls.filter((t) => t.function?.name)),
-      }
-      messages.push(
-        useRunwareHostedFormat
-          ? appendRunwareAssistantReasoning(assistant, thinking)
-          : assistant,
-      )
+      })
     },
     appendToolResult: ({ messages, call, name, result, round }) => {
       messages.push({

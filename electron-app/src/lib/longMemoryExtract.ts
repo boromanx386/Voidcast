@@ -1,16 +1,19 @@
-import { isCloudLlmProvider, resolveCloudLlmConfig } from '@/lib/cloudLlm'
 import { streamOllamaChat, type OllamaModelOptions } from '@/lib/ollama'
-import { streamOpenRouterChat } from '@/lib/openrouter'
-import { ollamaMessagesToCloudChat } from '@/lib/runwareLlm'
-import type { AppSettings, LlmProvider } from '@/lib/settings'
+import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import type { LongMemoryCandidate, LongMemoryKind } from '@/types/longMemory'
 
 type Turn = { role: 'user' | 'assistant'; content: string }
 
 type ExtractParams = {
-  settings: AppSettings
-  provider: LlmProvider
-  modelOverride?: string
+  provider: 'ollama' | 'openrouter' | 'nvidia'
+  ollamaBaseUrl: string
+  ollamaModel: string
+  openrouterBaseUrl: string
+  openrouterApiKey: string
+  openrouterModel: string
+  nvidiaBaseUrl?: string
+  nvidiaApiKey?: string
+  nvidiaModel?: string
   modelOptions?: OllamaModelOptions
   turns: Turn[]
   signal?: AbortSignal
@@ -93,35 +96,24 @@ export async function extractLongMemoryCandidates(params: ExtractParams): Promis
   ].join('\n')
 
   let raw = ''
-  if (isCloudLlmProvider(params.provider)) {
-    const cloud = resolveCloudLlmConfig(params.settings, {
-      provider: params.provider,
-      modelOverride: params.modelOverride,
-    })
-    if (!cloud) throw new Error('Cloud LLM settings are missing.')
+  if (params.provider === 'openrouter' || params.provider === 'nvidia') {
     const out = await streamOpenRouterChat({
-      baseUrl: cloud.baseUrl,
-      apiKey: cloud.apiKey,
-      model: cloud.model,
-      messages: ollamaMessagesToCloudChat(
-        [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        cloud.baseUrl,
-        params.provider,
-        cloud.model,
-      ),
+      baseUrl: params.provider === 'nvidia' ? (params.nvidiaBaseUrl || '') : params.openrouterBaseUrl,
+      apiKey: params.provider === 'nvidia' ? (params.nvidiaApiKey || '') : params.openrouterApiKey,
+      model: params.provider === 'nvidia' ? (params.nvidiaModel || '') : params.openrouterModel,
+      messages: ollamaMessagesToOpenRouter([
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ]),
       modelOptions: { ...params.modelOptions, temperature: 0.1 },
-      thinkLevel: params.settings.llmThinkLevel,
       signal: params.signal,
       onDelta: () => undefined,
     })
     raw = out.content
   } else {
     const out = await streamOllamaChat({
-      baseUrl: params.settings.ollamaBaseUrl,
-      model: params.modelOverride?.trim() || params.settings.ollamaModel,
+      baseUrl: params.ollamaBaseUrl,
+      model: params.ollamaModel,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { extractLongMemoryCandidates } from '@/lib/longMemoryExtract'
 import { detectSubAgentProvider } from '@/lib/subAgent'
-import type { LlmProvider } from '@/lib/settings'
 import {
   dedupeMemories,
   deleteMemory,
@@ -86,19 +85,21 @@ export function useLongMemoryUi({
       const useSub = settings.subAgent.enabled
       const subModel = settings.subAgent.model
       const subProvider = detectSubAgentProvider(subModel)
-      const memLlmProvider: LlmProvider = useSub
+      const memLlmProvider = useSub
         ? subProvider === 'ollama'
           ? 'ollama'
-          : subModel.includes('@')
-            ? 'runware'
-            : settings.llmProvider === 'ollama'
-              ? 'openrouter'
-              : settings.llmProvider
+          : 'openrouter'
         : settings.llmProvider
       const candidates = await extractLongMemoryCandidates({
-        settings,
         provider: memLlmProvider,
-        modelOverride: useSub ? subModel : undefined,
+        ollamaBaseUrl: settings.ollamaBaseUrl,
+        ollamaModel: useSub && subProvider === 'ollama' ? subModel : settings.ollamaModel,
+        openrouterBaseUrl: settings.openrouterBaseUrl,
+        openrouterApiKey: settings.openrouterApiKey,
+        openrouterModel: useSub && subProvider !== 'ollama' ? subModel : settings.openrouterModel,
+        nvidiaBaseUrl: settings.nvidiaBaseUrl,
+        nvidiaApiKey: settings.nvidiaApiKey,
+        nvidiaModel: settings.nvidiaModel,
         modelOptions: {
           temperature: settings.llmTemperature,
           num_ctx: useSub ? (settings.subAgent.contextTokens ?? 8192) : settings.llmNumCtx,
