@@ -10,47 +10,26 @@ import {
 import { buildAgentTurnContext } from '@/lib/buildAgentTurnContext'
 import { uid } from '@/lib/chatUid'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
-import { dedupeNonEmpty } from '@/lib/chatHints'
+import { applyAgentToolResult, type AgentToolResultPayload } from '@/lib/applyAgentToolResult'
 import { compressConversationContext } from '@/lib/contextCompress'
 import {
   CONTEXT_COMPRESS_RATIO_RESET,
   estimateContextUsage,
   type ContextUsageInfo,
 } from '@/lib/contextUsage'
-import {
-  commandResultSnippet,
-  getCodingProjectPath,
-  isCodingToolFailure,
-  normalizeCodingContextMemo,
-  pushRecentCommand,
-  pushRecentUnique,
-  type CodingContextMemo,
-} from '@/lib/codingContextMemo'
-import { formatEditedFileMemoEntry } from '@/lib/codingEol'
+import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
-import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { streamOllamaChat, isThinkingUiEnabled } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { playNotificationSound } from '@/lib/notificationSounds'
-import { invokeSaveImageFromUrl } from '@/lib/saveImage'
-import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { loadSettings, type AppSettings } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
-import { scheduleUserDataSync } from '@/lib/userDataSync'
-import {
-  extractRunwareAudioUrls,
-  extractRunwareImageUrls,
-  extractSavedAudioPaths,
-  extractSavedImagePaths,
-  parseRunwareAudioToolMeta,
-  parseRunwareImageToolMeta,
-  type RunwareAudioToolMeta,
-  type RunwareImageToolMeta,
-} from '@/lib/runwareMessageMeta'
+import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import { toConversationTurns } from '@/lib/chatHints'
 import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
@@ -452,277 +431,32 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               if (!isRunActive()) return
               if (phase !== null) setToolPhase(phase)
             },
-            onToolResult: ({
-              name,
-              result,
-              args,
-            }: {
-              name: string
-              result: string
-              args?: Record<string, unknown>
-            }) => {
+            onToolResult: (payload: AgentToolResultPayload) => {
               if (!isRunActive()) return
-              setToolPhase(toolPhaseForAgentTool(name))
-              if (
-                name === 'add_reminder' ||
-                name === 'list_reminders' ||
-                name === 'delete_reminder' ||
-                name === 'update_reminder'
-              ) {
-                void refreshReminders()
-                scheduleUserDataSync(settings.ttsBaseUrl)
-              }
-              if (name === 'update_settings') {
-                setSettings(loadSettings())
-                void refreshLongMemories()
-                scheduleUserDataSync(settings.ttsBaseUrl)
-              }
-              if (
-                name === 'list_directory' ||
-                name === 'read_file' ||
-                name === 'write_file' ||
-                name === 'edit_code' ||
-                name === 'search_files' ||
-                name === 'glob_files' ||
-                name === 'git_status' ||
-                name === 'git_diff' ||
-                name === 'git_log' ||
-                name === 'git_show' ||
-                name === 'execute_command'
-              ) {
-                setCodingContextMemo((prev) => {
-                  const next = { ...prev }
-                  if (name === 'list_directory') {
-                    const p = typeof args?.path === 'string' ? args.path : ''
-                    next.lastDirectory = p || '.'
-                  } else if (name === 'glob_files') {
-                    const p = typeof args?.path_prefix === 'string' ? args.path_prefix : ''
-                    if (p) next.lastDirectory = p
-                  } else if (name === 'read_file' || name === 'write_file' || name === 'edit_code') {
-                    const p = typeof args?.path === 'string' ? args.path : ''
-                    let entry = p
-                    if (name === 'read_file' && entry) {
-                      const s = typeof args?.start_line === 'number' ? args.start_line : undefined
-                      const e = typeof args?.end_line === 'number' ? args.end_line : undefined
-                      if (s !== undefined && e !== undefined) entry = `${entry} (lines ${s}-${e})`
-                      else if (s !== undefined) entry = `${entry} (from line ${s})`
-                      else if (e !== undefined) entry = `${entry} (to line ${e})`
-                    } else if (name === 'edit_code' && entry) {
-                      entry = formatEditedFileMemoEntry(entry, result)
-                    } else if (name === 'write_file' && entry) {
-                      entry = `${entry} (written)`
-                    }
-                    if (entry) next.recentFiles = pushRecentUnique(next.recentFiles, entry)
-                  } else if (name === 'search_files') {
-                    const q = typeof args?.query === 'string' ? args.query : ''
-                    next.recentSearches = pushRecentUnique(next.recentSearches, q, 6)
-                  } else if (
-                    name === 'git_status' ||
-                    name === 'git_diff' ||
-                    name === 'git_log' ||
-                    name === 'git_show'
-                  ) {
-                    let label = name
-                    if (name === 'git_log') {
-                      const p = typeof args?.path === 'string' ? args.path : ''
-                      label = p ? `git_log -- ${p}` : 'git_log'
-                    } else if (name === 'git_show') {
-                      const ref = typeof args?.ref === 'string' ? args.ref : ''
-                      const p = typeof args?.path === 'string' ? args.path : ''
-                      label = p ? `git_show ${ref || 'HEAD'} -- ${p}` : `git_show ${ref || 'HEAD'}`
-                    } else if (name === 'git_diff') {
-                      const p = typeof args?.path === 'string' ? args.path : ''
-                      const staged = args?.staged === true
-                      label = p
-                        ? `git_diff${staged ? ' --staged' : ''} -- ${p}`
-                        : `git_diff${staged ? ' --staged' : ''}`
-                    }
-                    next.recentGitOps = pushRecentUnique(next.recentGitOps, label, 6)
-                  } else if (name === 'execute_command') {
-                    const c = typeof args?.command === 'string' ? args.command : ''
-                    const ok = !isCodingToolFailure('execute_command', result)
-                    next.recentCommands = pushRecentCommand(
-                      next.recentCommands,
-                      { command: c, ok, snippet: commandResultSnippet(result) },
-                      6,
-                    )
-                  }
-
-                  if (isCodingToolFailure(name, result)) {
-                    let failureLabel = name
-                    if (name === 'edit_code' || name === 'read_file' || name === 'write_file') {
-                      const p = typeof args?.path === 'string' ? args.path : ''
-                      if (p) failureLabel = `${name} (${p})`
-                    } else if (name === 'execute_command') {
-                      const c = typeof args?.command === 'string' ? args.command : ''
-                      if (c) failureLabel = `${name}: ${c.split(' ')[0]}`
-                    }
-                    const failureEntry = `${failureLabel}: ${result.slice(0, 120)}`
-                    next.recentFailures = pushRecentUnique(next.recentFailures, failureEntry, 6)
-                  }
-
-                  return normalizeCodingContextMemo(next, getCodingProjectPath(settings))
-                })
-              }
-
-              if (name === 'execute_command') {
-                const cmd = typeof args?.command === 'string' ? args.command : ''
-                const raw = String(result ?? '').trimEnd()
-                const MAX = 120_000
-                const body =
-                  raw.length > MAX
-                    ? `${raw.slice(0, MAX)}\n\n… [truncated ${(raw.length - MAX).toLocaleString()} chars]`
-                    : raw
-                const ts = Date.now()
-                const idBase = uid()
-                setCodingTerminalFeed((prev) =>
-                  [
-                    ...prev,
-                    {
-                      id: `exec-cmd-${idBase}`,
-                      stream: 'system' as const,
-                      text: `$ ${cmd || '(empty command)'}`,
-                      ts,
-                    },
-                    ...(body
-                      ? ([
-                          {
-                            id: `exec-out-${idBase}`,
-                            stream: 'stdout' as const,
-                            text: body,
-                            ts,
-                          },
-                        ] as const)
-                      : []),
-                  ].slice(-80),
-                )
-              }
-              if (name === 'write_file' || name === 'edit_code' || name === 'execute_command') {
-                setCodingFileTreeNonce((n) => n + 1)
-              }
-              if (name === 'save_pdf') {
-                setToolResultBanner({ kind: 'pdf', text: result })
-              }
-              if (name === 'generate_image' || name === 'edit_image_runware') {
-                const urls = extractRunwareImageUrls(result)
-                const meta = parseRunwareImageToolMeta(result)
-                if (meta) {
-                  setAssistantImageMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
-                }
-                if (urls.length > 0) {
-                  setMessages((prev) =>
-                    prev.map((m) => {
-                      if (m.id !== asstId) return m
-                      return {
-                        ...m,
-                        generatedImageUrls: dedupeNonEmpty([
-                          ...(m.generatedImageUrls || []),
-                          ...urls,
-                        ]),
-                      }
-                    }),
-                  )
-                  setAssistantGeneratedImages((prev) => {
-                    const cur = prev[asstId] || []
-                    const next = Array.from(new Set([...cur, ...urls]))
-                    return { ...prev, [asstId]: next }
-                  })
-                  if (meta) {
-                    setAssistantImageToolMeta((prev) => {
-                      const cur = prev[asstId] || {}
-                      const next = { ...cur }
-                      for (const u of urls) next[u] = meta
-                      return { ...prev, [asstId]: next }
-                    })
-                  }
-                  if (settings.runwareAutoSaveImages && settings.runwareImageOutputDir.trim()) {
-                    void (async () => {
-                      const saved: string[] = []
-                      for (const u of urls) {
-                        const txt = await invokeSaveImageFromUrl({
-                          imageUrl: u,
-                          outputDir: settings.runwareImageOutputDir,
-                        }).catch((e) => (e instanceof Error ? e.message : String(e)))
-                        saved.push(txt)
-                      }
-                      if (saved.length > 0) {
-                        const savedPaths = extractSavedImagePaths(saved.join('\n'))
-                        if (savedPaths.length > 0) {
-                          setMessages((prev) =>
-                            prev.map((m) => {
-                              if (m.id !== asstId) return m
-                              return {
-                                ...m,
-                                generatedImagePaths: dedupeNonEmpty([
-                                  ...(m.generatedImagePaths || []),
-                                  ...savedPaths,
-                                ]),
-                                generatedImageUrls: dedupeNonEmpty([
-                                  ...(m.generatedImageUrls || []),
-                                  ...urls,
-                                ]),
-                              }
-                            }),
-                          )
-                          setAssistantSavedImagePaths((prev) => {
-                            const cur = prev[asstId] || []
-                            const next = Array.from(new Set([...cur, ...savedPaths]))
-                            return { ...prev, [asstId]: next }
-                          })
-                        }
-                      }
-                    })()
-                  }
-                }
-              }
-              if (name === 'generate_music_runware') {
-                const urls = extractRunwareAudioUrls(result)
-                const meta = parseRunwareAudioToolMeta(result)
-                if (meta) {
-                  setAssistantAudioMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
-                }
-                if (urls.length > 0) {
-                  setAssistantGeneratedAudios((prev) => {
-                    const cur = prev[asstId] || []
-                    const next = Array.from(new Set([...cur, ...urls]))
-                    return { ...prev, [asstId]: next }
-                  })
-                  if (meta) {
-                    setAssistantAudioToolMeta((prev) => {
-                      const cur = prev[asstId] || {}
-                      const next = { ...cur }
-                      for (const u of urls) next[u] = meta
-                      return { ...prev, [asstId]: next }
-                    })
-                  }
-                }
-                if (
-                  urls.length > 0 &&
-                  settings.runwareAutoSaveMusic &&
-                  settings.runwareMusicOutputDir.trim()
-                ) {
-                  void (async () => {
-                    const saved: string[] = []
-                    for (const u of urls) {
-                      const txt = await invokeSaveAudioFromUrl({
-                        audioUrl: u,
-                        outputDir: settings.runwareMusicOutputDir,
-                      }).catch((e) => (e instanceof Error ? e.message : String(e)))
-                      saved.push(txt)
-                    }
-                    if (saved.length > 0) {
-                      const savedPaths = extractSavedAudioPaths(saved.join('\n'))
-                      if (savedPaths.length > 0) {
-                        setAssistantSavedAudioPaths((prev) => {
-                          const cur = prev[asstId] || []
-                          const next = Array.from(new Set([...cur, ...savedPaths]))
-                          return { ...prev, [asstId]: next }
-                        })
-                      }
-                    }
-                  })()
-                }
-              }
+              applyAgentToolResult(
+                {
+                  asstId,
+                  settings,
+                  setSettings,
+                  setToolPhase,
+                  refreshReminders,
+                  refreshLongMemories,
+                  setCodingContextMemo,
+                  setCodingTerminalFeed,
+                  setCodingFileTreeNonce,
+                  setToolResultBanner,
+                  setMessages,
+                  setAssistantGeneratedImages,
+                  setAssistantSavedImagePaths,
+                  setAssistantImageToolMeta,
+                  setAssistantImageMessageMeta,
+                  setAssistantGeneratedAudios,
+                  setAssistantSavedAudioPaths,
+                  setAssistantAudioToolMeta,
+                  setAssistantAudioMessageMeta,
+                },
+                payload,
+              )
             },
           }
           const out =
