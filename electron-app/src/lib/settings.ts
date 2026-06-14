@@ -1,3 +1,8 @@
+import {
+  normalizeNvidiaModelId,
+  normalizeOpenRouterModelId,
+} from '@/lib/cloudLlmPresets'
+
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
 export type SttProvider = 'none' | 'openrouter'
@@ -744,27 +749,22 @@ function normalizeLlm(s: AppSettings): AppSettings {
       : defaults.openrouterBaseUrl
   const openrouterApiKey =
     typeof s.openrouterApiKey === 'string' ? s.openrouterApiKey.trim() : ''
-  const openrouterModel =
+  const openrouterModel = normalizeOpenRouterModelId(
     typeof s.openrouterModel === 'string' && s.openrouterModel.trim()
       ? s.openrouterModel.trim()
-      : defaults.openrouterModel
+      : defaults.openrouterModel,
+  )
   const nvidiaBaseUrl =
     typeof s.nvidiaBaseUrl === 'string' && s.nvidiaBaseUrl.trim()
       ? s.nvidiaBaseUrl.trim()
       : defaults.nvidiaBaseUrl
   const nvidiaApiKey =
     typeof s.nvidiaApiKey === 'string' ? s.nvidiaApiKey.trim() : ''
-  let nvidiaModel =
+  const nvidiaModel = normalizeNvidiaModelId(
     typeof s.nvidiaModel === 'string' && s.nvidiaModel.trim()
       ? s.nvidiaModel.trim()
-      : defaults.nvidiaModel
-  if (llmProvider === 'nvidia') {
-    if (nvidiaModel === 'z-ai/glm5') {
-      nvidiaModel = 'z-ai/glm-5.1'
-    } else if (nvidiaModel === 'z-ai/glm4.7' || nvidiaModel === 'z-ai/glm-4.7') {
-      nvidiaModel = defaults.nvidiaModel
-    }
-  }
+      : defaults.nvidiaModel,
+  )
   return {
     ...s,
     llmProvider,
@@ -832,7 +832,11 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const raw = s.subAgent
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
   const enabled = raw.enabled === true
-  const model = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
+  const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
+  const model =
+    rawModel.includes(':') && !rawModel.includes('/')
+      ? rawModel
+      : normalizeOpenRouterModelId(rawModel)
   // outputTokens — migrate old maxTokensPerImage key if present
   const rawAny = raw as any
   const outputTokens =

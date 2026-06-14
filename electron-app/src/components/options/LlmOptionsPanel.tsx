@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { NVIDIA_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import type { Dispatch, SetStateAction } from 'react'
@@ -11,41 +12,6 @@ type Props = {
   ollamaModels: string[]
   modelsError: string | null
 }
-
-const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
-  { id: 'openrouter/free', label: 'Auto Free Router (openrouter/free)' },
-  { id: 'qwen/qwen3-coder', label: 'Qwen3 Coder' },
-  { id: 'qwen/qwen3-coder-next', label: 'Qwen3 Coder Next' },
-  { id: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder (Free)' },
-  { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-  { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { id: 'google/gemma-4-31b-it', label: 'Google Gemma 4 31B IT' },
-  { id: 'google/gemma-4-31b-it:free', label: 'Google Gemma 4 31B IT (Free)' },
-  { id: 'z-ai/glm-4.7-flash', label: 'Z.AI GLM 4.7 Flash' },
-  { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7' },
-  { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (Free)' },
-  { id: 'minimax/minimax-m3', label: 'MiniMax M3' },
-  { id: 'moonshotai/kimi-k2.6:free', label: 'Moonshot Kimi K2.6 (Free)' },
-  { id: 'stepfun/step-3.7-flash', label: 'StepFun Step 3.7 Flash' },
-  { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
-  { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'NVIDIA Nemotron 3 Super 120B A12B (Free)' },
-  { id: 'inclusionai/ring-2.6-1t', label: 'Inclusion Ring 2.6 1T' },
-  { id: 'baidu/cobuddy:free', label: 'Baidu CoBuddy (Free)' },
-  { id: 'openrouter/owl-alpha', label: 'OpenRouter Owl Alpha' },
-  { id: 'poolside/laguna-m.1:free', label: 'Poolside Laguna M.1 (Free)' },
-]
-
-const NVIDIA_PRESET_MODELS: Array<{ id: string; label: string }> = [
-  { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
-  { id: 'z-ai/glm-5.1', label: 'Z.AI GLM 5.1' },
-  { id: 'stepfun-ai/step-3.5-flash', label: 'StepFun Step 3.5 Flash' },
-  { id: 'minimaxai/minimax-m2.7', label: 'MiniMax M2.7' },
-  { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { id: 'mistralai/mistral-medium-3.5-128b', label: 'Mistral Medium 3.5 128B' },
-  { id: 'moonshotai/kimi-k2.6', label: 'Moonshot Kimi K2.6' },
-  { id: 'deepseek-ai/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-  { id: 'qwen/qwen3.5-397b-a17b', label: 'Qwen 3.5 397B A17B' },
-]
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
@@ -228,7 +194,7 @@ export function LlmOptionsPanel({
             <select
               className="form-select mb-3"
               value={
-                OPENROUTER_PRESET_MODELS.some((m) => m.id === settings.openrouterModel)
+                OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel)
                   ? settings.openrouterModel
                   : settings.openrouterModel
                     ? `__custom__${settings.openrouterModel}`
@@ -240,13 +206,13 @@ export function LlmOptionsPanel({
                 setSettings((s) => ({ ...s, openrouterModel: v }))
               }}
             >
-              {OPENROUTER_PRESET_MODELS.map((m) => (
+              {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
               ))}
               {settings.openrouterModel &&
-                !OPENROUTER_PRESET_MODELS.some((m) => m.id === settings.openrouterModel) && (
+                !OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel) && (
                   <option value={`__custom__${settings.openrouterModel}`}>
                     {settings.openrouterModel} (manual)
                   </option>
@@ -294,7 +260,7 @@ export function LlmOptionsPanel({
             <select
               className="form-select mb-3"
               value={
-                NVIDIA_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel)
+                NVIDIA_LLM_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel)
                   ? settings.nvidiaModel
                   : settings.nvidiaModel
                     ? `__custom__${settings.nvidiaModel}`
@@ -306,13 +272,13 @@ export function LlmOptionsPanel({
                 setSettings((s) => ({ ...s, nvidiaModel: v }))
               }}
             >
-              {NVIDIA_PRESET_MODELS.map((m) => (
+              {NVIDIA_LLM_PRESET_MODELS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
               ))}
               {settings.nvidiaModel &&
-                !NVIDIA_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel) && (
+                !NVIDIA_LLM_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel) && (
                   <option value={`__custom__${settings.nvidiaModel}`}>
                     {settings.nvidiaModel} (manual)
                   </option>

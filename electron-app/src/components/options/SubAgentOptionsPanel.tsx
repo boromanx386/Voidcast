@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import type { Dispatch, SetStateAction } from 'react'
 
@@ -13,29 +14,6 @@ type Props = {
 
 // ── All known models merged into one list ────────────────────────────────
 
-const OPENROUTER_PRESET_MODELS: Array<{ id: string; label: string }> = [
-  { id: 'openrouter/free', label: 'Auto Free Router (openrouter/free)' },
-  { id: 'qwen/qwen3-coder', label: 'Qwen3 Coder' },
-  { id: 'qwen/qwen3-coder-next', label: 'Qwen3 Coder Next' },
-  { id: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder (Free)' },
-  { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-  { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { id: 'google/gemma-4-31b-it', label: 'Google Gemma 4 31B IT' },
-  { id: 'google/gemma-4-31b-it:free', label: 'Google Gemma 4 31B IT (Free)' },
-  { id: 'z-ai/glm-4.7-flash', label: 'Z.AI GLM 4.7 Flash' },
-  { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7' },
-  { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (Free)' },
-  { id: 'minimax/minimax-m3', label: 'MiniMax M3' },
-  { id: 'moonshotai/kimi-k2.6:free', label: 'Moonshot Kimi K2.6 (Free)' },
-  { id: 'stepfun/step-3.7-flash', label: 'StepFun Step 3.7 Flash' },
-  { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'NVIDIA Nemotron 3 Super 120B A12B' },
-  { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'NVIDIA Nemotron 3 Super 120B A12B (Free)' },
-  { id: 'inclusionai/ring-2.6-1t', label: 'Inclusion Ring 2.6 1T' },
-  { id: 'baidu/cobuddy:free', label: 'Baidu CoBuddy (Free)' },
-  { id: 'openrouter/owl-alpha', label: 'OpenRouter Owl Alpha' },
-  { id: 'poolside/laguna-m.1:free', label: 'Poolside Laguna M.1 (Free)' },
-]
-
 type ModelEntry = { id: string; label: string; group: string }
 
 function buildUnifiedModelList(ollamaModels: string[]): ModelEntry[] {
@@ -47,7 +25,7 @@ function buildUnifiedModelList(ollamaModels: string[]): ModelEntry[] {
   }
 
   // OpenRouter presets
-  for (const m of OPENROUTER_PRESET_MODELS) {
+  for (const m of OPENROUTER_LLM_PRESET_MODELS) {
     entries.push({ id: m.id, label: m.label, group: 'OpenRouter' })
   }
 

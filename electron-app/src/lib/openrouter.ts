@@ -49,7 +49,6 @@ export type StreamOpenRouterChatParams = {
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
 const MAX_RETRIES_PER_MODEL = 3
-const FALLBACK_MODEL = 'openrouter/free'
 
 function compactOpenRouterOptions(
   o: OllamaModelOptions | undefined,
@@ -243,11 +242,7 @@ export async function streamOpenRouterChat(
     Boolean(window.voidcast?.llmChatProxy)
 
   const extra = compactOpenRouterOptions(options.modelOptions)
-  const models = isNvidia
-    ? [options.model]
-    : options.model === FALLBACK_MODEL
-      ? [options.model]
-      : [options.model, FALLBACK_MODEL]
+  const models = [options.model]
   let res: Response | null = null
   let lastErr = ''
 
