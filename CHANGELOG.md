@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [2.6.5] — 2026-06-14
+## [2.6.6] — 2026-06-14
+
+### Added
+
+- **OpenRouter LLM presets**: Kimi K2.7 Code, Qwen3.7 Plus, Qwen3.7 Max, GLM 4.7 Flash, Nemotron 3 Ultra (Free).
 
 ### Fixed
 
