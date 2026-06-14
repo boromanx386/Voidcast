@@ -4,13 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-
-- **Sub-agent model list with OpenRouter LLM**: Ollama models are always loaded from the configured Ollama URL for the SUB options tab, even when the main LLM provider is OpenRouter or NVIDIA.
+## [2.6.4] — 2026-06-14
 
 ### Added
 
 - **Sub-agent vision in history**: after `image_recall` runs the vision sub-agent, descriptions are saved on the chat session and replayed once in prior-turn context next to the matching image (user attachments and saved generated paths). No duplicate injection in the live catalog block or cache-short-circuit on repeat tool calls.
+- **Per-theme chat UX**: empty-state copy and composer placeholder text now match the active UI theme (Minimal, Dystopian, Matrix, Light, Blood Moon, Obsidian).
+- **Unit tests** for extracted chat helpers: `chatHints`, `chatImageCatalog`, `runwareMessageMeta`.
+
+### Changed
+
+- **Frontend architecture refactor** (no user-facing behavior change): `App.tsx` is a thin orchestrator; chat and options screens compose dedicated components; state lives in hooks (`useVoidcastApp`, `useChatAgent`, `useChatSessions`, `useChatAttachments`, `useTtsPlayback`, `useSttInput`, `useLongMemoryUi`, `useCodingSession`). Agent tool-result side effects moved to `applyAgentToolResult.ts`.
+- **Cloud LLM presets**: OpenRouter and NVIDIA model dropdowns and stored model ID migrations centralized in `cloudLlmPresets.ts` (updated preset lists for 2026 models).
+- **OpenRouter requests**: removed automatic retry with `openrouter/free` when the selected model fails — the app now retries only the model you chose (429/502/503/504 backoff unchanged).
+- **Obsidian theme**: muted functional accent colors on composer mic, TTS/SPEAK, send, and header controls (`theme-obsidian.css`).
+
+### Fixed
+
+- **Sub-agent model list with OpenRouter LLM**: Ollama models are always loaded from the configured Ollama URL for the SUB options tab, even when the main LLM provider is OpenRouter or NVIDIA.
+
+## [2.6.2]
+
+### Added
+
+- **Cloud TTS model presets** for OpenRouter and Runware in TTS options.
 
 ## [2.6.1]
 

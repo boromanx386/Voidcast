@@ -184,7 +184,7 @@ For **charts, diagrams, and infographics**, pick **GPT Image 2** (`openai:gpt-im
 
 ## Themes & UI
 
-Five built-in themes: **Minimal** (default), **Dystopian**, **Matrix**, **Light**, and **Blood Moon**. Switch anytime in Options or via chat.
+Six built-in themes: **Minimal** (default), **Dystopian**, **Matrix**, **Light**, **Blood Moon**, and **Obsidian**. Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
 
 Other UX features:
 - **Drag-and-drop** — drop images and supported text/code files onto the chat (same limits as the file picker)
@@ -306,15 +306,22 @@ Coding tools run inside the Electron app (not as separate HTTP routes). Image ed
 ## Repository Layout
 
 ```
-├── electron-app/         # Main Electron application
-├── tts-server/           # Python tools + TTS server
-│   ├── main.py           # Combined FastAPI app (tools + web UI)
-│   ├── pdf_tool.py       # ReportLab PDF renderer for save_pdf
-│   ├── tools_main.py     # Tools-only entry for dev
-│   ├── fonts/            # Noto Sans TTFs (bundled into tools exe)
-│   └── requirements.txt  # Python dependencies
-├── assets/               # Application assets (icons, images)
-└── releases/             # Build output directory
+├── electron-app/              # Main Electron application
+│   ├── src/
+│   │   ├── App.tsx            # Thin shell (chat vs options routing)
+│   │   ├── hooks/             # App state: sessions, agent, TTS/STT, attachments…
+│   │   ├── components/chat/   # Chat UI (header, sidebar, messages, composer…)
+│   │   ├── components/options/
+│   │   └── lib/               # Agent tools, settings, providers, pure helpers
+│   └── test/                  # Vitest unit tests
+├── tts-server/                # Python tools + TTS server
+│   ├── main.py                # Combined FastAPI app (tools + web UI)
+│   ├── pdf_tool.py            # ReportLab PDF renderer for save_pdf
+│   ├── tools_main.py          # Tools-only entry for dev
+│   ├── fonts/                 # Noto Sans TTFs (bundled into tools exe)
+│   └── requirements.txt       # Python dependencies
+├── assets/                    # Application assets (icons, images)
+└── releases/                  # Build output directory
 ```
 
 ---
