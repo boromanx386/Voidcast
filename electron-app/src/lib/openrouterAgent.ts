@@ -16,7 +16,7 @@ import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPha
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import { FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE, parseToolArguments } from '@/lib/agentToolUtils'
 
-const MAX_TOOL_ROUNDS = 18
+const MAX_TOOL_ROUNDS = 70
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
 
 function toOpenRouterToolCalls(calls: OpenRouterToolCall[]): OpenRouterToolCall[] {

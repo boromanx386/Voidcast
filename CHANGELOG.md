@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.6.5] — 2026-06-14
+
+### Fixed
+
+- **OpenRouter / NVIDIA tool loop**: raised `MAX_TOOL_ROUNDS` from 18 to 70 (same as Ollama) so long agent turns with many tool calls no longer stop silently with an empty reply.
+
 ## [2.6.4] — 2026-06-14
 
 ### Added
