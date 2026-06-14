@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import { RobotIcon } from '@/components/icons/RobotIcon'
 import { isWebStandalone } from '@/lib/platform'
+import { llmModelLabel, llmProviderTitle } from '@/lib/llmProviderDisplay'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
 type Props = {
@@ -23,13 +24,9 @@ export function ChatSystemStatus({ app }: Props) {
           <RobotIcon className="h-3.5 w-3.5 text-void-dim/70 shrink-0" />
           <span
             className="truncate text-void-text/80"
-            title={`${settings.llmProvider}: ${settings.llmProvider === 'ollama' ? settings.ollamaModel : settings.llmProvider === 'nvidia' ? settings.nvidiaModel : settings.openrouterModel}`}
+            title={llmProviderTitle(settings)}
           >
-            {settings.llmProvider === 'ollama'
-              ? settings.ollamaModel
-              : settings.llmProvider === 'nvidia'
-                ? settings.nvidiaModel
-                : settings.openrouterModel}
+            {llmModelLabel(settings)}
           </span>
           <span className="text-void-dim/30 select-none">|</span>
           <span className="text-void-dim/60 text-[10px]">{isWebStandalone() ? 'TTS' : 'TTS/STT'}</span>

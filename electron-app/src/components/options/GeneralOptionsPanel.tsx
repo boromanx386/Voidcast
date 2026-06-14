@@ -475,6 +475,33 @@ export function GeneralOptionsPanel({
           Get NVIDIA API key
         </a>
       </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-cyan mr-2">⚿</span> DEEPSEEK_API_KEY
+        </label>
+        <input
+          type="password"
+          className="cyber-input"
+          value={settings.deepseekApiKey}
+          onChange={(e) =>
+            setSettings((s) => ({ ...s, deepseekApiKey: e.target.value }))
+          }
+          placeholder="sk-..."
+          autoComplete="off"
+        />
+        <p className="text-xs text-neon-cyan/80 mt-1">
+          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
+        </p>
+        <a
+          href="https://platform.deepseek.com/api_keys"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
+        >
+          Get DeepSeek API key
+        </a>
+      </div>
         </>
       )}
 

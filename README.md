@@ -2,7 +2,7 @@
 
 ![Voidcast](logo.jpg)
 
-**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, or NVIDIA NIM, and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, or DeepSeek (direct API), and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
 *Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
@@ -79,7 +79,7 @@ Available tools:
 - **Settings Agent** — change app config via chat commands
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 
-The agent loop supports **Ollama** (local or cloud), **OpenRouter**, and **NVIDIA NIM**.
+The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, and **DeepSeek** (direct API — no OpenRouter free-tier routing).
 
 <p align="center">
   <img src="demos/voidcast-chat-reddit-briefing.png" width="700" alt="Reddit briefing in chat"/>
@@ -133,6 +133,7 @@ Voidcast does not charge anything. It connects to free tiers of providers you ca
 | Provider | What You Get |
 |----------|-------------|
 | **OpenRouter** | Claude, GPT-4o, DeepSeek, Gemini + 100 others |
+| **DeepSeek** | Direct API — V4 Pro / Flash; billed from your DeepSeek balance |
 | **Ollama** | Open-source models (Llama, Qwen, Gemma, Mistral...) |
 | **NVIDIA NIM** | Enterprise-grade inference for open models |
 | **Runware** | Image generation, image edit, and AI music (pay-per-use, typically pennies) |
@@ -141,7 +142,7 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 
 **Multimodal pricing:** OpenRouter Whisper (STT) and TTS voices bill per minute or request at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 
-**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, Runware, or Ollama directly from your PC. On LAN web, keys are read from the desktop host over your network, not baked into the phone browser build.
+**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, Runware, or Ollama directly from your PC. On LAN web, keys are read from the desktop host over your network, not baked into the phone browser build.
 
 ---
 

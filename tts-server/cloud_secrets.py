@@ -17,6 +17,7 @@ def _merged() -> dict[str, str]:
         "openrouter": _env_key("OPENROUTER_API_KEY"),
         "runware": _env_key("RUNWARE_API_KEY"),
         "nvidia": _env_key("NVIDIA_API_KEY"),
+        "deepseek": _env_key("DEEPSEEK_API_KEY"),
     }
     for k, v in _registered.items():
         if v:
@@ -30,6 +31,7 @@ def register_secrets(payload: dict[str, Any]) -> None:
         "openrouterApiKey": "openrouter",
         "runwareApiKey": "runware",
         "nvidiaApiKey": "nvidia",
+        "deepseekApiKey": "deepseek",
     }
     for field, slot in mapping.items():
         raw = payload.get(field)
@@ -47,6 +49,10 @@ def get_runware_key() -> str:
 
 def get_nvidia_key() -> str:
     return _merged().get("nvidia", "")
+
+
+def get_deepseek_key() -> str:
+    return _merged().get("deepseek", "")
 
 
 def client_may_register(client_host: str | None, token_header: str | None) -> bool:

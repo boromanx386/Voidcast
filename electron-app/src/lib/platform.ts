@@ -57,3 +57,9 @@ export function nvidiaApiBaseForRuntime(desktopUrl?: string): string {
   const u = (desktopUrl || '').trim()
   return u || 'https://integrate.api.nvidia.com/v1'
 }
+
+export function deepseekApiBaseForRuntime(desktopUrl?: string): string {
+  if (isLanWebClient()) return `${window.location.origin}/api/deepseek`
+  const u = (desktopUrl || '').trim()
+  return u || 'https://api.deepseek.com'
+}

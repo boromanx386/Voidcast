@@ -615,6 +615,8 @@ export async function executeToolCall(
     ollamaBaseUrl?: string
     openrouterBaseUrl?: string
     openrouterApiKey?: string
+    deepseekBaseUrl?: string
+    deepseekApiKey?: string
     /** UI hooks while sub-agent describes images (header-style panel in App). */
     subAgentUi?: SubAgentUiCallbacks
     /** Persist sub-agent descriptions onto the session (for later history context). */
@@ -944,6 +946,8 @@ export async function executeToolCall(
           ollamaBaseUrl: ctx.ollamaBaseUrl || 'http://localhost:11434',
           openrouterBaseUrl: ctx.openrouterBaseUrl || 'https://openrouter.ai/api/v1',
           openrouterApiKey: ctx.openrouterApiKey || '',
+          deepseekBaseUrl: ctx.deepseekBaseUrl || 'https://api.deepseek.com',
+          deepseekApiKey: ctx.deepseekApiKey || '',
         },
         ctx.userText,
         ctx.signal,
@@ -1640,6 +1644,8 @@ export type RunChatWithToolsParams = {
   ollamaBaseUrlForSubAgent?: string
   openrouterBaseUrlForSubAgent?: string
   openrouterApiKeyForSubAgent?: string
+  deepseekBaseUrlForSubAgent?: string
+  deepseekApiKeyForSubAgent?: string
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
 }
@@ -1818,6 +1824,8 @@ export async function runOllamaChatWithTools(
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
         openrouterApiKey: params.openrouterApiKeyForSubAgent,
+        deepseekBaseUrl: params.deepseekBaseUrlForSubAgent,
+        deepseekApiKey: params.deepseekApiKeyForSubAgent,
         subAgentUi: params.subAgentUi,
         onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
       }),

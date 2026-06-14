@@ -33,6 +33,12 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B (Free)' },
 ]
 
+/** Curated DeepSeek chat models (https://api.deepseek.com). */
+export const DEEPSEEK_LLM_PRESET_MODELS: CloudLlmPreset[] = [
+  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
+  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (fast)' },
+]
+
 /** Curated NVIDIA NIM chat models (integrate.api.nvidia.com/v1/models). */
 export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B' },
@@ -60,6 +66,13 @@ const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
   'nvidia/nemotron-3-super-120b-a12b': 'nvidia/nemotron-3-super-120b-a12b:free',
 }
 
+const DEEPSEEK_MODEL_ALIASES: Record<string, string> = {
+  'deepseek-chat': 'deepseek-v4-flash',
+  'deepseek-reasoner': 'deepseek-v4-flash',
+  'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
+  'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
+}
+
 const NVIDIA_MODEL_ALIASES: Record<string, string> = {
   'z-ai/glm5': 'z-ai/glm-5.1',
   'z-ai/glm4.7': 'z-ai/glm-5.1',
@@ -71,6 +84,19 @@ export function normalizeOpenRouterModelId(model: string): string {
   const trimmed = model.trim()
   if (!trimmed) return OPENROUTER_LLM_PRESET_MODELS[0]?.id ?? 'openrouter/free'
   return OPENROUTER_MODEL_ALIASES[trimmed] ?? trimmed
+}
+
+export function normalizeDeepSeekModelId(model: string): string {
+  const trimmed = model.trim()
+  if (!trimmed) return DEEPSEEK_LLM_PRESET_MODELS[0]?.id ?? 'deepseek-v4-pro'
+  return DEEPSEEK_MODEL_ALIASES[trimmed] ?? trimmed
+}
+
+export function isDeepSeekModelId(model: string): boolean {
+  const trimmed = model.trim().toLowerCase()
+  if (!trimmed) return false
+  if (trimmed.startsWith('deepseek-')) return true
+  return trimmed in DEEPSEEK_MODEL_ALIASES || DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === trimmed)
 }
 
 export function normalizeNvidiaModelId(model: string): string {

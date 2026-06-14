@@ -53,6 +53,7 @@ from youtube_tools import (
 
 from cloud_secrets import (
     client_may_register,
+    get_deepseek_key,
     get_nvidia_key,
     get_openrouter_key,
     get_runware_key,
@@ -90,6 +91,9 @@ OPENROUTER_UPSTREAM = os.environ.get(
 ).rstrip("/")
 NVIDIA_UPSTREAM = os.environ.get(
     "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com"
+).rstrip("/")
+DEEPSEEK_UPSTREAM = os.environ.get(
+    "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
 ).rstrip("/")
 
 
@@ -205,6 +209,7 @@ class CloudSecretsRequest(BaseModel):
     openrouterApiKey: str = Field(default="", max_length=2048)
     runwareApiKey: str = Field(default="", max_length=2048)
     nvidiaApiKey: str = Field(default="", max_length=2048)
+    deepseekApiKey: str = Field(default="", max_length=2048)
 
 
 class HostToolConfigRequest(BaseModel):
@@ -704,6 +709,7 @@ async def tools_cloud_secrets_status():
         "openrouter": bool(get_openrouter_key()),
         "runware": bool(get_runware_key()),
         "nvidia": bool(get_nvidia_key()),
+        "deepseek": bool(get_deepseek_key()),
     }
 
 
@@ -935,6 +941,21 @@ async def nvidia_proxy(request: Request, full_path: str):
             detail="NVIDIA API key not configured (desktop General or NVIDIA_API_KEY env)",
         )
     return await _reverse_proxy(request, NVIDIA_UPSTREAM, full_path, bearer_key=key)
+
+
+@app.api_route(
+    "/api/deepseek/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+)
+async def deepseek_proxy(request: Request, full_path: str):
+    """Proxy DeepSeek API for LAN web clients."""
+    key = get_deepseek_key()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="DeepSeek API key not configured (desktop General or DEEPSEEK_API_KEY env)",
+        )
+    return await _reverse_proxy(request, DEEPSEEK_UPSTREAM, full_path, bearer_key=key)
 
 
 @app.post("/tts")

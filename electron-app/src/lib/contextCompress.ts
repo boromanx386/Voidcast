@@ -1,5 +1,6 @@
 import type { LlmProvider } from '@/lib/settings'
 import { streamOllamaChat, type OllamaApiMessage, type OllamaModelOptions } from '@/lib/ollama'
+import { isOpenAiCompatibleCloudLlmProvider, resolveCloudLlmChatConfigForProvider } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 
 type ContextTurn = { role: 'user' | 'assistant'; content: string }
@@ -24,6 +25,9 @@ export async function compressConversationContext(params: {
   nvidiaBaseUrl?: string
   nvidiaApiKey?: string
   nvidiaModel?: string
+  deepseekBaseUrl?: string
+  deepseekApiKey?: string
+  deepseekModel?: string
   turns: ContextTurn[]
   existingSummary?: string
   modelOptions?: OllamaModelOptions
@@ -50,14 +54,17 @@ export async function compressConversationContext(params: {
   const modelOptions = { ...params.modelOptions, temperature: 0.2 }
 
   let content = ''
-  if (params.provider === 'openrouter' || params.provider === 'nvidia') {
+  if (isOpenAiCompatibleCloudLlmProvider(params.provider)) {
+    const cfg = resolveCloudLlmChatConfigForProvider(params.provider, params)
+    if (!cfg) return params.existingSummary?.trim() ?? ''
     const out = await streamOpenRouterChat({
-      baseUrl: params.provider === 'nvidia' ? (params.nvidiaBaseUrl || '') : params.openrouterBaseUrl,
-      apiKey: params.provider === 'nvidia' ? (params.nvidiaApiKey || '') : params.openrouterApiKey,
-      model: params.provider === 'nvidia' ? (params.nvidiaModel || '') : params.openrouterModel,
+      baseUrl: cfg.baseUrl,
+      apiKey: cfg.apiKey,
+      model: cfg.model,
       messages: ollamaMessagesToOpenRouter(messages),
       modelOptions,
       signal: params.signal,
+      thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
       onDelta: () => undefined,
     })
     content = out.content

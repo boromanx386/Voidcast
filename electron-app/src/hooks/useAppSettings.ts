@@ -77,6 +77,7 @@ export function useAppSettings() {
         openrouterApiKey: settings.openrouterApiKey,
         runwareApiKey: settings.runwareApiKey,
         nvidiaApiKey: settings.nvidiaApiKey,
+        deepseekApiKey: settings.deepseekApiKey,
       }).catch(() => {
         // Best-effort; web client shows 503 if keys were not registered.
       })
@@ -91,6 +92,7 @@ export function useAppSettings() {
     settings.openrouterApiKey,
     settings.runwareApiKey,
     settings.nvidiaApiKey,
+    settings.deepseekApiKey,
   ])
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
 import { isElectron, usesServerCloudProxy } from './platform'
+import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
 
 export type OpenRouterContentPart =
@@ -45,6 +46,8 @@ export type StreamOpenRouterChatParams = {
   onThinkingDelta?: (fullReasoning: string) => void
   modelOptions?: OllamaModelOptions
   tools?: unknown
+  /** DeepSeek thinking mode; ignored for other providers. */
+  thinkLevel?: LlmThinkLevel
 }
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
@@ -107,6 +110,32 @@ function normalizeNvidiaBaseUrl(root: string): string {
   if (!root.includes('integrate.api.nvidia.com')) return root
   const withoutEndpoint = root.replace(/\/chat\/completions\/?$/i, '')
   return /\/v1(?:\/|$)/.test(withoutEndpoint) ? withoutEndpoint : `${withoutEndpoint}/v1`
+}
+
+function isDeepSeekApi(baseUrl: string): boolean {
+  const root = normalizeBaseUrl(baseUrl)
+  return root.includes('api.deepseek.com') || root.includes('/api/deepseek')
+}
+
+function apiLabelForBaseUrl(baseUrl: string): string {
+  if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
+  if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia')) return 'NVIDIA'
+  return 'OpenRouter'
+}
+
+function applyDeepSeekThinkingBody(
+  body: Record<string, unknown>,
+  thinkLevel: LlmThinkLevel | undefined,
+): void {
+  if (!thinkLevel || thinkLevel === 'off') {
+    body.thinking = { type: 'disabled' }
+    return
+  }
+  body.thinking = { type: 'enabled' }
+  const effort = thinkLevel === 'on' ? 'medium' : thinkLevel
+  if (effort === 'low' || effort === 'medium' || effort === 'high') {
+    body.reasoning_effort = effort
+  }
 }
 
 function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
@@ -243,6 +272,7 @@ export async function streamOpenRouterChat(
 
   const extra = compactOpenRouterOptions(options.modelOptions)
   const models = [options.model]
+  const apiLabel = apiLabelForBaseUrl(root)
   let res: Response | null = null
   let lastErr = ''
 
@@ -255,6 +285,7 @@ export async function streamOpenRouterChat(
       }
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
+      if (isDeepSeekApi(root)) applyDeepSeekThinkingBody(body, options.thinkLevel)
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -309,7 +340,7 @@ export async function streamOpenRouterChat(
       if (res.ok) break
 
       const err = await parseOpenRouterError(res)
-      lastErr = `OpenRouter /chat/completions ${res.status}: ${err.text || res.statusText}`
+      lastErr = `${apiLabel} /chat/completions ${res.status}: ${err.text || res.statusText}`
       if (!RETRYABLE_STATUS.has(res.status)) {
         throw new Error(lastErr)
       }
@@ -325,7 +356,7 @@ export async function streamOpenRouterChat(
   }
 
   if (!res || !res.ok) {
-    throw new Error(lastErr || 'OpenRouter /chat/completions request failed')
+    throw new Error(lastErr || `${apiLabel} /chat/completions request failed`)
   }
   if (!res.body) throw new Error('No response body')
 

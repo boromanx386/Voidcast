@@ -25,6 +25,7 @@ import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { streamOllamaChat, isThinkingUiEnabled } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
+import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { playNotificationSound } from '@/lib/notificationSounds'
 import { loadSettings, type AppSettings } from '@/lib/settings'
@@ -195,6 +196,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         nvidiaBaseUrl: settings.nvidiaBaseUrl,
         nvidiaApiKey: settings.nvidiaApiKey,
         nvidiaModel: settings.nvidiaModel,
+        deepseekBaseUrl: settings.deepseekBaseUrl,
+        deepseekApiKey: settings.deepseekApiKey,
+        deepseekModel: settings.deepseekModel,
         turns,
         existingSummary: hiddenContextSummary,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
@@ -405,6 +409,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
             openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,
             openrouterApiKeyForSubAgent: settings.openrouterApiKey,
+            deepseekBaseUrlForSubAgent: settings.deepseekBaseUrl,
+            deepseekApiKeyForSubAgent: settings.deepseekApiKey,
             subAgentUi:
               settings.subAgent.enabled && settings.subAgent.showAnalysisWindow !== false
                 ? subAgentUi
@@ -459,21 +465,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               )
             },
           }
-          const out =
-            settings.llmProvider === 'openrouter' || settings.llmProvider === 'nvidia'
+          const cloudCfg = resolveCloudLlmChatConfig(settings)
+          const out = cloudCfg
               ? await runOpenRouterChatWithTools({
-                  baseUrl:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaBaseUrl
-                      : settings.openrouterBaseUrl,
-                  apiKey:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaApiKey
-                      : settings.openrouterApiKey,
-                  model:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaModel
-                      : settings.openrouterModel,
+                  baseUrl: cloudCfg.baseUrl,
+                  apiKey: cloudCfg.apiKey,
+                  model: cloudCfg.model,
+                  thinkLevel: cloudCfg.thinkLevel,
                   ...commonToolParams,
                 })
               : await runOllamaChatWithTools({
@@ -485,21 +483,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           replyText = out.content
           usage = out.usage
         } else {
-          const out =
-            settings.llmProvider === 'openrouter' || settings.llmProvider === 'nvidia'
+          const cloudCfg = resolveCloudLlmChatConfig(settings)
+          const out = cloudCfg
               ? await streamOpenRouterChat({
-                  baseUrl:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaBaseUrl
-                      : settings.openrouterBaseUrl,
-                  apiKey:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaApiKey
-                      : settings.openrouterApiKey,
-                  model:
-                    settings.llmProvider === 'nvidia'
-                      ? settings.nvidiaModel
-                      : settings.openrouterModel,
+                  baseUrl: cloudCfg.baseUrl,
+                  apiKey: cloudCfg.apiKey,
+                  model: cloudCfg.model,
+                  thinkLevel: cloudCfg.thinkLevel,
                   messages: ollamaMessagesToOpenRouter(history),
                   modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
                   signal: ac.signal,

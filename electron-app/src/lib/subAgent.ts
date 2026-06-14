@@ -12,7 +12,8 @@
 
 import { normalizeBaseUrl } from './settings'
 import type { SubAgentConfig } from './settings'
-import { usesServerCloudProxy } from './platform'
+import { deepseekApiBaseForRuntime, usesServerCloudProxy } from './platform'
+import { isDeepSeekModelId } from '@/lib/cloudLlmPresets'
 
 // ── provider auto-detection ──────────────────────────────────────────────
 
@@ -22,11 +23,11 @@ export type SubAgentUiCallbacks = {
   onDone?: (formatted: string) => void
 }
 
-/** Ollama models use `:` (e.g. llava:13b, qwen2.5:7b). Everything else → OpenRouter. */
-export function detectSubAgentProvider(model: string): 'ollama' | 'openrouter' {
+/** Ollama models use `:` (e.g. llava:13b). OpenRouter/NVIDIA use `/`. DeepSeek uses `deepseek-*`. */
+export function detectSubAgentProvider(model: string): 'ollama' | 'openrouter' | 'deepseek' {
   if (!model) return 'ollama'
-  // Ollama tags always have `:version` — OpenRouter/NVIDIA use `/` or plain names
   if (model.includes(':') && !model.includes('/')) return 'ollama'
+  if (isDeepSeekModelId(model)) return 'deepseek'
   return 'openrouter'
 }
 
@@ -36,6 +37,8 @@ export type SubAgentKeys = {
   ollamaBaseUrl: string
   openrouterBaseUrl: string
   openrouterApiKey: string
+  deepseekBaseUrl: string
+  deepseekApiKey: string
 }
 
 export type SubAgentImageInput = {
@@ -180,6 +183,66 @@ async function describeWithOpenRouter(
   return (data.choices?.[0]?.message?.content || '').trim()
 }
 
+// ── DeepSeek path (text-only; vision not supported on direct API) ────────
+
+async function describeWithDeepSeek(
+  img: SubAgentImageInput,
+  model: string,
+  maxTokens: number,
+  deepseekBaseUrl: string,
+  deepseekApiKey: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const viaProxy = usesServerCloudProxy()
+  const baseUrl = viaProxy
+    ? deepseekApiBaseForRuntime()
+    : normalizeBaseUrl(deepseekBaseUrl || 'https://api.deepseek.com')
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (!viaProxy && deepseekApiKey.trim()) {
+    headers.Authorization = `Bearer ${deepseekApiKey.trim()}`
+  }
+
+  const dataUri = toDataUri(img.base64, img.mime)
+
+  const body = {
+    model,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: dataUri } },
+        ],
+      },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.2,
+    stream: false,
+    thinking: { type: 'disabled' },
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`DeepSeek sub-agent ${res.status}: ${errText || res.statusText}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  return (data.choices?.[0]?.message?.content || '').trim()
+}
+
 // ── single-image describe ────────────────────────────────────────────────
 
 async function describeSingleImage(
@@ -199,6 +262,13 @@ async function describeSingleImage(
     return describeWithOpenRouter(
       img, config.model, maxTokens,
       keys.openrouterBaseUrl, keys.openrouterApiKey,
+      prompt, signal,
+    )
+  }
+  if (provider === 'deepseek') {
+    return describeWithDeepSeek(
+      img, config.model, maxTokens,
+      keys.deepseekBaseUrl, keys.deepseekApiKey,
       prompt, signal,
     )
   }

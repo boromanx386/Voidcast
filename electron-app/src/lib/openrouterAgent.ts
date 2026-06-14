@@ -1,5 +1,5 @@
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
-import type { ToolsEnabled, SubAgentConfig } from '@/lib/settings'
+import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
@@ -65,6 +65,9 @@ export type RunOpenRouterChatWithToolsParams = {
   ollamaBaseUrlForSubAgent?: string
   openrouterBaseUrlForSubAgent?: string
   openrouterApiKeyForSubAgent?: string
+  deepseekBaseUrlForSubAgent?: string
+  deepseekApiKeyForSubAgent?: string
+  thinkLevel?: LlmThinkLevel
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
 }
@@ -93,6 +96,7 @@ export async function runOpenRouterChatWithTools(
         signal,
         onDelta,
         onThinkingDelta,
+        thinkLevel: params.thinkLevel,
       })
       return {
         content: res.content,
@@ -189,6 +193,8 @@ export async function runOpenRouterChatWithTools(
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
         openrouterApiKey: params.openrouterApiKeyForSubAgent,
+        deepseekBaseUrl: params.deepseekBaseUrlForSubAgent,
+        deepseekApiKey: params.deepseekApiKeyForSubAgent,
         subAgentUi: params.subAgentUi,
         onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
       }),

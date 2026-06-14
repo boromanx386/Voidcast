@@ -5,6 +5,7 @@ export type CloudSecretsPayload = {
   openrouterApiKey: string
   runwareApiKey: string
   nvidiaApiKey: string
+  deepseekApiKey: string
 }
 
 /** Push API keys from desktop to the local TTS server for LAN web proxy (not full settings sync). */

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **DeepSeek LLM provider**: direct OpenAI-compatible API at `https://api.deepseek.com` — presets `deepseek-v4-pro` and `deepseek-v4-flash`, API key in General options, THINKING_LEVEL maps to DeepSeek reasoning mode, full agent tool loop (70 rounds), context compress and long-memory extraction. LAN web clients proxy via TTS server at `/api/deepseek/*`.
+
+### Changed
+
+- **Cloud LLM routing**: shared `cloudLlm.ts` resolves OpenRouter, NVIDIA, and DeepSeek chat config from settings (used by chat agent, context compress, long memory).
+
 ## [2.6.6] — 2026-06-14
 
 ### Added

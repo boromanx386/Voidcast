@@ -1,5 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
-import { NVIDIA_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
+import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import type { Dispatch, SetStateAction } from 'react'
@@ -43,13 +43,16 @@ export function LlmOptionsPanel({
                   ? 'openrouter'
                   : e.target.value === 'nvidia'
                     ? 'nvidia'
-                    : 'ollama',
+                    : e.target.value === 'deepseek'
+                      ? 'deepseek'
+                      : 'ollama',
             }))
           }
         >
           <option value="ollama">Ollama (local)</option>
           <option value="openrouter">OpenRouter (cloud)</option>
           <option value="nvidia">NVIDIA (cloud)</option>
+          <option value="deepseek">DeepSeek (cloud)</option>
         </select>
       </div>
 
@@ -296,6 +299,72 @@ export function LlmOptionsPanel({
         </>
       )}
 
+      {settings.llmProvider === 'deepseek' && (
+        <>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-purple mr-2">◇</span> DEEPSEEK_BASE_URL
+            </label>
+            <input
+              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+              readOnly={isWebStandalone()}
+              value={settings.deepseekBaseUrl}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, deepseekBaseUrl: e.target.value }))
+              }
+              placeholder="https://api.deepseek.com"
+            />
+            {isWebStandalone() && (
+              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+                Proxied through the TTS host at{' '}
+                <code className="text-neon-purple">/api/deepseek/*</code> using keys from the desktop
+                app.
+              </p>
+            )}
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> DEEPSEEK_MODEL
+            </label>
+            <select
+              className="form-select mb-3"
+              value={
+                DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === settings.deepseekModel)
+                  ? settings.deepseekModel
+                  : settings.deepseekModel
+                    ? `__custom__${settings.deepseekModel}`
+                    : ''
+              }
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v || v.startsWith('__custom__')) return
+                setSettings((s) => ({ ...s, deepseekModel: v }))
+              }}
+            >
+              {DEEPSEEK_LLM_PRESET_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              {settings.deepseekModel &&
+                !DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === settings.deepseekModel) && (
+                  <option value={`__custom__${settings.deepseekModel}`}>
+                    {settings.deepseekModel} (manual)
+                  </option>
+                )}
+            </select>
+            <input
+              className="cyber-input"
+              value={settings.deepseekModel}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, deepseekModel: e.target.value }))
+              }
+              placeholder="deepseek-v4-pro"
+            />
+          </div>
+        </>
+      )}
+
       {/* Temperature */}
       <div className="form-group">
         <label className="form-label">
@@ -352,7 +421,7 @@ export function LlmOptionsPanel({
         </select>
         <p className="text-xs text-void-dim mt-1">
           Thinking models default to reasoning unless <code className="text-neon-purple/90">think: false</code> is sent.
-          Qwen/DeepSeek use ON/OFF; GPT-OSS uses low/medium/high. OpenRouter reasoning follows the same level (hidden when OFF).
+          Qwen/DeepSeek use ON/OFF; GPT-OSS uses low/medium/high. DeepSeek maps to reasoning_effort when enabled.
         </p>
       </div>
 
@@ -415,7 +484,7 @@ export function LlmOptionsPanel({
       {/* Model Info Panel */}
       <div className="bg-void-black/50 border border-neon-cyan/20 p-4">
         <p className="text-xs font-mono text-neon-cyan mb-3 uppercase tracking-wider">
-          <span className="mr-2">◈</span>{settings.llmProvider === 'openrouter' ? 'OPENROUTER_NOTES' : settings.llmProvider === 'nvidia' ? 'NVIDIA_NOTES' : 'RECOMMENDED_MODELS'}
+          <span className="mr-2">◈</span>{settings.llmProvider === 'openrouter' ? 'OPENROUTER_NOTES' : settings.llmProvider === 'nvidia' ? 'NVIDIA_NOTES' : settings.llmProvider === 'deepseek' ? 'DEEPSEEK_NOTES' : 'RECOMMENDED_MODELS'}
         </p>
         {settings.llmProvider === 'ollama' && <ul className="text-xs font-mono text-void-dim space-y-1">
           <li className="flex items-center gap-2">
@@ -467,6 +536,23 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
               Some upstream providers may require reasoning replay in multi-turn chats.
+            </li>
+          </ul>
+        )}
+        {settings.llmProvider === 'deepseek' && (
+          <ul className="text-xs font-mono text-void-dim space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Direct API — no OpenRouter free-tier limits; billed from your DeepSeek balance
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Models: <code className="text-void-light/90">deepseek-v4-pro</code>,{' '}
+              <code className="text-void-light/90">deepseek-v4-flash</code>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              API key in General options; THINKING_LEVEL maps to DeepSeek reasoning mode
             </li>
           </ul>
         )}

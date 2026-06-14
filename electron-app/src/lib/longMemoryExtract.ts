@@ -1,11 +1,13 @@
 import { streamOllamaChat, type OllamaModelOptions } from '@/lib/ollama'
+import { isOpenAiCompatibleCloudLlmProvider, resolveCloudLlmChatConfigForProvider } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
+import type { LlmProvider } from '@/lib/settings'
 import type { LongMemoryCandidate, LongMemoryKind } from '@/types/longMemory'
 
 type Turn = { role: 'user' | 'assistant'; content: string }
 
 type ExtractParams = {
-  provider: 'ollama' | 'openrouter' | 'nvidia'
+  provider: LlmProvider
   ollamaBaseUrl: string
   ollamaModel: string
   openrouterBaseUrl: string
@@ -14,9 +16,14 @@ type ExtractParams = {
   nvidiaBaseUrl?: string
   nvidiaApiKey?: string
   nvidiaModel?: string
+  deepseekBaseUrl?: string
+  deepseekApiKey?: string
+  deepseekModel?: string
   modelOptions?: OllamaModelOptions
   turns: Turn[]
   signal?: AbortSignal
+  /** Override cloud model id (e.g. sub-agent model). */
+  cloudModelOverride?: string
 }
 
 const allowedKinds = new Set<LongMemoryKind>(['preference', 'project', 'fact', 'constraint', 'task'])
@@ -96,17 +103,24 @@ export async function extractLongMemoryCandidates(params: ExtractParams): Promis
   ].join('\n')
 
   let raw = ''
-  if (params.provider === 'openrouter' || params.provider === 'nvidia') {
+  if (isOpenAiCompatibleCloudLlmProvider(params.provider)) {
+    const cfg = resolveCloudLlmChatConfigForProvider(
+      params.provider,
+      params,
+      params.cloudModelOverride,
+    )
+    if (!cfg) return []
     const out = await streamOpenRouterChat({
-      baseUrl: params.provider === 'nvidia' ? (params.nvidiaBaseUrl || '') : params.openrouterBaseUrl,
-      apiKey: params.provider === 'nvidia' ? (params.nvidiaApiKey || '') : params.openrouterApiKey,
-      model: params.provider === 'nvidia' ? (params.nvidiaModel || '') : params.openrouterModel,
+      baseUrl: cfg.baseUrl,
+      apiKey: cfg.apiKey,
+      model: cfg.model,
       messages: ollamaMessagesToOpenRouter([
         { role: 'system', content: system },
         { role: 'user', content: user },
       ]),
       modelOptions: { ...params.modelOptions, temperature: 0.1 },
       signal: params.signal,
+      thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
       onDelta: () => undefined,
     })
     raw = out.content

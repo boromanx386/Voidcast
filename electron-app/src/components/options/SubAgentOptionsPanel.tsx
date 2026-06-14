@@ -1,5 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
-import { OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
+import { DEEPSEEK_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import type { Dispatch, SetStateAction } from 'react'
 
@@ -27,6 +27,11 @@ function buildUnifiedModelList(ollamaModels: string[]): ModelEntry[] {
   // OpenRouter presets
   for (const m of OPENROUTER_LLM_PRESET_MODELS) {
     entries.push({ id: m.id, label: m.label, group: 'OpenRouter' })
+  }
+
+  // DeepSeek presets
+  for (const m of DEEPSEEK_LLM_PRESET_MODELS) {
+    entries.push({ id: m.id, label: m.label, group: 'DeepSeek' })
   }
 
   return entries

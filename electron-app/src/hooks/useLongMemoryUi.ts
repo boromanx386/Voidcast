@@ -88,7 +88,9 @@ export function useLongMemoryUi({
       const memLlmProvider = useSub
         ? subProvider === 'ollama'
           ? 'ollama'
-          : 'openrouter'
+          : subProvider === 'deepseek'
+            ? 'deepseek'
+            : 'openrouter'
         : settings.llmProvider
       const candidates = await extractLongMemoryCandidates({
         provider: memLlmProvider,
@@ -96,10 +98,14 @@ export function useLongMemoryUi({
         ollamaModel: useSub && subProvider === 'ollama' ? subModel : settings.ollamaModel,
         openrouterBaseUrl: settings.openrouterBaseUrl,
         openrouterApiKey: settings.openrouterApiKey,
-        openrouterModel: useSub && subProvider !== 'ollama' ? subModel : settings.openrouterModel,
+        openrouterModel: settings.openrouterModel,
         nvidiaBaseUrl: settings.nvidiaBaseUrl,
         nvidiaApiKey: settings.nvidiaApiKey,
         nvidiaModel: settings.nvidiaModel,
+        deepseekBaseUrl: settings.deepseekBaseUrl,
+        deepseekApiKey: settings.deepseekApiKey,
+        deepseekModel: settings.deepseekModel,
+        cloudModelOverride: useSub && subProvider !== 'ollama' ? subModel : undefined,
         modelOptions: {
           temperature: settings.llmTemperature,
           num_ctx: useSub ? (settings.subAgent.contextTokens ?? 8192) : settings.llmNumCtx,

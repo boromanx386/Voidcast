@@ -1,4 +1,6 @@
 import {
+  isDeepSeekModelId,
+  normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
   normalizeOpenRouterModelId,
 } from '@/lib/cloudLlmPresets'
@@ -270,7 +272,7 @@ export function buildRunwareTtsSpeechPayload(
 
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
-export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia'
+export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek'
 
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
@@ -374,6 +376,9 @@ export type AppSettings = {
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   nvidiaModel: string
+  deepseekBaseUrl: string
+  deepseekApiKey: string
+  deepseekModel: string
   /** Default OpenRouter TTS model id. */
   openrouterTtsModel: string
   /** Optional OpenRouter TTS voice id/preset. */
@@ -510,6 +515,7 @@ export const AGENT_EDITABLE_SETTINGS_FIELDS = [
 export type AgentEditableSettingsField = (typeof AGENT_EDITABLE_SETTINGS_FIELDS)[number]
 
 import {
+  deepseekApiBaseForRuntime,
   defaultOllamaBaseUrlForRuntime,
   defaultTtsBaseUrlForRuntime,
   isLanWebClient,
@@ -520,7 +526,7 @@ import {
 const STORAGE_KEY = 'voidcast-settings-v1'
 /** Previous key; read once to migrate */
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
-const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'runwareApiKey'] as const
+const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'deepseekApiKey', 'runwareApiKey'] as const
 
 export const defaults: AppSettings = {
   llmProvider: 'ollama',
@@ -532,6 +538,9 @@ export const defaults: AppSettings = {
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
   nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
+  deepseekBaseUrl: 'https://api.deepseek.com',
+  deepseekApiKey: '',
+  deepseekModel: 'deepseek-v4-pro',
   openrouterTtsModel: OPENROUTER_TTS_MODEL_DEFAULT,
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
@@ -740,7 +749,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? 'openrouter'
       : providerRaw === 'nvidia'
         ? 'nvidia'
-        : 'ollama'
+        : providerRaw === 'deepseek'
+          ? 'deepseek'
+          : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
   const openrouterBaseUrl =
@@ -765,6 +776,17 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? s.nvidiaModel.trim()
       : defaults.nvidiaModel,
   )
+  const deepseekBaseUrl =
+    typeof s.deepseekBaseUrl === 'string' && s.deepseekBaseUrl.trim()
+      ? s.deepseekBaseUrl.trim()
+      : defaults.deepseekBaseUrl
+  const deepseekApiKey =
+    typeof s.deepseekApiKey === 'string' ? s.deepseekApiKey.trim() : ''
+  const deepseekModel = normalizeDeepSeekModelId(
+    typeof s.deepseekModel === 'string' && s.deepseekModel.trim()
+      ? s.deepseekModel.trim()
+      : defaults.deepseekModel,
+  )
   return {
     ...s,
     llmProvider,
@@ -774,6 +796,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
     nvidiaBaseUrl,
     nvidiaApiKey,
     nvidiaModel,
+    deepseekBaseUrl,
+    deepseekApiKey,
+    deepseekModel,
     llmTemperature: Number.isFinite(t) ? clamp(t, 0, 2) : defaults.llmTemperature,
     llmNumCtx: Number.isFinite(ctx)
       ? clamp(Math.round(ctx), 512, 262144)
@@ -836,7 +861,9 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const model =
     rawModel.includes(':') && !rawModel.includes('/')
       ? rawModel
-      : normalizeOpenRouterModelId(rawModel)
+      : isDeepSeekModelId(rawModel)
+        ? normalizeDeepSeekModelId(rawModel)
+        : normalizeOpenRouterModelId(rawModel)
   // outputTokens — migrate old maxTokensPerImage key if present
   const rawAny = raw as any
   const outputTokens =
@@ -1102,6 +1129,7 @@ function stripCloudSecrets(s: AppSettings): AppSettings {
     openrouterApiKey: '',
     runwareApiKey: '',
     nvidiaApiKey: '',
+    deepseekApiKey: '',
   }
 }
 
@@ -1115,6 +1143,7 @@ function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
         : s.ollamaBaseUrl,
       openrouterBaseUrl: openRouterApiBaseForRuntime(),
       nvidiaBaseUrl: nvidiaApiBaseForRuntime(),
+      deepseekBaseUrl: deepseekApiBaseForRuntime(),
       voiceMode: 'design',
       sttProvider: 'none',
     })
