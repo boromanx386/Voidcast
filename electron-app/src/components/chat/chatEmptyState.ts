@@ -1,3 +1,5 @@
+import type { UiTheme } from '@/lib/settings'
+
 const EMPTY_STATE_VARIANTS = {
   dystopian: [
     'NEURAL INTERFACE READY. AWAITING INPUT.',
@@ -31,6 +33,16 @@ const EMPTY_STATE_VARIANTS = {
   ],
 } as const
 
+/** Chat input placeholder — one line per UI theme. */
+export const CHAT_COMPOSER_PLACEHOLDER: Record<UiTheme, string> = {
+  dystopian: 'Transmit message...',
+  minimal: 'Ask anything...',
+  matrix: 'Enter prompt...',
+  light: 'Type a message...',
+  'blood-moon': 'Feed the void...',
+  obsidian: 'Enter your query...',
+}
+
 export { EMPTY_STATE_VARIANTS }
 
 export function getEmptyStateMessage(
@@ -50,4 +62,11 @@ export function getEmptyStateMessage(
               ? EMPTY_STATE_VARIANTS.obsidian
               : EMPTY_STATE_VARIANTS.minimal
   return variants[seed % variants.length]
+}
+
+export function getChatComposerPlaceholder(theme: string): string {
+  if (theme in CHAT_COMPOSER_PLACEHOLDER) {
+    return CHAT_COMPOSER_PLACEHOLDER[theme as UiTheme]
+  }
+  return CHAT_COMPOSER_PLACEHOLDER.minimal
 }

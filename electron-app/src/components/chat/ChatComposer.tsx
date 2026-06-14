@@ -2,6 +2,7 @@ import { useMemo, type RefObject } from 'react'
 import { CHAT_IMAGE_ACCEPT, imageDataUrl } from '@/lib/imageAttachment'
 import { chatFileAcceptList } from '@/lib/fileAttachment'
 import { isWebStandalone } from '@/lib/platform'
+import { getChatComposerPlaceholder } from '@/components/chat/chatEmptyState'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
 type Props = {
@@ -49,6 +50,11 @@ export function ChatComposer({ app }: Props) {
   const canSend = useMemo(
     () => (!!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0) && !busy,
     [input, pendingImages.length, pendingFiles.length, busy],
+  )
+
+  const chatPlaceholder = useMemo(
+    () => getChatComposerPlaceholder(settings.uiTheme),
+    [settings.uiTheme],
   )
 
   return (
@@ -184,7 +190,7 @@ export function ChatComposer({ app }: Props) {
           <textarea
             className="voidcast-textarea"
             rows={2}
-            placeholder="Type a message..."
+            placeholder={chatPlaceholder}
             value={input}
             disabled={busy}
             onChange={(e) => setInput(e.target.value)}

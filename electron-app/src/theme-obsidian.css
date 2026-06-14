@@ -1,4 +1,4 @@
-/* Obsidian — neutral dark, no neon, muted accents */
+/* Obsidian — neutral dark shell; muted functional accents; monochrome chat balloons */
 
 html[data-ui-theme='obsidian'] {
   --color-void-black: 13 13 16;
@@ -10,15 +10,16 @@ html[data-ui-theme='obsidian'] {
   --color-void-light: 230 230 235;
   --color-void-white: 240 240 245;
 
-  --color-neon-cyan: 140 150 165;
-  --color-neon-magenta: 160 165 175;
-  --color-neon-green: 140 150 165;
-  --color-neon-yellow: 180 185 195;
-  --color-neon-red: 180 100 100;
-  --color-neon-purple: 150 155 165;
-  --color-neon-orange: 170 175 185;
+  /* Functional accents (composer mic, TTS/SPEAK, send, header) — not full neon */
+  --color-neon-cyan: 105 165 210;
+  --color-neon-magenta: 165 130 190;
+  --color-neon-green: 95 185 145;
+  --color-neon-yellow: 200 175 110;
+  --color-neon-red: 215 105 105;
+  --color-neon-purple: 150 145 195;
+  --color-neon-orange: 210 150 100;
 
-  --ui-accent-rgb: 140,150,165;
+  --ui-accent-rgb: 105, 165, 210;
 }
 
 html[data-ui-theme='obsidian'] body {
@@ -33,7 +34,7 @@ html[data-ui-theme='obsidian'] body {
 }
 
 html[data-ui-theme='obsidian'] ::selection {
-  background: rgba(140, 150, 165, 0.25);
+  background: rgba(105, 165, 210, 0.28);
   color: #ffffff;
 }
 
@@ -85,14 +86,20 @@ html[data-ui-theme='obsidian'] .form-select {
 }
 
 html[data-ui-theme='obsidian'] .cyber-btn {
-  background: rgba(140, 150, 165, 0.08);
+  background: rgba(105, 165, 210, 0.08);
   color: #d4d4dc;
 }
 
 html[data-ui-theme='obsidian'] .cyber-btn:hover {
-  background: rgba(140, 150, 165, 0.15);
-  border-color: rgba(140, 150, 165, 0.35);
+  background: rgba(105, 165, 210, 0.14);
+  border-color: rgba(105, 165, 210, 0.38);
   box-shadow: none;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-header .text-neon-cyan,
+html[data-ui-theme='obsidian'] .voidcast-header .border-neon-cyan\/60 {
+  color: rgb(var(--color-neon-cyan)) !important;
+  border-color: rgb(var(--color-neon-cyan) / 0.55) !important;
 }
 
 html[data-ui-theme='obsidian'] .cyber-btn::before,
@@ -113,14 +120,14 @@ html[data-ui-theme='obsidian'] .form-select {
 
 html[data-ui-theme='obsidian'] .voidcast-textarea:focus,
 html[data-ui-theme='obsidian'] .cyber-input:focus {
-  border-color: rgba(140, 150, 165, 0.4);
-  box-shadow: 0 0 0 2px rgba(140, 150, 165, 0.1);
+  border-color: rgba(105, 165, 210, 0.45);
+  box-shadow: 0 0 0 2px rgba(105, 165, 210, 0.12);
 }
 
 html[data-ui-theme='obsidian'] textarea:focus,
 html[data-ui-theme='obsidian'] input:focus,
 html[data-ui-theme='obsidian'] select:focus {
-  box-shadow: 0 0 0 2px rgba(140, 150, 165, 0.15);
+  box-shadow: 0 0 0 2px rgba(105, 165, 210, 0.15);
 }
 
 html[data-ui-theme='obsidian'] .message-user,
@@ -128,6 +135,30 @@ html[data-ui-theme='obsidian'] .message-assistant {
   border-color: rgba(55, 55, 65, 0.35);
   background: rgba(26, 26, 31, 0.92);
   color: #c8c8d4 !important;
+}
+
+/* Balloon body stays monochrome; SPEAK / action row below keeps accent vars */
+html[data-ui-theme='obsidian'] .message-bubble .message-role {
+  color: #8e8e9a !important;
+}
+
+html[data-ui-theme='obsidian'] .message-bubble details {
+  border-color: rgba(55, 55, 65, 0.45) !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+}
+
+html[data-ui-theme='obsidian'] .message-bubble details summary {
+  color: #9a9aa8 !important;
+}
+
+html[data-ui-theme='obsidian'] .message-bubble .break-words :is(strong, a, h1, h2, h3, code, th) {
+  color: #d0d0d8 !important;
+  border-color: rgba(55, 55, 65, 0.45) !important;
+  text-decoration-color: rgba(130, 130, 145, 0.55) !important;
+}
+
+html[data-ui-theme='obsidian'] .message-bubble .break-words a:hover {
+  color: #e8e8ec !important;
 }
 
 html[data-ui-theme='obsidian'] .message-user strong,
@@ -148,13 +179,13 @@ html[data-ui-theme='obsidian'] .message-assistant pre {
 }
 
 html[data-ui-theme='obsidian'] .option-tab.active {
-  background: rgba(140, 150, 165, 0.1);
-  border-color: rgba(140, 150, 165, 0.3);
+  background: rgba(105, 165, 210, 0.12);
+  border-color: rgba(105, 165, 210, 0.35);
   color: #ffffff;
 }
 
 html[data-ui-theme='obsidian'] .system-status {
-  color: rgba(140, 150, 165, 0.7);
+  color: rgba(105, 165, 210, 0.75);
 }
 
 html[data-ui-theme='obsidian'] .tool-indicator,
@@ -191,5 +222,44 @@ html[data-ui-theme='obsidian'] .border-void-muted\/50 {
 }
 
 html[data-ui-theme='obsidian'] .border-neon-cyan\/20 {
-  border-color: rgba(140, 150, 165, 0.2) !important;
+  border-color: rgba(105, 165, 210, 0.22) !important;
+}
+
+/* Composer: attach +, mic idle, send — use accent tokens */
+html[data-ui-theme='obsidian'] .voidcast-input-area .text-neon-cyan {
+  color: rgb(var(--color-neon-cyan)) !important;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-input-area .text-neon-green {
+  color: rgb(var(--color-neon-green)) !important;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-input-area .text-neon-red {
+  color: rgb(var(--color-neon-red)) !important;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-input-area .border-neon-green\/50 {
+  border-color: rgb(var(--color-neon-green) / 0.5) !important;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-input-area .bg-neon-green\/5 {
+  background-color: rgb(var(--color-neon-green) / 0.08) !important;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-input-area .border-neon-red {
+  border-color: rgb(var(--color-neon-red) / 0.65) !important;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-input-area .bg-neon-red\/10 {
+  background-color: rgb(var(--color-neon-red) / 0.12) !important;
+}
+
+html[data-ui-theme='obsidian'] .send-btn {
+  border-color: rgb(var(--color-neon-cyan) / 0.35) !important;
+  color: rgb(var(--color-neon-cyan)) !important;
+}
+
+html[data-ui-theme='obsidian'] .send-btn:hover:not(:disabled) {
+  border-color: rgb(var(--color-neon-cyan) / 0.55) !important;
+  background-color: rgb(var(--color-neon-cyan) / 0.1) !important;
 }
