@@ -67,6 +67,24 @@ export const TOOLS_RUNWARE_MUSIC_HINT = `You have a Runware music tool named gen
  */
 export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolute file paths for attached images (user turns) and for locally saved generated images (assistant turns). Coding tools read/write only inside the coding project folder. To vision-analyze screenshots or assets already in the repo (e.g. demos/*.png), call image_recall with reference_image_paths set to the project-relative or absolute path—do not ask the user to re-attach. Chat images that live outside the project can be copied into the repo with execute_command, then recalled from the new path.`
 
+/** When coding tools are enabled — same MUST-call discipline as image/music hints. */
+export function buildToolsCodingHint(projectPath: string): string {
+  const path = projectPath.trim() || '(not set)'
+  return `You have local coding tools scoped to the configured project folder. CRITICAL: When the user asks to read, list, search, write, edit, refactor, fix, run, build, test, install, or inspect git state in the project, you MUST call the matching coding tool on THIS turn BEFORE any final answer. Do NOT paste code blocks, diffs, terminal output, or "done/fixed/saved" claims unless that tool already returned real output in this turn.
+
+Tool choice (call the right one first):
+- list_directory / glob_files / search_files — discover paths and matches (use path_prefix on search_files when the user names a folder).
+- read_file — inspect file contents (use start_line/end_line or max_chars on large files).
+- write_file — create or fully replace a file.
+- edit_code — patch an existing file (preferred over write_file when changing part of a file).
+- execute_command — run shell commands (build, test, npm, git via shell only when no dedicated git tool fits).
+- git_status / git_diff / git_log / git_show — repo inspection without guessing.
+
+Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. If you need contents before editing, call read_file first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
+
+Coding project path: ${path}`
+}
+
 /** When any tools are enabled — reduces false claims about tool execution.
  *  Kept short and placed FIRST in the tools hint block so it stays in the
  *  high-attention region of the system prompt across long sessions. */

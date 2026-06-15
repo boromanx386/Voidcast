@@ -43,6 +43,7 @@ export type ChatSessionsDeps = {
     options?: { flushActiveSessionId?: string | null },
   ) => void
   abortActiveRuns: () => void
+  cancelMessageEdit?: () => void
   setInput: Dispatch<SetStateAction<string>>
   setPendingImages: Dispatch<SetStateAction<PendingChatImage[]>>
   setError: Dispatch<SetStateAction<string | null>>
@@ -72,6 +73,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     resetAssistantMediaState,
     restoreCodingContextForSession,
     abortActiveRuns,
+    cancelMessageEdit,
     setInput,
     setPendingImages,
     setError,
@@ -250,6 +252,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
 
   const newChat = () => {
     abortActiveRuns()
+    cancelMessageEdit?.()
     setMessages([])
     resetAssistantMediaState()
     setHiddenContextSummary('')
@@ -273,6 +276,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
 
   const openSession = (session: ChatSession) => {
     abortActiveRuns()
+    cancelMessageEdit?.()
     const flushId =
       activeSessionId && activeSessionId !== session.id ? activeSessionId : null
     restoreCodingContextForSession(session, { flushActiveSessionId: flushId })
@@ -309,6 +313,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }
 
   const forkSession = (session: ChatSession) => {
+    cancelMessageEdit?.()
     const now = Date.now()
     const forked: ChatSession = {
       id: uid(),

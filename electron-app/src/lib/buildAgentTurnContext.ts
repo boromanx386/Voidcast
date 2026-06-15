@@ -2,6 +2,7 @@ import {
   buildOllamaMessages,
   sliceUiHistoryForContext,
   TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT,
+  buildToolsCodingHint,
   TOOLS_PDF_HINT,
   TOOLS_REDDIT_HINT,
   TOOLS_RUNWARE_IMAGE_HINT,
@@ -153,11 +154,9 @@ export async function buildAgentTurnContext(
   if (settings.toolsEnabled.runwareMusic) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
   if (settings.toolsEnabled.coding) {
     toolsHintParts.push(
-      [
-        'Coding tools are available for local project operations.',
-        `Coding project path: ${settings.coding.projectPath || settings.codingProjectPath || '(not set)'}`,
-        'Use glob_files or list_directory to find paths; git_status / git_diff for repo changes; read_file with start_line/end_line or max_chars on large files; search_files accepts path_prefix.',
-      ].join('\n'),
+      buildToolsCodingHint(
+        settings.coding.projectPath || settings.codingProjectPath || '',
+      ),
     )
     toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
     if (settings.toolsEnabled.runwareImage) {

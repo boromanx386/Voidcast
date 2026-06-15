@@ -9,6 +9,7 @@ import {
 import {
   MAX_CHAT_IMAGES,
   MAX_IMAGE_BYTES,
+  looksLikeImageFile,
   readImageFileAsBase64,
   splitChatAttachmentFiles,
 } from '@/lib/imageAttachment'
@@ -27,9 +28,16 @@ function uid() {
 }
 
 export type UseChatAttachmentsParams = {
-  busy: boolean
-  editingMessageId: string | null
+  busyRef: RefObject<boolean>
+  editingMessageIdRef: RefObject<string | null>
   setError: (error: string | null) => void
+}
+
+function attachmentsBlocked(
+  busyRef: RefObject<boolean>,
+  editingMessageIdRef: RefObject<string | null>,
+): boolean {
+  return Boolean(busyRef.current) || Boolean(editingMessageIdRef.current)
 }
 
 export type UseChatAttachmentsResult = {
@@ -51,8 +59,8 @@ export type UseChatAttachmentsResult = {
 }
 
 export function useChatAttachments({
-  busy,
-  editingMessageId,
+  busyRef,
+  editingMessageIdRef,
   setError,
 }: UseChatAttachmentsParams): UseChatAttachmentsResult {
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([])
@@ -149,8 +157,10 @@ export function useChatAttachments({
     const files: File[] = []
     for (let i = 0; i < picked.length; i++) {
       const f = picked[i]!
-      const name = f.name?.trim() || `image-${Date.now()}.jpg`
-      const type = f.type?.trim() || 'image/jpeg'
+      const name = f.name?.trim() || `attachment-${Date.now()}`
+      const type =
+        f.type?.trim() ||
+        (looksLikeImageFile(f) ? 'image/png' : 'application/octet-stream')
       try {
         const buf = await f.arrayBuffer()
         files.push(new File([buf], name, { type, lastModified: f.lastModified }))
@@ -173,23 +183,23 @@ export function useChatAttachments({
 
   const onChatDragEnter = useCallback(
     (e: ReactDragEvent<HTMLDivElement>) => {
-      if (busy || editingMessageId) return
+      if (attachmentsBlocked(busyRef, editingMessageIdRef)) return
       if (!dragContainsFiles(e)) return
       e.preventDefault()
       dragCounterRef.current += 1
       setIsDragOver(true)
     },
-    [busy, editingMessageId, dragContainsFiles],
+    [busyRef, editingMessageIdRef, dragContainsFiles],
   )
 
   const onChatDragOver = useCallback(
     (e: ReactDragEvent<HTMLDivElement>) => {
-      if (busy || editingMessageId) return
+      if (attachmentsBlocked(busyRef, editingMessageIdRef)) return
       if (!dragContainsFiles(e)) return
       e.preventDefault()
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
     },
-    [busy, editingMessageId, dragContainsFiles],
+    [busyRef, editingMessageIdRef, dragContainsFiles],
   )
 
   const onChatDragLeave = useCallback(
@@ -208,12 +218,12 @@ export function useChatAttachments({
       e.preventDefault()
       dragCounterRef.current = 0
       setIsDragOver(false)
-      if (busy || editingMessageId) return
+      if (attachmentsBlocked(busyRef, editingMessageIdRef)) return
       const files = e.dataTransfer?.files
       if (!files?.length) return
       await processChatAttachmentFiles(Array.from(files))
     },
-    [busy, editingMessageId, dragContainsFiles, processChatAttachmentFiles],
+    [busyRef, editingMessageIdRef, dragContainsFiles, processChatAttachmentFiles],
   )
 
   const removePendingFile = (index: number) => {
@@ -221,7 +231,7 @@ export function useChatAttachments({
   }
 
   const openChatAttachmentPicker = useCallback(async () => {
-    if (busy) return
+    if (attachmentsBlocked(busyRef, editingMessageIdRef)) return
     const native = window.voidcast?.pickChatAttachments
     if (native) {
       try {
@@ -261,7 +271,7 @@ export function useChatAttachments({
     if (!isWebStandalone()) {
       chatAttachmentInputRef.current?.click()
     }
-  }, [busy, setError])
+  }, [busyRef, editingMessageIdRef, setError])
 
   return {
     pendingImages,

@@ -1,3 +1,5 @@
+import { isSupportedChatFileName } from '@/lib/fileAttachment'
+
 /** Max images per message (Ollama payload / UX). */
 export const MAX_CHAT_IMAGES = 4
 
@@ -28,24 +30,22 @@ export function looksLikeImageFile(file: File): boolean {
   return false
 }
 
-/** Try decode as image (Android gallery files with empty MIME/name). */
+/**
+ * Try decode as image (Android gallery files with empty MIME/name).
+ * Known chat document extensions are never probed as images — drag/drop often
+ * leaves `type` empty and the old data-URL fallback misclassified .txt/.pdf.
+ */
 export async function probeFileAsImage(file: File): Promise<boolean> {
+  if (isSupportedChatFileName(file.name)) return false
   if (looksLikeImageFile(file)) return true
   if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return false
   const t = file.type?.trim().toLowerCase() ?? ''
   if (t && !t.startsWith('image/') && t !== 'application/octet-stream') return false
-  if (typeof createImageBitmap === 'function') {
-    try {
-      const bmp = await createImageBitmap(file)
-      bmp.close()
-      return true
-    } catch {
-      // fall through to data URL probe
-    }
-  }
+  if (typeof createImageBitmap !== 'function') return false
   try {
-    const { base64 } = await readImageFileAsBase64(file)
-    return base64.length > 64
+    const bmp = await createImageBitmap(file)
+    bmp.close()
+    return true
   } catch {
     return false
   }

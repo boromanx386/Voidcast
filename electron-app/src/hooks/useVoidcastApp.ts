@@ -70,8 +70,8 @@ export function useVoidcastApp() {
   abortTtsRef.current = tts.abortTts
 
   const attachments = useChatAttachments({
-    busy: busyRef.current,
-    editingMessageId: editingMessageIdRef.current,
+    busyRef,
+    editingMessageIdRef,
     setError: (error) => setErrorRef.current(error),
   })
 
@@ -144,6 +144,7 @@ export function useVoidcastApp() {
       agent.onStop()
       abortTtsRef.current()
     },
+    cancelMessageEdit: agent.cancelEdit,
     setInput: setInputState,
     setPendingImages: attachments.setPendingImages,
     setError: agent.setError,

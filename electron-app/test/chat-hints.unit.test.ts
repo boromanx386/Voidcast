@@ -11,6 +11,7 @@ import {
   shouldUseVisionForText,
   toConversationTurns,
 } from '../src/lib/chatHints'
+import { buildToolsCodingHint } from '../src/lib/chatMessages'
 import type { PendingChatImage } from '../src/lib/chatImageCatalog'
 
 describe('deriveSessionTitle', () => {
@@ -153,5 +154,15 @@ describe('toConversationTurns', () => {
       { role: 'user', content: '[user attached image]' },
       { role: 'assistant', content: 'reply' },
     ])
+  })
+})
+
+describe('buildToolsCodingHint', () => {
+  test('requires tool calls and includes project path', () => {
+    const hint = buildToolsCodingHint('Q:/coding/vst')
+    expect(hint).toContain('MUST call')
+    expect(hint).toContain('Q:/coding/vst')
+    expect(hint).toContain('edit_code')
+    expect(hint).toContain('execute_command')
   })
 })
