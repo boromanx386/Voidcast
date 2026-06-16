@@ -18,6 +18,7 @@ RSS endpoints:
 from __future__ import annotations
 
 import os
+import random
 import re
 import xml.etree.ElementTree as ET
 from html import unescape
@@ -25,6 +26,14 @@ from typing import Any
 
 import httpx
 from bs4 import BeautifulSoup
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    wait_random,
+    retry_if_exception,
+    RetryCallState,
+)
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -32,7 +41,10 @@ USER_AGENT = (
     "Chrome/120.0.0.0 Safari/537.36"
 )
 ATOM_NS = "http://www.w3.org/2005/Atom"
-FETCH_TIMEOUT_S = 20.0
+
+# Reddit RSS is notoriously slow; use generous timeouts.
+FETCH_TIMEOUT_S = 45.0
+READ_TIMEOUT_S = 35.0
 MAX_BODY_BYTES = 4 * 1024 * 1024
 MAX_LIMIT = 25
 DEFAULT_LIMIT = 10
@@ -241,34 +253,99 @@ def _parse_atom_entries(body: bytes) -> list[dict[str, Any]]:
     return entries
 
 
-async def _fetch_rss(client: httpx.AsyncClient, url: str) -> list[dict[str, Any]]:
+# -- Retry helpers -----------------------------------------------------------
+
+_RETRYABLE_STATUSES = frozenset({403, 429})
+_MAX_RETRY_DELAY_S = 30.0
+
+def _should_retry(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_STATUSES
+    return False
+
+
+_exp_backoff = wait_exponential(multiplier=1, min=2, max=_MAX_RETRY_DELAY_S)
+_jitter = wait_random(0, 3)
+
+
+def _retry_wait(retry_state: RetryCallState) -> float:
+    """Exponential backoff + jitter, preferring Retry-After header."""
+    exc = retry_state.outcome.exception()
+    if isinstance(exc, httpx.HTTPStatusError):
+        ra = exc.response.headers.get("Retry-After")
+        if ra is not None:
+            try:
+                return max(float(ra), 1.0) + random.uniform(0, 2)
+            except (ValueError, TypeError):
+                pass
+    return _exp_backoff(retry_state) + _jitter(retry_state)
+
+
+@retry(
+    retry=retry_if_exception(_should_retry),
+    wait=_retry_wait,
+    stop=stop_after_attempt(4),
+    reraise=True,
+)
+async def _fetch_rss_inner(
+    client: httpx.AsyncClient, url: str
+) -> list[dict[str, Any]]:
+    """Fetch and parse an RSS feed from Reddit.
+
+    Retries on timeout and HTTP 429/403 with exponential backoff
+    and jitter, respecting the Retry-After header when present.
+    """
     try:
-        res = await client.get(url, headers=_request_headers(), timeout=FETCH_TIMEOUT_S)
-    except httpx.TimeoutException as e:
-        raise RedditError("Reddit request timed out") from e
+        response = await client.get(
+            url,
+            headers=_request_headers(),
+            timeout=httpx.Timeout(FETCH_TIMEOUT_S, read=READ_TIMEOUT_S),
+        )
+    except httpx.TimeoutException:
+        raise  # tenacity catches and retries
     except Exception as e:
         raise RedditError(f"Reddit request failed: {e}") from e
 
-    if res.status_code == 404:
-        raise RedditError("Reddit returned 404 (subreddit or post not found)")
-    if res.status_code in (403, 429):
-        raise RedditError(
-            f"Reddit refused request (HTTP {res.status_code}). "
-            "RSS access may be rate-limited — try again later.",
+    if response.status_code in (403, 429):
+        raise httpx.HTTPStatusError(
+            f"Reddit HTTP {response.status_code}",
+            request=response.request,
+            response=response,
         )
-    if not res.is_success:
-        raise RedditError(f"Reddit HTTP {res.status_code}")
+    if response.status_code == 404:
+        raise RedditError("Reddit returned 404 (subreddit or post not found)")
+    if not response.is_success:
+        raise RedditError(f"Reddit HTTP {response.status_code}")
 
-    if len(res.content) > MAX_BODY_BYTES:
+    if len(response.content) > MAX_BODY_BYTES:
         raise RedditError("Reddit response too large")
 
-    ct = (res.headers.get("content-type") or "").lower()
-    if "html" in ct and b"<feed" not in res.content[:800]:
+    ct = (response.headers.get("content-type") or "").lower()
+    if "html" in ct and b"<feed" not in response.content[:800]:
         raise RedditError(
             "Reddit returned HTML instead of RSS (blocked or wrong URL).",
         )
 
-    return _parse_atom_entries(res.content)
+    return _parse_atom_entries(response.content)
+
+
+async def _fetch_rss(
+    client: httpx.AsyncClient, url: str
+) -> list[dict[str, Any]]:
+    """Public wrapper: converts tenacity-exhausted errors to RedditError."""
+    try:
+        return await _fetch_rss_inner(client, url)
+    except httpx.TimeoutException:
+        raise RedditError(
+            "Reddit request timed out (RSS is slow — try again later)"
+        )
+    except httpx.HTTPStatusError as e:
+        raise RedditError(
+            f"Reddit refused request (HTTP {e.response.status_code}). "
+            "RSS access may be rate-limited — try again later."
+        )
 
 
 def _format_rss_post_line(idx: int, row: dict[str, Any], *, include_body: bool) -> str:
@@ -372,7 +449,7 @@ async def reddit_tool_run(
         pass
 
     async with httpx.AsyncClient(
-        timeout=FETCH_TIMEOUT_S,
+        timeout=httpx.Timeout(FETCH_TIMEOUT_S, read=READ_TIMEOUT_S),
         follow_redirects=True,
         limits=httpx.Limits(max_connections=4),
     ) as client:
