@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.7.0] — 2026-06-16
 
 ### Added
 
@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **Cloud LLM routing**: shared `cloudLlm.ts` resolves OpenRouter, NVIDIA, and DeepSeek chat config from settings (used by chat agent, context compress, long memory).
+
+### Fixed
+
+- **Chat attachments**: strengthen coding tool hints — tool results injected after attachments so the agent sees the full workspace context. Fixed silent `order_tools` collision with attachment message metadata.
+- **Reddit RSS retry**: replaced fragile manual retry loop with `tenacity` (exponential backoff + jitter, respects `Retry-After` header). Raised timeouts for Reddit's slow RSS feeds (45 s fetch / 35 s read).
 
 ## [2.6.6] — 2026-06-14
 
