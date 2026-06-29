@@ -29,6 +29,9 @@ modal-test/
 # Generated audio (local tests)
 *.wav
 
+# Videos
+videos/
+
 # Logs & env
 *.log
 .env
