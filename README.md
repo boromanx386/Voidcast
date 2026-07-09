@@ -101,6 +101,19 @@ Supports Markdown-lite (headings, lists, tables, bold). Images can come from cha
 </p>
 <p align="center"><em>Ask the agent to generate a chart and export it as a formatted PDF.</em></p>
 
+### Agent Skills
+
+In **Options → SKILLS**, Voidcast discovers instruction packs from your user profile (`~/.agents/skills`, `~/.claude/skills`, `~/.cursor/skills`) and, when a coding project is open, from the repo (`.cursor/skills`, `skills/`, etc.). Each skill is a directory containing `SKILL.md`.
+
+On every turn, the agent sees a **catalog** of skill names and descriptions. When a request matches a skill, it loads the full `SKILL.md` on demand via `read_skill`. This keeps the system prompt lean while still making specialized workflows available. Project skills override globals with the same name.
+
+With coding tools on, Voidcast also injects **`AGENTS.md` / `CLAUDE.md`** from the project root into the system prompt — repo conventions available on every turn.
+
+<!--
+  Screenshot placeholder: demos/voidcast-options-skills-tab.png
+  Add a screenshot of the Skills tab (listing global + project skills with source labels) here.
+-->
+
 ---
 
 ## Coding Tools
@@ -114,6 +127,27 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `execute_command` (with timeout + background support)
 
 All coding operations are scoped to your configured project directory.
+
+### Git integration
+
+The coding panel surfaces git state visually and lets you commit without leaving the app:
+
+- **Status colors** — file tree shows dirty files letter-coded: `M` yellow (modified), `A` green (added), `D` red (deleted), `?` gray (untracked), `R` magenta (renamed). Directory names turn yellow when they contain changes.
+- **Stage / unstage / discard** — inline buttons on each dirty file row (`+` / `−` / `↶`), plus the same actions in the file preview header.
+- **Diff preview** — clicking a dirty file opens a unified diff with line numbers, `@@` hunk headers, and `+` green / `-` red highlighting. Staged vs unstaged diff auto-selects based on status.
+- **Commit bar** — input field + **COMMIT** (staged only), **COMMIT ALL** (stage all + commit like VS Code), and **DISCARD ALL** (restore + clean) buttons. All actions go through git on the main process.
+- **Dirty-only toggle** — "DIRTY N" / "ALL · N" in the file tree header filters the tree to show only changed files.
+
+### Resizable layout
+
+The coding panel uses a two-level split:
+
+- **Chat ↔ coding panel** — a draggable vertical divider between the chat and the coding panel. Width persists across app restarts (`panelWidthPx`, default 416px, range 280–720). Keyboard: ←/→ to resize, Home/End for extremes.
+- **File tree ↔ preview/terminal** — a draggable horizontal divider inside the coding panel between the file tree and the lower sections (preview, commit bar, terminal). Height persists (`fileTreeHeightPx`, default 220px, range 100–480). Keyboard: ↑/↓ to resize, Home/End for extremes.
+
+### Project instructions & local skills
+
+With coding tools on, Voidcast loads **`AGENTS.md` / `CLAUDE.md`** from the project root into the system prompt so repo-wide conventions are available on every turn. Skills discovered from `.cursor/skills`, `.claude/skills`, `.agents/skills`, or `skills/` in the repo are treated as **project skills** — they show a `[project]` source label in the catalog and override global skills with the same name.
 
 <p align="center">
   <img src="demos/voidcast-coding-panel-git-status.png" width="700" alt="Coding panel with git status"/>

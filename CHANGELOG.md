@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.1] — 2026-07-09
+
+### Added
+
+- **Agent Skills catalog**: progressive-disclosure system — models see a name/description catalog of installed instruction packs in the system prompt; full `SKILL.md` bodies load on demand via `read_skill`. New **SKILLS** tab in Options panel with RESCAN and skill listing (source, description). Skill source labels (`agents` / `claude` / `cursor` / `project`) shown in the UI and catalog. (Initial global-only discovery: `~/.agents/skills`, `~/.claude/skills`, `~/.cursor/skills`.)
+- **Project AGENTS.md / CLAUDE.md**: when a coding project is open, Voidcast injects `AGENTS.md` / `CLAUDE.md` from the project root into the system prompt — repo-wide conventions on every turn.
+- **Project-local skills**: skills discovered from `.cursor/skills`, `.claude/skills`, `.agents/skills`, and `skills/` relative to the coding project root. Project skills override globals with the same name.
+- **Git status colors in the file tree**: dirty files are color-coded (M=yellow, A=green, D=red, ?=gray, R=magenta, U=orange). File tree header shows branch name + ahead/behind counts.
+- **Stage / unstage / discard actions**: inline `+` / `−` / `↶` buttons on each dirty file row in the file tree, plus the same actions in the file preview header.
+- **Commit bar**: input + **COMMIT** / **COMMIT ALL** / **DISCARD ALL** buttons below the file tree when changes exist. COMMIT commits only staged files; COMMIT ALL stages everything first (`git add -A`) then commits.
+- **Diff preview with line numbers**: clicking a dirty file opens a unified diff (staged or unstaged) with line numbers, `@@` hunk headers, `+` green / `-` red highlighting. Staged/unstaged toggled automatically by the status state.
+- **Dirty-only toggle**: "DIRTY N" / "ALL · N" button in the file tree header filters the tree to show only changed files and their parent directories.
+- **Resizable chat ↔ coding panel split**: draggable vertical divider between chat and the coding panel, with persisted width (`panelWidthPx` in settings, default 416px, clamped 280–720). Keyboard support: ←/→ (16px step, Shift+32px), Home/End for max/min.
+- **Resizable file tree ↔ preview/terminal vertical split**: draggable horizontal divider inside the coding panel between the file tree and the lower sections (preview/terminal/commit bar). Persisted height (`fileTreeHeightPx` in settings, default 220px, clamped 100–480). Keyboard support: ↑/↓ (16px step, Shift+32px), Home/End for max/min.
+
+### Changed
+
+- **Chat typography**: body text and composer now use **IBM Plex Sans** at 15px/1.65 leading (was Rajdhani 14px). Heading tracking adjusted (`tracking-tight` instead of `tracking-wide`). Font families moved to CSS custom properties (`--font-body`, `--font-mono`, `--font-display`) so each theme overrides cleanly — Minimal uses sans-serif, Matrix uses monospace, others use IBM Plex Sans. Rajdhani font removed from Google Fonts imports.
+- **Skills catalog hint**: project skills are marked `[project]` in the catalog; added override-global disclaimer.
+- **Rediscovery path**: `discoverAgentSkills` and `readAgentSkillBody` accept an optional `projectPath` parameter — electron main process scans project roots first for skill resolution.
+
+### Fixed
+
+- `videos/` directory added to `.gitignore`.
+
 ## [2.7.0] — 2026-06-16
 
 ### Added
