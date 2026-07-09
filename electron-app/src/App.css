@@ -127,7 +127,7 @@
 }
 
 .message-bubble {
-  @apply min-w-0 max-w-full overflow-hidden px-4 py-3 font-body text-sm leading-relaxed;
+  @apply min-w-0 max-w-full overflow-hidden px-4 py-3 font-body text-[15px] leading-[1.65];
 }
 
 .message-meta {
@@ -160,7 +160,7 @@
   @apply flex-1 px-4 py-3 min-h-[48px] max-h-40;
   @apply bg-void-black/80 border border-void-muted;
   @apply text-void-white placeholder:text-void-dim;
-  @apply font-mono text-sm resize-none;
+  @apply font-body text-[15px] leading-[1.65] resize-none;
   @apply transition-all duration-200;
   clip-path: polygon(
     0 6px,

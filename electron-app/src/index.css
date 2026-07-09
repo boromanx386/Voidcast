@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,6 +7,10 @@
 @layer base {
   :root,
   html[data-ui-theme='dystopian'] {
+    --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    --font-display: 'Orbitron', 'IBM Plex Sans', sans-serif;
+
     --color-void-black: 10 10 15;
     --color-void-dark: 18 18 26;
     --color-void-mid: 26 26 46;
@@ -39,7 +43,7 @@
   body,
   #root {
     @apply h-full m-0 overflow-hidden;
-    font-family: 'Rajdhani', 'Inter', sans-serif;
+    font-family: var(--font-body);
   }
 
   body {

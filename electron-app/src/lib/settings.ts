@@ -364,6 +364,23 @@ export type CodingSettings = {
   showFilePreview: boolean
   /** Coding panel: show terminal section */
   showTerminal: boolean
+  /** Coding panel width in px (chat / panel split). */
+  panelWidthPx: number
+}
+
+/** Default / clamp bounds for the chat ↔ coding panel splitter. */
+export const CODING_PANEL_WIDTH_DEFAULT = 416
+export const CODING_PANEL_WIDTH_MIN = 280
+export const CODING_PANEL_WIDTH_MAX = 720
+
+export function clampCodingPanelWidth(px: number, containerWidth?: number): number {
+  const maxByContainer =
+    typeof containerWidth === 'number' && Number.isFinite(containerWidth)
+      ? Math.max(CODING_PANEL_WIDTH_MIN, Math.floor(containerWidth * 0.65))
+      : CODING_PANEL_WIDTH_MAX
+  const max = Math.min(CODING_PANEL_WIDTH_MAX, maxByContainer)
+  if (!Number.isFinite(px)) return CODING_PANEL_WIDTH_DEFAULT
+  return Math.min(max, Math.max(CODING_PANEL_WIDTH_MIN, Math.round(px)))
 }
 
 export type AppSettings = {
@@ -582,6 +599,7 @@ export const defaults: AppSettings = {
     showFileTree: true,
     showFilePreview: true,
     showTerminal: true,
+    panelWidthPx: CODING_PANEL_WIDTH_DEFAULT,
   },
   codingProjectPath: '',
   pdfOutputDir: '',
@@ -685,6 +703,9 @@ function normalizeTools(s: AppSettings): AppSettings {
       : defaults.coding.showFilePreview
   const showTerminal =
     typeof s.coding?.showTerminal === 'boolean' ? s.coding.showTerminal : defaults.coding.showTerminal
+  const panelWidthPx = clampCodingPanelWidth(
+    typeof s.coding?.panelWidthPx === 'number' ? s.coding.panelWidthPx : defaults.coding.panelWidthPx,
+  )
   let st = showFileTree
   let sp = showFilePreview
   let sm = showTerminal
@@ -722,6 +743,7 @@ function normalizeTools(s: AppSettings): AppSettings {
       showFileTree: st,
       showFilePreview: sp,
       showTerminal: sm,
+      panelWidthPx,
     },
     codingProjectPath,
   }

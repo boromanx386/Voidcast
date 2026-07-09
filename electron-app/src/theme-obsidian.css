@@ -26,11 +26,7 @@ html[data-ui-theme='obsidian'] body {
   background: #0d0d10 !important;
   color: #d4d4dc !important;
   text-shadow: none !important;
-  font-family:
-    'JetBrains Mono',
-    'Inter',
-    system-ui,
-    sans-serif !important;
+  font-family: var(--font-body) !important;
 }
 
 html[data-ui-theme='obsidian'] ::selection {

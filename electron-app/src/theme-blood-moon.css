@@ -25,11 +25,7 @@ html[data-ui-theme='blood-moon'] body {
   background: #0a0a0c !important;
   color: #e8e8ec !important;
   text-shadow: none !important;
-  font-family:
-    'JetBrains Mono',
-    'Inter',
-    system-ui,
-    sans-serif !important;
+  font-family: var(--font-body) !important;
 }
 
 html[data-ui-theme='blood-moon'] ::selection {

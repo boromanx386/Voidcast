@@ -1,6 +1,7 @@
 /* Soft Matrix shell — subtle green terminal vibe for html[data-ui-theme="matrix"] */
 
 html[data-ui-theme='matrix'] {
+  --font-body: var(--font-mono);
   --color-void-black: 5 12 8;
   --color-void-dark: 10 20 14;
   --color-void-mid: 15 30 22;
@@ -32,13 +33,7 @@ html[data-ui-theme='matrix'] body {
   background: #050c08 !important;
   color: #def7e7 !important;
   text-shadow: none !important;
-  font-family:
-    'JetBrains Mono',
-    'Fira Code',
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace !important;
+  font-family: var(--font-body) !important;
 }
 
 html[data-ui-theme='matrix'] ::selection {

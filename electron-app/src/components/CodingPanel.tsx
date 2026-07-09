@@ -8,7 +8,7 @@ import { expandTextToTerminalLines, MAX_TERMINAL_ROWS } from '@/lib/terminalChun
 import type { AppSettings, CodingSettings } from '@/lib/settings'
 
 type CodingUiVisibilityPatch = Partial<
-  Pick<CodingSettings, 'showFileTree' | 'showFilePreview' | 'showTerminal'>
+  Pick<CodingSettings, 'showFileTree' | 'showFilePreview' | 'showTerminal' | 'panelWidthPx'>
 >
 import {
   invokeExecuteCodingCommand,
@@ -22,6 +22,8 @@ type Props = {
   settings: AppSettings
   onUpdateProjectPath: (path: string) => void
   onCodingUiChange: (patch: CodingUiVisibilityPatch) => void
+  /** Controlled panel width from chat ↔ panel splitter. */
+  widthPx?: number
   /** Increments when agent mutates the project on disk; refreshes file tree while panel is open. */
   fileTreeRevision?: number
   /** Agent `execute_command` lines only (mirrors shell); manual RUN output is appended locally. */
@@ -32,6 +34,7 @@ export function CodingPanel({
   settings,
   onUpdateProjectPath,
   onCodingUiChange,
+  widthPx,
   fileTreeRevision = 0,
   agentShellFeed = [],
 }: Props) {
@@ -236,7 +239,10 @@ export function CodingPanel({
   }, [files, childrenByDir])
 
   return (
-    <aside className="flex h-full min-h-0 w-[26rem] min-w-[22rem] shrink-0 flex-col gap-3 overflow-hidden border-l border-void-muted/30 bg-void-dark/40 p-3">
+    <aside
+      className="flex h-full min-h-0 shrink-0 flex-col gap-3 overflow-hidden border-l border-void-muted/30 bg-void-dark/40 p-3"
+      style={{ width: widthPx ?? settings.coding.panelWidthPx }}
+    >
       <div className="flex shrink-0 items-center justify-between">
         <div className="text-sm font-mono text-neon-cyan">CODING_PANEL</div>
         <button type="button" className="cyber-btn text-xs" onClick={() => void onPickFolder()}>

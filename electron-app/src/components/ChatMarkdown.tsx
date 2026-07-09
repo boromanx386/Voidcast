@@ -70,22 +70,22 @@ const components: Components = {
     </li>
   ),
   h1: ({ children }) => (
-    <h1 className="mb-3 mt-4 text-xl font-display font-bold tracking-wide text-neon-cyan first:mt-0">
+    <h1 className="mb-3 mt-4 text-xl font-body font-semibold tracking-tight text-neon-cyan first:mt-0">
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mb-3 mt-4 text-lg font-display font-semibold tracking-wide text-void-white first:mt-0">
+    <h2 className="mb-3 mt-4 text-lg font-body font-semibold tracking-tight text-void-white first:mt-0">
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mb-2 mt-3 text-base font-display font-medium tracking-wide text-void-light first:mt-0">
+    <h3 className="mb-2 mt-3 text-base font-body font-semibold tracking-tight text-void-light first:mt-0">
       {children}
     </h3>
   ),
   h4: ({ children }) => (
-    <h4 className="mb-2 mt-2 text-sm font-display font-medium uppercase tracking-wider text-void-text first:mt-0">
+    <h4 className="mb-2 mt-2 text-sm font-body font-medium uppercase tracking-wider text-void-text first:mt-0">
       {children}
     </h4>
   ),
@@ -174,7 +174,7 @@ type Props = {
 export const ChatMarkdown = memo(function ChatMarkdown({ content, className }: Props) {
   return (
     <div
-      className={`min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-sm leading-[1.7] text-void-light font-body ${className ?? ''}`}
+      className={`min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-[15px] leading-[1.7] text-void-light font-body ${className ?? ''}`}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}

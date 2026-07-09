@@ -32,12 +32,7 @@ html[data-ui-theme='light'] body {
   background: #f4f1ea !important;
   color: #2f2a24 !important;
   text-shadow: none !important;
-  font-family:
-    Inter,
-    'Segoe UI',
-    system-ui,
-    -apple-system,
-    sans-serif !important;
+  font-family: var(--font-body) !important;
 }
 
 html[data-ui-theme='light'] ::selection {

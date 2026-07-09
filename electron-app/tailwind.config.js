@@ -36,9 +36,9 @@ export default {
         }
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
-        display: ['Orbitron', 'Rajdhani', 'sans-serif'],
-        body: ['Inter', 'Rajdhani', 'sans-serif'],
+        mono: ['var(--font-mono)', 'JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
+        display: ['var(--font-display)', 'Orbitron', 'sans-serif'],
+        body: ['var(--font-body)', 'IBM Plex Sans', 'system-ui', 'sans-serif'],
       },
       animation: {
         'scanline': 'scanline 8s linear infinite',
