@@ -229,8 +229,8 @@ export function FileTree({
     dirtyOnly && gitStatusByPath ? filterDirtyEntries(rootEntries, gitStatusByPath) : rootEntries
 
   return (
-    <div className="rounded border border-void-muted/30 bg-void-black/30 p-2">
-      <div className="mb-2 flex items-center justify-between gap-2">
+    <div className="flex h-full min-h-0 flex-col rounded border border-void-muted/30 bg-void-black/30 p-2">
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <div className="text-xs font-mono text-neon-cyan">FILES</div>
           {gitBranchLabel ? (
@@ -258,7 +258,7 @@ export function FileTree({
           </button>
         ) : null}
       </div>
-      <div className="max-h-52 overflow-auto space-y-0.5">
+      <div className="min-h-0 flex-1 overflow-auto space-y-0.5">
         {rootEntries.length === 0 && (
           <div className="text-xs text-void-dim">No files loaded.</div>
         )}

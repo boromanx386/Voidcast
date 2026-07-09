@@ -12,7 +12,13 @@ import {
   type GitStatusEntry,
 } from '@/lib/gitStatusParse'
 import { expandTextToTerminalLines, MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
-import type { AppSettings, CodingSettings } from '@/lib/settings'
+import {
+  clampCodingFileTreeHeight,
+  CODING_FILE_TREE_HEIGHT_MAX,
+  CODING_FILE_TREE_HEIGHT_MIN,
+  type AppSettings,
+  type CodingSettings,
+} from '@/lib/settings'
 import {
   invokeCodingGit,
   invokeExecuteCodingCommand,
@@ -23,7 +29,10 @@ import {
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
 
 type CodingUiVisibilityPatch = Partial<
-  Pick<CodingSettings, 'showFileTree' | 'showFilePreview' | 'showTerminal' | 'panelWidthPx'>
+  Pick<
+    CodingSettings,
+    'showFileTree' | 'showFilePreview' | 'showTerminal' | 'panelWidthPx' | 'fileTreeHeightPx'
+  >
 >
 
 type Props = {
@@ -66,6 +75,10 @@ export function CodingPanel({
   const [dirtyOnly, setDirtyOnly] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
   const [commitBusy, setCommitBusy] = useState(false)
+  const [fileTreeHeight, setFileTreeHeight] = useState(() =>
+    clampCodingFileTreeHeight(settings.coding.fileTreeHeightPx),
+  )
+  const [isTreeResizing, setIsTreeResizing] = useState(false)
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
   const [command, setCommand] = useState('')
   /** Oldest → newest; used for ↑ / ↓ in command input (bash-style). */
@@ -81,12 +94,68 @@ export function CodingPanel({
   const expandedDirsRef = useRef(expandedDirs)
   expandedDirsRef.current = expandedDirs
 
+  const bodySplitRef = useRef<HTMLDivElement>(null)
   const seenAgentShellIdsRef = useRef<Set<string>>(new Set())
   const gitStatusByPathRef = useRef(gitStatusByPath)
   gitStatusByPathRef.current = gitStatusByPath
 
   const projectPath = settings.coding.projectPath || settings.codingProjectPath
   const { showFileTree, showFilePreview, showTerminal } = settings.coding
+  const savedFileTreeHeight = settings.coding.fileTreeHeightPx
+
+  useEffect(() => {
+    if (!isTreeResizing) {
+      setFileTreeHeight(clampCodingFileTreeHeight(savedFileTreeHeight))
+    }
+  }, [savedFileTreeHeight, isTreeResizing])
+
+  const persistFileTreeHeight = useCallback(
+    (px: number) => {
+      const next = clampCodingFileTreeHeight(px, bodySplitRef.current?.clientHeight)
+      setFileTreeHeight(next)
+      onCodingUiChange({ fileTreeHeightPx: next })
+    },
+    [onCodingUiChange],
+  )
+
+  const onTreeResizePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      const handle = e.currentTarget
+      handle.setPointerCapture(e.pointerId)
+      setIsTreeResizing(true)
+      const prevCursor = document.body.style.cursor
+      const prevUserSelect = document.body.style.userSelect
+      document.body.style.cursor = 'row-resize'
+      document.body.style.userSelect = 'none'
+      const startY = e.clientY
+      const startHeight = fileTreeHeight
+
+      const onMove = (ev: PointerEvent) => {
+        const next = clampCodingFileTreeHeight(
+          startHeight + (ev.clientY - startY),
+          bodySplitRef.current?.clientHeight,
+        )
+        setFileTreeHeight(next)
+      }
+
+      const onUp = (ev: PointerEvent) => {
+        handle.releasePointerCapture(ev.pointerId)
+        handle.removeEventListener('pointermove', onMove)
+        handle.removeEventListener('pointerup', onUp)
+        handle.removeEventListener('pointercancel', onUp)
+        document.body.style.cursor = prevCursor
+        document.body.style.userSelect = prevUserSelect
+        setIsTreeResizing(false)
+        persistFileTreeHeight(startHeight + (ev.clientY - startY))
+      }
+
+      handle.addEventListener('pointermove', onMove)
+      handle.addEventListener('pointerup', onUp)
+      handle.addEventListener('pointercancel', onUp)
+    },
+    [fileTreeHeight, persistFileTreeHeight],
+  )
 
   const toggleSection = useCallback(
     (key: (typeof SECTION_KEYS)[number]) => {
@@ -527,108 +596,169 @@ export function CodingPanel({
           )
         })}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-        {showFileTree && (
-          <div className="min-h-0 shrink-0">
-            <FileTree
-              rootEntries={files}
-              expandedDirs={expandedDirs}
-              loadingDirs={loadingDirs}
-              childrenByDir={childrenByDir}
-              selectedPath={selectedPath}
-              gitStatusByPath={gitStatusByPath}
-              gitBranchLabel={gitBranchLabel}
-              dirtyOnly={dirtyOnly}
-              onDirtyOnlyChange={onDirtyOnlyChange}
-              onToggleDirectory={toggleDirectory}
-              onSelectFile={(path) => void onOpenFile(path)}
-              onStageFile={(path) => void onStageFile(path)}
-              onUnstageFile={(path) => void onUnstageFile(path)}
-              onDiscardFile={(path) => void onDiscardFile(path)}
-            />
-          </div>
-        )}
-        {showFilePreview && (
-          <FilePreview
-            filePath={selectedPath}
-            content={previewContent}
-            mode={previewMode}
-            diffStaged={previewDiffStaged}
-            canStage={Boolean(
-              selectedGit && (selectedGit.unstaged || selectedGit.untracked),
-            )}
-            canUnstage={Boolean(selectedGit?.staged)}
-            canDiscard={Boolean(
-              selectedGit && selectedGit.unstaged && !selectedGit.untracked,
-            )}
-            onStage={
-              selectedPath ? () => void onStageFile(selectedPath) : undefined
-            }
-            onUnstage={
-              selectedPath ? () => void onUnstageFile(selectedPath) : undefined
-            }
-            onDiscard={
-              selectedPath ? () => void onDiscardFile(selectedPath) : undefined
-            }
-          />
-        )}
-        {dirtyCount > 0 && (
-          <div className="flex shrink-0 flex-col gap-1.5">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    // Prefer staged-only commit when something is staged; else commit all
-                    void onCommit(stagedCount > 0 ? false : true)
-                  }
-                }}
-                placeholder={
-                  stagedCount > 0
-                    ? `Message (${stagedCount} staged · ${dirtyCount} dirty)`
-                    : `Message · commit all (${dirtyCount})`
-                }
-                title="Commit message"
-                disabled={commitBusy}
-                className="cyber-input flex-1 text-xs"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                className="cyber-btn text-[10px] disabled:opacity-40"
-                disabled={commitBusy || !commitMessage.trim() || stagedCount === 0}
-                title="Commit only staged files"
-                onClick={() => void onCommit(false)}
-              >
-                COMMIT
-              </button>
-              <button
-                type="button"
-                className="cyber-btn text-[10px] disabled:opacity-40"
-                disabled={commitBusy || !commitMessage.trim() || dirtyCount === 0}
-                title="Stage all changes and commit (like VS Code Commit All)"
-                onClick={() => void onCommit(true)}
-              >
-                COMMIT ALL
-              </button>
-              <button
-                type="button"
-                className="rounded border border-neon-red/40 px-2 py-1 text-[10px] font-mono uppercase tracking-wide text-neon-red/90 hover:bg-neon-red/10 disabled:opacity-40"
-                disabled={commitBusy || dirtyCount === 0}
-                title="Discard all local changes (restore + clean)"
-                onClick={() => void onDiscardAll()}
-              >
-                DISCARD ALL
-              </button>
-            </div>
-          </div>
-        )}
-        {showTerminal && (
-          <TerminalView lines={terminalLines} onClear={() => setTerminalLines([])} />
-        )}
+      <div
+        ref={bodySplitRef}
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden${isTreeResizing ? ' select-none' : ''}`}
+      >
+        {(() => {
+          const showLower = showFilePreview || showTerminal
+          const showCommitBar = dirtyCount > 0
+          const treeSplitActive = showFileTree && showLower
+          return (
+            <>
+              {showFileTree && (
+                <>
+                  <div
+                    className={`min-h-0 overflow-hidden ${treeSplitActive ? 'shrink-0' : 'flex-1'}`}
+                    style={treeSplitActive ? { height: fileTreeHeight } : undefined}
+                  >
+                    <FileTree
+                      rootEntries={files}
+                      expandedDirs={expandedDirs}
+                      loadingDirs={loadingDirs}
+                      childrenByDir={childrenByDir}
+                      selectedPath={selectedPath}
+                      gitStatusByPath={gitStatusByPath}
+                      gitBranchLabel={gitBranchLabel}
+                      dirtyOnly={dirtyOnly}
+                      onDirtyOnlyChange={onDirtyOnlyChange}
+                      onToggleDirectory={toggleDirectory}
+                      onSelectFile={(path) => void onOpenFile(path)}
+                      onStageFile={(path) => void onStageFile(path)}
+                      onUnstageFile={(path) => void onUnstageFile(path)}
+                      onDiscardFile={(path) => void onDiscardFile(path)}
+                    />
+                  </div>
+                  {treeSplitActive && (
+                    <div
+                      role="separator"
+                      aria-orientation="horizontal"
+                      aria-label="Resize file tree"
+                      aria-valuenow={fileTreeHeight}
+                      aria-valuemin={CODING_FILE_TREE_HEIGHT_MIN}
+                      aria-valuemax={CODING_FILE_TREE_HEIGHT_MAX}
+                      tabIndex={0}
+                      onPointerDown={onTreeResizePointerDown}
+                      onKeyDown={(e) => {
+                        const step = e.shiftKey ? 32 : 16
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault()
+                          persistFileTreeHeight(fileTreeHeight - step)
+                        } else if (e.key === 'ArrowDown') {
+                          e.preventDefault()
+                          persistFileTreeHeight(fileTreeHeight + step)
+                        } else if (e.key === 'Home') {
+                          e.preventDefault()
+                          persistFileTreeHeight(CODING_FILE_TREE_HEIGHT_MIN)
+                        } else if (e.key === 'End') {
+                          e.preventDefault()
+                          persistFileTreeHeight(CODING_FILE_TREE_HEIGHT_MAX)
+                        }
+                      }}
+                      className={`group relative z-10 h-1.5 shrink-0 cursor-row-resize touch-none
+                        bg-void-muted/20 hover:bg-neon-cyan/40 active:bg-neon-cyan/60
+                        transition-colors ${isTreeResizing ? 'bg-neon-cyan/50' : ''}`}
+                    >
+                      <div
+                        className={`pointer-events-none absolute inset-x-0 -top-1 -bottom-1 ${
+                          isTreeResizing ? 'bg-neon-cyan/10' : 'group-hover:bg-neon-cyan/5'
+                        }`}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+              {(showLower || showCommitBar) && (
+                <div
+                  className={`flex min-h-0 flex-col gap-3 overflow-hidden ${
+                    showLower || !showFileTree ? 'flex-1' : 'shrink-0'
+                  }`}
+                >
+                  {showFilePreview && (
+                    <FilePreview
+                      filePath={selectedPath}
+                      content={previewContent}
+                      mode={previewMode}
+                      diffStaged={previewDiffStaged}
+                      canStage={Boolean(
+                        selectedGit && (selectedGit.unstaged || selectedGit.untracked),
+                      )}
+                      canUnstage={Boolean(selectedGit?.staged)}
+                      canDiscard={Boolean(
+                        selectedGit && selectedGit.unstaged && !selectedGit.untracked,
+                      )}
+                      onStage={
+                        selectedPath ? () => void onStageFile(selectedPath) : undefined
+                      }
+                      onUnstage={
+                        selectedPath ? () => void onUnstageFile(selectedPath) : undefined
+                      }
+                      onDiscard={
+                        selectedPath ? () => void onDiscardFile(selectedPath) : undefined
+                      }
+                    />
+                  )}
+                  {showCommitBar && (
+                    <div className="flex shrink-0 flex-col gap-1.5">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={commitMessage}
+                          onChange={(e) => setCommitMessage(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              void onCommit(stagedCount > 0 ? false : true)
+                            }
+                          }}
+                          placeholder={
+                            stagedCount > 0
+                              ? `Message (${stagedCount} staged · ${dirtyCount} dirty)`
+                              : `Message · commit all (${dirtyCount})`
+                          }
+                          title="Commit message"
+                          disabled={commitBusy}
+                          className="cyber-input flex-1 text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          className="cyber-btn text-[10px] disabled:opacity-40"
+                          disabled={commitBusy || !commitMessage.trim() || stagedCount === 0}
+                          title="Commit only staged files"
+                          onClick={() => void onCommit(false)}
+                        >
+                          COMMIT
+                        </button>
+                        <button
+                          type="button"
+                          className="cyber-btn text-[10px] disabled:opacity-40"
+                          disabled={commitBusy || !commitMessage.trim() || dirtyCount === 0}
+                          title="Stage all changes and commit (like VS Code Commit All)"
+                          onClick={() => void onCommit(true)}
+                        >
+                          COMMIT ALL
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-neon-red/40 px-2 py-1 text-[10px] font-mono uppercase tracking-wide text-neon-red/90 hover:bg-neon-red/10 disabled:opacity-40"
+                          disabled={commitBusy || dirtyCount === 0}
+                          title="Discard all local changes (restore + clean)"
+                          onClick={() => void onDiscardAll()}
+                        >
+                          DISCARD ALL
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {showTerminal && (
+                    <TerminalView lines={terminalLines} onClear={() => setTerminalLines([])} />
+                  )}
+                </div>
+              )}
+            </>
+          )
+        })()}
       </div>
       <div className="flex shrink-0 gap-2">
         <input

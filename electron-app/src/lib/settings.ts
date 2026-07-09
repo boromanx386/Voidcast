@@ -366,12 +366,19 @@ export type CodingSettings = {
   showTerminal: boolean
   /** Coding panel width in px (chat / panel split). */
   panelWidthPx: number
+  /** File tree section height in px (FILES ↔ preview/terminal split). */
+  fileTreeHeightPx: number
 }
 
 /** Default / clamp bounds for the chat ↔ coding panel splitter. */
 export const CODING_PANEL_WIDTH_DEFAULT = 416
 export const CODING_PANEL_WIDTH_MIN = 280
 export const CODING_PANEL_WIDTH_MAX = 720
+
+/** Default / clamp bounds for FILES ↔ rest vertical split inside coding panel. */
+export const CODING_FILE_TREE_HEIGHT_DEFAULT = 220
+export const CODING_FILE_TREE_HEIGHT_MIN = 100
+export const CODING_FILE_TREE_HEIGHT_MAX = 480
 
 export function clampCodingPanelWidth(px: number, containerWidth?: number): number {
   const maxByContainer =
@@ -381,6 +388,16 @@ export function clampCodingPanelWidth(px: number, containerWidth?: number): numb
   const max = Math.min(CODING_PANEL_WIDTH_MAX, maxByContainer)
   if (!Number.isFinite(px)) return CODING_PANEL_WIDTH_DEFAULT
   return Math.min(max, Math.max(CODING_PANEL_WIDTH_MIN, Math.round(px)))
+}
+
+export function clampCodingFileTreeHeight(px: number, containerHeight?: number): number {
+  const maxByContainer =
+    typeof containerHeight === 'number' && Number.isFinite(containerHeight)
+      ? Math.max(CODING_FILE_TREE_HEIGHT_MIN, Math.floor(containerHeight * 0.7))
+      : CODING_FILE_TREE_HEIGHT_MAX
+  const max = Math.min(CODING_FILE_TREE_HEIGHT_MAX, maxByContainer)
+  if (!Number.isFinite(px)) return CODING_FILE_TREE_HEIGHT_DEFAULT
+  return Math.min(max, Math.max(CODING_FILE_TREE_HEIGHT_MIN, Math.round(px)))
 }
 
 export type AppSettings = {
@@ -606,6 +623,7 @@ export const defaults: AppSettings = {
     showFilePreview: true,
     showTerminal: true,
     panelWidthPx: CODING_PANEL_WIDTH_DEFAULT,
+    fileTreeHeightPx: CODING_FILE_TREE_HEIGHT_DEFAULT,
   },
   codingProjectPath: '',
   pdfOutputDir: '',
@@ -712,6 +730,11 @@ function normalizeTools(s: AppSettings): AppSettings {
   const panelWidthPx = clampCodingPanelWidth(
     typeof s.coding?.panelWidthPx === 'number' ? s.coding.panelWidthPx : defaults.coding.panelWidthPx,
   )
+  const fileTreeHeightPx = clampCodingFileTreeHeight(
+    typeof s.coding?.fileTreeHeightPx === 'number'
+      ? s.coding.fileTreeHeightPx
+      : defaults.coding.fileTreeHeightPx,
+  )
   let st = showFileTree
   let sp = showFilePreview
   let sm = showTerminal
@@ -752,6 +775,7 @@ function normalizeTools(s: AppSettings): AppSettings {
       showFilePreview: sp,
       showTerminal: sm,
       panelWidthPx,
+      fileTreeHeightPx,
     },
     codingProjectPath,
   }
