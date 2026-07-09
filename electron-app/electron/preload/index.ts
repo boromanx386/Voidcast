@@ -36,6 +36,35 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: false; detail: string; status?: number }
     >,
   getAppVersion: () => ipcRenderer.invoke('voidcast:get-app-version') as Promise<string>,
+  listAgentSkills: () =>
+    ipcRenderer.invoke('voidcast:list-agent-skills') as Promise<
+      | {
+          ok: true
+          skills: {
+            id: string
+            name: string
+            description: string
+            dirPath: string
+            source: 'agents' | 'claude' | 'cursor'
+          }[]
+        }
+      | {
+          ok: false
+          error?: string
+          skills: {
+            id: string
+            name: string
+            description: string
+            dirPath: string
+            source: 'agents' | 'claude' | 'cursor'
+          }[]
+        }
+    >,
+  readAgentSkill: (payload: { name: string }) =>
+    ipcRenderer.invoke('voidcast:read-agent-skill', payload) as Promise<
+      | { ok: true; name: string; content: string; dirPath: string }
+      | { ok: false; error?: string }
+    >,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
   pickDirectory: () =>
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<

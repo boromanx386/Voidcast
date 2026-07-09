@@ -59,6 +59,7 @@ const TOOL_PHASE_UI: Record<
   coding_shell: { icon: '$', label: 'CODING_SHELL', className: 'coding' },
   settings: { icon: '⚙', label: 'APP_SETTINGS', className: 'settings' },
   reminder: { icon: '⧗', label: 'REMINDER', className: 'reminder' },
+  skill: { icon: '✦', label: 'READ_SKILL', className: 'skill' },
   other: { icon: '◈', label: 'TOOL', className: 'other' },
 }
 

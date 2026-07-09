@@ -785,7 +785,29 @@ const UPDATE_REMINDER_TOOL: OllamaToolDefinition = {
   },
 }
 
-export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinition[] {
+const READ_SKILL_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'read_skill',
+    description:
+      'Load the full instructions for an Agent Skill by name (from the skills catalog in the system prompt). Call this BEFORE following a skill workflow. Returns the SKILL.md markdown body.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Skill name exactly as listed in the available skills catalog.',
+        },
+      },
+      required: ['name'],
+    },
+  },
+}
+
+export function buildOllamaToolsList(
+  enabled: ToolsEnabled,
+  skillsEnabled = false,
+): OllamaToolDefinition[] {
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
@@ -812,6 +834,7 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
     out.push(CODING_GIT_SHOW_TOOL)
     out.push(CODING_EXECUTE_COMMAND_TOOL)
   }
+  if (skillsEnabled) out.push(READ_SKILL_TOOL)
   out.push(UPDATE_SETTINGS_TOOL)
   out.push(ADD_REMINDER_TOOL)
   out.push(LIST_REMINDERS_TOOL)
@@ -820,7 +843,7 @@ export function buildOllamaToolsList(enabled: ToolsEnabled): OllamaToolDefinitio
   return out
 }
 
-export function anyToolEnabled(enabled: ToolsEnabled): boolean {
+export function anyToolEnabled(enabled: ToolsEnabled, skillsEnabled = false): boolean {
   return (
     enabled.webSearch ||
     enabled.youtube ||
@@ -830,6 +853,7 @@ export function anyToolEnabled(enabled: ToolsEnabled): boolean {
     enabled.pdf ||
     enabled.runwareImage ||
     enabled.runwareMusic ||
-    enabled.coding
+    enabled.coding ||
+    skillsEnabled
   )
 }

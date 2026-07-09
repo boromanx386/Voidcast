@@ -23,6 +23,7 @@ export type AgentToolUiPhase =
   | 'coding_shell'
   | 'settings'
   | 'reminder'
+  | 'skill'
   | 'other'
 
 export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
@@ -72,6 +73,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
     case 'delete_reminder':
     case 'update_reminder':
       return 'reminder'
+    case 'read_skill':
+      return 'skill'
     default:
       return 'other'
   }

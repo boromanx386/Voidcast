@@ -312,6 +312,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         activeRunwareProfile,
         activeRunwareEditProfile,
         activeRunwareMusicProfile,
+        skillsActive,
       } = turnContext
 
       let userMsg: UiMessage | undefined
@@ -354,7 +355,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setToolPhase(null)
       setToolResultBanner(null)
 
-      const useTools = anyToolEnabled(settings.toolsEnabled)
+      const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive)
 
       const ac = new AbortController()
       abortRef.current = ac
@@ -369,6 +370,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             rawUserText: text,
             modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
             toolsEnabled: settings.toolsEnabled,
+            skillsEnabled: skillsActive,
             ttsBaseUrl: settings.ttsBaseUrl,
             pdfOutputDir: effectivePdfOutputDir,
             runware: {

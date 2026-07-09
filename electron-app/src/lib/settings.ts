@@ -447,6 +447,11 @@ export type AppSettings = {
   voiceBakePhrase: string
   /** Which LLM tools are registered with Ollama (see Tools settings tab) */
   toolsEnabled: ToolsEnabled
+  /**
+   * Discover Agent Skills from ~/.agents|~/.claude|~/.cursor/skills and expose
+   * a catalog + read_skill tool (desktop only).
+   */
+  skillsEnabled: boolean
   /** Standalone coding panel settings. */
   coding: CodingSettings
   /** Backward-compatible top-level alias for coding project path. */
@@ -593,6 +598,7 @@ export const defaults: AppSettings = {
     runwareMusic: false,
     coding: false,
   },
+  skillsEnabled: true,
   coding: {
     enabled: false,
     projectPath: '',
@@ -737,6 +743,8 @@ function normalizeTools(s: AppSettings): AppSettings {
           : defaults.toolsEnabled.runwareMusic,
       coding: codingEnabled,
     },
+    skillsEnabled:
+      typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
     coding: {
       enabled: codingEnabled,
       projectPath: codingProjectPath,

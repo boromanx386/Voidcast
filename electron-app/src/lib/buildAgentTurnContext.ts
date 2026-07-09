@@ -37,6 +37,10 @@ import {
   type RunwareModelProfile,
   type RunwareMusicModelProfile,
 } from '@/lib/settings'
+import {
+  buildSkillsCatalogHint,
+  discoverAgentSkills,
+} from '@/lib/agentSkills'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { LongMemoryItem } from '@/types/longMemory'
@@ -65,6 +69,8 @@ export type BuildAgentTurnContextResult = {
   activeRunwareProfile: RunwareModelProfile
   activeRunwareEditProfile: RunwareModelProfile
   activeRunwareMusicProfile: RunwareMusicModelProfile
+  /** True when skills are enabled and at least one skill was discovered. */
+  skillsActive: boolean
 }
 
 export async function buildAgentTurnContext(
@@ -140,8 +146,11 @@ export async function buildAgentTurnContext(
     return acc
   }, [])
 
-  const useTools = anyToolEnabled(settings.toolsEnabled)
   const runtimeTimeHint = buildRuntimeTimeHint()
+  const discoveredSkills = settings.skillsEnabled ? await discoverAgentSkills() : []
+  const skillsActive = settings.skillsEnabled && discoveredSkills.length > 0
+  const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive)
+  const skillsSystemHint = skillsActive ? buildSkillsCatalogHint(discoveredSkills) : ''
   const toolsHintParts: string[] = []
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
   if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
@@ -209,6 +218,7 @@ export async function buildAgentTurnContext(
 
   const history = buildOllamaMessages(priorHistory, ollamaUserText, {
     systemPrompt: settings.llmSystemPrompt,
+    skillsSystemHint: skillsSystemHint || undefined,
     runtimeSystemHint: runtimeTimeHint,
     hiddenContextSummary: hiddenContextSummary.trim() || undefined,
     longTermMemoryContext: longMemoryContext,
@@ -237,5 +247,6 @@ export async function buildAgentTurnContext(
     activeRunwareProfile,
     activeRunwareEditProfile,
     activeRunwareMusicProfile,
+    skillsActive,
   }
 }

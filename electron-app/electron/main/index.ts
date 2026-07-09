@@ -1968,3 +1968,160 @@ ipcMain.handle('voidcast:open-path', async (_evt, filePath: string) => {
 ipcMain.handle('voidcast:get-app-version', () => {
   return app.getVersion()
 })
+
+// ── Agent Skills (~/.agents|~/.claude|~/.cursor/skills/*/SKILL.md) ──────────
+
+type AgentSkillSource = 'agents' | 'claude' | 'cursor'
+
+type AgentSkillMeta = {
+  id: string
+  name: string
+  description: string
+  dirPath: string
+  source: AgentSkillSource
+}
+
+const AGENT_SKILL_ROOTS: ReadonlyArray<{ source: AgentSkillSource; segments: string[] }> = [
+  { source: 'agents', segments: ['.agents', 'skills'] },
+  { source: 'claude', segments: ['.claude', 'skills'] },
+  { source: 'cursor', segments: ['.cursor', 'skills'] },
+]
+
+function parseSkillFrontmatterLite(raw: string): { name?: string; description?: string } {
+  const text = raw.replace(/^\uFEFF/, '')
+  if (!text.startsWith('---')) return {}
+  const end = text.indexOf('\n---', 3)
+  if (end < 0) return {}
+  const fm = text.slice(3, end).replace(/^\r?\n/, '')
+  const lines = fm.split(/\r?\n/)
+
+  const readBlock = (startIdx: number): string => {
+    const parts: string[] = []
+    let j = startIdx
+    while (j < lines.length && /^\s+/.test(lines[j] ?? '')) {
+      parts.push((lines[j] ?? '').replace(/^\s+/, ''))
+      j++
+    }
+    return parts.join(' ').replace(/\s+/g, ' ').trim()
+  }
+
+  const extract = (key: string): string | undefined => {
+    const keyRe = new RegExp(`^${key}\\s*:\\s*(.*)$`, 'i')
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i]?.match(keyRe)
+      if (!m) continue
+      let rest = m[1].trim()
+      if (rest === '>' || rest === '|' || rest === '>-' || rest === '|-') {
+        return readBlock(i + 1) || undefined
+      }
+      if (!rest) {
+        const next = lines[i + 1]?.trim() ?? ''
+        if (next === '>' || next === '|' || next === '>-' || next === '|-') {
+          return readBlock(i + 2) || undefined
+        }
+        if (/^\s+\S/.test(lines[i + 1] ?? '')) return readBlock(i + 1) || undefined
+        return undefined
+      }
+      if (
+        (rest.startsWith('"') && rest.endsWith('"') && rest.length >= 2) ||
+        (rest.startsWith("'") && rest.endsWith("'") && rest.length >= 2)
+      ) {
+        rest = rest.slice(1, -1)
+      }
+      return rest.trim() || undefined
+    }
+    return undefined
+  }
+
+  return { name: extract('name'), description: extract('description') }
+}
+
+async function discoverAgentSkillsFromDisk(): Promise<AgentSkillMeta[]> {
+  const home = os.homedir()
+  const found: AgentSkillMeta[] = []
+  const seen = new Set<string>()
+
+  for (const root of AGENT_SKILL_ROOTS) {
+    const rootDir = path.join(home, ...root.segments)
+    let entries: string[] = []
+    try {
+      entries = await readdir(rootDir)
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      const dirPath = path.join(rootDir, entry)
+      let isDir = false
+      try {
+        isDir = (await stat(dirPath)).isDirectory()
+      } catch {
+        continue
+      }
+      if (!isDir) continue
+      const skillMd = path.join(dirPath, 'SKILL.md')
+      let raw = ''
+      try {
+        raw = await readFile(skillMd, 'utf8')
+      } catch {
+        continue
+      }
+      const fm = parseSkillFrontmatterLite(raw)
+      const name = (fm.name || entry).trim()
+      if (!name) continue
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      found.push({
+        id: name,
+        name,
+        description: (fm.description || '').trim(),
+        dirPath,
+        source: root.source,
+      })
+    }
+  }
+
+  found.sort((a, b) => a.name.localeCompare(b.name))
+  return found
+}
+
+ipcMain.handle('voidcast:list-agent-skills', async () => {
+  try {
+    const skills = await discoverAgentSkillsFromDisk()
+    return { ok: true as const, skills }
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+      skills: [] as AgentSkillMeta[],
+    }
+  }
+})
+
+ipcMain.handle(
+  'voidcast:read-agent-skill',
+  async (_evt, payload: { name?: string }) => {
+    const want = String(payload?.name ?? '').trim()
+    if (!want) return { ok: false as const, error: 'Missing skill name.' }
+    try {
+      const skills = await discoverAgentSkillsFromDisk()
+      const skill =
+        skills.find((s) => s.name.toLowerCase() === want.toLowerCase()) ??
+        skills.find((s) => path.basename(s.dirPath).toLowerCase() === want.toLowerCase())
+      if (!skill) {
+        return { ok: false as const, error: `Skill not found: ${want}` }
+      }
+      const skillMd = path.join(skill.dirPath, 'SKILL.md')
+      // Ensure resolved path stays under the skill directory (no traversal).
+      const resolved = path.resolve(skillMd)
+      const rootResolved = path.resolve(skill.dirPath)
+      if (resolved !== rootResolved && !resolved.startsWith(rootResolved + path.sep)) {
+        return { ok: false as const, error: 'Invalid skill path.' }
+      }
+      const content = await readFile(resolved, 'utf8')
+      return { ok: true as const, name: skill.name, content, dirPath: skill.dirPath }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)

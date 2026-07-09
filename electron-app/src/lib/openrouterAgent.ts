@@ -45,6 +45,8 @@ export type RunOpenRouterChatWithToolsParams = {
   initialMessages: OllamaApiMessage[]
   modelOptions?: OllamaModelOptions
   toolsEnabled: ToolsEnabled
+  /** When true, register read_skill and allow loading SKILL.md bodies. */
+  skillsEnabled?: boolean
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
@@ -75,7 +77,7 @@ export type RunOpenRouterChatWithToolsParams = {
 export async function runOpenRouterChatWithTools(
   params: RunOpenRouterChatWithToolsParams,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
-  const tools = buildOllamaToolsList(params.toolsEnabled)
+  const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled))
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
@@ -189,6 +191,7 @@ export async function runOpenRouterChatWithTools(
         userImageMimes: params.userImageMimes,
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
+        skillsEnabled: Boolean(params.skillsEnabled),
         subAgent: params.subAgent,
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,

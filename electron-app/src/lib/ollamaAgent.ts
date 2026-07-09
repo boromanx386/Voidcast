@@ -1,3 +1,4 @@
+import { readAgentSkillBody } from '@/lib/agentSkills'
 import {
   AGENT_EDITABLE_SETTINGS_FIELDS,
   RUNWARE_CONFIGURED_MODELS,
@@ -609,6 +610,8 @@ export async function executeToolCall(
     codingProjectPath?: string
     /** Latest user message text for override-policy checks. */
     userText?: string
+    /** When true, read_skill is allowed. */
+    skillsEnabled?: boolean
     /** Sub-agent config for image_recall delegation. */
     subAgent?: SubAgentConfig
     /** Keys for sub-agent API calls (from main app settings). */
@@ -627,6 +630,16 @@ export async function executeToolCall(
     typeof argsJson === 'string'
       ? parseToolArguments(argsJson)
       : (argsJson as Record<string, unknown>) ?? {}
+  if (name === 'read_skill') {
+    if (!ctx.skillsEnabled) {
+      return 'Error: read_skill tool is disabled in settings.'
+    }
+    const skillName = typeof args.name === 'string' ? args.name.trim() : ''
+    if (!skillName) return 'Error: missing name parameter for read_skill.'
+    const res = await readAgentSkillBody(skillName)
+    if (!res.ok) return `Error: ${res.error}`
+    return `Skill "${res.name}" instructions:\n\n${res.content}`
+  }
   if (name === 'web_search') {
     if (!toolsEnabled.webSearch) {
       return 'Error: web_search tool is disabled in settings.'
@@ -1614,6 +1627,8 @@ export type RunChatWithToolsParams = {
   initialMessages: OllamaApiMessage[]
   modelOptions?: OllamaModelOptions
   toolsEnabled: ToolsEnabled
+  /** When true, register read_skill and allow loading SKILL.md bodies. */
+  skillsEnabled?: boolean
   /** Same host as TTS; used for `POST /tools/search` (DDGS). */
   ttsBaseUrl: string
   signal?: AbortSignal
@@ -1656,7 +1671,7 @@ export type RunChatWithToolsParams = {
 export async function runOllamaChatWithTools(
   params: RunChatWithToolsParams,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
-  const tools = buildOllamaToolsList(params.toolsEnabled)
+  const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled))
   if (tools.length === 0) {
     throw new Error('runOllamaChatWithTools called with no tools enabled')
   }
@@ -1820,6 +1835,7 @@ export async function runOllamaChatWithTools(
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
         userText: rawUserText,
+        skillsEnabled: Boolean(params.skillsEnabled),
         subAgent: params.subAgent,
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,

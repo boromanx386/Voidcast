@@ -130,6 +130,8 @@ export function buildOllamaMessages(
   newUserContent: string,
   opts: {
     systemPrompt: string
+    /** Agent skills catalog (name + description); full bodies via read_skill */
+    skillsSystemHint?: string
     /** Merged after user system prompt when tools are on */
     toolsSystemHint?: string
     /** Runtime context (e.g. local time/date/timezone) */
@@ -148,6 +150,7 @@ export function buildOllamaMessages(
   },
 ): OllamaApiMessage[] {
   const out: OllamaApiMessage[] = []
+  const skillsHint = opts.skillsSystemHint?.trim()
   const hint = opts.toolsSystemHint?.trim()
   const runtimeHint = opts.runtimeSystemHint?.trim()
   const base = opts.systemPrompt.trim()
@@ -159,7 +162,7 @@ export function buildOllamaMessages(
   const memorySection = longTermMemory
     ? `Relevant long-term user memory (do not quote verbatim unless asked):\n${longTermMemory}`
     : ''
-  const sys = [base, runtimeHint, hint, ATTACHMENT_TRUTH_HINT, summarySection, memorySection]
+  const sys = [base, skillsHint, runtimeHint, hint, ATTACHMENT_TRUTH_HINT, summarySection, memorySection]
     .filter(Boolean)
     .join('\n\n')
   if (sys) {

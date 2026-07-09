@@ -45,6 +45,35 @@ interface VoidcastBridge {
 
   getAppVersion: () => Promise<string>
 
+  listAgentSkills: () => Promise<
+    | {
+        ok: true
+        skills: {
+          id: string
+          name: string
+          description: string
+          dirPath: string
+          source: 'agents' | 'claude' | 'cursor'
+        }[]
+      }
+    | {
+        ok: false
+        error?: string
+        skills: {
+          id: string
+          name: string
+          description: string
+          dirPath: string
+          source: 'agents' | 'claude' | 'cursor'
+        }[]
+      }
+  >
+
+  readAgentSkill: (payload: { name: string }) => Promise<
+    | { ok: true; name: string; content: string; dirPath: string }
+    | { ok: false; error?: string }
+  >
+
   openPath: (filePath: string) => Promise<{ ok: boolean; text: string }>
 
   pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>

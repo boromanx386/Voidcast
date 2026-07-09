@@ -7,4 +7,5 @@ export type OptionsTab =
   | 'runwareMusic'
   | 'tts'
   | 'tools'
+  | 'skills'
   | 'subAgent'

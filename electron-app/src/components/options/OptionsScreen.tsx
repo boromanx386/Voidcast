@@ -4,6 +4,7 @@ import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { RunwareOptionsPanel } from '@/components/options/RunwareOptionsPanel'
 import { RunwareMusicOptionsPanel } from '@/components/options/RunwareMusicOptionsPanel'
 import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
+import { SkillsOptionsPanel } from '@/components/options/SkillsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
 import { SubAgentOptionsPanel } from '@/components/options/SubAgentOptionsPanel'
 import type { RefObject } from 'react'
@@ -74,7 +75,7 @@ export function OptionsScreen({ app }: Props) {
 
         {/* Tabs */}
         <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['general', 'llm', 'runware', 'runwareMusic', 'tts', 'tools', 'subAgent'] as OptionsTab[]).map((tab) => (
+          {(['general', 'llm', 'runware', 'runwareMusic', 'tts', 'tools', 'skills', 'subAgent'] as OptionsTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -88,6 +89,7 @@ export function OptionsScreen({ app }: Props) {
               {tab === 'runwareMusic' && '♫ MUSIC'}
               {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
               {tab === 'tools' && '⬡ TOOLS'}
+              {tab === 'skills' && '✦ SKILLS'}
               {tab === 'subAgent' && '⬢ SUB'}
             </button>
           ))}
@@ -148,6 +150,8 @@ export function OptionsScreen({ app }: Props) {
                 ollamaModels={ollamaModels}
                 modelsError={modelsError}
               />
+            ) : optionsTab === 'skills' ? (
+              <SkillsOptionsPanel settings={settings} setSettings={setSettings} />
             ) : (
               <ToolsOptionsPanel
                 settings={settings}
