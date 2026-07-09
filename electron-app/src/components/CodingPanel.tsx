@@ -26,6 +26,7 @@ import {
   invokePickCodingDirectory,
   invokeReadCodingFile,
 } from '@/lib/codingTools'
+import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImagePreview'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
 
 type CodingUiVisibilityPatch = Partial<
@@ -49,7 +50,7 @@ type Props = {
   agentShellFeed?: TerminalLine[]
 }
 
-type PreviewMode = 'file' | 'diff'
+type PreviewMode = 'file' | 'diff' | 'image'
 
 const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal'] as const
 
@@ -64,6 +65,7 @@ export function CodingPanel({
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
+  const [previewImageSrc, setPreviewImageSrc] = useState<string | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>('file')
   const [previewDiffStaged, setPreviewDiffStaged] = useState(false)
   /** Local bump so panel RUN also reloads git colors. */
@@ -179,6 +181,7 @@ export function CodingPanel({
     commandHistoryDraftRef.current = ''
     setSelectedPath(null)
     setPreviewContent('')
+    setPreviewImageSrc(null)
     setPreviewMode('file')
     setPreviewDiffStaged(false)
     setGitStatusByPath(new Map())
@@ -326,16 +329,31 @@ export function CodingPanel({
     }
   }, [onUpdateProjectPath, pushTerminal])
 
-  const onOpenFile = useCallback(
+  const loadFilePreview = useCallback(
     async (path: string) => {
       if (!projectPath) return
-      setSelectedPath(path)
+
+      if (isCodingPreviewImage(path)) {
+        setPreviewMode('image')
+        setPreviewDiffStaged(false)
+        setPreviewContent('')
+        setPreviewImageSrc(null)
+        const loaded = await loadCodingPreviewImage(projectPath, path)
+        if (loaded.ok) {
+          setPreviewImageSrc(loaded.dataUrl)
+        } else {
+          setPreviewMode('file')
+          setPreviewContent(loaded.error)
+        }
+        return
+      }
 
       const status = gitStatusByPathRef.current.get(normalizeGitPath(path))
       if (status && !status.untracked) {
         const preferStaged = status.staged && !status.unstaged
         setPreviewMode('diff')
         setPreviewDiffStaged(preferStaged)
+        setPreviewImageSrc(null)
         const out = await invokeCodingGit(projectPath, {
           mode: 'diff',
           path,
@@ -347,10 +365,20 @@ export function CodingPanel({
 
       setPreviewMode('file')
       setPreviewDiffStaged(false)
+      setPreviewImageSrc(null)
       const out = await invokeReadCodingFile(projectPath, path)
       setPreviewContent(out.text)
     },
     [projectPath],
+  )
+
+  const onOpenFile = useCallback(
+    async (path: string) => {
+      if (!projectPath) return
+      setSelectedPath(path)
+      await loadFilePreview(path)
+    },
+    [projectPath, loadFilePreview],
   )
 
   const onStageFile = useCallback(
@@ -396,13 +424,10 @@ export function CodingPanel({
       pushTerminal('system', `discarded ${path}`)
       setLocalGitBump((n) => n + 1)
       if (selectedPath === path) {
-        setPreviewMode('file')
-        setPreviewDiffStaged(false)
-        const read = await invokeReadCodingFile(projectPath, path)
-        setPreviewContent(read.text)
+        await loadFilePreview(path)
       }
     },
-    [projectPath, pushTerminal, selectedPath],
+    [projectPath, pushTerminal, selectedPath, loadFilePreview],
   )
 
   const stagedCount = useMemo(() => {
@@ -475,6 +500,7 @@ export function CodingPanel({
     setLocalGitBump((n) => n + 1)
     setSelectedPath(null)
     setPreviewContent('')
+    setPreviewImageSrc(null)
     setPreviewMode('file')
     setPreviewDiffStaged(false)
     void refreshFileTreeInPlace()
@@ -679,6 +705,7 @@ export function CodingPanel({
                       filePath={selectedPath}
                       content={previewContent}
                       mode={previewMode}
+                      imageSrc={previewImageSrc}
                       diffStaged={previewDiffStaged}
                       canStage={Boolean(
                         selectedGit && (selectedGit.unstaged || selectedGit.untracked),

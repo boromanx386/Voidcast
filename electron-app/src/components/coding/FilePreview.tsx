@@ -1,7 +1,9 @@
 type Props = {
   filePath: string | null
   content: string
-  mode?: 'file' | 'diff'
+  mode?: 'file' | 'diff' | 'image'
+  /** Data URL when mode is image. */
+  imageSrc?: string | null
   /** When mode is diff, whether this is staged (cached) diff. */
   diffStaged?: boolean
   /** Optional actions shown in the preview header. */
@@ -69,6 +71,7 @@ export function FilePreview({
   filePath,
   content,
   mode = 'file',
+  imageSrc = null,
   diffStaged = false,
   onStage,
   onUnstage,
@@ -80,7 +83,9 @@ export function FilePreview({
   const label =
     mode === 'diff'
       ? `DIFF${diffStaged ? ' (staged)' : ''}${filePath ? ` - ${filePath}` : ''}`
-      : `PREVIEW${filePath ? ` - ${filePath}` : ''}`
+      : mode === 'image'
+        ? `IMAGE${filePath ? ` - ${filePath}` : ''}`
+        : `PREVIEW${filePath ? ` - ${filePath}` : ''}`
 
   const showActions = canStage || canUnstage || canDiscard
 
@@ -125,8 +130,25 @@ export function FilePreview({
           </div>
         ) : null}
       </div>
-      <div className="min-h-0 flex-1 overflow-auto font-mono text-xs">
-        {!content ? (
+      <div
+        className={`min-h-0 flex-1 overflow-auto ${mode === 'image' ? '' : 'font-mono text-xs'}`}
+      >
+        {mode === 'image' ? (
+          imageSrc ? (
+            <div className="flex min-h-[120px] items-center justify-center p-2">
+              <img
+                src={imageSrc}
+                alt={filePath || 'Image preview'}
+                className="max-h-full max-w-full object-contain"
+                draggable={false}
+              />
+            </div>
+          ) : (
+            <div className="px-1 text-xs text-void-dim">
+              {content || 'Loading image…'}
+            </div>
+          )
+        ) : !content ? (
           <div className="px-1 text-void-dim">
             {mode === 'diff' ? 'Select a change to preview diff…' : 'Select file to preview...'}
           </div>
