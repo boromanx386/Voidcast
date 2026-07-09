@@ -36,8 +36,8 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: false; detail: string; status?: number }
     >,
   getAppVersion: () => ipcRenderer.invoke('voidcast:get-app-version') as Promise<string>,
-  listAgentSkills: () =>
-    ipcRenderer.invoke('voidcast:list-agent-skills') as Promise<
+  listAgentSkills: (payload?: { projectPath?: string }) =>
+    ipcRenderer.invoke('voidcast:list-agent-skills', payload) as Promise<
       | {
           ok: true
           skills: {
@@ -45,7 +45,7 @@ contextBridge.exposeInMainWorld('voidcast', {
             name: string
             description: string
             dirPath: string
-            source: 'agents' | 'claude' | 'cursor'
+            source: 'project' | 'agents' | 'claude' | 'cursor'
           }[]
         }
       | {
@@ -56,14 +56,19 @@ contextBridge.exposeInMainWorld('voidcast', {
             name: string
             description: string
             dirPath: string
-            source: 'agents' | 'claude' | 'cursor'
+            source: 'project' | 'agents' | 'claude' | 'cursor'
           }[]
         }
     >,
-  readAgentSkill: (payload: { name: string }) =>
+  readAgentSkill: (payload: { name: string; projectPath?: string }) =>
     ipcRenderer.invoke('voidcast:read-agent-skill', payload) as Promise<
       | { ok: true; name: string; content: string; dirPath: string }
       | { ok: false; error?: string }
+    >,
+  readProjectAgentInstructions: (payload: { projectPath: string }) =>
+    ipcRenderer.invoke('voidcast:read-project-agent-instructions', payload) as Promise<
+      | { ok: true; files: { fileName: string; content: string }[] }
+      | { ok: false; error?: string; files: { fileName: string; content: string }[] }
     >,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
   pickDirectory: () =>

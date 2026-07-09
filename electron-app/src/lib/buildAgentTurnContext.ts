@@ -38,8 +38,10 @@ import {
   type RunwareMusicModelProfile,
 } from '@/lib/settings'
 import {
+  buildProjectInstructionsHint,
   buildSkillsCatalogHint,
   discoverAgentSkills,
+  loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
@@ -147,10 +149,22 @@ export async function buildAgentTurnContext(
   }, [])
 
   const runtimeTimeHint = buildRuntimeTimeHint()
-  const discoveredSkills = settings.skillsEnabled ? await discoverAgentSkills() : []
+  const codingProjectPath = (
+    settings.coding.projectPath ||
+    settings.codingProjectPath ||
+    ''
+  ).trim()
+  const discoveredSkills = settings.skillsEnabled
+    ? await discoverAgentSkills({ projectPath: codingProjectPath || undefined })
+    : []
   const skillsActive = settings.skillsEnabled && discoveredSkills.length > 0
   const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive)
   const skillsSystemHint = skillsActive ? buildSkillsCatalogHint(discoveredSkills) : ''
+  const projectInstructionFiles =
+    settings.toolsEnabled.coding && codingProjectPath
+      ? await loadProjectAgentInstructions({ projectPath: codingProjectPath })
+      : []
+  const projectInstructionsHint = buildProjectInstructionsHint(projectInstructionFiles)
   const toolsHintParts: string[] = []
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
   if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
@@ -163,9 +177,7 @@ export async function buildAgentTurnContext(
   if (settings.toolsEnabled.runwareMusic) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
   if (settings.toolsEnabled.coding) {
     toolsHintParts.push(
-      buildToolsCodingHint(
-        settings.coding.projectPath || settings.codingProjectPath || '',
-      ),
+      buildToolsCodingHint(codingProjectPath),
     )
     toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
     if (settings.toolsEnabled.runwareImage) {
@@ -218,6 +230,7 @@ export async function buildAgentTurnContext(
 
   const history = buildOllamaMessages(priorHistory, ollamaUserText, {
     systemPrompt: settings.llmSystemPrompt,
+    projectInstructionsHint: projectInstructionsHint || undefined,
     skillsSystemHint: skillsSystemHint || undefined,
     runtimeSystemHint: runtimeTimeHint,
     hiddenContextSummary: hiddenContextSummary.trim() || undefined,

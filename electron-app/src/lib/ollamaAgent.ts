@@ -607,6 +607,7 @@ export async function executeToolCall(
     userImages?: string[]
     userImageMimes?: string[]
     userImagePaths?: string[]
+    /** Coding project path — coding tools + project skill resolution for read_skill. */
     codingProjectPath?: string
     /** Latest user message text for override-policy checks. */
     userText?: string
@@ -636,7 +637,7 @@ export async function executeToolCall(
     }
     const skillName = typeof args.name === 'string' ? args.name.trim() : ''
     if (!skillName) return 'Error: missing name parameter for read_skill.'
-    const res = await readAgentSkillBody(skillName)
+    const res = await readAgentSkillBody(skillName, ctx.codingProjectPath)
     if (!res.ok) return `Error: ${res.error}`
     return `Skill "${res.name}" instructions:\n\n${res.content}`
   }

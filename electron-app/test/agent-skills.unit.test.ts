@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  buildProjectInstructionsHint,
   buildSkillsCatalogHint,
   dedupeSkillsByName,
   parseSkillFrontmatter,
@@ -82,6 +83,16 @@ describe('dedupeSkillsByName', () => {
     expect(out[0]?.description).toBe('from agents')
     expect(out[1]?.name).toBe('other')
   })
+
+  test('project skill listed first wins over global', () => {
+    const out = dedupeSkillsByName([
+      skill({ name: 'deploy', description: 'repo deploy', source: 'project' }),
+      skill({ name: 'deploy', description: 'global deploy', source: 'claude' }),
+    ])
+    expect(out).toHaveLength(1)
+    expect(out[0]?.source).toBe('project')
+    expect(out[0]?.description).toBe('repo deploy')
+  })
 })
 
 describe('buildSkillsCatalogHint', () => {
@@ -89,14 +100,32 @@ describe('buildSkillsCatalogHint', () => {
     expect(buildSkillsCatalogHint([])).toBe('')
   })
 
-  test('lists skills and instructs read_skill', () => {
+  test('lists skills and marks project source', () => {
     const hint = buildSkillsCatalogHint([
       skill({ name: 'hyperframes', description: 'Video from HTML' }),
+      skill({ name: 'repo-check', description: 'CI checks', source: 'project' }),
       skill({ name: 'slideshow', description: '' }),
     ])
     expect(hint).toContain('read_skill')
     expect(hint).toContain('- hyperframes: Video from HTML')
+    expect(hint).toContain('- repo-check [project]: CI checks')
     expect(hint).toContain('- slideshow: (no description)')
+    expect(hint).toContain('override global')
+  })
+})
+
+describe('buildProjectInstructionsHint', () => {
+  test('returns empty for no files', () => {
+    expect(buildProjectInstructionsHint([])).toBe('')
+  })
+
+  test('includes AGENTS.md body', () => {
+    const hint = buildProjectInstructionsHint([
+      { fileName: 'AGENTS.md', content: 'Use pnpm. Never commit secrets.' },
+    ])
+    expect(hint).toContain('Project agent instructions')
+    expect(hint).toContain('### AGENTS.md')
+    expect(hint).toContain('Use pnpm')
   })
 })
 

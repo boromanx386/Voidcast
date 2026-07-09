@@ -1969,9 +1969,9 @@ ipcMain.handle('voidcast:get-app-version', () => {
   return app.getVersion()
 })
 
-// ── Agent Skills (~/.agents|~/.claude|~/.cursor/skills/*/SKILL.md) ──────────
+// ── Agent Skills (project + ~/.agents|~/.claude|~/.cursor/skills/*/SKILL.md) ─
 
-type AgentSkillSource = 'agents' | 'claude' | 'cursor'
+type AgentSkillSource = 'project' | 'agents' | 'claude' | 'cursor'
 
 type AgentSkillMeta = {
   id: string
@@ -1981,11 +1981,24 @@ type AgentSkillMeta = {
   source: AgentSkillSource
 }
 
-const AGENT_SKILL_ROOTS: ReadonlyArray<{ source: AgentSkillSource; segments: string[] }> = [
+const GLOBAL_AGENT_SKILL_ROOTS: ReadonlyArray<{
+  source: Exclude<AgentSkillSource, 'project'>
+  segments: string[]
+}> = [
   { source: 'agents', segments: ['.agents', 'skills'] },
   { source: 'claude', segments: ['.claude', 'skills'] },
   { source: 'cursor', segments: ['.cursor', 'skills'] },
 ]
+
+/** Project-relative skill roots; scanned first so they override globals. */
+const PROJECT_SKILL_ROOT_SEGMENTS: ReadonlyArray<string[]> = [
+  ['.cursor', 'skills'],
+  ['.claude', 'skills'],
+  ['.agents', 'skills'],
+  ['skills'],
+]
+
+const PROJECT_AGENT_INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md'] as const
 
 function parseSkillFrontmatterLite(raw: string): { name?: string; description?: string } {
   const text = raw.replace(/^\uFEFF/, '')
@@ -2036,75 +2049,126 @@ function parseSkillFrontmatterLite(raw: string): { name?: string; description?: 
   return { name: extract('name'), description: extract('description') }
 }
 
-async function discoverAgentSkillsFromDisk(): Promise<AgentSkillMeta[]> {
-  const home = os.homedir()
-  const found: AgentSkillMeta[] = []
-  const seen = new Set<string>()
-
-  for (const root of AGENT_SKILL_ROOTS) {
-    const rootDir = path.join(home, ...root.segments)
-    let entries: string[] = []
+async function scanSkillRootDir(
+  rootDir: string,
+  source: AgentSkillSource,
+  seen: Set<string>,
+  found: AgentSkillMeta[],
+): Promise<void> {
+  let entries: string[] = []
+  try {
+    entries = await readdir(rootDir)
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    const dirPath = path.join(rootDir, entry)
+    let isDir = false
     try {
-      entries = await readdir(rootDir)
+      isDir = (await stat(dirPath)).isDirectory()
     } catch {
       continue
     }
-    for (const entry of entries) {
-      const dirPath = path.join(rootDir, entry)
-      let isDir = false
-      try {
-        isDir = (await stat(dirPath)).isDirectory()
-      } catch {
-        continue
-      }
-      if (!isDir) continue
-      const skillMd = path.join(dirPath, 'SKILL.md')
-      let raw = ''
-      try {
-        raw = await readFile(skillMd, 'utf8')
-      } catch {
-        continue
-      }
-      const fm = parseSkillFrontmatterLite(raw)
-      const name = (fm.name || entry).trim()
-      if (!name) continue
-      const key = name.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      found.push({
-        id: name,
-        name,
-        description: (fm.description || '').trim(),
-        dirPath,
-        source: root.source,
-      })
+    if (!isDir) continue
+    const skillMd = path.join(dirPath, 'SKILL.md')
+    let raw = ''
+    try {
+      raw = await readFile(skillMd, 'utf8')
+    } catch {
+      continue
     }
+    const fm = parseSkillFrontmatterLite(raw)
+    const name = (fm.name || entry).trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    found.push({
+      id: name,
+      name,
+      description: (fm.description || '').trim(),
+      dirPath,
+      source,
+    })
+  }
+}
+
+async function discoverAgentSkillsFromDisk(projectPath?: string): Promise<AgentSkillMeta[]> {
+  const found: AgentSkillMeta[] = []
+  const seen = new Set<string>()
+  const projectRoot = String(projectPath ?? '').trim()
+
+  if (projectRoot) {
+    const rootResolved = path.resolve(projectRoot)
+    try {
+      if ((await stat(rootResolved)).isDirectory()) {
+        for (const segments of PROJECT_SKILL_ROOT_SEGMENTS) {
+          await scanSkillRootDir(path.join(rootResolved, ...segments), 'project', seen, found)
+        }
+      }
+    } catch {
+      // ignore missing / unreadable project path
+    }
+  }
+
+  const home = os.homedir()
+  for (const root of GLOBAL_AGENT_SKILL_ROOTS) {
+    await scanSkillRootDir(path.join(home, ...root.segments), root.source, seen, found)
   }
 
   found.sort((a, b) => a.name.localeCompare(b.name))
   return found
 }
 
-ipcMain.handle('voidcast:list-agent-skills', async () => {
+async function readProjectAgentInstructionFiles(
+  projectPath: string,
+): Promise<{ fileName: string; content: string }[]> {
+  const root = path.resolve(projectPath)
   try {
-    const skills = await discoverAgentSkillsFromDisk()
-    return { ok: true as const, skills }
-  } catch (e) {
-    return {
-      ok: false as const,
-      error: e instanceof Error ? e.message : String(e),
-      skills: [] as AgentSkillMeta[],
+    if (!(await stat(root)).isDirectory()) return []
+  } catch {
+    return []
+  }
+  const out: { fileName: string; content: string }[] = []
+  for (const fileName of PROJECT_AGENT_INSTRUCTION_FILES) {
+    const abs = path.join(root, fileName)
+    const resolved = path.resolve(abs)
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) continue
+    try {
+      const content = await readFile(resolved, 'utf8')
+      if (content.trim()) out.push({ fileName, content })
+    } catch {
+      // missing file is fine
     }
   }
-})
+  return out
+}
+
+ipcMain.handle(
+  'voidcast:list-agent-skills',
+  async (_evt, payload?: { projectPath?: string }) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim() || undefined
+      const skills = await discoverAgentSkillsFromDisk(projectPath)
+      return { ok: true as const, skills }
+    } catch (e) {
+      return {
+        ok: false as const,
+        error: e instanceof Error ? e.message : String(e),
+        skills: [] as AgentSkillMeta[],
+      }
+    }
+  },
+)
 
 ipcMain.handle(
   'voidcast:read-agent-skill',
-  async (_evt, payload: { name?: string }) => {
+  async (_evt, payload: { name?: string; projectPath?: string }) => {
     const want = String(payload?.name ?? '').trim()
     if (!want) return { ok: false as const, error: 'Missing skill name.' }
     try {
-      const skills = await discoverAgentSkillsFromDisk()
+      const projectPath = String(payload?.projectPath ?? '').trim() || undefined
+      const skills = await discoverAgentSkillsFromDisk(projectPath)
       const skill =
         skills.find((s) => s.name.toLowerCase() === want.toLowerCase()) ??
         skills.find((s) => path.basename(s.dirPath).toLowerCase() === want.toLowerCase())
@@ -2112,7 +2176,6 @@ ipcMain.handle(
         return { ok: false as const, error: `Skill not found: ${want}` }
       }
       const skillMd = path.join(skill.dirPath, 'SKILL.md')
-      // Ensure resolved path stays under the skill directory (no traversal).
       const resolved = path.resolve(skillMd)
       const rootResolved = path.resolve(skill.dirPath)
       if (resolved !== rootResolved && !resolved.startsWith(rootResolved + path.sep)) {
@@ -2122,6 +2185,26 @@ ipcMain.handle(
       return { ok: true as const, name: skill.name, content, dirPath: skill.dirPath }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:read-project-agent-instructions',
+  async (_evt, payload: { projectPath?: string }) => {
+    const projectPath = String(payload?.projectPath ?? '').trim()
+    if (!projectPath) {
+      return { ok: false as const, error: 'Missing project path.', files: [] as { fileName: string; content: string }[] }
+    }
+    try {
+      const files = await readProjectAgentInstructionFiles(projectPath)
+      return { ok: true as const, files }
+    } catch (e) {
+      return {
+        ok: false as const,
+        error: e instanceof Error ? e.message : String(e),
+        files: [] as { fileName: string; content: string }[],
+      }
     }
   },
 )
