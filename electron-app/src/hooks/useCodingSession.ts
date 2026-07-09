@@ -35,6 +35,8 @@ export type UseCodingSessionResult = {
   setCodingTerminalFeed: React.Dispatch<React.SetStateAction<TerminalLine[]>>
   codingFileTreeNonce: number
   setCodingFileTreeNonce: React.Dispatch<React.SetStateAction<number>>
+  codingGitNonce: number
+  setCodingGitNonce: React.Dispatch<React.SetStateAction<number>>
   codingContextMemo: CodingContextMemo
   setCodingContextMemo: React.Dispatch<React.SetStateAction<CodingContextMemo>>
   codingPanelAvailable: boolean
@@ -57,6 +59,7 @@ export function useCodingSession({
   const [showCodingPanel, setShowCodingPanel] = useState(false)
   const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
   const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
+  const [codingGitNonce, setCodingGitNonce] = useState(0)
   const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(() =>
     emptyCodingContextMemo(getCodingProjectPath(loadSettings())),
   )
@@ -136,6 +139,8 @@ export function useCodingSession({
     setCodingTerminalFeed,
     codingFileTreeNonce,
     setCodingFileTreeNonce,
+    codingGitNonce,
+    setCodingGitNonce,
     codingContextMemo,
     setCodingContextMemo,
     codingPanelAvailable,

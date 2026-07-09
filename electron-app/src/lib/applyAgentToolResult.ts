@@ -39,6 +39,7 @@ export type AgentToolResultHandlerDeps = {
   setCodingContextMemo: Dispatch<SetStateAction<CodingContextMemo>>
   setCodingTerminalFeed: Dispatch<SetStateAction<TerminalLine[]>>
   setCodingFileTreeNonce: Dispatch<SetStateAction<number>>
+  setCodingGitNonce: Dispatch<SetStateAction<number>>
   setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf'; text: string } | null>>
   setMessages: Dispatch<SetStateAction<UiMessage[]>>
   setAssistantGeneratedImages: Dispatch<SetStateAction<Record<string, string[]>>>
@@ -75,6 +76,7 @@ export function applyAgentToolResult(
     setCodingContextMemo,
     setCodingTerminalFeed,
     setCodingFileTreeNonce,
+    setCodingGitNonce,
     setToolResultBanner,
     setMessages,
     setAssistantGeneratedImages,
@@ -227,6 +229,15 @@ export function applyAgentToolResult(
   }
   if (name === 'write_file' || name === 'edit_code' || name === 'execute_command') {
     setCodingFileTreeNonce((n) => n + 1)
+    setCodingGitNonce((n) => n + 1)
+  }
+  if (
+    name === 'git_status' ||
+    name === 'git_diff' ||
+    name === 'git_log' ||
+    name === 'git_show'
+  ) {
+    setCodingGitNonce((n) => n + 1)
   }
   if (name === 'save_pdf') {
     setToolResultBanner({ kind: 'pdf', text: result })

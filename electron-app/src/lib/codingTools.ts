@@ -138,7 +138,12 @@ export async function invokeCodingGit(
     | { mode: 'status' }
     | { mode: 'diff'; path?: string; staged?: boolean }
     | { mode: 'log'; logMaxCount?: number; logPath?: string }
-    | { mode: 'show'; showRef?: string; showPath?: string },
+    | { mode: 'show'; showRef?: string; showPath?: string }
+    | { mode: 'stage'; path: string }
+    | { mode: 'unstage'; path: string }
+    | { mode: 'discard'; path: string }
+    | { mode: 'discardAll' }
+    | { mode: 'commit'; message: string; all?: boolean },
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingGit
   if (!fn) return missingBridgeResult('Git')
@@ -159,12 +164,27 @@ export async function invokeCodingGit(
               logMaxCount: options.logMaxCount,
               logPath: options.logPath,
             }
-          : {
-              projectPath,
-              mode: 'show' as const,
-              showRef: options.showRef,
-              showPath: options.showPath,
-            }
+          : options.mode === 'show'
+            ? {
+                projectPath,
+                mode: 'show' as const,
+                showRef: options.showRef,
+                showPath: options.showPath,
+              }
+            : options.mode === 'commit'
+              ? {
+                  projectPath,
+                  mode: 'commit' as const,
+                  commitMessage: options.message,
+                  commitAll: options.all === true,
+                }
+              : options.mode === 'discardAll'
+                ? { projectPath, mode: 'discardAll' as const }
+                : {
+                    projectPath,
+                    mode: options.mode,
+                    path: options.path,
+                  }
   const res = await fn(payload)
   return { ok: res.ok, text: res.ok ? res.text : res.error || 'Git command failed.' }
 }

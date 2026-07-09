@@ -1,4 +1,10 @@
 import type { CodingFileNode } from '@/types/coding'
+import {
+  dirHasGitChanges,
+  gitLetterTextClass,
+  normalizeGitPath,
+  type GitStatusEntry,
+} from '@/lib/gitStatusParse'
 
 export type FileTreeProps = {
   rootEntries: CodingFileNode[]
@@ -6,8 +12,29 @@ export type FileTreeProps = {
   loadingDirs: ReadonlySet<string>
   childrenByDir: Readonly<Record<string, CodingFileNode[]>>
   selectedPath: string | null
+  /** Git status by normalized relative path — colors dirty files. */
+  gitStatusByPath?: ReadonlyMap<string, GitStatusEntry>
+  /** Optional branch label shown in the FILES header. */
+  gitBranchLabel?: string | null
+  /** When true, hide clean files; keep dirs that contain changes. */
+  dirtyOnly?: boolean
+  onDirtyOnlyChange?: (next: boolean) => void
   onToggleDirectory: (dirPath: string) => void | Promise<void>
   onSelectFile: (path: string) => void
+  onStageFile?: (path: string) => void
+  onUnstageFile?: (path: string) => void
+  onDiscardFile?: (path: string) => void
+}
+
+function filterDirtyEntries(
+  entries: CodingFileNode[],
+  byPath: ReadonlyMap<string, GitStatusEntry> | undefined,
+): CodingFileNode[] {
+  if (!byPath || byPath.size === 0) return entries
+  return entries.filter((node) => {
+    if (node.type === 'directory') return dirHasGitChanges(node.path, byPath)
+    return byPath.has(normalizeGitPath(node.path))
+  })
 }
 
 function TreeRows({
@@ -18,16 +45,23 @@ function TreeRows({
   childrenByDir,
   onToggleDirectory,
   onSelectFile,
+  onStageFile,
+  onUnstageFile,
+  onDiscardFile,
   selectedPath,
+  gitStatusByPath,
+  dirtyOnly,
 }: {
   entries: CodingFileNode[]
   depth: number
-} & Omit<FileTreeProps, 'rootEntries'>) {
+} & Omit<FileTreeProps, 'rootEntries' | 'gitBranchLabel' | 'onDirtyOnlyChange'>) {
   const pad = 6 + depth * 10
+  const byPath = gitStatusByPath
+  const visible = dirtyOnly ? filterDirtyEntries(entries, byPath) : entries
 
   return (
     <>
-      {entries.map((node) =>
+      {visible.map((node) =>
         node.type === 'directory' ? (
           <div key={node.path}>
             <button
@@ -35,7 +69,11 @@ function TreeRows({
               title={node.path}
               style={{ paddingLeft: pad }}
               onClick={() => void onToggleDirectory(node.path)}
-              className="w-full rounded py-1 text-left text-xs font-mono text-void-light hover:bg-void-mid/40"
+              className={`w-full rounded py-1 text-left text-xs font-mono hover:bg-void-mid/40 ${
+                byPath && dirHasGitChanges(node.path, byPath)
+                  ? 'text-neon-yellow/85'
+                  : 'text-void-light'
+              }`}
             >
               <span className="inline-block w-4 tabular-nums text-void-dim">
                 {loadingDirs.has(node.path) ? '…' : expandedDirs.has(node.path) ? '▾' : '▸'}
@@ -67,24 +105,103 @@ function TreeRows({
                   childrenByDir={childrenByDir}
                   onToggleDirectory={onToggleDirectory}
                   onSelectFile={onSelectFile}
+                  onStageFile={onStageFile}
+                  onUnstageFile={onUnstageFile}
+                  onDiscardFile={onDiscardFile}
                   selectedPath={selectedPath}
+                  gitStatusByPath={gitStatusByPath}
+                  dirtyOnly={dirtyOnly}
                 />
               ))}
           </div>
         ) : (
-          <button
-            key={node.path}
-            type="button"
-            title={node.path}
-            style={{ paddingLeft: pad }}
-            onClick={() => onSelectFile(node.path)}
-            className={`w-full rounded py-1 text-left text-xs font-mono break-all ${
-              selectedPath === node.path ? 'bg-neon-cyan/15 text-neon-cyan' : 'text-void-light hover:bg-void-mid/40'
-            }`}
-          >
-            <span className="inline-block w-4" aria-hidden />
-            📄 {node.name}
-          </button>
+          (() => {
+            const status = byPath?.get(normalizeGitPath(node.path))
+            const letter = status?.letter
+            const colorClass = letter ? gitLetterTextClass(letter) : ''
+            const selected = selectedPath === node.path
+            const canStage = Boolean(status && (status.unstaged || status.untracked) && onStageFile)
+            const canUnstage = Boolean(status?.staged && onUnstageFile)
+            const canDiscard = Boolean(
+              status && status.unstaged && !status.untracked && onDiscardFile,
+            )
+            return (
+              <div
+                key={node.path}
+                className={`group flex w-full items-stretch gap-0.5 rounded ${
+                  selected ? 'bg-neon-cyan/15' : 'hover:bg-void-mid/40'
+                }`}
+              >
+                <button
+                  type="button"
+                  title={status ? `${node.path} (${letter})` : node.path}
+                  style={{ paddingLeft: pad }}
+                  onClick={() => onSelectFile(node.path)}
+                  className={`min-w-0 flex-1 py-1 text-left text-xs font-mono break-all ${
+                    selected
+                      ? 'text-neon-cyan'
+                      : letter
+                        ? colorClass
+                        : 'text-void-light'
+                  }`}
+                >
+                  <span
+                    className={`inline-block w-4 tabular-nums ${letter ? colorClass : 'text-transparent'}`}
+                    aria-hidden={!letter}
+                  >
+                    {letter || '·'}
+                  </span>
+                  📄 {node.name}
+                </button>
+                {(canStage || canUnstage || canDiscard) && (
+                  <div className="flex shrink-0 items-center gap-0.5 pr-0.5 opacity-70 group-hover:opacity-100">
+                    {canStage ? (
+                      <button
+                        type="button"
+                        title="Stage"
+                        aria-label={`Stage ${node.name}`}
+                        className="rounded px-1 py-0.5 text-[10px] font-mono text-neon-green hover:bg-neon-green/15"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onStageFile?.(node.path)
+                        }}
+                      >
+                        +
+                      </button>
+                    ) : null}
+                    {canUnstage ? (
+                      <button
+                        type="button"
+                        title="Unstage"
+                        aria-label={`Unstage ${node.name}`}
+                        className="rounded px-1 py-0.5 text-[10px] font-mono text-neon-yellow hover:bg-neon-yellow/15"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onUnstageFile?.(node.path)
+                        }}
+                      >
+                        −
+                      </button>
+                    ) : null}
+                    {canDiscard ? (
+                      <button
+                        type="button"
+                        title="Discard unstaged changes"
+                        aria-label={`Discard ${node.name}`}
+                        className="rounded px-1 py-0.5 text-[10px] font-mono text-neon-red/90 hover:bg-neon-red/15"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDiscardFile?.(node.path)
+                        }}
+                      >
+                        ↶
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            )
+          })()
         ),
       )}
     </>
@@ -97,17 +214,58 @@ export function FileTree({
   loadingDirs,
   childrenByDir,
   selectedPath,
+  gitStatusByPath,
+  gitBranchLabel,
+  dirtyOnly = false,
+  onDirtyOnlyChange,
   onToggleDirectory,
   onSelectFile,
+  onStageFile,
+  onUnstageFile,
+  onDiscardFile,
 }: FileTreeProps) {
+  const dirtyCount = gitStatusByPath?.size ?? 0
+  const visibleRoot =
+    dirtyOnly && gitStatusByPath ? filterDirtyEntries(rootEntries, gitStatusByPath) : rootEntries
+
   return (
     <div className="rounded border border-void-muted/30 bg-void-black/30 p-2">
-      <div className="mb-2 text-xs font-mono text-neon-cyan">FILES</div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="text-xs font-mono text-neon-cyan">FILES</div>
+          {gitBranchLabel ? (
+            <div
+              className="min-w-0 truncate text-[10px] font-mono text-void-dim"
+              title={gitBranchLabel}
+            >
+              {gitBranchLabel}
+            </div>
+          ) : null}
+        </div>
+        {onDirtyOnlyChange && dirtyCount > 0 ? (
+          <button
+            type="button"
+            title={dirtyOnly ? 'Show all files' : 'Show only changed files'}
+            aria-pressed={dirtyOnly}
+            onClick={() => onDirtyOnlyChange(!dirtyOnly)}
+            className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors ${
+              dirtyOnly
+                ? 'border-neon-yellow/50 bg-neon-yellow/10 text-neon-yellow'
+                : 'border-void-muted/50 text-void-dim hover:border-void-dim hover:text-void-text'
+            }`}
+          >
+            {dirtyOnly ? `DIRTY ${dirtyCount}` : `ALL · ${dirtyCount}`}
+          </button>
+        ) : null}
+      </div>
       <div className="max-h-52 overflow-auto space-y-0.5">
         {rootEntries.length === 0 && (
           <div className="text-xs text-void-dim">No files loaded.</div>
         )}
-        {rootEntries.length > 0 && (
+        {rootEntries.length > 0 && visibleRoot.length === 0 && dirtyOnly && (
+          <div className="text-xs text-void-dim">No changed files in tree.</div>
+        )}
+        {visibleRoot.length > 0 && (
           <TreeRows
             entries={rootEntries}
             depth={0}
@@ -116,7 +274,12 @@ export function FileTree({
             childrenByDir={childrenByDir}
             onToggleDirectory={onToggleDirectory}
             onSelectFile={onSelectFile}
+            onStageFile={onStageFile}
+            onUnstageFile={onUnstageFile}
+            onDiscardFile={onDiscardFile}
             selectedPath={selectedPath}
+            gitStatusByPath={gitStatusByPath}
+            dirtyOnly={dirtyOnly}
           />
         )}
       </div>

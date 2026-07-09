@@ -137,9 +137,20 @@ interface VoidcastBridge {
 
   codingGit: (payload: {
     projectPath: string
-    mode: 'status' | 'diff' | 'log' | 'show'
+    mode:
+      | 'status'
+      | 'diff'
+      | 'log'
+      | 'show'
+      | 'stage'
+      | 'unstage'
+      | 'commit'
+      | 'discard'
+      | 'discardAll'
     path?: string
     staged?: boolean
+    commitAll?: boolean
+    commitMessage?: string
     logMaxCount?: number
     logPath?: string
     showRef?: string

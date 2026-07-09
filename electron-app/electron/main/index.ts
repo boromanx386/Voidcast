@@ -1458,9 +1458,21 @@ ipcMain.handle(
     _evt,
     payload: {
       projectPath?: string
-      mode?: 'status' | 'diff' | 'log' | 'show'
+      mode?:
+        | 'status'
+        | 'diff'
+        | 'log'
+        | 'show'
+        | 'stage'
+        | 'unstage'
+        | 'commit'
+        | 'discard'
+        | 'discardAll'
       path?: string
       staged?: boolean
+      /** When committing: stage all changes first (`git add -A`), like VS Code Commit All. */
+      commitAll?: boolean
+      commitMessage?: string
       logMaxCount?: number
       logPath?: string
       showRef?: string
@@ -1472,8 +1484,26 @@ ipcMain.handle(
       if (!projectPath) return { ok: false as const, error: 'Missing projectPath.' }
       const root = path.resolve(projectPath)
       const modeRaw = payload?.mode
-      const mode: 'status' | 'diff' | 'log' | 'show' =
-        modeRaw === 'diff' || modeRaw === 'log' || modeRaw === 'show' ? modeRaw : 'status'
+      const mode:
+        | 'status'
+        | 'diff'
+        | 'log'
+        | 'show'
+        | 'stage'
+        | 'unstage'
+        | 'commit'
+        | 'discard'
+        | 'discardAll' =
+        modeRaw === 'diff' ||
+        modeRaw === 'log' ||
+        modeRaw === 'show' ||
+        modeRaw === 'stage' ||
+        modeRaw === 'unstage' ||
+        modeRaw === 'commit' ||
+        modeRaw === 'discard' ||
+        modeRaw === 'discardAll'
+          ? modeRaw
+          : 'status'
 
       const inside = await runGitCapture(root, ['rev-parse', '--is-inside-work-tree'])
       if (!inside.ok) return { ok: false as const, error: inside.error }
@@ -1482,6 +1512,130 @@ ipcMain.handle(
         return {
           ok: false as const,
           error: /not a git repository/i.test(hint) ? 'Not a git repository.' : hint,
+        }
+      }
+
+      if (mode === 'commit') {
+        const message = String(payload?.commitMessage ?? '').trim()
+        if (!message) return { ok: false as const, error: 'Commit message is empty.' }
+        if (message.length > 4000) {
+          return { ok: false as const, error: 'Commit message too long (max 4000 chars).' }
+        }
+        const commitAll = payload?.commitAll === true
+        if (commitAll) {
+          const add = await runGitCapture(root, ['-c', 'core.quotepath=false', 'add', '-A'])
+          if (!add.ok) return { ok: false as const, error: add.error }
+          if (add.code !== 0) {
+            return {
+              ok: false as const,
+              error:
+                add.stderr.trim() ||
+                add.stdout.trim() ||
+                `git add -A failed (exit ${add.code}).`,
+            }
+          }
+        }
+        const r = await runGitCapture(root, [
+          '-c',
+          'core.quotepath=false',
+          'commit',
+          '-m',
+          message,
+        ])
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error: r.stderr.trim() || r.stdout.trim() || `git commit failed (exit ${r.code}).`,
+          }
+        }
+        const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
+        return { ok: true as const, text: truncateGitOutput(combined || 'Committed.') }
+      }
+
+      if (mode === 'discardAll') {
+        // Restore tracked staged + worktree to HEAD, then remove untracked files/dirs.
+        const restore = await runGitCapture(root, [
+          '-c',
+          'core.quotepath=false',
+          'restore',
+          '--source=HEAD',
+          '--staged',
+          '--worktree',
+          '.',
+        ])
+        if (!restore.ok) return { ok: false as const, error: restore.error }
+        // restore may fail on empty index edge cases; still try clean
+        const clean = await runGitCapture(root, [
+          '-c',
+          'core.quotepath=false',
+          'clean',
+          '-fd',
+        ])
+        if (!clean.ok) return { ok: false as const, error: clean.error }
+        if (clean.code !== 0) {
+          return {
+            ok: false as const,
+            error:
+              clean.stderr.trim() ||
+              clean.stdout.trim() ||
+              `git clean failed (exit ${clean.code}).`,
+          }
+        }
+        // If restore failed but clean ok, surface restore error when non-zero
+        if (restore.code !== 0) {
+          const hint = restore.stderr.trim() || restore.stdout.trim()
+          // Empty tree / nothing to restore is fine
+          if (hint && !/did not match|pathspec|No such file/i.test(hint)) {
+            return {
+              ok: false as const,
+              error: hint || `git restore failed (exit ${restore.code}).`,
+            }
+          }
+        }
+        const combined = [restore.stdout, restore.stderr, clean.stdout, clean.stderr]
+          .filter(Boolean)
+          .join('\n')
+          .trim()
+        return {
+          ok: true as const,
+          text: truncateGitOutput(combined || 'Discarded all changes.'),
+        }
+      }
+
+      if (mode === 'stage' || mode === 'unstage' || mode === 'discard') {
+        const rel = String(payload?.path ?? '').trim()
+        if (!rel) {
+          return {
+            ok: false as const,
+            error: `Missing path for git ${mode}.`,
+          }
+        }
+        const abs = resolveInsideProject(projectPath, rel)
+        const relGit = path.relative(root, abs).replace(/\\/g, '/')
+        const args =
+          mode === 'stage'
+            ? ['-c', 'core.quotepath=false', 'add', '--', relGit]
+            : mode === 'unstage'
+              ? ['-c', 'core.quotepath=false', 'restore', '--staged', '--', relGit]
+              : ['-c', 'core.quotepath=false', 'restore', '--', relGit]
+        const r = await runGitCapture(root, args)
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error:
+              r.stderr.trim() ||
+              r.stdout.trim() ||
+              `git ${mode} failed (exit ${r.code}).`,
+          }
+        }
+        const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
+        const doneLabel =
+          mode === 'stage' ? 'staged' : mode === 'unstage' ? 'unstaged' : 'discarded'
+        return {
+          ok: true as const,
+          text: truncateGitOutput(combined || `${doneLabel} ${relGit}`),
         }
       }
 

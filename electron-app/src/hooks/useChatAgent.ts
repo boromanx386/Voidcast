@@ -71,6 +71,7 @@ export type UseChatAgentDeps = {
   setCodingContextMemo: Dispatch<SetStateAction<CodingContextMemo>>
   setCodingTerminalFeed: Dispatch<SetStateAction<TerminalLine[]>>
   setCodingFileTreeNonce: Dispatch<SetStateAction<number>>
+  setCodingGitNonce: Dispatch<SetStateAction<number>>
 
   onSessionDirty: () => void
 }
@@ -109,6 +110,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     setCodingContextMemo,
     setCodingTerminalFeed,
     setCodingFileTreeNonce,
+    setCodingGitNonce,
     onSessionDirty,
   } = deps
 
@@ -452,6 +454,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   setCodingContextMemo,
                   setCodingTerminalFeed,
                   setCodingFileTreeNonce,
+                  setCodingGitNonce,
                   setToolResultBanner,
                   setMessages,
                   setAssistantGeneratedImages,
@@ -593,6 +596,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       refreshReminders,
       setCodingContextMemo,
       setCodingFileTreeNonce,
+      setCodingGitNonce,
       setCodingTerminalFeed,
       setImageVisionCache,
       setInput,

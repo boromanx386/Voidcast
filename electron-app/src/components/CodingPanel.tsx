@@ -4,19 +4,27 @@ import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FilePreview } from '@/components/coding/FilePreview'
 import { TerminalView } from '@/components/coding/TerminalView'
 import { filterCodingTreeEntries } from '@/lib/codingTreeFilter'
+import {
+  buildGitStatusByPath,
+  formatGitBranchBadge,
+  normalizeGitPath,
+  parseGitStatusText,
+  type GitStatusEntry,
+} from '@/lib/gitStatusParse'
 import { expandTextToTerminalLines, MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
 import type { AppSettings, CodingSettings } from '@/lib/settings'
-
-type CodingUiVisibilityPatch = Partial<
-  Pick<CodingSettings, 'showFileTree' | 'showFilePreview' | 'showTerminal' | 'panelWidthPx'>
->
 import {
+  invokeCodingGit,
   invokeExecuteCodingCommand,
   invokeListCodingDirectory,
   invokePickCodingDirectory,
   invokeReadCodingFile,
 } from '@/lib/codingTools'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
+
+type CodingUiVisibilityPatch = Partial<
+  Pick<CodingSettings, 'showFileTree' | 'showFilePreview' | 'showTerminal' | 'panelWidthPx'>
+>
 
 type Props = {
   settings: AppSettings
@@ -26,9 +34,15 @@ type Props = {
   widthPx?: number
   /** Increments when agent mutates the project on disk; refreshes file tree while panel is open. */
   fileTreeRevision?: number
+  /** Increments when agent mutates disk or runs git tools; refreshes git colors. */
+  gitRevision?: number
   /** Agent `execute_command` lines only (mirrors shell); manual RUN output is appended locally. */
   agentShellFeed?: TerminalLine[]
 }
+
+type PreviewMode = 'file' | 'diff'
+
+const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal'] as const
 
 export function CodingPanel({
   settings,
@@ -36,10 +50,22 @@ export function CodingPanel({
   onCodingUiChange,
   widthPx,
   fileTreeRevision = 0,
+  gitRevision = 0,
   agentShellFeed = [],
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('file')
+  const [previewDiffStaged, setPreviewDiffStaged] = useState(false)
+  /** Local bump so panel RUN also reloads git colors. */
+  const [localGitBump, setLocalGitBump] = useState(0)
+  const [gitStatusByPath, setGitStatusByPath] = useState<Map<string, GitStatusEntry>>(
+    () => new Map(),
+  )
+  const [gitBranchLabel, setGitBranchLabel] = useState<string | null>(null)
+  const [dirtyOnly, setDirtyOnly] = useState(false)
+  const [commitMessage, setCommitMessage] = useState('')
+  const [commitBusy, setCommitBusy] = useState(false)
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
   const [command, setCommand] = useState('')
   /** Oldest → newest; used for ↑ / ↓ in command input (bash-style). */
@@ -56,17 +82,17 @@ export function CodingPanel({
   expandedDirsRef.current = expandedDirs
 
   const seenAgentShellIdsRef = useRef<Set<string>>(new Set())
+  const gitStatusByPathRef = useRef(gitStatusByPath)
+  gitStatusByPathRef.current = gitStatusByPath
 
   const projectPath = settings.coding.projectPath || settings.codingProjectPath
   const { showFileTree, showFilePreview, showTerminal } = settings.coding
 
   const toggleSection = useCallback(
-    (key: 'showFileTree' | 'showFilePreview' | 'showTerminal') => {
+    (key: (typeof SECTION_KEYS)[number]) => {
       const cur = settings.coding[key]
       if (cur) {
-        const othersOn = (['showFileTree', 'showFilePreview', 'showTerminal'] as const)
-          .filter((k) => k !== key)
-          .some((k) => settings.coding[k])
+        const othersOn = SECTION_KEYS.filter((k) => k !== key).some((k) => settings.coding[k])
         if (!othersOn) return
       }
       onCodingUiChange({ [key]: !cur })
@@ -82,6 +108,14 @@ export function CodingPanel({
     setCommandHistory([])
     setHistoryFromEnd(null)
     commandHistoryDraftRef.current = ''
+    setSelectedPath(null)
+    setPreviewContent('')
+    setPreviewMode('file')
+    setPreviewDiffStaged(false)
+    setGitStatusByPath(new Map())
+    setGitBranchLabel(null)
+    setDirtyOnly(false)
+    setCommitMessage('')
   }, [projectPath])
 
   const pushTerminal = useCallback((stream: TerminalLine['stream'], text: string) => {
@@ -90,6 +124,27 @@ export function CodingPanel({
     if (rows.length === 0) return
     setTerminalLines((prev) => [...prev, ...rows].slice(-MAX_TERMINAL_ROWS))
   }, [])
+
+  const refreshGitStatus = useCallback(async () => {
+    if (!projectPath) {
+      setGitStatusByPath(new Map())
+      setGitBranchLabel(null)
+      return
+    }
+    const out = await invokeCodingGit(projectPath, { mode: 'status' })
+    if (!out.ok) {
+      setGitStatusByPath(new Map())
+      setGitBranchLabel(null)
+      return
+    }
+    const parsed = parseGitStatusText(out.text)
+    setGitStatusByPath(buildGitStatusByPath(parsed))
+    setGitBranchLabel(parsed.branch ? formatGitBranchBadge(parsed.branch) : null)
+  }, [projectPath])
+
+  useEffect(() => {
+    void refreshGitStatus()
+  }, [refreshGitStatus, gitRevision, localGitBump])
 
   const refreshFiles = useCallback(async () => {
     if (!projectPath) return
@@ -202,12 +257,200 @@ export function CodingPanel({
     }
   }, [onUpdateProjectPath, pushTerminal])
 
-  const onOpenFile = useCallback(async (path: string) => {
-    if (!projectPath) return
-    setSelectedPath(path)
-    const out = await invokeReadCodingFile(projectPath, path)
-    setPreviewContent(out.text)
-  }, [projectPath])
+  const onOpenFile = useCallback(
+    async (path: string) => {
+      if (!projectPath) return
+      setSelectedPath(path)
+
+      const status = gitStatusByPathRef.current.get(normalizeGitPath(path))
+      if (status && !status.untracked) {
+        const preferStaged = status.staged && !status.unstaged
+        setPreviewMode('diff')
+        setPreviewDiffStaged(preferStaged)
+        const out = await invokeCodingGit(projectPath, {
+          mode: 'diff',
+          path,
+          staged: preferStaged,
+        })
+        setPreviewContent(out.ok ? out.text : out.text || 'Diff failed.')
+        return
+      }
+
+      setPreviewMode('file')
+      setPreviewDiffStaged(false)
+      const out = await invokeReadCodingFile(projectPath, path)
+      setPreviewContent(out.text)
+    },
+    [projectPath],
+  )
+
+  const onStageFile = useCallback(
+    async (path: string) => {
+      if (!projectPath) return
+      const out = await invokeCodingGit(projectPath, { mode: 'stage', path })
+      if (!out.ok) {
+        pushTerminal('stderr', out.text || `Stage failed: ${path}`)
+        return
+      }
+      pushTerminal('system', `staged ${path}`)
+      setLocalGitBump((n) => n + 1)
+    },
+    [projectPath, pushTerminal],
+  )
+
+  const onUnstageFile = useCallback(
+    async (path: string) => {
+      if (!projectPath) return
+      const out = await invokeCodingGit(projectPath, { mode: 'unstage', path })
+      if (!out.ok) {
+        pushTerminal('stderr', out.text || `Unstage failed: ${path}`)
+        return
+      }
+      pushTerminal('system', `unstaged ${path}`)
+      setLocalGitBump((n) => n + 1)
+    },
+    [projectPath, pushTerminal],
+  )
+
+  const onDiscardFile = useCallback(
+    async (path: string) => {
+      if (!projectPath) return
+      const ok = window.confirm(
+        `Discard unstaged changes in:\n${path}\n\nThis cannot be undone (git restore).`,
+      )
+      if (!ok) return
+      const out = await invokeCodingGit(projectPath, { mode: 'discard', path })
+      if (!out.ok) {
+        pushTerminal('stderr', out.text || `Discard failed: ${path}`)
+        return
+      }
+      pushTerminal('system', `discarded ${path}`)
+      setLocalGitBump((n) => n + 1)
+      if (selectedPath === path) {
+        setPreviewMode('file')
+        setPreviewDiffStaged(false)
+        const read = await invokeReadCodingFile(projectPath, path)
+        setPreviewContent(read.text)
+      }
+    },
+    [projectPath, pushTerminal, selectedPath],
+  )
+
+  const stagedCount = useMemo(() => {
+    let n = 0
+    for (const e of gitStatusByPath.values()) {
+      if (e.staged) n += 1
+    }
+    return n
+  }, [gitStatusByPath])
+
+  const dirtyCount = gitStatusByPath.size
+
+  const selectedGit = selectedPath
+    ? gitStatusByPath.get(normalizeGitPath(selectedPath))
+    : undefined
+
+  const onCommit = useCallback(
+    async (all: boolean) => {
+      if (!projectPath || commitBusy) return
+      const msg = commitMessage.trim()
+      if (!msg) {
+        pushTerminal('stderr', 'Commit message is empty.')
+        return
+      }
+      if (all) {
+        if (dirtyCount === 0) {
+          pushTerminal('stderr', 'Nothing to commit.')
+          return
+        }
+      } else if (stagedCount === 0) {
+        pushTerminal('stderr', 'Nothing staged — use Commit All, or stage files first.')
+        return
+      }
+      setCommitBusy(true)
+      try {
+        const out = await invokeCodingGit(projectPath, {
+          mode: 'commit',
+          message: msg,
+          all,
+        })
+        if (!out.ok) {
+          pushTerminal('stderr', out.text || 'Commit failed.')
+          return
+        }
+        pushTerminal('stdout', out.text)
+        setCommitMessage('')
+        setLocalGitBump((n) => n + 1)
+      } finally {
+        setCommitBusy(false)
+      }
+    },
+    [projectPath, commitBusy, commitMessage, stagedCount, dirtyCount, pushTerminal],
+  )
+
+  const onDiscardAll = useCallback(async () => {
+    if (!projectPath || dirtyCount === 0) return
+    const ok = window.confirm(
+      `Discard ALL local changes in this project?\n\n` +
+        `• Restores tracked files to HEAD\n` +
+        `• Deletes untracked files\n\n` +
+        `This cannot be undone.`,
+    )
+    if (!ok) return
+    const out = await invokeCodingGit(projectPath, { mode: 'discardAll' })
+    if (!out.ok) {
+      pushTerminal('stderr', out.text || 'Discard all failed.')
+      return
+    }
+    pushTerminal('system', out.text || 'Discarded all changes.')
+    setLocalGitBump((n) => n + 1)
+    setSelectedPath(null)
+    setPreviewContent('')
+    setPreviewMode('file')
+    setPreviewDiffStaged(false)
+    void refreshFileTreeInPlace()
+  }, [projectPath, dirtyCount, pushTerminal, refreshFileTreeInPlace])
+
+  const onDirtyOnlyChange = useCallback(
+    (next: boolean) => {
+      setDirtyOnly(next)
+      if (!next || !projectPath) return
+      // Expand dirs that contain changes so nested dirty files are reachable.
+      const byPath = gitStatusByPathRef.current
+      if (byPath.size === 0) return
+      const dirs = new Set<string>()
+      for (const filePath of byPath.keys()) {
+        const parts = filePath.split('/')
+        let acc = ''
+        for (let i = 0; i < parts.length - 1; i++) {
+          acc = acc ? `${acc}/${parts[i]}` : parts[i]!
+          dirs.add(acc)
+        }
+      }
+      if (dirs.size === 0) return
+      void (async () => {
+        const pairs = await Promise.all(
+          [...dirs].map(async (dirPath) => {
+            const r = await invokeListCodingDirectory(projectPath, dirPath)
+            return [dirPath, r.ok ? filterCodingTreeEntries(r.entries) : null] as const
+          }),
+        )
+        setChildrenByDir((c) => {
+          const nextMap = { ...c }
+          for (const [dirPath, list] of pairs) {
+            if (list) nextMap[dirPath] = list
+          }
+          return nextMap
+        })
+        setExpandedDirs((p) => {
+          const nextSet = new Set(p)
+          for (const dirPath of dirs) nextSet.add(dirPath)
+          return nextSet
+        })
+      })()
+    },
+    [projectPath],
+  )
 
   const onRunCommand = useCallback(async () => {
     const trimmed = command.trim()
@@ -223,6 +466,7 @@ export function CodingPanel({
     commandHistoryDraftRef.current = ''
     setCommand('')
     void refreshFileTreeInPlace()
+    setLocalGitBump((n) => n + 1)
   }, [projectPath, command, pushTerminal, refreshFileTreeInPlace])
 
   const visibleFileCount = useMemo(() => {
@@ -254,9 +498,10 @@ export function CodingPanel({
         {projectPath ? `(${visibleFileCount} files listed)` : ''}
       </div>
       <div className="flex shrink-0 flex-wrap gap-1.5" role="toolbar" aria-label="Coding panel sections">
-        {(['showFileTree', 'showFilePreview', 'showTerminal'] as const).map((key) => {
+        {SECTION_KEYS.map((key) => {
           const on = settings.coding[key]
-          const label = key === 'showFileTree' ? 'FILES' : key === 'showFilePreview' ? 'PREVIEW' : 'TERM'
+          const label =
+            key === 'showFileTree' ? 'FILES' : key === 'showFilePreview' ? 'PREVIEW' : 'TERM'
           const title =
             key === 'showFileTree'
               ? 'Toggle file tree'
@@ -291,12 +536,96 @@ export function CodingPanel({
               loadingDirs={loadingDirs}
               childrenByDir={childrenByDir}
               selectedPath={selectedPath}
+              gitStatusByPath={gitStatusByPath}
+              gitBranchLabel={gitBranchLabel}
+              dirtyOnly={dirtyOnly}
+              onDirtyOnlyChange={onDirtyOnlyChange}
               onToggleDirectory={toggleDirectory}
               onSelectFile={(path) => void onOpenFile(path)}
+              onStageFile={(path) => void onStageFile(path)}
+              onUnstageFile={(path) => void onUnstageFile(path)}
+              onDiscardFile={(path) => void onDiscardFile(path)}
             />
           </div>
         )}
-        {showFilePreview && <FilePreview filePath={selectedPath} content={previewContent} />}
+        {showFilePreview && (
+          <FilePreview
+            filePath={selectedPath}
+            content={previewContent}
+            mode={previewMode}
+            diffStaged={previewDiffStaged}
+            canStage={Boolean(
+              selectedGit && (selectedGit.unstaged || selectedGit.untracked),
+            )}
+            canUnstage={Boolean(selectedGit?.staged)}
+            canDiscard={Boolean(
+              selectedGit && selectedGit.unstaged && !selectedGit.untracked,
+            )}
+            onStage={
+              selectedPath ? () => void onStageFile(selectedPath) : undefined
+            }
+            onUnstage={
+              selectedPath ? () => void onUnstageFile(selectedPath) : undefined
+            }
+            onDiscard={
+              selectedPath ? () => void onDiscardFile(selectedPath) : undefined
+            }
+          />
+        )}
+        {dirtyCount > 0 && (
+          <div className="flex shrink-0 flex-col gap-1.5">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    // Prefer staged-only commit when something is staged; else commit all
+                    void onCommit(stagedCount > 0 ? false : true)
+                  }
+                }}
+                placeholder={
+                  stagedCount > 0
+                    ? `Message (${stagedCount} staged · ${dirtyCount} dirty)`
+                    : `Message · commit all (${dirtyCount})`
+                }
+                title="Commit message"
+                disabled={commitBusy}
+                className="cyber-input flex-1 text-xs"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                className="cyber-btn text-[10px] disabled:opacity-40"
+                disabled={commitBusy || !commitMessage.trim() || stagedCount === 0}
+                title="Commit only staged files"
+                onClick={() => void onCommit(false)}
+              >
+                COMMIT
+              </button>
+              <button
+                type="button"
+                className="cyber-btn text-[10px] disabled:opacity-40"
+                disabled={commitBusy || !commitMessage.trim() || dirtyCount === 0}
+                title="Stage all changes and commit (like VS Code Commit All)"
+                onClick={() => void onCommit(true)}
+              >
+                COMMIT ALL
+              </button>
+              <button
+                type="button"
+                className="rounded border border-neon-red/40 px-2 py-1 text-[10px] font-mono uppercase tracking-wide text-neon-red/90 hover:bg-neon-red/10 disabled:opacity-40"
+                disabled={commitBusy || dirtyCount === 0}
+                title="Discard all local changes (restore + clean)"
+                onClick={() => void onDiscardAll()}
+              >
+                DISCARD ALL
+              </button>
+            </div>
+          </div>
+        )}
         {showTerminal && (
           <TerminalView lines={terminalLines} onClear={() => setTerminalLines([])} />
         )}

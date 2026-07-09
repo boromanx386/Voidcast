@@ -120,6 +120,7 @@ export function useVoidcastApp() {
     setCodingContextMemo: coding.setCodingContextMemo,
     setCodingTerminalFeed: coding.setCodingTerminalFeed,
     setCodingFileTreeNonce: coding.setCodingFileTreeNonce,
+    setCodingGitNonce: coding.setCodingGitNonce,
     onSessionDirty: () => setSessionDirtyRef.current(true),
   })
 
