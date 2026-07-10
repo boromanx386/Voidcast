@@ -9,6 +9,12 @@ type Props = {
   onApproveAndBuild: (messageId: string, plan: PlanArtifact) => void
 }
 
+function planStatusLabel(status: PlanArtifact['status']): string {
+  if (status === 'built') return 'Built'
+  if (status === 'approved') return 'Building'
+  return 'Draft'
+}
+
 export function PlanArtifactCard({
   messageId,
   plan,
@@ -53,17 +59,15 @@ export function PlanArtifactCard({
     onChange(messageId, selectPlanApproach(plan, approachId))
   }
 
-  const statusLabel =
-    plan.status === 'built' ? 'BUILT' : plan.status === 'approved' ? 'BUILDING' : 'DRAFT'
-
+  const statusLabel = planStatusLabel(plan.status)
   const doneCount = plan.steps.filter((s) => s.done).length
   const isRetry = plan.status === 'draft' && doneCount > 0 && doneCount < plan.steps.length
 
   return (
-    <div className="mt-3 border border-neon-purple/35 bg-void-black/60 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-neon-purple">
-          ✦ Plan · {statusLabel}
+    <div className="plan-artifact-card">
+      <div className="plan-artifact-card__header">
+        <span className="plan-artifact-card__badge">
+          Plan · {statusLabel}
           {(plan.status === 'approved' || plan.status === 'built') && plan.steps.length > 0
             ? ` · ${doneCount}/${plan.steps.length}`
             : ''}
@@ -71,11 +75,11 @@ export function PlanArtifactCard({
         {plan.status === 'draft' && (
           <button
             type="button"
-            className="font-mono text-[10px] text-void-dim hover:text-neon-red"
+            className="plan-artifact-card__discard"
             disabled={busy}
             onClick={discard}
           >
-            DISCARD
+            Discard
           </button>
         )}
       </div>
@@ -83,24 +87,22 @@ export function PlanArtifactCard({
       {editable ? (
         <input
           type="text"
-          className="cyber-input w-full text-sm mb-2"
+          className="cyber-input mb-2 w-full text-sm"
           value={plan.title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Plan title"
         />
       ) : (
-        <h3 className="font-mono text-sm text-neon-cyan mb-2">{plan.title}</h3>
+        <h3 className="mb-2 text-sm font-medium text-void-light">{plan.title}</h3>
       )}
 
       {plan.summary?.trim() && (
-        <p className="text-xs text-void-dim mb-3 leading-relaxed">{plan.summary}</p>
+        <p className="mb-3 text-xs leading-relaxed text-void-dim">{plan.summary}</p>
       )}
 
       {hasApproaches && (
         <div className="mb-3 space-y-2">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-void-dim">
-            Approaches — pick one
-          </p>
+          <p className="plan-artifact-card__section-label">Approaches — pick one</p>
           <div className="grid gap-2">
             {plan.approaches!.map((a) => {
               const selected = selectedId === a.id
@@ -110,7 +112,7 @@ export function PlanArtifactCard({
                   type="button"
                   disabled={!editable}
                   onClick={() => pickApproach(a.id)}
-                  className={`text-left p-2 border transition-colors ${
+                  className={`rounded border p-2 text-left transition-colors ${
                     selected
                       ? 'border-neon-purple/50 bg-neon-purple/10'
                       : 'border-void-muted/40 bg-void-black/40 hover:border-void-dim/60'
@@ -118,21 +120,19 @@ export function PlanArtifactCard({
                 >
                   <div className="flex items-baseline gap-2">
                     <span
-                      className={`font-mono text-xs font-bold ${
-                        selected ? 'text-neon-purple' : 'text-neon-cyan'
+                      className={`text-xs font-semibold ${
+                        selected ? 'text-neon-purple' : 'text-void-text'
                       }`}
                     >
                       {a.id}
                     </span>
-                    <span className="font-mono text-xs text-void-light">{a.label}</span>
+                    <span className="text-xs text-void-light">{a.label}</span>
                     {selected && (
-                      <span className="ml-auto font-mono text-[9px] text-neon-purple uppercase">
-                        selected
-                      </span>
+                      <span className="ml-auto text-[10px] text-neon-purple">Selected</span>
                     )}
                   </div>
                   {a.summary?.trim() && (
-                    <p className="text-[11px] text-void-dim mt-1 leading-relaxed">{a.summary}</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-void-dim">{a.summary}</p>
                   )}
                 </button>
               )
@@ -141,75 +141,73 @@ export function PlanArtifactCard({
         </div>
       )}
 
-      <ol className="space-y-2 mb-3">
+      <ol className="mb-3 space-y-2">
         {plan.steps.map((step: PlanStep, idx: number) => {
           const isActive =
             plan.status === 'approved' && !step.done && plan.steps.findIndex((s) => !s.done) === idx
           return (
-          <li
-            key={step.id}
-            className={`flex items-start gap-2 ${isActive ? 'plan-step-active' : ''}`}
-          >
-            {plan.status === 'draft' ? (
-              <span className="font-mono text-[10px] text-void-dim mt-2 w-4 shrink-0">
-                {idx + 1}.
-              </span>
-            ) : (
-              <span
-                className={`font-mono text-[11px] mt-1.5 w-4 shrink-0 ${
-                  step.done ? 'text-neon-green plan-step-done-pop' : isActive ? 'text-neon-cyan' : 'text-void-dim'
-                }`}
-                aria-label={step.done ? 'Done' : isActive ? 'In progress' : 'Pending'}
-              >
-                {step.done ? '✓' : isActive ? '▸' : '○'}
-              </span>
-            )}
-            {editable ? (
-              <>
-                <input
-                  type="text"
-                  className="cyber-input flex-1 text-xs"
-                  value={step.text}
-                  onChange={(e) => setStepText(step.id, e.target.value)}
-                  placeholder={`Step ${idx + 1}`}
-                />
-                <button
-                  type="button"
-                  className="font-mono text-xs text-void-dim hover:text-neon-red mt-1"
-                  onClick={() => removeStep(step.id)}
-                  aria-label="Remove step"
+            <li
+              key={step.id}
+              className={`flex items-start gap-2 ${isActive ? 'plan-step-active' : ''}`}
+            >
+              {plan.status === 'draft' ? (
+                <span className="mt-2 w-4 shrink-0 text-[10px] text-void-dim">{idx + 1}.</span>
+              ) : (
+                <span
+                  className={`mt-1.5 w-4 shrink-0 text-[11px] ${
+                    step.done
+                      ? 'text-neon-green plan-step-done-pop'
+                      : isActive
+                        ? 'text-neon-cyan'
+                        : 'text-void-dim'
+                  }`}
+                  aria-label={step.done ? 'Done' : isActive ? 'In progress' : 'Pending'}
                 >
-                  ×
-                </button>
-              </>
-            ) : (
-              <span
-                className={`text-xs leading-relaxed pt-1 ${
-                  step.done
-                    ? 'text-void-dim line-through'
-                    : isActive
-                      ? 'text-void-light'
-                      : 'text-void-light'
-                }`}
-              >
-                {step.text}
-              </span>
-            )}
-          </li>
+                  {step.done ? '✓' : isActive ? '▸' : '○'}
+                </span>
+              )}
+              {editable ? (
+                <>
+                  <input
+                    type="text"
+                    className="cyber-input flex-1 text-xs"
+                    value={step.text}
+                    onChange={(e) => setStepText(step.id, e.target.value)}
+                    placeholder={`Step ${idx + 1}`}
+                  />
+                  <button
+                    type="button"
+                    className="mt-1 text-xs text-void-dim hover:text-neon-red"
+                    onClick={() => removeStep(step.id)}
+                    aria-label="Remove step"
+                  >
+                    ×
+                  </button>
+                </>
+              ) : (
+                <span
+                  className={`pt-1 text-xs leading-relaxed ${
+                    step.done ? 'text-void-dim line-through' : 'text-void-light'
+                  }`}
+                >
+                  {step.text}
+                </span>
+              )}
+            </li>
           )
         })}
       </ol>
 
       {editable && (
-        <button type="button" className="cyber-btn text-[10px] mb-3" onClick={addStep}>
-          + ADD STEP
+        <button type="button" className="plan-artifact-card__add-step" onClick={addStep}>
+          + Add step
         </button>
       )}
 
       {plan.status === 'draft' && (
         <button
           type="button"
-          className="cyber-btn text-xs w-full border-neon-purple/40 text-neon-purple hover:bg-neon-purple/10"
+          className="plan-artifact-card__approve"
           disabled={
             busy ||
             plan.steps.every((s) => !s.text.trim()) ||
@@ -222,7 +220,7 @@ export function PlanArtifactCard({
             })
           }
         >
-          {isRetry ? 'RETRY BUILD' : 'APPROVE & BUILD'}
+          {isRetry ? 'Retry build' : 'Approve & build'}
           {selectedId ? ` · ${selectedId}` : ''}
         </button>
       )}

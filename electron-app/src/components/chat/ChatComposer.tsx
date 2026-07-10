@@ -151,6 +151,15 @@ export function ChatComposer({ app }: Props) {
           </div>
         )}
         <div className="input-wrapper">
+          {agentMode === 'plan' && (
+            <div className="composer-plan-banner" role="status">
+              <span className="composer-plan-banner__title">Plan mode</span>
+              <p className="composer-plan-banner__text">
+                Read-only exploration — no file writes until you press{' '}
+                <span className="text-void-light">Approve &amp; build</span> on the plan card.
+              </p>
+            </div>
+          )}
           <textarea
             className="voidcast-textarea"
             rows={2}
@@ -326,12 +335,6 @@ export function ChatComposer({ app }: Props) {
             </button>
           </div>
         </div>
-
-        {agentMode === 'plan' && (
-          <p className="composer-plan-hint">
-            Read-only exploration · Approve &amp; Build on the plan card to implement
-          </p>
-        )}
 
         {/* Input hints (attachments + unsaved only; model list lives in LLM options) */}
         {(pendingImages.length > 0 ||

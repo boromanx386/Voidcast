@@ -347,3 +347,55 @@ html[data-ui-theme='minimal'] .gradient-text-green {
   -webkit-text-fill-color: currentColor;
   color: #c7d2fe;
 }
+
+/* Plan mode — calmer indigo accents */
+html[data-ui-theme='minimal'] .composer-plan-banner {
+  border-color: rgba(99, 102, 241, 0.28);
+  background: rgba(99, 102, 241, 0.06);
+  border-radius: 0.5rem;
+}
+
+html[data-ui-theme='minimal'] .composer-plan-banner__title {
+  color: #a5b4fc;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+html[data-ui-theme='minimal'] .plan-artifact-card,
+html[data-ui-theme='minimal'] .plan-build-progress {
+  border-radius: 0.5rem;
+  border-color: rgba(99, 102, 241, 0.28);
+  background: rgba(24, 24, 27, 0.92);
+}
+
+html[data-ui-theme='minimal'] .plan-artifact-card__badge,
+html[data-ui-theme='minimal'] .plan-build-progress__title {
+  color: #a5b4fc;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+html[data-ui-theme='minimal'] .plan-artifact-card__section-label {
+  text-transform: none;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+html[data-ui-theme='minimal'] .plan-artifact-card__approve {
+  border-radius: 0.375rem;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.1);
+  color: #c7d2fe;
+}
+
+html[data-ui-theme='minimal'] .plan-artifact-card__approve:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.16);
+}
+
+html[data-ui-theme='minimal'] .chat-empty-state--plan {
+  border-color: rgba(99, 102, 241, 0.22) !important;
+}

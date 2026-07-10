@@ -260,6 +260,58 @@
   @apply mt-1.5 text-[10px] font-mono text-void-dim/80 leading-relaxed;
 }
 
+.composer-plan-banner {
+  @apply mb-2 rounded border border-neon-purple/35 bg-neon-purple/10 px-3 py-2 text-xs leading-relaxed text-void-text;
+}
+
+.composer-plan-banner__title {
+  @apply mb-0.5 block text-[11px] font-semibold text-neon-purple;
+}
+
+.composer-plan-banner__text {
+  @apply text-void-dim leading-snug;
+}
+
+.plan-artifact-card {
+  @apply mt-3 rounded border border-neon-purple/35 bg-void-black/60 p-3;
+}
+
+.plan-artifact-card__header {
+  @apply mb-2 flex flex-wrap items-center justify-between gap-2;
+}
+
+.plan-artifact-card__badge {
+  @apply text-[11px] font-semibold tracking-wide text-neon-purple;
+}
+
+.plan-artifact-card__discard {
+  @apply text-[11px] text-void-dim transition-colors hover:text-neon-red disabled:opacity-40;
+}
+
+.plan-artifact-card__section-label {
+  @apply text-[11px] font-medium uppercase tracking-wide text-void-dim;
+}
+
+.plan-artifact-card__approve {
+  @apply w-full rounded border border-neon-purple/40 bg-neon-purple/10 px-3 py-2 text-sm font-medium text-neon-purple transition-colors hover:bg-neon-purple/15 disabled:opacity-40;
+}
+
+.plan-artifact-card__add-step {
+  @apply mb-3 text-[11px] text-void-dim transition-colors hover:text-void-light;
+}
+
+.plan-build-progress {
+  @apply animate-fade-in-up rounded border border-neon-purple/40 bg-void-black/90 p-3;
+}
+
+.plan-build-progress__title {
+  @apply text-[11px] font-semibold tracking-wide text-neon-purple;
+}
+
+.chat-empty-state--plan {
+  @apply border-neon-purple/25;
+}
+
 .composer-send-btn {
   @apply ml-auto h-7 w-7 shrink-0 flex items-center justify-center;
   @apply bg-void-mid border border-neon-cyan/30 text-neon-cyan;

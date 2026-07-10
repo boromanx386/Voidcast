@@ -9,17 +9,15 @@ export function PlanBuildProgress({ plan }: Props) {
   const activeIdx = plan.steps.findIndex((s) => !s.done)
 
   return (
-    <div className="border border-neon-purple/45 bg-void-black/90 p-3 rounded animate-fade-in-up">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-neon-purple">
-          ✦ Building plan
-        </span>
-        <span className="font-mono text-[10px] text-neon-cyan">
+    <div className="plan-build-progress">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="plan-build-progress__title">Building plan</span>
+        <span className="text-[11px] font-medium tabular-nums text-void-dim">
           {doneCount}/{plan.steps.length}
         </span>
       </div>
-      <p className="font-mono text-xs text-neon-cyan mb-2 truncate">{plan.title}</p>
-      <ol className="space-y-1.5 max-h-40 overflow-y-auto">
+      <p className="mb-2 truncate text-sm font-medium text-void-light">{plan.title}</p>
+      <ol className="max-h-40 space-y-1.5 overflow-y-auto">
         {plan.steps.map((step: PlanStep, idx: number) => {
           const isActive = idx === activeIdx
           return (
@@ -30,7 +28,7 @@ export function PlanBuildProgress({ plan }: Props) {
               }`}
             >
               <span
-                className={`font-mono text-[11px] mt-0.5 w-4 shrink-0 ${
+                className={`mt-0.5 w-4 shrink-0 text-[11px] ${
                   step.done ? 'text-neon-green plan-step-done-pop' : 'text-void-dim'
                 }`}
                 aria-label={step.done ? 'Done' : isActive ? 'In progress' : 'Pending'}

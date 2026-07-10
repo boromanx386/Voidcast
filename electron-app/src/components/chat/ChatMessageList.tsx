@@ -41,11 +41,12 @@ type Props = {
 export function ChatMessageList({ app }: Props) {
   const { settings, messages, busy, toolPhase } = app
   const [emptyStateSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
+  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
   const uiDystopian = settings.uiTheme === 'dystopian'
 
   const emptyStateMessage = useMemo(
-    () => getEmptyStateMessage(settings.uiTheme, emptyStateSeed),
-    [settings.uiTheme, emptyStateSeed],
+    () => getEmptyStateMessage(settings.uiTheme, emptyStateSeed, agentMode),
+    [settings.uiTheme, emptyStateSeed, agentMode],
   )
 
   const render = useChatMessageRender(app)
@@ -68,9 +69,15 @@ export function ChatMessageList({ app }: Props) {
         {messages.length === 0 && (
           <div
             className={`relative overflow-hidden rounded-lg p-8 text-center animate-fade-in-up ${
-              uiDystopian
-                ? 'border border-neon-cyan/20 bg-void-dark/80'
-                : 'border border-void-muted/50 bg-void-mid/70'
+              agentMode === 'plan'
+                ? `chat-empty-state--plan border bg-void-mid/70 ${
+                    uiDystopian
+                      ? 'border-neon-purple/25 bg-void-dark/80'
+                      : 'border-void-muted/50'
+                  }`
+                : uiDystopian
+                  ? 'border border-neon-cyan/20 bg-void-dark/80'
+                  : 'border border-void-muted/50 bg-void-mid/70'
             }`}
           >
             {uiDystopian && (
@@ -82,9 +89,16 @@ export function ChatMessageList({ app }: Props) {
             )}
             
             <div className="relative">
-              <p className="text-void-text text-sm mb-6 font-mono animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+              <p
+                className={`mb-6 text-sm animate-fade-in-up ${
+                  agentMode === 'plan' ? 'text-void-light leading-relaxed' : 'text-void-text font-mono'
+                }`}
+                style={{ animationDelay: '0.2s' }}
+              >
                 {emptyStateMessage}
-                {uiDystopian && <span className="animate-cursor-blink ml-1">_</span>}
+                {uiDystopian && agentMode !== 'plan' && (
+                  <span className="animate-cursor-blink ml-1">_</span>
+                )}
               </p>
             </div>
           </div>
