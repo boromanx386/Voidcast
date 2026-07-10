@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FilePreviewEdit } from '@/components/coding/FilePreviewEdit'
+import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { languageFromPreviewPath } from '@/lib/codingPreviewLanguage'
 import { highlightPreviewLine } from '@/lib/codingSyntaxHighlight'
 
@@ -121,6 +122,14 @@ export function FilePreview({
   onSaveEdit,
   onCancelEdit,
 }: Props) {
+  const [showMdSource, setShowMdSource] = useState(false)
+  const isMarkdown = mode === 'file' && !editing && languageFromPreviewPath(filePath) === 'markdown'
+  const showMdPreview = isMarkdown && !showMdSource
+
+  useEffect(() => {
+    setShowMdSource(false)
+  }, [filePath, mode, editing])
+
   const label = editing
     ? `EDIT${filePath ? ` - ${filePath}` : ''}`
     : mode === 'diff'
@@ -133,6 +142,7 @@ export function FilePreview({
   const showGitActions = !editing && (canStage || canUnstage || canDiscard)
   const showEditAction = !editing && canEdit && onStartEdit
   const showEditActions = editing && onSaveEdit && onCancelEdit && onEditDraftChange
+  const showMdToggle = isMarkdown
 
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded border border-void-muted/30 bg-void-black/30 p-2">
@@ -141,6 +151,16 @@ export function FilePreview({
           {label}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {showMdToggle ? (
+            <button
+              type="button"
+              title={showMdSource ? 'Show Markdown preview' : 'Show raw source'}
+              className="rounded border border-neon-magenta/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-magenta hover:bg-neon-magenta/10"
+              onClick={() => setShowMdSource((v) => !v)}
+            >
+              {showMdSource ? 'MD' : 'Source'}
+            </button>
+          ) : null}
           {showEditAction ? (
             <button
               type="button"
@@ -211,7 +231,11 @@ export function FilePreview({
       </div>
       <div
         className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
-          mode === 'image' && !editing ? '' : 'font-mono text-xs'
+          mode === 'image' && !editing
+            ? ''
+            : showMdPreview
+              ? 'text-sm'
+              : 'font-mono text-xs'
         }`}
       >
         {editing && onEditDraftChange && onSaveEdit && onCancelEdit ? (
@@ -246,7 +270,15 @@ export function FilePreview({
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
-            {mode === 'diff' ? <DiffLines content={content} /> : <FileLines content={content} filePath={filePath} />}
+            {mode === 'diff' ? (
+              <DiffLines content={content} />
+            ) : showMdPreview ? (
+              <div className="file-preview-markdown px-2 py-2">
+                <ChatMarkdown content={content} />
+              </div>
+            ) : (
+              <FileLines content={content} filePath={filePath} />
+            )}
           </div>
         )}
       </div>

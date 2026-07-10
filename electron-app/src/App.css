@@ -436,6 +436,10 @@
   box-shadow: none;
 }
 
+.file-preview-markdown {
+  @apply max-w-none text-void-text;
+}
+
 .voidcast-textarea {
   @apply w-full px-3 py-2.5 min-h-[44px] max-h-40;
   @apply bg-void-black/80 border border-void-muted;
