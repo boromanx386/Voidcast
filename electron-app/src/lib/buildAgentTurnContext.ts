@@ -43,6 +43,7 @@ import {
   discoverAgentSkills,
   loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
+import { PLAN_MODE_SYSTEM_HINT } from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { LongMemoryItem } from '@/types/longMemory'
@@ -154,6 +155,8 @@ export async function buildAgentTurnContext(
     settings.codingProjectPath ||
     ''
   ).trim()
+  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
+  const planMode = agentMode === 'plan'
   const discoveredSkills = settings.skillsEnabled
     ? await discoverAgentSkills({ projectPath: codingProjectPath || undefined })
     : []
@@ -165,6 +168,7 @@ export async function buildAgentTurnContext(
       ? await loadProjectAgentInstructions({ projectPath: codingProjectPath })
       : []
   const projectInstructionsHint = buildProjectInstructionsHint(projectInstructionFiles)
+  const planModeSystemHint = planMode ? PLAN_MODE_SYSTEM_HINT : ''
   const toolsHintParts: string[] = []
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
   if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
@@ -172,22 +176,40 @@ export async function buildAgentTurnContext(
   if (settings.toolsEnabled.reddit) toolsHintParts.push(TOOLS_REDDIT_HINT)
   if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
   if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
-  if (settings.toolsEnabled.pdf) toolsHintParts.push(TOOLS_PDF_HINT)
-  if (settings.toolsEnabled.runwareImage) toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
-  if (settings.toolsEnabled.runwareMusic) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
-  if (settings.toolsEnabled.coding) {
-    toolsHintParts.push(
-      buildToolsCodingHint(codingProjectPath),
-    )
-    toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
-    if (settings.toolsEnabled.runwareImage) {
+  if (settings.toolsEnabled.pdf && !planMode) toolsHintParts.push(TOOLS_PDF_HINT)
+  if (settings.toolsEnabled.runwareImage) {
+    if (planMode) {
       toolsHintParts.push(
-        'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
+        'image_recall is available in Plan mode for inspecting existing session/project images (read-only). Image generation/edit tools are disabled until Approve & Build.',
       )
+    } else {
+      toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
+    }
+  }
+  if (settings.toolsEnabled.runwareMusic && !planMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
+  if (settings.toolsEnabled.coding) {
+    if (planMode) {
+      toolsHintParts.push(
+        [
+          'Coding tools are READ-ONLY in Plan mode: list_directory, read_file, search_files, glob_files, git_status, git_diff, git_log, git_show.',
+          'write_file, edit_code, and execute_command are disabled until the user Approves & Builds.',
+          codingProjectPath
+            ? `Coding project root: ${codingProjectPath}`
+            : 'No coding project path is set yet (Options → Tools).',
+        ].join('\n'),
+      )
+    } else {
+      toolsHintParts.push(buildToolsCodingHint(codingProjectPath))
+      toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
+      if (settings.toolsEnabled.runwareImage) {
+        toolsHintParts.push(
+          'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
+        )
+      }
     }
     toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
   }
-  if (useTools) {
+  if (useTools && !planMode) {
     const visible = getAgentVisibleSettings(settings)
     const settingsHint = [
       'You have an update_settings tool for app configuration.',
@@ -211,6 +233,10 @@ export async function buildAgentTurnContext(
       'For delete_reminder and update_reminder, pass search_text to find the reminder by its text.',
     ].join('\n')
     toolsHintParts.push(remindersHint)
+  } else if (useTools && planMode) {
+    toolsHintParts.push(
+      'Reminder tools: only list_reminders is available in Plan mode (read-only).',
+    )
   }
 
   const retrievedLongMemory = activeSessionUseLongMemory
@@ -231,6 +257,7 @@ export async function buildAgentTurnContext(
   const history = buildOllamaMessages(priorHistory, ollamaUserText, {
     systemPrompt: settings.llmSystemPrompt,
     projectInstructionsHint: projectInstructionsHint || undefined,
+    planModeSystemHint: planModeSystemHint || undefined,
     skillsSystemHint: skillsSystemHint || undefined,
     runtimeSystemHint: runtimeTimeHint,
     hiddenContextSummary: hiddenContextSummary.trim() || undefined,

@@ -21,6 +21,15 @@ import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
+import {
+  advancePlanStepsOnProgress,
+  extractPlanArtifactFromReply,
+  finalizePlanAfterBuild,
+  formatPlanForBuildPrompt,
+  isPlanProgressToolResult,
+  reopenPlanAsDraft,
+  stripPlanJsonFenceFromContent,
+} from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { streamOllamaChat, isThinkingUiEnabled } from '@/lib/ollama'
@@ -32,7 +41,7 @@ import { loadSettings, type AppSettings } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import { toConversationTurns } from '@/lib/chatHints'
-import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
+import type { AgentChatMode, FileAttachmentSnapshot, PlanArtifact, UiMessage } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
 
 export type UseChatAgentDeps = {
@@ -80,6 +89,10 @@ export type OnSendOptions = {
   text?: string
   history?: UiMessage[]
   skipAddUserMsg?: boolean
+  /** Override settings.agentMode for this turn (Approve → Build uses 'agent'). */
+  forceAgentMode?: AgentChatMode
+  /** After a successful build turn, mark this plan message as built. */
+  buildFromPlanMessageId?: string
 }
 
 export function useChatAgent(deps: UseChatAgentDeps) {
@@ -277,16 +290,20 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   const onSend = useCallback(
     async (opts?: OnSendOptions) => {
       const isEdit = Boolean(opts?.skipAddUserMsg)
-      const text = isEdit ? (opts?.text ?? '') : input.trim()
+      const text = isEdit
+        ? (opts?.text ?? '')
+        : (opts?.text ?? input).trim()
       const activeHistory = opts?.history ?? messages
-      const queued = isEdit ? [] : pendingImages
-      const queuedFiles = isEdit ? [] : pendingFiles
+      const queued = isEdit || opts?.text ? [] : pendingImages
+      const queuedFiles = isEdit || opts?.text ? [] : pendingFiles
       if ((!text && queued.length === 0 && queuedFiles.length === 0) || busy) return
       setError(null)
       if (!isEdit) {
-        setPendingImages([])
-        setPendingFiles([])
-        setInput('')
+        if (!opts?.text) {
+          setPendingImages([])
+          setPendingFiles([])
+          setInput('')
+        }
       }
 
       const imagesBase64 = queued.map((q) => q.base64)
@@ -294,8 +311,20 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const imageNames = queued.map((q) => (q.name || '').trim())
       const imagePaths = queued.map((q) => (q.path || '').trim())
 
+      const turnAgentMode: AgentChatMode =
+        opts?.forceAgentMode === 'plan' || opts?.forceAgentMode === 'agent'
+          ? opts.forceAgentMode
+          : settings.agentMode === 'plan'
+            ? 'plan'
+            : 'agent'
+
+      const turnSettings: AppSettings =
+        turnAgentMode === settings.agentMode
+          ? settings
+          : { ...settings, agentMode: turnAgentMode }
+
       const turnContext = await buildAgentTurnContext({
-        settings,
+        settings: turnSettings,
         activeHistory,
         text,
         queued,
@@ -373,6 +402,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
             toolsEnabled: settings.toolsEnabled,
             skillsEnabled: skillsActive,
+            agentMode: turnAgentMode,
             ttsBaseUrl: settings.ttsBaseUrl,
             pdfOutputDir: effectivePdfOutputDir,
             runware: {
@@ -468,6 +498,19 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 },
                 payload,
               )
+              if (
+                opts?.buildFromPlanMessageId &&
+                isPlanProgressToolResult(payload.name, payload.result)
+              ) {
+                const planMsgId = opts.buildFromPlanMessageId
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === planMsgId && m.plan
+                      ? { ...m, plan: advancePlanStepsOnProgress(m.plan) }
+                      : m,
+                  ),
+                )
+              }
             },
           }
           const cloudCfg = resolveCloudLlmChatConfig(settings)
@@ -539,7 +582,50 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           usage = out.usage
         }
 
-        if (!isRunActive()) return
+        if (!isRunActive()) {
+          const planMsgId = opts?.buildFromPlanMessageId
+          if (planMsgId) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === planMsgId && m.plan?.status === 'approved'
+                  ? { ...m, plan: reopenPlanAsDraft(m.plan) }
+                  : m,
+              ),
+            )
+          }
+          return
+        }
+
+        if (turnAgentMode === 'plan' && replyText.trim()) {
+          const plan = extractPlanArtifactFromReply(replyText)
+          const stripped = stripPlanJsonFenceFromContent(replyText)
+          // Fence-only replies: show empty body (card has the structure), not raw JSON.
+          const displayContent = stripped.trim() ? stripped : plan ? '' : replyText
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === asstId
+                ? {
+                    ...m,
+                    content: displayContent,
+                    ...(plan ? { plan } : {}),
+                  }
+                : m,
+            ),
+          )
+          replyText = displayContent
+        }
+
+        if (opts?.buildFromPlanMessageId) {
+          const planMsgId = opts.buildFromPlanMessageId
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === planMsgId && m.plan
+                ? { ...m, plan: finalizePlanAfterBuild(m.plan) }
+                : m,
+            ),
+          )
+          setSettings((s) => (s.agentMode === 'agent' ? s : { ...s, agentMode: 'agent' }))
+        }
 
         const usageInfo = estimateContextUsage(usage, settings.llmNumCtx)
         setContextUsageInfo(usageInfo)
@@ -548,8 +634,26 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           void touchMemoryUsage(retrievedLongMemory.map((m) => m.id))
         }
       } catch (e) {
-        if (!isRunActive()) return
-        if ((e as Error).name === 'AbortError') return
+        const reopenBuildPlan = () => {
+          const planMsgId = opts?.buildFromPlanMessageId
+          if (!planMsgId) return
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === planMsgId && m.plan?.status === 'approved'
+                ? { ...m, plan: reopenPlanAsDraft(m.plan) }
+                : m,
+            ),
+          )
+        }
+        if ((e as Error).name === 'AbortError') {
+          reopenBuildPlan()
+          return
+        }
+        if (!isRunActive()) {
+          reopenBuildPlan()
+          return
+        }
+        reopenBuildPlan()
         const msg = e instanceof Error ? e.message : String(e)
         setError(msg)
         setMessages((prev) =>
@@ -615,6 +719,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     abortRef.current = null
     setToolPhase(null)
     setBusy(false)
+    // Unlock any in-flight Approve & Build plan so the user can retry.
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.plan?.status === 'approved' ? { ...m, plan: reopenPlanAsDraft(m.plan) } : m,
+      ),
+    )
   }, [])
 
   const startEdit = useCallback(
@@ -645,6 +755,35 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       void onSend({ text: trimmed, history: truncated, skipAddUserMsg: true })
     },
     [editInputValue, messages, onSend],
+  )
+
+  const updateMessagePlan = useCallback(
+    (messageId: string, plan: PlanArtifact | undefined) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, plan } : m)),
+      )
+      onSessionDirty()
+    },
+    [onSessionDirty],
+  )
+
+  const approveAndBuildPlan = useCallback(
+    (messageId: string, plan: PlanArtifact) => {
+      if (busy) return
+      const approved: PlanArtifact = { ...plan, status: 'approved' }
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, plan: approved } : m)),
+      )
+      onSessionDirty()
+      setSettings((s) => ({ ...s, agentMode: 'agent' }))
+      const buildText = formatPlanForBuildPrompt(approved)
+      void onSend({
+        text: buildText,
+        forceAgentMode: 'agent',
+        buildFromPlanMessageId: messageId,
+      })
+    },
+    [busy, onSend, onSessionDirty, setSettings],
   )
 
   return {
@@ -698,6 +837,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     startEdit,
     cancelEdit,
     commitEdit,
+    updateMessagePlan,
+    approveAndBuildPlan,
     summarizeContextNow,
     subAgentUi,
   }

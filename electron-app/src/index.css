@@ -820,4 +820,24 @@
     0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
     40% { transform: scale(1); opacity: 1; }
   }
+
+  @keyframes planStepDonePop {
+    0% { transform: scale(0.6); opacity: 0.4; }
+    60% { transform: scale(1.25); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .plan-step-done-pop {
+    animation: planStepDonePop 0.35s ease-out;
+    text-shadow: 0 0 8px rgb(var(--color-neon-green) / 0.7);
+  }
+
+  @keyframes planStepActivePulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  .plan-step-active {
+    animation: planStepActivePulse 1.4s ease-in-out infinite;
+  }
 }

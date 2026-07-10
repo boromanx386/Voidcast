@@ -9,6 +9,7 @@ type Props = {
   app: Pick<
     VoidcastApp,
     | 'settings'
+    | 'setSettings'
     | 'input'
     | 'setInput'
     | 'busy'
@@ -30,6 +31,7 @@ type Props = {
 export function ChatComposer({ app }: Props) {
   const {
     settings,
+    setSettings,
     input,
     setInput,
     busy,
@@ -53,13 +55,52 @@ export function ChatComposer({ app }: Props) {
   )
 
   const chatPlaceholder = useMemo(
-    () => getChatComposerPlaceholder(settings.uiTheme),
-    [settings.uiTheme],
+    () => getChatComposerPlaceholder(settings.uiTheme, settings.agentMode),
+    [settings.uiTheme, settings.agentMode],
   )
+
+  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
 
   return (
     <footer className="voidcast-input-area">
       <div className="mx-auto max-w-3xl">
+        <div className="mb-2 flex items-center gap-1">
+          <div
+            className="inline-flex border border-void-muted/50 bg-void-black/60 p-0.5"
+            role="group"
+            aria-label="Agent mode"
+          >
+            <button
+              type="button"
+              disabled={busy}
+              className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors disabled:opacity-40 ${
+                agentMode === 'agent'
+                  ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/40'
+                  : 'text-void-dim hover:text-void-light border border-transparent'
+              }`}
+              onClick={() => setSettings((s) => ({ ...s, agentMode: 'agent' }))}
+            >
+              Agent
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors disabled:opacity-40 ${
+                agentMode === 'plan'
+                  ? 'bg-neon-purple/15 text-neon-purple border border-neon-purple/40'
+                  : 'text-void-dim hover:text-void-light border border-transparent'
+              }`}
+              onClick={() => setSettings((s) => ({ ...s, agentMode: 'plan' }))}
+            >
+              Plan
+            </button>
+          </div>
+          {agentMode === 'plan' && (
+            <span className="text-[10px] font-mono text-void-dim ml-1">
+              read-only · Approve & Build to implement
+            </span>
+          )}
+        </div>
         <input
           id="voidcast-chat-attach-input"
           ref={chatAttachmentInputRef as RefObject<HTMLInputElement>}

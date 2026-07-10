@@ -40,8 +40,11 @@ export async function loadCodingPreviewImage(
 
   try {
     const res = await fn({ path: abs })
-    if (!res.ok || !res.file?.base64?.trim()) {
+    if (!res.ok) {
       return { ok: false, error: res.error || 'Could not read image file.' }
+    }
+    if (!res.file?.base64?.trim()) {
+      return { ok: false, error: 'Could not read image file.' }
     }
 
     const base64 = res.file.base64.replace(/\s+/g, '')

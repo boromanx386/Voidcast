@@ -4,6 +4,9 @@ import {
   normalizeNvidiaModelId,
   normalizeOpenRouterModelId,
 } from '@/lib/cloudLlmPresets'
+import type { AgentChatMode } from '@/types/chat'
+
+export type { AgentChatMode } from '@/types/chat'
 
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
@@ -469,6 +472,11 @@ export type AppSettings = {
    * a catalog + read_skill tool (desktop only).
    */
   skillsEnabled: boolean
+  /**
+   * Chat agent mode: `agent` implements with full tools; `plan` explores read-only
+   * and produces an editable plan for Approve → Build.
+   */
+  agentMode: AgentChatMode
   /** Standalone coding panel settings. */
   coding: CodingSettings
   /** Backward-compatible top-level alias for coding project path. */
@@ -616,6 +624,7 @@ export const defaults: AppSettings = {
     coding: false,
   },
   skillsEnabled: true,
+  agentMode: 'agent',
   coding: {
     enabled: false,
     projectPath: '',
@@ -949,6 +958,11 @@ function normalizeUiTheme(s: AppSettings): AppSettings {
   return { ...s, uiTheme }
 }
 
+function normalizeAgentMode(s: AppSettings): AppSettings {
+  const agentMode: AgentChatMode = s.agentMode === 'plan' ? 'plan' : 'agent'
+  return { ...s, agentMode }
+}
+
 function normalizeRunware(s: AppSettings): AppSettings {
   const width = Number(s.runwareWidth)
   const height = Number(s.runwareHeight)
@@ -1172,7 +1186,9 @@ function normalizeNotificationSounds(s: AppSettings): AppSettings {
 function normalizeAll(s: AppSettings): AppSettings {
   return normalizeNotificationSounds(
     normalizeRunware(
-      normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s)))))),
+      normalizeAgentMode(
+        normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s)))))),
+      ),
     ),
   )
 }

@@ -15,7 +15,8 @@ import { upsertMemories } from '@/lib/longMemoryStorage'
 import { addReminder, listReminders, deleteReminder, updateReminder, searchRemindersByText } from '@/lib/reminderStorage'
 import { recordReminderDeleted } from '@/lib/userDataSync'
 import type { LongMemoryKind } from '@/types/longMemory'
-import { buildOllamaToolsList } from '@/lib/toolDefinitions'
+import { buildOllamaToolsList, isPlanModeBlockedTool } from '@/lib/toolDefinitions'
+import type { AgentChatMode } from '@/types/chat'
 import { invokeWebSearch } from '@/lib/webSearch'
 import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
@@ -613,6 +614,8 @@ export async function executeToolCall(
     userText?: string
     /** When true, read_skill is allowed. */
     skillsEnabled?: boolean
+    /** Plan mode blocks mutating tools even if registered. */
+    agentMode?: AgentChatMode
     /** Sub-agent config for image_recall delegation. */
     subAgent?: SubAgentConfig
     /** Keys for sub-agent API calls (from main app settings). */
@@ -631,6 +634,9 @@ export async function executeToolCall(
     typeof argsJson === 'string'
       ? parseToolArguments(argsJson)
       : (argsJson as Record<string, unknown>) ?? {}
+  if (ctx.agentMode === 'plan' && isPlanModeBlockedTool(name)) {
+    return `Error: tool "${name}" is blocked in Plan mode (read-only). Propose a plan instead; the user can Approve & Build to implement.`
+  }
   if (name === 'read_skill') {
     if (!ctx.skillsEnabled) {
       return 'Error: read_skill tool is disabled in settings.'
@@ -1630,6 +1636,8 @@ export type RunChatWithToolsParams = {
   toolsEnabled: ToolsEnabled
   /** When true, register read_skill and allow loading SKILL.md bodies. */
   skillsEnabled?: boolean
+  /** Plan mode: read-only tool subset + executor hard gate. */
+  agentMode?: AgentChatMode
   /** Same host as TTS; used for `POST /tools/search` (DDGS). */
   ttsBaseUrl: string
   signal?: AbortSignal
@@ -1672,7 +1680,9 @@ export type RunChatWithToolsParams = {
 export async function runOllamaChatWithTools(
   params: RunChatWithToolsParams,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
-  const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled))
+  const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
+    agentMode: params.agentMode,
+  })
   if (tools.length === 0) {
     throw new Error('runOllamaChatWithTools called with no tools enabled')
   }
@@ -1837,6 +1847,7 @@ export async function runOllamaChatWithTools(
         codingProjectPath: params.codingProjectPath,
         userText: rawUserText,
         skillsEnabled: Boolean(params.skillsEnabled),
+        agentMode: params.agentMode,
         subAgent: params.subAgent,
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,

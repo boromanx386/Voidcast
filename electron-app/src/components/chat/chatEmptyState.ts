@@ -64,7 +64,13 @@ export function getEmptyStateMessage(
   return variants[seed % variants.length]
 }
 
-export function getChatComposerPlaceholder(theme: string): string {
+export function getChatComposerPlaceholder(
+  theme: string,
+  agentMode: 'agent' | 'plan' = 'agent',
+): string {
+  if (agentMode === 'plan') {
+    return 'Describe what to plan…'
+  }
   if (theme in CHAT_COMPOSER_PLACEHOLDER) {
     return CHAT_COMPOSER_PLACEHOLDER[theme as UiTheme]
   }

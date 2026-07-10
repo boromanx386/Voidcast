@@ -1,4 +1,5 @@
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
+import type { AgentChatMode } from '@/types/chat'
 import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
@@ -47,6 +48,8 @@ export type RunOpenRouterChatWithToolsParams = {
   toolsEnabled: ToolsEnabled
   /** When true, register read_skill and allow loading SKILL.md bodies. */
   skillsEnabled?: boolean
+  /** Plan mode: read-only tool subset + executor hard gate. */
+  agentMode?: AgentChatMode
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
@@ -77,7 +80,9 @@ export type RunOpenRouterChatWithToolsParams = {
 export async function runOpenRouterChatWithTools(
   params: RunOpenRouterChatWithToolsParams,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
-  const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled))
+  const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
+    agentMode: params.agentMode,
+  })
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
@@ -192,6 +197,7 @@ export async function runOpenRouterChatWithTools(
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
         skillsEnabled: Boolean(params.skillsEnabled),
+        agentMode: params.agentMode,
         subAgent: params.subAgent,
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,

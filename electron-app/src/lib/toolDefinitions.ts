@@ -1,4 +1,24 @@
 import { AGENT_EDITABLE_SETTINGS_FIELDS, type ToolsEnabled } from '@/lib/settings'
+import type { AgentChatMode } from '@/types/chat'
+
+/** Tools that mutate the system / filesystem / media — blocked in Plan mode. */
+export const PLAN_MODE_BLOCKED_TOOLS = new Set([
+  'write_file',
+  'edit_code',
+  'execute_command',
+  'save_pdf',
+  'generate_image',
+  'edit_image_runware',
+  'generate_music_runware',
+  'update_settings',
+  'add_reminder',
+  'delete_reminder',
+  'update_reminder',
+])
+
+export function isPlanModeBlockedTool(name: string): boolean {
+  return PLAN_MODE_BLOCKED_TOOLS.has(name)
+}
 
 /** Minimal JSON-schema subset for tool `parameters.properties` values */
 export type OllamaToolParameterSchema = {
@@ -807,39 +827,47 @@ const READ_SKILL_TOOL: OllamaToolDefinition = {
 export function buildOllamaToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
+  opts?: { agentMode?: AgentChatMode },
 ): OllamaToolDefinition[] {
+  const planMode = opts?.agentMode === 'plan'
   const out: OllamaToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
   if (enabled.reddit) out.push(REDDIT_FEED_TOOL)
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
-  if (enabled.pdf) out.push(SAVE_PDF_TOOL)
+  if (enabled.pdf && !planMode) out.push(SAVE_PDF_TOOL)
   if (enabled.runwareImage) {
-    out.push(GENERATE_IMAGE_TOOL)
-    out.push(EDIT_IMAGE_RUNWARE_TOOL)
+    if (!planMode) {
+      out.push(GENERATE_IMAGE_TOOL)
+      out.push(EDIT_IMAGE_RUNWARE_TOOL)
+    }
     out.push(IMAGE_RECALL_TOOL)
   }
-  if (enabled.runwareMusic) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
+  if (enabled.runwareMusic && !planMode) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
   if (enabled.coding) {
     out.push(CODING_LIST_DIRECTORY_TOOL)
     out.push(CODING_READ_FILE_TOOL)
-    out.push(CODING_WRITE_FILE_TOOL)
-    out.push(CODING_EDIT_CODE_TOOL)
+    if (!planMode) {
+      out.push(CODING_WRITE_FILE_TOOL)
+      out.push(CODING_EDIT_CODE_TOOL)
+    }
     out.push(CODING_SEARCH_FILES_TOOL)
     out.push(CODING_GLOB_FILES_TOOL)
     out.push(CODING_GIT_STATUS_TOOL)
     out.push(CODING_GIT_DIFF_TOOL)
     out.push(CODING_GIT_LOG_TOOL)
     out.push(CODING_GIT_SHOW_TOOL)
-    out.push(CODING_EXECUTE_COMMAND_TOOL)
+    if (!planMode) out.push(CODING_EXECUTE_COMMAND_TOOL)
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)
-  out.push(UPDATE_SETTINGS_TOOL)
-  out.push(ADD_REMINDER_TOOL)
+  if (!planMode) out.push(UPDATE_SETTINGS_TOOL)
+  if (!planMode) out.push(ADD_REMINDER_TOOL)
   out.push(LIST_REMINDERS_TOOL)
-  out.push(DELETE_REMINDER_TOOL)
-  out.push(UPDATE_REMINDER_TOOL)
+  if (!planMode) {
+    out.push(DELETE_REMINDER_TOOL)
+    out.push(UPDATE_REMINDER_TOOL)
+  }
   return out
 }
 

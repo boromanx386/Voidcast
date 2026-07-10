@@ -23,7 +23,7 @@ Agent invokes search, Reddit, YouTube, weather, image generation and edit, music
 Change themes, toggle voice, or update settings directly via natural commands in the conversation.
 
 **Work with your code**  
-The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. It also remembers your coding context across sessions — recent files, directories, searches, git operations, command results, and tool failures are persisted per-project and restored when you reopen a repo.
+The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. It also remembers your coding context across sessions — recent files, directories, searches, git operations, command results, and tool failures are persisted per-project and restored when you reopen a repo. Switch the composer to **Plan** mode to explore read-only, pick an approach (A/B/C), then **Approve & Build** to implement with live step progress.
 
 **It remembers**  
 Remembers facts across sessions 
@@ -108,6 +108,13 @@ In **Options → SKILLS**, Voidcast discovers instruction packs from your user p
 On every turn, the agent sees a **catalog** of skill names and descriptions. When a request matches a skill, it loads the full `SKILL.md` on demand via `read_skill`. This keeps the system prompt lean while still making specialized workflows available. Project skills override globals with the same name.
 
 With coding tools on, Voidcast also injects **`AGENTS.md` / `CLAUDE.md`** from the project root into the system prompt — repo conventions available on every turn.
+
+### Plan mode
+
+In the chat composer, switch **AGENT | PLAN**:
+
+- **Plan** — read-only tools only (list/read/search/git inspect). The agent proposes a structured plan card with editable steps and, when useful, competing approaches **A / B / C** (optional **D**). Pick an approach, edit steps, then **Approve & Build**.
+- **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel + auto-checked steps as files are written/edited or commands run). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after real tool progress.
 
 <!--
   Screenshot placeholder: demos/voidcast-options-skills-tab.png

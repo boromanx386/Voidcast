@@ -134,6 +134,8 @@ export function buildOllamaMessages(
     skillsSystemHint?: string
     /** Project AGENTS.md / CLAUDE.md from the open coding project */
     projectInstructionsHint?: string
+    /** Plan mode instructions (read-only + JSON plan fence) */
+    planModeSystemHint?: string
     /** Merged after user system prompt when tools are on */
     toolsSystemHint?: string
     /** Runtime context (e.g. local time/date/timezone) */
@@ -154,6 +156,7 @@ export function buildOllamaMessages(
   const out: OllamaApiMessage[] = []
   const skillsHint = opts.skillsSystemHint?.trim()
   const projectInstructionsHint = opts.projectInstructionsHint?.trim()
+  const planModeHint = opts.planModeSystemHint?.trim()
   const hint = opts.toolsSystemHint?.trim()
   const runtimeHint = opts.runtimeSystemHint?.trim()
   const base = opts.systemPrompt.trim()
@@ -168,6 +171,7 @@ export function buildOllamaMessages(
   const sys = [
     base,
     projectInstructionsHint,
+    planModeHint,
     skillsHint,
     runtimeHint,
     hint,

@@ -1,5 +1,33 @@
 export type ChatRole = 'user' | 'assistant'
 
+/** Composer / turn mode: Agent implements; Plan explores read-only then proposes steps. */
+export type AgentChatMode = 'agent' | 'plan'
+
+export type PlanStep = {
+  id: string
+  text: string
+  done?: boolean
+}
+
+/** Competing approaches (A/B/C, optional D) — user picks one before Approve & Build. */
+export type PlanApproach = {
+  id: string
+  label: string
+  summary?: string
+  steps: PlanStep[]
+}
+
+export type PlanArtifact = {
+  title: string
+  summary?: string
+  steps: PlanStep[]
+  status: 'draft' | 'approved' | 'built'
+  /** Alternative approaches when the model offers A/B/C (+ optional D). */
+  approaches?: PlanApproach[]
+  /** Selected approach id (A/B/C/D); steps mirror that approach once chosen. */
+  selectedApproachId?: string
+}
+
 export type FileAttachmentSnapshot = {
   id: string
   name: string
@@ -34,6 +62,8 @@ export type UiMessage = {
   generatedImageUrls?: string[]
   /** Assistant-generated local image file paths (desktop source-of-truth). */
   generatedImagePaths?: string[]
+  /** Assistant only: structured plan from Plan mode (editable until approved/built). */
+  plan?: PlanArtifact
 }
 
 import type { CodingContextMemo } from '@/lib/codingContextMemo'

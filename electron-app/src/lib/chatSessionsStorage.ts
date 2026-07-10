@@ -1,5 +1,6 @@
 import { normalizeCodingContextMemo } from '@/lib/codingContextMemo'
 import { normalizeImageVisionCache } from '@/lib/imageVisionCache'
+import { normalizePlanArtifact } from '@/lib/planArtifact'
 import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
 /** Drop image payloads before localStorage — avoids quota blowups (MVP). */
@@ -40,15 +41,31 @@ function isSessionLike(v: unknown): v is ChatSession {
   )
 }
 
+function normalizeMessage(msg: UiMessage): UiMessage {
+  if (!msg.plan) return msg
+  const plan = normalizePlanArtifact(msg.plan)
+  if (!plan) {
+    const { plan: _drop, ...rest } = msg
+    return rest
+  }
+  // Interrupted Approve & Build must not stay locked after reload.
+  if (plan.status === 'approved') {
+    return { ...msg, plan: { ...plan, status: 'draft' } }
+  }
+  return { ...msg, plan }
+}
+
 function normalizeSession(raw: ChatSession): ChatSession {
   const projectPath = (raw.codingProjectPath ?? raw.codingContextMemo?.projectPath ?? '').trim()
   const imageVisionCache = normalizeImageVisionCache(raw.imageVisionCache)
   const hasVisionCache = Object.keys(imageVisionCache).length > 0
+  const messages = Array.isArray(raw.messages) ? raw.messages.map(normalizeMessage) : raw.messages
+  const base: ChatSession = { ...raw, messages }
   if (!raw.codingContextMemo) {
-    return hasVisionCache ? { ...raw, imageVisionCache } : raw
+    return hasVisionCache ? { ...base, imageVisionCache } : base
   }
   return {
-    ...raw,
+    ...base,
     codingProjectPath: projectPath || raw.codingProjectPath,
     codingContextMemo: normalizeCodingContextMemo(raw.codingContextMemo, projectPath),
     ...(hasVisionCache ? { imageVisionCache } : {}),

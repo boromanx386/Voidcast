@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
+import { PlanArtifactCard } from '@/components/chat/PlanArtifactCard'
 import { dedupeNonEmpty } from '@/lib/chatHints'
 import { imageDataUrl } from '@/lib/imageAttachment'
 import {
@@ -34,6 +35,8 @@ type Props = {
     | 'startEdit'
     | 'cancelEdit'
     | 'commitEdit'
+    | 'updateMessagePlan'
+    | 'approveAndBuildPlan'
     | 'playingId'
     | 'ttsOk'
     | 'abortTts'
@@ -64,6 +67,8 @@ export function ChatMessage({
     startEdit,
     cancelEdit,
     commitEdit,
+    updateMessagePlan,
+    approveAndBuildPlan,
     playingId,
     ttsOk,
     abortTts,
@@ -156,6 +161,15 @@ export function ChatMessage({
                     </details>
                   ) : null}
                   <ChatMarkdown content={markdownContent} />
+                  {m.plan ? (
+                    <PlanArtifactCard
+                      messageId={m.id}
+                      plan={m.plan}
+                      busy={busy}
+                      onChange={updateMessagePlan}
+                      onApproveAndBuild={approveAndBuildPlan}
+                    />
+                  ) : null}
                   {renderItems.length > 0 ? (
                     <div className="flex flex-wrap gap-3">
                       {renderItems.map((item) => (
