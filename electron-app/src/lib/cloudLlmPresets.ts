@@ -104,3 +104,48 @@ export function normalizeNvidiaModelId(model: string): string {
   if (!trimmed) return NVIDIA_LLM_PRESET_MODELS[0]?.id ?? 'nvidia/nemotron-3-super-120b-a12b'
   return NVIDIA_MODEL_ALIASES[trimmed] ?? trimmed
 }
+
+/** OpenRouter route suffixes after `provider/model:` (not Ollama tags). */
+const OPENROUTER_ROUTE_VARIANTS = new Set([
+  'free',
+  'nitro',
+  'floor',
+  'exacto',
+  'extended',
+])
+
+export type SubAgentProviderId = 'ollama' | 'openrouter' | 'deepseek'
+
+/**
+ * Resolve which backend a sub-agent model id should hit.
+ *
+ * Ollama supports namespaced ids like `sorc/qwen…:9b` (both `/` and `:`).
+ * OpenRouter uses `org/model` and optional route variants like `:free`.
+ * Prefer an explicit provider from settings when present.
+ */
+export function detectSubAgentProvider(
+  model: string,
+  explicit?: SubAgentProviderId | null,
+): SubAgentProviderId {
+  if (explicit === 'ollama' || explicit === 'openrouter' || explicit === 'deepseek') {
+    return explicit
+  }
+  if (!model) return 'ollama'
+  if (isDeepSeekModelId(model)) return 'deepseek'
+
+  const hasColon = model.includes(':')
+  const hasSlash = model.includes('/')
+
+  // Classic Ollama tags: llava:13b, mistral:latest
+  if (hasColon && !hasSlash) return 'ollama'
+
+  // Both `/` and `:` — disambiguate OpenRouter variants vs Ollama namespace/name:tag
+  if (hasColon && hasSlash) {
+    const variant = model.slice(model.lastIndexOf(':') + 1).toLowerCase()
+    if (OPENROUTER_ROUTE_VARIANTS.has(variant)) return 'openrouter'
+    return 'ollama'
+  }
+
+  // Slash without colon → OpenRouter-style org/model
+  return 'openrouter'
+}

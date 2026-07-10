@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Sub-agent Ollama routing**: namespaced local models like `sorc/qwen…:9b` (both `/` and `:`) no longer route to OpenRouter. Detection treats OpenRouter route variants (`:free`, `:nitro`, …) as cloud; other `ns/name:tag` ids go to Ollama. Selecting from the SUB model list also stores an explicit `provider`.
 - **Coding image preview**: safer `readImageFile` error handling so TypeScript correctly narrows failure vs success payloads.
 
 ## [2.7.1] — 2026-07-09

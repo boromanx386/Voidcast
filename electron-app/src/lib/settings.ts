@@ -1,8 +1,8 @@
 import {
-  isDeepSeekModelId,
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
   normalizeOpenRouterModelId,
+  detectSubAgentProvider,
 } from '@/lib/cloudLlmPresets'
 import type { AgentChatMode } from '@/types/chat'
 
@@ -211,8 +211,112 @@ export function runwareTtsSupportsLanguage(model: string): boolean {
 export function runwareTtsLanguagePlaceholder(model: string): string {
   const id = model.trim()
   if (id === 'alibaba:qwen@3-tts-1.7b-customvoice') return 'English, Auto, Chinese…'
-  if (id === 'minimax:speech@2.8') return 'en, auto, de, es…'
+  if (id === 'minimax:speech@2.8') return 'languageBoost: en, auto, de, es…'
   return 'en, de, es-ES…'
+}
+
+const MINIMAX_LANGUAGE_BOOST_CODES = new Set([
+  'zh',
+  'yue',
+  'en',
+  'ar',
+  'ru',
+  'es',
+  'fr',
+  'pt',
+  'de',
+  'tr',
+  'nl',
+  'uk',
+  'vi',
+  'id',
+  'ja',
+  'it',
+  'ko',
+  'th',
+  'pl',
+  'ro',
+  'el',
+  'cs',
+  'fi',
+  'hi',
+  'bg',
+  'da',
+  'he',
+  'ms',
+  'fa',
+  'sk',
+  'sv',
+  'hr',
+  'fil',
+  'hu',
+  'no',
+  'sl',
+  'ca',
+  'nn',
+  'ta',
+  'af',
+  'auto',
+])
+
+function mapRunwareTtsLanguageBoost(language: string): string | undefined {
+  const lang = language.trim()
+  if (!lang) return undefined
+  const lower = lang.toLowerCase()
+  const boostMap: Record<string, string> = {
+    auto: 'auto',
+    en: 'en',
+    english: 'en',
+    zh: 'zh',
+    chinese: 'zh',
+    mandarin: 'zh',
+    yue: 'yue',
+    cantonese: 'yue',
+    ar: 'ar',
+    arabic: 'ar',
+    ru: 'ru',
+    russian: 'ru',
+    es: 'es',
+    spanish: 'es',
+    fr: 'fr',
+    french: 'fr',
+    pt: 'pt',
+    portuguese: 'pt',
+    de: 'de',
+    german: 'de',
+    tr: 'tr',
+    turkish: 'tr',
+    nl: 'nl',
+    dutch: 'nl',
+    uk: 'uk',
+    ukrainian: 'uk',
+    vi: 'vi',
+    vietnamese: 'vi',
+    id: 'id',
+    indonesian: 'id',
+    ja: 'ja',
+    japanese: 'ja',
+    it: 'it',
+    italian: 'it',
+    ko: 'ko',
+    korean: 'ko',
+    th: 'th',
+    thai: 'th',
+    pl: 'pl',
+    polish: 'pl',
+    ro: 'ro',
+    romanian: 'ro',
+    el: 'el',
+    greek: 'el',
+    cs: 'cs',
+    czech: 'cs',
+    fi: 'fi',
+    finnish: 'fi',
+    hi: 'hi',
+    hindi: 'hi',
+  }
+  const mapped = boostMap[lower] || lower
+  return MINIMAX_LANGUAGE_BOOST_CODES.has(mapped) ? mapped : undefined
 }
 
 function mapRunwareTtsLanguage(model: string, language: string): string | undefined {
@@ -220,9 +324,6 @@ function mapRunwareTtsLanguage(model: string, language: string): string | undefi
   const id = model.trim()
   if (id === RUNWARE_TTS_MODEL_DEFAULT) {
     return lang || undefined
-  }
-  if (id === 'minimax:speech@2.8') {
-    return lang || 'auto'
   }
   if (id === 'alibaba:qwen@3-tts-1.7b-customvoice') {
     if (!lang) return 'Auto'
@@ -273,6 +374,17 @@ export function buildRunwareTtsSpeechPayload(
   return speech
 }
 
+export function buildRunwareTtsSettingsPayload(
+  model: string,
+  language: string,
+): Record<string, unknown> | undefined {
+  const id = normalizeRunwareTtsModel(model)
+  if (id !== 'minimax:speech@2.8') return undefined
+  const languageBoost = mapRunwareTtsLanguageBoost(language)
+  if (!languageBoost) return undefined
+  return { languageBoost }
+}
+
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek'
@@ -305,8 +417,13 @@ export type RunwareMusicModelProfile = {
 export type SubAgentConfig = {
   /** When true, image_recall runs sub-agent instead of returning base64. */
   enabled: boolean
-  /** Sub-agent model id (e.g. 'llava:13b', 'gpt-4o'). Provider is auto-detected. */
+  /** Sub-agent model id (e.g. 'llava:13b', 'sorc/foo:9b', 'gpt-4o'). */
   model: string
+  /**
+   * Explicit backend for `model`. Set when picking from the SUB options list.
+   * When omitted, inferred via detectSubAgentProvider (needed for namespaced Ollama ids).
+   */
+  provider?: 'ollama' | 'openrouter' | 'deepseek'
   /** Max generated tokens per sub-agent call (default 1024). */
   outputTokens?: number
   /** Context window size sent to Ollama as num_ctx (default 4096). Ignored by OpenRouter. */
@@ -703,6 +820,7 @@ export const defaults: AppSettings = {
   subAgent: {
     enabled: false,
     model: 'llava:13b',
+    provider: 'ollama',
     outputTokens: 1024,
     contextTokens: 8192,
     showAnalysisWindow: true,
@@ -921,10 +1039,15 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
   const enabled = raw.enabled === true
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
+  const rawProvider =
+    raw.provider === 'ollama' || raw.provider === 'openrouter' || raw.provider === 'deepseek'
+      ? raw.provider
+      : undefined
+  const provider = detectSubAgentProvider(rawModel, rawProvider)
   const model =
-    rawModel.includes(':') && !rawModel.includes('/')
+    provider === 'ollama'
       ? rawModel
-      : isDeepSeekModelId(rawModel)
+      : provider === 'deepseek'
         ? normalizeDeepSeekModelId(rawModel)
         : normalizeOpenRouterModelId(rawModel)
   // outputTokens — migrate old maxTokensPerImage key if present
@@ -942,7 +1065,7 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const showAnalysisWindow = raw.showAnalysisWindow !== false
   return {
     ...s,
-    subAgent: { enabled, model, outputTokens, contextTokens, showAnalysisWindow },
+    subAgent: { enabled, model, provider, outputTokens, contextTokens, showAnalysisWindow },
   }
 }
 

@@ -103,12 +103,20 @@ describe('detectSubAgentProvider', () => {
     expect(detectSubAgentProvider('claude-3-opus')).toBe('openrouter')
   })
 
-  it('colon with slash = openrouter (e.g. openai/gpt-4:free)', () => {
-    // has both : and / — the / check takes priority → openrouter
+  it('colon with OpenRouter route variant = openrouter (e.g. openai/gpt-4:free)', () => {
     expect(detectSubAgentProvider('openai/gpt-4:free')).toBe('openrouter')
+  })
+
+  it('namespaced Ollama model with slash+colon = ollama (e.g. sorc/qwen…:9b)', () => {
+    expect(detectSubAgentProvider('sorc/qwen3.5-claude-4.6-opus:9b')).toBe('ollama')
   })
 
   it('handles model with dots and numbers (e.g. llama3.2-vision:latest)', () => {
     expect(detectSubAgentProvider('llama3.2-vision:latest')).toBe('ollama')
+  })
+
+  it('explicit provider overrides heuristic', () => {
+    expect(detectSubAgentProvider('openai/gpt-4o', 'ollama')).toBe('ollama')
+    expect(detectSubAgentProvider('llava:13b', 'openrouter')).toBe('openrouter')
   })
 })

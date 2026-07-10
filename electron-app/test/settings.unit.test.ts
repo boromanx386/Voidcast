@@ -200,6 +200,7 @@ describe('normalizeSubAgent', () => {
     const s = normalizeSubAgent(makeSubAgent({ enabled: true, model: 'claude' }))
     expect(s.subAgent.enabled).toBe(true)
     expect(s.subAgent.model).toBe('claude')
+    expect(s.subAgent.provider).toBe('openrouter')
     expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
     expect(s.subAgent.contextTokens).toBe(defaults.subAgent.contextTokens)
     expect(s.subAgent.showAnalysisWindow).toBe(true)
@@ -209,6 +210,7 @@ describe('normalizeSubAgent', () => {
     const s = normalizeSubAgent(makeSubAgent({
       enabled: true,
       model: 'gpt-4o',
+      provider: 'openrouter',
       outputTokens: 2048,
       contextTokens: 32768,
       showAnalysisWindow: false,
@@ -216,10 +218,26 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent).toEqual({
       enabled: true,
       model: 'gpt-4o',
+      provider: 'openrouter',
       outputTokens: 2048,
       contextTokens: 32768,
       showAnalysisWindow: false,
     })
+  })
+
+  test('namespaced Ollama model keeps id and routes to ollama', () => {
+    const s = normalizeSubAgent(
+      makeSubAgent({ enabled: true, model: 'sorc/qwen3.5-claude-4.6-opus:9b' }),
+    )
+    expect(s.subAgent.model).toBe('sorc/qwen3.5-claude-4.6-opus:9b')
+    expect(s.subAgent.provider).toBe('ollama')
+  })
+
+  test('explicit provider is preserved', () => {
+    const s = normalizeSubAgent(
+      makeSubAgent({ enabled: true, model: 'custom-vision', provider: 'ollama' }),
+    )
+    expect(s.subAgent.provider).toBe('ollama')
   })
 
   test('does not mutate surrounding settings', () => {

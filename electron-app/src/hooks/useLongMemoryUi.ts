@@ -84,7 +84,7 @@ export function useLongMemoryUi({
     try {
       const useSub = settings.subAgent.enabled
       const subModel = settings.subAgent.model
-      const subProvider = detectSubAgentProvider(subModel)
+      const subProvider = detectSubAgentProvider(subModel, settings.subAgent.provider)
       const memLlmProvider = useSub
         ? subProvider === 'ollama'
           ? 'ollama'

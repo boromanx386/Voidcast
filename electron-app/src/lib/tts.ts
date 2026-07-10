@@ -1,4 +1,5 @@
 import {
+  buildRunwareTtsSettingsPayload,
   buildRunwareTtsSpeechPayload,
   normalizeBaseUrl,
   normalizeRunwareTtsModel,
@@ -207,6 +208,10 @@ export async function synthesizeSpeech(options: {
         options.runwareXaiVoice || '',
         language,
       ),
+    }
+    const settingsPayload = buildRunwareTtsSettingsPayload(model, language)
+    if (settingsPayload) {
+      payload.settings = settingsPayload
     }
     const decodeRunwareAudioBody = (body: {
       data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>

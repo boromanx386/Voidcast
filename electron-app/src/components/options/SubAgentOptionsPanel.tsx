@@ -14,24 +14,24 @@ type Props = {
 
 // ── All known models merged into one list ────────────────────────────────
 
-type ModelEntry = { id: string; label: string; group: string }
+type ModelEntry = { id: string; label: string; group: string; provider: 'ollama' | 'openrouter' | 'deepseek' }
 
 function buildUnifiedModelList(ollamaModels: string[]): ModelEntry[] {
   const entries: ModelEntry[] = []
 
   // Ollama (local) — fetched dynamically
   for (const name of ollamaModels) {
-    entries.push({ id: name, label: name, group: 'Ollama (local)' })
+    entries.push({ id: name, label: name, group: 'Ollama (local)', provider: 'ollama' })
   }
 
   // OpenRouter presets
   for (const m of OPENROUTER_LLM_PRESET_MODELS) {
-    entries.push({ id: m.id, label: m.label, group: 'OpenRouter' })
+    entries.push({ id: m.id, label: m.label, group: 'OpenRouter', provider: 'openrouter' })
   }
 
   // DeepSeek presets
   for (const m of DEEPSEEK_LLM_PRESET_MODELS) {
-    entries.push({ id: m.id, label: m.label, group: 'DeepSeek' })
+    entries.push({ id: m.id, label: m.label, group: 'DeepSeek', provider: 'deepseek' })
   }
 
   return entries
@@ -139,9 +139,14 @@ export function SubAgentOptionsPanel({
               onChange={(e) => {
                 const v = e.target.value
                 if (!v || v.startsWith('__custom__')) return
+                const entry = allModels.find((m) => m.id === v)
                 setSettings((s) => ({
                   ...s,
-                  subAgent: { ...s.subAgent, model: v },
+                  subAgent: {
+                    ...s.subAgent,
+                    model: v,
+                    provider: entry?.provider ?? 'ollama',
+                  },
                 }))
               }}
             >
@@ -184,14 +189,20 @@ export function SubAgentOptionsPanel({
               onChange={(e) =>
                 setSettings((s) => ({
                   ...s,
-                  subAgent: { ...s.subAgent, model: e.target.value },
+                  subAgent: {
+                    ...s.subAgent,
+                    model: e.target.value,
+                    // Clear explicit provider so auto-detect can re-resolve
+                    provider: undefined,
+                  },
                 }))
               }
             />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-              Ollama models (e.g. llava:13b) use Options → LLM Ollama base URL regardless of
-              main LLM provider. OpenRouter presets use Options → LLM OpenRouter base URL and
-              API key. image_recall with purpose=edit always bypasses the sub-agent.
+              Ollama models (including namespaced ones like user/model:tag) use Options → LLM
+              Ollama base URL regardless of main LLM provider. OpenRouter presets use Options →
+              LLM OpenRouter base URL and API key. image_recall with purpose=edit always bypasses
+              the sub-agent.
             </p>
           </div>
 

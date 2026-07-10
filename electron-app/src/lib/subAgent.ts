@@ -13,7 +13,13 @@
 import { normalizeBaseUrl } from './settings'
 import type { SubAgentConfig } from './settings'
 import { deepseekApiBaseForRuntime, usesServerCloudProxy } from './platform'
-import { isDeepSeekModelId } from '@/lib/cloudLlmPresets'
+import {
+  detectSubAgentProvider as detectSubAgentProviderId,
+  type SubAgentProviderId,
+} from '@/lib/cloudLlmPresets'
+
+export { detectSubAgentProviderId as detectSubAgentProvider }
+export type { SubAgentProviderId }
 
 // ── provider auto-detection ──────────────────────────────────────────────
 
@@ -21,14 +27,6 @@ export type SubAgentUiCallbacks = {
   onStart?: (imageCount: number) => void
   onProgress?: (current: number, total: number) => void
   onDone?: (formatted: string) => void
-}
-
-/** Ollama models use `:` (e.g. llava:13b). OpenRouter/NVIDIA use `/`. DeepSeek uses `deepseek-*`. */
-export function detectSubAgentProvider(model: string): 'ollama' | 'openrouter' | 'deepseek' {
-  if (!model) return 'ollama'
-  if (model.includes(':') && !model.includes('/')) return 'ollama'
-  if (isDeepSeekModelId(model)) return 'deepseek'
-  return 'openrouter'
 }
 
 // ── types ────────────────────────────────────────────────────────────────
@@ -252,7 +250,7 @@ async function describeSingleImage(
   userQuery: string | undefined,
   signal?: AbortSignal,
 ): Promise<string> {
-  const provider = detectSubAgentProvider(config.model)
+  const provider = detectSubAgentProviderId(config.model, config.provider)
   const prompt = buildPrompt(userQuery)
   const maxTokens = config.outputTokens ?? 1024
 
