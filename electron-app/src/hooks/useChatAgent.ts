@@ -208,6 +208,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         openrouterBaseUrl: settings.openrouterBaseUrl,
         openrouterApiKey: settings.openrouterApiKey,
         openrouterModel: settings.openrouterModel,
+        openrouterProviderOnly: settings.openrouterProviderOnly,
         nvidiaBaseUrl: settings.nvidiaBaseUrl,
         nvidiaApiKey: settings.nvidiaApiKey,
         nvidiaModel: settings.nvidiaModel,
@@ -521,6 +522,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   apiKey: cloudCfg.apiKey,
                   model: cloudCfg.model,
                   thinkLevel: cloudCfg.thinkLevel,
+                  providerOnly: cloudCfg.providerOnly,
                   ...commonToolParams,
                 })
               : await runOllamaChatWithTools({
@@ -539,6 +541,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   apiKey: cloudCfg.apiKey,
                   model: cloudCfg.model,
                   thinkLevel: cloudCfg.thinkLevel,
+                  providerOnly: cloudCfg.providerOnly,
                   messages: ollamaMessagesToOpenRouter(history),
                   modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
                   signal: ac.signal,

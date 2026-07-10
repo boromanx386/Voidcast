@@ -9,15 +9,25 @@ All notable changes to this project will be documented in this file.
 - **Plan mode**: composer toggle **AGENT | PLAN**. In Plan mode the agent explores read-only (no write/edit/shell/media/settings mutations), then ends with a structured plan card — editable title/steps, optional approaches **A/B/C** (+ optional **D**), and **Approve & Build**.
 - **Approve & Build**: switches to Agent mode, implements the chosen plan, shows a sticky **Building plan** progress panel, and auto-checks steps as `write_file` / `edit_code` / `execute_command` succeed. Stop/error reopens the plan as draft with **Retry Build**; `built` only when real tool progress happened.
 - **Plan persistence**: plan artifacts normalize on session load; interrupted mid-build (`approved`) reopens as draft after reload.
-
-### Added
-
+- **Plan mode UI polish**: composer banner, calmer plan card labels, theme-aware empty state in Plan mode, and Minimal/Obsidian styling for plan elements.
+- **Pinned sessions sidebar**: chat sessions live in a left column (toggle in header); no overlay navigation menu. Mobile defaults to collapsed under 640px width.
+- **Coding file preview syntax highlighting**: highlight.js for source files in preview mode (diff and image preview unchanged).
+- **Coding preview inline edit**: **✎ Edit** in the preview header — textarea editor with find/replace (match highlights, **Enter** / **↓** navigation, **Ctrl+G** / **Ctrl+Shift+G**), **Save** / **Cancel**, unsaved-change guard, and Electron focus recovery after native confirm dialogs.
+- **Markdown preview in coding panel**: `.md` / `.mdx` files render via `ChatMarkdown` by default; **Source** toggle returns to highlighted raw view.
 - **Sub-agent long memory toggle**: `USE_FOR_LONG_MEMORY` in Options → SUB — independent from vision; extract uses the sub-agent model only when this is on.
 - **Sub-agent default context**: `CONTEXT_TOKENS` default raised to 64K (65536) for new installs.
 - **`image_recall` focus**: optional `focus` argument steers sub-agent vision (what the main agent needs from the image). Cache is keyed per image+focus; generic recalls (no focus) stay backward-compatible.
+- **OpenRouter provider lock**: Options → LLM optional **OPENROUTER_PROVIDER** slug below the model — when set, requests use `provider.only` with no fallbacks.
+
+### Changed
+
+- **Composer layout**: full-width textarea, Agent/Plan dropdown in toolbar, commit bar collapsed by default, neutral opaque panel splitters (no neon glow under dividers).
+- **Coding preview scrolling**: file and diff views use `pre` layout (no line wrap) with horizontal scroll like a code editor.
 
 ### Fixed
 
+- **Coding panel survives Options**: chat/coding shell stays mounted while Settings is open — selected file, tree expansion, and preview state are preserved.
+- **TTS after Options**: single global `<audio>` element in the app shell (was duplicated per screen; ref stayed null after leaving Options).
 - **Sub-agent Ollama routing**: namespaced local models like `sorc/qwen…:9b` (both `/` and `:`) no longer route to OpenRouter. Detection treats OpenRouter route variants (`:free`, `:nitro`, …) as cloud; other `ns/name:tag` ids go to Ollama. Selecting from the SUB model list also stores an explicit `provider`.
 - **Sub-agent vision cache short-circuit**: repeat `image_recall` on the same image reuses the session `imageVisionCache` instead of calling the sub-agent API again. History replay behavior is unchanged.
 - **Coding image preview**: safer `readImageFile` error handling so TypeScript correctly narrows failure vs success payloads.

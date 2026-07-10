@@ -532,6 +532,8 @@ export type AppSettings = {
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
+  /** When set, OpenRouter requests use provider.only with no fallbacks. */
+  openrouterProviderOnly: string
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   nvidiaModel: string
@@ -704,6 +706,7 @@ export const defaults: AppSettings = {
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   openrouterApiKey: '',
   openrouterModel: 'openrouter/free',
+  openrouterProviderOnly: '',
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
   nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
@@ -952,6 +955,8 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? s.openrouterModel.trim()
       : defaults.openrouterModel,
   )
+  const openrouterProviderOnly =
+    typeof s.openrouterProviderOnly === 'string' ? s.openrouterProviderOnly.trim() : ''
   const nvidiaBaseUrl =
     typeof s.nvidiaBaseUrl === 'string' && s.nvidiaBaseUrl.trim()
       ? s.nvidiaBaseUrl.trim()
@@ -980,6 +985,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     openrouterBaseUrl,
     openrouterApiKey,
     openrouterModel,
+    openrouterProviderOnly,
     nvidiaBaseUrl,
     nvidiaApiKey,
     nvidiaModel,

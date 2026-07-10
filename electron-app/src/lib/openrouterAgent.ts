@@ -73,6 +73,8 @@ export type RunOpenRouterChatWithToolsParams = {
   deepseekBaseUrlForSubAgent?: string
   deepseekApiKeyForSubAgent?: string
   thinkLevel?: LlmThinkLevel
+  /** OpenRouter provider slug lock from settings. */
+  providerOnly?: string
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   imageVisionCache?: ImageVisionCache
@@ -105,6 +107,7 @@ export async function runOpenRouterChatWithTools(
         onDelta,
         onThinkingDelta,
         thinkLevel: params.thinkLevel,
+        providerOnly: params.providerOnly,
       })
       return {
         content: res.content,

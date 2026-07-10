@@ -13,6 +13,7 @@ type ExtractParams = {
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
+  openrouterProviderOnly?: string
   nvidiaBaseUrl?: string
   nvidiaApiKey?: string
   nvidiaModel?: string
@@ -121,6 +122,7 @@ export async function extractLongMemoryCandidates(params: ExtractParams): Promis
       modelOptions: { ...params.modelOptions, temperature: 0.1 },
       signal: params.signal,
       thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
+      providerOnly: params.provider === 'openrouter' ? cfg.providerOnly : undefined,
       onDelta: () => undefined,
     })
     raw = out.content

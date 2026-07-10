@@ -113,7 +113,7 @@ With coding tools on, Voidcast also injects **`AGENTS.md` / `CLAUDE.md`** from t
 
 In the chat composer, switch **AGENT | PLAN**:
 
-- **Plan** — read-only tools only (list/read/search/git inspect). The agent proposes a structured plan card with editable steps and, when useful, competing approaches **A / B / C** (optional **D**). Pick an approach, edit steps, then **Approve & Build**.
+- **Plan** — read-only tools only (list/read/search/git inspect). The agent proposes a structured plan card with editable steps and, when useful, competing approaches **A / B / C** (optional **D**). Pick an approach, edit steps, then **Approve & Build**. A banner above the composer reminds you that edits are blocked until approval; Plan mode has its own empty-state copy.
 - **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel + auto-checked steps as files are written/edited or commands run). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after real tool progress.
 
 <!--
@@ -141,9 +141,15 @@ The coding panel surfaces git state visually and lets you commit without leaving
 
 - **Status colors** — file tree shows dirty files letter-coded: `M` yellow (modified), `A` green (added), `D` red (deleted), `?` gray (untracked), `R` magenta (renamed). Directory names turn yellow when they contain changes.
 - **Stage / unstage / discard** — inline buttons on each dirty file row (`+` / `−` / `↶`), plus the same actions in the file preview header.
-- **Diff preview** — clicking a dirty file opens a unified diff with line numbers, `@@` hunk headers, and `+` green / `-` red highlighting. Staged vs unstaged diff auto-selects based on status.
-- **Commit bar** — input field + **COMMIT** (staged only), **COMMIT ALL** (stage all + commit like VS Code), and **DISCARD ALL** (restore + clean) buttons. All actions go through git on the main process.
+- **Diff preview** — clicking a dirty file opens a unified diff with line numbers, `@@` hunk headers, and `+` green / `-` red highlighting. Staged vs unstaged diff auto-selects based on status. Long lines scroll horizontally (no wrap).
+- **Commit bar** — collapsible panel below the tree when changes exist: expand for message + **COMMIT** (staged only), **COMMIT ALL** (stage all + commit like VS Code), and **DISCARD ALL** (restore + clean). Collapsed by default.
 - **Dirty-only toggle** — "DIRTY N" / "ALL · N" in the file tree header filters the tree to show only changed files.
+
+### File preview
+
+- **Syntax highlighting** — source files use highlight.js in preview mode (images and diffs unchanged).
+- **Markdown rendering** — `.md` / `.mdx` open as rendered Markdown (`ChatMarkdown`); **Source** toggles back to highlighted raw text.
+- **Inline edit** — **✎ Edit** opens a full editor with find/replace (yellow/cyan match marks, **Enter** / **↓** to jump, **Ctrl+S** save, **Esc** cancel). Git stage/unstage/discard stay in the header when not editing.
 
 ### Resizable layout
 
@@ -229,6 +235,7 @@ For **charts, diagrams, and infographics**, pick **GPT Image 2** (`openai:gpt-im
 Six built-in themes: **Minimal** (default), **Dystopian**, **Matrix**, **Light**, **Blood Moon**, and **Obsidian**. Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
 
 Other UX features:
+- **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens)
 - **Drag-and-drop** — drop images and supported text/code files onto the chat (same limits as the file picker)
 - **Edit any message inline** — history regenerates from that point
 - **Fork chat session** — explore a different branch of the conversation

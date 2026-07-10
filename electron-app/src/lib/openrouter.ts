@@ -48,10 +48,21 @@ export type StreamOpenRouterChatParams = {
   tools?: unknown
   /** DeepSeek thinking mode; ignored for other providers. */
   thinkLevel?: LlmThinkLevel
+  /** OpenRouter provider slug; when set, routes only to that provider (no fallbacks). */
+  providerOnly?: string
 }
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
 const MAX_RETRIES_PER_MODEL = 3
+
+/** Build OpenRouter `provider` body when a slug is configured. */
+export function openRouterProviderRoutingBody(
+  providerOnly: string | undefined,
+): { only: string[]; allow_fallbacks: false } | undefined {
+  const slug = (providerOnly || '').trim()
+  if (!slug) return undefined
+  return { only: [slug], allow_fallbacks: false }
+}
 
 function compactOpenRouterOptions(
   o: OllamaModelOptions | undefined,
@@ -286,6 +297,10 @@ export async function streamOpenRouterChat(
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
       if (isDeepSeekApi(root)) applyDeepSeekThinkingBody(body, options.thinkLevel)
+      if (apiLabel === 'OpenRouter') {
+        const provider = openRouterProviderRoutingBody(options.providerOnly)
+        if (provider) body.provider = provider
+      }
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

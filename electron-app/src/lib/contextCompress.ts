@@ -22,6 +22,7 @@ export async function compressConversationContext(params: {
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
+  openrouterProviderOnly?: string
   nvidiaBaseUrl?: string
   nvidiaApiKey?: string
   nvidiaModel?: string
@@ -65,6 +66,7 @@ export async function compressConversationContext(params: {
       modelOptions,
       signal: params.signal,
       thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
+      providerOnly: params.provider === 'openrouter' ? cfg.providerOnly : undefined,
       onDelta: () => undefined,
     })
     content = out.content

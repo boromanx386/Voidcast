@@ -230,6 +230,26 @@ export function LlmOptionsPanel({
               placeholder="openrouter/free"
             />
           </div>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-yellow mr-2">⊘</span> OPENROUTER_PROVIDER (optional)
+            </label>
+            <input
+              className="cyber-input"
+              value={settings.openrouterProviderOnly}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, openrouterProviderOnly: e.target.value.trim() }))
+              }
+              placeholder="anthropic"
+            />
+            <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+              Force routing to one OpenRouter provider slug (e.g.{' '}
+              <code className="text-void-light/90">anthropic</code>,{' '}
+              <code className="text-void-light/90">openai</code>,{' '}
+              <code className="text-void-light/90">deepinfra</code>). Leave empty for default
+              load balancing. No fallbacks when set.
+            </p>
+          </div>
         </>
       )}
 
@@ -520,6 +540,11 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
               Tool-calling support depends on selected upstream model/provider.
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              Optional <code className="text-void-light/90">OPENROUTER_PROVIDER</code> locks routing
+              to one provider slug (no fallbacks).
             </li>
           </ul>
         )}

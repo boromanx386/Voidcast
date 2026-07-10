@@ -100,6 +100,7 @@ export function useLongMemoryUi({
         openrouterBaseUrl: settings.openrouterBaseUrl,
         openrouterApiKey: settings.openrouterApiKey,
         openrouterModel: settings.openrouterModel,
+        openrouterProviderOnly: settings.openrouterProviderOnly,
         nvidiaBaseUrl: settings.nvidiaBaseUrl,
         nvidiaApiKey: settings.nvidiaApiKey,
         nvidiaModel: settings.nvidiaModel,

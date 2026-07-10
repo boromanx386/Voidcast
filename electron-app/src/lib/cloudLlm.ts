@@ -9,12 +9,15 @@ export type CloudLlmChatConfig = {
   apiKey: string
   model: string
   thinkLevel?: LlmThinkLevel
+  /** OpenRouter provider slug lock (provider.only, no fallbacks). */
+  providerOnly?: string
 }
 
 export type CloudLlmSettingsSlice = {
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
+  openrouterProviderOnly?: string
   nvidiaBaseUrl?: string
   nvidiaApiKey?: string
   nvidiaModel?: string
@@ -33,6 +36,7 @@ export function resolveCloudLlmChatConfig(
         baseUrl: settings.openrouterBaseUrl,
         apiKey: settings.openrouterApiKey,
         model: settings.openrouterModel,
+        providerOnly: settings.openrouterProviderOnly?.trim() || undefined,
       }
     case 'nvidia':
       return {
@@ -63,6 +67,7 @@ export function resolveCloudLlmChatConfigForProvider(
         baseUrl: settings.openrouterBaseUrl,
         apiKey: settings.openrouterApiKey,
         model: modelOverride || settings.openrouterModel,
+        providerOnly: settings.openrouterProviderOnly?.trim() || undefined,
       }
     case 'nvidia':
       return {

@@ -11,7 +11,7 @@ This folder contains the Electron + React + TypeScript desktop frontend for **Vo
 ├── src/                   # React renderer
 │   ├── App.tsx            # Thin orchestrator (chat vs options routing)
 │   ├── hooks/             # App state: sessions, agent loop, TTS/STT, attachments…
-│   ├── components/        # UI: chat (incl. Plan mode cards), options, coding panel, themes
+│   ├── components/        # UI: chat (sidebar, Plan cards), options, coding panel (preview/edit), themes
 │   ├── lib/               # Agent tools, plan artifacts, providers, settings, storage
 │   └── types/             # Shared TypeScript types
 ├── test/                  # Vitest unit tests (incl. plan-artifact)
@@ -21,7 +21,9 @@ This folder contains the Electron + React + TypeScript desktop frontend for **Vo
 
 ## Plan mode
 
-Composer toggle **AGENT | PLAN**. Plan mode is read-only exploration → structured plan card (approaches A/B/C, editable steps) → **Approve & Build** runs Agent mode with live step auto-check. See [`../README.md`](../README.md) and [`../CHANGELOG.md`](../CHANGELOG.md).
+Composer toggle **AGENT | PLAN**. Plan mode is read-only exploration → structured plan card (approaches A/B/C, editable steps) → **Approve & Build** runs Agent mode with live step auto-check.
+
+**Coding panel preview:** syntax-highlighted source, rendered Markdown for `.md`/`.mdx`, inline edit with find/replace. See [`../README.md`](../README.md) and [`../CHANGELOG.md`](../CHANGELOG.md).
 
 ## Quick start
 
