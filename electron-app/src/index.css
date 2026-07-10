@@ -79,7 +79,6 @@
       rgb(var(--color-neon-cyan)) 0%,
       rgb(var(--color-neon-magenta)) 100%
     );
-    box-shadow: 0 0 10px rgb(var(--color-neon-cyan) / 0.5);
   }
 
   ::-webkit-scrollbar-thumb:hover {

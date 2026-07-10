@@ -77,6 +77,7 @@ export function CodingPanel({
   const [dirtyOnly, setDirtyOnly] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
   const [commitBusy, setCommitBusy] = useState(false)
+  const [commitOpen, setCommitOpen] = useState(false)
   const [fileTreeHeight, setFileTreeHeight] = useState(() =>
     clampCodingFileTreeHeight(settings.coding.fileTreeHeightPx),
   )
@@ -188,6 +189,7 @@ export function CodingPanel({
     setGitBranchLabel(null)
     setDirtyOnly(false)
     setCommitMessage('')
+    setCommitOpen(false)
   }, [projectPath])
 
   const pushTerminal = useCallback((stream: TerminalLine['stream'], text: string) => {
@@ -474,6 +476,7 @@ export function CodingPanel({
         }
         pushTerminal('stdout', out.text)
         setCommitMessage('')
+        setCommitOpen(false)
         setLocalGitBump((n) => n + 1)
       } finally {
         setCommitBusy(false)
@@ -503,6 +506,7 @@ export function CodingPanel({
     setPreviewImageSrc(null)
     setPreviewMode('file')
     setPreviewDiffStaged(false)
+    setCommitOpen(false)
     void refreshFileTreeInPlace()
   }, [projectPath, dirtyCount, pushTerminal, refreshFileTreeInPlace])
 
@@ -579,7 +583,7 @@ export function CodingPanel({
 
   return (
     <aside
-      className="flex h-full min-h-0 shrink-0 flex-col gap-3 overflow-hidden border-l border-void-muted/30 bg-void-dark/40 p-3"
+      className="coding-panel flex h-full min-h-0 shrink-0 flex-col gap-3 overflow-hidden bg-void-dark p-3"
       style={{ width: widthPx ?? settings.coding.panelWidthPx }}
     >
       <div className="flex shrink-0 items-center justify-between">
@@ -681,15 +685,8 @@ export function CodingPanel({
                           persistFileTreeHeight(CODING_FILE_TREE_HEIGHT_MAX)
                         }
                       }}
-                      className={`group relative z-10 h-1.5 shrink-0 cursor-row-resize touch-none
-                        bg-void-muted/20 hover:bg-neon-cyan/40 active:bg-neon-cyan/60
-                        transition-colors ${isTreeResizing ? 'bg-neon-cyan/50' : ''}`}
+                      className="panel-splitter panel-splitter--horizontal"
                     >
-                      <div
-                        className={`pointer-events-none absolute inset-x-0 -top-1 -bottom-1 ${
-                          isTreeResizing ? 'bg-neon-cyan/10' : 'group-hover:bg-neon-cyan/5'
-                        }`}
-                      />
                     </div>
                   )}
                 </>
@@ -726,56 +723,91 @@ export function CodingPanel({
                     />
                   )}
                   {showCommitBar && (
-                    <div className="flex shrink-0 flex-col gap-1.5">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={commitMessage}
-                          onChange={(e) => setCommitMessage(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              void onCommit(stagedCount > 0 ? false : true)
+                    <div className="shrink-0">
+                      {!commitOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => setCommitOpen(true)}
+                          className="flex w-full items-center justify-between gap-2 rounded border border-neon-yellow/35 bg-neon-yellow/5 px-2 py-1 text-left transition-colors hover:border-neon-yellow/55 hover:bg-neon-yellow/10"
+                          title="Expand commit panel"
+                        >
+                          <span className="font-mono text-[10px] uppercase tracking-wide text-neon-yellow">
+                            Commit
+                          </span>
+                          <span className="truncate font-mono text-[10px] text-void-dim">
+                            {stagedCount > 0
+                              ? `${stagedCount} staged · ${dirtyCount} dirty`
+                              : `${dirtyCount} dirty`}
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] text-void-dim" aria-hidden>
+                            ▸
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="flex flex-col gap-1 rounded border border-void-muted/40 bg-void-black/25 p-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[10px] uppercase tracking-wide text-neon-yellow">
+                              Commit
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setCommitOpen(false)}
+                              className="rounded px-1 py-0.5 font-mono text-[10px] text-void-dim hover:bg-void-mid/40 hover:text-void-light"
+                              title="Collapse commit panel"
+                              aria-label="Collapse commit panel"
+                            >
+                              ▾
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={commitMessage}
+                            onChange={(e) => setCommitMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                void onCommit(stagedCount > 0 ? false : true)
+                              }
+                            }}
+                            placeholder={
+                              stagedCount > 0
+                                ? `Message (${stagedCount} staged)`
+                                : `Message · commit all (${dirtyCount})`
                             }
-                          }}
-                          placeholder={
-                            stagedCount > 0
-                              ? `Message (${stagedCount} staged · ${dirtyCount} dirty)`
-                              : `Message · commit all (${dirtyCount})`
-                          }
-                          title="Commit message"
-                          disabled={commitBusy}
-                          className="cyber-input flex-1 text-xs"
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        <button
-                          type="button"
-                          className="cyber-btn text-[10px] disabled:opacity-40"
-                          disabled={commitBusy || !commitMessage.trim() || stagedCount === 0}
-                          title="Commit only staged files"
-                          onClick={() => void onCommit(false)}
-                        >
-                          COMMIT
-                        </button>
-                        <button
-                          type="button"
-                          className="cyber-btn text-[10px] disabled:opacity-40"
-                          disabled={commitBusy || !commitMessage.trim() || dirtyCount === 0}
-                          title="Stage all changes and commit (like VS Code Commit All)"
-                          onClick={() => void onCommit(true)}
-                        >
-                          COMMIT ALL
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded border border-neon-red/40 px-2 py-1 text-[10px] font-mono uppercase tracking-wide text-neon-red/90 hover:bg-neon-red/10 disabled:opacity-40"
-                          disabled={commitBusy || dirtyCount === 0}
-                          title="Discard all local changes (restore + clean)"
-                          onClick={() => void onDiscardAll()}
-                        >
-                          DISCARD ALL
-                        </button>
-                      </div>
+                            title="Commit message"
+                            disabled={commitBusy}
+                            className="cyber-input w-full px-2 py-1 text-[11px]"
+                          />
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              type="button"
+                              className="cyber-btn px-2 py-0.5 text-[10px] disabled:opacity-40"
+                              disabled={commitBusy || !commitMessage.trim() || stagedCount === 0}
+                              title="Commit only staged files"
+                              onClick={() => void onCommit(false)}
+                            >
+                              Commit
+                            </button>
+                            <button
+                              type="button"
+                              className="cyber-btn px-2 py-0.5 text-[10px] disabled:opacity-40"
+                              disabled={commitBusy || !commitMessage.trim() || dirtyCount === 0}
+                              title="Stage all changes and commit (like VS Code Commit All)"
+                              onClick={() => void onCommit(true)}
+                            >
+                              All
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded border border-neon-red/40 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide text-neon-red/90 hover:bg-neon-red/10 disabled:opacity-40"
+                              disabled={commitBusy || dirtyCount === 0}
+                              title="Discard all local changes (restore + clean)"
+                              onClick={() => void onDiscardAll()}
+                            >
+                              Discard
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {showTerminal && (

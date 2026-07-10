@@ -152,12 +152,184 @@
   opacity: 0.3;
 }
 
+.voidcast-split--with-coding .voidcast-input-area {
+  background: rgb(var(--color-void-dark));
+  backdrop-filter: none;
+}
+
+.voidcast-split--with-coding .voidcast-input-area::before {
+  opacity: 0.12;
+}
+
 .input-wrapper {
-  @apply relative flex items-end gap-3;
+  @apply relative flex flex-col gap-1.5;
+}
+
+.composer-toolbar {
+  @apply flex items-center gap-1.5;
+}
+
+.composer-toolbar-btn {
+  @apply shrink-0 inline-flex items-center justify-center;
+  @apply h-7 min-w-[1.75rem] px-1.5;
+  @apply border border-void-muted bg-void-black/80;
+  @apply font-mono text-[10px] transition-colors disabled:opacity-40;
+  clip-path: polygon(
+    0 4px,
+    4px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    0 calc(100% - 4px)
+  );
+}
+
+.composer-mode-menu {
+  @apply relative shrink-0;
+}
+
+.composer-mode-trigger {
+  @apply shrink-0 inline-flex items-center justify-center gap-1;
+  @apply h-7 px-2;
+  @apply border border-void-muted bg-void-black/80;
+  @apply font-mono text-[10px] uppercase tracking-wide transition-colors disabled:opacity-40;
+  clip-path: polygon(
+    0 4px,
+    4px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    0 calc(100% - 4px)
+  );
+}
+
+.composer-mode-trigger--agent {
+  @apply text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5;
+}
+
+.composer-mode-trigger--plan {
+  @apply text-neon-purple border-neon-purple/35 hover:border-neon-purple/55 hover:bg-neon-purple/5;
+}
+
+.composer-mode-trigger[aria-expanded='true'] {
+  @apply border-neon-cyan/60 bg-neon-cyan/10;
+}
+
+.composer-mode-trigger--plan[aria-expanded='true'] {
+  @apply border-neon-purple/60 bg-neon-purple/10;
+}
+
+.composer-mode-dropdown {
+  @apply absolute bottom-full left-0 z-50 mb-1.5 min-w-[9.5rem];
+  @apply border border-void-muted/80 bg-void-black/95 py-1 shadow-lg backdrop-blur-sm;
+  clip-path: polygon(
+    0 6px,
+    6px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    0 calc(100% - 6px)
+  );
+}
+
+.composer-mode-option {
+  @apply flex w-full items-center gap-2 px-3 py-2 text-left;
+  @apply font-mono text-[10px] uppercase tracking-wider transition-colors;
+  @apply text-void-dim hover:bg-void-mid/50 hover:text-void-light;
+}
+
+.composer-mode-option--active {
+  @apply text-void-light;
+}
+
+.composer-mode-option--agent.composer-mode-option--active {
+  @apply bg-neon-cyan/10 text-neon-cyan;
+}
+
+.composer-mode-option--plan.composer-mode-option--active {
+  @apply bg-neon-purple/10 text-neon-purple;
+}
+
+.composer-plan-hint {
+  @apply mt-1.5 text-[10px] font-mono text-void-dim/80 leading-relaxed;
+}
+
+.composer-send-btn {
+  @apply ml-auto h-7 w-7 shrink-0 flex items-center justify-center;
+  @apply bg-void-mid border border-neon-cyan/30 text-neon-cyan;
+  @apply transition-all duration-200 disabled:opacity-30;
+  clip-path: polygon(
+    0 3px,
+    3px 0,
+    calc(100% - 3px) 0,
+    100% 3px,
+    100% calc(100% - 3px),
+    calc(100% - 3px) 100%,
+    3px 100%,
+    0 calc(100% - 3px)
+  );
+}
+
+.composer-send-btn:hover:not(:disabled) {
+  @apply bg-neon-cyan/20 border-neon-cyan;
+  box-shadow: 0 0 12px rgb(var(--color-neon-cyan) / 0.35);
+}
+
+.composer-send-btn svg {
+  @apply h-3.5 w-3.5;
+}
+
+.panel-splitter {
+  @apply relative z-10 shrink-0 touch-none;
+  background: rgb(var(--color-void-dark));
+  isolation: isolate;
+}
+
+.panel-splitter:focus {
+  outline: none;
+}
+
+.panel-splitter--vertical {
+  width: 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+}
+
+.panel-splitter--vertical::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: rgb(var(--color-void-muted) / 0.55);
+}
+
+.panel-splitter--horizontal {
+  height: 7px;
+  width: 100%;
+  margin: -3px 0;
+  cursor: row-resize;
+}
+
+.panel-splitter--horizontal::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 1px;
+  background: rgb(var(--color-void-muted) / 0.55);
 }
 
 .voidcast-textarea {
-  @apply flex-1 px-4 py-3 min-h-[48px] max-h-40;
+  @apply w-full px-3 py-2.5 min-h-[44px] max-h-40;
   @apply bg-void-black/80 border border-void-muted;
   @apply text-void-white placeholder:text-void-dim;
   @apply font-body text-[15px] leading-[1.65] resize-none;

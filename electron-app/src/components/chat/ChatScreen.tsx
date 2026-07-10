@@ -87,13 +87,13 @@ export function ChatScreen({ app }: Props) {
 
   return (
     <div
-      className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}
+      className={`voidcast-app${uiDystopian && !showCoding ? ' grid-bg' : ''}`}
       onDragEnter={app.onChatDragEnter}
       onDragOver={app.onChatDragOver}
       onDragLeave={app.onChatDragLeave}
       onDrop={app.onChatDrop}
     >
-      {uiDystopian && (
+      {uiDystopian && !showCoding && (
         <>
           <CrtOverlay />
           <AmbientParticles />
@@ -104,7 +104,7 @@ export function ChatScreen({ app }: Props) {
 
       <div
         ref={splitRef}
-        className={`flex min-h-0 min-w-0 w-full flex-1 overflow-hidden${isResizing ? ' select-none' : ''}`}
+        className={`flex min-h-0 min-w-0 w-full flex-1 overflow-hidden${isResizing ? ' select-none' : ''}${showCoding ? ' voidcast-split--with-coding' : ''}`}
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <ChatSidebar app={app} />
@@ -143,15 +143,8 @@ export function ChatScreen({ app }: Props) {
                   persistWidth(CODING_PANEL_WIDTH_MIN)
                 }
               }}
-              className={`group relative z-10 w-1.5 shrink-0 cursor-col-resize touch-none
-                bg-void-muted/20 hover:bg-neon-cyan/40 active:bg-neon-cyan/60
-                transition-colors ${isResizing ? 'bg-neon-cyan/50' : ''}`}
+              className="panel-splitter panel-splitter--vertical"
             >
-              <div
-                className={`pointer-events-none absolute inset-y-0 -left-1 -right-1 ${
-                  isResizing ? 'bg-neon-cyan/10' : 'group-hover:bg-neon-cyan/5'
-                }`}
-              />
             </div>
             <CodingPanel
               settings={app.settings}

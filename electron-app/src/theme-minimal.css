@@ -149,6 +149,26 @@ html[data-ui-theme='minimal'] .send-btn:hover:not(:disabled) {
   box-shadow: none;
 }
 
+html[data-ui-theme='minimal'] .composer-toolbar-btn,
+html[data-ui-theme='minimal'] .composer-mode-trigger {
+  clip-path: none;
+  border-radius: 0.375rem;
+}
+
+html[data-ui-theme='minimal'] .composer-send-btn {
+  clip-path: none;
+  border-radius: 0.375rem;
+  background: #27272a;
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #c7d2fe;
+}
+
+html[data-ui-theme='minimal'] .composer-send-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: #818cf8;
+  box-shadow: none;
+}
+
 html[data-ui-theme='minimal'] .cyber-btn {
   clip-path: none;
   border-radius: 0.375rem;

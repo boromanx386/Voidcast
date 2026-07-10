@@ -259,3 +259,24 @@ html[data-ui-theme='obsidian'] .send-btn:hover:not(:disabled) {
   border-color: rgb(var(--color-neon-cyan) / 0.55) !important;
   background-color: rgb(var(--color-neon-cyan) / 0.1) !important;
 }
+
+html[data-ui-theme='obsidian'] .panel-splitter {
+  background: #16161a;
+}
+
+html[data-ui-theme='obsidian'] .panel-splitter--vertical::before,
+html[data-ui-theme='obsidian'] .panel-splitter--horizontal::before {
+  background: rgba(55, 55, 65, 0.65);
+}
+
+html[data-ui-theme='obsidian'] .coding-panel {
+  background: #16161a !important;
+}
+
+html[data-ui-theme='obsidian'] .voidcast-input-area::before {
+  display: none;
+}
+
+html[data-ui-theme='obsidian'] .footer-context-readout .bg-neon-cyan\/75 {
+  background-color: rgba(105, 165, 210, 0.55) !important;
+}
