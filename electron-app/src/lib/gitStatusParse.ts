@@ -200,7 +200,7 @@ export function gitLetterTextClass(letter: string): string {
     case 'R':
       return 'text-neon-magenta'
     case '?':
-      return 'text-void-text'
+      return 'text-neon-cyan'
     case 'U':
       return 'text-neon-orange'
     default:

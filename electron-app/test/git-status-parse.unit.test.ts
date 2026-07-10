@@ -160,6 +160,6 @@ describe('buildGitStatusByPath / dirHasGitChanges', () => {
     expect(gitLetterTextClass('M')).toContain('yellow')
     expect(gitLetterTextClass('A')).toContain('green')
     expect(gitLetterTextClass('D')).toContain('red')
-    expect(gitLetterTextClass('?')).toContain('void-text')
+    expect(gitLetterTextClass('?')).toContain('cyan')
   })
 })
