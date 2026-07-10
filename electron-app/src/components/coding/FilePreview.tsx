@@ -43,11 +43,11 @@ function DiffLines({ content }: { content: string }) {
           bgClass = 'bg-neon-red/10'
         }
         return (
-          <div key={i} className={`flex gap-2 px-1 ${bgClass} ${rowClass}`}>
+          <div key={i} className={`flex w-max min-w-full gap-2 px-1 ${bgClass} ${rowClass}`}>
             <span className="w-8 shrink-0 select-none text-right tabular-nums text-void-dim/60">
               {i + 1}
             </span>
-            <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+            <span className="whitespace-pre">
               {line.length === 0 ? '\u00a0' : line}
             </span>
           </div>
@@ -66,19 +66,19 @@ function FileLines({ content, filePath }: { content: string; filePath: string | 
   )
 
   return (
-    <div className="file-preview-code">
+    <div className="file-preview-code w-max min-w-full">
       {lines.map((line, i) => (
-        <div key={i} className="flex gap-2 px-1 text-void-light">
+        <div key={i} className="flex w-max min-w-full gap-2 px-1 text-void-light">
           <span className="w-8 shrink-0 select-none text-right tabular-nums text-void-dim/60">
             {i + 1}
           </span>
           {language ? (
             <code
-              className="hljs min-w-0 flex-1 whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-inherit"
+              className="hljs whitespace-pre bg-transparent p-0 font-mono text-inherit"
               dangerouslySetInnerHTML={{ __html: highlighted[i] }}
             />
           ) : (
-            <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+            <span className="whitespace-pre">
               {line.length === 0 ? '\u00a0' : line}
             </span>
           )}
