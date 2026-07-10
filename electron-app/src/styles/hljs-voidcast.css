@@ -1,0 +1,65 @@
+/* Scoped highlight.js theme for coding panel file preview */
+
+.file-preview-code .hljs {
+  background: transparent;
+  color: rgb(var(--color-void-light));
+}
+
+.file-preview-code .hljs-comment,
+.file-preview-code .hljs-quote {
+  color: rgb(var(--color-void-dim));
+  font-style: italic;
+}
+
+.file-preview-code .hljs-keyword,
+.file-preview-code .hljs-selector-tag,
+.file-preview-code .hljs-literal,
+.file-preview-code .hljs-section,
+.file-preview-code .hljs-link {
+  color: rgb(var(--color-neon-cyan));
+}
+
+.file-preview-code .hljs-string,
+.file-preview-code .hljs-regexp,
+.file-preview-code .hljs-addition,
+.file-preview-code .hljs-attribute {
+  color: rgb(var(--color-neon-green));
+}
+
+.file-preview-code .hljs-number,
+.file-preview-code .hljs-symbol,
+.file-preview-code .hljs-bullet {
+  color: rgb(var(--color-neon-yellow));
+}
+
+.file-preview-code .hljs-title,
+.file-preview-code .hljs-title.class_,
+.file-preview-code .hljs-title.function_,
+.file-preview-code .hljs-built_in,
+.file-preview-code .hljs-type,
+.file-preview-code .hljs-name {
+  color: rgb(var(--color-neon-purple));
+}
+
+.file-preview-code .hljs-variable,
+.file-preview-code .hljs-template-variable,
+.file-preview-code .hljs-selector-id,
+.file-preview-code .hljs-selector-class,
+.file-preview-code .hljs-selector-attr,
+.file-preview-code .hljs-selector-pseudo,
+.file-preview-code .hljs-meta,
+.file-preview-code .hljs-subst {
+  color: rgb(var(--color-void-text));
+}
+
+.file-preview-code .hljs-deletion {
+  color: rgb(var(--color-neon-red));
+}
+
+.file-preview-code .hljs-emphasis {
+  font-style: italic;
+}
+
+.file-preview-code .hljs-strong {
+  font-weight: 700;
+}

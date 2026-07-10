@@ -1,3 +1,7 @@
+import { useMemo } from 'react'
+import { languageFromPreviewPath } from '@/lib/codingPreviewLanguage'
+import { highlightPreviewLine } from '@/lib/codingSyntaxHighlight'
+
 type Props = {
   filePath: string | null
   content: string
@@ -15,8 +19,12 @@ type Props = {
   canDiscard?: boolean
 }
 
+function normalizePreviewLines(content: string): string[] {
+  return content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+}
+
 function DiffLines({ content }: { content: string }) {
-  const lines = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  const lines = normalizePreviewLines(content)
   return (
     <>
       {lines.map((line, i) => {
@@ -49,21 +57,34 @@ function DiffLines({ content }: { content: string }) {
   )
 }
 
-function FileLines({ content }: { content: string }) {
-  const lines = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+function FileLines({ content, filePath }: { content: string; filePath: string | null }) {
+  const language = useMemo(() => languageFromPreviewPath(filePath), [filePath])
+  const lines = useMemo(() => normalizePreviewLines(content), [content])
+  const highlighted = useMemo(
+    () => lines.map((line) => highlightPreviewLine(line, language)),
+    [lines, language],
+  )
+
   return (
-    <>
+    <div className="file-preview-code">
       {lines.map((line, i) => (
         <div key={i} className="flex gap-2 px-1 text-void-light">
           <span className="w-8 shrink-0 select-none text-right tabular-nums text-void-dim/60">
             {i + 1}
           </span>
-          <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
-            {line.length === 0 ? '\u00a0' : line}
-          </span>
+          {language ? (
+            <code
+              className="hljs min-w-0 flex-1 whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-inherit"
+              dangerouslySetInnerHTML={{ __html: highlighted[i] }}
+            />
+          ) : (
+            <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+              {line.length === 0 ? '\u00a0' : line}
+            </span>
+          )}
         </div>
       ))}
-    </>
+    </div>
   )
 }
 
@@ -155,7 +176,7 @@ export function FilePreview({
         ) : mode === 'diff' ? (
           <DiffLines content={content} />
         ) : (
-          <FileLines content={content} />
+          <FileLines content={content} filePath={filePath} />
         )}
       </div>
     </div>
