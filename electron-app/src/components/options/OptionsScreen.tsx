@@ -7,7 +7,6 @@ import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { SkillsOptionsPanel } from '@/components/options/SkillsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
 import { SubAgentOptionsPanel } from '@/components/options/SubAgentOptionsPanel'
-import type { RefObject } from 'react'
 import { isWebStandalone } from '@/lib/platform'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 import type { OptionsTab } from '@/types/voidcast'
@@ -42,7 +41,6 @@ export function OptionsScreen({ app }: Props) {
     onClearVoiceAnchor,
     applyCodingProjectPath,
     effectivePdfOutputDir,
-    audioRef,
   } = app
 
   const uiDystopian = settings.uiTheme === 'dystopian'
@@ -162,8 +160,6 @@ export function OptionsScreen({ app }: Props) {
             )}
           </div>
         </main>
-
-        <audio ref={audioRef as RefObject<HTMLAudioElement>} className="hidden" />
       </div>
   )
 }

@@ -1,4 +1,3 @@
-import type { RefObject } from 'react'
 import { RobotIcon } from '@/components/icons/RobotIcon'
 import { isWebStandalone } from '@/lib/platform'
 import { llmModelLabel, llmProviderTitle } from '@/lib/llmProviderDisplay'
@@ -10,16 +9,14 @@ type Props = {
     | 'settings'
     | 'contextUsageInfo'
     | 'ttsOk'
-    | 'audioRef'
   >
 }
 
 export function ChatSystemStatus({ app }: Props) {
-  const { settings, contextUsageInfo, ttsOk, audioRef } = app
+  const { settings, contextUsageInfo, ttsOk } = app
 
   return (
-    <>
-      <div className="system-status">
+    <div className="system-status">
         <div className="status-item min-w-0 shrink gap-2">
           <RobotIcon className="h-3.5 w-3.5 text-void-dim/70 shrink-0" />
           <span
@@ -73,9 +70,6 @@ export function ChatSystemStatus({ app }: Props) {
             <span className="text-[11px] text-void-dim/45 tabular-nums">CTX —</span>
           )}
         </div>
-      </div>
-
-      <audio ref={audioRef as RefObject<HTMLAudioElement>} className="hidden" />
-    </>
+    </div>
   )
 }

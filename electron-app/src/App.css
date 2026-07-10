@@ -778,7 +778,7 @@
   }
 
   .voidcast-sidebar {
-    @apply w-full min-w-0;
+    @apply w-52 max-w-[70vw] shrink-0;
   }
 
   .cyber-input,
@@ -788,6 +788,10 @@
 
   nav.fixed.left-0 {
     padding-top: env(safe-area-inset-top);
+  }
+
+  .voidcast-main {
+    @apply min-h-0;
   }
 
   /* Mobile options panel fixes */

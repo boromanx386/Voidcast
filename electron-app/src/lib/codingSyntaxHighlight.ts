@@ -1,4 +1,5 @@
 import hljs from 'highlight.js/lib/core'
+import type { LanguageFn } from 'highlight.js'
 import bash from 'highlight.js/lib/languages/bash'
 import csharp from 'highlight.js/lib/languages/csharp'
 import css from 'highlight.js/lib/languages/css'
@@ -26,9 +27,9 @@ import yaml from 'highlight.js/lib/languages/yaml'
 
 const registered = new Set<string>()
 
-function registerLanguage(name: string, mod: { default?: unknown }) {
+function registerLanguage(name: string, mod: LanguageFn) {
   if (registered.has(name)) return
-  hljs.registerLanguage(name, mod.default ?? mod)
+  hljs.registerLanguage(name, mod)
   registered.add(name)
 }
 

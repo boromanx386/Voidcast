@@ -2,28 +2,30 @@ import { BrainIcon } from '@/components/icons/BrainIcon'
 import { CodeIcon } from '@/components/icons/CodeIcon'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
-type Props = {
-  app: Pick<
-    VoidcastApp,
-    | 'menuOpen'
-    | 'setMenuOpen'
-    | 'codingPanelAvailable'
-    | 'showCodingPanel'
-    | 'setShowCodingPanel'
-    | 'busy'
-    | 'longMemoryBusy'
-    | 'messages'
-    | 'extractLongMemoryNow'
-    | 'canSaveSession'
-    | 'saveOrUpdateSession'
-    | 'onStop'
-  >
+type Props = { app: VoidcastApp }
+
+function SessionsToggleIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3" y="4" width="6" height="16" rx="1" className={collapsed ? 'opacity-40' : undefined} />
+      <rect x="11" y="4" width="10" height="16" rx="1" />
+    </svg>
+  )
 }
 
 export function ChatHeader({ app }: Props) {
   const {
-    menuOpen,
-    setMenuOpen,
+    sessionsSidebarCollapsed,
+    setSessionsSidebarCollapsed,
     codingPanelAvailable,
     showCodingPanel,
     setShowCodingPanel,
@@ -39,26 +41,16 @@ export function ChatHeader({ app }: Props) {
 
   return (
     <header className="voidcast-header min-w-0">
-      {/* Menu Button */}
       <button
         type="button"
-        aria-label="Open sessions menu"
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((v) => !v)}
-        className="group relative flex h-8 w-8 shrink-0 items-center justify-center
-          bg-void-mid border border-void-dim/50 hover:border-neon-cyan/50
-          transition-all duration-300 hover:shadow-[0_0_12px_rgba(var(--ui-accent-rgb),0.25)]"
-        style={{ clipPath: 'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)' }}
+        aria-label={sessionsSidebarCollapsed ? 'Show sessions panel' : 'Hide sessions panel'}
+        aria-expanded={!sessionsSidebarCollapsed}
+        onClick={() => setSessionsSidebarCollapsed((v) => !v)}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-void-muted/60 bg-void-mid/80 text-void-light transition-colors hover:border-void-dim hover:text-void-white"
       >
-        <span
-          className="font-mono text-lg text-neon-cyan transition-colors group-hover:text-neon-cyan"
-          aria-hidden
-        >
-          ⌘
-        </span>
+        <SessionsToggleIcon collapsed={sessionsSidebarCollapsed} />
       </button>
 
-      {/* Status & Actions */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
         {codingPanelAvailable && (
           <button
@@ -91,7 +83,6 @@ export function ChatHeader({ app }: Props) {
           )}
         </button>
 
-        {/* Save Button */}
         {canSaveSession && (
           <button
             type="button"
@@ -117,7 +108,6 @@ export function ChatHeader({ app }: Props) {
           </button>
         )}
 
-        {/* Stop Button */}
         {canStop && (
           <button
             type="button"

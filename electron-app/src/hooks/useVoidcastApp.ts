@@ -29,7 +29,13 @@ export function useVoidcastApp() {
 
   const [screen, setScreen] = useState<Screen>('chat')
   const [optionsTab, setOptionsTab] = useState<OptionsTab>('general')
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [sessionsSidebarCollapsed, setSessionsSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 640px)').matches) {
+      setSessionsSidebarCollapsed(true)
+    }
+  }, [])
   const [input, setInputState] = useState('')
   const [hiddenContextSummary, setHiddenContextSummary] = useState('')
   const [contextCompressedThroughIndex, setContextCompressedThroughIndex] = useState(0)
@@ -152,7 +158,6 @@ export function useVoidcastApp() {
     setToolResultBanner: agent.setToolResultBanner,
     setContextUsageInfo: agent.setContextUsageInfo,
     setContextWarnDismissed: agent.setContextWarnDismissed,
-    setMenuOpen,
     busy: agent.busy,
     hiddenContextSummary,
     setHiddenContextSummary,
@@ -214,7 +219,6 @@ export function useVoidcastApp() {
   const openOptions = useCallback((tab: OptionsTab = 'general') => {
     setOptionsTab(tab)
     setScreen('options')
-    setMenuOpen(false)
   }, [])
 
   useEffect(() => {
@@ -239,13 +243,12 @@ export function useVoidcastApp() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (menuOpen) setMenuOpen(false)
-        else if (screen === 'options') setScreen('chat')
+        if (screen === 'options') setScreen('chat')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [menuOpen, screen])
+  }, [screen])
 
   const handleDeleteReminder = useCallback(
     async (id: string) => {
@@ -275,8 +278,6 @@ export function useVoidcastApp() {
     setScreen,
     optionsTab,
     setOptionsTab,
-    menuOpen,
-    setMenuOpen,
     input,
     ollamaModels,
     modelsLoading,
@@ -293,6 +294,8 @@ export function useVoidcastApp() {
     setInput: setInputState,
     handleDeleteReminder,
     handleMarkDoneReminder,
+    sessionsSidebarCollapsed,
+    setSessionsSidebarCollapsed,
   }
 }
 

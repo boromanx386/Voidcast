@@ -101,7 +101,10 @@ export function useTtsPlayback({
   const playBlobUrl = (url: string, signal: AbortSignal): Promise<void> => {
     return new Promise((resolve, reject) => {
       const el = audioRef.current
-      if (!el) { resolve(); return }
+      if (!el) {
+        reject(new Error('Audio element is not ready'))
+        return
+      }
       const cleanup = () => signal.removeEventListener('abort', onAbort)
       const onAbort = () => { el.pause(); el.removeAttribute('src'); cleanup(); resolve() }
       if (signal.aborted) { resolve(); return }

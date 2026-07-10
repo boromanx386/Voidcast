@@ -50,7 +50,6 @@ export type ChatSessionsDeps = {
   setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf'; text: string } | null>>
   setContextUsageInfo: Dispatch<SetStateAction<ContextUsageInfo | null>>
   setContextWarnDismissed: Dispatch<SetStateAction<boolean>>
-  setMenuOpen: Dispatch<SetStateAction<boolean>>
   busy: boolean
   hiddenContextSummary: string
   setHiddenContextSummary: Dispatch<SetStateAction<string>>
@@ -80,7 +79,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setToolResultBanner,
     setContextUsageInfo,
     setContextWarnDismissed,
-    setMenuOpen,
     busy,
     hiddenContextSummary,
     setHiddenContextSummary,
@@ -271,7 +269,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setToolResultBanner(null)
     setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
     setImageVisionCache({})
-    setMenuOpen(false)
   }
 
   const openSession = (session: ChatSession) => {
@@ -308,7 +305,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setPendingDeleteId(null)
     setRenamingSessionId(null)
     setRenameValue('')
-    setMenuOpen(false)
     setPendingImages([])
   }
 
@@ -348,7 +344,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setPendingDeleteId(null)
     setRenamingSessionId(null)
     setRenameValue('')
-    setMenuOpen(false)
     setPendingImages([])
     restoreCodingContextForSession(forked, {
       flushActiveSessionId:

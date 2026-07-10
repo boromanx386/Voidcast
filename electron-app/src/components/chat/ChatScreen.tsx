@@ -102,21 +102,23 @@ export function ChatScreen({ app }: Props) {
       <ChatDragOverlay isDragOver={app.isDragOver} />
       <ChatHeader app={app} />
 
-      <div
-        ref={splitRef}
-        className={`flex min-h-0 min-w-0 w-full flex-1 overflow-hidden${isResizing ? ' select-none' : ''}${showCoding ? ' voidcast-split--with-coding' : ''}`}
-      >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <ChatSidebar app={app} />
-          <ChatMessageList app={app} />
-          <ChatToolResultBanner app={app} />
-          <ChatErrorBanner app={app} />
-          <ContextWarningBanner app={app} />
-          <SubAgentPanel app={app} />
-          <MemoryPreviewModal app={app} />
-          <ChatComposer app={app} />
-        </div>
-        {showCoding && (
+      <div className="voidcast-main min-h-0">
+        <ChatSidebar app={app} />
+
+        <div
+          ref={splitRef}
+          className={`flex min-h-0 min-w-0 flex-1 overflow-hidden${isResizing ? ' select-none' : ''}${showCoding ? ' voidcast-split--with-coding' : ''}`}
+        >
+          <div className="voidcast-chat flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <ChatMessageList app={app} />
+            <ChatToolResultBanner app={app} />
+            <ChatErrorBanner app={app} />
+            <ContextWarningBanner app={app} />
+            <SubAgentPanel app={app} />
+            <MemoryPreviewModal app={app} />
+            <ChatComposer app={app} />
+          </div>
+          {showCoding && (
           <>
             <div
               role="separator"
@@ -157,8 +159,9 @@ export function ChatScreen({ app }: Props) {
               }
               onUpdateProjectPath={app.applyCodingProjectPath}
             />
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       <ChatSystemStatus app={app} />
