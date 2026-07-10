@@ -380,6 +380,62 @@
   background: rgb(var(--color-void-muted) / 0.55);
 }
 
+.file-preview-find-bar {
+  @apply rounded border border-void-muted/40 bg-void-black/40 p-2;
+}
+
+.file-preview-find-btn {
+  @apply rounded border border-void-muted/50 px-1.5 py-0.5 text-[10px] font-mono text-void-text transition-colors hover:border-neon-cyan/40 hover:text-neon-cyan disabled:opacity-40;
+}
+
+.file-preview-edit-stage {
+  @apply relative min-h-0 flex-1 overflow-hidden rounded border border-void-muted bg-void-black/80;
+}
+
+.file-preview-edit-stage:focus-within {
+  @apply border-neon-cyan;
+  box-shadow: 0 0 0 1px rgb(var(--color-neon-cyan) / 0.45);
+}
+
+.file-preview-edit-highlight {
+  @apply pointer-events-none absolute inset-0 m-0 box-border overflow-hidden px-3 py-2;
+  @apply font-mono text-xs leading-relaxed text-void-white;
+  white-space: pre;
+  word-wrap: normal;
+  background: transparent;
+}
+
+.file-preview-edit-highlight mark.find-mark {
+  background: rgb(var(--color-neon-yellow) / 0.24);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.file-preview-edit-highlight mark.find-mark--active {
+  background: rgb(var(--color-neon-cyan) / 0.38);
+  box-shadow: 0 0 0 1px rgb(var(--color-neon-cyan) / 0.4);
+}
+
+.file-preview-edit-textarea {
+  @apply box-border w-full px-3 py-2;
+  @apply font-mono text-xs leading-relaxed text-void-white;
+  white-space: pre;
+  overflow: auto;
+  word-wrap: normal;
+}
+
+.file-preview-edit-textarea--layered {
+  @apply absolute inset-0 z-[1] h-full w-full resize-none border-0 bg-transparent;
+  color: transparent;
+  caret-color: rgb(var(--color-void-white));
+  -webkit-text-fill-color: transparent;
+}
+
+.file-preview-edit-textarea--layered:focus {
+  @apply outline-none;
+  box-shadow: none;
+}
+
 .voidcast-textarea {
   @apply w-full px-3 py-2.5 min-h-[44px] max-h-40;
   @apply bg-void-black/80 border border-void-muted;

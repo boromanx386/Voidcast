@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { FilePreviewEdit } from '@/components/coding/FilePreviewEdit'
 import { languageFromPreviewPath } from '@/lib/codingPreviewLanguage'
 import { highlightPreviewLine } from '@/lib/codingSyntaxHighlight'
 
@@ -17,6 +18,16 @@ type Props = {
   canStage?: boolean
   canUnstage?: boolean
   canDiscard?: boolean
+  /** Inline file edit (file mode only). */
+  editing?: boolean
+  editDraft?: string
+  editBusy?: boolean
+  editSessionKey?: number
+  canEdit?: boolean
+  onStartEdit?: () => void
+  onEditDraftChange?: (next: string) => void
+  onSaveEdit?: () => void
+  onCancelEdit?: () => void
 }
 
 function normalizePreviewLines(content: string): string[] {
@@ -100,83 +111,143 @@ export function FilePreview({
   canStage = false,
   canUnstage = false,
   canDiscard = false,
+  editing = false,
+  editDraft = '',
+  editBusy = false,
+  editSessionKey = 0,
+  canEdit = false,
+  onStartEdit,
+  onEditDraftChange,
+  onSaveEdit,
+  onCancelEdit,
 }: Props) {
-  const label =
-    mode === 'diff'
+  const label = editing
+    ? `EDIT${filePath ? ` - ${filePath}` : ''}`
+    : mode === 'diff'
       ? `DIFF${diffStaged ? ' (staged)' : ''}${filePath ? ` - ${filePath}` : ''}`
       : mode === 'image'
         ? `IMAGE${filePath ? ` - ${filePath}` : ''}`
         : `PREVIEW${filePath ? ` - ${filePath}` : ''}`
 
-  const showActions = canStage || canUnstage || canDiscard
+  const labelClass = editing ? 'text-neon-yellow' : 'text-neon-green'
+  const showGitActions = !editing && (canStage || canUnstage || canDiscard)
+  const showEditAction = !editing && canEdit && onStartEdit
+  const showEditActions = editing && onSaveEdit && onCancelEdit && onEditDraftChange
 
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded border border-void-muted/30 bg-void-black/30 p-2">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-xs font-mono text-neon-green" title={label}>
+        <div className={`min-w-0 truncate text-xs font-mono ${labelClass}`} title={label}>
           {label}
         </div>
-        {showActions ? (
-          <div className="flex shrink-0 items-center gap-1">
-            {canStage && onStage ? (
+        <div className="flex shrink-0 items-center gap-1">
+          {showEditAction ? (
+            <button
+              type="button"
+              title="Edit file"
+              className="rounded border border-neon-cyan/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-cyan hover:bg-neon-cyan/10"
+              onClick={onStartEdit}
+            >
+              ✎
+            </button>
+          ) : null}
+          {showEditActions ? (
+            <>
               <button
                 type="button"
-                title="Stage file"
-                className="rounded border border-neon-green/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-green hover:bg-neon-green/10"
-                onClick={onStage}
+                title="Save (Ctrl+S)"
+                className="rounded border border-neon-green/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-green hover:bg-neon-green/10 disabled:opacity-40"
+                disabled={editBusy}
+                onClick={onSaveEdit}
               >
-                +
+                Save
               </button>
-            ) : null}
-            {canUnstage && onUnstage ? (
               <button
                 type="button"
-                title="Unstage file"
-                className="rounded border border-neon-yellow/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-yellow hover:bg-neon-yellow/10"
-                onClick={onUnstage}
+                title="Cancel (Esc)"
+                className="rounded border border-void-muted/50 px-1.5 py-0.5 text-[10px] font-mono text-void-dim hover:bg-void-mid/40 hover:text-void-light disabled:opacity-40"
+                disabled={editBusy}
+                onClick={onCancelEdit}
               >
-                −
+                Cancel
               </button>
-            ) : null}
-            {canDiscard && onDiscard ? (
-              <button
-                type="button"
-                title="Discard unstaged changes (git restore)"
-                className="rounded border border-neon-red/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-red/90 hover:bg-neon-red/10"
-                onClick={onDiscard}
-              >
-                ↶
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+            </>
+          ) : null}
+          {showGitActions ? (
+            <>
+              {canStage && onStage ? (
+                <button
+                  type="button"
+                  title="Stage file"
+                  className="rounded border border-neon-green/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-green hover:bg-neon-green/10"
+                  onClick={onStage}
+                >
+                  +
+                </button>
+              ) : null}
+              {canUnstage && onUnstage ? (
+                <button
+                  type="button"
+                  title="Unstage file"
+                  className="rounded border border-neon-yellow/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-yellow hover:bg-neon-yellow/10"
+                  onClick={onUnstage}
+                >
+                  −
+                </button>
+              ) : null}
+              {canDiscard && onDiscard ? (
+                <button
+                  type="button"
+                  title="Discard unstaged changes (git restore)"
+                  className="rounded border border-neon-red/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-red/90 hover:bg-neon-red/10"
+                  onClick={onDiscard}
+                >
+                  ↶
+                </button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
       </div>
       <div
-        className={`min-h-0 flex-1 overflow-auto ${mode === 'image' ? '' : 'font-mono text-xs'}`}
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+          mode === 'image' && !editing ? '' : 'font-mono text-xs'
+        }`}
       >
-        {mode === 'image' ? (
-          imageSrc ? (
-            <div className="flex min-h-[120px] items-center justify-center p-2">
-              <img
-                src={imageSrc}
-                alt={filePath || 'Image preview'}
-                className="max-h-full max-w-full object-contain"
-                draggable={false}
-              />
-            </div>
-          ) : (
-            <div className="px-1 text-xs text-void-dim">
-              {content || 'Loading image…'}
-            </div>
-          )
+        {editing && onEditDraftChange && onSaveEdit && onCancelEdit ? (
+          <FilePreviewEdit
+            key={editSessionKey}
+            draft={editDraft}
+            busy={editBusy}
+            onDraftChange={onEditDraftChange}
+            onSave={onSaveEdit}
+            onCancel={onCancelEdit}
+          />
+        ) : mode === 'image' ? (
+          <div className="min-h-0 flex-1 overflow-auto">
+            {imageSrc ? (
+              <div className="flex min-h-[120px] items-center justify-center p-2">
+                <img
+                  src={imageSrc}
+                  alt={filePath || 'Image preview'}
+                  className="max-h-full max-w-full object-contain"
+                  draggable={false}
+                />
+              </div>
+            ) : (
+              <div className="px-1 text-xs text-void-dim">
+                {content || 'Loading image…'}
+              </div>
+            )}
+          </div>
         ) : !content ? (
-          <div className="px-1 text-void-dim">
+          <div className="overflow-auto px-1 text-void-dim">
             {mode === 'diff' ? 'Select a change to preview diff…' : 'Select file to preview...'}
           </div>
-        ) : mode === 'diff' ? (
-          <DiffLines content={content} />
         ) : (
-          <FileLines content={content} filePath={filePath} />
+          <div className="min-h-0 flex-1 overflow-auto">
+            {mode === 'diff' ? <DiffLines content={content} /> : <FileLines content={content} filePath={filePath} />}
+          </div>
         )}
       </div>
     </div>

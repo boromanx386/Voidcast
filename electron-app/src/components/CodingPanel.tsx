@@ -25,6 +25,7 @@ import {
   invokeListCodingDirectory,
   invokePickCodingDirectory,
   invokeReadCodingFile,
+  invokeWriteCodingFile,
 } from '@/lib/codingTools'
 import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImagePreview'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
@@ -53,6 +54,11 @@ type Props = {
 type PreviewMode = 'file' | 'diff' | 'image'
 
 const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal'] as const
+
+function refocusAppWindow(): void {
+  window.focus()
+  requestAnimationFrame(() => window.focus())
+}
 
 export function CodingPanel({
   settings,
@@ -93,6 +99,11 @@ export function CodingPanel({
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set())
   const [childrenByDir, setChildrenByDir] = useState<Record<string, CodingFileNode[]>>({})
+  const [editing, setEditing] = useState(false)
+  const [editDraft, setEditDraft] = useState('')
+  const [editBaseline, setEditBaseline] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+  const [editSessionKey, setEditSessionKey] = useState(0)
 
   const expandedDirsRef = useRef(expandedDirs)
   expandedDirsRef.current = expandedDirs
@@ -101,6 +112,20 @@ export function CodingPanel({
   const seenAgentShellIdsRef = useRef<Set<string>>(new Set())
   const gitStatusByPathRef = useRef(gitStatusByPath)
   gitStatusByPathRef.current = gitStatusByPath
+
+  const resetEditState = useCallback(() => {
+    setEditing(false)
+    setEditDraft('')
+    setEditBaseline('')
+    setEditBusy(false)
+  }, [])
+
+  const confirmDiscardEdit = useCallback((): boolean => {
+    if (!editing || editDraft === editBaseline) return true
+    const ok = window.confirm('Discard unsaved edits?')
+    if (ok) refocusAppWindow()
+    return ok
+  }, [editing, editDraft, editBaseline])
 
   const projectPath = settings.coding.projectPath || settings.codingProjectPath
   const { showFileTree, showFilePreview, showTerminal } = settings.coding
@@ -190,7 +215,8 @@ export function CodingPanel({
     setDirtyOnly(false)
     setCommitMessage('')
     setCommitOpen(false)
-  }, [projectPath])
+    resetEditState()
+  }, [projectPath, resetEditState])
 
   const pushTerminal = useCallback((stream: TerminalLine['stream'], text: string) => {
     const idBase = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -377,11 +403,71 @@ export function CodingPanel({
   const onOpenFile = useCallback(
     async (path: string) => {
       if (!projectPath) return
+      if (!confirmDiscardEdit()) return
+      resetEditState()
       setSelectedPath(path)
       await loadFilePreview(path)
     },
-    [projectPath, loadFilePreview],
+    [projectPath, loadFilePreview, confirmDiscardEdit, resetEditState],
   )
+
+  const onStartEdit = useCallback(async () => {
+    if (!projectPath || !selectedPath || editing || editBusy) return
+    if (isCodingPreviewImage(selectedPath)) return
+
+    const out = await invokeReadCodingFile(projectPath, selectedPath, { allowLargeRead: true })
+    if (!out.ok) {
+      pushTerminal('stderr', out.text || `Cannot edit: ${selectedPath}`)
+      return
+    }
+
+    setPreviewMode('file')
+    setPreviewDiffStaged(false)
+    setPreviewImageSrc(null)
+    setPreviewContent(out.text)
+    setEditDraft(out.text)
+    setEditBaseline(out.text)
+    setEditSessionKey((k) => k + 1)
+    refocusAppWindow()
+    setEditing(true)
+  }, [projectPath, selectedPath, editing, editBusy, pushTerminal])
+
+  const onCancelEdit = useCallback(async () => {
+    if (!confirmDiscardEdit()) return
+    const path = selectedPath
+    resetEditState()
+    if (path) await loadFilePreview(path)
+  }, [confirmDiscardEdit, resetEditState, selectedPath, loadFilePreview])
+
+  const onSaveEdit = useCallback(async () => {
+    if (!projectPath || !selectedPath || !editing || editBusy) return
+    setEditBusy(true)
+    try {
+      const out = await invokeWriteCodingFile(projectPath, selectedPath, editDraft)
+      if (!out.ok) {
+        pushTerminal('stderr', out.text || `Save failed: ${selectedPath}`)
+        return
+      }
+      pushTerminal('system', out.text || `Saved ${selectedPath}`)
+      setPreviewContent(editDraft)
+      setEditBaseline(editDraft)
+      setPreviewMode('file')
+      resetEditState()
+      setLocalGitBump((n) => n + 1)
+      void refreshFileTreeInPlace()
+    } finally {
+      setEditBusy(false)
+    }
+  }, [
+    projectPath,
+    selectedPath,
+    editing,
+    editBusy,
+    editDraft,
+    pushTerminal,
+    resetEditState,
+    refreshFileTreeInPlace,
+  ])
 
   const onStageFile = useCallback(
     async (path: string) => {
@@ -418,6 +504,7 @@ export function CodingPanel({
         `Discard unstaged changes in:\n${path}\n\nThis cannot be undone (git restore).`,
       )
       if (!ok) return
+      refocusAppWindow()
       const out = await invokeCodingGit(projectPath, { mode: 'discard', path })
       if (!out.ok) {
         pushTerminal('stderr', out.text || `Discard failed: ${path}`)
@@ -426,10 +513,11 @@ export function CodingPanel({
       pushTerminal('system', `discarded ${path}`)
       setLocalGitBump((n) => n + 1)
       if (selectedPath === path) {
+        resetEditState()
         await loadFilePreview(path)
       }
     },
-    [projectPath, pushTerminal, selectedPath, loadFilePreview],
+    [projectPath, pushTerminal, selectedPath, loadFilePreview, resetEditState],
   )
 
   const stagedCount = useMemo(() => {
@@ -494,6 +582,7 @@ export function CodingPanel({
         `This cannot be undone.`,
     )
     if (!ok) return
+    refocusAppWindow()
     const out = await invokeCodingGit(projectPath, { mode: 'discardAll' })
     if (!out.ok) {
       pushTerminal('stderr', out.text || 'Discard all failed.')
@@ -704,6 +793,20 @@ export function CodingPanel({
                       mode={previewMode}
                       imageSrc={previewImageSrc}
                       diffStaged={previewDiffStaged}
+                      editing={editing}
+                      editDraft={editDraft}
+                      editBusy={editBusy}
+                      editSessionKey={editSessionKey}
+                      canEdit={Boolean(
+                        projectPath &&
+                          selectedPath &&
+                          !isCodingPreviewImage(selectedPath) &&
+                          !editing,
+                      )}
+                      onStartEdit={() => void onStartEdit()}
+                      onEditDraftChange={setEditDraft}
+                      onSaveEdit={() => void onSaveEdit()}
+                      onCancelEdit={() => void onCancelEdit()}
                       canStage={Boolean(
                         selectedGit && (selectedGit.unstaged || selectedGit.untracked),
                       )}
