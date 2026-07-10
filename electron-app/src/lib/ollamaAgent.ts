@@ -530,6 +530,7 @@ export async function resolveImageRecallRequest(
   options?: { codingEnabled?: boolean },
 ): Promise<{
   purpose?: 'vision' | 'edit'
+  focus?: string
   recalled: ResolvedRecallImage[]
   errors: string[]
   maxAvailable: number
@@ -539,6 +540,8 @@ export async function resolveImageRecallRequest(
   const purposeRaw = typeof args.purpose === 'string' ? args.purpose.trim().toLowerCase() : ''
   const purpose: 'vision' | 'edit' | undefined =
     purposeRaw === 'vision' ? 'vision' : purposeRaw === 'edit' ? 'edit' : undefined
+  const focusRaw = typeof args.focus === 'string' ? args.focus.trim() : ''
+  const focus = focusRaw || undefined
   const recalled: ResolvedRecallImage[] = []
   const errors: string[] = []
   for (const p of selected.missingPaths) {
@@ -589,6 +592,7 @@ export async function resolveImageRecallRequest(
   }
   return {
     purpose,
+    focus,
     recalled,
     errors,
     maxAvailable: ctx.userImages?.length ?? 0,
@@ -628,6 +632,8 @@ export async function executeToolCall(
     subAgentUi?: SubAgentUiCallbacks
     /** Persist sub-agent descriptions onto the session (for later history context). */
     onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
+    /** Session vision cache — skip sub-agent API when a description already exists. */
+    imageVisionCache?: ImageVisionCache
   },
 ): Promise<string> {
   const args =
@@ -972,8 +978,14 @@ export async function executeToolCall(
         ctx.userText,
         ctx.signal,
         ctx.subAgentUi,
+        ctx.imageVisionCache,
+        recall.focus,
       )
-      const newEntries = cacheEntriesFromDescribeResults(recalledForCache, descriptions)
+      const newEntries = cacheEntriesFromDescribeResults(
+        recalledForCache,
+        descriptions,
+        recall.focus,
+      )
       if (Object.keys(newEntries).length > 0) {
         ctx.onImageVisionCacheUpdate?.(newEntries)
       }
@@ -1672,6 +1684,7 @@ export type RunChatWithToolsParams = {
   deepseekApiKeyForSubAgent?: string
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
+  imageVisionCache?: ImageVisionCache
 }
 
 /**
@@ -1856,6 +1869,7 @@ export async function runOllamaChatWithTools(
         deepseekApiKey: params.deepseekApiKeyForSubAgent,
         subAgentUi: params.subAgentUi,
         onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
+        imageVisionCache: params.imageVisionCache,
       }),
     parseArgsForToolResult: argumentsStringToObject,
     onDelta: params.onDelta,

@@ -75,6 +75,7 @@ export type RunOpenRouterChatWithToolsParams = {
   thinkLevel?: LlmThinkLevel
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
+  imageVisionCache?: ImageVisionCache
 }
 
 export async function runOpenRouterChatWithTools(
@@ -206,6 +207,7 @@ export async function runOpenRouterChatWithTools(
         deepseekApiKey: params.deepseekApiKeyForSubAgent,
         subAgentUi: params.subAgentUi,
         onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
+        imageVisionCache: params.imageVisionCache,
       }),
     parseArgsForToolResult: parseToolArguments,
     onDelta: params.onDelta,

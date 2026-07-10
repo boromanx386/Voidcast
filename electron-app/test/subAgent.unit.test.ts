@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { buildPrompt, detectSubAgentProvider } from '../src/lib/subAgent'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { buildPrompt, detectSubAgentProvider, describeImagesWithSubAgent } from '../src/lib/subAgent'
+import { imageCatalogKey, visionCacheKey } from '../src/lib/imageVisionCache'
 
 // ── buildPrompt ──────────────────────────────────────────────────────────
 
@@ -66,6 +67,19 @@ describe('buildPrompt', () => {
     const result = buildPrompt('опиши овај екран')
     expect(result).toContain('опиши овај екран')
   })
+
+  it('uses focus when provided by the main agent', () => {
+    const result = buildPrompt('look at this', 'read the error text in the status bar')
+    expect(result).toContain('The assistant needs from this image: "read the error text in the status bar"')
+    expect(result).toContain('Original user message: "look at this"')
+    expect(result).toContain('Tailor your description to what the assistant needs.')
+  })
+
+  it('focus without user query omits original user line', () => {
+    const result = buildPrompt(undefined, 'button color')
+    expect(result).toContain('The assistant needs from this image: "button color"')
+    expect(result).not.toContain('Original user message')
+  })
 })
 
 // ── detectSubAgentProvider ───────────────────────────────────────────────
@@ -118,5 +132,98 @@ describe('detectSubAgentProvider', () => {
   it('explicit provider overrides heuristic', () => {
     expect(detectSubAgentProvider('openai/gpt-4o', 'ollama')).toBe('ollama')
     expect(detectSubAgentProvider('llava:13b', 'openrouter')).toBe('openrouter')
+  })
+})
+
+// ── describeImagesWithSubAgent (vision cache) ────────────────────────────
+
+describe('describeImagesWithSubAgent vision cache', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const keys = {
+    ollamaBaseUrl: 'http://localhost:11434',
+    openrouterBaseUrl: 'https://openrouter.ai/api/v1',
+    openrouterApiKey: '',
+    deepseekBaseUrl: 'https://api.deepseek.com',
+    deepseekApiKey: '',
+  }
+
+  const config = {
+    enabled: true,
+    memoryEnabled: false,
+    model: 'llava:13b',
+    provider: 'ollama' as const,
+  }
+
+  it('returns cached descriptions without calling fetch', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const img = { base64: 'dGVzdA==', mime: 'image/png', path: 'a.png', index: 1 }
+    const cache = { [imageCatalogKey(img)]: 'cached blue button' }
+
+    const results = await describeImagesWithSubAgent(
+      [img],
+      config,
+      keys,
+      undefined,
+      undefined,
+      undefined,
+      cache,
+    )
+
+    expect(results).toEqual([
+      { index: 1, path: 'a.png', description: 'cached blue button' },
+    ])
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('calls fetch only for uncached images in a mixed batch', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ message: { content: 'fresh desc' } }),
+    } as Response)
+
+    const cached = { base64: 'Y2E=', mime: 'image/png', path: 'cached.png', index: 1 }
+    const fresh = { base64: 'ZmI=', mime: 'image/png', path: 'fresh.png', index: 2 }
+    const cache = { [imageCatalogKey(cached)]: 'from cache' }
+
+    const results = await describeImagesWithSubAgent(
+      [cached, fresh],
+      config,
+      keys,
+      undefined,
+      undefined,
+      undefined,
+      cache,
+    )
+
+    expect(results[0]?.description).toBe('from cache')
+    expect(results[1]?.description).toBe('fresh desc')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reuse cache when focus differs', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ message: { content: 'focused desc' } }),
+    } as Response)
+
+    const img = { base64: 'Y2E=', mime: 'image/png', path: 'cached.png', index: 1 }
+    const cache = { [visionCacheKey(img, 'error text')]: 'old focused desc' }
+
+    const results = await describeImagesWithSubAgent(
+      [img],
+      config,
+      keys,
+      undefined,
+      undefined,
+      undefined,
+      cache,
+      'button color',
+    )
+
+    expect(results[0]?.description).toBe('focused desc')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 })

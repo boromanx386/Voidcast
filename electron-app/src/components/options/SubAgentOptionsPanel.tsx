@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { SUB_AGENT_DEFAULT_CONTEXT_TOKENS } from '@/lib/settings'
 import { DEEPSEEK_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import type { Dispatch, SetStateAction } from 'react'
@@ -48,10 +49,11 @@ export function SubAgentOptionsPanel({
   const sub = settings.subAgent
   const allModels = buildUnifiedModelList(ollamaModels)
   const currentInList = allModels.some((m) => m.id === sub.model)
+  const subActive = sub.enabled || sub.memoryEnabled
 
   return (
     <div className="grid gap-5 text-sm">
-      {/* Enable toggle */}
+      {/* Vision toggle */}
       <div className="form-group">
         <label className="form-label flex items-center gap-3 cursor-pointer">
           <input
@@ -65,7 +67,7 @@ export function SubAgentOptionsPanel({
               }))
             }
           />
-          <span className="text-neon-cyan">⬡ ENABLE_SUB_AGENT</span>
+          <span className="text-neon-cyan">⬡ ENABLE_VISION_SUB_AGENT</span>
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
           When enabled, image_recall delegates vision analysis to this model.
@@ -73,30 +75,53 @@ export function SubAgentOptionsPanel({
         </p>
       </div>
 
-      {sub.enabled && (
-        <>
-          <div className="form-group">
-            <label className="form-label flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                className="cyber-checkbox"
-                checked={sub.showAnalysisWindow !== false}
-                onChange={(e) =>
-                  setSettings((s) => ({
-                    ...s,
-                    subAgent: { ...s.subAgent, showAnalysisWindow: e.target.checked },
-                  }))
-                }
-              />
-              <span className="text-neon-cyan">⬡ SHOW_ANALYSIS_WINDOW</span>
-            </label>
-            <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-              Floating panel on the right while image_recall runs the vision sub-agent
-              (progress and descriptions). Off = same behavior, no on-screen panel.
-            </p>
-          </div>
+      {/* Long memory toggle */}
+      <div className="form-group">
+        <label className="form-label flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="cyber-checkbox"
+            checked={sub.memoryEnabled}
+            onChange={(e) =>
+              setSettings((s) => ({
+                ...s,
+                subAgent: { ...s.subAgent, memoryEnabled: e.target.checked },
+              }))
+            }
+          />
+          <span className="text-neon-cyan">⬡ USE_FOR_LONG_MEMORY</span>
+        </label>
+        <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+          When enabled, Extract long memory (chat header) uses the sub-agent model below
+          instead of the main LLM. Vision and memory can be toggled independently.
+        </p>
+      </div>
 
-          {/* Model dropdown — Ollama + OpenRouter presets. Provider auto-detected. */}
+      {sub.enabled && (
+        <div className="form-group">
+          <label className="form-label flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="cyber-checkbox"
+              checked={sub.showAnalysisWindow !== false}
+              onChange={(e) =>
+                setSettings((s) => ({
+                  ...s,
+                  subAgent: { ...s.subAgent, showAnalysisWindow: e.target.checked },
+                }))
+              }
+            />
+            <span className="text-neon-cyan">⬡ SHOW_ANALYSIS_WINDOW</span>
+          </label>
+          <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+            Floating panel on the right while image_recall runs the vision sub-agent
+            (progress and descriptions). Off = same behavior, no on-screen panel.
+          </p>
+        </div>
+      )}
+
+      {subActive && (
+        <>
           <div className="form-group">
             <div className="flex items-center justify-between mb-2">
               <label className="form-label mb-0">
@@ -214,13 +239,13 @@ export function SubAgentOptionsPanel({
                 <label className="form-label">
                   <span className="text-neon-cyan mr-2">◈</span> CONTEXT_TOKENS
                   <span className="ml-3 font-mono text-neon-cyan">
-                    {sub.contextTokens ?? 8192}
+                    {sub.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS}
                   </span>
                 </label>
                 <NumericSettingInput
                   min={512}
                   max={131072}
-                  value={sub.contextTokens ?? 8192}
+                  value={sub.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS}
                   onCommit={(contextTokens) =>
                     setSettings((s) => ({
                       ...s,

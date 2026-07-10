@@ -452,6 +452,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             onImageVisionCacheUpdate: (entries: ImageVisionCache) => {
               setImageVisionCache((prev) => mergeImageVisionCache(prev, entries))
             },
+            imageVisionCache,
             signal: ac.signal,
             onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
               ? (thinking: string) => {

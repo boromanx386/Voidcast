@@ -350,6 +350,11 @@ const IMAGE_RECALL_TOOL: OllamaToolDefinition = {
           description:
             'Optional intent for recall usage: "vision" (analysis) or "edit" (image editing).',
         },
+        focus: {
+          type: 'string',
+          description:
+            'Optional vision focus when sub-agent analysis is enabled — what the main agent needs from the image (e.g. "read the error in the status bar", "color and label of the submit button"). Tailors the sub-agent description; cached per image+focus.',
+        },
       },
       required: [],
     },

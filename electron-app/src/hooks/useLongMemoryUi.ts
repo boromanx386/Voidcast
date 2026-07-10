@@ -22,6 +22,7 @@ import {
 } from '@/lib/userDataSync'
 import { isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
+import { SUB_AGENT_DEFAULT_CONTEXT_TOKENS } from '@/lib/settings'
 import { toConversationTurns } from '@/lib/chatHints'
 import type { UiMessage } from '@/types/chat'
 import type { LongMemoryCandidate, LongMemoryItem } from '@/types/longMemory'
@@ -82,7 +83,7 @@ export function useLongMemoryUi({
     setLongMemoryBusy(true)
     setError(null)
     try {
-      const useSub = settings.subAgent.enabled
+      const useSub = settings.subAgent.memoryEnabled
       const subModel = settings.subAgent.model
       const subProvider = detectSubAgentProvider(subModel, settings.subAgent.provider)
       const memLlmProvider = useSub
@@ -108,7 +109,9 @@ export function useLongMemoryUi({
         cloudModelOverride: useSub && subProvider !== 'ollama' ? subModel : undefined,
         modelOptions: {
           temperature: settings.llmTemperature,
-          num_ctx: useSub ? (settings.subAgent.contextTokens ?? 8192) : settings.llmNumCtx,
+          num_ctx: useSub
+            ? (settings.subAgent.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS)
+            : settings.llmNumCtx,
         },
         turns,
       })

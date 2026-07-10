@@ -413,10 +413,15 @@ export type RunwareMusicModelProfile = {
   seed: number | null
 }
 
+/** Default Ollama num_ctx for sub-agent calls (vision + long-memory extract). */
+export const SUB_AGENT_DEFAULT_CONTEXT_TOKENS = 65536
+
 /** Sub-agent config — delegates tasks (vision, etc.) to a separate model. */
 export type SubAgentConfig = {
   /** When true, image_recall runs sub-agent instead of returning base64. */
   enabled: boolean
+  /** When true, long-memory extract uses the sub-agent model instead of the main LLM. */
+  memoryEnabled: boolean
   /** Sub-agent model id (e.g. 'llava:13b', 'sorc/foo:9b', 'gpt-4o'). */
   model: string
   /**
@@ -426,7 +431,7 @@ export type SubAgentConfig = {
   provider?: 'ollama' | 'openrouter' | 'deepseek'
   /** Max generated tokens per sub-agent call (default 1024). */
   outputTokens?: number
-  /** Context window size sent to Ollama as num_ctx (default 4096). Ignored by OpenRouter. */
+  /** Context window size sent to Ollama as num_ctx (default 64K). Ignored by OpenRouter. */
   contextTokens?: number
   /** When true, show the floating analysis panel during image_recall (default on). */
   showAnalysisWindow?: boolean
@@ -819,10 +824,11 @@ export const defaults: AppSettings = {
   notificationSoundVolume: 0.8,
   subAgent: {
     enabled: false,
+    memoryEnabled: false,
     model: 'llava:13b',
     provider: 'ollama',
     outputTokens: 1024,
-    contextTokens: 8192,
+    contextTokens: SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
     showAnalysisWindow: true,
   },
 }
@@ -1038,6 +1044,12 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const raw = s.subAgent
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
   const enabled = raw.enabled === true
+  const memoryEnabled =
+    raw.memoryEnabled === true
+      ? true
+      : raw.memoryEnabled === false
+        ? false
+        : enabled
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
   const rawProvider =
     raw.provider === 'ollama' || raw.provider === 'openrouter' || raw.provider === 'deepseek'
@@ -1065,7 +1077,15 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const showAnalysisWindow = raw.showAnalysisWindow !== false
   return {
     ...s,
-    subAgent: { enabled, model, provider, outputTokens, contextTokens, showAnalysisWindow },
+    subAgent: {
+      enabled,
+      memoryEnabled,
+      model,
+      provider,
+      outputTokens,
+      contextTokens,
+      showAnalysisWindow,
+    },
   }
 }
 

@@ -10,13 +10,18 @@
  * tool result is returned to the main agent loop.
  */
 
-import { normalizeBaseUrl } from './settings'
+import { normalizeBaseUrl, SUB_AGENT_DEFAULT_CONTEXT_TOKENS } from './settings'
 import type { SubAgentConfig } from './settings'
 import { deepseekApiBaseForRuntime, usesServerCloudProxy } from './platform'
 import {
   detectSubAgentProvider as detectSubAgentProviderId,
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
+import {
+  lookupVisionCacheDescription,
+  normalizeVisionFocus,
+  type ImageVisionCache,
+} from '@/lib/imageVisionCache'
 
 export { detectSubAgentProviderId as detectSubAgentProvider }
 export type { SubAgentProviderId }
@@ -68,10 +73,15 @@ function toDataUri(base64: string, mime: string): string {
 const DEFAULT_DESCRIBE_PROMPT =
   'Describe this image concisely for a non-vision AI assistant. Include: what it shows, key text/numbers visible, colors, layout, and any notable details. Do not add meta-commentary.'
 
-export function buildPrompt(userQuery: string | undefined): string {
+export function buildPrompt(userQuery: string | undefined, focus?: string): string {
+  const f = normalizeVisionFocus(focus)
   const q = (userQuery || '').trim()
-  if (!q) return DEFAULT_DESCRIBE_PROMPT
-  return `${DEFAULT_DESCRIBE_PROMPT}\n\nThe user asked: "${q}"\nTailor your description to answer the user's question.`
+  if (f) {
+    const userLine = q ? `\n\nOriginal user message: "${q}"` : ''
+    return `${DEFAULT_DESCRIBE_PROMPT}\n\nThe assistant needs from this image: "${f}"${userLine}\nTailor your description to what the assistant needs.`
+  }
+  if (q) return `${DEFAULT_DESCRIBE_PROMPT}\n\nThe user asked: "${q}"\nTailor your description to answer the user's question.`
+  return DEFAULT_DESCRIBE_PROMPT
 }
 
 // ── Ollama path ──────────────────────────────────────────────────────────
@@ -248,13 +258,14 @@ async function describeSingleImage(
   config: SubAgentConfig,
   keys: SubAgentKeys,
   userQuery: string | undefined,
+  focus: string | undefined,
   signal?: AbortSignal,
 ): Promise<string> {
   const provider = detectSubAgentProviderId(config.model, config.provider)
-  const prompt = buildPrompt(userQuery)
+  const prompt = buildPrompt(userQuery, focus)
   const maxTokens = config.outputTokens ?? 1024
 
-  const ctxTokens = config.contextTokens ?? 8192
+  const ctxTokens = config.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS
 
   if (provider === 'openrouter') {
     return describeWithOpenRouter(
@@ -290,14 +301,31 @@ export async function describeImagesWithSubAgent(
   userQuery: string | undefined,
   signal?: AbortSignal,
   ui?: SubAgentUiCallbacks,
+  visionCache?: ImageVisionCache,
+  focus?: string,
 ): Promise<SubAgentDescribeResult[]> {
+  const cache = visionCache ?? {}
   const results: SubAgentDescribeResult[] = []
-  const total = images.length
-  if (total > 0) ui?.onStart?.(total)
+  const pendingCount = images.filter(
+    (img) => !lookupVisionCacheDescription(img, cache, focus),
+  ).length
+  if (pendingCount > 0) ui?.onStart?.(pendingCount)
 
+  let pendingDone = 0
   for (let i = 0; i < images.length; i++) {
     const img = images[i]!
-    ui?.onProgress?.(i + 1, total)
+    const cached = lookupVisionCacheDescription(img, cache, focus)
+    if (cached) {
+      results.push({
+        index: img.index,
+        path: img.path,
+        description: cached,
+      })
+      continue
+    }
+
+    pendingDone++
+    ui?.onProgress?.(pendingDone, pendingCount)
     if (signal?.aborted) {
       results.push({
         index: img.index,
@@ -308,7 +336,14 @@ export async function describeImagesWithSubAgent(
       continue
     }
     try {
-      const description = await describeSingleImage(img, config, keys, userQuery, signal)
+      const description = await describeSingleImage(
+        img,
+        config,
+        keys,
+        userQuery,
+        focus,
+        signal,
+      )
       results.push({
         index: img.index,
         path: img.path,
@@ -324,7 +359,7 @@ export async function describeImagesWithSubAgent(
     }
   }
 
-  if (total > 0) ui?.onDone?.(formatSubAgentResultsForAgent(results))
+  if (images.length > 0) ui?.onDone?.(formatSubAgentResultsForAgent(results))
   return results
 }
 

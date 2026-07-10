@@ -47,6 +47,26 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent.enabled).toBe(false)
   })
 
+  test('memoryEnabled: true → true', () => {
+    const s = normalizeSubAgent(makeSubAgent({ memoryEnabled: true }))
+    expect(s.subAgent.memoryEnabled).toBe(true)
+  })
+
+  test('memoryEnabled migrates from legacy enabled when unset', () => {
+    const s = normalizeSubAgent(makeSubAgent({ enabled: true }))
+    expect(s.subAgent.memoryEnabled).toBe(true)
+  })
+
+  test('memoryEnabled: false stays off when legacy enabled was false', () => {
+    const s = normalizeSubAgent(makeSubAgent({ enabled: false }))
+    expect(s.subAgent.memoryEnabled).toBe(false)
+  })
+
+  test('memoryEnabled explicit false overrides legacy enabled', () => {
+    const s = normalizeSubAgent(makeSubAgent({ enabled: true, memoryEnabled: false }))
+    expect(s.subAgent.memoryEnabled).toBe(false)
+  })
+
   test('enabled: truthy string → false (strict check)', () => {
     const s = normalizeSubAgent(makeSubAgent({ enabled: 'true' as any }))
     expect(s.subAgent.enabled).toBe(false)
@@ -199,6 +219,7 @@ describe('normalizeSubAgent', () => {
   test('partial config: other fields get defaults', () => {
     const s = normalizeSubAgent(makeSubAgent({ enabled: true, model: 'claude' }))
     expect(s.subAgent.enabled).toBe(true)
+    expect(s.subAgent.memoryEnabled).toBe(true)
     expect(s.subAgent.model).toBe('claude')
     expect(s.subAgent.provider).toBe('openrouter')
     expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
@@ -209,6 +230,7 @@ describe('normalizeSubAgent', () => {
   test('full config: all fields preserved (in range)', () => {
     const s = normalizeSubAgent(makeSubAgent({
       enabled: true,
+      memoryEnabled: false,
       model: 'gpt-4o',
       provider: 'openrouter',
       outputTokens: 2048,
@@ -217,6 +239,7 @@ describe('normalizeSubAgent', () => {
     }))
     expect(s.subAgent).toEqual({
       enabled: true,
+      memoryEnabled: false,
       model: 'gpt-4o',
       provider: 'openrouter',
       outputTokens: 2048,

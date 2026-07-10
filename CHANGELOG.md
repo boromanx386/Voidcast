@@ -10,9 +10,16 @@ All notable changes to this project will be documented in this file.
 - **Approve & Build**: switches to Agent mode, implements the chosen plan, shows a sticky **Building plan** progress panel, and auto-checks steps as `write_file` / `edit_code` / `execute_command` succeed. Stop/error reopens the plan as draft with **Retry Build**; `built` only when real tool progress happened.
 - **Plan persistence**: plan artifacts normalize on session load; interrupted mid-build (`approved`) reopens as draft after reload.
 
+### Added
+
+- **Sub-agent long memory toggle**: `USE_FOR_LONG_MEMORY` in Options → SUB — independent from vision; extract uses the sub-agent model only when this is on.
+- **Sub-agent default context**: `CONTEXT_TOKENS` default raised to 64K (65536) for new installs.
+- **`image_recall` focus**: optional `focus` argument steers sub-agent vision (what the main agent needs from the image). Cache is keyed per image+focus; generic recalls (no focus) stay backward-compatible.
+
 ### Fixed
 
 - **Sub-agent Ollama routing**: namespaced local models like `sorc/qwen…:9b` (both `/` and `:`) no longer route to OpenRouter. Detection treats OpenRouter route variants (`:free`, `:nitro`, …) as cloud; other `ns/name:tag` ids go to Ollama. Selecting from the SUB model list also stores an explicit `provider`.
+- **Sub-agent vision cache short-circuit**: repeat `image_recall` on the same image reuses the session `imageVisionCache` instead of calling the sub-agent API again. History replay behavior is unchanged.
 - **Coding image preview**: safer `readImageFile` error handling so TypeScript correctly narrows failure vs success payloads.
 
 ## [2.7.1] — 2026-07-09
