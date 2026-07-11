@@ -22,6 +22,31 @@ html[data-ui-theme='matrix'] {
   --color-neon-purple: 132 214 168;
   --color-neon-orange: 180 160 100;
 
+  --coding-accent-fg: 120 226 160;
+  --coding-preview-label-fg: 144 236 172;
+  --coding-edit-label-fg: 180 220 138;
+  --coding-terminal-label-fg: 180 220 138;
+  --coding-md-toggle-fg: 108 202 144;
+  --coding-diff-add-fg: 144 236 172;
+  --coding-diff-del-fg: 204 120 120;
+  --coding-diff-hunk-fg: 120 226 160;
+  --coding-git-modified-fg: 180 220 138;
+  --coding-git-added-fg: 144 236 172;
+  --coding-git-deleted-fg: 204 120 120;
+  --coding-git-renamed-fg: 108 202 144;
+  --coding-git-untracked-fg: 120 226 160;
+  --coding-git-conflict-fg: 180 160 100;
+  --coding-dir-dirty-fg: 180 220 138;
+  --coding-commit-accent-fg: 180 220 138;
+  --coding-action-stage-fg: 144 236 172;
+  --coding-action-unstage-fg: 180 220 138;
+  --coding-action-discard-fg: 204 120 120;
+  --coding-terminal-stderr-fg: 204 120 120;
+  --coding-terminal-system-fg: 120 226 160;
+  --coding-find-mark-fg: 180 220 138;
+  --coding-find-active-fg: 120 226 160;
+  --coding-find-status-fg: 180 220 138;
+
   --color-glitch-red: 174 124 124;
   --color-glitch-blue: 112 204 148;
   --color-glitch-green: 142 226 170;

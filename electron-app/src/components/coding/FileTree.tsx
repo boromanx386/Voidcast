@@ -71,7 +71,7 @@ function TreeRows({
               onClick={() => void onToggleDirectory(node.path)}
               className={`w-full rounded py-1 text-left text-xs font-mono hover:bg-void-mid/40 ${
                 byPath && dirHasGitChanges(node.path, byPath)
-                  ? 'text-neon-yellow/85'
+                  ? 'coding-dir-dirty'
                   : 'text-void-light'
               }`}
             >
@@ -129,7 +129,7 @@ function TreeRows({
               <div
                 key={node.path}
                 className={`group flex w-full items-stretch gap-0.5 rounded ${
-                  selected ? 'bg-neon-cyan/15' : 'hover:bg-void-mid/40'
+                  selected ? 'coding-accent-bg' : 'hover:bg-void-mid/40'
                 }`}
               >
                 <button
@@ -139,7 +139,7 @@ function TreeRows({
                   onClick={() => onSelectFile(node.path)}
                   className={`min-w-0 flex-1 py-1 text-left text-xs font-mono break-all ${
                     selected
-                      ? 'text-neon-cyan'
+                      ? 'coding-accent-text'
                       : letter
                         ? colorClass
                         : 'text-void-light'
@@ -160,7 +160,7 @@ function TreeRows({
                         type="button"
                         title="Stage"
                         aria-label={`Stage ${node.name}`}
-                        className="rounded px-1 py-0.5 text-[10px] font-mono text-neon-green hover:bg-neon-green/15"
+                        className="coding-btn--tree coding-btn--stage"
                         onClick={(e) => {
                           e.stopPropagation()
                           onStageFile?.(node.path)
@@ -174,7 +174,7 @@ function TreeRows({
                         type="button"
                         title="Unstage"
                         aria-label={`Unstage ${node.name}`}
-                        className="rounded px-1 py-0.5 text-[10px] font-mono text-neon-yellow hover:bg-neon-yellow/15"
+                        className="coding-btn--tree coding-btn--unstage"
                         onClick={(e) => {
                           e.stopPropagation()
                           onUnstageFile?.(node.path)
@@ -188,7 +188,7 @@ function TreeRows({
                         type="button"
                         title="Discard unstaged changes"
                         aria-label={`Discard ${node.name}`}
-                        className="rounded px-1 py-0.5 text-[10px] font-mono text-neon-red/90 hover:bg-neon-red/15"
+                        className="coding-btn--tree coding-btn--discard"
                         onClick={(e) => {
                           e.stopPropagation()
                           onDiscardFile?.(node.path)
@@ -232,7 +232,7 @@ export function FileTree({
     <div className="flex h-full min-h-0 flex-col rounded border border-void-muted/30 bg-void-black/30 p-2">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="text-xs font-mono text-neon-cyan">FILES</div>
+          <div className="coding-accent-text text-xs font-mono">FILES</div>
           {gitBranchLabel ? (
             <div
               className="min-w-0 truncate text-[10px] font-mono text-void-dim"
@@ -250,7 +250,7 @@ export function FileTree({
             onClick={() => onDirtyOnlyChange(!dirtyOnly)}
             className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors ${
               dirtyOnly
-                ? 'border-neon-yellow/50 bg-neon-yellow/10 text-neon-yellow'
+                ? 'coding-dirty-toggle--on'
                 : 'border-void-muted/50 text-void-dim hover:border-void-dim hover:text-void-text'
             }`}
           >

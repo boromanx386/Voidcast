@@ -676,7 +676,7 @@ export function CodingPanel({
       style={{ width: widthPx ?? settings.coding.panelWidthPx }}
     >
       <div className="flex shrink-0 items-center justify-between">
-        <div className="text-sm font-mono text-neon-cyan">CODING_PANEL</div>
+        <div className="text-sm font-mono coding-accent-text">CODING_PANEL</div>
         <button type="button" className="cyber-btn text-xs" onClick={() => void onPickFolder()}>
           <FolderIcon className="h-4 w-4" />
         </button>
@@ -706,7 +706,7 @@ export function CodingPanel({
               onClick={() => toggleSection(key)}
               className={`rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors ${
                 on
-                  ? 'border-neon-cyan/50 bg-neon-cyan/10 text-neon-cyan'
+                  ? 'coding-accent-border coding-accent-bg coding-accent-text'
                   : 'border-void-muted/50 text-void-dim/70 hover:border-void-dim hover:text-void-text'
               }`}
             >
@@ -831,10 +831,10 @@ export function CodingPanel({
                         <button
                           type="button"
                           onClick={() => setCommitOpen(true)}
-                          className="flex w-full items-center justify-between gap-2 rounded border border-neon-yellow/35 bg-neon-yellow/5 px-2 py-1 text-left transition-colors hover:border-neon-yellow/55 hover:bg-neon-yellow/10"
+                          className="coding-commit-bar flex w-full items-center justify-between gap-2 rounded border px-2 py-1 text-left transition-colors"
                           title="Expand commit panel"
                         >
-                          <span className="font-mono text-[10px] uppercase tracking-wide text-neon-yellow">
+                          <span className="coding-commit-accent-text font-mono text-[10px] uppercase tracking-wide">
                             Commit
                           </span>
                           <span className="truncate font-mono text-[10px] text-void-dim">
@@ -849,7 +849,7 @@ export function CodingPanel({
                       ) : (
                         <div className="flex flex-col gap-1 rounded border border-void-muted/40 bg-void-black/25 p-1.5">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-[10px] uppercase tracking-wide text-neon-yellow">
+                            <span className="coding-commit-accent-text font-mono text-[10px] uppercase tracking-wide">
                               Commit
                             </span>
                             <button
@@ -901,7 +901,7 @@ export function CodingPanel({
                             </button>
                             <button
                               type="button"
-                              className="rounded border border-neon-red/40 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide text-neon-red/90 hover:bg-neon-red/10 disabled:opacity-40"
+                              className="coding-btn coding-btn--discard coding-btn--wide"
                               disabled={commitBusy || dirtyCount === 0}
                               title="Discard all local changes (restore + clean)"
                               onClick={() => void onDiscardAll()}

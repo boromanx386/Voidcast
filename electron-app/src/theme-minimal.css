@@ -21,6 +21,31 @@ html[data-ui-theme='minimal'] {
   --color-neon-purple: 196 181 253;
   --color-neon-orange: 251 146 60;
 
+  --coding-accent-fg: 129 140 248;
+  --coding-preview-label-fg: 110 231 183;
+  --coding-edit-label-fg: 251 191 36;
+  --coding-terminal-label-fg: 251 191 36;
+  --coding-md-toggle-fg: 167 139 250;
+  --coding-diff-add-fg: 110 231 183;
+  --coding-diff-del-fg: 251 113 133;
+  --coding-diff-hunk-fg: 129 140 248;
+  --coding-git-modified-fg: 251 191 36;
+  --coding-git-added-fg: 110 231 183;
+  --coding-git-deleted-fg: 251 113 133;
+  --coding-git-renamed-fg: 167 139 250;
+  --coding-git-untracked-fg: 129 140 248;
+  --coding-git-conflict-fg: 251 146 60;
+  --coding-dir-dirty-fg: 251 191 36;
+  --coding-commit-accent-fg: 251 191 36;
+  --coding-action-stage-fg: 110 231 183;
+  --coding-action-unstage-fg: 251 191 36;
+  --coding-action-discard-fg: 251 113 133;
+  --coding-terminal-stderr-fg: 251 113 133;
+  --coding-terminal-system-fg: 129 140 248;
+  --coding-find-mark-fg: 251 191 36;
+  --coding-find-active-fg: 129 140 248;
+  --coding-find-status-fg: 251 191 36;
+
   --color-glitch-red: 251 113 133;
   --color-glitch-blue: 129 140 248;
   --color-glitch-green: 110 231 183;

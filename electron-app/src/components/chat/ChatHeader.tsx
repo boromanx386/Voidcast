@@ -46,7 +46,9 @@ export function ChatHeader({ app }: Props) {
         aria-label={sessionsSidebarCollapsed ? 'Show sessions panel' : 'Hide sessions panel'}
         aria-expanded={!sessionsSidebarCollapsed}
         onClick={() => setSessionsSidebarCollapsed((v) => !v)}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-void-muted/60 bg-void-mid/80 text-void-light transition-colors hover:border-void-dim hover:text-void-white"
+        className={`cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 ${
+          !sessionsSidebarCollapsed ? 'border-neon-cyan/60 text-neon-cyan' : ''
+        }`}
       >
         <SessionsToggleIcon collapsed={sessionsSidebarCollapsed} />
       </button>

@@ -37,6 +37,32 @@
 
     /* Comma-separated RGB for rgba() usages in arbitrary shadow values. */
     --ui-accent-rgb: 0,245,255;
+
+    /* Coding panel — functional diff/git colors (independent of theme neon remap). */
+    --coding-accent-fg: 0 245 255;
+    --coding-preview-label-fg: 0 255 136;
+    --coding-edit-label-fg: 255 238 0;
+    --coding-terminal-label-fg: 255 238 0;
+    --coding-md-toggle-fg: 255 0 170;
+    --coding-diff-add-fg: 0 255 136;
+    --coding-diff-del-fg: 255 51 102;
+    --coding-diff-hunk-fg: 0 245 255;
+    --coding-git-modified-fg: 255 238 0;
+    --coding-git-added-fg: 0 255 136;
+    --coding-git-deleted-fg: 255 51 102;
+    --coding-git-renamed-fg: 255 0 170;
+    --coding-git-untracked-fg: 0 245 255;
+    --coding-git-conflict-fg: 255 153 0;
+    --coding-dir-dirty-fg: 255 238 0;
+    --coding-commit-accent-fg: 255 238 0;
+    --coding-action-stage-fg: 0 255 136;
+    --coding-action-unstage-fg: 255 238 0;
+    --coding-action-discard-fg: 255 51 102;
+    --coding-terminal-stderr-fg: 255 51 102;
+    --coding-terminal-system-fg: 0 245 255;
+    --coding-find-mark-fg: 255 238 0;
+    --coding-find-active-fg: 0 245 255;
+    --coding-find-status-fg: 255 238 0;
   }
 
   html,

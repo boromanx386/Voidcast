@@ -6,9 +6,9 @@ const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: Terminal
     <div
       className={
         line.stream === 'stderr'
-          ? 'text-neon-red/90'
+          ? 'coding-terminal-stderr'
           : line.stream === 'system'
-            ? 'text-neon-cyan/80'
+            ? 'coding-terminal-system'
             : 'text-void-light'
       }
       style={{ contentVisibility: 'auto' as const }}
@@ -47,7 +47,7 @@ export function TerminalView({ lines, onClear }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded border border-void-muted/30 bg-void-black/50 p-2">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-        <div className="text-xs font-mono text-neon-yellow">TERMINAL</div>
+        <div className="coding-label--terminal text-xs font-mono">TERMINAL</div>
         {onClear && (
           <button
             type="button"
@@ -55,7 +55,7 @@ export function TerminalView({ lines, onClear }: Props) {
             disabled={lines.length === 0}
             title="Clear terminal output"
             aria-label="Clear terminal output"
-            className="rounded border border-void-muted/50 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide text-void-dim transition-colors hover:border-neon-yellow/40 hover:text-neon-yellow disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-void-muted/50 disabled:hover:text-void-dim"
+            className="rounded border border-void-muted/50 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide text-void-dim transition-colors hover:border-[rgb(var(--coding-terminal-label-fg)/0.4)] hover:text-[rgb(var(--coding-terminal-label-fg))] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-void-muted/50 disabled:hover:text-void-dim"
           >
             CLEAR
           </button>

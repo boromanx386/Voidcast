@@ -26,6 +26,31 @@ html[data-ui-theme='light'] {
   --color-glitch-green: 112 146 115;
 
   --ui-accent-rgb: 90,126,138;
+
+  --coding-accent-fg: 90 126 138;
+  --coding-preview-label-fg: 72 140 90;
+  --coding-edit-label-fg: 166 139 86;
+  --coding-terminal-label-fg: 166 139 86;
+  --coding-md-toggle-fg: 124 118 156;
+  --coding-diff-add-fg: 72 140 90;
+  --coding-diff-del-fg: 170 80 75;
+  --coding-diff-hunk-fg: 90 126 138;
+  --coding-git-modified-fg: 166 139 86;
+  --coding-git-added-fg: 72 140 90;
+  --coding-git-deleted-fg: 170 80 75;
+  --coding-git-renamed-fg: 124 118 156;
+  --coding-git-untracked-fg: 90 126 138;
+  --coding-git-conflict-fg: 200 140 80;
+  --coding-dir-dirty-fg: 166 139 86;
+  --coding-commit-accent-fg: 166 139 86;
+  --coding-action-stage-fg: 72 140 90;
+  --coding-action-unstage-fg: 166 139 86;
+  --coding-action-discard-fg: 170 80 75;
+  --coding-terminal-stderr-fg: 170 80 75;
+  --coding-terminal-system-fg: 90 126 138;
+  --coding-find-mark-fg: 166 139 86;
+  --coding-find-active-fg: 90 126 138;
+  --coding-find-status-fg: 166 139 86;
 }
 
 html[data-ui-theme='light'] body {

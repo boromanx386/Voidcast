@@ -452,6 +452,204 @@
   @apply max-w-none text-void-text;
 }
 
+/* Coding panel — semantic colors (see --coding-* in index.css / theme-*.css) */
+.coding-accent-text {
+  color: rgb(var(--coding-accent-fg));
+}
+
+.coding-accent-bg {
+  background-color: rgb(var(--coding-accent-fg) / 0.15);
+}
+
+.coding-accent-border {
+  border-color: rgb(var(--coding-accent-fg) / 0.5);
+}
+
+.coding-label--preview {
+  color: rgb(var(--coding-preview-label-fg));
+}
+
+.coding-label--edit {
+  color: rgb(var(--coding-edit-label-fg));
+}
+
+.coding-label--terminal {
+  color: rgb(var(--coding-terminal-label-fg));
+}
+
+.coding-diff-line--add {
+  color: rgb(var(--coding-diff-add-fg));
+  background-color: rgb(var(--coding-diff-add-fg) / 0.1);
+}
+
+.coding-diff-line--del {
+  color: rgb(var(--coding-diff-del-fg));
+  background-color: rgb(var(--coding-diff-del-fg) / 0.1);
+}
+
+.coding-diff-line--hunk {
+  color: rgb(var(--coding-diff-hunk-fg) / 0.9);
+  background-color: rgb(var(--coding-diff-hunk-fg) / 0.05);
+}
+
+.coding-git--modified {
+  color: rgb(var(--coding-git-modified-fg));
+}
+
+.coding-git--added {
+  color: rgb(var(--coding-git-added-fg));
+}
+
+.coding-git--deleted {
+  color: rgb(var(--coding-git-deleted-fg));
+}
+
+.coding-git--renamed {
+  color: rgb(var(--coding-git-renamed-fg));
+}
+
+.coding-git--untracked {
+  color: rgb(var(--coding-git-untracked-fg));
+}
+
+.coding-git--conflict {
+  color: rgb(var(--coding-git-conflict-fg));
+}
+
+.coding-git--default {
+  color: rgb(var(--coding-git-modified-fg) / 0.9);
+}
+
+.coding-dir-dirty {
+  color: rgb(var(--coding-dir-dirty-fg) / 0.85);
+}
+
+.coding-commit-bar {
+  border-color: rgb(var(--coding-commit-accent-fg) / 0.35);
+  background-color: rgb(var(--coding-commit-accent-fg) / 0.05);
+}
+
+.coding-commit-bar:hover {
+  border-color: rgb(var(--coding-commit-accent-fg) / 0.55);
+  background-color: rgb(var(--coding-commit-accent-fg) / 0.1);
+}
+
+.coding-commit-accent-text {
+  color: rgb(var(--coding-commit-accent-fg));
+}
+
+.coding-dirty-toggle--on {
+  border-color: rgb(var(--coding-dir-dirty-fg) / 0.5);
+  background-color: rgb(var(--coding-dir-dirty-fg) / 0.1);
+  color: rgb(var(--coding-dir-dirty-fg));
+}
+
+.coding-terminal-stderr {
+  color: rgb(var(--coding-terminal-stderr-fg) / 0.9);
+}
+
+.coding-terminal-system {
+  color: rgb(var(--coding-terminal-system-fg) / 0.8);
+}
+
+.coding-find-status {
+  color: rgb(var(--coding-find-status-fg));
+}
+
+.coding-btn {
+  @apply rounded border px-1.5 py-0.5 text-[10px] font-mono transition-colors disabled:opacity-40;
+}
+
+.coding-btn--tree {
+  @apply rounded px-1 py-0.5 text-[10px] font-mono transition-colors;
+}
+
+.coding-btn--stage {
+  color: rgb(var(--coding-action-stage-fg));
+  border-color: rgb(var(--coding-action-stage-fg) / 0.4);
+}
+
+.coding-btn--stage:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-stage-fg) / 0.1);
+}
+
+.coding-btn--tree.coding-btn--stage:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-stage-fg) / 0.15);
+}
+
+.coding-btn--unstage {
+  color: rgb(var(--coding-action-unstage-fg));
+  border-color: rgb(var(--coding-action-unstage-fg) / 0.4);
+}
+
+.coding-btn--unstage:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-unstage-fg) / 0.1);
+}
+
+.coding-btn--tree.coding-btn--unstage:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-unstage-fg) / 0.15);
+}
+
+.coding-btn--discard {
+  color: rgb(var(--coding-action-discard-fg) / 0.9);
+  border-color: rgb(var(--coding-action-discard-fg) / 0.4);
+}
+
+.coding-btn--discard:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-discard-fg) / 0.1);
+}
+
+.coding-btn--tree.coding-btn--discard:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-discard-fg) / 0.15);
+}
+
+.coding-btn--discard.coding-btn--wide {
+  @apply px-2 py-0.5 uppercase tracking-wide;
+}
+
+.coding-btn--edit {
+  color: rgb(var(--coding-accent-fg));
+  border-color: rgb(var(--coding-accent-fg) / 0.4);
+}
+
+.coding-btn--edit:hover:not(:disabled) {
+  background-color: rgb(var(--coding-accent-fg) / 0.1);
+}
+
+.coding-btn--save {
+  color: rgb(var(--coding-action-stage-fg));
+  border-color: rgb(var(--coding-action-stage-fg) / 0.4);
+}
+
+.coding-btn--save:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-stage-fg) / 0.1);
+}
+
+.coding-btn--md-toggle {
+  color: rgb(var(--coding-md-toggle-fg));
+  border-color: rgb(var(--coding-md-toggle-fg) / 0.4);
+}
+
+.coding-btn--md-toggle:hover:not(:disabled) {
+  background-color: rgb(var(--coding-md-toggle-fg) / 0.1);
+}
+
+.coding-panel .file-preview-edit-stage:focus-within {
+  border-color: rgb(var(--coding-accent-fg));
+  box-shadow: 0 0 0 1px rgb(var(--coding-accent-fg) / 0.45);
+}
+
+.coding-panel .file-preview-edit-highlight mark.find-mark {
+  background: rgb(var(--coding-find-mark-fg) / 0.24);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.coding-panel .file-preview-edit-highlight mark.find-mark--active {
+  background: rgb(var(--coding-find-active-fg) / 0.38);
+  box-shadow: 0 0 0 1px rgb(var(--coding-find-active-fg) / 0.4);
+}
+
 .voidcast-textarea {
   @apply w-full px-3 py-2.5 min-h-[44px] max-h-40;
   @apply bg-void-black/80 border border-void-muted;

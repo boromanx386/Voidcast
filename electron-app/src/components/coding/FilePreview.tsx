@@ -41,21 +41,17 @@ function DiffLines({ content }: { content: string }) {
     <>
       {lines.map((line, i) => {
         let rowClass = 'text-void-light'
-        let bgClass = ''
         if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ')) {
           rowClass = 'text-void-dim'
         } else if (line.startsWith('@@')) {
-          rowClass = 'text-neon-cyan/90'
-          bgClass = 'bg-neon-cyan/5'
+          rowClass = 'coding-diff-line--hunk'
         } else if (line.startsWith('+')) {
-          rowClass = 'text-neon-green'
-          bgClass = 'bg-neon-green/10'
+          rowClass = 'coding-diff-line--add'
         } else if (line.startsWith('-')) {
-          rowClass = 'text-neon-red'
-          bgClass = 'bg-neon-red/10'
+          rowClass = 'coding-diff-line--del'
         }
         return (
-          <div key={i} className={`flex w-max min-w-full gap-2 px-1 ${bgClass} ${rowClass}`}>
+          <div key={i} className={`flex w-max min-w-full gap-2 px-1 ${rowClass}`}>
             <span className="w-8 shrink-0 select-none text-right tabular-nums text-void-dim/60">
               {i + 1}
             </span>
@@ -138,7 +134,7 @@ export function FilePreview({
         ? `IMAGE${filePath ? ` - ${filePath}` : ''}`
         : `PREVIEW${filePath ? ` - ${filePath}` : ''}`
 
-  const labelClass = editing ? 'text-neon-yellow' : 'text-neon-green'
+  const labelClass = editing ? 'coding-label--edit' : 'coding-label--preview'
   const showGitActions = !editing && (canStage || canUnstage || canDiscard)
   const showEditAction = !editing && canEdit && onStartEdit
   const showEditActions = editing && onSaveEdit && onCancelEdit && onEditDraftChange
@@ -155,7 +151,7 @@ export function FilePreview({
             <button
               type="button"
               title={showMdSource ? 'Show Markdown preview' : 'Show raw source'}
-              className="rounded border border-neon-magenta/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-magenta hover:bg-neon-magenta/10"
+              className="coding-btn coding-btn--md-toggle"
               onClick={() => setShowMdSource((v) => !v)}
             >
               {showMdSource ? 'MD' : 'Source'}
@@ -165,7 +161,7 @@ export function FilePreview({
             <button
               type="button"
               title="Edit file"
-              className="rounded border border-neon-cyan/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-cyan hover:bg-neon-cyan/10"
+              className="coding-btn coding-btn--edit"
               onClick={onStartEdit}
             >
               ✎
@@ -176,7 +172,7 @@ export function FilePreview({
               <button
                 type="button"
                 title="Save (Ctrl+S)"
-                className="rounded border border-neon-green/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-green hover:bg-neon-green/10 disabled:opacity-40"
+                className="coding-btn coding-btn--save"
                 disabled={editBusy}
                 onClick={onSaveEdit}
               >
@@ -199,7 +195,7 @@ export function FilePreview({
                 <button
                   type="button"
                   title="Stage file"
-                  className="rounded border border-neon-green/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-green hover:bg-neon-green/10"
+                  className="coding-btn coding-btn--stage"
                   onClick={onStage}
                 >
                   +
@@ -209,7 +205,7 @@ export function FilePreview({
                 <button
                   type="button"
                   title="Unstage file"
-                  className="rounded border border-neon-yellow/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-yellow hover:bg-neon-yellow/10"
+                  className="coding-btn coding-btn--unstage"
                   onClick={onUnstage}
                 >
                   −
@@ -219,7 +215,7 @@ export function FilePreview({
                 <button
                   type="button"
                   title="Discard unstaged changes (git restore)"
-                  className="rounded border border-neon-red/40 px-1.5 py-0.5 text-[10px] font-mono text-neon-red/90 hover:bg-neon-red/10"
+                  className="coding-btn coding-btn--discard"
                   onClick={onDiscard}
                 >
                   ↶

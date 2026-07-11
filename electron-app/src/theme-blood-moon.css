@@ -19,6 +19,32 @@ html[data-ui-theme='blood-moon'] {
   --color-neon-orange: 255 100 60;
 
   --ui-accent-rgb: 220,40,60;
+
+  /* Coding panel keeps functional green/red distinction despite crimson neon remap. */
+  --coding-accent-fg: 220 40 60;
+  --coding-preview-label-fg: 90 200 150;
+  --coding-edit-label-fg: 255 170 90;
+  --coding-terminal-label-fg: 255 170 90;
+  --coding-md-toggle-fg: 200 120 200;
+  --coding-diff-add-fg: 90 200 150;
+  --coding-diff-del-fg: 255 70 70;
+  --coding-diff-hunk-fg: 160 140 220;
+  --coding-git-modified-fg: 255 170 90;
+  --coding-git-added-fg: 90 200 150;
+  --coding-git-deleted-fg: 255 70 70;
+  --coding-git-renamed-fg: 200 120 200;
+  --coding-git-untracked-fg: 180 180 200;
+  --coding-git-conflict-fg: 255 140 60;
+  --coding-dir-dirty-fg: 255 170 90;
+  --coding-commit-accent-fg: 255 170 90;
+  --coding-action-stage-fg: 90 200 150;
+  --coding-action-unstage-fg: 255 170 90;
+  --coding-action-discard-fg: 255 70 70;
+  --coding-terminal-stderr-fg: 255 70 70;
+  --coding-terminal-system-fg: 200 120 200;
+  --coding-find-mark-fg: 255 200 100;
+  --coding-find-active-fg: 160 140 220;
+  --coding-find-status-fg: 255 170 90;
 }
 
 html[data-ui-theme='blood-moon'] body {

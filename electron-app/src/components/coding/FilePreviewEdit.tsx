@@ -299,7 +299,7 @@ export function FilePreviewEdit({ draft, busy = false, onDraftChange, onSave, on
         </div>
         <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-void-dim">
           <span>{matchLabel}</span>
-          {findStatus ? <span className="text-neon-yellow">{findStatus}</span> : null}
+          {findStatus ? <span className="coding-find-status">{findStatus}</span> : null}
         </div>
       </div>
       <div className="file-preview-edit-stage">

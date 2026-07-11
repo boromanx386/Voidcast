@@ -187,23 +187,23 @@ export function dirHasGitChanges(
   return false
 }
 
-/** Tailwind text class for a status letter. */
+/** Tailwind text class for a status letter (coding panel semantic colors). */
 export function gitLetterTextClass(letter: string): string {
   switch (letter) {
     case 'M':
-      return 'text-neon-yellow'
+      return 'coding-git--modified'
     case 'A':
     case 'C':
-      return 'text-neon-green'
+      return 'coding-git--added'
     case 'D':
-      return 'text-neon-red'
+      return 'coding-git--deleted'
     case 'R':
-      return 'text-neon-magenta'
+      return 'coding-git--renamed'
     case '?':
-      return 'text-neon-cyan'
+      return 'coding-git--untracked'
     case 'U':
-      return 'text-neon-orange'
+      return 'coding-git--conflict'
     default:
-      return 'text-neon-yellow/90'
+      return 'coding-git--default'
   }
 }

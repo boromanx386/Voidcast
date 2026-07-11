@@ -20,6 +20,31 @@ html[data-ui-theme='obsidian'] {
   --color-neon-orange: 210 150 100;
 
   --ui-accent-rgb: 105, 165, 210;
+
+  --coding-accent-fg: 105 165 210;
+  --coding-preview-label-fg: 95 185 145;
+  --coding-edit-label-fg: 200 175 110;
+  --coding-terminal-label-fg: 200 175 110;
+  --coding-md-toggle-fg: 165 130 190;
+  --coding-diff-add-fg: 95 185 145;
+  --coding-diff-del-fg: 215 105 105;
+  --coding-diff-hunk-fg: 105 165 210;
+  --coding-git-modified-fg: 200 175 110;
+  --coding-git-added-fg: 95 185 145;
+  --coding-git-deleted-fg: 215 105 105;
+  --coding-git-renamed-fg: 165 130 190;
+  --coding-git-untracked-fg: 105 165 210;
+  --coding-git-conflict-fg: 210 150 100;
+  --coding-dir-dirty-fg: 200 175 110;
+  --coding-commit-accent-fg: 200 175 110;
+  --coding-action-stage-fg: 95 185 145;
+  --coding-action-unstage-fg: 200 175 110;
+  --coding-action-discard-fg: 215 105 105;
+  --coding-terminal-stderr-fg: 215 105 105;
+  --coding-terminal-system-fg: 105 165 210;
+  --coding-find-mark-fg: 200 175 110;
+  --coding-find-active-fg: 105 165 210;
+  --coding-find-status-fg: 200 175 110;
 }
 
 html[data-ui-theme='obsidian'] body {
