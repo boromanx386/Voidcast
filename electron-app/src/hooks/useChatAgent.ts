@@ -94,6 +94,37 @@ export type OnSendOptions = {
   forceAgentMode?: AgentChatMode
   /** After a successful build turn, mark this plan message as built. */
   buildFromPlanMessageId?: string
+  /** enter_plan_mode handoff: reuse attachments from the last user message in history. */
+  planHandoff?: boolean
+}
+
+function lastUserMessage(history: UiMessage[]): UiMessage | undefined {
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i]?.role === 'user') return history[i]
+  }
+  return undefined
+}
+
+function attachmentsFromUserMessage(msg: UiMessage): {
+  queued: PendingChatImage[]
+  queuedFiles: FileAttachmentSnapshot[]
+} {
+  const queued: PendingChatImage[] = []
+  if (msg.images?.length) {
+    msg.images.forEach((base64, i) => {
+      queued.push({
+        base64,
+        mime: msg.imageMimes?.[i] || 'image/jpeg',
+        name: msg.imageNames?.[i] || '',
+        path: msg.imagePaths?.[i] || '',
+        kind: 'attachment',
+      })
+    })
+  }
+  return {
+    queued,
+    queuedFiles: msg.fileAttachments ?? [],
+  }
 }
 
 export function useChatAgent(deps: UseChatAgentDeps) {
@@ -292,12 +323,21 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   const onSend = useCallback(
     async (opts?: OnSendOptions) => {
       const isEdit = Boolean(opts?.skipAddUserMsg)
-      const text = isEdit
-        ? (opts?.text ?? '')
-        : (opts?.text ?? input).trim()
+      const isPlanHandoff = Boolean(opts?.planHandoff)
       const activeHistory = opts?.history ?? messages
-      const queued = isEdit || opts?.text ? [] : pendingImages
-      const queuedFiles = isEdit || opts?.text ? [] : pendingFiles
+      const text = isEdit
+        ? (opts?.text ?? (isPlanHandoff ? lastUserMessage(activeHistory)?.content ?? '' : '')).trim()
+        : (opts?.text ?? input).trim()
+      let queued = isEdit || (opts?.text && !isPlanHandoff) ? [] : pendingImages
+      let queuedFiles = isEdit || (opts?.text && !isPlanHandoff) ? [] : pendingFiles
+      if (isPlanHandoff && isEdit) {
+        const lastUser = lastUserMessage(activeHistory)
+        if (lastUser) {
+          const recovered = attachmentsFromUserMessage(lastUser)
+          queued = recovered.queued
+          queuedFiles = recovered.queuedFiles
+        }
+      }
       if ((!text && queued.length === 0 && queuedFiles.length === 0) || busy) return
       setError(null)
       if (!isEdit) {
@@ -395,6 +435,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const isRunActive = () => activeChatRunIdRef.current === runId && !ac.signal.aborted
       let replyText = ''
       let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
+      let escalatedToPlan = false
 
       try {
         if (useTools) {
@@ -453,6 +494,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 : undefined,
             onImageVisionCacheUpdate: (entries: ImageVisionCache) => {
               setImageVisionCache((prev) => mergeImageVisionCache(prev, entries))
+            },
+            onEscalateToPlan: () => {
+              escalatedToPlan = true
             },
             imageVisionCache,
             signal: ac.signal,
@@ -675,6 +719,25 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           setBusy(false)
           abortRef.current = null
         }
+      }
+
+      if (escalatedToPlan && activeChatRunIdRef.current === runId) {
+        setSettings((s) => (s.agentMode === 'plan' ? s : { ...s, agentMode: 'plan' }))
+        const handoffHistory = isEdit
+          ? activeHistory.filter((m) => m.id !== asstId)
+          : userMsg
+            ? [...activeHistory, userMsg]
+            : activeHistory
+        setMessages((prev) => prev.filter((m) => m.id !== asstId))
+        onSessionDirty()
+        void onSend({
+          text,
+          forceAgentMode: 'plan',
+          skipAddUserMsg: true,
+          history: handoffHistory,
+          planHandoff: true,
+        })
+        return
       }
 
       if (replyText.trim()) {

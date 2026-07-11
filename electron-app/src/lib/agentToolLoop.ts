@@ -91,6 +91,8 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
   toolPhaseForName?: (name: string) => AgentToolUiPhase | null
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
+  /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). The orchestrator flips the composer to Plan mode and re-sends as a plan turn. */
+  onEscalateToPlan?: (ctx: { messages: TMessage[] }) => void
 }
 
 function defaultParseArgs(
@@ -284,6 +286,30 @@ export async function runSharedToolLoop<
       thinking,
       toolCalls,
     })
+
+    const planEscalation = validCalls.find((v) => v.shared.name === 'enter_plan_mode')
+    if (planEscalation) {
+      const shared = planEscalation.shared
+      const call = planEscalation.provider
+      const phase = params.toolPhaseForName?.('enter_plan_mode') ?? null
+      params.onToolPhase?.(phase)
+      const result = await params.executeToolCall('enter_plan_mode', shared.argsRaw)
+      params.appendToolResult({
+        messages,
+        call,
+        name: 'enter_plan_mode',
+        result,
+        round,
+      })
+      params.onToolResult?.({
+        name: 'enter_plan_mode',
+        result,
+        args: parseArgs(shared.argsRaw),
+      })
+      params.onToolPhase?.(null)
+      params.onEscalateToPlan?.({ messages })
+      return { content: '', usage: lastUsage }
+    }
 
     for (const valid of validCalls) {
       const shared = valid.shared

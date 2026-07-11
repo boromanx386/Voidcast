@@ -24,6 +24,7 @@ export type AgentToolUiPhase =
   | 'settings'
   | 'reminder'
   | 'skill'
+  | 'plan'
   | 'other'
 
 export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
@@ -75,6 +76,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'reminder'
     case 'read_skill':
       return 'skill'
+    case 'enter_plan_mode':
+      return 'plan'
     default:
       return 'other'
   }

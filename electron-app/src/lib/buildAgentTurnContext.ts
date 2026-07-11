@@ -233,6 +233,11 @@ export async function buildAgentTurnContext(
       'For delete_reminder and update_reminder, pass search_text to find the reminder by its text.',
     ].join('\n')
     toolsHintParts.push(remindersHint)
+    if (settings.toolsEnabled.enterPlan) {
+      toolsHintParts.push(
+        'You have an enter_plan_mode tool. Call it when a task is complex, risky, or has meaningful tradeoffs — before making any changes — or whenever the user explicitly asks for a plan. It hands control to Plan mode, which explores read-only and presents an editable plan card for approval before anything is implemented.',
+      )
+    }
   } else if (useTools && planMode) {
     toolsHintParts.push(
       'Reminder tools: only list_reminders is available in Plan mode (read-only).',

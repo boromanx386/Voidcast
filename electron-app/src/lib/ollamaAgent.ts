@@ -643,6 +643,9 @@ export async function executeToolCall(
   if (ctx.agentMode === 'plan' && isPlanModeBlockedTool(name)) {
     return `Error: tool "${name}" is blocked in Plan mode (read-only). Propose a plan instead; the user can Approve & Build to implement.`
   }
+  if (name === 'enter_plan_mode') {
+    return 'Switching to Plan mode.'
+  }
   if (name === 'read_skill') {
     if (!ctx.skillsEnabled) {
       return 'Error: read_skill tool is disabled in settings.'
@@ -1685,6 +1688,8 @@ export type RunChatWithToolsParams = {
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   imageVisionCache?: ImageVisionCache
+  /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). */
+  onEscalateToPlan?: (ctx: { messages: OllamaApiMessage[] }) => void
 }
 
 /**
@@ -1880,5 +1885,6 @@ export async function runOllamaChatWithTools(
     onToolPhase: params.onToolPhase,
     toolPhaseForName: (name) => toolPhaseForAgentTool(name),
     onToolResult: params.onToolResult,
+    onEscalateToPlan: params.onEscalateToPlan,
   })
 }

@@ -829,6 +829,16 @@ const READ_SKILL_TOOL: OllamaToolDefinition = {
   },
 }
 
+const ENTER_PLAN_MODE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'enter_plan_mode',
+    description:
+      'Switch the conversation into Plan mode. Call this when the task is complex, risky, or has meaningful tradeoffs — before making any changes — or whenever the user explicitly asks for a plan. Plan mode explores read-only and presents an editable plan card for approval before anything is implemented.',
+    parameters: { type: 'object', properties: {} },
+  },
+}
+
 export function buildOllamaToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
@@ -866,6 +876,7 @@ export function buildOllamaToolsList(
     if (!planMode) out.push(CODING_EXECUTE_COMMAND_TOOL)
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)
+  if (enabled.enterPlan && !planMode) out.push(ENTER_PLAN_MODE_TOOL)
   if (!planMode) out.push(UPDATE_SETTINGS_TOOL)
   if (!planMode) out.push(ADD_REMINDER_TOOL)
   out.push(LIST_REMINDERS_TOOL)
@@ -887,6 +898,7 @@ export function anyToolEnabled(enabled: ToolsEnabled, skillsEnabled = false): bo
     enabled.runwareImage ||
     enabled.runwareMusic ||
     enabled.coding ||
+    enabled.enterPlan ||
     skillsEnabled
   )
 }

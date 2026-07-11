@@ -478,6 +478,8 @@ export type ToolsEnabled = {
   runwareMusic: boolean
   /** Local coding tools (file read/write/search + terminal command execution) */
   coding: boolean
+  /** Agent can switch the conversation into Plan mode (read-only plan flow). */
+  enterPlan: boolean
 }
 
 export type CodingSettings = {
@@ -747,6 +749,7 @@ export const defaults: AppSettings = {
     runwareImage: false,
     runwareMusic: false,
     coding: false,
+    enterPlan: false,
   },
   skillsEnabled: true,
   agentMode: 'agent',
@@ -901,6 +904,8 @@ function normalizeTools(s: AppSettings): AppSettings {
           ? te.runwareMusic
           : defaults.toolsEnabled.runwareMusic,
       coding: codingEnabled,
+      enterPlan:
+        typeof te?.enterPlan === 'boolean' ? te.enterPlan : defaults.toolsEnabled.enterPlan,
     },
     skillsEnabled:
       typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,

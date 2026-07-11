@@ -78,6 +78,8 @@ export type RunOpenRouterChatWithToolsParams = {
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   imageVisionCache?: ImageVisionCache
+  /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). */
+  onEscalateToPlan?: (ctx: { messages: OpenRouterMessage[] }) => void
 }
 
 export async function runOpenRouterChatWithTools(
@@ -218,5 +220,6 @@ export async function runOpenRouterChatWithTools(
     onToolPhase: params.onToolPhase,
     toolPhaseForName: (name) => toolPhaseForAgentTool(name),
     onToolResult: params.onToolResult,
+    onEscalateToPlan: params.onEscalateToPlan,
   })
 }

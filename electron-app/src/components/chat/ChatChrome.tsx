@@ -60,6 +60,7 @@ const TOOL_PHASE_UI: Record<
   settings: { icon: '⚙', label: 'APP_SETTINGS', className: 'settings' },
   reminder: { icon: '⧗', label: 'REMINDER', className: 'reminder' },
   skill: { icon: '✦', label: 'READ_SKILL', className: 'skill' },
+  plan: { icon: '✎', label: 'PLAN_MODE', className: 'plan' },
   other: { icon: '◈', label: 'TOOL', className: 'other' },
 }
 

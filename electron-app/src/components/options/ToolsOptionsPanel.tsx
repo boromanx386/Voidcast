@@ -87,6 +87,28 @@ export function ToolsOptionsPanel({
         }
       />
 
+      {/* Enter Plan Mode */}
+      <ToolToggle
+        checked={settings.toolsEnabled.enterPlan}
+        onChange={(v) =>
+          setSettings((s) => ({
+            ...s,
+            toolsEnabled: { ...s.toolsEnabled, enterPlan: v },
+          }))
+        }
+        label="ENTER_PLAN_MODE"
+        icon="✎"
+        iconColor="text-neon-purple"
+        description={
+          <>
+            Lets the agent switch the conversation into{' '}
+            <code className="text-neon-purple">Plan mode</code> when a task is complex/risky or you
+            ask for a plan. Plan mode explores read-only and shows an editable plan card for
+            approval before any changes are made.
+          </>
+        }
+      />
+
       {/* YouTube */}
       <ToolToggle
         checked={settings.toolsEnabled.youtube}
