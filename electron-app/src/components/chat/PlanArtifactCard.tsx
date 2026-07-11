@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { createPlanStep, selectPlanApproach } from '@/lib/planArtifact'
 import type { PlanArtifact, PlanStep } from '@/types/chat'
 
@@ -7,6 +8,7 @@ type Props = {
   busy: boolean
   onChange: (messageId: string, plan: PlanArtifact | undefined) => void
   onApproveAndBuild: (messageId: string, plan: PlanArtifact) => void
+  onReviseWithCustomNote: (messageId: string, plan: PlanArtifact, customNote: string) => void
 }
 
 function planStatusLabel(status: PlanArtifact['status']): string {
@@ -21,10 +23,13 @@ export function PlanArtifactCard({
   busy,
   onChange,
   onApproveAndBuild,
+  onReviseWithCustomNote,
 }: Props) {
   const editable = plan.status === 'draft' && !busy
   const hasApproaches = Boolean(plan.approaches && plan.approaches.length > 0)
   const selectedId = plan.selectedApproachId
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customNote, setCustomNote] = useState('')
 
   const setTitle = (title: string) => {
     onChange(messageId, { ...plan, title })
@@ -57,6 +62,14 @@ export function PlanArtifactCard({
   const pickApproach = (approachId: string) => {
     if (!editable) return
     onChange(messageId, selectPlanApproach(plan, approachId))
+  }
+
+  const submitCustom = () => {
+    const note = customNote.trim()
+    if (!note || busy) return
+    onReviseWithCustomNote(messageId, plan, note)
+    setCustomNote('')
+    setCustomOpen(false)
   }
 
   const statusLabel = planStatusLabel(plan.status)
@@ -202,6 +215,53 @@ export function PlanArtifactCard({
         <button type="button" className="plan-artifact-card__add-step" onClick={addStep}>
           + Add step
         </button>
+      )}
+
+      {editable && (
+        <div className="mb-3 mt-1">
+          {!customOpen ? (
+            <button
+              type="button"
+              className="plan-artifact-card__custom-toggle"
+              onClick={() => setCustomOpen(true)}
+            >
+              + Something else…
+            </button>
+          ) : (
+            <div className="plan-artifact-card__custom">
+              <p className="plan-artifact-card__section-label mb-1.5">Your approach</p>
+              <textarea
+                className="cyber-input mb-2 w-full resize-y text-xs"
+                rows={3}
+                value={customNote}
+                onChange={(e) => setCustomNote(e.target.value)}
+                placeholder="Describe what you want instead — the agent will revise the plan (not build yet)."
+                disabled={busy}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="plan-artifact-card__revise"
+                  disabled={busy || !customNote.trim()}
+                  onClick={submitCustom}
+                >
+                  Revise plan
+                </button>
+                <button
+                  type="button"
+                  className="plan-artifact-card__discard"
+                  disabled={busy}
+                  onClick={() => {
+                    setCustomOpen(false)
+                    setCustomNote('')
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {plan.status === 'draft' && (

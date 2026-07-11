@@ -37,6 +37,7 @@ type Props = {
     | 'commitEdit'
     | 'updateMessagePlan'
     | 'approveAndBuildPlan'
+    | 'revisePlanWithCustomNote'
     | 'playingId'
     | 'ttsOk'
     | 'abortTts'
@@ -69,6 +70,7 @@ export function ChatMessage({
     commitEdit,
     updateMessagePlan,
     approveAndBuildPlan,
+    revisePlanWithCustomNote,
     playingId,
     ttsOk,
     abortTts,
@@ -168,6 +170,7 @@ export function ChatMessage({
                       busy={busy}
                       onChange={updateMessagePlan}
                       onApproveAndBuild={approveAndBuildPlan}
+                      onReviseWithCustomNote={revisePlanWithCustomNote}
                     />
                   ) : null}
                   {renderItems.length > 0 ? (

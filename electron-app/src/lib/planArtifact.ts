@@ -12,25 +12,36 @@ export function createPlanStep(text: string, done = false): PlanStep {
   return { id: newPlanStepId(), text: text.trim(), done }
 }
 
-/** System hint appended in Plan mode — explore read-only, end with JSON plan block. */
+/** System hint appended in Plan mode — explore read-only, end with JSON plan fence. */
 export const PLAN_MODE_SYSTEM_HINT = [
   'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or mutate settings/reminders.',
-  'After enough exploration, propose 2–3 concrete approaches (A, B, C). Optionally add a 4th approach D when a meaningfully different path exists; omit D if it would be filler.',
-  'End your reply with a fenced JSON block tagged `json plan` in this exact shape:',
+  'After enough exploration, end with a structured plan. Default to ONE flat plan (no approaches) when the path is clear.',
+  'Offer approaches only when there are real tradeoffs (e.g. speed vs safety vs scope). Prefer 2 distinct options; add a 3rd only if it is meaningfully different — never pad with filler. Optionally add a 4th (D) only when warranted.',
+  'End your reply with a fenced JSON block tagged `json plan`. Preferred shapes:',
+  '',
+  'Flat plan (most tasks):',
   '```json plan',
   '{',
   '  "title": "Short plan title",',
-  '  "summary": "Optional 1-3 sentence overview of the decision",',
+  '  "summary": "Optional 1-3 sentence overview",',
+  '  "steps": ["Step 1…", "Step 2…"]',
+  '}',
+  '```',
+  '',
+  'When tradeoffs matter (2 approaches — add C/D only if needed):',
+  '```json plan',
+  '{',
+  '  "title": "Short plan title",',
+  '  "summary": "Optional overview of the decision",',
   '  "approaches": [',
-  '    { "id": "A", "label": "Short name", "summary": "Tradeoffs in one line", "steps": ["Step 1…", "Step 2…"] },',
-  '    { "id": "B", "label": "…", "summary": "…", "steps": ["…"] },',
-  '    { "id": "C", "label": "…", "summary": "…", "steps": ["…"] }',
+  '    { "id": "A", "label": "Short name", "summary": "Tradeoff in one line", "steps": ["Step 1…", "Step 2…"] },',
+  '    { "id": "B", "label": "…", "summary": "…", "steps": ["…"] }',
   '  ],',
   '  "recommended": "A"',
   '}',
   '```',
-  'Each approach must have actionable ordered steps. Prefer distinct tradeoffs (speed vs safety vs scope). Do not claim work was already done.',
-  'If the task is trivial and only one path makes sense, you may omit approaches and use a flat "steps" array instead.',
+  'Each approach must have actionable ordered steps. Do not claim work was already done.',
+  'If the user asks to revise with their own idea, adapt the plan to that preference and emit a fresh json plan fence (flat or approaches as appropriate).',
 ].join('\n')
 
 type RawPlanJson = {
@@ -243,6 +254,40 @@ export function formatPlanForBuildPrompt(plan: PlanArtifact): string {
     lines.push(`Summary: ${plan.summary.trim()}`)
   }
   lines.push('Steps:')
+  plan.steps.forEach((s, i) => {
+    lines.push(`${i + 1}. ${s.text}`)
+  })
+  return lines.join('\n')
+}
+
+/** Prompt for Plan-mode revise when the user supplies their own approach. */
+export function formatPlanForRevisePrompt(plan: PlanArtifact, customNote: string): string {
+  const note = customNote.trim()
+  const lines = [
+    'Revise the plan below to match my preferred approach. Stay in Plan mode (read-only) — do not implement yet.',
+    'Emit a fresh ```json plan fence with an updated title/summary/steps (and approaches only if real tradeoffs remain).',
+    '',
+    `My preferred approach: ${note}`,
+    '',
+    `Current title: ${plan.title}`,
+  ]
+  if (plan.selectedApproachId && plan.approaches?.length) {
+    const a = plan.approaches.find((x) => x.id === plan.selectedApproachId)
+    if (a) {
+      lines.push(`Previously selected: ${a.id} — ${a.label}`)
+      if (a.summary?.trim()) lines.push(`Previous approach notes: ${a.summary.trim()}`)
+    }
+  }
+  if (plan.approaches?.length) {
+    lines.push('Previous approaches:')
+    for (const a of plan.approaches) {
+      lines.push(`- ${a.id}: ${a.label}${a.summary?.trim() ? ` (${a.summary.trim()})` : ''}`)
+    }
+  }
+  if (plan.summary?.trim()) {
+    lines.push(`Previous summary: ${plan.summary.trim()}`)
+  }
+  lines.push('Previous steps:')
   plan.steps.forEach((s, i) => {
     lines.push(`${i + 1}. ${s.text}`)
   })

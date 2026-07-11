@@ -31,6 +31,7 @@ type Props = {
     | 'commitEdit'
     | 'updateMessagePlan'
     | 'approveAndBuildPlan'
+    | 'revisePlanWithCustomNote'
     | 'playingId'
     | 'ttsOk'
     | 'abortTts'

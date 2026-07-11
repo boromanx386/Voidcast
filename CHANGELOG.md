@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Plan mode**: composer toggle **AGENT | PLAN**. In Plan mode the agent explores read-only (no write/edit/shell/media/settings mutations), then ends with a structured plan card — editable title/steps, optional approaches **A/B/C** (+ optional **D**), and **Approve & Build**.
+- **Plan mode**: composer toggle **AGENT | PLAN**. In Plan mode the agent explores read-only (no write/edit/shell/media/settings mutations), then ends with a structured plan card — editable title/steps, optional approaches when tradeoffs matter, and **Approve & Build**.
+- **Something else…**: on a draft plan card, describe your preferred approach and **Revise plan** — the agent stays in Plan mode and returns an updated plan (does not build yet).
 - **Approve & Build**: switches to Agent mode, implements the chosen plan, shows a sticky **Building plan** progress panel, and auto-checks steps as `write_file` / `edit_code` / `execute_command` succeed. Stop/error reopens the plan as draft with **Retry Build**; `built` only when real tool progress happened.
 - **Plan persistence**: plan artifacts normalize on session load; interrupted mid-build (`approved`) reopens as draft after reload.
 - **Plan mode UI polish**: composer banner, calmer plan card labels, theme-aware empty state in Plan mode, and Minimal/Obsidian styling for plan elements.
@@ -21,6 +22,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Plan approaches**: default to a single flat plan; offer 2 (rarely 3–4) approaches only when there are real tradeoffs — no filler A/B/C.
+- **OpenRouter LLM presets**: refresh catalog (Fusion, Claude Sonnet 5, GPT-5.6 Sol/Terra/Luna, Grok 4.5, GLM 5.2, Tencent Hy3; drop stale free entries).
 - **Composer layout**: full-width textarea, Agent/Plan dropdown in toolbar, commit bar collapsed by default, neutral opaque panel splitters (no neon glow under dividers).
 - **Coding preview scrolling**: file and diff views use `pre` layout (no line wrap) with horizontal scroll like a code editor.
 

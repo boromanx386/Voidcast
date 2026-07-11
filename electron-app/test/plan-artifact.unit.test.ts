@@ -4,6 +4,7 @@ import {
   extractPlanArtifactFromReply,
   finalizePlanAfterBuild,
   formatPlanForBuildPrompt,
+  formatPlanForRevisePrompt,
   isPlanProgressToolResult,
   markAllPlanStepsDone,
   normalizePlanArtifact,
@@ -137,6 +138,20 @@ describe('formatPlanForBuildPrompt', () => {
     expect(prompt).toContain('Chosen approach: A')
     expect(prompt).toContain('1. One')
     expect(prompt).toContain('2. Two')
+  })
+})
+
+describe('formatPlanForRevisePrompt', () => {
+  test('includes custom note and previous steps', () => {
+    const plan = extractPlanArtifactFromReply(`\`\`\`json plan
+{"title":"Auth","steps":["Add middleware","Wire routes"]}
+\`\`\``)!
+    const prompt = formatPlanForRevisePrompt(plan, 'Keep the diff minimal, no new deps')
+    expect(prompt).toContain('Revise the plan')
+    expect(prompt).toContain('Keep the diff minimal, no new deps')
+    expect(prompt).toContain('Current title: Auth')
+    expect(prompt).toContain('1. Add middleware')
+    expect(prompt).toContain('2. Wire routes')
   })
 })
 

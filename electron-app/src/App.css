@@ -300,6 +300,18 @@
   @apply mb-3 text-[11px] text-void-dim transition-colors hover:text-void-light;
 }
 
+.plan-artifact-card__custom-toggle {
+  @apply text-[11px] text-void-dim transition-colors hover:text-neon-purple;
+}
+
+.plan-artifact-card__custom {
+  @apply rounded border border-void-muted/40 bg-void-black/40 p-2;
+}
+
+.plan-artifact-card__revise {
+  @apply rounded border border-neon-cyan/40 bg-neon-cyan/10 px-2.5 py-1.5 text-[11px] font-medium text-neon-cyan transition-colors hover:bg-neon-cyan/15 disabled:opacity-40;
+}
+
 .plan-build-progress {
   @apply animate-fade-in-up rounded border border-neon-purple/40 bg-void-black/90 p-3;
 }

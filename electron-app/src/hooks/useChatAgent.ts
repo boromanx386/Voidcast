@@ -26,6 +26,7 @@ import {
   extractPlanArtifactFromReply,
   finalizePlanAfterBuild,
   formatPlanForBuildPrompt,
+  formatPlanForRevisePrompt,
   isPlanProgressToolResult,
   reopenPlanAsDraft,
   stripPlanJsonFenceFromContent,
@@ -790,6 +791,22 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     [busy, onSend, onSessionDirty, setSettings],
   )
 
+  const revisePlanWithCustomNote = useCallback(
+    (_messageId: string, plan: PlanArtifact, customNote: string) => {
+      if (busy) return
+      const note = customNote.trim()
+      if (!note) return
+      onSessionDirty()
+      setSettings((s) => (s.agentMode === 'plan' ? s : { ...s, agentMode: 'plan' }))
+      const reviseText = formatPlanForRevisePrompt(plan, note)
+      void onSend({
+        text: reviseText,
+        forceAgentMode: 'plan',
+      })
+    },
+    [busy, onSend, onSessionDirty, setSettings],
+  )
+
   return {
     messages,
     setMessages,
@@ -843,6 +860,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     commitEdit,
     updateMessagePlan,
     approveAndBuildPlan,
+    revisePlanWithCustomNote,
     summarizeContextNow,
     subAgentUi,
   }
