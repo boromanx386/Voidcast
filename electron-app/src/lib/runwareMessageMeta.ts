@@ -1,4 +1,5 @@
-const RUNWARE_IMAGE_URL_LINE_RE = /^\s*image_url:\s*(https?:\/\/\S+)\s*$/gim
+const RUNWARE_IMAGE_URL_LINE_RE =
+  /^\s*image_url:\s*((?:https?:\/\/|data:image\/[a-zA-Z0-9.+-]+;base64,)\S+)\s*$/gim
 const RUNWARE_AUDIO_URL_LINE_RE = /^\s*audio_url:\s*(https?:\/\/\S+)\s*$/gim
 const MARKDOWN_IMAGE_URL_RE = /!\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
 const SAVED_IMAGE_PATH_RE = /^\s*Saved image:\s*(.+)\s*$/gim
@@ -84,6 +85,7 @@ export function stripGeneratedImageLinkArtifacts(text: string, urls: string[]): 
   if (!text.trim()) return text
   let out = text
   for (const url of urls) {
+    if (url.startsWith('data:image/')) continue
     const esc = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const mdImage = new RegExp(`!\\[[^\\]]*\\]\\(${esc}\\)`, 'g')
     const mdLink = new RegExp(`\\[([^\\]]+)\\]\\(${esc}\\)`, 'g')

@@ -12,7 +12,7 @@ import {
 } from '@/lib/codingContextMemo'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
 import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
-import { invokeSaveImageFromUrl } from '@/lib/saveImage'
+import { invokeSaveImageFromUrl, dataUrlToBlobUrl, isDataImageUrl, resolveGeneratedImageOutputDir } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { loadSettings, type AppSettings } from '@/lib/settings'
 import { scheduleUserDataSync } from '@/lib/userDataSync'
@@ -28,6 +28,7 @@ import {
 } from '@/lib/runwareMessageMeta'
 import type { UiMessage } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
+import { isElectron } from '@/lib/platform'
 
 export type AgentToolResultHandlerDeps = {
   asstId: string
@@ -248,67 +249,106 @@ export function applyAgentToolResult(
     if (meta) {
       setAssistantImageMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
     }
-    if (urls.length > 0) {
+    const remoteUrls = urls.filter((u) => !isDataImageUrl(u))
+    const dataUrls = urls.filter((u) => isDataImageUrl(u))
+
+    const attachRemoteUrls = (httpUrls: string[]) => {
+      if (httpUrls.length === 0) return
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== asstId) return m
           return {
             ...m,
-            generatedImageUrls: dedupeNonEmpty([...(m.generatedImageUrls || []), ...urls]),
+            generatedImageUrls: dedupeNonEmpty([...(m.generatedImageUrls || []), ...httpUrls]),
           }
         }),
       )
       setAssistantGeneratedImages((prev) => {
         const cur = prev[asstId] || []
-        const next = Array.from(new Set([...cur, ...urls]))
+        const next = Array.from(new Set([...cur, ...httpUrls]))
         return { ...prev, [asstId]: next }
       })
       if (meta) {
         setAssistantImageToolMeta((prev) => {
           const cur = prev[asstId] || {}
           const next = { ...cur }
-          for (const u of urls) next[u] = meta
+          for (const u of httpUrls) next[u] = meta
           return { ...prev, [asstId]: next }
         })
       }
-      if (settings.runwareAutoSaveImages && settings.runwareImageOutputDir.trim()) {
-        void (async () => {
-          const saved: string[] = []
-          for (const u of urls) {
+    }
+
+    const attachSavedPaths = (savedPaths: string[]) => {
+      if (savedPaths.length === 0) return
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== asstId) return m
+          return {
+            ...m,
+            generatedImagePaths: dedupeNonEmpty([
+              ...(m.generatedImagePaths || []),
+              ...savedPaths,
+            ]),
+          }
+        }),
+      )
+      setAssistantSavedImagePaths((prev) => {
+        const cur = prev[asstId] || []
+        const next = Array.from(new Set([...cur, ...savedPaths]))
+        return { ...prev, [asstId]: next }
+      })
+      if (meta) {
+        setAssistantImageToolMeta((prev) => {
+          const cur = prev[asstId] || {}
+          const next = { ...cur }
+          for (const p of savedPaths) next[p] = meta
+          return { ...prev, [asstId]: next }
+        })
+      }
+    }
+
+    attachRemoteUrls(remoteUrls)
+
+    if (dataUrls.length > 0 || (remoteUrls.length > 0 && settings.runwareAutoSaveImages && settings.runwareImageOutputDir.trim())) {
+      void (async () => {
+        const saved: string[] = []
+        const outputDir = resolveGeneratedImageOutputDir(settings)
+
+        for (const u of dataUrls) {
+          if (isElectron()) {
+            const txt = await invokeSaveImageFromUrl({
+              imageUrl: u,
+              outputDir,
+            }).catch((e) => (e instanceof Error ? e.message : String(e)))
+            saved.push(txt)
+          }
+        }
+
+        if (settings.runwareAutoSaveImages && settings.runwareImageOutputDir.trim()) {
+          for (const u of remoteUrls) {
             const txt = await invokeSaveImageFromUrl({
               imageUrl: u,
               outputDir: settings.runwareImageOutputDir,
             }).catch((e) => (e instanceof Error ? e.message : String(e)))
             saved.push(txt)
           }
-          if (saved.length > 0) {
-            const savedPaths = extractSavedImagePaths(saved.join('\n'))
-            if (savedPaths.length > 0) {
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== asstId) return m
-                  return {
-                    ...m,
-                    generatedImagePaths: dedupeNonEmpty([
-                      ...(m.generatedImagePaths || []),
-                      ...savedPaths,
-                    ]),
-                    generatedImageUrls: dedupeNonEmpty([
-                      ...(m.generatedImageUrls || []),
-                      ...urls,
-                    ]),
-                  }
-                }),
-              )
-              setAssistantSavedImagePaths((prev) => {
-                const cur = prev[asstId] || []
-                const next = Array.from(new Set([...cur, ...savedPaths]))
-                return { ...prev, [asstId]: next }
-              })
+        }
+
+        const savedPaths = extractSavedImagePaths(saved.join('\n'))
+        attachSavedPaths(savedPaths)
+
+        if (!isElectron() && dataUrls.length > 0) {
+          const blobUrls: string[] = []
+          for (const u of dataUrls) {
+            try {
+              blobUrls.push(dataUrlToBlobUrl(u))
+            } catch {
+              /* ignore invalid data URLs */
             }
           }
-        })()
-      }
+          attachRemoteUrls(blobUrls)
+        }
+      })()
     }
   }
   if (name === 'generate_music_runware') {

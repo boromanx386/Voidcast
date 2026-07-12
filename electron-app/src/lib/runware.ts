@@ -2,6 +2,7 @@ import {
   normalizeBaseUrl,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
+  type ImageProvider,
 } from '@/lib/settings'
 import { cloudProxySetupHint, isElectron, usesServerCloudProxy } from '@/lib/platform'
 import { makeRunwareTaskUuid, normalizeRunwareTasks } from '@/lib/runwareUuid'
@@ -29,6 +30,14 @@ export type RunwareImageConfig = {
     gptQuality?: 'auto' | 'low' | 'medium' | 'high'
   }
   negativePrompt?: string
+  /** Image backend: Runware API or OpenRouter chat completions. */
+  imageProvider?: ImageProvider
+  /** OpenRouter settings when imageProvider is openrouter. */
+  openrouter?: {
+    apiKey: string
+    baseUrl: string
+    model: string
+  }
   /** Optional defaults for Runware music generation (ACE-Step). */
   musicDefaults?: {
     /** Active ACE-Step variant model id (turbo or base). */
@@ -775,7 +784,7 @@ export async function invokeRunwareGenerateImage(
 
   const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')
   const model = (req.model || config.model || '').trim()
-  if (!model) throw new Error('Runware model is not set. Configure it in Options -> Runware.')
+  if (!model) throw new Error('Runware model is not set. Configure it in Options → Media.')
   const proxyBaseUrl = resolveRunwareProxyBaseUrl(config.proxyBaseUrl)
   const isGptImage2 = isGptImage2Model(model)
   const isZImageTurbo = isZImageTurboModel(model)
@@ -880,7 +889,7 @@ export async function invokeRunwareEditImage(
 
   const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')
   const model = (req.model || config.editModel || config.model || '').trim()
-  if (!model) throw new Error('Runware edit model is not set. Configure it in Options -> Runware.')
+  if (!model) throw new Error('Runware edit model is not set. Configure it in Options → Media.')
   if (!isAllowedEditModelId(model)) {
     throw new Error(
       `Edit model "${model}" is not allowed. Allowed edit models: ${RUNWARE_ALLOWED_EDIT_MODEL_IDS.join(', ')}`,

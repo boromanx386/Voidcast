@@ -22,6 +22,11 @@ describe('extractRunwareImageUrls', () => {
       'https://cdn.example.com/b.png',
     ])
   })
+
+  test('extracts data:image URLs from OpenRouter-style results', () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'
+    expect(extractRunwareImageUrls(`image_url: ${dataUrl}`)).toEqual([dataUrl])
+  })
 })
 
 describe('extractRunwareAudioUrls', () => {
@@ -39,6 +44,13 @@ describe('stripGeneratedImageLinkArtifacts', () => {
     const out = stripGeneratedImageLinkArtifacts(text, [url])
     expect(out).not.toContain(url)
     expect(out).toContain('Here is output')
+  })
+
+  test('skips data URLs in trusted list but still strips image_url lines', () => {
+    const dataUrl = 'data:image/png;base64,' + 'A'.repeat(5000)
+    const text = `Done\nimage_url: ${dataUrl}`
+    const out = stripGeneratedImageLinkArtifacts(text, [dataUrl])
+    expect(out).toBe('Done')
   })
 })
 

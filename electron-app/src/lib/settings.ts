@@ -11,9 +11,31 @@ export type { AgentChatMode } from '@/types/chat'
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
 export type SttProvider = 'none' | 'openrouter'
+/** Backend for generate_image / edit_image_runware tools. */
+export type ImageProvider = 'runware' | 'openrouter'
 
 /** Default OpenRouter TTS model (OpenAI gpt-4o-mini-tts was removed from OpenRouter). */
 export const OPENROUTER_TTS_MODEL_DEFAULT = 'google/gemini-3.1-flash-tts-preview'
+
+/** Default OpenRouter image model (Nano Banana 2 Lite). */
+export const OPENROUTER_IMAGE_MODEL_DEFAULT = 'google/gemini-3.1-flash-lite-image'
+
+export const OPENROUTER_IMAGE_MODEL_PRESETS: Array<{ id: string; label: string }> = [
+  {
+    id: OPENROUTER_IMAGE_MODEL_DEFAULT,
+    label: 'Google Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)',
+  },
+  {
+    id: 'google/gemini-3.1-flash-image',
+    label: 'Google Nano Banana 2 (Gemini 3.1 Flash Image)',
+  },
+]
+
+export function normalizeOpenRouterImageModel(model: string | undefined | null): string {
+  const trimmed = (model || '').trim()
+  if (!trimmed) return OPENROUTER_IMAGE_MODEL_DEFAULT
+  return trimmed
+}
 
 const RETIRED_OPENROUTER_TTS_MODELS = new Set([
   'openai/gpt-4o-mini-tts-2025-12-15',
@@ -611,7 +633,11 @@ export type AppSettings = {
   pdfOutputDir: string
   /** Visual chrome: cyberpunk shell vs calmer zinc/indigo layout */
   uiTheme: UiTheme
-  /** Runware REST base URL */
+  /** Image generation backend for generate_image / edit tools */
+  imageProvider: ImageProvider
+  /** OpenRouter model id for image generation when imageProvider is openrouter */
+  openrouterImageModel: string
+  /** Runware REST base URL (kept for back-compat; UI no longer exposes it) */
   runwareApiBaseUrl: string
   /** Runware API key (stored locally on this device) */
   runwareApiKey: string
@@ -765,6 +791,8 @@ export const defaults: AppSettings = {
   codingProjectPath: '',
   pdfOutputDir: '',
   uiTheme: 'minimal',
+  imageProvider: 'runware',
+  openrouterImageModel: OPENROUTER_IMAGE_MODEL_DEFAULT,
   runwareApiBaseUrl: 'https://api.runware.ai/v1',
   runwareApiKey: '',
   runwareImageModel: RUNWARE_FLUX_9B_MODEL_ID,
@@ -1291,6 +1319,8 @@ function normalizeRunware(s: AppSettings): AppSettings {
     defaults.runwareModelProfiles[defaults.runwareImageModel]
   return {
     ...s,
+    imageProvider: s.imageProvider === 'openrouter' ? 'openrouter' : 'runware',
+    openrouterImageModel: normalizeOpenRouterImageModel(s.openrouterImageModel),
     runwareApiBaseUrl: apiBase || defaults.runwareApiBaseUrl,
     runwareApiKey: apiKey,
     runwareImageModel: safeModel,

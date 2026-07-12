@@ -1,8 +1,7 @@
 import { AmbientParticles, CrtOverlay, GlitchText } from '@/components/chat/ChatChrome'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
-import { RunwareOptionsPanel } from '@/components/options/RunwareOptionsPanel'
-import { RunwareMusicOptionsPanel } from '@/components/options/RunwareMusicOptionsPanel'
+import { MediaOptionsPanel } from '@/components/options/MediaOptionsPanel'
 import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { SkillsOptionsPanel } from '@/components/options/SkillsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
@@ -73,18 +72,23 @@ export function OptionsScreen({ app }: Props) {
 
         {/* Tabs */}
         <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['general', 'llm', 'runware', 'runwareMusic', 'tts', 'tools', 'skills', 'subAgent'] as OptionsTab[]).map((tab) => (
+          {(['general', 'llm', 'media', 'tts', 'tools', 'skills', 'subAgent'] as OptionsTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setOptionsTab(tab)}
-              title={tab === 'tts' ? 'Text-to-speech & speech-to-text' : undefined}
+              title={
+                tab === 'tts'
+                  ? 'Text-to-speech & speech-to-text'
+                  : tab === 'media'
+                    ? 'Image and music generation tools'
+                    : undefined
+              }
               className={`option-tab flex-1 ${optionsTab === tab ? 'active' : ''}`}
             >
               {tab === 'general' && '◆ GENERAL'}
               {tab === 'llm' && '◇ LLM'}
-              {tab === 'runware' && '◌ IMAGE'}
-              {tab === 'runwareMusic' && '♫ MUSIC'}
+              {tab === 'media' && '◌ MEDIA'}
               {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
               {tab === 'tools' && '⬡ TOOLS'}
               {tab === 'skills' && '✦ SKILLS'}
@@ -135,10 +139,8 @@ export function OptionsScreen({ app }: Props) {
                 onBakeVoiceAnchor={onBakeVoiceAnchor}
                 onClearVoiceAnchor={onClearVoiceAnchor}
               />
-            ) : optionsTab === 'runware' ? (
-              <RunwareOptionsPanel settings={settings} setSettings={setSettings} />
-            ) : optionsTab === 'runwareMusic' ? (
-              <RunwareMusicOptionsPanel settings={settings} setSettings={setSettings} />
+            ) : optionsTab === 'media' ? (
+              <MediaOptionsPanel settings={settings} setSettings={setSettings} />
             ) : optionsTab === 'subAgent' ? (
               <SubAgentOptionsPanel
                 settings={settings}

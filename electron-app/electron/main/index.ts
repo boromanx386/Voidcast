@@ -787,19 +787,35 @@ ipcMain.handle(
   ) => {
     try {
       const imageUrl = String(payload?.imageUrl ?? '').trim()
-      const outputDir = String(payload?.outputDir ?? '').trim()
+      const outputDir =
+        String(payload?.outputDir ?? '').trim() ||
+        path.join(app.getPath('userData'), 'generated-images')
       if (!imageUrl) return { ok: false, text: 'Missing imageUrl' }
-      if (!outputDir) return { ok: false, text: 'Missing outputDir' }
       await mkdir(outputDir, { recursive: true })
 
-      const res = await fetch(imageUrl)
-      if (!res.ok) {
-        return { ok: false, text: `Image download failed: HTTP ${res.status}` }
+      let bytes: Buffer
+      let contentType = 'image/png'
+      if (imageUrl.startsWith('data:image/')) {
+        const commaIdx = imageUrl.indexOf(',')
+        if (commaIdx < 0) return { ok: false, text: 'Invalid data URL for image' }
+        const header = imageUrl.slice(0, commaIdx)
+        const encoded = imageUrl.slice(commaIdx + 1)
+        const mimeMatch = /^data:(image\/[a-zA-Z0-9.+-]+)/.exec(header)
+        if (mimeMatch?.[1]) contentType = mimeMatch[1]
+        bytes = Buffer.from(encoded, 'base64')
+        if (!bytes.length) return { ok: false, text: 'Empty image data URL' }
+      } else {
+        const res = await fetch(imageUrl)
+        if (!res.ok) {
+          return { ok: false, text: `Image download failed: HTTP ${res.status}` }
+        }
+        const ab = await res.arrayBuffer()
+        bytes = Buffer.from(ab)
+        contentType = res.headers.get('content-type') || 'image/jpeg'
       }
-      const ab = await res.arrayBuffer()
-      const contentType = res.headers.get('content-type') || 'image/jpeg'
 
       const urlName = (() => {
+        if (imageUrl.startsWith('data:')) return ''
         try {
           const p = new URL(imageUrl).pathname
           return path.basename(p) || ''
@@ -808,14 +824,14 @@ ipcMain.handle(
         }
       })()
       const inputBase = String(payload?.filename ?? '').trim()
-      const fallbackBase = `runware-image-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      const fallbackBase = `voidcast-image-${new Date().toISOString().replace(/[:.]/g, '-')}`
       const chosenBase = sanitizeBaseName(
         inputBase || path.basename(urlName, path.extname(urlName)) || fallbackBase,
       )
       const ext = path.extname(urlName) || extFromContentType(contentType)
       const outPath = await nextAvailablePath(outputDir, chosenBase, ext)
 
-      await writeFile(outPath, Buffer.from(ab))
+      await writeFile(outPath, bytes)
       return { ok: true, text: `Saved image: ${outPath}` }
     } catch (e) {
       return { ok: false, text: e instanceof Error ? e.message : String(e) }

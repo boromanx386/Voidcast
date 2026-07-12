@@ -23,6 +23,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Media options tab**: IMAGE and MUSIC tabs merged into one **MEDIA** tab (Image tool + Music tool sections). Tool activity chips use `IMAGE_GEN` / `MUSIC_GEN`. Settings keys and tool names unchanged (`runwareApiKey`, `generate_image`, etc.).
+- **Image provider**: Media → Image tool can use **Runware** or **OpenRouter** (same key pattern as TTS). Default OpenRouter model: [`google/gemini-3.1-flash-lite-image`](https://openrouter.ai/google/gemini-3.1-flash-lite-image). Runware API base URL removed from options UI (hardcoded default).
 - **Plan approaches**: default to a single flat plan; offer 2 (rarely 3–4) approaches only when there are real tradeoffs — no filler A/B/C.
 - **OpenRouter LLM presets**: refresh catalog (Fusion, Claude Sonnet 5, GPT-5.6 Sol/Terra/Luna, Grok 4.5, GLM 5.2, Tencent Hy3; drop stale free entries).
 - **Composer layout**: full-width textarea, Agent/Plan dropdown in toolbar, commit bar collapsed by default, neutral opaque panel splitters (no neon glow under dividers).
@@ -30,6 +32,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **OpenRouter image crash**: OpenRouter `data:image/...` payloads are saved to disk immediately (user cache or auto-save folder) instead of being held in React state / localStorage; preview uses local paths like Runware CDN images.
 - **Coding panel survives Options**: chat/coding shell stays mounted while Settings is open — selected file, tree expansion, and preview state are preserved.
 - **TTS after Options**: single global `<audio>` element in the app shell (was duplicated per screen; ref stayed null after leaving Options).
 - **Sub-agent Ollama routing**: namespaced local models like `sorc/qwen…:9b` (both `/` and `:`) no longer route to OpenRouter. Detection treats OpenRouter route variants (`:free`, `:nitro`, …) as cloud; other `ns/name:tag` ids go to Ollama. Selecting from the SUB model list also stores an explicit `provider`.

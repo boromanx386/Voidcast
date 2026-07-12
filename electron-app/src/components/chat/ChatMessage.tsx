@@ -222,7 +222,7 @@ export function ChatMessage({
                               </span>
                             ) : null}
                           </div>
-                          {assistantImageToolMeta[m.id]?.[item.url] ? (
+                          {assistantImageToolMeta[m.id]?.[item.localPath || item.url] ? (
                           <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
                             <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
                               IMAGE_INFO
@@ -230,7 +230,7 @@ export function ChatMessage({
                             <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
                               {(() => {
                                 const meta =
-                                  assistantImageToolMeta[m.id]?.[item.url]
+                                  assistantImageToolMeta[m.id]?.[item.localPath || item.url]
                                   || assistantImageMessageMeta[m.id]
                                   || parseRunwareImageToolMeta(m.content)
                                 if (!meta) return ''

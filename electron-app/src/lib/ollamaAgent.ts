@@ -30,6 +30,10 @@ import {
   type RunwareImageConfig,
 } from '@/lib/runware'
 import {
+  invokeOpenRouterEditImage,
+  invokeOpenRouterGenerateImage,
+} from '@/lib/openrouterImage'
+import {
   invokeExecuteCodingCommand,
   invokeEditCodingFile,
   invokeCodingGit,
@@ -831,7 +835,7 @@ export async function executeToolCall(
       return 'Error: generate_image tool is disabled in settings.'
     }
     if (!ctx.runware) {
-      return 'Error: Runware settings are missing.'
+      return 'Error: image settings are missing.'
     }
     const prompt =
       typeof args.prompt === 'string'
@@ -843,6 +847,22 @@ export async function executeToolCall(
     const canOverrideSteps = userRequestedStepsOverride(ctx.userText || '')
     const canOverrideCfg = userRequestedCfgOverride(ctx.userText || '')
     try {
+      if (ctx.runware.imageProvider === 'openrouter') {
+        const or = ctx.runware.openrouter
+        if (!or) return 'Error: OpenRouter image settings are missing.'
+        return await invokeOpenRouterGenerateImage(
+          { prompt },
+          {
+            apiKey: or.apiKey,
+            baseUrl: or.baseUrl,
+            model: or.model,
+            width: ctx.runware.width,
+            height: ctx.runware.height,
+            proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
+          },
+          ctx.signal,
+        )
+      }
       return await invokeRunwareGenerateImage(
         {
           prompt,
@@ -878,7 +898,7 @@ export async function executeToolCall(
       return 'Error: edit_image_runware tool is disabled in settings.'
     }
     if (!ctx.runware) {
-      return 'Error: Runware settings are missing.'
+      return 'Error: image settings are missing.'
     }
     const prompt =
       typeof args.prompt === 'string'
@@ -905,6 +925,24 @@ export async function executeToolCall(
       return `Error: no valid reference images resolved from provided indexes/paths. Available image count: ${max}.${missing}`
     }
     try {
+      if (ctx.runware.imageProvider === 'openrouter') {
+        const or = ctx.runware.openrouter
+        if (!or) return 'Error: OpenRouter image settings are missing.'
+        const editW = ctx.runware.editDefaults?.width ?? ctx.runware.width
+        const editH = ctx.runware.editDefaults?.height ?? ctx.runware.height
+        return await invokeOpenRouterEditImage(
+          { prompt, referenceImages: refs },
+          {
+            apiKey: or.apiKey,
+            baseUrl: or.baseUrl,
+            model: or.model,
+            width: editW,
+            height: editH,
+            proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
+          },
+          ctx.signal,
+        )
+      }
       return await invokeRunwareEditImage(
         {
           prompt,

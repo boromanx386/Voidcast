@@ -1,6 +1,7 @@
 import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { shouldGuardFalseImageClaims, shouldGuardFalseMusicClaims } from '@/lib/agentToolUtils'
+import { sanitizeImageToolResultForLlm } from '@/lib/openrouterImage'
 
 /** Strip all http(s) URLs from message content so the model can't recycle
  *  hallucinated URLs from previous rounds when it skips tool calls. */
@@ -317,11 +318,12 @@ export async function runSharedToolLoop<
       const phase = params.toolPhaseForName?.(shared.name) ?? null
       params.onToolPhase?.(phase)
       const result = await params.executeToolCall(shared.name, shared.argsRaw)
+      const resultForLlm = sanitizeImageToolResultForLlm(shared.name, result)
       params.appendToolResult({
         messages,
         call,
         name: shared.name,
-        result,
+        result: resultForLlm,
         round,
       })
       hasExecutedToolInTurn = true

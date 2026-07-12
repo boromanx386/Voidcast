@@ -88,7 +88,7 @@ The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NI
 
 ### Music (Runware)
 
-In **Options → Runware Music**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20) or **ACE-Step v1.5 Base** (higher quality, steps up to 300). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
+In **Options → Media → Music tool**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20) or **ACE-Step v1.5 Base** (higher quality, steps up to 300). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
 
 ### PDF Export
 
@@ -226,7 +226,7 @@ Paste images into the chat. The assistant can analyze them and, when needed, rec
 </p>
 <p align="center"><em>Paste an image and ask the agent to transform it — results appear inline.</em></p>
 
-For **charts, diagrams, and infographics**, pick **GPT Image 2** (`openai:gpt-image@2`) in **Options → Runware Image** (generation and/or edit), describe what you want in chat, then ask the agent to export a PDF — it can pass the Runware `image_url` from the prior turn into `save_pdf` so the graphic is **embedded in the document** (not just linked in markdown). Same flow works on desktop and LAN web.
+For **charts, diagrams, and infographics**, pick an image model in **Options → Media → Image tool** (Runware GPT Image 2, or OpenRouter Gemini Flash Lite Image), describe what you want in chat, then ask the agent to export a PDF — it can pass the generated `image_url` from the prior turn into `save_pdf` so the graphic is **embedded in the document** (not just linked in markdown). Same flow works on desktop and LAN web.
 
 ---
 

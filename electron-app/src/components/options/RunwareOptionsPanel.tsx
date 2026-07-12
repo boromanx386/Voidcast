@@ -1,5 +1,6 @@
 import {
   getRunwareProfileForModel,
+  OPENROUTER_IMAGE_MODEL_PRESETS,
   RUNWARE_CONFIGURED_MODELS,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
@@ -13,11 +14,13 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 type Props = {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
+  /** When embedded in Media tab, hide the top intro (section header is above). */
+  variant?: 'standalone' | 'embedded'
 }
 
 const RUNWARE_FLUX_MODEL_ID = 'runware:400@6'
 
-export function RunwareOptionsPanel({ settings, setSettings }: Props) {
+export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalone' }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
   const configuredModels = useMemo(() => RUNWARE_CONFIGURED_MODELS, [])
   const configuredModelIdSet = useMemo(
@@ -86,17 +89,24 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
     })
   }
 
+  const isOpenRouter = settings.imageProvider === 'openrouter'
+  const openrouterModelPresets = OPENROUTER_IMAGE_MODEL_PRESETS
+  const openrouterModelKnown = openrouterModelPresets.some(
+    (m) => m.id === settings.openrouterImageModel,
+  )
+
   return (
     <div className="grid gap-5 text-sm">
-      <div className="border-b border-void-muted/30 pb-3">
-        <p className="text-xs font-mono text-void-dim">
-          <span className="text-neon-green mr-2">◌</span>
-          Runware uses configured models only. Current profile:{' '}
-          {configuredLabelById.get(selectedImageModel) ?? selectedImageModel}.
-        </p>
-      </div>
+      {variant === 'standalone' ? (
+        <div className="border-b border-void-muted/30 pb-3">
+          <p className="text-xs font-mono text-void-dim">
+            <span className="mr-2 text-neon-green">◌</span>
+            Image generation backend and models. API keys live in General.
+          </p>
+        </div>
+      ) : null}
 
-      <label className="flex items-start gap-3 p-4 bg-void-black/50 border border-void-muted/30">
+      <label className="flex items-start gap-3 border border-void-muted/30 bg-void-black/50 p-4">
         <input
           type="checkbox"
           className="mt-1 h-4 w-4 accent-neon-cyan"
@@ -110,16 +120,42 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
         />
         <span className="flex-1">
           <span className="font-mono text-sm text-void-light">
-            <span className="text-neon-green mr-2">◈</span>
-            ENABLE_RUNWARE_IMAGE_TOOL
+            <span className="mr-2 text-neon-green">◈</span>
+            ENABLE_IMAGE_TOOL
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Allows the LLM to call Runware tools <code className="text-neon-green">generate_image</code> and <code className="text-neon-green">edit_image_runware</code>.
+            Allows image generation/editing tools{' '}
+            <code className="text-neon-green">generate_image</code> and{' '}
+            <code className="text-neon-green">edit_image_runware</code>.
           </span>
         </span>
       </label>
 
-      <label className="flex items-start gap-3 p-4 bg-void-black/50 border border-void-muted/30">
+      <div className="form-group">
+        <label className="form-label">
+          <span className="mr-2 text-neon-cyan">◈</span> IMAGE_PROVIDER
+        </label>
+        <select
+          className="form-select"
+          value={settings.imageProvider}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              imageProvider: e.target.value === 'openrouter' ? 'openrouter' : 'runware',
+            }))
+          }
+        >
+          <option value="runware">Runware</option>
+          <option value="openrouter">OpenRouter</option>
+        </select>
+        <p className="mt-2 text-xs text-void-dim">
+          {isOpenRouter
+            ? 'Uses OPENROUTER_API_KEY from General. Same pattern as OpenRouter TTS.'
+            : 'Uses RUNWARE_API_KEY from General. Music tool always uses Runware.'}
+        </p>
+      </div>
+
+      <label className="flex items-start gap-3 border border-void-muted/30 bg-void-black/50 p-4">
         <input
           type="checkbox"
           className="mt-1 h-4 w-4 accent-neon-cyan"
@@ -134,7 +170,7 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
         />
         <span className="flex-1">
           <span className="font-mono text-sm text-void-light">
-            <span className="text-neon-green mr-2">⬇</span>
+            <span className="mr-2 text-neon-green">⬇</span>
             AUTO_SAVE_GENERATED_IMAGES
           </span>
           <span className="mt-1 block text-xs text-void-dim">
@@ -146,13 +182,13 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
       {settings.runwareAutoSaveImages && isElectron() && (
         <div className="form-group">
           <label className="form-label">
-            <span className="text-neon-green mr-2">▸</span>RUNWARE_IMAGE_OUTPUT_DIR
+            <span className="mr-2 text-neon-green">▸</span>IMAGE_OUTPUT_DIR
           </label>
           <div className="flex flex-wrap gap-2">
             <input
               type="text"
               spellCheck={false}
-              className="cyber-input flex-1 min-w-[12rem]"
+              className="cyber-input min-w-[12rem] flex-1"
               placeholder="C:\\Users\\...\\Pictures\\Voidcast"
               value={settings.runwareImageOutputDir}
               onChange={(e) =>
@@ -168,29 +204,94 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
               {pickBusy ? '...' : 'BROWSE'}
             </button>
           </div>
-          <p className="text-xs text-void-dim mt-2">
+          <p className="mt-2 text-xs text-void-dim">
             Required for auto-save. If empty, images are not auto-saved.
           </p>
         </div>
       )}
 
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-purple mr-2">◇</span> RUNWARE_API_BASE_URL
-        </label>
-        <input
-          className="cyber-input"
-          value={settings.runwareApiBaseUrl}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, runwareApiBaseUrl: e.target.value }))
-          }
-          placeholder="https://api.runware.ai/v1"
-        />
-      </div>
+      {isOpenRouter ? (
+        <>
+          <div className="form-group">
+            <label className="form-label mb-2">
+              <span className="mr-2 text-neon-cyan">◈</span> OPENROUTER_IMAGE_MODEL
+            </label>
+            <select
+              className="form-select mb-3"
+              value={openrouterModelKnown ? settings.openrouterImageModel : '__custom__'}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === '__custom__') {
+                  setSettings((s) => ({
+                    ...s,
+                    openrouterImageModel: openrouterModelKnown
+                      ? 'google/custom-image-model'
+                      : s.openrouterImageModel,
+                  }))
+                  return
+                }
+                setSettings((s) => ({ ...s, openrouterImageModel: v }))
+              }}
+            >
+              {openrouterModelPresets.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              <option value="__custom__">Custom model id…</option>
+            </select>
+            {!openrouterModelKnown && (
+              <input
+                className="cyber-input mt-2"
+                value={settings.openrouterImageModel}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, openrouterImageModel: e.target.value }))
+                }
+                placeholder="google/gemini-3.1-flash-lite-image"
+              />
+            )}
+            <p className="mt-2 text-xs text-void-dim">
+              Used by <code className="text-neon-green">generate_image</code> and{' '}
+              <code className="text-neon-green">edit_image_runware</code>. Width/height below map
+              to the closest OpenRouter aspect ratio.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="form-group">
+              <label className="form-label">ASPECT_WIDTH</label>
+              <NumericSettingInput
+                min={256}
+                max={2048}
+                value={activeImageProfile.width}
+                onCommit={(width) =>
+                  updateProfile(selectedImageModel, (current) => ({ ...current, width }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">ASPECT_HEIGHT</label>
+              <NumericSettingInput
+                min={256}
+                max={2048}
+                value={activeImageProfile.height}
+                onCommit={(height) =>
+                  updateProfile(selectedImageModel, (current) => ({ ...current, height }))
+                }
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-xs font-mono text-void-dim">
+            Current Runware profile:{' '}
+            {configuredLabelById.get(selectedImageModel) ?? selectedImageModel}.
+          </p>
 
       <div className="form-group">
         <label className="form-label mb-2">
-          <span className="text-neon-cyan mr-2">◈</span> IMAGE_MODEL
+          <span className="mr-2 text-neon-cyan">◈</span> IMAGE_MODEL
         </label>
         <select
           className="form-select mb-3"
@@ -412,6 +513,8 @@ export function RunwareOptionsPanel({ settings, setSettings }: Props) {
           placeholder="blurry, low quality, artifacts..."
         />
       </div>
+        </>
+      )}
     </div>
   )
 }

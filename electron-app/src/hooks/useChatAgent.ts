@@ -449,7 +449,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             ttsBaseUrl: settings.ttsBaseUrl,
             pdfOutputDir: effectivePdfOutputDir,
             runware: {
-              apiBaseUrl: settings.runwareApiBaseUrl,
+              apiBaseUrl: settings.runwareApiBaseUrl || 'https://api.runware.ai/v1',
               apiKey: settings.runwareApiKey,
               proxyBaseUrl: settings.ttsBaseUrl,
               model: settings.runwareImageModel,
@@ -467,6 +467,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 gptQuality: activeRunwareEditProfile.gptQuality,
               },
               negativePrompt: settings.runwareNegativePrompt,
+              imageProvider: settings.imageProvider,
+              openrouter: {
+                apiKey: settings.openrouterApiKey,
+                baseUrl: settings.openrouterBaseUrl,
+                model: settings.openrouterImageModel,
+              },
               musicDefaults: {
                 model: settings.runwareMusicModel,
                 outputFormat: activeRunwareMusicProfile.outputFormat,

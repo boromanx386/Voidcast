@@ -251,7 +251,7 @@ const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'generate_image',
     description:
-      'MANDATORY: Generate an image with Runware from a text prompt. CRITICAL: When the user asks to create/make/draw/generate a new image, you MUST call this tool BEFORE responding with any text. Do NOT describe what you would create - actually call the tool. Do NOT say "Here is the image" without calling this tool first. Never claim an image was generated unless this tool returned a real result with image_url; if generation fails, report the tool error.',
+      'MANDATORY: Generate an image from a text prompt (Runware or OpenRouter, per Media options). CRITICAL: When the user asks to create/make/draw/generate a new image, you MUST call this tool BEFORE responding with any text. Do NOT describe what you would create - actually call the tool. Do NOT say "Here is the image" without calling this tool first. Never claim an image was generated unless this tool returned a real result with image_url; if generation fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {
@@ -286,7 +286,7 @@ const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
   function: {
     name: 'edit_image_runware',
     description:
-      'MANDATORY: Edit or transform images with Runware using attached chat images as references. CRITICAL: When the user asks to modify, change, edit, transform, or combine existing image(s), you MUST call this tool BEFORE responding with any text. Do NOT describe how the edited image would look - actually call the tool. Do NOT say "Here is the edited image" without calling this tool first. Never claim an image was edited or transformed unless this tool returned a real result with image_url; if editing fails, report the tool error.',
+      'MANDATORY: Edit or transform images using attached chat images as references (Runware or OpenRouter, per Media options). CRITICAL: When the user asks to modify, change, edit, transform, or combine existing image(s), you MUST call this tool BEFORE responding with any text. Do NOT describe how the edited image would look - actually call the tool. Do NOT say "Here is the edited image" without calling this tool first. Never claim an image was edited or transformed unless this tool returned a real result with image_url; if editing fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {

@@ -12,9 +12,15 @@ import { useCallback, useState, type Dispatch, type SetStateAction } from 'react
 type Props = {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
+  /** When embedded in Media tab, hide the top intro (section header is above). */
+  variant?: 'standalone' | 'embedded'
 }
 
-export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
+export function RunwareMusicOptionsPanel({
+  settings,
+  setSettings,
+  variant = 'standalone',
+}: Props) {
   const [pickBusy, setPickBusy] = useState(false)
 
   const browseAudioFolder = useCallback(async () => {
@@ -61,19 +67,27 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
 
   return (
     <div className="grid gap-5 text-sm">
-      <div className="border-b border-void-muted/30 pb-3">
+      {variant === 'standalone' ? (
+        <div className="border-b border-void-muted/30 pb-3">
+          <p className="text-xs font-mono text-void-dim">
+            <span className="mr-2 text-neon-green">♫</span>
+            Active model:{' '}
+            <code className="text-neon-green">{activeLabel}</code>{' '}
+            (<code className="text-void-light">{activeModelId}</code>). Uses Runware API key
+            (General).
+          </p>
+        </div>
+      ) : (
         <p className="text-xs font-mono text-void-dim">
-          <span className="text-neon-green mr-2">♫</span>
           Active model:{' '}
           <code className="text-neon-green">{activeLabel}</code>{' '}
           (<code className="text-void-light">{activeModelId}</code>).
-          Uses shared Runware API URL/key from the Runware image tab.
         </p>
-      </div>
+      )}
 
       <div className="form-group">
         <label className="form-label">
-          <span className="text-neon-green mr-2">▸</span>MUSIC_MODEL
+          <span className="mr-2 text-neon-green">▸</span>MUSIC_MODEL
         </label>
         <select
           className="form-select"
@@ -121,10 +135,11 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
         <span className="flex-1">
           <span className="font-mono text-sm text-void-light">
             <span className="text-neon-green mr-2">◈</span>
-            ENABLE_RUNWARE_MUSIC_TOOL
+            ENABLE_MUSIC_TOOL
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Enables <code className="text-neon-green">generate_music_runware</code> for text-to-audio generation.
+            Enables <code className="text-neon-green">generate_music_runware</code> for
+            text-to-audio generation.
           </span>
         </span>
       </label>
@@ -156,7 +171,7 @@ export function RunwareMusicOptionsPanel({ settings, setSettings }: Props) {
       {settings.runwareAutoSaveMusic && isElectron() && (
         <div className="form-group">
           <label className="form-label">
-            <span className="text-neon-green mr-2">▸</span>RUNWARE_MUSIC_OUTPUT_DIR
+            <span className="mr-2 text-neon-green">▸</span>MUSIC_OUTPUT_DIR
           </label>
           <div className="flex flex-wrap gap-2">
             <input

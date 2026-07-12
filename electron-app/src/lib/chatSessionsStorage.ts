@@ -5,13 +5,25 @@ import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
 /** Drop image payloads before localStorage — avoids quota blowups (MVP). */
 function stripImagesForPersistence(msg: UiMessage): UiMessage {
-  const base =
+  let base =
     msg.role !== 'user' || (!msg.images?.length && !msg.imageMimes?.length)
       ? msg
       : (() => {
           const { images: _i, imageMimes: _m, ...rest } = msg
           return rest
         })()
+  if (base.generatedImageUrls?.length) {
+    const generatedImageUrls = base.generatedImageUrls.filter(
+      (u) => !u.startsWith('data:image/'),
+    )
+    base =
+      generatedImageUrls.length > 0
+        ? { ...base, generatedImageUrls }
+        : (() => {
+            const { generatedImageUrls: _drop, ...rest } = base
+            return rest
+          })()
+  }
   if (!base.fileAttachments?.length) return base
   return {
     ...base,
