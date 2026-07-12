@@ -78,16 +78,18 @@ export function RunwareMusicOptionsPanel({
           </p>
         </div>
       ) : (
-        <p className="text-xs font-mono text-void-dim">
-          Active model:{' '}
-          <code className="text-neon-green">{activeLabel}</code>{' '}
-          (<code className="text-void-light">{activeModelId}</code>).
-        </p>
+        <div className="rounded border border-neon-purple/25 bg-void-black/40 p-3">
+          <p className="text-xs text-void-dim">
+            <span className="font-mono text-neon-purple">Runware ACE-Step</span> models only. Active:{' '}
+            <code className="text-neon-purple">{activeLabel}</code>{' '}
+            (<code className="text-void-light">{activeModelId}</code>).
+          </p>
+        </div>
       )}
 
       <div className="form-group">
         <label className="form-label">
-          <span className="mr-2 text-neon-green">▸</span>MUSIC_MODEL
+          <span className="mr-2 text-neon-purple">▸</span>RUNWARE_ACE_MODEL
         </label>
         <select
           className="form-select"
@@ -114,9 +116,8 @@ export function RunwareMusicOptionsPanel({
             </option>
           ))}
         </select>
-        <p className="text-xs text-void-dim mt-2">
-          Each model variant has its own steps/CFG/duration/output-format/seed preset.
-          Switching between variants restores its saved values.
+        <p className="mt-2 text-xs text-void-dim">
+          ACE-Step v1.5 on Runware. Each variant keeps its own steps, CFG, duration, format, and seed.
         </p>
       </div>
 
@@ -134,12 +135,12 @@ export function RunwareMusicOptionsPanel({
         />
         <span className="flex-1">
           <span className="font-mono text-sm text-void-light">
-            <span className="text-neon-green mr-2">◈</span>
+            <span className="mr-2 text-neon-purple">◈</span>
             ENABLE_MUSIC_TOOL
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Enables <code className="text-neon-green">generate_music_runware</code> for
-            text-to-audio generation.
+            Enables Runware ACE-Step tool{' '}
+            <code className="text-neon-purple">generate_music_runware</code> for text-to-audio.
           </span>
         </span>
       </label>
