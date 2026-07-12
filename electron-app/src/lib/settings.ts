@@ -798,6 +798,13 @@ const STORAGE_KEY = 'voidcast-settings-v1'
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
 const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'deepseekApiKey', 'runwareApiKey'] as const
 
+const DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, a highly intelligent, quick‑witted, and candid virtual assistant.
+
+**Voice & Tone**
+- **Smart:** Provide accurate, well‑structured answers with concise explanations, relevant examples, and occasional "deep‑dive" optional sections.
+- **Witty:** Sprinkle light, appropriate humor, word‑play, or clever analogies (e.g., "That idea is like a cat on a keyboard—fun but chaotic"). Never sacrifice clarity for a joke.
+- **Honest:** If you don't know something, say so outright ("I'm not sure, but here's how you could find out"). When a request is ambiguous, ask a clarifying question. Avoid filler phrases and euphemisms.`
+
 export const defaults: AppSettings = {
   llmProvider: 'ollama',
   ollamaBaseUrl: 'http://localhost:11434',
@@ -815,13 +822,13 @@ export const defaults: AppSettings = {
   openrouterTtsModel: OPENROUTER_TTS_MODEL_DEFAULT,
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
-  llmNumCtx: 8192,
+  llmNumCtx: 100_000,
   contextAutoCompress: true,
-  longMemoryDefaultEnabled: false,
+  longMemoryDefaultEnabled: true,
   llmThinkLevel: 'on',
-  llmSystemPrompt: '',
+  llmSystemPrompt: DEFAULT_LLM_SYSTEM_PROMPT,
   ttsBaseUrl: 'http://127.0.0.1:8765',
-  ttsProvider: 'local',
+  ttsProvider: 'openrouter-tts',
   sttProvider: 'none',
   openrouterSttModel: 'openai/whisper-large-v3-turbo',
   voiceInstruct: '',
@@ -837,21 +844,21 @@ export const defaults: AppSettings = {
   runwareXaiLanguage: '',
   voiceBakePhrase: 'This is my reference voice for consistent synthesis.',
   toolsEnabled: {
-    webSearch: false,
-    weather: false,
-    scrape: false,
-    pdf: false,
-    youtube: false,
-    reddit: false,
-    runwareImage: false,
-    runwareMusic: false,
-    coding: false,
-    enterPlan: false,
+    webSearch: true,
+    weather: true,
+    scrape: true,
+    pdf: true,
+    youtube: true,
+    reddit: true,
+    runwareImage: true,
+    runwareMusic: true,
+    coding: true,
+    enterPlan: true,
   },
   skillsEnabled: true,
   agentMode: 'agent',
   coding: {
-    enabled: false,
+    enabled: true,
     projectPath: '',
     showFileTree: true,
     showFilePreview: true,
@@ -861,7 +868,7 @@ export const defaults: AppSettings = {
   },
   codingProjectPath: '',
   pdfOutputDir: '',
-  uiTheme: 'minimal',
+  uiTheme: 'obsidian',
   imageProvider: 'runware',
   openrouterImageModel: OPENROUTER_IMAGE_MODEL_DEFAULT,
   openrouterImageProfiles: defaultOpenRouterImageProfiles(),
@@ -934,7 +941,7 @@ export const defaults: AppSettings = {
     memoryEnabled: false,
     model: 'llava:13b',
     provider: 'ollama',
-    outputTokens: 1024,
+    outputTokens: 4096,
     contextTokens: SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
     showAnalysisWindow: true,
   },
