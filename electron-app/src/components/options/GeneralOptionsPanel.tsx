@@ -403,7 +403,7 @@ export function GeneralOptionsPanel({
           CLOUD_API_KEYS
         </p>
         <p className="text-xs text-void-dim leading-relaxed">
-          Stored locally on this PC. Never sent to Voidcast servers.
+          Stored locally on this PC.
           {settings.lanWebAccessEnabled
             ? ' With LAN web access on, keys are also forwarded to the local server for phone clients.'
             : ''}

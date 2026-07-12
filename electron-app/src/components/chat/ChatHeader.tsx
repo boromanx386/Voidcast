@@ -70,9 +70,9 @@ export function ChatHeader({ app }: Props) {
           disabled={busy || longMemoryBusy || messages.length === 0}
           onClick={() => void extractLongMemoryNow()}
           className="cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 disabled:opacity-50"
-          title="Summarize this chat and save relevant long-term memory"
+          title="Pick long-term memories from this chat"
           aria-label={
-            longMemoryBusy ? 'Saving long-term memory…' : 'Save long-term memory'
+            longMemoryBusy ? 'Extracting long-term memories…' : 'Long memory picker'
           }
         >
           {longMemoryBusy ? (
