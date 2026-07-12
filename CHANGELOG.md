@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.7.2] — 2026-07-12
+
 ### Added
 
 - **LAN web access toggle + QR**: Options → General → **LAN_WEB_ACCESS** (default off). When enabled, cloud API keys are pushed to the local server for phone clients and the panel shows a QR code / LAN URL (multi-IP select, copy, refresh, keys-registered status). When disabled, registered keys are cleared from the server.
@@ -26,7 +28,7 @@ All notable changes to this project will be documented in this file.
 
 - **Cloud API keys copy**: General options no longer repeats “forwarded for LAN web” under every key — one CLOUD_API_KEYS blurb; LAN details live in the access panel when enabled.
 - **Media options tab**: IMAGE and MUSIC tabs merged into one **MEDIA** tab (Image tool + Music tool sections). Tool activity chips use `IMAGE_GEN` / `MUSIC_GEN`. Settings keys and tool names unchanged (`runwareApiKey`, `generate_image`, etc.).
-- **Image provider**: Media → Image tool can use **Runware** or **OpenRouter** (same key pattern as TTS). Default OpenRouter model: [`google/gemini-3.1-flash-lite-image`](https://openrouter.ai/google/gemini-3.1-flash-lite-image). Runware API base URL removed from options UI (hardcoded default).
+- **Image provider**: Media → Image tool can use **Runware** or **OpenRouter** (same key pattern as TTS). OpenRouter presets include Gemini Flash Image and **GPT Image 2**; per-model width/height/quality profiles. Default: [`google/gemini-3.1-flash-lite-image`](https://openrouter.ai/google/gemini-3.1-flash-lite-image). Runware API base URL removed from options UI (hardcoded default).
 - **Plan approaches**: default to a single flat plan; offer 2 (rarely 3–4) approaches only when there are real tradeoffs — no filler A/B/C.
 - **OpenRouter LLM presets**: refresh catalog (Fusion, Claude Sonnet 5, GPT-5.6 Sol/Terra/Luna, Grok 4.5, GLM 5.2, Tencent Hy3; drop stale free entries).
 - **Composer layout**: full-width textarea, Agent/Plan dropdown in toolbar, commit bar collapsed by default, neutral opaque panel splitters (no neon glow under dividers).
