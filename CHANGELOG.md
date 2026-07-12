@@ -35,6 +35,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **OpenRouter image crash**: OpenRouter `data:image/...` payloads are saved to disk immediately (user cache or auto-save folder) instead of being held in React state / localStorage; preview uses local paths like Runware CDN images.
+- **OpenRouter image options**: quality and dimensions always come from the OpenRouter model profile when that provider is selected (not the Runware model profile).
 - **Coding panel survives Options**: chat/coding shell stays mounted while Settings is open — selected file, tree expansion, and preview state are preserved.
 - **TTS after Options**: single global `<audio>` element in the app shell (was duplicated per screen; ref stayed null after leaving Options).
 - **Sub-agent Ollama routing**: namespaced local models like `sorc/qwen…:9b` (both `/` and `:`) no longer route to OpenRouter. Detection treats OpenRouter route variants (`:free`, `:nitro`, …) as cloud; other `ns/name:tag` ids go to Ollama. Selecting from the SUB model list also stores an explicit `provider`.

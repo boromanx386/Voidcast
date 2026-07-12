@@ -41,7 +41,6 @@ import { playNotificationSound } from '@/lib/notificationSounds'
 import {
   getOpenRouterImageProfile,
   loadSettings,
-  OPENROUTER_GPT_IMAGE_2_MODEL_ID,
   type AppSettings,
 } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
@@ -393,14 +392,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         skillsActive,
       } = turnContext
 
-      const openRouterGptImage2 =
-        settings.imageProvider === 'openrouter' &&
-        settings.openrouterImageModel === OPENROUTER_GPT_IMAGE_2_MODEL_ID
       const openRouterImageProfile = getOpenRouterImageProfile(settings)
-      const imageGptQuality = openRouterGptImage2 ? openRouterImageProfile.gptQuality : activeRunwareProfile.gptQuality
-      const editGptQuality = openRouterGptImage2
-        ? openRouterImageProfile.gptQuality
-        : activeRunwareEditProfile.gptQuality
+      const imageGptQuality =
+        settings.imageProvider === 'openrouter'
+          ? openRouterImageProfile.gptQuality
+          : activeRunwareProfile.gptQuality
+      const editGptQuality =
+        settings.imageProvider === 'openrouter'
+          ? openRouterImageProfile.gptQuality
+          : activeRunwareEditProfile.gptQuality
       const imageWidth =
         settings.imageProvider === 'openrouter'
           ? openRouterImageProfile.width

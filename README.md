@@ -72,8 +72,8 @@ Available tools:
 - **Reddit** — browse subreddits, search posts, read threads
 - **Web Scrape** — fetch and summarize public pages
 - **PDF Export** — agent writes a formatted PDF to a folder you configure (Python tools server / ReportLab)
-- **Image Generation** — Runware text-to-image
-- **Image Edit** — Runware image transformation
+- **Image Generation** — Runware or **OpenRouter** (Gemini Flash Image, GPT Image 2)
+- **Image Edit** — Runware or OpenRouter; reference images from chat
 - **Music / Audio Generation** — Runware AI soundtracks (ACE-Step v1.5 Turbo and Base; see below)
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
