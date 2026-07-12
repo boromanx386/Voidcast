@@ -14,6 +14,11 @@ def register_host_tool_config(payload: dict[str, Any]) -> None:
         _registered["pdf_output_dir"] = raw.strip()
 
 
+def clear_host_tool_config() -> None:
+    """Drop desktop-pushed host paths from memory."""
+    _registered.clear()
+
+
 def get_pdf_output_dir() -> str:
     return _registered.get("pdf_output_dir", "").strip()
 

@@ -40,3 +40,10 @@ export async function pushHostToolConfigToServer(
     body: JSON.stringify({ pdfOutputDir: dir }),
   })
 }
+
+/** Clear desktop-registered host paths from the TTS server. */
+export async function clearHostToolConfigFromServer(ttsBaseUrl: string): Promise<void> {
+  if (!isElectron()) return
+  const root = normalizeBaseUrl(ttsBaseUrl.trim() || 'http://127.0.0.1:8765')
+  await fetch(`${root}/tools/host-tool-config`, { method: 'DELETE' })
+}

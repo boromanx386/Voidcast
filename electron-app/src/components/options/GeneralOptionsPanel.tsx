@@ -12,6 +12,7 @@ import type { LongMemoryItem } from '@/types/longMemory'
 import type { Reminder } from '@/lib/reminderStorage'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import { ClockIcon } from '@/components/icons/ClockIcon'
+import { LanWebAccessPanel } from '@/components/options/LanWebAccessPanel'
 import {
   clearNotificationSound,
   loadNotificationSound,
@@ -390,11 +391,25 @@ export function GeneralOptionsPanel({
           </p>
           <p className="text-xs text-void-dim leading-relaxed">
             API keys are configured only in the desktop Voidcast app (General options). This
-            browser session uses the TTS server proxy — keys never appear on your phone.
+            browser session uses the local server proxy — keys never appear on your phone.
           </p>
         </div>
       ) : (
         <>
+      {isElectron() && <LanWebAccessPanel settings={settings} setSettings={setSettings} />}
+
+      <div className="bg-void-black/50 border border-void-muted/30 p-3 rounded">
+        <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-1">
+          CLOUD_API_KEYS
+        </p>
+        <p className="text-xs text-void-dim leading-relaxed">
+          Stored locally on this PC. Never sent to Voidcast servers.
+          {settings.lanWebAccessEnabled
+            ? ' With LAN web access on, keys are also forwarded to the local server for phone clients.'
+            : ''}
+        </p>
+      </div>
+
       <div className="form-group">
         <label className="form-label">
           <span className="text-neon-yellow mr-2">⚿</span> RUNWARE_API_KEY
@@ -409,9 +424,6 @@ export function GeneralOptionsPanel({
           placeholder="rw_..."
           autoComplete="off"
         />
-        <p className="text-xs text-neon-yellow/80 mt-1">
-          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
-        </p>
         <a
           href="https://runware.ai/"
           target="_blank"
@@ -436,9 +448,6 @@ export function GeneralOptionsPanel({
           placeholder="sk-or-v1-..."
           autoComplete="off"
         />
-        <p className="text-xs text-neon-cyan/80 mt-1">
-          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
-        </p>
         <a
           href="https://openrouter.ai/keys"
           target="_blank"
@@ -463,9 +472,6 @@ export function GeneralOptionsPanel({
           placeholder="nvapi-..."
           autoComplete="off"
         />
-        <p className="text-xs text-neon-cyan/80 mt-1">
-          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
-        </p>
         <a
           href="https://build.nvidia.com/"
           target="_blank"
@@ -490,9 +496,6 @@ export function GeneralOptionsPanel({
           placeholder="sk-..."
           autoComplete="off"
         />
-        <p className="text-xs text-neon-cyan/80 mt-1">
-          Stored on this desktop; forwarded to the local TTS server for LAN web clients.
-        </p>
         <a
           href="https://platform.deepseek.com/api_keys"
           target="_blank"
@@ -550,7 +553,7 @@ export function GeneralOptionsPanel({
           LONG_MEMORY
         </p>
         <p className="text-[10px] text-void-dim leading-relaxed">
-          Long memory and reminders sync both ways via the TTS server while desktop and server are
+          Long memory and reminders sync both ways via the local server while the desktop app is
           running (~30s).
         </p>
         <label className="flex items-start gap-3">

@@ -71,7 +71,7 @@ export function LlmOptionsPanel({
         />
         {isWebStandalone() && (
           <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-            Proxied through the TTS host at <code className="text-neon-purple">/api/ollama/*</code> to the
+            Proxied through the local server at <code className="text-neon-purple">/api/ollama/*</code> to the
             desktop&apos;s Ollama. Same LAN as the phone browser.
           </p>
         )}
@@ -184,7 +184,7 @@ export function LlmOptionsPanel({
             />
             {isWebStandalone() && (
               <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-                Proxied through the TTS host at{' '}
+                Proxied through the local server at{' '}
                 <code className="text-neon-purple">/api/openrouter/*</code> using keys from the
                 desktop app.
               </p>
@@ -270,7 +270,7 @@ export function LlmOptionsPanel({
             />
             {isWebStandalone() && (
               <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-                Proxied through the TTS host at{' '}
+                Proxied through the local server at{' '}
                 <code className="text-neon-purple">/api/nvidia/*</code> using keys from the desktop
                 app.
               </p>
@@ -336,7 +336,7 @@ export function LlmOptionsPanel({
             />
             {isWebStandalone() && (
               <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-                Proxied through the TTS host at{' '}
+                Proxied through the local server at{' '}
                 <code className="text-neon-purple">/api/deepseek/*</code> using keys from the desktop
                 app.
               </p>
@@ -534,8 +534,8 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
               {isWebStandalone()
-                ? 'API key stays on desktop; requests use the TTS server proxy'
-                : 'Keep API key on this desktop (forwarded to TTS server for LAN web)'}
+                ? 'API key stays on desktop; requests use the local server proxy'
+                : 'Keep API key in General options on this desktop'}
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>

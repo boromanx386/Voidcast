@@ -685,6 +685,11 @@ export type AppSettings = {
   runwareAutoSaveMusic: boolean
   /** If true, app should check updates automatically on startup (desktop). */
   autoUpdate: boolean
+  /**
+   * Desktop only: push cloud API keys to the local TTS server so LAN/phone web
+   * clients can use the proxy. Default off — keys stay in localStorage only.
+   */
+  lanWebAccessEnabled: boolean
   /** If true, chat sessions are auto-saved. When off, a manual save button appears. */
   autoSaveChat: boolean
   /** If true, the renderer fires a desktop notification when a scheduled reminder becomes due. */
@@ -852,6 +857,7 @@ export const defaults: AppSettings = {
   runwareMusicOutputDir: '',
   runwareAutoSaveMusic: false,
   autoUpdate: false,
+  lanWebAccessEnabled: false,
   autoSaveChat: true,
   reminderNotificationsEnabled: true,
   notificationSoundsEnabled: true,
@@ -1367,11 +1373,21 @@ function normalizeNotificationSounds(s: AppSettings): AppSettings {
   }
 }
 
+function normalizeLanWebAccess(s: AppSettings): AppSettings {
+  return {
+    ...s,
+    lanWebAccessEnabled:
+      typeof s.lanWebAccessEnabled === 'boolean' ? s.lanWebAccessEnabled : false,
+  }
+}
+
 function normalizeAll(s: AppSettings): AppSettings {
-  return normalizeNotificationSounds(
-    normalizeRunware(
-      normalizeAgentMode(
-        normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s)))))),
+  return normalizeLanWebAccess(
+    normalizeNotificationSounds(
+      normalizeRunware(
+        normalizeAgentMode(
+          normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s)))))),
+        ),
       ),
     ),
   )

@@ -81,7 +81,7 @@ export function ToolsOptionsPanel({
         iconColor="text-neon-cyan"
         description={
           <>
-            Uses <code className="text-neon-cyan">POST /tools/search</code> on TTS server (ddgs).
+            Uses <code className="text-neon-cyan">POST /tools/search</code> on local server (ddgs).
             Falls back to DuckDuckGo API in Electron if server unavailable.
           </>
         }
@@ -123,7 +123,7 @@ export function ToolsOptionsPanel({
         iconColor="text-neon-red"
         description={
           <>
-            <code className="text-neon-red">search_youtube</code> via TTS server.
+            <code className="text-neon-red">search_youtube</code> via local server.
             Requires <code className="text-void-light">yt-dlp</code> and{' '}
             <code className="text-void-light">youtube-transcript-api</code>.
           </>
@@ -144,7 +144,7 @@ export function ToolsOptionsPanel({
         iconColor="text-orange-400"
         description={
           <>
-            <code className="text-orange-400">reddit_feed</code> via TTS server{' '}
+            <code className="text-orange-400">reddit_feed</code> via local server{' '}
             <code className="text-orange-400">POST /tools/reddit</code>. Read-only:
             subreddit feeds (hot/new/top/rising), search, and post + top comments via
             Reddit RSS (no Reddit developer app — Reddit no longer allows self-service API
@@ -188,7 +188,7 @@ export function ToolsOptionsPanel({
           iconColor="text-neon-purple"
           description={
             <>
-              <code className="text-neon-purple">POST /tools/pdf</code> on TTS server (ReportLab):
+              <code className="text-neon-purple">POST /tools/pdf</code> on local server (ReportLab):
               headings, bullet/numbered lists (with hanging indent), tables,{' '}
               <code className="text-void-light">**bold**</code>, and optional embedded chat
               images (PNG/JPEG). The file is written by the server into the configured folder.
@@ -205,8 +205,8 @@ export function ToolsOptionsPanel({
             {isWebStandalone() ? (
               <>
                 <p className="text-xs text-void-dim mt-1">
-                  PDFs are saved on your PC (where Voidcast
-                  desktop and the tools server run), not on the phone. Set the folder in the desktop app:
+                  PDFs are saved on your PC (where Voidcast desktop and the local server run), not
+                  on the phone. Set the folder in the desktop app:
                   Options → Tools → Save as PDF → BROWSE. Keep the desktop app open so the path syncs here.
                 </p>
                 <input
@@ -243,7 +243,7 @@ export function ToolsOptionsPanel({
                   )}
                 </div>
                 <p className="text-xs text-void-dim mt-2">
-                  Required for PDF export. Path is resolved on the host running the tools server.
+                  Required for PDF export. Path is resolved on the PC running the local server.
                 </p>
               </>
             )}
@@ -265,7 +265,7 @@ export function ToolsOptionsPanel({
         iconColor="text-neon-yellow"
         description={
           <>
-            <code className="text-neon-yellow">POST /tools/weather</code> on TTS server or Electron →{' '}
+            <code className="text-neon-yellow">POST /tools/weather</code> on local server or Electron →{' '}
             <code className="text-void-light">wttr.in</code>. Includes 3-day forecast when enabled.
           </>
         }

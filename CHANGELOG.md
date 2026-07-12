@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **LAN web access toggle + QR**: Options → General → **LAN_WEB_ACCESS** (default off). When enabled, cloud API keys are pushed to the local server for phone clients and the panel shows a QR code / LAN URL (multi-IP select, copy, refresh, keys-registered status). When disabled, registered keys are cleared from the server.
 - **Plan mode**: composer toggle **AGENT | PLAN**. In Plan mode the agent explores read-only (no write/edit/shell/media/settings mutations), then ends with a structured plan card — editable title/steps, optional approaches when tradeoffs matter, and **Approve & Build**.
 - **Something else…**: on a draft plan card, describe your preferred approach and **Revise plan** — the agent stays in Plan mode and returns an updated plan (does not build yet).
 - **Approve & Build**: switches to Agent mode, implements the chosen plan, shows a sticky **Building plan** progress panel, and auto-checks steps as `write_file` / `edit_code` / `execute_command` succeed. Stop/error reopens the plan as draft with **Retry Build**; `built` only when real tool progress happened.
@@ -23,6 +24,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Cloud API keys copy**: General options no longer repeats “forwarded for LAN web” under every key — one CLOUD_API_KEYS blurb; LAN details live in the access panel when enabled.
 - **Media options tab**: IMAGE and MUSIC tabs merged into one **MEDIA** tab (Image tool + Music tool sections). Tool activity chips use `IMAGE_GEN` / `MUSIC_GEN`. Settings keys and tool names unchanged (`runwareApiKey`, `generate_image`, etc.).
 - **Image provider**: Media → Image tool can use **Runware** or **OpenRouter** (same key pattern as TTS). Default OpenRouter model: [`google/gemini-3.1-flash-lite-image`](https://openrouter.ai/google/gemini-3.1-flash-lite-image). Runware API base URL removed from options UI (hardcoded default).
 - **Plan approaches**: default to a single flat plan; offer 2 (rarely 3–4) approaches only when there are real tradeoffs — no filler A/B/C.

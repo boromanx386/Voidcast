@@ -189,7 +189,7 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 
 **Multimodal pricing:** OpenRouter Whisper (STT) and TTS voices bill per minute or request at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 
-**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, Runware, or Ollama directly from your PC. On LAN web, keys are read from the desktop host over your network, not baked into the phone browser build.
+**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, Runware, or Ollama directly from your PC. With **LAN_WEB_ACCESS** enabled, keys are registered on the local tools host for phone proxying — not baked into the phone browser build.
 
 ---
 
@@ -257,18 +257,20 @@ Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for t
 
 ## LAN web UI — chat from your phone
 
-The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces). On your phone or tablet, open:
+Phone/tablet access is **opt-in**. On the desktop app open **Options → General → LAN_WEB_ACCESS**, turn it on, then scan the QR code (or copy the shown URL). When the toggle is off, cloud API keys stay only in desktop storage and are not registered on the tools server.
+
+The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces). With LAN web access enabled, open on your phone:
 
 `http://<host>:8765`
 
-Use the PC’s **LAN IPv4** on home Wi‑Fi (`ipconfig` — e.g. `192.168.1.42`), or the machine’s **Tailscale** IP / MagicDNS name when you are away from home (install Tailscale on both the PC and the phone, same tailnet). Similar mesh VPNs (**ZeroTier**, **WireGuard**, etc.) work the same way: reach the PC on a private address, then use port **8765**.
+Use the PC’s **LAN IPv4** on home Wi‑Fi (`ipconfig` — e.g. `192.168.1.42`), or the machine’s **Tailscale** IP / MagicDNS name when you are away from home (install Tailscale on both the PC and the phone, same tailnet). Similar mesh VPNs (**ZeroTier**, **WireGuard**, etc.) work the same way: reach the PC on a private address, then use port **8765**. The options panel picks a LAN address automatically and can switch between interfaces (Wi‑Fi vs Tailscale).
 
 > **Not Tailwind CSS** — that is the UI framework in the repo. For remote phone access, people usually mean **Tailscale** (or another VPN), not the CSS toolkit.
 
 > **Security:** the web UI is for **your** machines on a trusted network. Do not port-forward **8765** to the public internet without extra protection — there is no login on the LAN build. Prefer Tailscale (or similar) over raw exposure.
 
-- **Web chat UI** — same agent, tools, and sessions as the desktop app, served from the bundled server on your PC.
-- **API keys on the phone** — the browser build does not embed secrets. Configure keys once on the **desktop** (**Options → General → CLOUD_API_KEYS**); the phone loads them from the host via **`POST /tools/cloud-secrets`** (only while the PC app is running and reachable).
+- **Web chat UI** — remote chat companion served from the bundled server on your PC (cloud LLM/tools via proxy; coding tools and skills discovery stay desktop-only).
+- **API keys on the phone** — the browser build does not embed secrets. Enable **LAN_WEB_ACCESS**, configure keys once on the **desktop** (**Options → General → CLOUD_API_KEYS**); the desktop pushes them to the host via **`POST /tools/cloud-secrets`** (only while the PC app is running). Turning the toggle off clears registered keys (`DELETE /tools/cloud-secrets`).
 - **Sync** — long-term memory and reminders can merge between desktop and LAN web through **`GET /tools/user-data`** / **`POST /tools/user-data-sync`** on that same host.
 - **Mobile limits** — speech-to-text is hidden on phone layouts where recording is unreliable; use desktop for STT.
 
@@ -343,7 +345,10 @@ The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost
 | `POST /tools/pdf` | PDF export (`save_pdf`) |
 | `POST /tools/runware_proxy` | Runware image / music proxy |
 | `POST /tools/cloud-secrets` | Push cloud API keys to the host for LAN clients |
+| `DELETE /tools/cloud-secrets` | Clear desktop-registered cloud API keys |
 | `GET /tools/cloud-secrets-status` | Whether LAN clients can read keys from this host |
+| `POST /tools/host-tool-config` | Push host paths (e.g. PDF folder) for LAN clients |
+| `DELETE /tools/host-tool-config` | Clear desktop-registered host tool config |
 | `GET /tools/user-data` | Fetch long memory + reminders for sync |
 | `POST /tools/user-data-sync` | Merge long memory + reminders (desktop ↔ LAN) |
 | `POST /tts` | Text-to-speech (local OmniVoice setup) |

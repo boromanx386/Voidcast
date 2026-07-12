@@ -42,7 +42,7 @@ export function usesServerCloudProxy(): boolean {
 export function cloudProxySetupHint(): string {
   return (
     'Cloud API keys are set only in the desktop Voidcast app (General options). ' +
-    'Keep the desktop app and TTS server running on the same PC — do not enter keys on the phone.'
+    'Keep the desktop app and local server running on the same PC — do not enter keys on the phone.'
   )
 }
 

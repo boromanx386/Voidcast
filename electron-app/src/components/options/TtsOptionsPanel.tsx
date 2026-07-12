@@ -475,7 +475,7 @@ export function TtsOptionsPanel({
         />
         {isWebStandalone() && (
           <p className="text-xs text-void-dim mt-1 font-mono">
-            Served from this host; TTS and tools use the same origin.
+            Served from this host; voice and tools use the same local server.
           </p>
         )}
         {!isWebStandalone() && (

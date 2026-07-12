@@ -39,6 +39,11 @@ def register_secrets(payload: dict[str, Any]) -> None:
             _registered[slot] = raw.strip()
 
 
+def clear_registered_secrets() -> None:
+    """Drop desktop-pushed keys from memory (env fallbacks still apply if set)."""
+    _registered.clear()
+
+
 def get_openrouter_key() -> str:
     return _merged().get("openrouter", "")
 

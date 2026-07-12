@@ -1,6 +1,10 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
-import { pushCloudSecretsToServer } from '@/lib/cloudSecrets'
 import {
+  clearCloudSecretsFromServer,
+  pushCloudSecretsToServer,
+} from '@/lib/cloudSecrets'
+import {
+  clearHostToolConfigFromServer,
   pushHostToolConfigToServer,
   resolvePdfOutputDir,
 } from '@/lib/hostToolConfig'
@@ -72,6 +76,12 @@ export function useAppSettings() {
     if (!isElectron()) return
     const root = settings.ttsBaseUrl.trim().replace(/\/+$/, '')
     if (!root) return
+
+    if (!settings.lanWebAccessEnabled) {
+      void clearCloudSecretsFromServer(root).catch(() => {})
+      return
+    }
+
     const push = () =>
       void pushCloudSecretsToServer(root, {
         openrouterApiKey: settings.openrouterApiKey,
@@ -88,6 +98,7 @@ export function useAppSettings() {
       window.clearInterval(heartbeat)
     }
   }, [
+    settings.lanWebAccessEnabled,
     settings.ttsBaseUrl,
     settings.openrouterApiKey,
     settings.runwareApiKey,
@@ -98,7 +109,14 @@ export function useAppSettings() {
   useEffect(() => {
     if (!isElectron()) return
     const root = settings.ttsBaseUrl.trim().replace(/\/+$/, '')
-    if (!root || !settings.toolsEnabled.pdf) return
+    if (!root) return
+
+    if (!settings.lanWebAccessEnabled) {
+      void clearHostToolConfigFromServer(root).catch(() => {})
+      return
+    }
+
+    if (!settings.toolsEnabled.pdf) return
     const push = () =>
       void pushHostToolConfigToServer(root, {
         pdfOutputDir: settings.pdfOutputDir,
@@ -109,7 +127,12 @@ export function useAppSettings() {
       window.clearTimeout(timer)
       window.clearInterval(heartbeat)
     }
-  }, [settings.ttsBaseUrl, settings.toolsEnabled.pdf, settings.pdfOutputDir])
+  }, [
+    settings.lanWebAccessEnabled,
+    settings.ttsBaseUrl,
+    settings.toolsEnabled.pdf,
+    settings.pdfOutputDir,
+  ])
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute('data-ui-theme', settings.uiTheme)

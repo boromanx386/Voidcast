@@ -53,6 +53,7 @@ from youtube_tools import (
 
 from cloud_secrets import (
     client_may_register,
+    clear_registered_secrets,
     get_deepseek_key,
     get_nvidia_key,
     get_openrouter_key,
@@ -60,7 +61,11 @@ from cloud_secrets import (
     register_secrets,
 )
 from user_data import apply_sync, get_snapshot
-from host_tool_config import get_snapshot as get_host_tool_config_snapshot, register_host_tool_config
+from host_tool_config import (
+    clear_host_tool_config,
+    get_snapshot as get_host_tool_config_snapshot,
+    register_host_tool_config,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
@@ -701,6 +706,18 @@ async def tools_cloud_secrets(request: Request, req: CloudSecretsRequest):
     return {"ok": True}
 
 
+@app.delete("/tools/cloud-secrets")
+async def tools_cloud_secrets_clear(request: Request):
+    """Clear desktop-registered cloud API keys (loopback or VOIDCAST_SECRETS_TOKEN)."""
+    if not client_may_register(
+        request.client.host if request.client else None,
+        request.headers.get("x-voidcast-secrets-token"),
+    ):
+        raise HTTPException(status_code=403, detail="Not allowed to clear cloud secrets")
+    clear_registered_secrets()
+    return {"ok": True}
+
+
 @app.get("/tools/cloud-secrets-status")
 async def tools_cloud_secrets_status():
     """Whether cloud API keys are available for LAN web proxy (no secret values)."""
@@ -722,6 +739,18 @@ async def tools_host_tool_config_register(request: Request, req: HostToolConfigR
     ):
         raise HTTPException(status_code=403, detail="Not allowed to register host tool config")
     register_host_tool_config(req.model_dump())
+    return {"ok": True}
+
+
+@app.delete("/tools/host-tool-config")
+async def tools_host_tool_config_clear(request: Request):
+    """Clear desktop-registered host tool config (loopback or VOIDCAST_SECRETS_TOKEN)."""
+    if not client_may_register(
+        request.client.host if request.client else None,
+        request.headers.get("x-voidcast-secrets-token"),
+    ):
+        raise HTTPException(status_code=403, detail="Not allowed to clear host tool config")
+    clear_host_tool_config()
     return {"ok": True}
 
 

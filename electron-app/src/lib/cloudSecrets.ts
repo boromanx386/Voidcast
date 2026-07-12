@@ -21,3 +21,10 @@ export async function pushCloudSecretsToServer(
     body: JSON.stringify(secrets),
   })
 }
+
+/** Clear desktop-registered keys from the TTS server (LAN web access disabled). */
+export async function clearCloudSecretsFromServer(ttsBaseUrl: string): Promise<void> {
+  if (!isElectron()) return
+  const root = normalizeBaseUrl(ttsBaseUrl.trim() || 'http://127.0.0.1:8765')
+  await fetch(`${root}/tools/cloud-secrets`, { method: 'DELETE' })
+}
