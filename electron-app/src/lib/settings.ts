@@ -20,6 +20,9 @@ export const OPENROUTER_TTS_MODEL_DEFAULT = 'google/gemini-3.1-flash-tts-preview
 /** Default OpenRouter image model (Nano Banana 2 Lite). */
 export const OPENROUTER_IMAGE_MODEL_DEFAULT = 'google/gemini-3.1-flash-lite-image'
 
+/** OpenRouter dedicated Images API model (OpenAI GPT Image 2). */
+export const OPENROUTER_GPT_IMAGE_2_MODEL_ID = 'openai/gpt-image-2'
+
 export const OPENROUTER_IMAGE_MODEL_PRESETS: Array<{ id: string; label: string }> = [
   {
     id: OPENROUTER_IMAGE_MODEL_DEFAULT,
@@ -29,7 +32,68 @@ export const OPENROUTER_IMAGE_MODEL_PRESETS: Array<{ id: string; label: string }
     id: 'google/gemini-3.1-flash-image',
     label: 'Google Nano Banana 2 (Gemini 3.1 Flash Image)',
   },
+  {
+    id: OPENROUTER_GPT_IMAGE_2_MODEL_ID,
+    label: 'OpenAI GPT Image 2',
+  },
 ]
+
+export function usesOpenRouterDedicatedImageApi(model: string | undefined | null): boolean {
+  return normalizeOpenRouterImageModel(model) === OPENROUTER_GPT_IMAGE_2_MODEL_ID
+}
+
+function defaultOpenRouterImageProfiles(): Record<string, RunwareModelProfile> {
+  return {
+    [OPENROUTER_IMAGE_MODEL_DEFAULT]: {
+      width: 1024,
+      height: 1024,
+      steps: 20,
+      cfgScale: 7,
+    },
+    'google/gemini-3.1-flash-image': {
+      width: 1024,
+      height: 1024,
+      steps: 20,
+      cfgScale: 7,
+    },
+    [OPENROUTER_GPT_IMAGE_2_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 20,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+  }
+}
+
+function normalizeOpenRouterImageProfile(
+  modelId: string,
+  incoming: Partial<RunwareModelProfile> | undefined,
+  fallback: RunwareModelProfile,
+): RunwareModelProfile {
+  const isGpt = usesOpenRouterDedicatedImageApi(modelId)
+  const minSide = isGpt ? 480 : 256
+  const maxSide = isGpt ? 3840 : 2048
+  const w = Number(incoming?.width)
+  const h = Number(incoming?.height)
+  const gptQualityRaw = typeof incoming?.gptQuality === 'string' ? incoming.gptQuality : ''
+  const normalizedGptQuality =
+    gptQualityRaw === 'auto' ||
+    gptQualityRaw === 'low' ||
+    gptQualityRaw === 'medium' ||
+    gptQualityRaw === 'high'
+      ? gptQualityRaw
+      : undefined
+  return {
+    width: Number.isFinite(w) ? clamp(Math.round(w), minSide, maxSide) : fallback.width,
+    height: Number.isFinite(h) ? clamp(Math.round(h), minSide, maxSide) : fallback.height,
+    steps: fallback.steps,
+    cfgScale: fallback.cfgScale,
+    ...(isGpt
+      ? { gptQuality: normalizedGptQuality ?? fallback.gptQuality ?? 'auto' }
+      : {}),
+  }
+}
 
 export function normalizeOpenRouterImageModel(model: string | undefined | null): string {
   const trimmed = (model || '').trim()
@@ -637,6 +701,8 @@ export type AppSettings = {
   imageProvider: ImageProvider
   /** OpenRouter model id for image generation when imageProvider is openrouter */
   openrouterImageModel: string
+  /** Per-model width/height/quality when imageProvider is openrouter */
+  openrouterImageProfiles: Record<string, RunwareModelProfile>
   /** Runware REST base URL (kept for back-compat; UI no longer exposes it) */
   runwareApiBaseUrl: string
   /** Runware API key (stored locally on this device) */
@@ -798,6 +864,7 @@ export const defaults: AppSettings = {
   uiTheme: 'minimal',
   imageProvider: 'runware',
   openrouterImageModel: OPENROUTER_IMAGE_MODEL_DEFAULT,
+  openrouterImageProfiles: defaultOpenRouterImageProfiles(),
   runwareApiBaseUrl: 'https://api.runware.ai/v1',
   runwareApiKey: '',
   runwareImageModel: RUNWARE_FLUX_9B_MODEL_ID,
@@ -1323,10 +1390,48 @@ function normalizeRunware(s: AppSettings): AppSettings {
     normalizedProfiles[safeModel] ??
     defaults.runwareModelProfiles[safeModel] ??
     defaults.runwareModelProfiles[defaults.runwareImageModel]
+
+  const openrouterDefaults = defaultOpenRouterImageProfiles()
+  const parsedOpenRouterProfiles =
+    s.openrouterImageProfiles && typeof s.openrouterImageProfiles === 'object'
+      ? (s.openrouterImageProfiles as Record<string, Partial<RunwareModelProfile>>)
+      : {}
+  const legacyOpenRouterDims: RunwareModelProfile = {
+    width: Number.isFinite(width) ? clamp(Math.round(width), 256, 3840) : defaults.runwareWidth,
+    height: Number.isFinite(height)
+      ? clamp(Math.round(height), 256, 3840)
+      : defaults.runwareHeight,
+    steps: 20,
+    cfgScale: 7,
+  }
+  const normalizedOpenRouterProfiles: Record<string, RunwareModelProfile> = {}
+  for (const preset of OPENROUTER_IMAGE_MODEL_PRESETS) {
+    const fallback =
+      openrouterDefaults[preset.id] ??
+      legacyOpenRouterDims
+    normalizedOpenRouterProfiles[preset.id] = normalizeOpenRouterImageProfile(
+      preset.id,
+      parsedOpenRouterProfiles[preset.id],
+      fallback,
+    )
+  }
+  for (const [modelId, profile] of Object.entries(parsedOpenRouterProfiles)) {
+    if (normalizedOpenRouterProfiles[modelId]) continue
+    const fallback =
+      openrouterDefaults[modelId] ??
+      legacyOpenRouterDims
+    normalizedOpenRouterProfiles[modelId] = normalizeOpenRouterImageProfile(
+      modelId,
+      profile,
+      fallback,
+    )
+  }
+
   return {
     ...s,
     imageProvider: s.imageProvider === 'openrouter' ? 'openrouter' : 'runware',
     openrouterImageModel: normalizeOpenRouterImageModel(s.openrouterImageModel),
+    openrouterImageProfiles: normalizedOpenRouterProfiles,
     runwareApiBaseUrl: apiBase || defaults.runwareApiBaseUrl,
     runwareApiKey: apiKey,
     runwareImageModel: safeModel,
@@ -1476,6 +1581,22 @@ export function getAgentVisibleSettings(settings: AppSettings): Partial<AppSetti
 
 export function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')
+}
+
+export function getOpenRouterImageProfile(
+  s: Pick<AppSettings, 'openrouterImageModel' | 'openrouterImageProfiles' | 'runwareWidth' | 'runwareHeight'>,
+): RunwareModelProfile {
+  const modelId = normalizeOpenRouterImageModel(s.openrouterImageModel)
+  const incoming = s.openrouterImageProfiles?.[modelId]
+  if (incoming) return incoming
+  const fallback = defaultOpenRouterImageProfiles()[modelId]
+  if (fallback) return fallback
+  return {
+    width: s.runwareWidth,
+    height: s.runwareHeight,
+    steps: 20,
+    cfgScale: 7,
+  }
 }
 
 export function getRunwareProfileForModel(

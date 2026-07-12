@@ -38,7 +38,12 @@ import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { playNotificationSound } from '@/lib/notificationSounds'
-import { loadSettings, type AppSettings } from '@/lib/settings'
+import {
+  getOpenRouterImageProfile,
+  loadSettings,
+  OPENROUTER_GPT_IMAGE_2_MODEL_ID,
+  type AppSettings,
+} from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import { toConversationTurns } from '@/lib/chatHints'
@@ -388,6 +393,31 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         skillsActive,
       } = turnContext
 
+      const openRouterGptImage2 =
+        settings.imageProvider === 'openrouter' &&
+        settings.openrouterImageModel === OPENROUTER_GPT_IMAGE_2_MODEL_ID
+      const openRouterImageProfile = getOpenRouterImageProfile(settings)
+      const imageGptQuality = openRouterGptImage2 ? openRouterImageProfile.gptQuality : activeRunwareProfile.gptQuality
+      const editGptQuality = openRouterGptImage2
+        ? openRouterImageProfile.gptQuality
+        : activeRunwareEditProfile.gptQuality
+      const imageWidth =
+        settings.imageProvider === 'openrouter'
+          ? openRouterImageProfile.width
+          : activeRunwareProfile.width
+      const imageHeight =
+        settings.imageProvider === 'openrouter'
+          ? openRouterImageProfile.height
+          : activeRunwareProfile.height
+      const editWidth =
+        settings.imageProvider === 'openrouter'
+          ? openRouterImageProfile.width
+          : activeRunwareEditProfile.width
+      const editHeight =
+        settings.imageProvider === 'openrouter'
+          ? openRouterImageProfile.height
+          : activeRunwareEditProfile.height
+
       let userMsg: UiMessage | undefined
       if (!isEdit) {
         userMsg = {
@@ -454,17 +484,17 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               proxyBaseUrl: settings.ttsBaseUrl,
               model: settings.runwareImageModel,
               editModel: settings.runwareEditModel,
-              width: activeRunwareProfile.width,
-              height: activeRunwareProfile.height,
+              width: imageWidth,
+              height: imageHeight,
               steps: activeRunwareProfile.steps,
               cfgScale: activeRunwareProfile.cfgScale,
-              gptQuality: activeRunwareProfile.gptQuality,
+              gptQuality: imageGptQuality,
               editDefaults: {
-                width: activeRunwareEditProfile.width,
-                height: activeRunwareEditProfile.height,
+                width: editWidth,
+                height: editHeight,
                 steps: activeRunwareEditProfile.steps,
                 cfgScale: activeRunwareEditProfile.cfgScale,
-                gptQuality: activeRunwareEditProfile.gptQuality,
+                gptQuality: editGptQuality,
               },
               negativePrompt: settings.runwareNegativePrompt,
               imageProvider: settings.imageProvider,

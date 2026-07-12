@@ -1,5 +1,7 @@
 import {
   getRunwareProfileForModel,
+  getOpenRouterImageProfile,
+  OPENROUTER_GPT_IMAGE_2_MODEL_ID,
   OPENROUTER_IMAGE_MODEL_PRESETS,
   RUNWARE_CONFIGURED_MODELS,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
@@ -90,10 +92,34 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
   }
 
   const isOpenRouter = settings.imageProvider === 'openrouter'
+  const openRouterImageModel = settings.openrouterImageModel
+  const openRouterImageProfile = getOpenRouterImageProfile(settings)
+  const isOpenRouterGptImage2 =
+    isOpenRouter && openRouterImageModel === OPENROUTER_GPT_IMAGE_2_MODEL_ID
   const openrouterModelPresets = OPENROUTER_IMAGE_MODEL_PRESETS
   const openrouterModelKnown = openrouterModelPresets.some(
     (m) => m.id === settings.openrouterImageModel,
   )
+
+  const updateOpenRouterProfile = (
+    modelId: string,
+    update: (current: RunwareModelProfile) => RunwareModelProfile,
+  ) => {
+    setSettings((s) => {
+      const current = getOpenRouterImageProfile({ ...s, openrouterImageModel: modelId })
+      const next = update(current)
+      return {
+        ...s,
+        openrouterImageProfiles: {
+          ...s.openrouterImageProfiles,
+          [modelId]: next,
+        },
+      }
+    })
+  }
+
+  const openRouterImageMinSide = isOpenRouterGptImage2 ? 480 : 256
+  const openRouterImageMaxSide = isOpenRouterGptImage2 ? 3840 : 2048
 
   return (
     <div className="grid gap-5 text-sm">
@@ -252,31 +278,65 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
             )}
             <p className="mt-2 text-xs text-void-dim">
               Used by <code className="text-neon-green">generate_image</code> and{' '}
-              <code className="text-neon-green">edit_image_runware</code>. Width/height below map
-              to the closest OpenRouter aspect ratio.
+              <code className="text-neon-green">edit_image_runware</code>. Gemini models use chat
+              completions; GPT Image 2 uses OpenRouter&apos;s dedicated Images API. Width/height map
+              to the closest aspect ratio.
             </p>
           </div>
 
+          {isOpenRouterGptImage2 ? (
+            <div className="form-group">
+              <label className="form-label">IMAGE_QUALITY</label>
+              <select
+                className="form-select"
+                value={openRouterImageProfile.gptQuality || 'auto'}
+                onChange={(e) =>
+                  updateOpenRouterProfile(openRouterImageModel, (current) => ({
+                    ...current,
+                    gptQuality:
+                      e.target.value === 'low' ||
+                      e.target.value === 'medium' ||
+                      e.target.value === 'high'
+                        ? e.target.value
+                        : 'auto',
+                  }))
+                }
+              >
+                <option value="auto">auto</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+              <p className="mt-2 text-xs text-neon-yellow/80">
+                GPT Image 2 supports quality and up to 16 reference images for edits.
+              </p>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="form-group">
-              <label className="form-label">ASPECT_WIDTH</label>
+              <label className="form-label">
+                IMAGE_WIDTH ({openRouterImageMinSide}–{openRouterImageMaxSide})
+              </label>
               <NumericSettingInput
-                min={256}
-                max={2048}
-                value={activeImageProfile.width}
+                min={openRouterImageMinSide}
+                max={openRouterImageMaxSide}
+                value={openRouterImageProfile.width}
                 onCommit={(width) =>
-                  updateProfile(selectedImageModel, (current) => ({ ...current, width }))
+                  updateOpenRouterProfile(openRouterImageModel, (current) => ({ ...current, width }))
                 }
               />
             </div>
             <div className="form-group">
-              <label className="form-label">ASPECT_HEIGHT</label>
+              <label className="form-label">
+                IMAGE_HEIGHT ({openRouterImageMinSide}–{openRouterImageMaxSide})
+              </label>
               <NumericSettingInput
-                min={256}
-                max={2048}
-                value={activeImageProfile.height}
+                min={openRouterImageMinSide}
+                max={openRouterImageMaxSide}
+                value={openRouterImageProfile.height}
                 onCommit={(height) =>
-                  updateProfile(selectedImageModel, (current) => ({ ...current, height }))
+                  updateOpenRouterProfile(openRouterImageModel, (current) => ({ ...current, height }))
                 }
               />
             </div>

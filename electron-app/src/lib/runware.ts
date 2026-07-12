@@ -709,7 +709,7 @@ function quantizeToStep16(value: number): number {
   return Math.round(value / 16) * 16
 }
 
-function fitGptImage2Dimensions(width: number, height: number): {
+export function fitGptImage2Dimensions(width: number, height: number): {
   width: number
   height: number
   adjusted: boolean
