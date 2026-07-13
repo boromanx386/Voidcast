@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.7.5] — 2026-07-13
+
 ### Added
 
 - **`search_files` ranked harness**: collects up to 2000 raw matches, scores by filename/path/definition-like lines and recent session files, returns contextual blocks (±2 lines, `>>>` markers) with a top-files summary instead of a flat line dump.
@@ -20,6 +22,7 @@ All notable changes to this project will be documented in this file.
 
 - **Settings startup race**: first React paint before Electron preload could treat the desktop shell as LAN web, strip cloud API keys from `localStorage`, and point `ttsBaseUrl`/cloud API bases at the Vite dev server (`localhost:5173`). Detection now falls back to the Electron user agent; desktop save/load never strips secrets; Vite URLs are repaired on load; missing cloud keys show a clear error instead of opaque 401s.
 - **Search noise**: `release/`, `dist-electron/`, and Vite/Rollup hashed bundles no longer dominate `search_files` results.
+- **Chat layout**: wider assistant bubbles and improved word wrapping in chat markdown and composer.
 
 ## [2.7.2] — 2026-07-12
 
