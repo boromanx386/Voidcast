@@ -237,7 +237,7 @@ For **charts, diagrams, and infographics**, pick an image model in **Options →
 Six built-in themes: **Minimal** (default), **Dystopian**, **Matrix**, **Light**, **Blood Moon**, and **Obsidian**. Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
 
 Other UX features:
-- **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens)
+- **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens). Session history is stored in **IndexedDB** (migrated automatically from older `localStorage` data on first launch).
 - **Drag-and-drop** — drop images and supported text/code files onto the chat (same limits as the file picker)
 - **Edit any message inline** — history regenerates from that point
 - **Fork chat session** — explore a different branch of the conversation

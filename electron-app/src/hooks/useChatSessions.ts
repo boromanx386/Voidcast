@@ -3,7 +3,7 @@ import { resolveContextCompressedThroughIndex } from '@/lib/chatMessages'
 import {
   deleteSessionById,
   loadChatSessions,
-  saveChatSessions,
+  scheduleSaveChatSessions,
   upsertSession,
 } from '@/lib/chatSessionsStorage'
 import {
@@ -95,58 +95,65 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const [renameValue, setRenameValue] = useState('')
   const [sessionsHydrated, setSessionsHydrated] = useState(false)
 
-  // Load sessions from storage
+  // Load sessions from IndexedDB (one-time localStorage migration on first run)
   useEffect(() => {
-    const state = loadChatSessions()
-    let sessionsMigrated = false
-    const sessions = state.sessions.map((s) => {
-      if (!s.hiddenContextSummary?.trim()) return s
-      const through = resolveContextCompressedThroughIndex(
-        s.hiddenContextSummary,
-        s.contextCompressedThroughIndex,
-        s.messages.length,
+    let cancelled = false
+    void (async () => {
+      const state = await loadChatSessions()
+      if (cancelled) return
+      let sessionsMigrated = false
+      const sessions = state.sessions.map((s) => {
+        if (!s.hiddenContextSummary?.trim()) return s
+        const through = resolveContextCompressedThroughIndex(
+          s.hiddenContextSummary,
+          s.contextCompressedThroughIndex,
+          s.messages.length,
+        )
+        if ((s.contextCompressedThroughIndex ?? 0) === through) return s
+        sessionsMigrated = true
+        return { ...s, contextCompressedThroughIndex: through }
+      })
+      setSessions(sessions)
+      if (sessionsMigrated) {
+        scheduleSaveChatSessions({ sessions, activeSessionId: state.activeSessionId })
+      }
+      setActiveSessionId(state.activeSessionId)
+      const active = state.activeSessionId
+        ? sessions.find((s) => s.id === state.activeSessionId)
+        : null
+      setMessages(active?.messages ?? [])
+      resetAssistantMediaState()
+      setHiddenContextSummary(active?.hiddenContextSummary ?? '')
+      setContextCompressedThroughIndex(
+        resolveContextCompressedThroughIndex(
+          active?.hiddenContextSummary,
+          active?.contextCompressedThroughIndex,
+          active?.messages.length ?? 0,
+        ),
       )
-      if ((s.contextCompressedThroughIndex ?? 0) === through) return s
-      sessionsMigrated = true
-      return { ...s, contextCompressedThroughIndex: through }
-    })
-    setSessions(sessions)
-    if (sessionsMigrated) {
-      saveChatSessions({ sessions, activeSessionId: state.activeSessionId })
+      const baseSettings = loadSettings()
+      const fallbackPath = getCodingProjectPath(baseSettings)
+      const projectPath = sessionCodingProjectPath(active ?? undefined, fallbackPath)
+      if (projectPath !== fallbackPath) {
+        setSettings(mergeCodingProjectPathIntoSettings(baseSettings, projectPath))
+      }
+      codingProjectPathForMemoRef.current = projectPath
+      setCodingContextMemo(resolveMemoForSession(active ?? undefined, projectPath))
+      setImageVisionCache(normalizeImageVisionCache(active?.imageVisionCache))
+      setContextUsageInfo(null)
+      setContextWarnDismissed(false)
+      setSessionDirty(false)
+      setSessionsHydrated(true)
+    })()
+    return () => {
+      cancelled = true
     }
-    setActiveSessionId(state.activeSessionId)
-    const active = state.activeSessionId
-      ? sessions.find((s) => s.id === state.activeSessionId)
-      : null
-    setMessages(active?.messages ?? [])
-    resetAssistantMediaState()
-    setHiddenContextSummary(active?.hiddenContextSummary ?? '')
-    setContextCompressedThroughIndex(
-      resolveContextCompressedThroughIndex(
-        active?.hiddenContextSummary,
-        active?.contextCompressedThroughIndex,
-        active?.messages.length ?? 0,
-      ),
-    )
-    const baseSettings = loadSettings()
-    const fallbackPath = getCodingProjectPath(baseSettings)
-    const projectPath = sessionCodingProjectPath(active ?? undefined, fallbackPath)
-    if (projectPath !== fallbackPath) {
-      setSettings(mergeCodingProjectPathIntoSettings(baseSettings, projectPath))
-    }
-    codingProjectPathForMemoRef.current = projectPath
-    setCodingContextMemo(resolveMemoForSession(active ?? undefined, projectPath))
-    setImageVisionCache(normalizeImageVisionCache(active?.imageVisionCache))
-    setContextUsageInfo(null)
-    setContextWarnDismissed(false)
-    setSessionDirty(false)
-    setSessionsHydrated(true)
   }, [])
 
-  // Persist sessions
+  // Persist sessions (debounced IndexedDB write)
   useEffect(() => {
     if (!sessionsHydrated) return
-    saveChatSessions({ sessions, activeSessionId })
+    scheduleSaveChatSessions({ sessions, activeSessionId })
   }, [sessions, activeSessionId, sessionsHydrated])
 
   // Auto-update sessions in state. When autoSaveChat is ON, auto-create new sessions too.
@@ -293,7 +300,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       const updated = { ...session, contextCompressedThroughIndex: through, updatedAt: Date.now() }
       setSessions((prev) => {
         const next = prev.map((s) => (s.id === session.id ? updated : s))
-        saveChatSessions({ sessions: next, activeSessionId: session.id })
+        scheduleSaveChatSessions({ sessions: next, activeSessionId: session.id })
         return next
       })
     }
@@ -326,7 +333,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     const nextState = upsertSession({ sessions, activeSessionId }, forked)
     setSessions(nextState.sessions)
     setActiveSessionId(forked.id)
-    saveChatSessions(nextState)
+    scheduleSaveChatSessions(nextState)
     setMessages(forked.messages)
     resetAssistantMediaState()
     setHiddenContextSummary(forked.hiddenContextSummary ?? '')
@@ -415,7 +422,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     const nextState = upsertSession({ sessions, activeSessionId }, next)
     setSessions(nextState.sessions)
     setActiveSessionId(nextState.activeSessionId)
-    saveChatSessions(nextState)
+    scheduleSaveChatSessions(nextState)
     setSessionDirty(false)
   }
 
@@ -447,7 +454,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     }
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
-    saveChatSessions(state)
+    scheduleSaveChatSessions(state)
     setSessionDirty(false)
     setPendingDeleteId(null)
     if (renamingSessionId === sessionId) {
@@ -474,7 +481,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       s.id === sessionId ? { ...s, title: nextTitle, updatedAt: Date.now() } : s,
     )
     setSessions(updated)
-    saveChatSessions({ sessions: updated, activeSessionId })
+    scheduleSaveChatSessions({ sessions: updated, activeSessionId })
     setRenamingSessionId(null)
     setRenameValue('')
   }

@@ -1,9 +1,15 @@
 import { normalizeCodingContextMemo } from '@/lib/codingContextMemo'
+import {
+  idbDeleteSession,
+  idbGetMeta,
+  idbListSessions,
+  idbPutSessionsAndMeta,
+} from '@/lib/chatSessionsIndexedDb'
 import { normalizeImageVisionCache } from '@/lib/imageVisionCache'
 import { normalizePlanArtifact } from '@/lib/planArtifact'
 import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
-/** Drop image payloads before localStorage — avoids quota blowups (MVP). */
+/** Drop image payloads before persistence — avoids quota blowups (MVP). */
 function stripImagesForPersistence(msg: UiMessage): UiMessage {
   let base =
     msg.role !== 'user' || (!msg.images?.length && !msg.imageMimes?.length)
@@ -34,7 +40,12 @@ function stripImagesForPersistence(msg: UiMessage): UiMessage {
   }
 }
 
-const STORAGE_KEY = 'voidcast-chat-sessions-v1'
+/** Legacy localStorage key — kept after migration for rollback safety. */
+export const LEGACY_CHAT_SESSIONS_KEY = 'voidcast-chat-sessions-v1'
+
+const SCHEMA_VERSION = 1
+const SAVE_DEBOUNCE_MS = 400
+const MIGRATED_FROM_LOCAL_STORAGE = 'localStorage-v1'
 
 const EMPTY_STATE: ChatSessionsState = {
   sessions: [],
@@ -97,9 +108,20 @@ function normalizeState(raw: unknown): ChatSessionsState {
   return { sessions, activeSessionId }
 }
 
-export function loadChatSessions(): ChatSessionsState {
+function stripStateForPersistence(state: ChatSessionsState): ChatSessionsState {
+  return {
+    ...state,
+    sessions: state.sessions.map((s) => ({
+      ...s,
+      messages: s.messages.map(stripImagesForPersistence),
+    })),
+  }
+}
+
+function loadLegacyLocalStorage(): ChatSessionsState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    if (typeof localStorage === 'undefined') return { ...EMPTY_STATE }
+    const raw = localStorage.getItem(LEGACY_CHAT_SESSIONS_KEY)
     if (!raw) return { ...EMPTY_STATE }
     return normalizeState(JSON.parse(raw))
   } catch {
@@ -107,15 +129,68 @@ export function loadChatSessions(): ChatSessionsState {
   }
 }
 
-export function saveChatSessions(state: ChatSessionsState): void {
-  const payload: ChatSessionsState = {
-    ...state,
-    sessions: state.sessions.map((s) => ({
-      ...s,
-      messages: s.messages.map(stripImagesForPersistence),
-    })),
+async function loadFromIndexedDb(): Promise<ChatSessionsState> {
+  const [meta, rawSessions] = await Promise.all([idbGetMeta(), idbListSessions()])
+  const sessions = rawSessions
+    .filter(isSessionLike)
+    .map(normalizeSession)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+  const activeSessionId =
+    typeof meta?.activeSessionId === 'string' && sessions.some((x) => x.id === meta.activeSessionId)
+      ? meta.activeSessionId
+      : null
+  return { sessions, activeSessionId }
+}
+
+/**
+ * One-time migration from localStorage blob → IndexedDB.
+ * Legacy key is left in place for rollback. Idempotent via meta.migratedFrom.
+ */
+async function migrateFromLocalStorageIfNeeded(): Promise<ChatSessionsState> {
+  const meta = await idbGetMeta()
+  if (meta?.migratedFrom || (meta?.schemaVersion ?? 0) >= SCHEMA_VERSION) {
+    return loadFromIndexedDb()
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+
+  const legacy = loadLegacyLocalStorage()
+  const payload = stripStateForPersistence(legacy)
+  try {
+    await idbPutSessionsAndMeta(payload.sessions, {
+      activeSessionId: payload.activeSessionId,
+      migratedFrom: MIGRATED_FROM_LOCAL_STORAGE,
+      schemaVersion: SCHEMA_VERSION,
+    })
+    return payload
+  } catch (err) {
+    console.warn(
+      '[voidcast] Chat sessions IndexedDB migration failed; using localStorage fallback.',
+      err,
+    )
+    return legacy
+  }
+}
+
+export async function loadChatSessions(): Promise<ChatSessionsState> {
+  try {
+    return await migrateFromLocalStorageIfNeeded()
+  } catch (err) {
+    console.warn('[voidcast] Chat sessions IndexedDB load failed; using localStorage fallback.', err)
+    return loadLegacyLocalStorage()
+  }
+}
+
+export async function saveChatSessions(state: ChatSessionsState): Promise<void> {
+  const payload = stripStateForPersistence(state)
+  const existingMeta = await idbGetMeta().catch(() => undefined)
+  await idbPutSessionsAndMeta(payload.sessions, {
+    activeSessionId: payload.activeSessionId,
+    migratedFrom: existingMeta?.migratedFrom ?? MIGRATED_FROM_LOCAL_STORAGE,
+    schemaVersion: SCHEMA_VERSION,
+  })
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  await idbDeleteSession(sessionId)
 }
 
 export function upsertSession(
@@ -142,4 +217,59 @@ export function deleteSessionById(
   const activeSessionId =
     state.activeSessionId === sessionId ? sessions[0]?.id ?? null : state.activeSessionId
   return { sessions, activeSessionId }
+}
+
+// --- Debounced persist -------------------------------------------------------
+
+let pendingSave: ChatSessionsState | null = null
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+let flushListenersBound = false
+let saveInFlight: Promise<void> | null = null
+
+function logSaveError(err: unknown): void {
+  console.warn('[voidcast] Failed to persist chat sessions to IndexedDB.', err)
+}
+
+async function runPendingSave(): Promise<void> {
+  if (!pendingSave) return
+  const toSave = pendingSave
+  pendingSave = null
+  try {
+    await saveChatSessions(toSave)
+  } catch (err) {
+    logSaveError(err)
+  }
+}
+
+export function scheduleSaveChatSessions(state: ChatSessionsState): void {
+  pendingSave = state
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    saveInFlight = runPendingSave().finally(() => {
+      saveInFlight = null
+    })
+  }, SAVE_DEBOUNCE_MS)
+  ensureFlushListeners()
+}
+
+export async function flushSaveChatSessions(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  if (saveInFlight) await saveInFlight
+  await runPendingSave()
+}
+
+function ensureFlushListeners(): void {
+  if (flushListenersBound || typeof window === 'undefined') return
+  flushListenersBound = true
+  const flush = () => {
+    void flushSaveChatSessions()
+  }
+  window.addEventListener('beforeunload', flush)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush()
+  })
 }

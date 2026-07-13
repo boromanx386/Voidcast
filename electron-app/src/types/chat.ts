@@ -50,7 +50,7 @@ export type UiMessage = {
   thinking?: string
   /** Raw base64 for Ollama `images` (no data-URL prefix). User messages only. */
   images?: string[]
-  /** Parallel MIME types for rendering (e.g. image/png). Not persisted (see chatSessionsStorage). */
+  /** Parallel MIME types for rendering (e.g. image/png). Not persisted (see chatSessionsStorage strip). */
   imageMimes?: string[]
   /** Optional original image file names, parallel with `images`. */
   imageNames?: string[]

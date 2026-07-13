@@ -4,14 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-
-- **`check_types` coding tool**: read-only TypeScript typecheck (`tsc --noEmit`) scoped to the coding project. Supports `path_prefix` for monorepo subfolders (e.g. `electron-app`) and optional `paths` to filter errors after edits. Available in Plan mode. Unit tests for `tsc` output parsing.
-
-### Changed
-
-- **Coding tool hints** and Options → Tools copy: document `check_types` alongside git and shell tools.
-
 ## [2.7.5] — 2026-07-13
 
 ### Added
@@ -19,11 +11,14 @@ All notable changes to this project will be documented in this file.
 - **`search_files` ranked harness**: collects up to 2000 raw matches, scores by filename/path/definition-like lines and recent session files, returns contextual blocks (±2 lines, `>>>` markers) with a top-files summary instead of a flat line dump.
 - **Bundled ripgrep**: desktop builds ship `@vscode/ripgrep` (`VOIDCAST_RG_PATH` override, then system `rg`, then walk fallback). No manual ripgrep install required on Windows.
 - **Shared coding skip list** (`codingProjectSkip.ts`): one source for search, glob, and file-tree exclusions (`release/`, `dist-electron/`, minified/hashed bundles, etc.).
-- **Unit tests** for search ranking/formatting, project skip rules, and Vite dev URL detection.
+- **`check_types` coding tool**: read-only TypeScript typecheck (`tsc --noEmit`) scoped to the coding project. Supports `path_prefix` for monorepo subfolders (e.g. `electron-app`) and optional `paths` to filter errors after edits. Available in Plan mode. Unit tests for `tsc` output parsing.
+- **Unit tests** for search ranking/formatting, project skip rules, Vite dev URL detection, and chat-sessions IndexedDB storage.
 
 ### Changed
 
+- **Chat sessions storage**: sessions move from a single `localStorage` JSON blob to **IndexedDB** (`voidcast-chat-sessions-v2`, one record per session + meta). First launch migrates existing chats automatically; the legacy `localStorage` key is kept for rollback. Saves are debounced (~400ms) with a flush on tab hide / unload.
 - **`search_files` tool copy** and README: document ranked contextual output and bundled ripgrep.
+- **Coding tool hints** and Options → Tools copy: document `check_types` alongside git and shell tools.
 - **File tree**: hides `release/` and `dist-electron/` like other generated folders.
 
 ### Fixed

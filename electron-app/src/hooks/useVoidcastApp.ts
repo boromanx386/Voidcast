@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { saveChatSessions } from '@/lib/chatSessionsStorage'
+import { scheduleSaveChatSessions } from '@/lib/chatSessionsStorage'
 import { fetchOllamaModels } from '@/lib/ollama'
 import { deleteReminder, markReminderDone } from '@/lib/reminderStorage'
 import { recordReminderDeleted, scheduleUserDataSync } from '@/lib/userDataSync'
@@ -108,7 +108,7 @@ export function useVoidcastApp() {
               }
             : s,
         )
-        saveChatSessions({ sessions: updated, activeSessionId: sessionId })
+        scheduleSaveChatSessions({ sessions: updated, activeSessionId: sessionId })
         return updated
       })
     },
