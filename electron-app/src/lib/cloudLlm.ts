@@ -1,4 +1,28 @@
 import type { AppSettings, LlmProvider, LlmThinkLevel } from '@/lib/settings'
+import { usesServerCloudProxy } from '@/lib/platform'
+
+export function cloudLlmProviderLabel(provider: LlmProvider): string {
+  switch (provider) {
+    case 'openrouter':
+      return 'OpenRouter'
+    case 'nvidia':
+      return 'NVIDIA'
+    case 'deepseek':
+      return 'DeepSeek'
+    default:
+      return 'Cloud LLM'
+  }
+}
+
+export function assertCloudLlmApiKey(provider: LlmProvider, apiKey: string): void {
+  if (usesServerCloudProxy()) return
+  if (apiKey.trim()) return
+  const label = cloudLlmProviderLabel(provider)
+  throw new Error(
+    `${label} API key is missing. Open Options → General, paste your ${label} key, and try again. ` +
+      'If keys disappeared after a recent app restart, re-enter them once (a settings sync bug may have cleared them).',
+  )
+}
 
 export function isOpenAiCompatibleCloudLlmProvider(provider: LlmProvider): boolean {
   return provider === 'openrouter' || provider === 'nvidia' || provider === 'deepseek'

@@ -1,8 +1,12 @@
 /**
- * Runtime detection: Electron preload exposes `window.voidcast`; browser build does not.
+ * Desktop shell detection. Preload exposes `window.voidcast`, but the first React paint can
+ * run before contextBridge — fall back to the Electron user agent so we do not treat the
+ * Vite dev URL (localhost:5173) as the LAN web client and poison service URLs in settings.
  */
 export function isElectron(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.voidcast)
+  if (typeof window === 'undefined') return false
+  if (window.voidcast) return true
+  return navigator.userAgent.toLowerCase().includes('electron')
 }
 
 /** Set at build time in `vite.config.web.ts` — authoritative for the LAN/phone bundle. */

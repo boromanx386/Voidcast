@@ -518,6 +518,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             userImageMimes: toolImageCatalog.map((x) => x.mime),
             userImagePaths: toolImageCatalog.map((x) => x.path || ''),
             codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
+            codingRecentFiles: codingContextMemo.recentFiles,
             subAgent: settings.subAgent,
             ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
             openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,

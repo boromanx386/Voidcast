@@ -18,9 +18,31 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { rgPath as bundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
+import {
+  CODING_RIPGREP_EXCLUDE_GLOBS,
+  filterCodingSearchMatches,
+  shouldSkipCodingProjectDir,
+} from '../../src/lib/codingProjectSkip'
+import {
+  CODING_SEARCH_CONTEXT_LINES,
+  CODING_SEARCH_INTERNAL_MAX,
+  CODING_SEARCH_LINE_TEXT_MAX,
+  CODING_SEARCH_MAX_BLOCKS,
+  CODING_SEARCH_MAX_PER_FILE,
+  countMatchesByFile,
+  mergeMatchRanges,
+  rankSearchMatches,
+  type CodingSearchBlock,
+  type CodingSearchBlockLine,
+  type CodingSearchProcessedResult,
+  type CodingSearchRawMatch,
+  type ScoredSearchMatch,
+} from '../../src/lib/codingSearch'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -1031,26 +1053,9 @@ function resolveInsideProject(projectPath: string, inputPath: string): string {
 }
 
 /** Skip heavy / generated dirs when walking project trees for search & glob. */
-const CODING_SKIP_DIR_NAMES = new Set([
-  '.git',
-  'node_modules',
-  'dist',
-  'build',
-  '.next',
-  'coverage',
-  'target',
-  'out',
-  '__pycache__',
-  '.turbo',
-  '.cache',
-  '.venv',
-  'venv',
-  'Pods',
-  '.gradle',
-  'DerivedData',
-])
-
-/** Text/source extensions for search_files and glob_files default (no leading dot). Keep in sync with toolDefinitions glob_files copy. */
+function shouldSkipCodingWalkDir(name: string): boolean {
+  return shouldSkipCodingProjectDir(name)
+}
 const CODING_SOURCE_EXTENSIONS = [
   'ts',
   'tsx',
@@ -1086,13 +1091,6 @@ const CODING_SOURCE_FILE_RE = new RegExp(`\\.(${CODING_SOURCE_EXTENSIONS.join('|
 
 const CODING_READ_SOFT_CHAR_LIMIT = 220_000
 
-function shouldSkipCodingWalkDir(name: string): boolean {
-  if (name.startsWith('.')) {
-    return name === '.git' || name === '.next' || name === '.turbo' || name === '.cache' || name === '.venv'
-  }
-  return CODING_SKIP_DIR_NAMES.has(name)
-}
-
 const MAX_GIT_OUTPUT_CHARS = 450_000
 const GIT_COMMAND_TIMEOUT_MS = 25_000
 
@@ -1117,27 +1115,30 @@ function runGitCapture(
 }
 
 const RIPGREP_TIMEOUT_MS = 90_000
-const CODING_SEARCH_MAX_MATCHES = 200
 const CODING_BINARY_SCAN_BYTES = 65_536
 
-const RIPGREP_EXCLUDE_GLOBS = [
-  '!**/node_modules/**',
-  '!**/dist/**',
-  '!**/build/**',
-  '!**/.git/**',
-  '!**/.next/**',
-  '!**/coverage/**',
-  '!**/target/**',
-  '!**/out/**',
-  '!**/__pycache__/**',
-  '!**/.turbo/**',
-  '!**/.cache/**',
-  '!**/venv/**',
-  '!**/.venv/**',
-  '!**/Pods/**',
-  '!**/.gradle/**',
-  '!**/DerivedData/**',
-] as const
+let cachedRipgrepCommand: string | undefined
+
+/** Bundled @vscode/ripgrep → optional VOIDCAST_RG_PATH → system `rg` on PATH. */
+function resolveRipgrepCommand(): string {
+  if (cachedRipgrepCommand) return cachedRipgrepCommand
+
+  const envPath = process.env.VOIDCAST_RG_PATH?.trim()
+  if (envPath && existsSync(envPath)) {
+    cachedRipgrepCommand = envPath
+    return envPath
+  }
+
+  if (bundledRgPath && existsSync(bundledRgPath)) {
+    cachedRipgrepCommand = bundledRgPath
+    return bundledRgPath
+  }
+
+  cachedRipgrepCommand = 'rg'
+  return 'rg'
+}
+
+const RIPGREP_EXCLUDE_GLOBS = CODING_RIPGREP_EXCLUDE_GLOBS
 
 function runRipgrepCapture(
   cwd: string,
@@ -1145,7 +1146,7 @@ function runRipgrepCapture(
   timeoutMs = RIPGREP_TIMEOUT_MS,
 ): Promise<CapturedCommandResult> {
   return captureSpawnCommand({
-    command: 'rg',
+    command: resolveRipgrepCommand(),
     args,
     cwd,
     timeoutMs,
@@ -1161,7 +1162,7 @@ async function searchProjectWithRipgrep(
   searchRoot: string,
   query: string,
   maxMatches: number,
-): Promise<Array<{ path: string; line: number; text: string }> | null> {
+): Promise<CodingSearchRawMatch[] | null> {
   // Align with searchProjectFilesWalk: do not use ignore files (.gitignore, .ignore, …), and
   // include hidden paths. Walk only skips named dirs (shouldSkipCodingWalkDir) + globs below.
   const args: string[] = ['--json', '-i', '-F', '--no-ignore', '--hidden', query]
@@ -1178,7 +1179,7 @@ async function searchProjectWithRipgrep(
     return null
   }
   if (r.code !== 0 && r.code !== 1) return null
-  const matches: Array<{ path: string; line: number; text: string }> = []
+  const matches: CodingSearchRawMatch[] = []
   for (const line of r.stdout.split(/\r?\n/)) {
     if (!line.trim() || matches.length >= maxMatches) break
     let msg: { type?: string; data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number } }
@@ -1191,7 +1192,11 @@ async function searchProjectWithRipgrep(
     const rel = (msg.data.path?.text ?? '').replace(/\\/g, '/')
     const lineNum = msg.data.line_number ?? 0
     const lineText = (msg.data.lines?.text ?? '').split(/\r?\n/)[0] ?? ''
-    matches.push({ path: rel, line: lineNum, text: lineText.trim().slice(0, 240) })
+    matches.push({
+      path: rel,
+      line: lineNum,
+      text: lineText.trim().slice(0, CODING_SEARCH_LINE_TEXT_MAX),
+    })
   }
   return matches
 }
@@ -1201,9 +1206,9 @@ async function searchProjectFilesWalk(
   searchRoot: string,
   query: string,
   maxMatches: number,
-): Promise<Array<{ path: string; line: number; text: string }>> {
+): Promise<CodingSearchRawMatch[]> {
   const q = query.toLowerCase()
-  const results: Array<{ path: string; line: number; text: string }> = []
+  const results: CodingSearchRawMatch[] = []
   const visit = async (dir: string): Promise<void> => {
     const entries = await readdir(dir, { withFileTypes: true })
     for (const entry of entries) {
@@ -1222,13 +1227,92 @@ async function searchProjectFilesWalk(
       for (let i = 0; i < lines.length; i++) {
         if (results.length >= maxMatches) return
         if (lines[i].toLowerCase().includes(q)) {
-          results.push({ path: rel, line: i + 1, text: lines[i].trim().slice(0, 240) })
+          results.push({
+            path: rel,
+            line: i + 1,
+            text: lines[i].trim().slice(0, CODING_SEARCH_LINE_TEXT_MAX),
+          })
         }
       }
     }
   }
   await visit(searchRoot)
   return results
+}
+
+async function buildSearchBlocks(
+  projectRoot: string,
+  ranked: ScoredSearchMatch[],
+  contextLines: number,
+): Promise<CodingSearchBlock[]> {
+  const rangesByFile = mergeMatchRanges(ranked, contextLines)
+  const blocks: CodingSearchBlock[] = []
+
+  for (const [relPath, ranges] of rangesByFile) {
+    let absFile: string
+    try {
+      absFile = resolveInsideProject(projectRoot, relPath)
+    } catch {
+      continue
+    }
+    const content = await readFile(absFile, 'utf8').catch(() => '')
+    if (!content) continue
+    const fileLines = content.split(/\r?\n/)
+
+    for (const range of ranges) {
+      const lines: CodingSearchBlockLine[] = []
+      const end = Math.min(range.end, fileLines.length)
+      for (let ln = range.start; ln <= end; ln++) {
+        const raw = fileLines[ln - 1] ?? ''
+        lines.push({
+          line: ln,
+          text: raw.trimEnd().slice(0, CODING_SEARCH_LINE_TEXT_MAX),
+          isMatch: range.matchLines.has(ln),
+        })
+      }
+      if (lines.length > 0) {
+        blocks.push({
+          path: relPath,
+          startLine: range.start,
+          endLine: end,
+          lines,
+        })
+      }
+    }
+  }
+
+  blocks.sort((a, b) => a.path.localeCompare(b.path) || a.startLine - b.startLine)
+  return blocks
+}
+
+async function processCodingSearch(
+  projectPath: string,
+  searchRoot: string,
+  query: string,
+  recentFiles: string[] = [],
+): Promise<CodingSearchProcessedResult> {
+  let raw = await searchProjectWithRipgrep(searchRoot, query, CODING_SEARCH_INTERNAL_MAX)
+  if (raw === null) {
+    raw = await searchProjectFilesWalk(projectPath, searchRoot, query, CODING_SEARCH_INTERNAL_MAX)
+  }
+  raw = filterCodingSearchMatches(raw)
+
+  const fileMatchCounts = countMatchesByFile(raw)
+  const ranked = rankSearchMatches(raw, query, {
+    recentFiles,
+    maxPerFile: CODING_SEARCH_MAX_PER_FILE,
+    maxBlocks: CODING_SEARCH_MAX_BLOCKS,
+  })
+  const blocks = await buildSearchBlocks(projectPath, ranked, CODING_SEARCH_CONTEXT_LINES)
+
+  return {
+    query,
+    totalRawMatches: raw.length,
+    totalFiles: fileMatchCounts.size,
+    truncatedCollection: raw.length >= CODING_SEARCH_INTERNAL_MAX,
+    fileMatchCounts: Object.fromEntries(fileMatchCounts),
+    blocks,
+  }
 }
 
 function fileLooksBinary(buf: Buffer): boolean {
@@ -1393,7 +1477,10 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:coding-search-files',
-  async (_evt, payload: { projectPath?: string; query?: string; pathPrefix?: string }) => {
+  async (
+    _evt,
+    payload: { projectPath?: string; query?: string; pathPrefix?: string; recentFiles?: string[] },
+  ) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
       const query = String(payload?.query ?? '').trim()
@@ -1403,11 +1490,11 @@ ipcMain.handle(
       const root = path.resolve(projectPath)
       const prefix = String(payload?.pathPrefix ?? '').trim()
       const searchRoot = prefix ? resolveInsideProject(projectPath, prefix) : root
-      let results = await searchProjectWithRipgrep(searchRoot, query, CODING_SEARCH_MAX_MATCHES)
-      if (results === null) {
-        results = await searchProjectFilesWalk(root, searchRoot, query, CODING_SEARCH_MAX_MATCHES)
-      }
-      return { ok: true as const, matches: results }
+      const recentFiles = Array.isArray(payload?.recentFiles)
+        ? payload.recentFiles.filter((x): x is string => typeof x === 'string')
+        : []
+      const result = await processCodingSearch(projectPath, searchRoot, query, recentFiles)
+      return { ok: true as const, result }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }

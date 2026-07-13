@@ -3,12 +3,18 @@
   "appId": "com.voidcast.app",
   "productName": "Voidcast",
   "asar": true,
+  "asarUnpack": [
+    "**/node_modules/@vscode/ripgrep/**",
+    "**/node_modules/@vscode/ripgrep-win32-x64/**"
+  ],
   "directories": {
     "output": "release/${version}"
   },
   "files": [
     "dist-electron",
-    "dist"
+    "dist",
+    "node_modules/@vscode/ripgrep/**",
+    "node_modules/@vscode/ripgrep-win32-x64/**"
   ],
   "extraResources": [
     {

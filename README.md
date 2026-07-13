@@ -128,7 +128,7 @@ In the chat composer, switch **AGENT | PLAN**:
 Right-side panel with file tree, file preview, and terminal output. The agent acts as a junior dev in your project folder:
 
 - `list_directory`, `read_file`, `write_file`, `edit_code`
-- `search_files` (with ripgrep fallback)
+- `search_files` (bundled ripgrep; walk fallback)
 - `glob_files`
 - `git_status`, `git_diff`, `git_log`, `git_show`
 - `execute_command` (with timeout + background support)
@@ -169,7 +169,7 @@ With coding tools on, Voidcast loads **`AGENTS.md` / `CLAUDE.md`** from the proj
 
 **Project memory:** recent files, directories, command outcomes, and tool failures are stored **per project** in browser `localStorage` and survive app restarts. Opening the same repo again hydrates that snapshot into new chats; the active session still keeps live search/git hints for the current thread.
 
-**Faster code search (optional):** install [ripgrep](https://github.com/BurntSushi/ripgrep) and put `rg` on your system `PATH`. `search_files` then uses it for large trees; without it, the same tool falls back to a built-in walk (slower, same results style).
+**Code search:** the desktop app bundles [ripgrep](https://github.com/BurntSushi/ripgrep) for fast `search_files` on large trees. Override with `VOIDCAST_RG_PATH` or a system `rg` on `PATH` if needed; otherwise the tool falls back to a built-in walk.
 
 ---
 

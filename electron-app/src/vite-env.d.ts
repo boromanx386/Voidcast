@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { ProgressInfo } from 'electron-updater'
+import type { CodingSearchProcessedResult } from '@/lib/codingSearch'
 
 // ---------------------------------------------------------------------------
 // Voidcast preload bridge — mirrors electron/preload/index.ts exactly
@@ -120,10 +121,11 @@ interface VoidcastBridge {
     projectPath: string
     query: string
     pathPrefix?: string
+    recentFiles?: string[]
   }) => Promise<
     | {
         ok: true
-        matches: { path: string; line: number; text: string }[]
+        result: CodingSearchProcessedResult
       }
     | { ok: false; error?: string }
   >

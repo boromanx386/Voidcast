@@ -109,12 +109,14 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: true; path: string }
       | { ok: false; error?: string }
     >,
-  codingSearchFiles: (payload: { projectPath: string; query: string; pathPrefix?: string }) =>
+  codingSearchFiles: (payload: {
+    projectPath: string
+    query: string
+    pathPrefix?: string
+    recentFiles?: string[]
+  }) =>
     ipcRenderer.invoke('voidcast:coding-search-files', payload) as Promise<
-      | {
-          ok: true
-          matches: { path: string; line: number; text: string }[]
-        }
+      | { ok: true; result: import('../../src/lib/codingSearch').CodingSearchProcessedResult }
       | { ok: false; error?: string }
     >,
   codingGlobFiles: (payload: {

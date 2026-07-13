@@ -62,6 +62,8 @@ export type RunOpenRouterChatWithToolsParams = {
   userImageMimes?: string[]
   userImagePaths?: string[]
   codingProjectPath?: string
+  /** Recently touched files from coding session memo (boosts search ranking). */
+  codingRecentFiles?: string[]
   /** Ignored by OpenRouter path (no round-0 synthetic web); kept for shared App call site. */
   rawUserText?: string
   /** Sub-agent config for image_recall delegation. */
@@ -202,6 +204,7 @@ export async function runOpenRouterChatWithTools(
         userImageMimes: params.userImageMimes,
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
+        codingRecentFiles: params.codingRecentFiles,
         skillsEnabled: Boolean(params.skillsEnabled),
         agentMode: params.agentMode,
         subAgent: params.subAgent,

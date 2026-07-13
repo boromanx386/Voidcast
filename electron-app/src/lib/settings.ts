@@ -788,6 +788,7 @@ import {
   deepseekApiBaseForRuntime,
   defaultOllamaBaseUrlForRuntime,
   defaultTtsBaseUrlForRuntime,
+  isElectron,
   isLanWebClient,
   nvidiaApiBaseForRuntime,
   openRouterApiBaseForRuntime,
@@ -1515,7 +1516,55 @@ function stripCloudSecrets(s: AppSettings): AppSettings {
   }
 }
 
+/** Vite dev / preview ports — must never be persisted as tools or API base URLs in desktop. */
+function isViteDevServerUrl(url: string): boolean {
+  const raw = url.trim()
+  if (!raw) return false
+  try {
+    const u = new URL(raw.includes('://') ? raw : `http://${raw}`)
+    const h = u.hostname.toLowerCase()
+    if (h !== 'localhost' && h !== '127.0.0.1') return false
+    const port = u.port || (u.protocol === 'https:' ? '443' : '80')
+    return port === '5173' || port === '7777' || port === '4173'
+  } catch {
+    return /localhost:5173|127\.0\.0\.1:5173|localhost:7777|127\.0\.0\.1:7777|localhost:4173|127\.0\.0\.1:4173/.test(
+      raw,
+    )
+  }
+}
+
+/** Repair settings saved while preload was not ready (tts/api URLs pointed at Vite). */
+function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
+  if (typeof window === 'undefined' || !isElectron()) return s
+
+  let next = s
+  const assign = (patch: Partial<AppSettings>) => {
+    next = { ...next, ...patch }
+  }
+
+  if (isViteDevServerUrl(next.ttsBaseUrl)) {
+    assign({ ttsBaseUrl: defaultTtsBaseUrlForRuntime() })
+  }
+  if (isViteDevServerUrl(next.ollamaBaseUrl) || next.ollamaBaseUrl.includes('/api/ollama')) {
+    assign({ ollamaBaseUrl: defaultOllamaBaseUrlForRuntime() })
+  }
+  if (isViteDevServerUrl(next.openrouterBaseUrl) || next.openrouterBaseUrl.includes('/api/openrouter')) {
+    assign({ openrouterBaseUrl: defaults.openrouterBaseUrl })
+  }
+  if (isViteDevServerUrl(next.nvidiaBaseUrl) || next.nvidiaBaseUrl.includes('/api/nvidia')) {
+    assign({ nvidiaBaseUrl: defaults.nvidiaBaseUrl })
+  }
+  if (isViteDevServerUrl(next.deepseekBaseUrl) || next.deepseekBaseUrl.includes('/api/deepseek')) {
+    assign({ deepseekBaseUrl: defaults.deepseekBaseUrl })
+  }
+
+  return next
+}
+
 function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
+  if (typeof window !== 'undefined' && isElectron()) {
+    return s
+  }
   if (typeof window !== 'undefined' && isLanWebClient()) {
     return stripCloudSecrets({
       ...s,
@@ -1569,12 +1618,14 @@ export function loadSettings(): AppSettings {
     merged = { ...defaults }
   }
 
-  return applyWebRuntimeOverrides(merged)
+  return applyWebRuntimeOverrides(sanitizeDesktopServiceUrls(merged))
 }
 
 export function saveSettings(s: AppSettings): void {
   const toSave =
-    typeof window !== 'undefined' && isLanWebClient() ? stripCloudSecrets(s) : s
+    typeof window !== 'undefined' && isLanWebClient() && !isElectron()
+      ? stripCloudSecrets(s)
+      : s
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
 }
 

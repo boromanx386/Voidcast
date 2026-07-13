@@ -541,7 +541,7 @@ const CODING_SEARCH_FILES_TOOL: OllamaToolDefinition = {
   function: {
     name: 'search_files',
     description:
-      'Search file contents under the coding project using a plain-text query (case-insensitive, literal substring—fixed string, not regex). When ripgrep (rg) is on PATH, search uses it for speed; otherwise a built-in walk runs the same query. Both paths share the same source-like extension list and skip the same heavy folders (node_modules, dist, .git, etc.). Ripgrep is run with --no-ignore and --hidden so match sets stay close to the fallback walk, which does not read .gitignore and does enter most dot-directories except a fixed skip list.',
+      'Search file contents under the coding project using a plain-text query (case-insensitive, literal substring—fixed string, not regex). Results are ranked by relevance (filename/path match, definition-like lines, recent files) and returned as contextual blocks with a few lines before/after each match—not a flat dump of every hit. Uses a bundled ripgrep binary in the desktop app (override with VOIDCAST_RG_PATH, or system rg on PATH as fallback); if ripgrep is unavailable, a built-in walk runs the same query. Both paths share the same source-like extension list and skip the same heavy folders (node_modules, dist, .git, etc.). Ripgrep is run with --no-ignore and --hidden so match sets stay close to the fallback walk, which does not read .gitignore and does enter most dot-directories except a fixed skip list. Use read_file for full contents of promising paths.',
     parameters: {
       type: 'object',
       properties: {

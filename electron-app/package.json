@@ -27,6 +27,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@vscode/ripgrep": "^1.18.0",
     "cheerio": "^1.2.0",
     "electron-updater": "^6.3.9",
     "highlight.js": "^11.11.1",

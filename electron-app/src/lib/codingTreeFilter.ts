@@ -1,29 +1,9 @@
 import type { CodingFileNode } from '@/types/coding'
+import { shouldSkipCodingProjectDir } from '@/lib/codingProjectSkip'
 
-/** Align with electron `shouldSkipCodingWalkDir` — hide heavy / generated dirs in the panel tree. */
+/** Hide heavy / generated dirs in the panel tree (shared skip list with search/glob). */
 export function shouldSkipCodingTreeDirName(name: string): boolean {
-  if (name.startsWith('.')) {
-    return (
-      name === '.git' ||
-      name === '.next' ||
-      name === '.turbo' ||
-      name === '.cache' ||
-      name === '.venv'
-    )
-  }
-  return (
-    name === 'node_modules' ||
-    name === 'dist' ||
-    name === 'build' ||
-    name === 'coverage' ||
-    name === 'target' ||
-    name === 'out' ||
-    name === '__pycache__' ||
-    name === 'venv' ||
-    name === 'Pods' ||
-    name === '.gradle' ||
-    name === 'DerivedData'
-  )
+  return shouldSkipCodingProjectDir(name)
 }
 
 export function filterCodingTreeEntries(entries: CodingFileNode[]): CodingFileNode[] {

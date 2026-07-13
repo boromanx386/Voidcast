@@ -4,6 +4,7 @@ import {
   readFileToolDisplayPrefix,
   type FileLineEndings,
 } from '@/lib/codingEol'
+import { formatSearchResults } from '@/lib/codingSearch'
 
 function missingBridgeResult(action: string): CodingToolResult {
   return { ok: false, text: `${action} is available only in Electron desktop.` }
@@ -100,7 +101,7 @@ export async function invokeEditCodingFile(
 export async function invokeSearchCodingFiles(
   projectPath: string,
   query: string,
-  options?: { pathPrefix?: string },
+  options?: { pathPrefix?: string; recentFiles?: string[] },
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingSearchFiles
   if (!fn) return missingBridgeResult('Search files')
@@ -108,11 +109,10 @@ export async function invokeSearchCodingFiles(
     projectPath,
     query,
     pathPrefix: options?.pathPrefix,
+    recentFiles: options?.recentFiles,
   })
   if (!res.ok) return { ok: false, text: res.error || 'Search failed.' }
-  if (res.matches.length === 0) return { ok: true, text: 'No matches.' }
-  const lines = res.matches.map((m) => `${m.path}:${m.line}: ${m.text}`)
-  return { ok: true, text: lines.join('\n') }
+  return { ok: true, text: formatSearchResults(res.result) }
 }
 
 export async function invokeGlobCodingFiles(

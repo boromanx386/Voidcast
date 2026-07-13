@@ -1,4 +1,5 @@
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
+import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import { isElectron, usesServerCloudProxy } from './platform'
 import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
@@ -284,6 +285,9 @@ export async function streamOpenRouterChat(
   const extra = compactOpenRouterOptions(options.modelOptions)
   const models = [options.model]
   const apiLabel = apiLabelForBaseUrl(root)
+  const cloudProvider =
+    apiLabel === 'DeepSeek' ? 'deepseek' : apiLabel === 'NVIDIA' ? 'nvidia' : 'openrouter'
+  assertCloudLlmApiKey(cloudProvider, options.apiKey)
   let res: Response | null = null
   let lastErr = ''
 

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`search_files` ranked harness**: collects up to 2000 raw matches, scores by filename/path/definition-like lines and recent session files, returns contextual blocks (±2 lines, `>>>` markers) with a top-files summary instead of a flat line dump.
+- **Bundled ripgrep**: desktop builds ship `@vscode/ripgrep` (`VOIDCAST_RG_PATH` override, then system `rg`, then walk fallback). No manual ripgrep install required on Windows.
+- **Shared coding skip list** (`codingProjectSkip.ts`): one source for search, glob, and file-tree exclusions (`release/`, `dist-electron/`, minified/hashed bundles, etc.).
+- **Unit tests** for search ranking/formatting, project skip rules, and Vite dev URL detection.
+
+### Changed
+
+- **`search_files` tool copy** and README: document ranked contextual output and bundled ripgrep.
+- **File tree**: hides `release/` and `dist-electron/` like other generated folders.
+
+### Fixed
+
+- **Settings startup race**: first React paint before Electron preload could treat the desktop shell as LAN web, strip cloud API keys from `localStorage`, and point `ttsBaseUrl`/cloud API bases at the Vite dev server (`localhost:5173`). Detection now falls back to the Electron user agent; desktop save/load never strips secrets; Vite URLs are repaired on load; missing cloud keys show a clear error instead of opaque 401s.
+- **Search noise**: `release/`, `dist-electron/`, and Vite/Rollup hashed bundles no longer dominate `search_files` results.
+
 ## [2.7.2] — 2026-07-12
 
 ### Added

@@ -618,6 +618,8 @@ export async function executeToolCall(
     userImagePaths?: string[]
     /** Coding project path — coding tools + project skill resolution for read_skill. */
     codingProjectPath?: string
+    /** Recently touched files from coding session memo (boosts search ranking). */
+    codingRecentFiles?: string[]
     /** Latest user message text for override-policy checks. */
     userText?: string
     /** When true, read_skill is allowed. */
@@ -1451,7 +1453,10 @@ export async function executeToolCall(
     if (!query) return 'Error: missing query parameter for search_files.'
     const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
     return (
-      await invokeSearchCodingFiles(projectPath, query, pathPrefix ? { pathPrefix } : undefined)
+      await invokeSearchCodingFiles(projectPath, query, {
+        pathPrefix: pathPrefix || undefined,
+        recentFiles: ctx.codingRecentFiles,
+      })
     ).text
   }
   if (name === 'glob_files') {
@@ -1715,6 +1720,8 @@ export type RunChatWithToolsParams = {
   /** Optional source paths matching `userImages` indexes. */
   userImagePaths?: string[]
   codingProjectPath?: string
+  /** Recently touched files from coding session memo (boosts search ranking). */
+  codingRecentFiles?: string[]
   /** User-typed message only (no catalog/file hint blocks). Used for forced web_search / scrape heuristics. */
   rawUserText?: string
   /** Sub-agent config for image_recall delegation. */
@@ -1903,6 +1910,7 @@ export async function runOllamaChatWithTools(
         userImageMimes: params.userImageMimes,
         userImagePaths: params.userImagePaths,
         codingProjectPath: params.codingProjectPath,
+        codingRecentFiles: params.codingRecentFiles,
         userText: rawUserText,
         skillsEnabled: Boolean(params.skillsEnabled),
         agentMode: params.agentMode,
