@@ -670,6 +670,31 @@ const CODING_GIT_SHOW_TOOL: OllamaToolDefinition = {
   },
 }
 
+const CODING_CHECK_TYPES_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'check_types',
+    description:
+      'Run TypeScript typecheck (tsc --noEmit) in the coding project. Use after editing .ts/.tsx files to catch type errors before claiming the fix is complete. Read-only — safe in Plan mode. Requires tsconfig.json in the check root (project root or path_prefix subfolder).',
+    parameters: {
+      type: 'object',
+      properties: {
+        path_prefix: {
+          type: 'string',
+          description:
+            'Optional subdirectory inside the project where tsconfig.json lives (e.g. electron-app). Default: project root.',
+        },
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Optional list of project-relative file paths to limit reported errors (useful after editing specific files).',
+        },
+      },
+    },
+  },
+}
+
 const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
   type: 'function',
   function: {
@@ -873,6 +898,7 @@ export function buildOllamaToolsList(
     out.push(CODING_GIT_DIFF_TOOL)
     out.push(CODING_GIT_LOG_TOOL)
     out.push(CODING_GIT_SHOW_TOOL)
+    out.push(CODING_CHECK_TYPES_TOOL)
     if (!planMode) out.push(CODING_EXECUTE_COMMAND_TOOL)
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)

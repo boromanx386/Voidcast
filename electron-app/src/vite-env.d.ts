@@ -159,6 +159,12 @@ interface VoidcastBridge {
     showPath?: string
   }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
+  codingCheckTypes: (payload: {
+    projectPath: string
+    pathPrefix?: string
+    paths?: string[]
+  }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
   codingExecuteCommand: (payload: {
     projectPath: string
     command: string

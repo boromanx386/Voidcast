@@ -20,6 +20,7 @@ export type AgentToolUiPhase =
   | 'coding_search'
   | 'coding_glob'
   | 'coding_git'
+  | 'coding_typecheck'
   | 'coding_shell'
   | 'settings'
   | 'reminder'
@@ -65,6 +66,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
     case 'git_log':
     case 'git_show':
       return 'coding_git'
+    case 'check_types':
+      return 'coding_typecheck'
     case 'execute_command':
       return 'coding_shell'
     case 'update_settings':

@@ -131,6 +131,7 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `search_files` (bundled ripgrep; walk fallback)
 - `glob_files`
 - `git_status`, `git_diff`, `git_log`, `git_show`
+- `check_types` — TypeScript only (`tsc --noEmit`; use `path_prefix` when `tsconfig.json` is in a subfolder)
 - `execute_command` (with timeout + background support)
 
 All coding operations are scoped to your configured project directory.

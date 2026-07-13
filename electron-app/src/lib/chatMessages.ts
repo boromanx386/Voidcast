@@ -79,6 +79,7 @@ Tool choice (call the right one first):
 - edit_code — patch an existing file (preferred over write_file when changing part of a file).
 - execute_command — run shell commands (build, test, npm, git via shell only when no dedicated git tool fits).
 - git_status / git_diff / git_log / git_show — repo inspection without guessing.
+- check_types — run TypeScript typecheck (tsc --noEmit) after editing .ts/.tsx files; use path_prefix when tsconfig lives in a subfolder.
 
 Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. If you need contents before editing, call read_file first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
 

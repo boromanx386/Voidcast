@@ -43,6 +43,12 @@ import {
   type CodingSearchRawMatch,
   type ScoredSearchMatch,
 } from '../../src/lib/codingSearch'
+import {
+  filterTscDiagnostics,
+  formatTypecheckReport,
+  normalizeTypecheckPath,
+  parseTscDiagnostics,
+} from '../../src/lib/codingTypecheck'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -1843,6 +1849,102 @@ ipcMain.handle(
         ok: true as const,
         text: truncateGitOutput(trimmed ? trimmed : '(no diff)'),
       }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+const TYPECHECK_COMMAND_TIMEOUT_MS = 120_000
+
+function resolveTscCommand(cwd: string): { command: string; args: string[] } | null {
+  const tscJs = path.join(cwd, 'node_modules', 'typescript', 'bin', 'tsc')
+  if (existsSync(tscJs)) {
+    return { command: process.execPath, args: [tscJs, '--noEmit', '--pretty', 'false'] }
+  }
+  const localBin = path.join(cwd, 'node_modules', '.bin', process.platform === 'win32' ? 'tsc.cmd' : 'tsc')
+  if (existsSync(localBin)) {
+    return { command: localBin, args: ['--noEmit', '--pretty', 'false'] }
+  }
+  return null
+}
+
+function typecheckRootLabel(projectRoot: string, checkCwd: string): string {
+  const rel = path.relative(projectRoot, checkCwd)
+  if (!rel || rel === '.') return 'project root'
+  return normalizeTypecheckPath(rel)
+}
+
+ipcMain.handle(
+  'voidcast:coding-check-types',
+  async (
+    _evt,
+    payload: { projectPath?: string; pathPrefix?: string; paths?: string[] },
+  ) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      if (!projectPath) return { ok: false as const, error: 'Missing projectPath.' }
+      const root = path.resolve(projectPath)
+      const pathPrefix = String(payload?.pathPrefix ?? '').trim()
+      let checkCwd: string
+      try {
+        checkCwd = pathPrefix ? resolveInsideProject(root, pathPrefix) : root
+      } catch (e) {
+        return {
+          ok: false as const,
+          error: e instanceof Error ? e.message : 'Invalid path_prefix.',
+        }
+      }
+      const tsconfigPath = path.join(checkCwd, 'tsconfig.json')
+      if (!existsSync(tsconfigPath)) {
+        const where = typecheckRootLabel(root, checkCwd)
+        return {
+          ok: false as const,
+          error: `No tsconfig.json in ${where}. Set path_prefix to the package folder that contains tsconfig.json.`,
+        }
+      }
+      const tsc = resolveTscCommand(checkCwd)
+      if (!tsc) {
+        return {
+          ok: false as const,
+          error:
+            'TypeScript not found in node_modules. Run npm install (or pnpm/yarn install) in the check root first.',
+        }
+      }
+      const r = await captureSpawnCommand({
+        command: tsc.command,
+        args: tsc.args,
+        cwd: checkCwd,
+        timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
+        timeoutLabel: 'Typecheck',
+        notFoundMessage: 'TypeScript compiler (tsc) not found.',
+      })
+      const label = typecheckRootLabel(root, checkCwd)
+      if (!r.ok) {
+        return {
+          ok: true as const,
+          text: formatTypecheckReport({
+            checkRootLabel: label,
+            diagnostics: [],
+            exitCode: 1,
+            timedOut: /timed out/i.test(r.error),
+            rawOutput: r.error,
+          }),
+        }
+      }
+      const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
+      const parsed = parseTscDiagnostics(rawOutput)
+      const filterPaths = Array.isArray(payload?.paths)
+        ? payload.paths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+        : []
+      const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
+      const text = formatTypecheckReport({
+        checkRootLabel: label,
+        diagnostics,
+        exitCode: r.code,
+        rawOutput,
+      })
+      return { ok: true as const, text }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }

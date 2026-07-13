@@ -56,6 +56,7 @@ const TOOL_PHASE_UI: Record<
   coding_search: { icon: '◇', label: 'CODING_FIND', className: 'coding' },
   coding_glob: { icon: '◎', label: 'CODING_GLOB', className: 'coding' },
   coding_git: { icon: '⎇', label: 'CODING_GIT', className: 'coding' },
+  coding_typecheck: { icon: 'τ', label: 'TYPECHECK', className: 'coding' },
   coding_shell: { icon: '$', label: 'CODING_SHELL', className: 'coding' },
   settings: { icon: '⚙', label: 'APP_SETTINGS', className: 'settings' },
   reminder: { icon: '⧗', label: 'REMINDER', className: 'reminder' },

@@ -154,6 +154,15 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: true; text: string }
       | { ok: false; error?: string }
     >,
+  codingCheckTypes: (payload: {
+    projectPath: string
+    pathPrefix?: string
+    paths?: string[]
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-check-types', payload) as Promise<
+      | { ok: true; text: string }
+      | { ok: false; error?: string }
+    >,
   codingExecuteCommand: (payload: {
     projectPath: string
     command: string

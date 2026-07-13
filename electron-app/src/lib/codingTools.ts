@@ -189,6 +189,20 @@ export async function invokeCodingGit(
   return { ok: res.ok, text: res.ok ? res.text : res.error || 'Git command failed.' }
 }
 
+export async function invokeCheckCodingTypes(
+  projectPath: string,
+  options?: { pathPrefix?: string; paths?: string[] },
+): Promise<CodingToolResult> {
+  const fn = window.voidcast?.codingCheckTypes
+  if (!fn) return missingBridgeResult('Check types')
+  const res = await fn({
+    projectPath,
+    pathPrefix: options?.pathPrefix,
+    paths: options?.paths,
+  })
+  return { ok: res.ok, text: res.ok ? res.text : res.error || 'Typecheck failed.' }
+}
+
 export async function invokeExecuteCodingCommand(
   projectPath: string,
   command: string,

@@ -37,6 +37,7 @@ import {
   invokeExecuteCodingCommand,
   invokeEditCodingFile,
   invokeCodingGit,
+  invokeCheckCodingTypes,
   invokeGlobCodingFiles,
   invokeListCodingDirectory,
   invokeReadCodingFile,
@@ -1527,6 +1528,21 @@ export async function executeToolCall(
         mode: 'show',
         showRef: ref,
         showPath: showPath || undefined,
+      })
+    ).text
+  }
+  if (name === 'check_types') {
+    if (!toolsEnabled.coding) return 'Error: check_types tool is disabled in settings.'
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
+    const paths = Array.isArray(args.paths)
+      ? args.paths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+      : undefined
+    return (
+      await invokeCheckCodingTypes(projectPath, {
+        pathPrefix: pathPrefix || undefined,
+        paths,
       })
     ).text
   }

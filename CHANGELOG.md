@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`check_types` coding tool**: read-only TypeScript typecheck (`tsc --noEmit`) scoped to the coding project. Supports `path_prefix` for monorepo subfolders (e.g. `electron-app`) and optional `paths` to filter errors after edits. Available in Plan mode. Unit tests for `tsc` output parsing.
+
+### Changed
+
+- **Coding tool hints** and Options → Tools copy: document `check_types` alongside git and shell tools.
+
 ## [2.7.5] — 2026-07-13
 
 ### Added
