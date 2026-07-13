@@ -87,7 +87,7 @@ export function ChatComposer({ app }: Props) {
 
   return (
     <footer className="voidcast-input-area">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-4xl">
         <input
           id="voidcast-chat-attach-input"
           ref={chatAttachmentInputRef as RefObject<HTMLInputElement>}

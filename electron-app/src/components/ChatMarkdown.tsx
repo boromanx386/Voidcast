@@ -48,7 +48,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
 
 const components: Components = {
   p: ({ children }) => (
-    <p className="mb-3 last:mb-0 min-w-0 break-words [overflow-wrap:anywhere]">{children}</p>
+    <p className="mb-3 last:mb-0 min-w-0 break-words">{children}</p>
   ),
   strong: ({ children }) => (
     <strong className="font-semibold text-neon-cyan">{children}</strong>
@@ -66,7 +66,7 @@ const components: Components = {
   li: ({ children }) => (
     <li className="leading-relaxed flex items-start gap-2 min-w-0">
       <span className="text-neon-cyan mt-1 shrink-0">▸</span>
-      <span className="min-w-0 flex-1 break-all [overflow-wrap:anywhere]">{children}</span>
+      <span className="min-w-0 flex-1 break-words">{children}</span>
     </li>
   ),
   h1: ({ children }) => (
@@ -97,7 +97,7 @@ const components: Components = {
   a: ({ href, children }) => (
     <a
       href={href}
-      className="break-all [overflow-wrap:anywhere] text-neon-cyan underline decoration-neon-cyan/30 underline-offset-2 hover:text-neon-magenta hover:decoration-neon-magenta/50 transition-colors"
+      className="break-all text-neon-cyan underline decoration-neon-cyan/30 underline-offset-2 hover:text-neon-magenta hover:decoration-neon-magenta/50 transition-colors"
       target="_blank"
       rel="noopener noreferrer"
     >
@@ -137,7 +137,7 @@ const components: Components = {
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-t border-void-dim/20 px-3 py-2 text-void-light break-all [overflow-wrap:anywhere]">
+    <td className="border-t border-void-dim/20 px-3 py-2 text-void-light break-words">
       {children}
     </td>
   ),
@@ -174,7 +174,7 @@ type Props = {
 export const ChatMarkdown = memo(function ChatMarkdown({ content, className }: Props) {
   return (
     <div
-      className={`min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-[15px] leading-[1.7] text-void-light font-body ${className ?? ''}`}
+      className={`min-w-0 max-w-full break-words text-[15px] leading-[1.7] text-void-light font-body ${className ?? ''}`}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}

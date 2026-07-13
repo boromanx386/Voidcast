@@ -114,16 +114,16 @@
 
 /* Message bubbles */
 .message-container {
-  @apply max-w-[85%] min-w-0 mb-4;
+  @apply min-w-0 mb-4;
 }
 
 .message-container.user {
-  /* Full column width up to cap — short messages no longer shrink to a tiny strip */
+  /* Narrower strip, right-aligned — short messages still use most of the cap */
   @apply ml-auto w-[85%] max-w-[85%];
 }
 
 .message-container.assistant {
-  @apply mr-auto;
+  @apply mr-auto w-full max-w-full;
 }
 
 .message-bubble {
@@ -1091,12 +1091,12 @@
     @apply overflow-x-hidden px-2 py-3;
   }
 
-  .message-container {
-    @apply max-w-[min(95%,36rem)] min-w-0;
-  }
-
   .message-container.user {
     @apply w-[min(95%,36rem)] max-w-[min(95%,36rem)];
+  }
+
+  .message-container.assistant {
+    @apply w-full max-w-full;
   }
 
   .voidcast-sidebar {

@@ -65,7 +65,7 @@ export function ChatMessageList({ app }: Props) {
       onScroll={onChatScroll}
       className="voidcast-messages min-h-0 flex-1 overflow-y-auto"
     >
-      <div className="mx-auto max-w-3xl flex flex-col gap-4">
+      <div className="mx-auto max-w-4xl flex flex-col gap-4">
         {/* Empty State */}
         {messages.length === 0 && (
           <div

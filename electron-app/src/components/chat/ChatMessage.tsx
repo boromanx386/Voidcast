@@ -396,7 +396,7 @@ export function ChatMessage({
           </div>
         ) : (
           <div
-            className="min-w-0 max-w-full overflow-hidden text-void-white whitespace-pre-wrap break-words [overflow-wrap:anywhere] space-y-2 rounded px-1 -mx-1"
+            className="min-w-0 max-w-full overflow-hidden text-void-white whitespace-pre-wrap break-words space-y-2 rounded px-1 -mx-1"
           >
             {m.images && m.images.length > 0 && (
               <div className="flex flex-wrap gap-2">
