@@ -224,10 +224,7 @@ Cross-chat memory is stored locally in IndexedDB:
 
 **Reminders** also live locally, with optional **desktop notifications** (Windows toast when due). Reminders participate in the same LAN sync as long memory.
 
-<p align="center">
-  <img src="demos/voidcast-options-general-9x16.png" width="700" alt="Long-term memory settings"/>
-</p>
-<p align="center"><em>Edit or delete memories and reminders directly in Options.</em></p>
+
 
 ---
 
@@ -277,6 +274,10 @@ Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for t
 ## LAN web UI — chat from your phone
 
 Phone/tablet access is **opt-in**. On the desktop app open **Options → General → LAN_WEB_ACCESS**, turn it on, then scan the QR code (or copy the shown URL). When the toggle is off, cloud API keys stay only in desktop storage and are not registered on the tools server.
+
+<p align="center">
+  <img src="demos/voidcast-options-general-9x16.png" width="700" alt="General options - LAN web access"/>
+</p>
 
 The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces). With LAN web access enabled, open on your phone:
 
