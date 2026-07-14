@@ -88,7 +88,7 @@ The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NI
 In **Options → Media → Music tool**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20) or **ACE-Step v1.5 Base** (higher quality, steps up to 300). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
 
 <p align="center">
-  <img src="demos/voidcast-options-image-runware.png" width="700" alt="Media options panel"/>
+  <img src="demos/voidcast-options-image-runware-9x16.png" width="700" alt="Media options panel"/>
 </p>
 <p align="center"><em>Options → Media: image generation/edit and music tool selection.</em></p>
 
@@ -99,7 +99,7 @@ Enable **SAVE_PDF** and set **PDF_OUTPUT_DIR** in **Options → Tools** (folder 
 Supports Markdown-lite (headings, lists, tables, bold). Images can come from chat attachments or Runware URLs from a prior image/music turn. Works on desktop and LAN web.
 
 <p align="center">
-  <img src="demos/voidcast-options-tools.png" width="700" alt="Tools options panel"/>
+  <img src="demos/voidcast-options-tools-9x16.png" width="700" alt="Tools options panel"/>
 </p>
 <p align="center"><em>Options → Tools: enable SAVE_PDF and set PDF_OUTPUT_DIR; the agent writes formatted PDFs with no save dialog.</em></p>
 
@@ -119,12 +119,12 @@ In the chat composer, switch **AGENT | PLAN**:
 - **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel + auto-checked steps as files are written/edited or commands run). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after real tool progress.
 
 <p align="center">
-  <img src="demos/voidcast-options-skills.png" width="700" alt="Skills tab"/>
+  <img src="demos/voidcast-options-skills-9x16.png" width="700" alt="Skills tab"/>
 </p>
 <p align="center"><em>Options → SKILLS: global and project skills with source labels, loaded on demand via read_skill.</em></p>
 
 <p align="center">
-  <img src="demos/voidcast-options-sub.png" width="700" alt="Sub-agent options panel"/>
+  <img src="demos/voidcast-options-sub-9x16.png" width="700" alt="Sub-agent options panel"/>
 </p>
 <p align="center"><em>Options → SUB: configure sub-agent behavior.</em></p>
 
@@ -207,7 +207,7 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 Local and small-context models hit a wall after long chats. When prompt usage nears the model limit (~90% of `num_ctx`), Voidcast can **auto-compress** (toggle in **Options → LLM**): it summarizes older turns into a hidden memory buffer (provider-aware) and injects that into the system prompt on later turns. **The full chat stays visible in the UI**; only new messages after compression are sent again as raw turns to the model. Use **COMPRESS** in the context warning banner to compress manually when auto is off.
 
 <p align="center">
-  <img src="demos/voidcast-options-llm-openrouter.png" width="700" alt="LLM options panel"/>
+  <img src="demos/voidcast-options-llm-openrouter-9x16.png" width="700" alt="LLM options panel"/>
 </p>
 <p align="center"><em>Options → LLM: pick a provider (Ollama, OpenRouter, NVIDIA NIM, DeepSeek), set context compression, and thinking level.</em></p>
 
@@ -225,7 +225,7 @@ Cross-chat memory is stored locally in IndexedDB:
 **Reminders** also live locally, with optional **desktop notifications** (Windows toast when due). Reminders participate in the same LAN sync as long memory.
 
 <p align="center">
-  <img src="demos/voidcast-options-general-memory-reminders.png" width="700" alt="Long-term memory settings"/>
+  <img src="demos/voidcast-options-general-9x16.png" width="700" alt="Long-term memory settings"/>
 </p>
 <p align="center"><em>Edit or delete memories and reminders directly in Options.</em></p>
 
@@ -268,7 +268,7 @@ Other UX features:
 Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for typical costs.
 
 <p align="center">
-  <img src="demos/voidcast-options-tts.png" width="700" alt="TTS/STT options panel"/>
+  <img src="demos/voidcast-options-tts-9x16.png" width="700" alt="TTS/STT options panel"/>
 </p>
 <p align="center"><em>Options → TTS: choose local OmniVoice or cloud TTS/STT providers.</em></p>
 
