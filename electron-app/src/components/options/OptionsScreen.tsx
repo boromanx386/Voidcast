@@ -99,7 +99,7 @@ export function OptionsScreen({ app }: Props) {
 
         {/* Content */}
         <main className="options-panel flex-1 overflow-y-auto">
-          <div className="cyber-panel p-6 max-w-2xl mx-auto">
+          <div className="cyber-panel p-6 max-w-4xl mx-auto">
             <div className="corner-tl" />
             <div className="corner-tr" />
             <div className="corner-bl" />

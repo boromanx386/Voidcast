@@ -709,6 +709,40 @@ function quantizeToStep16(value: number): number {
   return Math.round(value / 16) * 16
 }
 
+export function fitModelDimensions(
+  modelId: string,
+  rawWidth: number,
+  rawHeight: number,
+): {
+  width: number
+  height: number
+  adjusted: boolean
+  notes: string[]
+} {
+  const model = modelId.trim()
+  if (isGptImage2Model(model)) {
+    // GPT-Image-2: full pixel-area constrained + step-16 snapped (unchanged)
+    return fitGptImage2Dimensions(rawWidth, rawHeight)
+  }
+
+  const isZTurbo = isZImageTurboModel(model)
+  const minSide = isZTurbo ? 128 : 256
+  const maxSide = 2048
+
+  const originalW = clamp(Math.round(rawWidth), minSide, maxSide)
+  const originalH = clamp(Math.round(rawHeight), minSide, maxSide)
+  let w = quantizeToStep16(originalW)
+  let h = quantizeToStep16(originalH)
+  w = clamp(w, minSide, maxSide)
+  h = clamp(h, minSide, maxSide)
+
+  const adjusted = w !== originalW || h !== originalH
+  const notes: string[] = []
+  if (adjusted) notes.push(`size_adjusted_for_model: ${originalW}x${originalH} -> ${w}x${h}`)
+
+  return { width: w, height: h, adjusted, notes }
+}
+
 export function fitGptImage2Dimensions(width: number, height: number): {
   width: number
   height: number
@@ -787,22 +821,9 @@ export async function invokeRunwareGenerateImage(
   if (!model) throw new Error('Runware model is not set. Configure it in Options → Media.')
   const proxyBaseUrl = resolveRunwareProxyBaseUrl(config.proxyBaseUrl)
   const isGptImage2 = isGptImage2Model(model)
-  const isZImageTurbo = isZImageTurboModel(model)
 
-  // Resolution is always sourced from the active Options profile.
-  const rawWidth = isGptImage2
-    ? clamp(Math.round(config.width), 480, 3840)
-    : isZImageTurbo
-      ? clamp(Math.round(config.width), 128, 2048)
-    : clamp(Math.round(config.width), 256, 2048)
-  const rawHeight = isGptImage2
-    ? clamp(Math.round(config.height), 480, 3840)
-    : isZImageTurbo
-      ? clamp(Math.round(config.height), 128, 2048)
-    : clamp(Math.round(config.height), 256, 2048)
-  const fitted = isGptImage2
-    ? fitGptImage2Dimensions(rawWidth, rawHeight)
-    : { width: rawWidth, height: rawHeight, adjusted: false, notes: [] as string[] }
+  // Resolution: model-aware clamping + step-16 snapping for all models.
+  const fitted = fitModelDimensions(model, config.width, config.height)
   const width = fitted.width
   const height = fitted.height
   const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? config.steps), 1, 80)
@@ -862,8 +883,8 @@ export async function invokeRunwareGenerateImage(
     cost: first?.cost,
     elapsedMs,
   })
-  if (isGptImage2 && fitted.adjusted) {
-    return `${out}\nsize_adjusted_for_model: ${rawWidth}x${rawHeight} -> ${width}x${height}`
+  if (fitted.adjusted) {
+    return `${out}\n${fitted.notes.join('\n')}`
   }
   return out
 }
@@ -897,27 +918,14 @@ export async function invokeRunwareEditImage(
   }
 
   const isGptImage2 = isGptImage2Model(model)
-  const isZImageTurbo = isZImageTurboModel(model)
   const modelRefs = isGptImage2 ? refs.slice(0, 16) : refs
   const editDefaultWidth = config.editDefaults?.width ?? config.width
   const editDefaultHeight = config.editDefaults?.height ?? config.height
   const editDefaultSteps = config.editDefaults?.steps ?? config.steps
   const editDefaultCfgScale = config.editDefaults?.cfgScale ?? config.cfgScale
   const editDefaultGptQuality = normalizeGptQuality(config.editDefaults?.gptQuality) ?? 'auto'
-  // Resolution is always sourced from the active edit profile in Options.
-  const rawWidth = isGptImage2
-    ? clamp(Math.round(editDefaultWidth), 480, 3840)
-    : isZImageTurbo
-      ? clamp(Math.round(editDefaultWidth), 128, 2048)
-    : clamp(Math.round(editDefaultWidth), 256, 2048)
-  const rawHeight = isGptImage2
-    ? clamp(Math.round(editDefaultHeight), 480, 3840)
-    : isZImageTurbo
-      ? clamp(Math.round(editDefaultHeight), 128, 2048)
-    : clamp(Math.round(editDefaultHeight), 256, 2048)
-  const fitted = isGptImage2
-    ? fitGptImage2Dimensions(rawWidth, rawHeight)
-    : { width: rawWidth, height: rawHeight, adjusted: false, notes: [] as string[] }
+  // Resolution: model-aware clamping + step-16 snapping for all models.
+  const fitted = fitModelDimensions(model, editDefaultWidth, editDefaultHeight)
   const width = fitted.width
   const height = fitted.height
   const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? editDefaultSteps), 1, 80)
@@ -979,9 +987,6 @@ export async function invokeRunwareEditImage(
   const notes: string[] = []
   if (isGptImage2 && refs.length > 16) {
     notes.push(`reference_images_limited_for_model: used 16 of ${refs.length}`)
-  }
-  if (isGptImage2 && fitted.adjusted) {
-    notes.push(`size_adjusted_for_model: ${rawWidth}x${rawHeight} -> ${width}x${height}`)
   }
   for (const n of fitted.notes) notes.push(n)
   if (isGptImage2 && negativePrompt) {
