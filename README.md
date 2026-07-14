@@ -81,14 +81,16 @@ Available tools:
 
 The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, and **DeepSeek** (direct API — no OpenRouter free-tier routing).
 
-<p align="center">
-  <img src="demos/voidcast-chat-reddit-briefing.png" width="700" alt="Reddit briefing in chat"/>
-</p>
-<p align="center"><em>Agent pulls Reddit threads and formats them inline with links and emoji.</em></p>
+
 
 ### Music (Runware)
 
 In **Options → Media → Music tool**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20) or **ACE-Step v1.5 Base** (higher quality, steps up to 300). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
+
+<p align="center">
+  <img src="demos/voidcast-options-image-runware.png" width="700" alt="Media options panel"/>
+</p>
+<p align="center"><em>Options → Media: image generation/edit and music tool selection.</em></p>
 
 ### PDF Export
 
@@ -97,9 +99,9 @@ Enable **SAVE_PDF** and set **PDF_OUTPUT_DIR** in **Options → Tools** (folder 
 Supports Markdown-lite (headings, lists, tables, bold). Images can come from chat attachments or Runware URLs from a prior image/music turn. Works on desktop and LAN web.
 
 <p align="center">
-  <img src="demos/voidcast-chat-pdf-export-with-chart.png" width="700" alt="PDF export with embedded chart"/>
+  <img src="demos/voidcast-options-tools.png" width="700" alt="Tools options panel"/>
 </p>
-<p align="center"><em>Ask the agent to generate a chart and export it as a formatted PDF.</em></p>
+<p align="center"><em>Options → Tools: enable SAVE_PDF and set PDF_OUTPUT_DIR; the agent writes formatted PDFs with no save dialog.</em></p>
 
 ### Agent Skills
 
@@ -116,10 +118,15 @@ In the chat composer, switch **AGENT | PLAN**:
 - **Plan** — read-only tools only (list/read/search/git inspect). The agent proposes a structured plan card with editable steps and, when useful, competing approaches. Prefer a single flat plan; A/B (rarely C/D) only for real tradeoffs. Pick an approach, edit steps, or use **Something else…** / **Revise plan** for your own idea — then **Approve & Build**. A banner above the composer reminds you that edits are blocked until approval; Plan mode has its own empty-state copy.
 - **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel + auto-checked steps as files are written/edited or commands run). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after real tool progress.
 
-<!--
-  Screenshot placeholder: demos/voidcast-options-skills-tab.png
-  Add a screenshot of the Skills tab (listing global + project skills with source labels) here.
--->
+<p align="center">
+  <img src="demos/voidcast-options-skills.png" width="700" alt="Skills tab"/>
+</p>
+<p align="center"><em>Options → SKILLS: global and project skills with source labels, loaded on demand via read_skill.</em></p>
+
+<p align="center">
+  <img src="demos/voidcast-options-sub.png" width="700" alt="Sub-agent options panel"/>
+</p>
+<p align="center"><em>Options → SUB: configure sub-agent behavior.</em></p>
 
 ---
 
@@ -199,6 +206,11 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 
 Local and small-context models hit a wall after long chats. When prompt usage nears the model limit (~90% of `num_ctx`), Voidcast can **auto-compress** (toggle in **Options → LLM**): it summarizes older turns into a hidden memory buffer (provider-aware) and injects that into the system prompt on later turns. **The full chat stays visible in the UI**; only new messages after compression are sent again as raw turns to the model. Use **COMPRESS** in the context warning banner to compress manually when auto is off.
 
+<p align="center">
+  <img src="demos/voidcast-options-llm-openrouter.png" width="700" alt="LLM options panel"/>
+</p>
+<p align="center"><em>Options → LLM: pick a provider (Ollama, OpenRouter, NVIDIA NIM, DeepSeek), set context compression, and thinking level.</em></p>
+
 ---
 
 ## Long-Term Memory
@@ -254,6 +266,11 @@ Other UX features:
 - **Speech-to-Text** — OpenRouter Whisper (push-to-talk; inexpensive per recording)
 
 Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for typical costs.
+
+<p align="center">
+  <img src="demos/voidcast-options-tts.png" width="700" alt="TTS/STT options panel"/>
+</p>
+<p align="center"><em>Options → TTS: choose local OmniVoice or cloud TTS/STT providers.</em></p>
 
 ---
 
