@@ -705,7 +705,7 @@ function normalizeImageDataUri(value: string): string {
   return `data:image/png;base64,${cleaned}`
 }
 
-function quantizeToStep16(value: number): number {
+export function quantizeToStep16(value: number): number {
   return Math.round(value / 16) * 16
 }
 

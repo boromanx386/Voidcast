@@ -102,6 +102,14 @@ interface VoidcastBridge {
     | { ok: false; error?: string }
   >
 
+  /** Start/stop recursive fs.watch on the coding project (null/empty stops). */
+  codingWatchProject: (payload: {
+    projectPath: string | null
+  }) => Promise<{ ok: true } | { ok: false; error?: string }>
+
+  /** Fired (debounced) when files change under the watched coding project. */
+  onCodingFsChange: (callback: () => void) => () => void
+
   codingReadFile: (payload: {
     projectPath: string
     path: string

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { rgPath as bundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
@@ -26,6 +26,7 @@ import { scrapePublicUrlToText } from './scrape'
 import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
+  isCodingGeneratedArtifactPath,
   shouldSkipCodingProjectDir,
 } from '../../src/lib/codingProjectSkip'
 import {
@@ -641,6 +642,7 @@ async function createWindow() {
 }
 
 app.on('will-quit', () => {
+  stopCodingProjectWatch()
   killTrackedToolsServerSync()
   globalShortcut.unregisterAll()
 })
@@ -1338,6 +1340,90 @@ ipcMain.handle('voidcast:coding-pick-directory', async () => {
   if (result.canceled || !result.filePaths?.[0]) return { ok: false as const }
   return { ok: true as const, path: result.filePaths[0] }
 })
+
+/** Live disk watch → renderer refreshes file tree / git colors when Explorer (etc.) mutates the project. */
+let codingProjectWatcher: FSWatcher | null = null
+let codingWatchProjectRoot = ''
+let codingFsChangeTimer: ReturnType<typeof setTimeout> | null = null
+const CODING_FS_CHANGE_DEBOUNCE_MS = 350
+
+function stopCodingProjectWatch(): void {
+  if (codingFsChangeTimer) {
+    clearTimeout(codingFsChangeTimer)
+    codingFsChangeTimer = null
+  }
+  if (codingProjectWatcher) {
+    try {
+      codingProjectWatcher.close()
+    } catch {
+      /* already closed */
+    }
+    codingProjectWatcher = null
+  }
+  codingWatchProjectRoot = ''
+}
+
+function emitCodingFsChange(): void {
+  if (!win || win.isDestroyed()) return
+  win.webContents.send('voidcast:coding-fs-change')
+}
+
+function scheduleCodingFsChange(): void {
+  if (codingFsChangeTimer) clearTimeout(codingFsChangeTimer)
+  codingFsChangeTimer = setTimeout(() => {
+    codingFsChangeTimer = null
+    emitCodingFsChange()
+  }, CODING_FS_CHANGE_DEBOUNCE_MS)
+}
+
+function shouldIgnoreCodingWatchPath(relPath: string | null | undefined): boolean {
+  if (!relPath) return false
+  const normalized = relPath.replace(/\\/g, '/')
+  // Ignore noise under heavy/generated folders; still notify for other project paths.
+  return isCodingGeneratedArtifactPath(normalized)
+}
+
+function startCodingProjectWatch(projectPath: string): { ok: true } | { ok: false; error: string } {
+  const root = path.resolve(projectPath.trim())
+  if (!root || !existsSync(root)) {
+    stopCodingProjectWatch()
+    return { ok: false as const, error: 'Coding project path does not exist.' }
+  }
+  if (codingWatchProjectRoot === root && codingProjectWatcher) {
+    return { ok: true as const }
+  }
+  stopCodingProjectWatch()
+  try {
+    codingProjectWatcher = watch(root, { recursive: true }, (_eventType, filename) => {
+      if (shouldIgnoreCodingWatchPath(filename?.toString())) return
+      scheduleCodingFsChange()
+    })
+    codingProjectWatcher.on('error', () => {
+      // Broken watcher (deleted project root, etc.) — tear down; renderer may re-subscribe.
+      stopCodingProjectWatch()
+    })
+    codingWatchProjectRoot = root
+    return { ok: true as const }
+  } catch (e) {
+    stopCodingProjectWatch()
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
+}
+
+ipcMain.handle(
+  'voidcast:coding-watch-project',
+  async (_evt, payload: { projectPath?: string | null }) => {
+    const projectPath = String(payload?.projectPath ?? '').trim()
+    if (!projectPath) {
+      stopCodingProjectWatch()
+      return { ok: true as const }
+    }
+    return startCodingProjectWatch(projectPath)
+  },
+)
 
 ipcMain.handle(
   'voidcast:coding-list-directory',

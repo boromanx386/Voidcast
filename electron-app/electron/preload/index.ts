@@ -92,6 +92,15 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
+  codingWatchProject: (payload: { projectPath: string | null }) =>
+    ipcRenderer.invoke('voidcast:coding-watch-project', payload) as Promise<
+      { ok: true } | { ok: false; error?: string }
+    >,
+  onCodingFsChange: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('voidcast:coding-fs-change', listener)
+    return () => ipcRenderer.removeListener('voidcast:coding-fs-change', listener)
+  },
   codingReadFile: (payload: {
     projectPath: string
     path: string

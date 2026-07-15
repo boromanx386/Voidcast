@@ -27,6 +27,22 @@ export async function invokeListCodingDirectory(
   return { ok: true, entries: res.entries }
 }
 
+export async function invokeCodingWatchProject(
+  projectPath: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const fn = window.voidcast?.codingWatchProject
+  if (!fn) return { ok: false, error: 'Not available outside Electron.' }
+  const res = await fn({ projectPath })
+  if (!res.ok) return { ok: false, error: res.error || 'Watch project failed.' }
+  return { ok: true }
+}
+
+export function subscribeCodingFsChange(callback: () => void): () => void {
+  const fn = window.voidcast?.onCodingFsChange
+  if (!fn) return () => {}
+  return fn(callback)
+}
+
 export async function invokeReadCodingFile(
   projectPath: string,
   filePath: string,

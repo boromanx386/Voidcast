@@ -21,11 +21,13 @@ import {
 } from '@/lib/settings'
 import {
   invokeCodingGit,
+  invokeCodingWatchProject,
   invokeExecuteCodingCommand,
   invokeListCodingDirectory,
   invokePickCodingDirectory,
   invokeReadCodingFile,
   invokeWriteCodingFile,
+  subscribeCodingFsChange,
 } from '@/lib/codingTools'
 import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImagePreview'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
@@ -331,6 +333,23 @@ export function CodingPanel({
     if (fileTreeRevision === 0) return
     void refreshFileTreeInPlace()
   }, [fileTreeRevision, refreshFileTreeInPlace])
+
+  /** Disk mutations outside Voidcast (Explorer delete/rename, other apps) → refresh tree + git. */
+  useEffect(() => {
+    if (!projectPath) {
+      void invokeCodingWatchProject(null)
+      return
+    }
+    void invokeCodingWatchProject(projectPath)
+    const unsub = subscribeCodingFsChange(() => {
+      void refreshFileTreeInPlace()
+      setLocalGitBump((n) => n + 1)
+    })
+    return () => {
+      unsub()
+      void invokeCodingWatchProject(null)
+    }
+  }, [projectPath, refreshFileTreeInPlace])
 
   useEffect(() => {
     const feed = agentShellFeed
