@@ -22,12 +22,11 @@ import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionC
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import {
-  advancePlanStepsOnProgress,
+  applyPlanProgressUpdate,
   extractPlanArtifactFromReply,
   finalizePlanAfterBuild,
   formatPlanForBuildPrompt,
   formatPlanForRevisePrompt,
-  isPlanProgressToolResult,
   reopenPlanAsDraft,
   stripPlanJsonFenceFromContent,
 } from '@/lib/planArtifact'
@@ -466,6 +465,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       let replyText = ''
       let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
       let escalatedToPlan = false
+      let liveBuildPlan: PlanArtifact | undefined =
+        opts?.buildFromPlanMessageId
+          ? messages.find((m) => m.id === opts.buildFromPlanMessageId)?.plan ??
+            activeHistory.find((m) => m.id === opts.buildFromPlanMessageId)?.plan
+          : undefined
 
       try {
         if (useTools) {
@@ -476,6 +480,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             toolsEnabled: settings.toolsEnabled,
             skillsEnabled: skillsActive,
             agentMode: turnAgentMode,
+            getActiveBuildPlan: () => liveBuildPlan,
             ttsBaseUrl: settings.ttsBaseUrl,
             pdfOutputDir: effectivePdfOutputDir,
             runware: {
@@ -584,15 +589,19 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               )
               if (
                 opts?.buildFromPlanMessageId &&
-                isPlanProgressToolResult(payload.name, payload.result)
+                payload.name === 'update_plan_progress' &&
+                !/^error:/i.test(payload.result.trim())
               ) {
                 const planMsgId = opts.buildFromPlanMessageId
+                const args = payload.args ?? {}
                 setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === planMsgId && m.plan
-                      ? { ...m, plan: advancePlanStepsOnProgress(m.plan) }
-                      : m,
-                  ),
+                  prev.map((m) => {
+                    if (m.id !== planMsgId || !m.plan) return m
+                    const { plan, error } = applyPlanProgressUpdate(m.plan, args)
+                    if (error) return m
+                    liveBuildPlan = plan
+                    return { ...m, plan }
+                  }),
                 )
               }
             },

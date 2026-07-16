@@ -62,6 +62,7 @@ const TOOL_PHASE_UI: Record<
   reminder: { icon: '⧗', label: 'REMINDER', className: 'reminder' },
   skill: { icon: '✦', label: 'READ_SKILL', className: 'skill' },
   plan: { icon: '✎', label: 'PLAN_MODE', className: 'plan' },
+  plan_progress: { icon: '✓', label: 'PLAN_PROGRESS', className: 'plan' },
   other: { icon: '◈', label: 'TOOL', className: 'other' },
 }
 

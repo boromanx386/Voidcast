@@ -1,5 +1,5 @@
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
-import type { AgentChatMode } from '@/types/chat'
+import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
@@ -50,6 +50,8 @@ export type RunOpenRouterChatWithToolsParams = {
   skillsEnabled?: boolean
   /** Plan mode: read-only tool subset + executor hard gate. */
   agentMode?: AgentChatMode
+  /** Live approved plan during Approve & Build (for update_plan_progress). */
+  getActiveBuildPlan?: () => PlanArtifact | undefined
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
@@ -207,6 +209,7 @@ export async function runOpenRouterChatWithTools(
         codingRecentFiles: params.codingRecentFiles,
         skillsEnabled: Boolean(params.skillsEnabled),
         agentMode: params.agentMode,
+        getActiveBuildPlan: params.getActiveBuildPlan,
         subAgent: params.subAgent,
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,

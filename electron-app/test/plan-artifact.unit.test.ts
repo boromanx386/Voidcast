@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import {
   advancePlanStepsOnProgress,
+  applyPlanProgressUpdate,
   extractPlanArtifactFromReply,
   finalizePlanAfterBuild,
   formatPlanForBuildPrompt,
   formatPlanForRevisePrompt,
+  formatPlanProgressToolResult,
   isPlanProgressToolResult,
   markAllPlanStepsDone,
   normalizePlanArtifact,
@@ -121,7 +123,7 @@ describe('extractPlanArtifactFromReply', () => {
 })
 
 describe('formatPlanForBuildPrompt', () => {
-  test('includes title, approach, and numbered steps', () => {
+  test('includes title, approach, step ids, and progress tool hint', () => {
     const plan = extractPlanArtifactFromReply(`\`\`\`json plan
 {
   "title":"Ship",
@@ -134,10 +136,11 @@ describe('formatPlanForBuildPrompt', () => {
 \`\`\``)!
     const prompt = formatPlanForBuildPrompt(plan)
     expect(prompt).toContain('Build the approved plan')
+    expect(prompt).toContain('update_plan_progress')
     expect(prompt).toContain('Title: Ship')
     expect(prompt).toContain('Chosen approach: A')
-    expect(prompt).toContain('1. One')
-    expect(prompt).toContain('2. Two')
+    expect(prompt).toMatch(/1\. \[id=.+\] One/)
+    expect(prompt).toMatch(/2\. \[id=.+\] Two/)
   })
 })
 
@@ -163,7 +166,7 @@ describe('stripPlanJsonFenceFromContent', () => {
 })
 
 describe('auto-check progress', () => {
-  test('isPlanProgressToolResult gates errors', () => {
+  test('isPlanProgressToolResult gates errors (legacy heuristic)', () => {
     expect(isPlanProgressToolResult('write_file', 'Saved foo.ts')).toBe(true)
     expect(isPlanProgressToolResult('write_file', 'Error: denied')).toBe(false)
     expect(isPlanProgressToolResult('edit_code', 'Target snippet not found (10 lines)')).toBe(false)
@@ -171,7 +174,7 @@ describe('auto-check progress', () => {
     expect(isPlanProgressToolResult('read_file', 'ok')).toBe(false)
   })
 
-  test('advancePlanStepsOnProgress marks next step', () => {
+  test('advancePlanStepsOnProgress marks next step (legacy)', () => {
     const plan = extractPlanArtifactFromReply(`\`\`\`json plan
 {"title":"T","steps":["One","Two","Three"]}
 \`\`\``)!
@@ -179,6 +182,30 @@ describe('auto-check progress', () => {
     expect(a1.steps.map((s) => s.done)).toEqual([true, false, false])
     const a2 = advancePlanStepsOnProgress(a1)
     expect(a2.steps.map((s) => s.done)).toEqual([true, true, false])
+  })
+
+  test('applyPlanProgressUpdate marks by id and index', () => {
+    const plan = extractPlanArtifactFromReply(`\`\`\`json plan
+{"title":"T","steps":["One","Two","Three"]}
+\`\`\``)!
+    const byIndex = applyPlanProgressUpdate(plan, { step_index: 2 })
+    expect(byIndex.error).toBeUndefined()
+    expect(byIndex.matched).toBe(1)
+    expect(byIndex.plan.steps.map((s) => s.done)).toEqual([false, true, false])
+
+    const byId = applyPlanProgressUpdate(byIndex.plan, { step_ids: [plan.steps[0]!.id] })
+    expect(byId.plan.steps.map((s) => s.done)).toEqual([true, true, false])
+
+    const reopen = applyPlanProgressUpdate(byId.plan, { step_index: 2, status: 'pending' })
+    expect(reopen.plan.steps.map((s) => s.done)).toEqual([true, false, false])
+  })
+
+  test('applyPlanProgressUpdate errors without targets', () => {
+    const plan = extractPlanArtifactFromReply(`\`\`\`json plan
+{"title":"T","steps":["One"]}
+\`\`\``)!
+    expect(applyPlanProgressUpdate(plan, {}).error).toMatch(/step_ids/)
+    expect(formatPlanProgressToolResult(undefined, { step_index: 1 })).toMatch(/^Error:/)
   })
 
   test('markAllPlanStepsDone sets built', () => {
@@ -190,15 +217,15 @@ describe('auto-check progress', () => {
     expect(done.steps.every((s) => s.done)).toBe(true)
   })
 
-  test('finalizePlanAfterBuild requires progress', () => {
+  test('finalizePlanAfterBuild requires progress and keeps honest checks', () => {
     const plan = extractPlanArtifactFromReply(`\`\`\`json plan
 {"title":"T","steps":["One","Two"]}
 \`\`\``)!
     expect(finalizePlanAfterBuild({ ...plan, status: 'approved' }).status).toBe('draft')
-    const advanced = advancePlanStepsOnProgress({ ...plan, status: 'approved' })
-    const done = finalizePlanAfterBuild(advanced)
+    const partial = applyPlanProgressUpdate({ ...plan, status: 'approved' }, { step_index: 1 }).plan
+    const done = finalizePlanAfterBuild(partial)
     expect(done.status).toBe('built')
-    expect(done.steps.every((s) => s.done)).toBe(true)
+    expect(done.steps.map((s) => s.done)).toEqual([true, false])
   })
 
   test('reopenPlanAsDraft unlocks approved plan', () => {

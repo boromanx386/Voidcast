@@ -46,6 +46,7 @@ All notable changes to this project will be documented in this file.
 - **`image_recall` focus**: optional `focus` argument steers sub-agent vision (what the main agent needs from the image). Cache is keyed per image+focus; generic recalls (no focus) stay backward-compatible.
 - **OpenRouter provider lock**: Options → LLM optional **OPENROUTER_PROVIDER** slug below the model — when set, requests use `provider.only` with no fallbacks.
 - **Agent-initiated Plan mode** (`ENTER_PLAN_MODE` in Options → Tools): the agent can call `enter_plan_mode` on complex/risky tasks; handoff reuses the same user turn (no duplicate bubble) and preserves attachments.
+- **Explicit plan progress**: during Approve & Build the agent calls `update_plan_progress` (step id / 1-based index) to check off steps — file edits no longer auto-advance the checklist.
 
 ### Changed
 

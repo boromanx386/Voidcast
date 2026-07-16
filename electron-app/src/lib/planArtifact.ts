@@ -239,7 +239,7 @@ export function stripPlanJsonFenceFromContent(text: string): string {
 export function formatPlanForBuildPrompt(plan: PlanArtifact): string {
   const lines = [
     'Build the approved plan. Implement it with the available tools. Do not ask for another plan unless blocked.',
-    'As you complete each step, the UI will auto-check progress — keep implementing in order.',
+    'When you finish a step, call update_plan_progress with that step_id (or 1-based step_index) before moving on. The UI only checks steps when you call this tool — file edits alone do not advance the checklist.',
     '',
     `Title: ${plan.title}`,
   ]
@@ -255,7 +255,8 @@ export function formatPlanForBuildPrompt(plan: PlanArtifact): string {
   }
   lines.push('Steps:')
   plan.steps.forEach((s, i) => {
-    lines.push(`${i + 1}. ${s.text}`)
+    const flag = s.done ? ' [done]' : ''
+    lines.push(`${i + 1}. [id=${s.id}]${flag} ${s.text}`)
   })
   return lines.join('\n')
 }
@@ -294,7 +295,7 @@ export function formatPlanForRevisePrompt(plan: PlanArtifact, customNote: string
   return lines.join('\n')
 }
 
-/** Tools that count as meaningful build progress for auto-checking steps. */
+/** Tools that used to auto-advance steps heuristically (kept for tests / legacy). Prefer update_plan_progress. */
 export const PLAN_PROGRESS_TOOLS = new Set([
   'write_file',
   'edit_code',
@@ -306,6 +307,89 @@ export function isPlanProgressToolResult(name: string, result: string): boolean 
   const r = result.trim()
   if (!r) return false
   return !isCodingToolFailure(name, result)
+}
+
+function collectNumberList(raw: unknown): number[] {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return [raw]
+  if (!Array.isArray(raw)) return []
+  return raw.filter((n): n is number => typeof n === 'number' && Number.isFinite(n))
+}
+
+function collectStringList(raw: unknown): string[] {
+  if (typeof raw === 'string' && raw.trim()) return [raw.trim()]
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean)
+}
+
+/** Apply update_plan_progress tool args onto a plan checklist. */
+export function applyPlanProgressUpdate(
+  plan: PlanArtifact,
+  args: Record<string, unknown>,
+): { plan: PlanArtifact; matched: number; error?: string } {
+  const statusRaw = typeof args.status === 'string' ? args.status.trim().toLowerCase() : 'done'
+  const done = !(statusRaw === 'pending' || statusRaw === 'undone' || statusRaw === 'open')
+
+  const ids = new Set<string>([
+    ...collectStringList(args.step_ids),
+    ...collectStringList(args.step_id),
+  ])
+  const indexes = new Set<number>([
+    ...collectNumberList(args.step_indexes),
+    ...collectNumberList(args.step_index),
+  ])
+
+  if (ids.size === 0 && indexes.size === 0) {
+    return {
+      plan,
+      matched: 0,
+      error: 'Provide step_ids and/or step_indexes (1-based).',
+    }
+  }
+
+  let matched = 0
+  const steps = plan.steps.map((s, i) => {
+    const hit = ids.has(s.id) || indexes.has(i + 1)
+    if (!hit) return s
+    matched += 1
+    return { ...s, done }
+  })
+
+  if (matched === 0) {
+    return {
+      plan,
+      matched: 0,
+      error: 'No matching plan steps for the given ids/indexes.',
+    }
+  }
+
+  return { plan: { ...plan, steps }, matched }
+}
+
+/** Format executeToolCall result for update_plan_progress. */
+export function formatPlanProgressToolResult(
+  plan: PlanArtifact | undefined,
+  args: Record<string, unknown>,
+): string {
+  if (!plan) {
+    return 'Error: no active approved plan to update. Progress updates apply during Approve & Build.'
+  }
+  const { plan: next, matched, error } = applyPlanProgressUpdate(plan, args)
+  if (error) return `Error: ${error}`
+  const statusRaw = typeof args.status === 'string' ? args.status.trim().toLowerCase() : 'done'
+  const done = !(statusRaw === 'pending' || statusRaw === 'undone' || statusRaw === 'open')
+  const marked = next.steps
+    .filter((s, i) => {
+      const ids = new Set([...collectStringList(args.step_ids), ...collectStringList(args.step_id)])
+      const indexes = new Set([
+        ...collectNumberList(args.step_indexes),
+        ...collectNumberList(args.step_index),
+      ])
+      return ids.has(s.id) || indexes.has(i + 1)
+    })
+    .map((s) => s.text)
+  return `Marked ${matched} step(s) ${done ? 'done' : 'pending'}: ${marked.join('; ') || '(ok)'}`
 }
 
 /** Plan currently being executed (approved + agent busy). */
@@ -323,7 +407,7 @@ export function findActiveBuildingPlan(
   return null
 }
 
-/** Mark the next incomplete step as done (one step per successful progress tool). */
+/** Mark the next incomplete step as done (legacy heuristic — prefer applyPlanProgressUpdate). */
 export function advancePlanStepsOnProgress(plan: PlanArtifact): PlanArtifact {
   const idx = plan.steps.findIndex((s) => !s.done)
   if (idx < 0) return plan
@@ -348,13 +432,13 @@ export function reopenPlanAsDraft(plan: PlanArtifact): PlanArtifact {
 }
 
 /**
- * After Approve & Build finishes: mark built only if auto-check made progress.
- * No progress tools → reopen as draft so the user can retry (don't fake ✓).
+ * After Approve & Build finishes: set built if the agent marked any progress.
+ * Keeps step checks honest (does not force remaining steps to ✓).
  */
 export function finalizePlanAfterBuild(plan: PlanArtifact): PlanArtifact {
   const anyProgress = plan.steps.some((s) => s.done === true)
   if (!anyProgress) return reopenPlanAsDraft(plan)
-  return markAllPlanStepsDone(plan)
+  return { ...plan, status: 'built' }
 }
 
 export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {

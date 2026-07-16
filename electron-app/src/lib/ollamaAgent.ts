@@ -1,4 +1,5 @@
 import { readAgentSkillBody } from '@/lib/agentSkills'
+import { formatPlanProgressToolResult } from '@/lib/planArtifact'
 import {
   AGENT_EDITABLE_SETTINGS_FIELDS,
   RUNWARE_CONFIGURED_MODELS,
@@ -16,7 +17,7 @@ import { addReminder, listReminders, deleteReminder, updateReminder, searchRemin
 import { recordReminderDeleted } from '@/lib/userDataSync'
 import type { LongMemoryKind } from '@/types/longMemory'
 import { buildOllamaToolsList, isPlanModeBlockedTool } from '@/lib/toolDefinitions'
-import type { AgentChatMode } from '@/types/chat'
+import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import { invokeWebSearch } from '@/lib/webSearch'
 import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
@@ -627,6 +628,8 @@ export async function executeToolCall(
     skillsEnabled?: boolean
     /** Plan mode blocks mutating tools even if registered. */
     agentMode?: AgentChatMode
+    /** Live approved plan during Approve & Build (for update_plan_progress). */
+    getActiveBuildPlan?: () => PlanArtifact | undefined
     /** Sub-agent config for image_recall delegation. */
     subAgent?: SubAgentConfig
     /** Keys for sub-agent API calls (from main app settings). */
@@ -652,6 +655,9 @@ export async function executeToolCall(
   }
   if (name === 'enter_plan_mode') {
     return 'Switching to Plan mode.'
+  }
+  if (name === 'update_plan_progress') {
+    return formatPlanProgressToolResult(ctx.getActiveBuildPlan?.(), args)
   }
   if (name === 'read_skill') {
     if (!ctx.skillsEnabled) {
@@ -1714,6 +1720,8 @@ export type RunChatWithToolsParams = {
   skillsEnabled?: boolean
   /** Plan mode: read-only tool subset + executor hard gate. */
   agentMode?: AgentChatMode
+  /** Live approved plan during Approve & Build (for update_plan_progress). */
+  getActiveBuildPlan?: () => PlanArtifact | undefined
   /** Same host as TTS; used for `POST /tools/search` (DDGS). */
   ttsBaseUrl: string
   signal?: AbortSignal
@@ -1930,6 +1938,7 @@ export async function runOllamaChatWithTools(
         userText: rawUserText,
         skillsEnabled: Boolean(params.skillsEnabled),
         agentMode: params.agentMode,
+        getActiveBuildPlan: params.getActiveBuildPlan,
         subAgent: params.subAgent,
         ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
         openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,

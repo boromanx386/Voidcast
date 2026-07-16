@@ -116,7 +116,7 @@ With coding tools on, Voidcast also injects **`AGENTS.md` / `CLAUDE.md`** from t
 In the chat composer, switch **AGENT | PLAN**:
 
 - **Plan** — read-only tools only (list/read/search/git inspect). The agent proposes a structured plan card with editable steps and, when useful, competing approaches. Prefer a single flat plan; A/B (rarely C/D) only for real tradeoffs. Pick an approach, edit steps, or use **Something else…** / **Revise plan** for your own idea — then **Approve & Build**. A banner above the composer reminds you that edits are blocked until approval; Plan mode has its own empty-state copy.
-- **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel + auto-checked steps as files are written/edited or commands run). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after real tool progress.
+- **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel). The agent marks steps done via `update_plan_progress` (not guessed from file edits). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after at least one step was checked off.
 
 <p align="center">
   <img src="demos/voidcast-options-skills-9x16.png" width="700" alt="Skills tab"/>

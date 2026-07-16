@@ -14,6 +14,7 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'add_reminder',
   'delete_reminder',
   'update_reminder',
+  'update_plan_progress',
 ])
 
 export function isPlanModeBlockedTool(name: string): boolean {
@@ -864,6 +865,43 @@ const ENTER_PLAN_MODE_TOOL: OllamaToolDefinition = {
   },
 }
 
+const UPDATE_PLAN_PROGRESS_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'update_plan_progress',
+    description:
+      'Mark one or more approved-plan steps as done (or reopen them) while implementing. Call this when you finish a plan step — do not rely on the UI guessing from file edits. Prefer step_ids from the build prompt; otherwise use 1-based step_indexes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        step_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Plan step id(s) from the build prompt (e.g. ps-…).',
+        },
+        step_id: {
+          type: 'string',
+          description: 'Single plan step id (alias for step_ids with one entry).',
+        },
+        step_indexes: {
+          type: 'array',
+          items: { type: 'number', minimum: 1 },
+          description: '1-based step number(s) matching the numbered Steps list.',
+        },
+        step_index: {
+          type: 'number',
+          description: 'Single 1-based step number (alias for step_indexes).',
+        },
+        status: {
+          type: 'string',
+          enum: ['done', 'pending'],
+          description: 'done (default) marks complete; pending clears the check.',
+        },
+      },
+    },
+  },
+}
+
 export function buildOllamaToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
@@ -903,6 +941,7 @@ export function buildOllamaToolsList(
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)
   if (enabled.enterPlan && !planMode) out.push(ENTER_PLAN_MODE_TOOL)
+  if (!planMode) out.push(UPDATE_PLAN_PROGRESS_TOOL)
   if (!planMode) out.push(UPDATE_SETTINGS_TOOL)
   if (!planMode) out.push(ADD_REMINDER_TOOL)
   out.push(LIST_REMINDERS_TOOL)
