@@ -389,6 +389,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         activeRunwareEditProfile,
         activeRunwareMusicProfile,
         skillsActive,
+        mcpActive,
+        mcpTools,
       } = turnContext
 
       const openRouterImageProfile = getOpenRouterImageProfile(settings)
@@ -457,7 +459,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setToolPhase(null)
       setToolResultBanner(null)
 
-      const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive)
+      const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive)
 
       const ac = new AbortController()
       abortRef.current = ac
@@ -479,6 +481,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
             toolsEnabled: settings.toolsEnabled,
             skillsEnabled: skillsActive,
+            mcpEnabled: mcpActive,
+            mcpTools,
             agentMode: turnAgentMode,
             getActiveBuildPlan: () => liveBuildPlan,
             ttsBaseUrl: settings.ttsBaseUrl,

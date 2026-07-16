@@ -27,9 +27,11 @@ export type AgentToolUiPhase =
   | 'skill'
   | 'plan'
   | 'plan_progress'
+  | 'mcp'
   | 'other'
 
 export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
+  if (name.startsWith('mcp__')) return 'mcp'
   switch (name) {
     case 'web_search':
       return 'search'

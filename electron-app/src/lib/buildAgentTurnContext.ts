@@ -45,6 +45,8 @@ import {
 } from '@/lib/agentSkills'
 import { PLAN_MODE_SYSTEM_HINT } from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
+import { ensureMcpToolsCached, type McpToolInfo } from '@/lib/mcpTools'
+import { isElectron } from '@/lib/platform'
 import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { LongMemoryItem } from '@/types/longMemory'
 
@@ -74,6 +76,9 @@ export type BuildAgentTurnContextResult = {
   activeRunwareMusicProfile: RunwareMusicModelProfile
   /** True when skills are enabled and at least one skill was discovered. */
   skillsActive: boolean
+  /** True when MCP is enabled and at least one MCP tool is available (not plan mode). */
+  mcpActive: boolean
+  mcpTools: McpToolInfo[]
 }
 
 export async function buildAgentTurnContext(
@@ -161,7 +166,12 @@ export async function buildAgentTurnContext(
     ? await discoverAgentSkills({ projectPath: codingProjectPath || undefined })
     : []
   const skillsActive = settings.skillsEnabled && discoveredSkills.length > 0
-  const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive)
+  const mcpTools =
+    settings.mcpEnabled && isElectron() && !planMode
+      ? await ensureMcpToolsCached(codingProjectPath || undefined)
+      : []
+  const mcpActive = settings.mcpEnabled && mcpTools.length > 0 && !planMode
+  const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive)
   const skillsSystemHint = skillsActive ? buildSkillsCatalogHint(discoveredSkills) : ''
   const projectInstructionFiles =
     settings.toolsEnabled.coding && codingProjectPath
@@ -171,6 +181,22 @@ export async function buildAgentTurnContext(
   const planModeSystemHint = planMode ? PLAN_MODE_SYSTEM_HINT : ''
   const toolsHintParts: string[] = []
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
+  if (mcpActive) {
+    const names = mcpTools
+      .slice(0, 40)
+      .map((t) => t.qualifiedName)
+      .join(', ')
+    toolsHintParts.push(
+      [
+        'MCP tools are available (external servers). Call them by their full names (mcp__server__tool).',
+        names
+          ? `Registered MCP tools (${mcpTools.length}): ${names}${mcpTools.length > 40 ? ', …' : ''}.`
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    )
+  }
   if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
   if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
   if (settings.toolsEnabled.reddit) toolsHintParts.push(TOOLS_REDDIT_HINT)
@@ -293,5 +319,7 @@ export async function buildAgentTurnContext(
     activeRunwareEditProfile,
     activeRunwareMusicProfile,
     skillsActive,
+    mcpActive,
+    mcpTools,
   }
 }

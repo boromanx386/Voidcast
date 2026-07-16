@@ -71,6 +71,73 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: false; error?: string; files: { fileName: string; content: string }[] }
     >,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
+  mcpListTools: (payload?: { projectPath?: string }) =>
+    ipcRenderer.invoke('voidcast:mcp-list-tools', payload) as Promise<
+      | {
+          ok: true
+          tools: {
+            serverId: string
+            name: string
+            qualifiedName: string
+            description: string
+            parameters: Record<string, unknown>
+          }[]
+        }
+      | {
+          ok: false
+          tools: {
+            serverId: string
+            name: string
+            qualifiedName: string
+            description: string
+            parameters: Record<string, unknown>
+          }[]
+          error?: string
+        }
+    >,
+  mcpExecuteTool: (payload: {
+    serverId?: string
+    toolName?: string
+    qualifiedName?: string
+    args?: Record<string, unknown>
+    projectPath?: string
+  }) =>
+    ipcRenderer.invoke('voidcast:mcp-execute-tool', payload) as Promise<
+      | { ok: true; result: string; qualifiedName?: string }
+      | { ok: false; result: string }
+    >,
+  mcpReload: (payload?: { projectPath?: string }) =>
+    ipcRenderer.invoke('voidcast:mcp-reload', payload) as Promise<
+      | {
+          ok: true
+          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+        }
+      | {
+          ok: false
+          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+          error?: string
+        }
+    >,
+  mcpStatus: (payload?: { projectPath?: string; ensure?: boolean }) =>
+    ipcRenderer.invoke('voidcast:mcp-status', payload) as Promise<
+      | {
+          ok: true
+          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+          configPath: string
+        }
+      | {
+          ok: false
+          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+          configPath: string
+          error?: string
+        }
+    >,
+  mcpOpenConfig: () =>
+    ipcRenderer.invoke('voidcast:mcp-open-config') as Promise<
+      { ok: true; path: string } | { ok: false; path?: string; error?: string }
+    >,
+  mcpStopAll: () =>
+    ipcRenderer.invoke('voidcast:mcp-stop-all') as Promise<{ ok: true }>,
   pickDirectory: () =>
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }

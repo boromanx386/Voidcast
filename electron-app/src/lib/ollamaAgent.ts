@@ -17,6 +17,7 @@ import { addReminder, listReminders, deleteReminder, updateReminder, searchRemin
 import { recordReminderDeleted } from '@/lib/userDataSync'
 import type { LongMemoryKind } from '@/types/longMemory'
 import { buildOllamaToolsList, isPlanModeBlockedTool } from '@/lib/toolDefinitions'
+import { executeMcpToolCall, isMcpToolName, type McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import { invokeWebSearch } from '@/lib/webSearch'
 import { invokeGetWeather } from '@/lib/weather'
@@ -626,6 +627,8 @@ export async function executeToolCall(
     userText?: string
     /** When true, read_skill is allowed. */
     skillsEnabled?: boolean
+    /** When true, MCP tools (mcp__*) may be executed. */
+    mcpEnabled?: boolean
     /** Plan mode blocks mutating tools even if registered. */
     agentMode?: AgentChatMode
     /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -652,6 +655,16 @@ export async function executeToolCall(
       : (argsJson as Record<string, unknown>) ?? {}
   if (ctx.agentMode === 'plan' && isPlanModeBlockedTool(name)) {
     return `Error: tool "${name}" is blocked in Plan mode (read-only). Propose a plan instead; the user can Approve & Build to implement.`
+  }
+  if (isMcpToolName(name)) {
+    if (!ctx.mcpEnabled) {
+      return 'Error: MCP tools are disabled in settings.'
+    }
+    try {
+      return await executeMcpToolCall(name, args, ctx.codingProjectPath)
+    } catch (e) {
+      return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`
+    }
   }
   if (name === 'enter_plan_mode') {
     return 'Switching to Plan mode.'
@@ -1718,6 +1731,10 @@ export type RunChatWithToolsParams = {
   toolsEnabled: ToolsEnabled
   /** When true, register read_skill and allow loading SKILL.md bodies. */
   skillsEnabled?: boolean
+  /** MCP tools discovered from configured servers (qualified names). */
+  mcpTools?: McpToolInfo[]
+  /** When true, allow executing mcp__* tools. */
+  mcpEnabled?: boolean
   /** Plan mode: read-only tool subset + executor hard gate. */
   agentMode?: AgentChatMode
   /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -1771,6 +1788,7 @@ export async function runOllamaChatWithTools(
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
     agentMode: params.agentMode,
+    mcpTools: params.mcpEnabled ? params.mcpTools : undefined,
   })
   if (tools.length === 0) {
     throw new Error('runOllamaChatWithTools called with no tools enabled')
@@ -1937,6 +1955,7 @@ export async function runOllamaChatWithTools(
         codingRecentFiles: params.codingRecentFiles,
         userText: rawUserText,
         skillsEnabled: Boolean(params.skillsEnabled),
+        mcpEnabled: Boolean(params.mcpEnabled),
         agentMode: params.agentMode,
         getActiveBuildPlan: params.getActiveBuildPlan,
         subAgent: params.subAgent,

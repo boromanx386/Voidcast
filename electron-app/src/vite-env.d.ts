@@ -82,6 +82,68 @@ interface VoidcastBridge {
 
   openPath: (filePath: string) => Promise<{ ok: boolean; text: string }>
 
+  mcpListTools: (payload?: { projectPath?: string }) => Promise<
+    | {
+        ok: true
+        tools: {
+          serverId: string
+          name: string
+          qualifiedName: string
+          description: string
+          parameters: Record<string, unknown>
+        }[]
+      }
+    | {
+        ok: false
+        tools: {
+          serverId: string
+          name: string
+          qualifiedName: string
+          description: string
+          parameters: Record<string, unknown>
+        }[]
+        error?: string
+      }
+  >
+
+  mcpExecuteTool: (payload: {
+    serverId?: string
+    toolName?: string
+    qualifiedName?: string
+    args?: Record<string, unknown>
+    projectPath?: string
+  }) => Promise<{ ok: true; result: string; qualifiedName?: string } | { ok: false; result: string }>
+
+  mcpReload: (payload?: { projectPath?: string }) => Promise<
+    | {
+        ok: true
+        status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+      }
+    | {
+        ok: false
+        status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+        error?: string
+      }
+  >
+
+  mcpStatus: (payload?: { projectPath?: string; ensure?: boolean }) => Promise<
+    | {
+        ok: true
+        status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+        configPath: string
+      }
+    | {
+        ok: false
+        status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+        configPath: string
+        error?: string
+      }
+  >
+
+  mcpOpenConfig: () => Promise<{ ok: true; path: string } | { ok: false; path?: string; error?: string }>
+
+  mcpStopAll: () => Promise<{ ok: true }>
+
   pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
 
   pickCodingDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>

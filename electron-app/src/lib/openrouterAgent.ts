@@ -1,4 +1,5 @@
 import { buildOllamaToolsList } from '@/lib/toolDefinitions'
+import type { McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
@@ -48,6 +49,10 @@ export type RunOpenRouterChatWithToolsParams = {
   toolsEnabled: ToolsEnabled
   /** When true, register read_skill and allow loading SKILL.md bodies. */
   skillsEnabled?: boolean
+  /** MCP tools discovered from configured servers (qualified names). */
+  mcpTools?: McpToolInfo[]
+  /** When true, allow executing mcp__* tools. */
+  mcpEnabled?: boolean
   /** Plan mode: read-only tool subset + executor hard gate. */
   agentMode?: AgentChatMode
   /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -91,6 +96,7 @@ export async function runOpenRouterChatWithTools(
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
     agentMode: params.agentMode,
+    mcpTools: params.mcpEnabled ? params.mcpTools : undefined,
   })
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
@@ -208,6 +214,7 @@ export async function runOpenRouterChatWithTools(
         codingProjectPath: params.codingProjectPath,
         codingRecentFiles: params.codingRecentFiles,
         skillsEnabled: Boolean(params.skillsEnabled),
+        mcpEnabled: Boolean(params.mcpEnabled),
         agentMode: params.agentMode,
         getActiveBuildPlan: params.getActiveBuildPlan,
         subAgent: params.subAgent,

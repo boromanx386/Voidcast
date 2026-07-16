@@ -24,6 +24,12 @@ import { rgPath as bundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
 import {
+  formatMcpToolName,
+  getGlobalMcpConfigPath,
+  mcpManager,
+  parseMcpToolName,
+} from './mcpManager'
+import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
   isCodingGeneratedArtifactPath,
@@ -644,6 +650,7 @@ async function createWindow() {
 app.on('will-quit', () => {
   stopCodingProjectWatch()
   killTrackedToolsServerSync()
+  void mcpManager.stopAll()
   globalShortcut.unregisterAll()
 })
 
@@ -681,6 +688,7 @@ app.on('activate', () => {
 // Handle before-quit to set isQuitting flag
 app.on('before-quit', () => {
   isQuitting = true
+  void mcpManager.stopAll()
 })
 
 ipcMain.handle(
@@ -2408,6 +2416,138 @@ ipcMain.handle('voidcast:open-path', async (_evt, filePath: string) => {
   } catch (e) {
     return { ok: false, text: e instanceof Error ? e.message : String(e) }
   }
+})
+
+// ── MCP (stdio servers from ~/.voidcast/mcp.json + project .mcp.json) ────────
+
+ipcMain.handle(
+  'voidcast:mcp-list-tools',
+  async (_evt, payload?: { projectPath?: string }) => {
+    try {
+      const projectPath =
+        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      await mcpManager.ensureConnected(projectPath || undefined)
+      return { ok: true as const, tools: mcpManager.listTools() }
+    } catch (e) {
+      return {
+        ok: false as const,
+        tools: [] as ReturnType<typeof mcpManager.listTools>,
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:mcp-execute-tool',
+  async (
+    _evt,
+    payload: {
+      serverId?: string
+      toolName?: string
+      qualifiedName?: string
+      args?: Record<string, unknown>
+      projectPath?: string
+    },
+  ) => {
+    try {
+      const projectPath =
+        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      await mcpManager.ensureConnected(projectPath || undefined)
+
+      let serverId = typeof payload?.serverId === 'string' ? payload.serverId.trim() : ''
+      let toolName = typeof payload?.toolName === 'string' ? payload.toolName.trim() : ''
+      const qualified =
+        typeof payload?.qualifiedName === 'string' ? payload.qualifiedName.trim() : ''
+      if ((!serverId || !toolName) && qualified) {
+        const parsed = parseMcpToolName(qualified)
+        if (parsed) {
+          serverId = parsed.serverId
+          toolName = parsed.toolName
+        }
+      }
+      if (!serverId || !toolName) {
+        return {
+          ok: false as const,
+          result: 'Error: missing MCP serverId/toolName (or qualifiedName).',
+        }
+      }
+      const args =
+        payload?.args && typeof payload.args === 'object' && !Array.isArray(payload.args)
+          ? payload.args
+          : {}
+      const result = await mcpManager.callTool(serverId, toolName, args)
+      return { ok: true as const, result, qualifiedName: formatMcpToolName(serverId, toolName) }
+    } catch (e) {
+      return {
+        ok: false as const,
+        result: `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`,
+      }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:mcp-reload',
+  async (_evt, payload?: { projectPath?: string }) => {
+    try {
+      const projectPath =
+        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      return await mcpManager.reload(projectPath || undefined)
+    } catch (e) {
+      return {
+        ok: false as const,
+        status: [] as ReturnType<typeof mcpManager.getStatus>,
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:mcp-status',
+  async (_evt, payload?: { projectPath?: string; ensure?: boolean }) => {
+    try {
+      const projectPath =
+        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      if (payload?.ensure) {
+        await mcpManager.ensureConnected(projectPath || undefined)
+      }
+      return {
+        ok: true as const,
+        status: mcpManager.getStatus(),
+        configPath: getGlobalMcpConfigPath(),
+      }
+    } catch (e) {
+      return {
+        ok: false as const,
+        status: [] as ReturnType<typeof mcpManager.getStatus>,
+        configPath: getGlobalMcpConfigPath(),
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
+
+ipcMain.handle('voidcast:mcp-open-config', async () => {
+  const ensured = await mcpManager.ensureGlobalConfigExists()
+  if (!ensured.ok) return { ok: false as const, error: ensured.error }
+  try {
+    const err = await shell.openPath(ensured.path)
+    if (err) return { ok: false as const, path: ensured.path, error: err }
+    return { ok: true as const, path: ensured.path }
+  } catch (e) {
+    return {
+      ok: false as const,
+      path: ensured.path,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
+})
+
+ipcMain.handle('voidcast:mcp-stop-all', async () => {
+  await mcpManager.stopAll()
+  return { ok: true as const }
 })
 
 ipcMain.handle('voidcast:get-app-version', () => {

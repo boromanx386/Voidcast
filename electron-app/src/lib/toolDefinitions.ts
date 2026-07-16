@@ -1,5 +1,9 @@
 import { AGENT_EDITABLE_SETTINGS_FIELDS, type ToolsEnabled } from '@/lib/settings'
 import type { AgentChatMode } from '@/types/chat'
+import {
+  convertMcpToolToOllama,
+  type McpToolInfo,
+} from '@/lib/mcpTools'
 
 /** Tools that mutate the system / filesystem / media — blocked in Plan mode. */
 export const PLAN_MODE_BLOCKED_TOOLS = new Set([
@@ -18,6 +22,7 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
 ])
 
 export function isPlanModeBlockedTool(name: string): boolean {
+  if (name.startsWith('mcp__')) return true
   return PLAN_MODE_BLOCKED_TOOLS.has(name)
 }
 
@@ -905,7 +910,7 @@ const UPDATE_PLAN_PROGRESS_TOOL: OllamaToolDefinition = {
 export function buildOllamaToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
-  opts?: { agentMode?: AgentChatMode },
+  opts?: { agentMode?: AgentChatMode; mcpTools?: McpToolInfo[] },
 ): OllamaToolDefinition[] {
   const planMode = opts?.agentMode === 'plan'
   const out: OllamaToolDefinition[] = []
@@ -949,10 +954,19 @@ export function buildOllamaToolsList(
     out.push(DELETE_REMINDER_TOOL)
     out.push(UPDATE_REMINDER_TOOL)
   }
+  if (opts?.mcpTools?.length && !planMode) {
+    for (const mcpTool of opts.mcpTools) {
+      out.push(convertMcpToolToOllama(mcpTool))
+    }
+  }
   return out
 }
 
-export function anyToolEnabled(enabled: ToolsEnabled, skillsEnabled = false): boolean {
+export function anyToolEnabled(
+  enabled: ToolsEnabled,
+  skillsEnabled = false,
+  mcpEnabled = false,
+): boolean {
   return (
     enabled.webSearch ||
     enabled.youtube ||
@@ -964,6 +978,7 @@ export function anyToolEnabled(enabled: ToolsEnabled, skillsEnabled = false): bo
     enabled.runwareMusic ||
     enabled.coding ||
     enabled.enterPlan ||
-    skillsEnabled
+    skillsEnabled ||
+    mcpEnabled
   )
 }

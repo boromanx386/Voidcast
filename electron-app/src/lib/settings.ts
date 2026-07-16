@@ -685,6 +685,11 @@ export type AppSettings = {
    */
   skillsEnabled: boolean
   /**
+   * Connect to MCP servers from ~/.voidcast/mcp.json (+ project .mcp.json)
+   * and register their tools with the agent (desktop only).
+   */
+  mcpEnabled: boolean
+  /**
    * Chat agent mode: `agent` implements with full tools; `plan` explores read-only
    * and produces an editable plan for Approve → Build.
    */
@@ -857,6 +862,7 @@ export const defaults: AppSettings = {
     enterPlan: true,
   },
   skillsEnabled: true,
+  mcpEnabled: false,
   agentMode: 'agent',
   coding: {
     enabled: true,
@@ -1018,6 +1024,7 @@ function normalizeTools(s: AppSettings): AppSettings {
     },
     skillsEnabled:
       typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
+    mcpEnabled: typeof s.mcpEnabled === 'boolean' ? s.mcpEnabled : defaults.mcpEnabled,
     coding: {
       enabled: codingEnabled,
       projectPath: codingProjectPath,

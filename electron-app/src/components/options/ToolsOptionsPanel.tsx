@@ -1,6 +1,6 @@
 import type { AppSettings } from '@/lib/settings'
 import { isElectron, isWebStandalone } from '@/lib/platform'
-import { useCallback, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 
 type Props = {
   settings: AppSettings
@@ -330,6 +330,182 @@ export function ToolsOptionsPanel({
           </div>
         )}
       </div>
+
+      {/* MCP Servers (desktop) */}
+      {isElectron() && (
+        <McpServersSection settings={settings} setSettings={setSettings} />
+      )}
+    </div>
+  )
+}
+
+function McpServersSection({
+  settings,
+  setSettings,
+}: {
+  settings: AppSettings
+  setSettings: Dispatch<SetStateAction<AppSettings>>
+}) {
+  const [status, setStatus] = useState<
+    { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+  >([])
+  const [configPath, setConfigPath] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const projectPath = (
+    settings.coding.projectPath ||
+    settings.codingProjectPath ||
+    ''
+  ).trim()
+
+  const refreshStatus = useCallback(
+    async (ensure: boolean) => {
+      if (!window.voidcast?.mcpStatus) return
+      const res = await window.voidcast.mcpStatus({
+        projectPath: projectPath || undefined,
+        ensure: ensure && settings.mcpEnabled,
+      })
+      setStatus(res.status ?? [])
+      setConfigPath(res.configPath ?? '')
+      if (!res.ok && res.error) setMessage(res.error)
+    },
+    [projectPath, settings.mcpEnabled],
+  )
+
+  useEffect(() => {
+    if (!settings.mcpEnabled) {
+      setStatus([])
+      return
+    }
+    void refreshStatus(true)
+  }, [settings.mcpEnabled, projectPath, refreshStatus])
+
+  const onReload = useCallback(async () => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const { reloadMcpServers } = await import('@/lib/mcpTools')
+      const res = await reloadMcpServers(projectPath || undefined)
+      setStatus(res.status)
+      if (!res.ok) {
+        setMessage(res.error || 'MCP reload failed')
+      } else {
+        setMessage(
+          res.status.length === 0
+            ? 'No MCP servers in config. Edit ~/.voidcast/mcp.json then Reload.'
+            : `Reloaded ${res.status.length} server(s), ${res.tools.length} tool(s).`,
+        )
+      }
+      await refreshStatus(false)
+    } finally {
+      setBusy(false)
+    }
+  }, [projectPath, refreshStatus])
+
+  const onOpenConfig = useCallback(async () => {
+    setMessage(null)
+    const res = await window.voidcast?.mcpOpenConfig?.()
+    if (!res?.ok) {
+      setMessage(res?.error || 'Could not open MCP config')
+      return
+    }
+    setConfigPath(res.path)
+    setMessage(`Opened ${res.path}`)
+  }, [])
+
+  return (
+    <div
+      className={`p-4 transition-all ${
+        settings.mcpEnabled
+          ? 'bg-neon-cyan/5 border border-neon-cyan/30'
+          : 'bg-void-black/50 border border-void-muted/30'
+      }`}
+    >
+      <ToolToggle
+        checked={settings.mcpEnabled}
+        onChange={(v) => {
+          setSettings((s) => ({ ...s, mcpEnabled: v }))
+          if (!v) {
+            void import('@/lib/mcpTools').then(({ clearMcpToolsCache }) => clearMcpToolsCache())
+            void window.voidcast?.mcpStopAll?.()
+            setStatus([])
+            setMessage(null)
+          }
+        }}
+        label="MCP_SERVERS"
+        icon="⬡"
+        iconColor="text-neon-yellow"
+        noBorder
+        description={
+          <>
+            Connect MCP servers from{' '}
+            <code className="text-void-light">~/.voidcast/mcp.json</code>
+            {projectPath ? (
+              <>
+                {' '}
+                (plus project <code className="text-void-light">.mcp.json</code>)
+              </>
+            ) : null}
+            . Supports <code className="text-void-light">command</code> (stdio) and{' '}
+            <code className="text-void-light">url</code> (HTTP/SSE). Tools appear as{' '}
+            <code className="text-void-light">mcp__server__tool</code>. Blocked in Plan mode.
+          </>
+        }
+      />
+      {settings.mcpEnabled && (
+        <div className="mt-4 border-t border-void-muted/20 pt-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="cyber-btn text-xs"
+              disabled={busy}
+              onClick={() => void onReload()}
+            >
+              {busy ? '...' : 'RELOAD'}
+            </button>
+            <button
+              type="button"
+              className="cyber-btn text-xs"
+              disabled={busy}
+              onClick={() => void onOpenConfig()}
+            >
+              OPEN_CONFIG
+            </button>
+          </div>
+          {configPath ? (
+            <p className="text-xs font-mono text-void-dim break-all">Config: {configPath}</p>
+          ) : null}
+          {status.length === 0 ? (
+            <p className="text-xs text-void-dim">
+              No servers connected. Add entries under <code className="text-void-light">mcpServers</code>{' '}
+              then Reload.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-xs font-mono">
+              {status.map((s) => (
+                <li key={s.id} className="text-void-light">
+                  <span
+                    className={
+                      s.state === 'running'
+                        ? 'text-neon-cyan'
+                        : s.state === 'error'
+                          ? 'text-neon-pink'
+                          : 'text-void-dim'
+                    }
+                  >
+                    [{s.state.toUpperCase()}]
+                  </span>{' '}
+                  {s.id}
+                  {s.state === 'running' ? ` — ${s.toolCount} tool(s)` : null}
+                  {s.error ? <span className="text-void-dim"> — {s.error}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {message ? <p className="text-xs text-void-dim">{message}</p> : null}
+        </div>
+      )}
     </div>
   )
 }
