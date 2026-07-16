@@ -690,6 +690,11 @@ export type AppSettings = {
    */
   mcpEnabled: boolean
   /**
+   * Per-server enable flags (server id from mcp.json). Missing key = enabled.
+   * Set to false to keep a server in config but not connect / expose tools.
+   */
+  mcpServerEnabled: Record<string, boolean>
+  /**
    * Chat agent mode: `agent` implements with full tools; `plan` explores read-only
    * and produces an editable plan for Approve → Build.
    */
@@ -863,6 +868,7 @@ export const defaults: AppSettings = {
   },
   skillsEnabled: true,
   mcpEnabled: false,
+  mcpServerEnabled: {},
   agentMode: 'agent',
   coding: {
     enabled: true,
@@ -1025,6 +1031,7 @@ function normalizeTools(s: AppSettings): AppSettings {
     skillsEnabled:
       typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
     mcpEnabled: typeof s.mcpEnabled === 'boolean' ? s.mcpEnabled : defaults.mcpEnabled,
+    mcpServerEnabled: normalizeMcpServerEnabled(s.mcpServerEnabled),
     coding: {
       enabled: codingEnabled,
       projectPath: codingProjectPath,
@@ -1036,6 +1043,26 @@ function normalizeTools(s: AppSettings): AppSettings {
     },
     codingProjectPath,
   }
+}
+
+/** Missing server id ⇒ enabled. Explicit `false` disables. */
+export function isMcpServerEnabled(
+  serverId: string,
+  map: Record<string, boolean> | undefined,
+): boolean {
+  if (!map || !(serverId in map)) return true
+  return map[serverId] !== false
+}
+
+function normalizeMcpServerEnabled(raw: unknown): Record<string, boolean> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, boolean> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const id = k.trim()
+    if (!id || id.includes('__')) continue
+    if (typeof v === 'boolean') out[id] = v
+  }
+  return out
 }
 
 const LLM_THINK_LEVELS = new Set<LlmThinkLevel>(['off', 'low', 'medium', 'high', 'on'])

@@ -2,7 +2,7 @@
  * MCP (Model Context Protocol) client manager.
  * Supports stdio (`command`) and remote (`url`) servers — Cursor-compatible mcp.json.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -43,7 +43,7 @@ export type McpToolInfo = {
 
 export type McpServerStatus = {
   id: string
-  state: 'running' | 'error' | 'stopped'
+  state: 'running' | 'error' | 'stopped' | 'disabled'
   toolCount: number
   error?: string
 }
@@ -205,6 +205,207 @@ function toolResultToString(result: {
   return text
 }
 
+/** Below this size, full MCP tool output stays in the model context (Claude ~50k layer). */
+export const MCP_RESULT_INLINE_MAX_CHARS = 50_000
+/** Preview size when full output is spilled to disk (Claude-style ~2KB). */
+export const MCP_RESULT_PREVIEW_CHARS = 2_000
+
+export function getMcpResultsDir(): string {
+  return path.join(os.homedir(), '.voidcast', 'mcp-results')
+}
+
+function safeToolFileStem(label: string): string {
+  const stem = label.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
+  return (stem || 'mcp-result').slice(0, 80)
+}
+
+/**
+ * Claude/Cursor pattern: keep full payload on disk; model gets path + short preview.
+ * Nothing is discarded — use mcp_read_result (or filters) to inspect the rest.
+ */
+export async function persistIfLargeMcpResult(
+  text: string,
+  toolLabel: string,
+): Promise<string> {
+  const raw = String(text ?? '')
+  if (raw.startsWith('Error:') || raw.length <= MCP_RESULT_INLINE_MAX_CHARS) {
+    return raw
+  }
+  const dir = getMcpResultsDir()
+  await mkdir(dir, { recursive: true })
+  const filePath = path.join(dir, `${Date.now()}-${safeToolFileStem(toolLabel)}.txt`)
+  await writeFile(filePath, raw, 'utf8')
+  const kb = (raw.length / 1024).toFixed(1)
+  const preview = raw.slice(0, MCP_RESULT_PREVIEW_CHARS)
+  return [
+    '<persisted-output>',
+    `Output too large (${kb}KB / ${raw.length.toLocaleString()} chars). Full output saved to:`,
+    filePath,
+    '',
+    'This is ONLY a preview — do not answer as if you saw the complete result.',
+    'To inspect more: mcp_read_result with this path + start_line/end_line, offset/max_chars,',
+    'or item_offset/item_limit/query when the file is a JSON array.',
+    'Prefer re-calling the MCP tool with a narrower filter when the server supports it.',
+    '',
+    `Preview (first ${MCP_RESULT_PREVIEW_CHARS} chars):`,
+    preview,
+    raw.length > MCP_RESULT_PREVIEW_CHARS ? '...' : '',
+    '</persisted-output>',
+  ].join('\n')
+}
+
+async function assertPathInsideMcpResults(filePath: string): Promise<string> {
+  const dir = path.resolve(getMcpResultsDir())
+  await mkdir(dir, { recursive: true })
+  const abs = path.resolve(filePath)
+  let realFile: string
+  let realDir: string
+  try {
+    realFile = await realpath(abs)
+    realDir = await realpath(dir)
+  } catch {
+    throw new Error(`MCP result file not found: ${filePath}`)
+  }
+  const rel = path.relative(realDir, realFile)
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('mcp_read_result can only read files under ~/.voidcast/mcp-results/')
+  }
+  return realFile
+}
+
+export type McpReadResultOpts = {
+  path: string
+  startLine?: number
+  endLine?: number
+  offset?: number
+  maxChars?: number
+  itemOffset?: number
+  itemLimit?: number
+  query?: string
+}
+
+/**
+ * Page a previously persisted MCP tool result (full data stays on disk).
+ */
+export async function readPersistedMcpResult(opts: McpReadResultOpts): Promise<string> {
+  const filePath = String(opts.path ?? '').trim()
+  if (!filePath) return 'Error: missing path for mcp_read_result.'
+  let abs: string
+  try {
+    abs = await assertPathInsideMcpResults(filePath)
+  } catch (e) {
+    return `Error: ${e instanceof Error ? e.message : String(e)}`
+  }
+  const content = await readFile(abs, 'utf8')
+  const query = typeof opts.query === 'string' ? opts.query.trim() : ''
+  const itemOffset =
+    typeof opts.itemOffset === 'number' && Number.isFinite(opts.itemOffset)
+      ? Math.max(0, Math.floor(opts.itemOffset))
+      : undefined
+  const itemLimit =
+    typeof opts.itemLimit === 'number' && Number.isFinite(opts.itemLimit)
+      ? Math.min(100, Math.max(1, Math.floor(opts.itemLimit)))
+      : undefined
+
+  const trimmed = content.trim()
+  if (
+    (itemOffset !== undefined || itemLimit !== undefined || query) &&
+    ((trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+      (trimmed.startsWith('{') && trimmed.endsWith('}')))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      let items: unknown[] | null = null
+      let wrapperKey: string | null = null
+      if (Array.isArray(parsed)) {
+        items = parsed
+      } else if (parsed && typeof parsed === 'object') {
+        for (const key of ['models', 'data', 'items', 'results', 'tools']) {
+          const v = (parsed as Record<string, unknown>)[key]
+          if (Array.isArray(v)) {
+            items = v
+            wrapperKey = key
+            break
+          }
+        }
+      }
+      if (items) {
+        let filtered = items
+        if (query) {
+          const q = query.toLowerCase()
+          filtered = items.filter((item) => JSON.stringify(item).toLowerCase().includes(q))
+        }
+        const from = itemOffset ?? 0
+        const lim = itemLimit ?? 20
+        const slice = filtered.slice(from, from + lim)
+        const payload =
+          wrapperKey != null
+            ? {
+                [wrapperKey]: slice,
+                _meta: {
+                  path: abs,
+                  total: filtered.length,
+                  from,
+                  count: slice.length,
+                  query: query || undefined,
+                },
+              }
+            : {
+                items: slice,
+                _meta: {
+                  path: abs,
+                  total: filtered.length,
+                  from,
+                  count: slice.length,
+                  query: query || undefined,
+                },
+              }
+        return JSON.stringify(payload, null, 2)
+      }
+    } catch {
+      /* fall through to text paging */
+    }
+  }
+
+  const startLine =
+    typeof opts.startLine === 'number' && Number.isFinite(opts.startLine)
+      ? Math.max(1, Math.floor(opts.startLine))
+      : undefined
+  const endLine =
+    typeof opts.endLine === 'number' && Number.isFinite(opts.endLine)
+      ? Math.max(1, Math.floor(opts.endLine))
+      : undefined
+  const offset =
+    typeof opts.offset === 'number' && Number.isFinite(opts.offset)
+      ? Math.max(0, Math.floor(opts.offset))
+      : 0
+  const maxChars =
+    typeof opts.maxChars === 'number' && Number.isFinite(opts.maxChars)
+      ? Math.min(50_000, Math.max(1, Math.floor(opts.maxChars)))
+      : 8_000
+
+  if (startLine !== undefined || endLine !== undefined) {
+    const lines = content.split(/\r?\n/)
+    const total = lines.length
+    const from = (startLine ?? 1) - 1
+    const to = (endLine ?? Math.min(from + 80, total)) - 1
+    const safeFrom = Math.max(0, Math.min(from, Math.max(0, total - 1)))
+    const safeTo = Math.max(safeFrom, Math.min(to, Math.max(0, total - 1)))
+    const numbered = lines.slice(safeFrom, safeTo + 1).map((line, i) => `${safeFrom + i + 1}| ${line}`)
+    return `${numbered.join('\n')}\n\n(lines ${safeFrom + 1}-${safeTo + 1} of ${total} in ${abs})`
+  }
+
+  const chunk = content.slice(offset, offset + maxChars)
+  const more = offset + maxChars < content.length
+  return [
+    chunk,
+    '',
+    `(chars ${offset + 1}-${offset + chunk.length} of ${content.length} in ${abs}` +
+      (more ? `; pass offset=${offset + maxChars} for next chunk` : '') +
+      ')',
+  ].join('\n')
+}
+
 function resolveStdioCommand(command: string): string {
   if (process.platform !== 'win32') return command
   const lower = command.toLowerCase()
@@ -272,15 +473,41 @@ async function safeClose(client: Client | null, transport: Transport | null): Pr
   }
 }
 
+function isServerEnabled(serverId: string, enabledMap?: Record<string, boolean>): boolean {
+  if (!enabledMap || !(serverId in enabledMap)) return true
+  return enabledMap[serverId] !== false
+}
+
+function enabledMapKey(projectPath: string, enabledMap?: Record<string, boolean>): string {
+  const sorted = Object.entries(enabledMap ?? {})
+    .filter(([, v]) => v === false)
+    .map(([k]) => k)
+    .sort()
+  return `${projectPath}::off=${sorted.join(',')}`
+}
+
 export class McpManager {
   private servers = new Map<string, RunningServer>()
-  /** null = never connected; string = project path key used for last successful ensure/reload */
-  private connectedForProject: string | null = null
+  /** null = never connected; string = project+enabled key for last successful ensure/reload */
+  private connectedKey: string | null = null
   private connectPromise: Promise<void> | null = null
+  private lastConfigIds: string[] = []
+  private lastEnabledMap: Record<string, boolean> = {}
 
   getStatus(): McpServerStatus[] {
     const out: McpServerStatus[] = []
-    for (const [id, entry] of this.servers) {
+    const ids =
+      this.lastConfigIds.length > 0 ? this.lastConfigIds : [...this.servers.keys()]
+    for (const id of ids) {
+      if (!isServerEnabled(id, this.lastEnabledMap)) {
+        out.push({ id, state: 'disabled', toolCount: 0 })
+        continue
+      }
+      const entry = this.servers.get(id)
+      if (!entry) {
+        out.push({ id, state: 'stopped', toolCount: 0 })
+        continue
+      }
       if (entry.error) {
         out.push({
           id,
@@ -301,35 +528,45 @@ export class McpManager {
 
   listTools(): McpToolInfo[] {
     const out: McpToolInfo[] = []
-    for (const entry of this.servers.values()) {
+    for (const [id, entry] of this.servers.entries()) {
       if (entry.error) continue
+      if (!isServerEnabled(id, this.lastEnabledMap)) continue
       out.push(...entry.tools)
     }
     return out
   }
 
-  async ensureConnected(projectPath?: string): Promise<void> {
+  async ensureConnected(
+    projectPath?: string,
+    enabledMap?: Record<string, boolean>,
+  ): Promise<void> {
     const project = (projectPath || '').trim()
+    const map = enabledMap ?? {}
+    const key = enabledMapKey(project, map)
     if (this.connectPromise) {
       await this.connectPromise
-      if (this.connectedForProject === project) return
-    } else if (this.connectedForProject === project) {
+      if (this.connectedKey === key) return
+    } else if (this.connectedKey === key) {
       return
     }
-    this.connectPromise = this.connectAll(project)
+    this.connectPromise = this.connectAll(project, map)
     try {
       await this.connectPromise
-      this.connectedForProject = project
+      this.connectedKey = key
     } finally {
       this.connectPromise = null
     }
   }
 
-  async reload(projectPath?: string): Promise<{ ok: true; status: McpServerStatus[] }> {
+  async reload(
+    projectPath?: string,
+    enabledMap?: Record<string, boolean>,
+  ): Promise<{ ok: true; status: McpServerStatus[] }> {
     await this.stopAll()
     const project = (projectPath || '').trim()
-    await this.connectAll(project)
-    this.connectedForProject = project
+    const map = enabledMap ?? {}
+    await this.connectAll(project, map)
+    this.connectedKey = enabledMapKey(project, map)
     return { ok: true, status: this.getStatus() }
   }
 
@@ -350,9 +587,10 @@ export class McpManager {
         name: toolName,
         arguments: args,
       })
-      return toolResultToString(
+      const text = toolResultToString(
         result as { content?: unknown[]; isError?: boolean; structuredContent?: unknown },
       )
+      return await persistIfLargeMcpResult(text, formatMcpToolName(serverId, toolName))
     } catch (e) {
       return `Error: MCP tool "${formatMcpToolName(serverId, toolName)}" failed: ${formatError(e)}`
     }
@@ -361,7 +599,9 @@ export class McpManager {
   async stopAll(): Promise<void> {
     const entries = [...this.servers.entries()]
     this.servers.clear()
-    this.connectedForProject = null
+    this.connectedKey = null
+    this.lastConfigIds = []
+    this.lastEnabledMap = {}
     await Promise.all(entries.map(([, entry]) => safeClose(entry.client, entry.transport)))
   }
 
@@ -382,13 +622,19 @@ export class McpManager {
     }
   }
 
-  private async connectAll(projectPath: string): Promise<void> {
+  private async connectAll(
+    projectPath: string,
+    enabledMap: Record<string, boolean> = {},
+  ): Promise<void> {
     const config = await loadMcpConfig(projectPath || undefined)
-    const ids = Object.keys(config.mcpServers)
+    const ids = Object.keys(config.mcpServers).sort()
+    this.lastConfigIds = ids
+    this.lastEnabledMap = { ...enabledMap }
     if (ids.length === 0) return
 
     await Promise.all(
       ids.map(async (id) => {
+        if (!isServerEnabled(id, enabledMap)) return
         const cfg = config.mcpServers[id]
         if (!cfg) return
         await this.startServer(id, cfg)

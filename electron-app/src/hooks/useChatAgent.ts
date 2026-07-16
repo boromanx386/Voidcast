@@ -483,6 +483,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             skillsEnabled: skillsActive,
             mcpEnabled: mcpActive,
             mcpTools,
+            mcpServerEnabled: settings.mcpServerEnabled,
             agentMode: turnAgentMode,
             getActiveBuildPlan: () => liveBuildPlan,
             ttsBaseUrl: settings.ttsBaseUrl,

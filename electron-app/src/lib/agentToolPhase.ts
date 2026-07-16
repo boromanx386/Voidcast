@@ -31,7 +31,15 @@ export type AgentToolUiPhase =
   | 'other'
 
 export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
-  if (name.startsWith('mcp__')) return 'mcp'
+  if (
+    name.startsWith('mcp__') ||
+    name === 'mcp_list_tools' ||
+    name === 'mcp_get_tool' ||
+    name === 'mcp_read_result' ||
+    name === 'mcp_call'
+  ) {
+    return 'mcp'
+  }
   switch (name) {
     case 'web_search':
       return 'search'

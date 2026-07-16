@@ -71,7 +71,7 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: false; error?: string; files: { fileName: string; content: string }[] }
     >,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
-  mcpListTools: (payload?: { projectPath?: string }) =>
+  mcpListTools: (payload?: { projectPath?: string; enabledServers?: Record<string, boolean> }) =>
     ipcRenderer.invoke('voidcast:mcp-list-tools', payload) as Promise<
       | {
           ok: true
@@ -101,33 +101,72 @@ contextBridge.exposeInMainWorld('voidcast', {
     qualifiedName?: string
     args?: Record<string, unknown>
     projectPath?: string
+    enabledServers?: Record<string, boolean>
   }) =>
     ipcRenderer.invoke('voidcast:mcp-execute-tool', payload) as Promise<
       | { ok: true; result: string; qualifiedName?: string }
       | { ok: false; result: string }
     >,
-  mcpReload: (payload?: { projectPath?: string }) =>
+  mcpReadResult: (payload: {
+    path: string
+    startLine?: number
+    endLine?: number
+    offset?: number
+    maxChars?: number
+    itemOffset?: number
+    itemLimit?: number
+    query?: string
+  }) =>
+    ipcRenderer.invoke('voidcast:mcp-read-result', payload) as Promise<{
+      ok: boolean
+      result: string
+    }>,
+  mcpReload: (payload?: { projectPath?: string; enabledServers?: Record<string, boolean> }) =>
     ipcRenderer.invoke('voidcast:mcp-reload', payload) as Promise<
       | {
           ok: true
-          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+          status: {
+            id: string
+            state: 'running' | 'error' | 'stopped' | 'disabled'
+            toolCount: number
+            error?: string
+          }[]
         }
       | {
           ok: false
-          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+          status: {
+            id: string
+            state: 'running' | 'error' | 'stopped' | 'disabled'
+            toolCount: number
+            error?: string
+          }[]
           error?: string
         }
     >,
-  mcpStatus: (payload?: { projectPath?: string; ensure?: boolean }) =>
+  mcpStatus: (payload?: {
+    projectPath?: string
+    ensure?: boolean
+    enabledServers?: Record<string, boolean>
+  }) =>
     ipcRenderer.invoke('voidcast:mcp-status', payload) as Promise<
       | {
           ok: true
-          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+          status: {
+            id: string
+            state: 'running' | 'error' | 'stopped' | 'disabled'
+            toolCount: number
+            error?: string
+          }[]
           configPath: string
         }
       | {
           ok: false
-          status: { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+          status: {
+            id: string
+            state: 'running' | 'error' | 'stopped' | 'disabled'
+            toolCount: number
+            error?: string
+          }[]
           configPath: string
           error?: string
         }

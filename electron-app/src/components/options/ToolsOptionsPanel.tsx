@@ -347,7 +347,12 @@ function McpServersSection({
   setSettings: Dispatch<SetStateAction<AppSettings>>
 }) {
   const [status, setStatus] = useState<
-    { id: string; state: 'running' | 'error' | 'stopped'; toolCount: number; error?: string }[]
+    {
+      id: string
+      state: 'running' | 'error' | 'stopped' | 'disabled'
+      toolCount: number
+      error?: string
+    }[]
   >([])
   const [configPath, setConfigPath] = useState('')
   const [busy, setBusy] = useState(false)
@@ -359,18 +364,21 @@ function McpServersSection({
     ''
   ).trim()
 
+  const enabledServers = settings.mcpServerEnabled
+
   const refreshStatus = useCallback(
     async (ensure: boolean) => {
       if (!window.voidcast?.mcpStatus) return
       const res = await window.voidcast.mcpStatus({
         projectPath: projectPath || undefined,
         ensure: ensure && settings.mcpEnabled,
+        enabledServers,
       })
       setStatus(res.status ?? [])
       setConfigPath(res.configPath ?? '')
       if (!res.ok && res.error) setMessage(res.error)
     },
-    [projectPath, settings.mcpEnabled],
+    [projectPath, settings.mcpEnabled, enabledServers],
   )
 
   useEffect(() => {
@@ -379,14 +387,14 @@ function McpServersSection({
       return
     }
     void refreshStatus(true)
-  }, [settings.mcpEnabled, projectPath, refreshStatus])
+  }, [settings.mcpEnabled, projectPath, enabledServers, refreshStatus])
 
   const onReload = useCallback(async () => {
     setBusy(true)
     setMessage(null)
     try {
       const { reloadMcpServers } = await import('@/lib/mcpTools')
-      const res = await reloadMcpServers(projectPath || undefined)
+      const res = await reloadMcpServers(projectPath || undefined, enabledServers)
       setStatus(res.status)
       if (!res.ok) {
         setMessage(res.error || 'MCP reload failed')
@@ -397,11 +405,33 @@ function McpServersSection({
             : `Reloaded ${res.status.length} server(s), ${res.tools.length} tool(s).`,
         )
       }
-      await refreshStatus(false)
     } finally {
       setBusy(false)
     }
-  }, [projectPath, refreshStatus])
+  }, [projectPath, enabledServers])
+
+  const onToggleServer = useCallback(
+    async (serverId: string, enabled: boolean) => {
+      const nextMap = { ...settings.mcpServerEnabled, [serverId]: enabled }
+      setSettings((s) => ({ ...s, mcpServerEnabled: nextMap }))
+      setBusy(true)
+      setMessage(null)
+      try {
+        const { reloadMcpServers, clearMcpToolsCache } = await import('@/lib/mcpTools')
+        clearMcpToolsCache()
+        const res = await reloadMcpServers(projectPath || undefined, nextMap)
+        setStatus(res.status)
+        setMessage(
+          enabled
+            ? `Enabled ${serverId}`
+            : `Disabled ${serverId} (stays in mcp.json, tools hidden)`,
+        )
+      } finally {
+        setBusy(false)
+      }
+    },
+    [projectPath, setSettings, settings.mcpServerEnabled],
+  )
 
   const onOpenConfig = useCallback(async () => {
     setMessage(null)
@@ -411,8 +441,12 @@ function McpServersSection({
       return
     }
     setConfigPath(res.path)
-    setMessage(`Opened ${res.path}`)
+    setMessage('Opened MCP config file')
   }, [])
+
+  const configLabel = configPath
+    ? configPath.replace(/\\/g, '/').replace(/^.*\/\.voidcast\//, '~/.voidcast/')
+    : ''
 
   return (
     <div
@@ -447,8 +481,7 @@ function McpServersSection({
                 (plus project <code className="text-void-light">.mcp.json</code>)
               </>
             ) : null}
-            . Supports <code className="text-void-light">command</code> (stdio) and{' '}
-            <code className="text-void-light">url</code> (HTTP/SSE). Tools appear as{' '}
+            . Toggle each server below. Tools appear as{' '}
             <code className="text-void-light">mcp__server__tool</code>. Blocked in Plan mode.
           </>
         }
@@ -473,34 +506,52 @@ function McpServersSection({
               OPEN_CONFIG
             </button>
           </div>
-          {configPath ? (
-            <p className="text-xs font-mono text-void-dim break-all">Config: {configPath}</p>
+          {configLabel ? (
+            <p className="text-xs font-mono text-void-dim break-all">Config: {configLabel}</p>
           ) : null}
           {status.length === 0 ? (
             <p className="text-xs text-void-dim">
-              No servers connected. Add entries under <code className="text-void-light">mcpServers</code>{' '}
+              No servers in config. Add entries under <code className="text-void-light">mcpServers</code>{' '}
               then Reload.
             </p>
           ) : (
-            <ul className="space-y-1 text-xs font-mono">
-              {status.map((s) => (
-                <li key={s.id} className="text-void-light">
-                  <span
-                    className={
-                      s.state === 'running'
-                        ? 'text-neon-cyan'
-                        : s.state === 'error'
-                          ? 'text-neon-pink'
-                          : 'text-void-dim'
-                    }
+            <ul className="space-y-2">
+              {status.map((s) => {
+                const enabled = enabledServers[s.id] !== false
+                return (
+                  <li
+                    key={s.id}
+                    className="flex items-start gap-3 rounded border border-void-muted/20 bg-void-black/40 px-3 py-2"
                   >
-                    [{s.state.toUpperCase()}]
-                  </span>{' '}
-                  {s.id}
-                  {s.state === 'running' ? ` — ${s.toolCount} tool(s)` : null}
-                  {s.error ? <span className="text-void-dim"> — {s.error}</span> : null}
-                </li>
-              ))}
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 accent-neon-cyan"
+                      checked={enabled}
+                      disabled={busy}
+                      onChange={(e) => void onToggleServer(s.id, e.target.checked)}
+                      aria-label={`Enable MCP server ${s.id}`}
+                    />
+                    <span className="min-w-0 flex-1 font-mono text-xs">
+                      <span className={enabled ? 'text-void-light' : 'text-void-dim'}>{s.id}</span>
+                      <span className="ml-2 text-void-dim">
+                        [
+                        {s.state === 'running'
+                          ? 'RUNNING'
+                          : s.state === 'error'
+                            ? 'ERROR'
+                            : s.state === 'disabled'
+                              ? 'OFF'
+                              : 'STOPPED'}
+                        ]
+                        {s.state === 'running' ? ` ${s.toolCount} tool(s)` : ''}
+                      </span>
+                      {s.error ? (
+                        <span className="mt-1 block text-void-dim break-words">{s.error}</span>
+                      ) : null}
+                    </span>
+                  </li>
+                )
+              })}
             </ul>
           )}
           {message ? <p className="text-xs text-void-dim">{message}</p> : null}

@@ -167,10 +167,13 @@ export async function buildAgentTurnContext(
     : []
   const skillsActive = settings.skillsEnabled && discoveredSkills.length > 0
   const mcpTools =
-    settings.mcpEnabled && isElectron() && !planMode
-      ? await ensureMcpToolsCached(codingProjectPath || undefined)
+    settings.mcpEnabled && isElectron()
+      ? await ensureMcpToolsCached(
+          codingProjectPath || undefined,
+          settings.mcpServerEnabled,
+        )
       : []
-  const mcpActive = settings.mcpEnabled && mcpTools.length > 0 && !planMode
+  const mcpActive = settings.mcpEnabled && mcpTools.length > 0
   const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive)
   const skillsSystemHint = skillsActive ? buildSkillsCatalogHint(discoveredSkills) : ''
   const projectInstructionFiles =
@@ -182,15 +185,17 @@ export async function buildAgentTurnContext(
   const toolsHintParts: string[] = []
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
   if (mcpActive) {
-    const names = mcpTools
-      .slice(0, 40)
-      .map((t) => t.qualifiedName)
-      .join(', ')
+    const servers = [...new Set(mcpTools.map((t) => t.serverId))].sort()
     toolsHintParts.push(
       [
-        'MCP tools are available (external servers). Call them by their full names (mcp__server__tool).',
-        names
-          ? `Registered MCP tools (${mcpTools.length}): ${names}${mcpTools.length > 40 ? ', …' : ''}.`
+        'MCP progressive discovery (keep context small):',
+        '1) mcp_list_tools with a focused query → short catalog only (no schemas).',
+        '2) mcp_get_tool with ONE qualified name → that tool\'s schema only.',
+        '3) mcp_call with name + arguments.',
+        '4) If mcp_call returns <persisted-output>, use mcp_read_result on that path (or narrower MCP filters) — never invent missing data from the preview alone.',
+        'Never load schemas for many tools at once.',
+        servers.length
+          ? `Connected MCP servers: ${servers.join(', ')} (${mcpTools.length} tools discoverable).`
           : '',
       ]
         .filter(Boolean)

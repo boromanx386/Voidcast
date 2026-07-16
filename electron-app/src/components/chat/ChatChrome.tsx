@@ -63,7 +63,7 @@ const TOOL_PHASE_UI: Record<
   skill: { icon: '✦', label: 'READ_SKILL', className: 'skill' },
   plan: { icon: '✎', label: 'PLAN_MODE', className: 'plan' },
   plan_progress: { icon: '✓', label: 'PLAN_PROGRESS', className: 'plan' },
-  mcp: { icon: '⬡', label: 'MCP_TOOL', className: 'other' },
+  mcp: { icon: '⬡', label: 'MCP', className: 'other' },
   other: { icon: '◈', label: 'TOOL', className: 'other' },
 }
 

@@ -17,7 +17,18 @@ import { addReminder, listReminders, deleteReminder, updateReminder, searchRemin
 import { recordReminderDeleted } from '@/lib/userDataSync'
 import type { LongMemoryKind } from '@/types/longMemory'
 import { buildOllamaToolsList, isPlanModeBlockedTool } from '@/lib/toolDefinitions'
-import { executeMcpToolCall, isMcpToolName, type McpToolInfo } from '@/lib/mcpTools'
+import {
+  executeMcpReadResult,
+  executeMcpToolCall,
+  formatMcpGetToolResult,
+  formatMcpToolsListResult,
+  isMcpToolName,
+  MCP_CALL_NAME,
+  MCP_GET_TOOL_NAME,
+  MCP_LIST_TOOLS_NAME,
+  MCP_READ_RESULT_NAME,
+  type McpToolInfo,
+} from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import { invokeWebSearch } from '@/lib/webSearch'
 import { invokeGetWeather } from '@/lib/weather'
@@ -629,6 +640,10 @@ export async function executeToolCall(
     skillsEnabled?: boolean
     /** When true, MCP tools (mcp__*) may be executed. */
     mcpEnabled?: boolean
+    /** Catalog for mcp_list_tools progressive disclosure. */
+    mcpTools?: McpToolInfo[]
+    /** Per-server enable map (missing id = enabled). */
+    mcpServerEnabled?: Record<string, boolean>
     /** Plan mode blocks mutating tools even if registered. */
     agentMode?: AgentChatMode
     /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -656,12 +671,106 @@ export async function executeToolCall(
   if (ctx.agentMode === 'plan' && isPlanModeBlockedTool(name)) {
     return `Error: tool "${name}" is blocked in Plan mode (read-only). Propose a plan instead; the user can Approve & Build to implement.`
   }
+  if (name === MCP_LIST_TOOLS_NAME) {
+    if (!ctx.mcpEnabled) {
+      return 'Error: MCP tools are disabled in settings.'
+    }
+    const catalog = ctx.mcpTools ?? []
+    const query = typeof args.query === 'string' ? args.query : undefined
+    const limit =
+      typeof args.limit === 'number' && Number.isFinite(args.limit) ? args.limit : undefined
+    // If catalog is large and no query, force a short server overview instead of dumping everything.
+    if (!query?.trim() && catalog.length > 20) {
+      const servers = [...new Set(catalog.map((t) => t.serverId))].sort()
+      const counts = servers.map((id) => {
+        const n = catalog.filter((t) => t.serverId === id).length
+        return `- ${id}: ${n} tool(s)`
+      })
+      return [
+        `MCP has ${catalog.length} tools across ${servers.length} server(s). Pass query to mcp_list_tools (e.g. a server name or capability).`,
+        ...counts,
+        'Example: mcp_list_tools with query="runware" or query="image". Then mcp_get_tool for ONE name, then mcp_call.',
+      ].join('\n')
+    }
+    return formatMcpToolsListResult(catalog, { query, limit })
+  }
+  if (name === MCP_GET_TOOL_NAME) {
+    if (!ctx.mcpEnabled) {
+      return 'Error: MCP tools are disabled in settings.'
+    }
+    const toolName = typeof args.name === 'string' ? args.name.trim() : ''
+    if (!toolName) return 'Error: missing name for mcp_get_tool (use one mcp__server__tool).'
+    return formatMcpGetToolResult(ctx.mcpTools ?? [], toolName)
+  }
+  if (name === MCP_READ_RESULT_NAME) {
+    if (!ctx.mcpEnabled) {
+      return 'Error: MCP tools are disabled in settings.'
+    }
+    const filePath = typeof args.path === 'string' ? args.path.trim() : ''
+    if (!filePath) return 'Error: missing path for mcp_read_result (use the path from <persisted-output>).'
+    return await executeMcpReadResult({
+      path: filePath,
+      startLine:
+        typeof args.start_line === 'number' && Number.isFinite(args.start_line)
+          ? args.start_line
+          : undefined,
+      endLine:
+        typeof args.end_line === 'number' && Number.isFinite(args.end_line)
+          ? args.end_line
+          : undefined,
+      offset:
+        typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : undefined,
+      maxChars:
+        typeof args.max_chars === 'number' && Number.isFinite(args.max_chars)
+          ? args.max_chars
+          : undefined,
+      itemOffset:
+        typeof args.item_offset === 'number' && Number.isFinite(args.item_offset)
+          ? args.item_offset
+          : undefined,
+      itemLimit:
+        typeof args.item_limit === 'number' && Number.isFinite(args.item_limit)
+          ? args.item_limit
+          : undefined,
+      query: typeof args.query === 'string' ? args.query : undefined,
+    })
+  }
+  if (name === MCP_CALL_NAME) {
+    if (!ctx.mcpEnabled) {
+      return 'Error: MCP tools are disabled in settings.'
+    }
+    const toolName = typeof args.name === 'string' ? args.name.trim() : ''
+    if (!toolName) return 'Error: missing name parameter for mcp_call (use mcp__server__tool).'
+    if (!isMcpToolName(toolName)) {
+      return `Error: mcp_call name must be a qualified MCP tool like mcp__server__tool (got "${toolName}").`
+    }
+    const callArgs =
+      args.arguments && typeof args.arguments === 'object' && !Array.isArray(args.arguments)
+        ? (args.arguments as Record<string, unknown>)
+        : {}
+    try {
+      return await executeMcpToolCall(
+        toolName,
+        callArgs,
+        ctx.codingProjectPath,
+        ctx.mcpServerEnabled,
+      )
+    } catch (e) {
+      return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`
+    }
+  }
   if (isMcpToolName(name)) {
+    // Legacy/direct mcp__* calls still work if a model emits them.
     if (!ctx.mcpEnabled) {
       return 'Error: MCP tools are disabled in settings.'
     }
     try {
-      return await executeMcpToolCall(name, args, ctx.codingProjectPath)
+      return await executeMcpToolCall(
+        name,
+        args,
+        ctx.codingProjectPath,
+        ctx.mcpServerEnabled,
+      )
     } catch (e) {
       return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`
     }
@@ -1735,6 +1844,8 @@ export type RunChatWithToolsParams = {
   mcpTools?: McpToolInfo[]
   /** When true, allow executing mcp__* tools. */
   mcpEnabled?: boolean
+  /** Per-server enable map passed through to MCP execute. */
+  mcpServerEnabled?: Record<string, boolean>
   /** Plan mode: read-only tool subset + executor hard gate. */
   agentMode?: AgentChatMode
   /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -1956,6 +2067,8 @@ export async function runOllamaChatWithTools(
         userText: rawUserText,
         skillsEnabled: Boolean(params.skillsEnabled),
         mcpEnabled: Boolean(params.mcpEnabled),
+        mcpTools: params.mcpTools,
+        mcpServerEnabled: params.mcpServerEnabled,
         agentMode: params.agentMode,
         getActiveBuildPlan: params.getActiveBuildPlan,
         subAgent: params.subAgent,

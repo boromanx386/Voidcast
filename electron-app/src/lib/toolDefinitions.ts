@@ -1,7 +1,10 @@
 import { AGENT_EDITABLE_SETTINGS_FIELDS, type ToolsEnabled } from '@/lib/settings'
 import type { AgentChatMode } from '@/types/chat'
 import {
-  convertMcpToolToOllama,
+  MCP_CALL_NAME,
+  MCP_GET_TOOL_NAME,
+  MCP_LIST_TOOLS_NAME,
+  MCP_READ_RESULT_NAME,
   type McpToolInfo,
 } from '@/lib/mcpTools'
 
@@ -19,6 +22,7 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'delete_reminder',
   'update_reminder',
   'update_plan_progress',
+  MCP_CALL_NAME,
 ])
 
 export function isPlanModeBlockedTool(name: string): boolean {
@@ -907,6 +911,118 @@ const UPDATE_PLAN_PROGRESS_TOOL: OllamaToolDefinition = {
   },
 }
 
+const MCP_LIST_TOOLS_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: MCP_LIST_TOOLS_NAME,
+    description:
+      'Search/list external MCP tools. Returns ONLY short names + one-line descriptions (no schemas). Always pass a focused query when possible. Then use mcp_get_tool for ONE tool schema before mcp_call.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            'Required for large catalogs: filter by server/tool/description (e.g. "image", "runware list", "wangp").',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max matches to return (default 12, max 20).',
+        },
+      },
+    },
+  },
+}
+
+const MCP_GET_TOOL_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: MCP_GET_TOOL_NAME,
+    description:
+      'Load the full input JSON Schema for exactly ONE MCP tool (by qualified name mcp__server__tool). Do not call this for many tools — one at a time.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Qualified MCP tool name from mcp_list_tools, e.g. mcp__runware__list_models',
+        },
+      },
+      required: ['name'],
+    },
+  },
+}
+
+const MCP_CALL_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: MCP_CALL_NAME,
+    description:
+      'Execute one MCP tool by qualified name. Prefer mcp_get_tool first if you need the argument schema. Large results are saved under ~/.voidcast/mcp-results/ with a short preview — then use mcp_read_result. Blocked in Plan mode.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Qualified MCP tool name, e.g. mcp__runware__list_models',
+        },
+        arguments: {
+          type: 'object',
+          description: 'Arguments object for the MCP tool (must match its input schema).',
+        },
+      },
+      required: ['name'],
+    },
+  },
+}
+
+const MCP_READ_RESULT_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: MCP_READ_RESULT_NAME,
+    description:
+      'Read a previously saved large MCP tool result from ~/.voidcast/mcp-results/ (path from <persisted-output>). Prefer item_offset/item_limit/query for JSON arrays, or start_line/end_line / offset/max_chars for text. Do not invent paths.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Absolute path from the <persisted-output> message.',
+        },
+        start_line: {
+          type: 'number',
+          description: '1-based start line (text paging).',
+        },
+        end_line: {
+          type: 'number',
+          description: '1-based end line (text paging).',
+        },
+        offset: {
+          type: 'number',
+          description: 'Character offset for text paging (default 0).',
+        },
+        max_chars: {
+          type: 'number',
+          description: 'Max characters to return for text paging (default 8000, max 50000).',
+        },
+        item_offset: {
+          type: 'number',
+          description: 'For JSON arrays: 0-based item index to start from.',
+        },
+        item_limit: {
+          type: 'number',
+          description: 'For JSON arrays: how many items to return (default 20, max 100).',
+        },
+        query: {
+          type: 'string',
+          description: 'For JSON arrays: keep items whose JSON text contains this substring.',
+        },
+      },
+      required: ['path'],
+    },
+  },
+}
+
 export function buildOllamaToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
@@ -954,10 +1070,12 @@ export function buildOllamaToolsList(
     out.push(DELETE_REMINDER_TOOL)
     out.push(UPDATE_REMINDER_TOOL)
   }
-  if (opts?.mcpTools?.length && !planMode) {
-    for (const mcpTool of opts.mcpTools) {
-      out.push(convertMcpToolToOllama(mcpTool))
-    }
+  // MCP progressive disclosure: catalog / get-one-schema / call (never dump all schemas).
+  if (opts?.mcpTools?.length) {
+    out.push(MCP_LIST_TOOLS_TOOL)
+    out.push(MCP_GET_TOOL_TOOL)
+    out.push(MCP_READ_RESULT_TOOL)
+    if (!planMode) out.push(MCP_CALL_TOOL)
   }
   return out
 }
