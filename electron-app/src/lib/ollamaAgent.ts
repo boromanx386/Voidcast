@@ -644,6 +644,7 @@ export async function executeToolCall(
     mcpTools?: McpToolInfo[]
     /** Per-server enable map (missing id = enabled). */
     mcpServerEnabled?: Record<string, boolean>
+    mcpTrustedProjectPaths?: string[]
     /** Plan mode blocks mutating tools even if registered. */
     agentMode?: AgentChatMode
     /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -749,12 +750,11 @@ export async function executeToolCall(
         ? (args.arguments as Record<string, unknown>)
         : {}
     try {
-      return await executeMcpToolCall(
-        toolName,
-        callArgs,
-        ctx.codingProjectPath,
-        ctx.mcpServerEnabled,
-      )
+      return await executeMcpToolCall(toolName, callArgs, {
+        projectPath: ctx.codingProjectPath,
+        enabledServers: ctx.mcpServerEnabled,
+        trustedProjectPaths: ctx.mcpTrustedProjectPaths,
+      })
     } catch (e) {
       return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`
     }
@@ -765,12 +765,11 @@ export async function executeToolCall(
       return 'Error: MCP tools are disabled in settings.'
     }
     try {
-      return await executeMcpToolCall(
-        name,
-        args,
-        ctx.codingProjectPath,
-        ctx.mcpServerEnabled,
-      )
+      return await executeMcpToolCall(name, args, {
+        projectPath: ctx.codingProjectPath,
+        enabledServers: ctx.mcpServerEnabled,
+        trustedProjectPaths: ctx.mcpTrustedProjectPaths,
+      })
     } catch (e) {
       return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`
     }
@@ -1846,6 +1845,7 @@ export type RunChatWithToolsParams = {
   mcpEnabled?: boolean
   /** Per-server enable map passed through to MCP execute. */
   mcpServerEnabled?: Record<string, boolean>
+  mcpTrustedProjectPaths?: string[]
   /** Plan mode: read-only tool subset + executor hard gate. */
   agentMode?: AgentChatMode
   /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -2069,6 +2069,7 @@ export async function runOllamaChatWithTools(
         mcpEnabled: Boolean(params.mcpEnabled),
         mcpTools: params.mcpTools,
         mcpServerEnabled: params.mcpServerEnabled,
+        mcpTrustedProjectPaths: params.mcpTrustedProjectPaths,
         agentMode: params.agentMode,
         getActiveBuildPlan: params.getActiveBuildPlan,
         subAgent: params.subAgent,

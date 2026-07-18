@@ -1,5 +1,10 @@
 import type { AppSettings } from '@/lib/settings'
 import { isElectron, isWebStandalone } from '@/lib/platform'
+import {
+  addTrustedMcpProjectPath,
+  isMcpProjectTrusted,
+  type McpProjectServerPreview,
+} from '@/lib/mcpProjectTrust'
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 
 type Props = {
@@ -352,11 +357,15 @@ function McpServersSection({
       state: 'running' | 'error' | 'stopped' | 'disabled'
       toolCount: number
       error?: string
+      oauthEnabled?: boolean
+      authState?: 'none' | 'authenticated' | 'needs_sign_in'
     }[]
   >([])
   const [configPath, setConfigPath] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [pendingProjectTrust, setPendingProjectTrust] = useState(false)
+  const [projectPreviewServers, setProjectPreviewServers] = useState<McpProjectServerPreview[]>([])
 
   const projectPath = (
     settings.coding.projectPath ||
@@ -365,20 +374,46 @@ function McpServersSection({
   ).trim()
 
   const enabledServers = settings.mcpServerEnabled
+  const trustedProjectPaths = settings.mcpTrustedProjectPaths
+
+  const mcpOpts = useCallback(
+    () => ({
+      projectPath: projectPath || undefined,
+      enabledServers,
+      trustedProjectPaths,
+    }),
+    [projectPath, enabledServers, trustedProjectPaths],
+  )
+
+  const loadProjectPreview = useCallback(async () => {
+    if (!projectPath) {
+      setProjectPreviewServers([])
+      return
+    }
+    const { getMcpProjectConfigPreview } = await import('@/lib/mcpTools')
+    const preview = await getMcpProjectConfigPreview(projectPath)
+    setProjectPreviewServers(preview.servers)
+  }, [projectPath])
 
   const refreshStatus = useCallback(
     async (ensure: boolean) => {
       if (!window.voidcast?.mcpStatus) return
       const res = await window.voidcast.mcpStatus({
-        projectPath: projectPath || undefined,
+        ...mcpOpts(),
         ensure: ensure && settings.mcpEnabled,
-        enabledServers,
       })
       setStatus(res.status ?? [])
       setConfigPath(res.configPath ?? '')
+      const pending = Boolean(res.pendingProjectTrust)
+      setPendingProjectTrust(pending)
+      if (pending) {
+        await loadProjectPreview()
+      } else {
+        setProjectPreviewServers([])
+      }
       if (!res.ok && res.error) setMessage(res.error)
     },
-    [projectPath, settings.mcpEnabled, enabledServers],
+    [settings.mcpEnabled, mcpOpts, loadProjectPreview],
   )
 
   useEffect(() => {
@@ -394,7 +429,7 @@ function McpServersSection({
     setMessage(null)
     try {
       const { reloadMcpServers } = await import('@/lib/mcpTools')
-      const res = await reloadMcpServers(projectPath || undefined, enabledServers)
+      const res = await reloadMcpServers(mcpOpts())
       setStatus(res.status)
       if (!res.ok) {
         setMessage(res.error || 'MCP reload failed')
@@ -405,10 +440,38 @@ function McpServersSection({
             : `Reloaded ${res.status.length} server(s), ${res.tools.length} tool(s).`,
         )
       }
+      await refreshStatus(false)
     } finally {
       setBusy(false)
     }
-  }, [projectPath, enabledServers])
+  }, [mcpOpts, refreshStatus])
+
+  const onTrustProject = useCallback(async () => {
+    if (!projectPath) return
+    const nextTrusted = addTrustedMcpProjectPath(trustedProjectPaths, projectPath)
+    setSettings((s) => ({ ...s, mcpTrustedProjectPaths: nextTrusted }))
+    setBusy(true)
+    setMessage(null)
+    try {
+      const { reloadMcpServers, clearMcpToolsCache } = await import('@/lib/mcpTools')
+      clearMcpToolsCache()
+      const res = await reloadMcpServers({
+        projectPath,
+        enabledServers,
+        trustedProjectPaths: nextTrusted,
+      })
+      setStatus(res.status)
+      setPendingProjectTrust(false)
+      setProjectPreviewServers([])
+      setMessage(
+        res.ok
+          ? `Trusted project MCP config. Loaded ${res.tools.length} tool(s).`
+          : res.error || 'Reload failed after trust',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }, [projectPath, trustedProjectPaths, enabledServers, setSettings])
 
   const onToggleServer = useCallback(
     async (serverId: string, enabled: boolean) => {
@@ -419,7 +482,11 @@ function McpServersSection({
       try {
         const { reloadMcpServers, clearMcpToolsCache } = await import('@/lib/mcpTools')
         clearMcpToolsCache()
-        const res = await reloadMcpServers(projectPath || undefined, nextMap)
+        const res = await reloadMcpServers({
+          projectPath: projectPath || undefined,
+          enabledServers: nextMap,
+          trustedProjectPaths,
+        })
         setStatus(res.status)
         setMessage(
           enabled
@@ -430,7 +497,43 @@ function McpServersSection({
         setBusy(false)
       }
     },
-    [projectPath, setSettings, settings.mcpServerEnabled],
+    [projectPath, setSettings, settings.mcpServerEnabled, trustedProjectPaths],
+  )
+
+  const onOAuthSignIn = useCallback(
+    async (serverId: string) => {
+      setBusy(true)
+      setMessage(null)
+      try {
+        const { signInMcpOAuthServer } = await import('@/lib/mcpTools')
+        const res = await signInMcpOAuthServer(serverId, mcpOpts())
+        setStatus(res.status)
+        setMessage(
+          res.ok
+            ? `Opened OAuth sign-in for ${serverId}. Complete login in your browser.`
+            : res.error || `OAuth sign-in failed for ${serverId}`,
+        )
+      } finally {
+        setBusy(false)
+      }
+    },
+    [mcpOpts],
+  )
+
+  const onOAuthSignOut = useCallback(
+    async (serverId: string) => {
+      setBusy(true)
+      setMessage(null)
+      try {
+        const { signOutMcpOAuthServer } = await import('@/lib/mcpTools')
+        const res = await signOutMcpOAuthServer(serverId, mcpOpts())
+        setStatus(res.status)
+        setMessage(res.ok ? `Signed out of ${serverId}.` : res.error || 'OAuth sign-out failed')
+      } finally {
+        setBusy(false)
+      }
+    },
+    [mcpOpts],
   )
 
   const onOpenConfig = useCallback(async () => {
@@ -481,7 +584,8 @@ function McpServersSection({
                 (plus project <code className="text-void-light">.mcp.json</code>)
               </>
             ) : null}
-            . Toggle each server below. Tools appear as{' '}
+            . Toggle each server below. Remote servers can use{' '}
+            <code className="text-void-light">"oauth": true</code> for browser sign-in. Tools appear as{' '}
             <code className="text-void-light">mcp__server__tool</code>. Blocked in Plan mode.
           </>
         }
@@ -508,6 +612,35 @@ function McpServersSection({
           </div>
           {configLabel ? (
             <p className="text-xs font-mono text-void-dim break-all">Config: {configLabel}</p>
+          ) : null}
+          {pendingProjectTrust && projectPath ? (
+            <div className="rounded border border-neon-yellow/40 bg-neon-yellow/5 px-3 py-3 space-y-2">
+              <p className="text-xs text-neon-yellow font-mono">
+                Untrusted project <code className="text-void-light">.mcp.json</code> — review servers
+                before enabling.
+              </p>
+              {projectPreviewServers.length > 0 ? (
+                <ul className="space-y-1 text-xs font-mono text-void-dim">
+                  {projectPreviewServers.map((s) => (
+                    <li key={s.id}>
+                      <span className="text-void-light">{s.id}</span>
+                      <span className="ml-2">[{s.transport}]</span>
+                      <span className="ml-2 break-all">{s.summary}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-void-dim">Loading project MCP preview…</p>
+              )}
+              <button
+                type="button"
+                className="cyber-btn text-xs"
+                disabled={busy || isMcpProjectTrusted(projectPath, trustedProjectPaths)}
+                onClick={() => void onTrustProject()}
+              >
+                TRUST_PROJECT_MCP
+              </button>
+            </div>
           ) : null}
           {status.length === 0 ? (
             <p className="text-xs text-void-dim">
@@ -543,10 +676,42 @@ function McpServersSection({
                               ? 'OFF'
                               : 'STOPPED'}
                         ]
+                        {s.oauthEnabled ? (
+                          <span className="ml-2 text-neon-yellow">
+                            OAuth:
+                            {s.authState === 'authenticated'
+                              ? 'SIGNED_IN'
+                              : s.authState === 'needs_sign_in'
+                                ? 'SIGN_IN_REQUIRED'
+                                : 'OFF'}
+                          </span>
+                        ) : null}
                         {s.state === 'running' ? ` ${s.toolCount} tool(s)` : ''}
                       </span>
                       {s.error ? (
                         <span className="mt-1 block text-void-dim break-words">{s.error}</span>
+                      ) : null}
+                      {s.oauthEnabled && enabled ? (
+                        <span className="mt-2 flex flex-wrap gap-2">
+                          {s.authState !== 'authenticated' ? (
+                            <button
+                              type="button"
+                              className="cyber-btn text-[10px] px-2 py-1"
+                              disabled={busy}
+                              onClick={() => void onOAuthSignIn(s.id)}
+                            >
+                              SIGN_IN
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="cyber-btn text-[10px] px-2 py-1"
+                            disabled={busy}
+                            onClick={() => void onOAuthSignOut(s.id)}
+                          >
+                            SIGN_OUT
+                          </button>
+                        </span>
                       ) : null}
                     </span>
                   </li>

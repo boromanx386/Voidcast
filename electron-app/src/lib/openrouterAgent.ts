@@ -55,6 +55,7 @@ export type RunOpenRouterChatWithToolsParams = {
   mcpEnabled?: boolean
   /** Per-server enable map passed through to MCP execute. */
   mcpServerEnabled?: Record<string, boolean>
+  mcpTrustedProjectPaths?: string[]
   /** Plan mode: read-only tool subset + executor hard gate. */
   agentMode?: AgentChatMode
   /** Live approved plan during Approve & Build (for update_plan_progress). */
@@ -219,6 +220,7 @@ export async function runOpenRouterChatWithTools(
         mcpEnabled: Boolean(params.mcpEnabled),
         mcpTools: params.mcpTools,
         mcpServerEnabled: params.mcpServerEnabled,
+        mcpTrustedProjectPaths: params.mcpTrustedProjectPaths,
         agentMode: params.agentMode,
         getActiveBuildPlan: params.getActiveBuildPlan,
         subAgent: params.subAgent,

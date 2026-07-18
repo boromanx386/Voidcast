@@ -171,6 +171,8 @@ export async function buildAgentTurnContext(
       ? await ensureMcpToolsCached(
           codingProjectPath || undefined,
           settings.mcpServerEnabled,
+          false,
+          settings.mcpTrustedProjectPaths,
         )
       : []
   const mcpActive = settings.mcpEnabled && mcpTools.length > 0

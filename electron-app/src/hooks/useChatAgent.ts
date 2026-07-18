@@ -19,6 +19,7 @@ import {
 } from '@/lib/contextUsage'
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
+import { cancelActiveMcpCalls } from '@/lib/mcpTools'
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import {
@@ -484,6 +485,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             mcpEnabled: mcpActive,
             mcpTools,
             mcpServerEnabled: settings.mcpServerEnabled,
+            mcpTrustedProjectPaths: settings.mcpTrustedProjectPaths,
             agentMode: turnAgentMode,
             getActiveBuildPlan: () => liveBuildPlan,
             ttsBaseUrl: settings.ttsBaseUrl,
@@ -836,6 +838,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     activeChatRunIdRef.current += 1
     abortRef.current?.abort()
     abortRef.current = null
+    void cancelActiveMcpCalls()
     setToolPhase(null)
     setBusy(false)
     // Unlock any in-flight Approve & Build plan so the user can retry.

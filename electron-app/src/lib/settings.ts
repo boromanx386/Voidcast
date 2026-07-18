@@ -695,6 +695,11 @@ export type AppSettings = {
    */
   mcpServerEnabled: Record<string, boolean>
   /**
+   * Project roots the user explicitly trusted to load `.mcp.json` MCP servers from.
+   * Untrusted project configs are ignored until approved in Options → Tools.
+   */
+  mcpTrustedProjectPaths: string[]
+  /**
    * Chat agent mode: `agent` implements with full tools; `plan` explores read-only
    * and produces an editable plan for Approve → Build.
    */
@@ -869,6 +874,7 @@ export const defaults: AppSettings = {
   skillsEnabled: true,
   mcpEnabled: false,
   mcpServerEnabled: {},
+  mcpTrustedProjectPaths: [],
   agentMode: 'agent',
   coding: {
     enabled: true,
@@ -1032,6 +1038,7 @@ function normalizeTools(s: AppSettings): AppSettings {
       typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
     mcpEnabled: typeof s.mcpEnabled === 'boolean' ? s.mcpEnabled : defaults.mcpEnabled,
     mcpServerEnabled: normalizeMcpServerEnabled(s.mcpServerEnabled),
+    mcpTrustedProjectPaths: normalizeMcpTrustedProjectPaths(s.mcpTrustedProjectPaths),
     coding: {
       enabled: codingEnabled,
       projectPath: codingProjectPath,
@@ -1063,6 +1070,17 @@ function normalizeMcpServerEnabled(raw: unknown): Record<string, boolean> {
     if (typeof v === 'boolean') out[id] = v
   }
   return out
+}
+
+function normalizeMcpTrustedProjectPaths(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out = new Set<string>()
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue
+    const trimmed = entry.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+    if (trimmed) out.add(trimmed)
+  }
+  return [...out].sort()
 }
 
 const LLM_THINK_LEVELS = new Set<LlmThinkLevel>(['off', 'low', 'medium', 'high', 'on'])

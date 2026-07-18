@@ -26,10 +26,15 @@ import { scrapePublicUrlToText } from './scrape'
 import {
   formatMcpToolName,
   getGlobalMcpConfigPath,
+  isMcpProjectTrustedResolved,
+  loadProjectMcpConfig,
   mcpManager,
+  normalizeMcpProjectPathResolved,
   parseMcpToolName,
+  projectHasMcpConfigFile,
   readPersistedMcpResult,
 } from './mcpManager'
+import { buildMcpProjectServerPreviews } from '../../src/lib/mcpProjectTrust'
 import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
@@ -2443,14 +2448,42 @@ function mcpEnabledMapFromPayload(
   return out
 }
 
+type McpIpcPayload = {
+  projectPath?: string
+  enabledServers?: Record<string, boolean>
+  trustedProjectPaths?: string[]
+}
+
+function mcpProjectPathFromPayload(payload?: McpIpcPayload): string {
+  return typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+}
+
+function mcpTrustedPathsFromPayload(payload?: McpIpcPayload): string[] {
+  const raw = payload?.trustedProjectPaths
+  if (!Array.isArray(raw)) return []
+  return raw.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+}
+
+function mcpConnectionOpts(payload?: McpIpcPayload): { allowProjectConfig: boolean } {
+  const projectPath = mcpProjectPathFromPayload(payload)
+  if (!projectPath || !projectHasMcpConfigFile(projectPath)) {
+    return { allowProjectConfig: true }
+  }
+  return {
+    allowProjectConfig: isMcpProjectTrustedResolved(
+      projectPath,
+      mcpTrustedPathsFromPayload(payload),
+    ),
+  }
+}
+
 ipcMain.handle(
   'voidcast:mcp-list-tools',
-  async (_evt, payload?: { projectPath?: string; enabledServers?: Record<string, boolean> }) => {
+  async (_evt, payload?: McpIpcPayload) => {
     try {
-      const projectPath =
-        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      const projectPath = mcpProjectPathFromPayload(payload)
       const enabledServers = mcpEnabledMapFromPayload(payload)
-      await mcpManager.ensureConnected(projectPath || undefined, enabledServers)
+      await mcpManager.ensureConnected(projectPath || undefined, enabledServers, mcpConnectionOpts(payload))
       return { ok: true as const, tools: mcpManager.listTools() }
     } catch (e) {
       return {
@@ -2473,13 +2506,17 @@ ipcMain.handle(
       args?: Record<string, unknown>
       projectPath?: string
       enabledServers?: Record<string, boolean>
+      trustedProjectPaths?: string[]
     },
   ) => {
     try {
-      const projectPath =
-        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      const projectPath = mcpProjectPathFromPayload(payload)
       const enabledServers = mcpEnabledMapFromPayload(payload)
-      await mcpManager.ensureConnected(projectPath || undefined, enabledServers)
+      await mcpManager.ensureConnected(
+        projectPath || undefined,
+        enabledServers,
+        mcpConnectionOpts(payload),
+      )
 
       let serverId = typeof payload?.serverId === 'string' ? payload.serverId.trim() : ''
       let toolName = typeof payload?.toolName === 'string' ? payload.toolName.trim() : ''
@@ -2557,12 +2594,15 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:mcp-reload',
-  async (_evt, payload?: { projectPath?: string; enabledServers?: Record<string, boolean> }) => {
+  async (_evt, payload?: McpIpcPayload) => {
     try {
-      const projectPath =
-        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      const projectPath = mcpProjectPathFromPayload(payload)
       const enabledServers = mcpEnabledMapFromPayload(payload)
-      return await mcpManager.reload(projectPath || undefined, enabledServers)
+      return await mcpManager.reload(
+        projectPath || undefined,
+        enabledServers,
+        mcpConnectionOpts(payload),
+      )
     } catch (e) {
       return {
         ok: false as const,
@@ -2581,19 +2621,29 @@ ipcMain.handle(
       projectPath?: string
       ensure?: boolean
       enabledServers?: Record<string, boolean>
+      trustedProjectPaths?: string[]
     },
   ) => {
     try {
-      const projectPath =
-        typeof payload?.projectPath === 'string' ? payload.projectPath.trim() : ''
+      const projectPath = mcpProjectPathFromPayload(payload)
       const enabledServers = mcpEnabledMapFromPayload(payload)
+      const connectionOpts = mcpConnectionOpts(payload)
       if (payload?.ensure) {
-        await mcpManager.ensureConnected(projectPath || undefined, enabledServers)
+        await mcpManager.ensureConnected(
+          projectPath || undefined,
+          enabledServers,
+          connectionOpts,
+        )
       }
+      const pendingProjectTrust =
+        Boolean(projectPath) &&
+        projectHasMcpConfigFile(projectPath) &&
+        !connectionOpts.allowProjectConfig
       return {
         ok: true as const,
         status: mcpManager.getStatus(),
         configPath: getGlobalMcpConfigPath(),
+        pendingProjectTrust,
       }
     } catch (e) {
       return {
@@ -2626,6 +2676,98 @@ ipcMain.handle('voidcast:mcp-stop-all', async () => {
   await mcpManager.stopAll()
   return { ok: true as const }
 })
+
+ipcMain.handle('voidcast:mcp-cancel-active-calls', async () => {
+  mcpManager.cancelActiveCalls()
+  return { ok: true as const }
+})
+
+ipcMain.handle('voidcast:mcp-project-config-preview', async (_evt, payload?: McpIpcPayload) => {
+  try {
+    const projectPath = mcpProjectPathFromPayload(payload)
+    if (!projectPath) {
+      return { ok: false as const, error: 'Missing project path.' }
+    }
+    if (!projectHasMcpConfigFile(projectPath)) {
+      return { ok: true as const, servers: [] as ReturnType<typeof buildMcpProjectServerPreviews> }
+    }
+    const projectCfg = await loadProjectMcpConfig(projectPath)
+    return {
+      ok: true as const,
+      servers: buildMcpProjectServerPreviews(projectCfg.mcpServers),
+      normalizedProjectPath: normalizeMcpProjectPathResolved(projectPath),
+    }
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+      servers: [] as ReturnType<typeof buildMcpProjectServerPreviews>,
+    }
+  }
+})
+
+ipcMain.handle(
+  'voidcast:mcp-oauth-sign-in',
+  async (_evt, payload?: McpIpcPayload & { serverId?: string }) => {
+    const serverId = typeof payload?.serverId === 'string' ? payload.serverId.trim() : ''
+    if (!serverId) {
+      return {
+        ok: false as const,
+        status: [] as ReturnType<typeof mcpManager.getStatus>,
+        error: 'Missing MCP server id.',
+      }
+    }
+    try {
+      const projectPath = mcpProjectPathFromPayload(payload)
+      const enabledServers = mcpEnabledMapFromPayload(payload)
+      const connectionOpts = mcpConnectionOpts(payload)
+      const result = await mcpManager.signInOAuth(
+        serverId,
+        projectPath || undefined,
+        enabledServers,
+        connectionOpts,
+      )
+      if (!result.ok) {
+        return {
+          ok: false as const,
+          status: mcpManager.getStatus(),
+          error: result.error,
+        }
+      }
+      return { ok: true as const, status: mcpManager.getStatus() }
+    } catch (e) {
+      return {
+        ok: false as const,
+        status: mcpManager.getStatus(),
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:mcp-oauth-sign-out',
+  async (_evt, payload?: McpIpcPayload & { serverId?: string }) => {
+    const serverId = typeof payload?.serverId === 'string' ? payload.serverId.trim() : ''
+    if (!serverId) {
+      return {
+        ok: false as const,
+        status: [] as ReturnType<typeof mcpManager.getStatus>,
+        error: 'Missing MCP server id.',
+      }
+    }
+    try {
+      await mcpManager.signOutOAuth(serverId)
+      return { ok: true as const, status: mcpManager.getStatus() }
+    } catch (e) {
+      return {
+        ok: false as const,
+        status: mcpManager.getStatus(),
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
+  },
+)
 
 ipcMain.handle('voidcast:get-app-version', () => {
   return app.getVersion()

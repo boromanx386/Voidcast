@@ -18,6 +18,8 @@ export type McpServerStatus = {
   state: 'running' | 'error' | 'stopped' | 'disabled'
   toolCount: number
   error?: string
+  oauthEnabled?: boolean
+  authState?: 'none' | 'authenticated' | 'needs_sign_in'
 }
 
 export function formatMcpToolName(serverId: string, toolName: string): string {
@@ -219,6 +221,12 @@ let mcpToolsCacheProjectPath = ''
 /** null = never fetched this session; otherwise last project+enabled key used for fetch */
 let mcpToolsFetchedKey: string | null = null
 
+export type McpClientOpts = {
+  projectPath?: string
+  enabledServers?: Record<string, boolean>
+  trustedProjectPaths?: string[]
+}
+
 function enabledCacheKey(
   projectPath: string,
   enabledServers?: Record<string, boolean>,
@@ -231,6 +239,15 @@ function enabledCacheKey(
   return `${projectPath}::off=${off}`
 }
 
+function mcpPayload(opts?: McpClientOpts) {
+  const project = (opts?.projectPath || '').trim()
+  return {
+    projectPath: project || undefined,
+    enabledServers: opts?.enabledServers,
+    trustedProjectPaths: opts?.trustedProjectPaths,
+  }
+}
+
 export function getCachedMcpTools(): McpToolInfo[] {
   return mcpToolsCache
 }
@@ -241,21 +258,15 @@ export function clearMcpToolsCache(): void {
   mcpToolsFetchedKey = null
 }
 
-export async function fetchMcpTools(
-  projectPath?: string,
-  enabledServers?: Record<string, boolean>,
-): Promise<McpToolInfo[]> {
+export async function fetchMcpTools(opts?: McpClientOpts): Promise<McpToolInfo[]> {
   if (!isElectron() || !window.voidcast?.mcpListTools) {
     clearMcpToolsCache()
     return []
   }
-  const project = (projectPath || '').trim()
-  const key = enabledCacheKey(project, enabledServers)
+  const project = (opts?.projectPath || '').trim()
+  const key = enabledCacheKey(project, opts?.enabledServers)
   try {
-    const res = await window.voidcast.mcpListTools({
-      projectPath: project || undefined,
-      enabledServers,
-    })
+    const res = await window.voidcast.mcpListTools(mcpPayload(opts))
     mcpToolsCache = res.tools ?? []
     mcpToolsCacheProjectPath = project
     mcpToolsFetchedKey = key
@@ -271,19 +282,21 @@ export async function ensureMcpToolsCached(
   projectPath?: string,
   enabledServers?: Record<string, boolean>,
   force = false,
+  trustedProjectPaths?: string[],
 ): Promise<McpToolInfo[]> {
   const project = (projectPath || '').trim()
   const key = enabledCacheKey(project, enabledServers)
   if (!force && mcpToolsFetchedKey === key) {
     return mcpToolsCache
   }
-  return fetchMcpTools(project, enabledServers)
+  return fetchMcpTools({
+    projectPath: project,
+    enabledServers,
+    trustedProjectPaths,
+  })
 }
 
-export async function reloadMcpServers(
-  projectPath?: string,
-  enabledServers?: Record<string, boolean>,
-): Promise<{
+export async function reloadMcpServers(opts?: McpClientOpts): Promise<{
   ok: boolean
   status: McpServerStatus[]
   tools: McpToolInfo[]
@@ -292,12 +305,8 @@ export async function reloadMcpServers(
   if (!isElectron() || !window.voidcast?.mcpReload) {
     return { ok: false, status: [], tools: [], error: 'MCP is only available in the desktop app.' }
   }
-  const project = (projectPath || '').trim()
-  const res = await window.voidcast.mcpReload({
-    projectPath: project || undefined,
-    enabledServers,
-  })
-  const tools = await fetchMcpTools(project, enabledServers)
+  const res = await window.voidcast.mcpReload(mcpPayload(opts))
+  const tools = await fetchMcpTools(opts)
   if (!res.ok) {
     return { ok: false, status: res.status ?? [], tools, error: res.error }
   }
@@ -308,10 +317,12 @@ export async function getMcpStatus(
   projectPath?: string,
   ensure = false,
   enabledServers?: Record<string, boolean>,
+  trustedProjectPaths?: string[],
 ): Promise<{
   ok: boolean
   status: McpServerStatus[]
   configPath: string
+  pendingProjectTrust?: boolean
   error?: string
 }> {
   if (!isElectron() || !window.voidcast?.mcpStatus) {
@@ -322,11 +333,81 @@ export async function getMcpStatus(
     projectPath: project || undefined,
     ensure,
     enabledServers,
+    trustedProjectPaths,
   })
   return {
     ok: res.ok,
     status: res.status ?? [],
     configPath: res.configPath ?? '',
+    pendingProjectTrust: res.pendingProjectTrust,
+    error: res.ok ? undefined : res.error,
+  }
+}
+
+export async function getMcpProjectConfigPreview(projectPath: string): Promise<{
+  ok: boolean
+  servers: Array<{ id: string; transport: 'stdio' | 'url'; summary: string }>
+  normalizedProjectPath?: string
+  error?: string
+}> {
+  if (!isElectron() || !window.voidcast?.mcpProjectConfigPreview) {
+    return { ok: false, servers: [], error: 'MCP preview is only available in the desktop app.' }
+  }
+  const res = await window.voidcast.mcpProjectConfigPreview({
+    projectPath: projectPath.trim() || undefined,
+  })
+  if (!res.ok) {
+    return { ok: false, servers: res.servers ?? [], error: res.error }
+  }
+  return {
+    ok: true,
+    servers: res.servers ?? [],
+    normalizedProjectPath: res.normalizedProjectPath,
+  }
+}
+
+export async function cancelActiveMcpCalls(): Promise<void> {
+  if (!isElectron() || !window.voidcast?.mcpCancelActiveCalls) return
+  await window.voidcast.mcpCancelActiveCalls()
+}
+
+export async function signInMcpOAuthServer(
+  serverId: string,
+  opts?: McpClientOpts,
+): Promise<{ ok: boolean; status: McpServerStatus[]; tools: McpToolInfo[]; error?: string }> {
+  if (!isElectron() || !window.voidcast?.mcpOAuthSignIn) {
+    return { ok: false, status: [], tools: [], error: 'MCP OAuth is only available in the desktop app.' }
+  }
+  const res = await window.voidcast.mcpOAuthSignIn({
+    serverId,
+    ...mcpPayload(opts),
+  })
+  const tools = res.ok ? await fetchMcpTools(opts) : getCachedMcpTools()
+  return {
+    ok: res.ok,
+    status: res.status ?? [],
+    tools,
+    error: res.ok ? undefined : res.error,
+  }
+}
+
+export async function signOutMcpOAuthServer(
+  serverId: string,
+  opts?: McpClientOpts,
+): Promise<{ ok: boolean; status: McpServerStatus[]; tools: McpToolInfo[]; error?: string }> {
+  if (!isElectron() || !window.voidcast?.mcpOAuthSignOut) {
+    return { ok: false, status: [], tools: [], error: 'MCP OAuth is only available in the desktop app.' }
+  }
+  const res = await window.voidcast.mcpOAuthSignOut({
+    serverId,
+    ...mcpPayload(opts),
+  })
+  clearMcpToolsCache()
+  const tools = res.ok ? await fetchMcpTools(opts) : []
+  return {
+    ok: res.ok,
+    status: res.status ?? [],
+    tools,
     error: res.ok ? undefined : res.error,
   }
 }
@@ -334,8 +415,7 @@ export async function getMcpStatus(
 export async function executeMcpToolCall(
   qualifiedName: string,
   args: Record<string, unknown>,
-  projectPath?: string,
-  enabledServers?: Record<string, boolean>,
+  opts?: McpClientOpts,
 ): Promise<string> {
   if (!isElectron() || !window.voidcast?.mcpExecuteTool) {
     return 'Error: MCP tools are only available in the desktop app.'
@@ -344,14 +424,12 @@ export async function executeMcpToolCall(
   if (!parsed) {
     return `Error: invalid MCP tool name "${qualifiedName}".`
   }
-  const project = (projectPath || '').trim()
   const res = await window.voidcast.mcpExecuteTool({
     serverId: parsed.serverId,
     toolName: parsed.toolName,
     qualifiedName,
     args,
-    projectPath: project || undefined,
-    enabledServers,
+    ...mcpPayload(opts),
   })
   return res.result
 }

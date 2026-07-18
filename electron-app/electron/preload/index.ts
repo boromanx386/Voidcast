@@ -71,7 +71,11 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: false; error?: string; files: { fileName: string; content: string }[] }
     >,
   openPath: (filePath: string) => ipcRenderer.invoke('voidcast:open-path', filePath),
-  mcpListTools: (payload?: { projectPath?: string; enabledServers?: Record<string, boolean> }) =>
+  mcpListTools: (payload?: {
+    projectPath?: string
+    enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
+  }) =>
     ipcRenderer.invoke('voidcast:mcp-list-tools', payload) as Promise<
       | {
           ok: true
@@ -102,6 +106,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     args?: Record<string, unknown>
     projectPath?: string
     enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
   }) =>
     ipcRenderer.invoke('voidcast:mcp-execute-tool', payload) as Promise<
       | { ok: true; result: string; qualifiedName?: string }
@@ -121,7 +126,11 @@ contextBridge.exposeInMainWorld('voidcast', {
       ok: boolean
       result: string
     }>,
-  mcpReload: (payload?: { projectPath?: string; enabledServers?: Record<string, boolean> }) =>
+  mcpReload: (payload?: {
+    projectPath?: string
+    enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
+  }) =>
     ipcRenderer.invoke('voidcast:mcp-reload', payload) as Promise<
       | {
           ok: true
@@ -147,6 +156,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     projectPath?: string
     ensure?: boolean
     enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
   }) =>
     ipcRenderer.invoke('voidcast:mcp-status', payload) as Promise<
       | {
@@ -177,6 +187,49 @@ contextBridge.exposeInMainWorld('voidcast', {
     >,
   mcpStopAll: () =>
     ipcRenderer.invoke('voidcast:mcp-stop-all') as Promise<{ ok: true }>,
+  mcpCancelActiveCalls: () =>
+    ipcRenderer.invoke('voidcast:mcp-cancel-active-calls') as Promise<{ ok: true }>,
+  mcpProjectConfigPreview: (payload?: { projectPath?: string }) =>
+    ipcRenderer.invoke('voidcast:mcp-project-config-preview', payload) as Promise<
+      | {
+          ok: true
+          servers: { id: string; transport: 'stdio' | 'url'; summary: string }[]
+          normalizedProjectPath?: string
+        }
+      | {
+          ok: false
+          error?: string
+          servers: { id: string; transport: 'stdio' | 'url'; summary: string }[]
+        }
+    >,
+  mcpOAuthSignIn: (payload: {
+    serverId: string
+    projectPath?: string
+    enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
+  }) =>
+    ipcRenderer.invoke('voidcast:mcp-oauth-sign-in', payload) as Promise<
+      | { ok: true; status: { id: string; state: string; toolCount: number; error?: string }[] }
+      | {
+          ok: false
+          status: { id: string; state: string; toolCount: number; error?: string }[]
+          error?: string
+        }
+    >,
+  mcpOAuthSignOut: (payload: {
+    serverId: string
+    projectPath?: string
+    enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
+  }) =>
+    ipcRenderer.invoke('voidcast:mcp-oauth-sign-out', payload) as Promise<
+      | { ok: true; status: { id: string; state: string; toolCount: number; error?: string }[] }
+      | {
+          ok: false
+          status: { id: string; state: string; toolCount: number; error?: string }[]
+          error?: string
+        }
+    >,
   pickDirectory: () =>
     ipcRenderer.invoke('voidcast:pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }

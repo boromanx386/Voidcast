@@ -85,6 +85,7 @@ interface VoidcastBridge {
   mcpListTools: (payload?: {
     projectPath?: string
     enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
   }) => Promise<
     | {
         ok: true
@@ -116,6 +117,7 @@ interface VoidcastBridge {
     args?: Record<string, unknown>
     projectPath?: string
     enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
   }) => Promise<{ ok: true; result: string; qualifiedName?: string } | { ok: false; result: string }>
 
   mcpReadResult: (payload: {
@@ -132,6 +134,7 @@ interface VoidcastBridge {
   mcpReload: (payload?: {
     projectPath?: string
     enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
   }) => Promise<
     | {
         ok: true
@@ -140,6 +143,8 @@ interface VoidcastBridge {
           state: 'running' | 'error' | 'stopped' | 'disabled'
           toolCount: number
           error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
         }[]
       }
     | {
@@ -149,6 +154,8 @@ interface VoidcastBridge {
           state: 'running' | 'error' | 'stopped' | 'disabled'
           toolCount: number
           error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
         }[]
         error?: string
       }
@@ -158,6 +165,7 @@ interface VoidcastBridge {
     projectPath?: string
     ensure?: boolean
     enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
   }) => Promise<
     | {
         ok: true
@@ -166,8 +174,11 @@ interface VoidcastBridge {
           state: 'running' | 'error' | 'stopped' | 'disabled'
           toolCount: number
           error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
         }[]
         configPath: string
+        pendingProjectTrust?: boolean
       }
     | {
         ok: false
@@ -176,8 +187,11 @@ interface VoidcastBridge {
           state: 'running' | 'error' | 'stopped' | 'disabled'
           toolCount: number
           error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
         }[]
         configPath: string
+        pendingProjectTrust?: boolean
         error?: string
       }
   >
@@ -185,6 +199,83 @@ interface VoidcastBridge {
   mcpOpenConfig: () => Promise<{ ok: true; path: string } | { ok: false; path?: string; error?: string }>
 
   mcpStopAll: () => Promise<{ ok: true }>
+
+  mcpCancelActiveCalls: () => Promise<{ ok: true }>
+
+  mcpProjectConfigPreview: (payload?: { projectPath?: string }) => Promise<
+    | {
+        ok: true
+        servers: { id: string; transport: 'stdio' | 'url'; summary: string }[]
+        normalizedProjectPath?: string
+      }
+    | {
+        ok: false
+        error?: string
+        servers: { id: string; transport: 'stdio' | 'url'; summary: string }[]
+      }
+  >
+
+  mcpOAuthSignIn: (payload: {
+    serverId: string
+    projectPath?: string
+    enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
+  }) => Promise<
+    | {
+        ok: true
+        status: {
+          id: string
+          state: 'running' | 'error' | 'stopped' | 'disabled'
+          toolCount: number
+          error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
+        }[]
+      }
+    | {
+        ok: false
+        status: {
+          id: string
+          state: 'running' | 'error' | 'stopped' | 'disabled'
+          toolCount: number
+          error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
+        }[]
+        error?: string
+      }
+  >
+
+  mcpOAuthSignOut: (payload: {
+    serverId: string
+    projectPath?: string
+    enabledServers?: Record<string, boolean>
+    trustedProjectPaths?: string[]
+  }) => Promise<
+    | {
+        ok: true
+        status: {
+          id: string
+          state: 'running' | 'error' | 'stopped' | 'disabled'
+          toolCount: number
+          error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
+        }[]
+      }
+    | {
+        ok: false
+        status: {
+          id: string
+          state: 'running' | 'error' | 'stopped' | 'disabled'
+          toolCount: number
+          error?: string
+          oauthEnabled?: boolean
+          authState?: 'none' | 'authenticated' | 'needs_sign_in'
+        }[]
+        error?: string
+      }
+  >
 
   pickDirectory: () => Promise<{ ok: true; path: string } | { ok: false }>
 

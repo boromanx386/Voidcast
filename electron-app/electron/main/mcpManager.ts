@@ -13,7 +13,19 @@ import {
 } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import {
+  clearMcpOAuthSession,
+  createVoidcastMcpOAuthProvider,
+  isMcpOAuthEnabled,
+  mcpOAuthEvents,
+  transportHasFinishAuth,
+  type McpOAuthConfig,
+  type McpServerAuthState,
+} from './mcpOAuth.js'
+
+export type { McpOAuthConfig, McpServerAuthState } from './mcpOAuth.js'
 
 export type McpServerConfig = {
   /** stdio */
@@ -26,6 +38,8 @@ export type McpServerConfig = {
   headers?: Record<string, string>
   /** optional hint: stdio | http | sse */
   type?: string
+  /** Enable MCP OAuth (browser sign-in) for remote servers */
+  oauth?: boolean | McpOAuthConfig
 }
 
 export type McpConfig = {
@@ -46,6 +60,8 @@ export type McpServerStatus = {
   state: 'running' | 'error' | 'stopped' | 'disabled'
   toolCount: number
   error?: string
+  oauthEnabled?: boolean
+  authState?: McpServerAuthState
 }
 
 type RunningServer = {
@@ -53,6 +69,13 @@ type RunningServer = {
   transport: Transport
   tools: McpToolInfo[]
   error?: string
+  oauthEnabled?: boolean
+  authState?: McpServerAuthState
+}
+
+type PendingOAuthSession = {
+  transport: Transport
+  config: McpServerConfig
 }
 
 const EMPTY_CONFIG: McpConfig = { mcpServers: {} }
@@ -100,6 +123,22 @@ function parseStringRecord(raw: unknown): Record<string, string> | undefined {
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+function parseOAuthConfig(raw: unknown): boolean | McpOAuthConfig | undefined {
+  if (raw === true) return true
+  if (!isPlainObject(raw)) return undefined
+  const out: McpOAuthConfig = {}
+  if (typeof raw.enabled === 'boolean') out.enabled = raw.enabled
+  if (typeof raw.clientId === 'string' && raw.clientId.trim()) out.clientId = raw.clientId.trim()
+  if (typeof raw.clientSecret === 'string' && raw.clientSecret.trim()) {
+    out.clientSecret = raw.clientSecret.trim()
+  }
+  if (typeof raw.redirectUri === 'string' && raw.redirectUri.trim()) {
+    out.redirectUri = raw.redirectUri.trim()
+  }
+  if (typeof raw.scope === 'string' && raw.scope.trim()) out.scope = raw.scope.trim()
+  return out
+}
+
 function parseServerConfig(raw: unknown): McpServerConfig | null {
   if (!isPlainObject(raw)) return null
 
@@ -112,9 +151,10 @@ function parseServerConfig(raw: unknown): McpServerConfig | null {
   const env = parseStringRecord(raw.env)
   const headers = parseStringRecord(raw.headers)
   const cwd = typeof raw.cwd === 'string' && raw.cwd.trim() ? raw.cwd.trim() : undefined
+  const oauth = parseOAuthConfig(raw.oauth)
 
   if (url) {
-    return { url, headers, env, type: type || 'http' }
+    return { url, headers, env, type: type || 'http', ...(oauth !== undefined ? { oauth } : {}) }
   }
   if (command) {
     return { command, args, env, cwd, type: type || 'stdio' }
@@ -122,7 +162,7 @@ function parseServerConfig(raw: unknown): McpServerConfig | null {
   return null
 }
 
-function parseMcpConfigJson(raw: string): McpConfig {
+export function parseMcpConfigJson(raw: string): McpConfig {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -152,17 +192,97 @@ async function readConfigFile(filePath: string): Promise<McpConfig> {
   }
 }
 
-export async function loadMcpConfig(projectPath?: string): Promise<McpConfig> {
-  const globalCfg = await readConfigFile(getGlobalMcpConfigPath())
-  const projectRoot = (projectPath || '').trim()
-  if (!projectRoot) return globalCfg
-  const projectCfg = await readConfigFile(path.join(projectRoot, '.mcp.json'))
+export type LoadMcpConfigOpts = {
+  /** When false, only ~/.voidcast/mcp.json is used (project .mcp.json is ignored). */
+  allowProjectConfig?: boolean
+}
+
+export function mergeMcpConfigs(globalCfg: McpConfig, projectCfg: McpConfig): McpConfig {
   return {
     mcpServers: {
       ...globalCfg.mcpServers,
       ...projectCfg.mcpServers,
     },
   }
+}
+
+export async function loadMcpConfig(
+  projectPath?: string,
+  opts?: LoadMcpConfigOpts,
+): Promise<McpConfig> {
+  const globalCfg = await readConfigFile(getGlobalMcpConfigPath())
+  const projectRoot = (projectPath || '').trim()
+  if (!projectRoot || opts?.allowProjectConfig === false) return globalCfg
+  const projectCfg = await readConfigFile(path.join(projectRoot, '.mcp.json'))
+  return mergeMcpConfigs(globalCfg, projectCfg)
+}
+export async function loadProjectMcpConfig(projectPath: string): Promise<McpConfig> {
+  const projectRoot = projectPath.trim()
+  if (!projectRoot) return EMPTY_CONFIG
+  return readConfigFile(projectMcpConfigFile(projectRoot))
+}
+
+export function normalizeMcpProjectPathResolved(projectPath: string): string {
+  const trimmed = projectPath.trim()
+  if (!trimmed) return ''
+  return path.resolve(trimmed).replace(/\\/g, '/').toLowerCase()
+}
+
+export function isMcpProjectTrustedResolved(
+  projectPath: string,
+  trustedProjectPaths: string[] | undefined,
+): boolean {
+  const normalized = normalizeMcpProjectPathResolved(projectPath)
+  if (!normalized) return false
+  const trusted = new Set(
+    (trustedProjectPaths ?? [])
+      .map((entry) => {
+        const trimmed = entry.trim()
+        if (!trimmed) return ''
+        try {
+          return path.resolve(trimmed).replace(/\\/g, '/').toLowerCase()
+        } catch {
+          return trimmed.replace(/\\/g, '/').toLowerCase()
+        }
+      })
+      .filter(Boolean),
+  )
+  return trusted.has(normalized)
+}
+
+export function projectMcpConfigFile(projectPath: string): string {
+  return path.join(projectPath.trim(), '.mcp.json')
+}
+
+export function projectHasMcpConfigFile(projectPath: string): boolean {
+  const root = projectPath.trim()
+  if (!root) return false
+  return existsSync(projectMcpConfigFile(root))
+}
+
+/** Default connect timeout per MCP server (stdio spawn + initialize + tools/list). */
+export const MCP_CONNECT_TIMEOUT_MS = 30_000
+/** Default timeout for a single MCP tool call. */
+export const MCP_CALL_TIMEOUT_MS = 120_000
+
+export type McpServerReconciliationPlan = {
+  toClose: string[]
+  toStart: string[]
+}
+
+/** Pure helper: which running servers should close vs start for the desired config. */
+export function planMcpServerReconciliation(params: {
+  configServerIds: string[]
+  enabledMap?: Record<string, boolean>
+  connectedServerIds: string[]
+  connectedHealthyIds?: string[]
+}): McpServerReconciliationPlan {
+  const desired = params.configServerIds.filter((id) => isServerEnabled(id, params.enabledMap))
+  const desiredSet = new Set(desired)
+  const healthy = new Set(params.connectedHealthyIds ?? [])
+  const toClose = params.connectedServerIds.filter((id) => !desiredSet.has(id))
+  const toStart = desired.filter((id) => !healthy.has(id))
+  return { toClose, toStart }
 }
 
 function schemaToParameters(inputSchema: unknown): Record<string, unknown> {
@@ -437,13 +557,79 @@ function formatError(e: unknown): string {
   return String(e)
 }
 
-async function connectClient(transport: Transport): Promise<{
+function abortError(): Error {
+  const err = new Error('Aborted')
+  err.name = 'AbortError'
+  return err
+}
+
+function mergeAbortSignals(signals: Array<AbortSignal | undefined>): AbortSignal | undefined {
+  const active = signals.filter((s): s is AbortSignal => Boolean(s))
+  if (active.length === 0) return undefined
+  if (active.length === 1) return active[0]
+  const ac = new AbortController()
+  const onAbort = () => ac.abort()
+  for (const signal of active) {
+    if (signal.aborted) {
+      ac.abort()
+      break
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  }
+  return ac.signal
+}
+
+export async function withMcpTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (signal?.aborted) throw abortError()
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`))
+    }, timeoutMs)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(abortError())
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
+async function connectClient(
+  transport: Transport,
+  signal?: AbortSignal,
+): Promise<{
   client: Client
   tools: McpToolInfo[]
 }> {
   const client = new Client({ name: 'voidcast', version: '1.0.0' }, { capabilities: {} })
-  await client.connect(transport)
-  const listed = await client.listTools()
+  await withMcpTimeout(
+    client.connect(transport),
+    MCP_CONNECT_TIMEOUT_MS,
+    'MCP connect',
+    signal,
+  )
+  const listed = await withMcpTimeout(
+    client.listTools(),
+    MCP_CONNECT_TIMEOUT_MS,
+    'MCP list tools',
+    signal,
+  )
   return {
     client,
     tools: (listed.tools ?? []).map((t) => ({
@@ -493,33 +679,62 @@ export class McpManager {
   private connectPromise: Promise<void> | null = null
   private lastConfigIds: string[] = []
   private lastEnabledMap: Record<string, boolean> = {}
+  private lastProjectPath = ''
+  private lastServerConfigs: Record<string, McpServerConfig> = {}
+  private lastConnectionOpts: { allowProjectConfig?: boolean } = {}
+  private activeCallAbort: AbortController | null = null
+  private pendingOAuth = new Map<string, PendingOAuthSession>()
+
+  constructor() {
+    mcpOAuthEvents.on('authorization_code', ({ serverId, code }) => {
+      void this.completeOAuthConnect(serverId, code)
+    })
+  }
 
   getStatus(): McpServerStatus[] {
     const out: McpServerStatus[] = []
     const ids =
       this.lastConfigIds.length > 0 ? this.lastConfigIds : [...this.servers.keys()]
     for (const id of ids) {
+      const oauthEnabled = isMcpOAuthEnabled(this.lastServerConfigs[id])
       if (!isServerEnabled(id, this.lastEnabledMap)) {
-        out.push({ id, state: 'disabled', toolCount: 0 })
+        out.push({
+          id,
+          state: 'disabled',
+          toolCount: 0,
+          oauthEnabled,
+          authState: 'none',
+        })
         continue
       }
       const entry = this.servers.get(id)
       if (!entry) {
-        out.push({ id, state: 'stopped', toolCount: 0 })
+        out.push({
+          id,
+          state: 'stopped',
+          toolCount: 0,
+          oauthEnabled,
+          authState: oauthEnabled ? 'needs_sign_in' : 'none',
+        })
         continue
       }
+      const authState = entry.authState ?? (oauthEnabled ? 'authenticated' : 'none')
       if (entry.error) {
         out.push({
           id,
           state: 'error',
           toolCount: entry.tools.length,
           error: entry.error,
+          oauthEnabled,
+          authState,
         })
       } else {
         out.push({
           id,
           state: 'running',
           toolCount: entry.tools.length,
+          oauthEnabled,
+          authState,
         })
       }
     }
@@ -539,41 +754,52 @@ export class McpManager {
   async ensureConnected(
     projectPath?: string,
     enabledMap?: Record<string, boolean>,
+    opts?: { allowProjectConfig?: boolean; signal?: AbortSignal },
   ): Promise<void> {
     const project = (projectPath || '').trim()
     const map = enabledMap ?? {}
     const key = enabledMapKey(project, map)
-    if (this.connectPromise) {
-      await this.connectPromise
+    while (true) {
+      if (this.connectPromise) {
+        await this.connectPromise
+        if (this.connectedKey === key) return
+        continue
+      }
       if (this.connectedKey === key) return
-    } else if (this.connectedKey === key) {
-      return
-    }
-    this.connectPromise = this.connectAll(project, map)
-    try {
-      await this.connectPromise
-      this.connectedKey = key
-    } finally {
-      this.connectPromise = null
+      this.connectPromise = this.connectAll(project, map, opts)
+      try {
+        await this.connectPromise
+        this.connectedKey = key
+        return
+      } finally {
+        this.connectPromise = null
+      }
     }
   }
 
   async reload(
     projectPath?: string,
     enabledMap?: Record<string, boolean>,
+    opts?: { allowProjectConfig?: boolean; signal?: AbortSignal },
   ): Promise<{ ok: true; status: McpServerStatus[] }> {
     await this.stopAll()
     const project = (projectPath || '').trim()
     const map = enabledMap ?? {}
-    await this.connectAll(project, map)
+    await this.connectAll(project, map, opts)
     this.connectedKey = enabledMapKey(project, map)
     return { ok: true, status: this.getStatus() }
+  }
+
+  cancelActiveCalls(): void {
+    this.activeCallAbort?.abort()
+    this.activeCallAbort = null
   }
 
   async callTool(
     serverId: string,
     toolName: string,
     args: Record<string, unknown>,
+    opts?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<string> {
     const entry = this.servers.get(serverId)
     if (!entry) {
@@ -582,27 +808,120 @@ export class McpManager {
     if (entry.error) {
       return `Error: MCP server "${serverId}" failed to start: ${entry.error}`
     }
+    const callAbort = new AbortController()
+    this.activeCallAbort = callAbort
+    const signal = mergeAbortSignals([opts?.signal, callAbort.signal])
+    const timeoutMs = opts?.timeoutMs ?? MCP_CALL_TIMEOUT_MS
     try {
-      const result = await entry.client.callTool({
-        name: toolName,
-        arguments: args,
-      })
+      const result = await withMcpTimeout(
+        entry.client.callTool({
+          name: toolName,
+          arguments: args,
+        }),
+        timeoutMs,
+        `MCP tool "${formatMcpToolName(serverId, toolName)}"`,
+        signal,
+      )
       const text = toolResultToString(
         result as { content?: unknown[]; isError?: boolean; structuredContent?: unknown },
       )
       return await persistIfLargeMcpResult(text, formatMcpToolName(serverId, toolName))
     } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        return `Error: MCP tool "${formatMcpToolName(serverId, toolName)}" was cancelled.`
+      }
       return `Error: MCP tool "${formatMcpToolName(serverId, toolName)}" failed: ${formatError(e)}`
+    } finally {
+      if (this.activeCallAbort === callAbort) {
+        this.activeCallAbort = null
+      }
     }
   }
 
   async stopAll(): Promise<void> {
+    this.cancelActiveCalls()
+    this.pendingOAuth.clear()
     const entries = [...this.servers.entries()]
     this.servers.clear()
     this.connectedKey = null
     this.lastConfigIds = []
     this.lastEnabledMap = {}
+    this.lastProjectPath = ''
+    this.lastServerConfigs = {}
+    this.lastConnectionOpts = {}
     await Promise.all(entries.map(([, entry]) => safeClose(entry.client, entry.transport)))
+  }
+
+  async signOutOAuth(serverId: string): Promise<void> {
+    this.pendingOAuth.delete(serverId)
+    await clearMcpOAuthSession(serverId)
+    const entry = this.servers.get(serverId)
+    if (entry) {
+      await safeClose(entry.client, entry.transport)
+      this.servers.delete(serverId)
+    }
+  }
+
+  async signInOAuth(
+    serverId: string,
+    projectPath?: string,
+    enabledMap?: Record<string, boolean>,
+    opts?: { allowProjectConfig?: boolean; signal?: AbortSignal },
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const project = (projectPath ?? this.lastProjectPath).trim()
+    const map = enabledMap ?? this.lastEnabledMap
+    const config = await loadMcpConfig(project || undefined, {
+      allowProjectConfig: opts?.allowProjectConfig ?? this.lastConnectionOpts.allowProjectConfig,
+    })
+    const cfg = config.mcpServers[serverId]
+    if (!cfg?.url) {
+      return { ok: false, error: `MCP server "${serverId}" is not a remote OAuth server.` }
+    }
+    if (!isMcpOAuthEnabled(cfg)) {
+      return { ok: false, error: `MCP server "${serverId}" does not have OAuth enabled in mcp.json.` }
+    }
+    this.lastProjectPath = project
+    this.lastEnabledMap = { ...map }
+    this.lastServerConfigs = config.mcpServers
+    this.lastConnectionOpts = { allowProjectConfig: opts?.allowProjectConfig }
+    const existing = this.servers.get(serverId)
+    if (existing) {
+      await safeClose(existing.client, existing.transport)
+      this.servers.delete(serverId)
+    }
+    await this.startUrlServer(serverId, cfg, opts?.signal)
+    const entry = this.servers.get(serverId)
+    if (entry?.error) {
+      return { ok: false, error: entry.error }
+    }
+    return { ok: true }
+  }
+
+  async completeOAuthConnect(
+    serverId: string,
+    authorizationCode: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const pending = this.pendingOAuth.get(serverId)
+    if (!pending || !transportHasFinishAuth(pending.transport)) {
+      return { ok: false, error: `No pending OAuth session for "${serverId}".` }
+    }
+    try {
+      await pending.transport.finishAuth(authorizationCode)
+      this.pendingOAuth.delete(serverId)
+      const connected = await connectClient(pending.transport)
+      this.attachTools(serverId, connected.client, pending.transport, connected.tools, {
+        oauthEnabled: true,
+        authState: 'authenticated',
+      })
+      return { ok: true }
+    } catch (e) {
+      const message = formatError(e)
+      this.setError(serverId, message, {
+        oauthEnabled: true,
+        authState: 'needs_sign_in',
+      })
+      return { ok: false, error: message }
+    }
   }
 
   async ensureGlobalConfigExists(): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
@@ -625,24 +944,62 @@ export class McpManager {
   private async connectAll(
     projectPath: string,
     enabledMap: Record<string, boolean> = {},
+    opts?: { allowProjectConfig?: boolean; signal?: AbortSignal },
   ): Promise<void> {
-    const config = await loadMcpConfig(projectPath || undefined)
+    const config = await loadMcpConfig(projectPath || undefined, {
+      allowProjectConfig: opts?.allowProjectConfig,
+    })
     const ids = Object.keys(config.mcpServers).sort()
     this.lastConfigIds = ids
     this.lastEnabledMap = { ...enabledMap }
-    if (ids.length === 0) return
+    this.lastProjectPath = projectPath
+    this.lastServerConfigs = config.mcpServers
+    this.lastConnectionOpts = { allowProjectConfig: opts?.allowProjectConfig }
+
+    const connectedIds = [...this.servers.keys()]
+    const healthyIds = connectedIds.filter((id) => {
+      const entry = this.servers.get(id)
+      return Boolean(entry && !entry.error)
+    })
+    const plan = planMcpServerReconciliation({
+      configServerIds: ids,
+      enabledMap,
+      connectedServerIds: connectedIds,
+      connectedHealthyIds: healthyIds,
+    })
+
+    const toCloseEntries = plan.toClose
+      .map((id) => {
+        const entry = this.servers.get(id)
+        return entry ? ([id, entry] as const) : null
+      })
+      .filter((x): x is readonly [string, RunningServer] => x != null)
+    for (const [id] of toCloseEntries) {
+      this.servers.delete(id)
+    }
+    await Promise.all(toCloseEntries.map(([, entry]) => safeClose(entry.client, entry.transport)))
+
+    if (plan.toStart.length === 0) return
 
     await Promise.all(
-      ids.map(async (id) => {
-        if (!isServerEnabled(id, enabledMap)) return
+      plan.toStart.map(async (id) => {
         const cfg = config.mcpServers[id]
         if (!cfg) return
-        await this.startServer(id, cfg)
+        const existing = this.servers.get(id)
+        if (existing) {
+          this.servers.delete(id)
+          await safeClose(existing.client, existing.transport)
+        }
+        await this.startServer(id, cfg, opts?.signal)
       }),
     )
   }
 
-  private setError(id: string, message: string): void {
+  private setError(
+    id: string,
+    message: string,
+    extras?: { oauthEnabled?: boolean; authState?: McpServerAuthState },
+  ): void {
     this.servers.set(id, {
       client: new Client({ name: 'voidcast', version: '1.0.0' }, { capabilities: {} }),
       transport: {
@@ -652,15 +1009,17 @@ export class McpManager {
       },
       tools: [],
       error: message,
+      oauthEnabled: extras?.oauthEnabled,
+      authState: extras?.authState,
     })
   }
 
-  private async startServer(id: string, config: McpServerConfig): Promise<void> {
+  private async startServer(id: string, config: McpServerConfig, signal?: AbortSignal): Promise<void> {
     try {
       if (config.url) {
-        await this.startUrlServer(id, config)
+        await this.startUrlServer(id, config, signal)
       } else if (config.command) {
-        await this.startStdioServer(id, config)
+        await this.startStdioServer(id, config, signal)
       } else {
         this.setError(id, 'Invalid MCP config: need either "url" or "command".')
       }
@@ -669,7 +1028,13 @@ export class McpManager {
     }
   }
 
-  private attachTools(id: string, client: Client, transport: Transport, tools: McpToolInfo[]): void {
+  private attachTools(
+    id: string,
+    client: Client,
+    transport: Transport,
+    tools: McpToolInfo[],
+    extras?: { oauthEnabled?: boolean; authState?: McpServerAuthState },
+  ): void {
     const labeled = tools.map((t) => ({
       ...t,
       serverId: id,
@@ -678,10 +1043,20 @@ export class McpManager {
         ? t.description
         : `[mcp:${id}] ${t.description}`,
     }))
-    this.servers.set(id, { client, transport, tools: labeled })
+    this.servers.set(id, {
+      client,
+      transport,
+      tools: labeled,
+      oauthEnabled: extras?.oauthEnabled,
+      authState: extras?.authState,
+    })
   }
 
-  private async startStdioServer(id: string, config: McpServerConfig): Promise<void> {
+  private async startStdioServer(
+    id: string,
+    config: McpServerConfig,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const command = resolveStdioCommand(config.command!)
     const args = config.args ?? []
 
@@ -718,7 +1093,7 @@ export class McpManager {
 
     let client: Client | null = null
     try {
-      const connected = await connectClient(transport)
+      const connected = await connectClient(transport, signal)
       client = connected.client
       this.attachTools(id, connected.client, transport, connected.tools)
     } catch (e) {
@@ -752,7 +1127,11 @@ export class McpManager {
     return Object.keys(headers).length > 0 ? { headers } : undefined
   }
 
-  private async startUrlServer(id: string, config: McpServerConfig): Promise<void> {
+  private async startUrlServer(
+    id: string,
+    config: McpServerConfig,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const urlStr = config.url!
     let url: URL
     try {
@@ -762,9 +1141,20 @@ export class McpManager {
       return
     }
 
-    const requestInit = this.buildRequestInit(config)
+    const oauthEnabled = isMcpOAuthEnabled(config)
+    const authProvider = oauthEnabled
+      ? await createVoidcastMcpOAuthProvider(id, config, url.toString())
+      : undefined
+    const staticRequestInit = oauthEnabled ? undefined : this.buildRequestInit(config)
     const preferSse = (config.type || '').toLowerCase() === 'sse'
     const errors: string[] = []
+
+    const makeTransportOpts = () =>
+      authProvider
+        ? { authProvider }
+        : staticRequestInit
+          ? { requestInit: staticRequestInit }
+          : undefined
 
     const tryTransport = async (
       label: string,
@@ -773,11 +1163,25 @@ export class McpManager {
       const transport = make()
       let client: Client | null = null
       try {
-        const connected = await connectClient(transport)
+        const connected = await connectClient(transport, signal)
         client = connected.client
-        this.attachTools(id, connected.client, transport, connected.tools)
+        this.pendingOAuth.delete(id)
+        this.attachTools(id, connected.client, transport, connected.tools, {
+          oauthEnabled,
+          authState: oauthEnabled ? 'authenticated' : 'none',
+        })
         return true
       } catch (e) {
+        if (oauthEnabled && e instanceof UnauthorizedError) {
+          this.pendingOAuth.set(id, { transport, config })
+          await safeClose(client, null)
+          this.setError(
+            id,
+            'OAuth sign-in required. Complete sign-in in your browser, or click SIGN_IN in MCP settings.',
+            { oauthEnabled: true, authState: 'needs_sign_in' },
+          )
+          return false
+        }
         errors.push(`${label}: ${formatError(e)}`)
         await safeClose(client, transport)
         return false
@@ -786,17 +1190,14 @@ export class McpManager {
 
     if (preferSse) {
       if (
-        await tryTransport(
-          'sse',
-          () => new SSEClientTransport(url, requestInit ? { requestInit } : undefined),
-        )
+        await tryTransport('sse', () => new SSEClientTransport(url, makeTransportOpts()))
       ) {
         return
       }
       if (
         await tryTransport(
           'streamable-http',
-          () => new StreamableHTTPClientTransport(url, requestInit ? { requestInit } : undefined),
+          () => new StreamableHTTPClientTransport(url, makeTransportOpts()),
         )
       ) {
         return
@@ -805,25 +1206,25 @@ export class McpManager {
       if (
         await tryTransport(
           'streamable-http',
-          () => new StreamableHTTPClientTransport(url, requestInit ? { requestInit } : undefined),
+          () => new StreamableHTTPClientTransport(url, makeTransportOpts()),
         )
       ) {
         return
       }
       if (
-        await tryTransport(
-          'sse',
-          () => new SSEClientTransport(url, requestInit ? { requestInit } : undefined),
-        )
+        await tryTransport('sse', () => new SSEClientTransport(url, makeTransportOpts()))
       ) {
         return
       }
     }
 
+    const authHint = oauthEnabled
+      ? 'OAuth sign-in may be required.'
+      : `If the server needs auth, add "headers": { "Authorization": "Bearer …" } or enable "oauth": true.`
     this.setError(
       id,
-      `Failed to connect to ${urlStr}. ${errors.join(' | ')}. ` +
-        `If the server needs auth, add "headers": { "Authorization": "Bearer …" }.`,
+      `Failed to connect to ${urlStr}. ${errors.join(' | ')}. ${authHint}`,
+      oauthEnabled ? { oauthEnabled: true, authState: 'needs_sign_in' } : undefined,
     )
   }
 }
