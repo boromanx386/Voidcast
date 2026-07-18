@@ -551,7 +551,17 @@ async function createWindow() {
     autoHideMenuBar: true,
     icon: windowIcon,
     show: false, // Start hidden until ready
-    ...(process.platform === 'win32' ? { backgroundColor: WIN_CHROME_BACKGROUND } : {}),
+    ...(process.platform === 'win32'
+      ? {
+          backgroundColor: WIN_CHROME_BACKGROUND,
+          titleBarStyle: 'hidden',
+          titleBarOverlay: {
+            color: WIN_CHROME_BACKGROUND,
+            symbolColor: '#9090b0',
+            height: 32,
+          },
+        }
+      : {}),
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production

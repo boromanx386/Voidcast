@@ -7,6 +7,55 @@
     rgb(var(--color-void-black));
 }
 
+/* Windows custom chrome. Native caption buttons occupy the reserved space on the right. */
+.window-titlebar {
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 100;
+  display: flex;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  padding: 0 148px 0 12px;
+  user-select: none;
+  background:
+    linear-gradient(90deg, rgb(var(--color-neon-cyan) / 0.055), transparent 32%),
+    rgb(var(--color-void-black));
+}
+
+.window-titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgb(var(--color-void-text));
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+}
+
+.window-titlebar-mark {
+  width: 5px;
+  height: 5px;
+  transform: rotate(45deg);
+  border: 1px solid rgb(var(--color-neon-cyan) / 0.9);
+  box-shadow: 0 0 7px rgb(var(--color-neon-cyan) / 0.7);
+}
+
+.window-titlebar-divider {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--color-neon-cyan) / 0.3),
+    rgb(var(--color-void-muted) / 0.35) 35%,
+    transparent 75%
+  );
+}
+
 /* Main app container */
 .voidcast-app {
   @apply h-full flex flex-col relative overflow-hidden;
