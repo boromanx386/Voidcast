@@ -9,10 +9,12 @@ import { shell } from 'electron'
 import type {
   OAuthClientInformationMixed,
   OAuthClientMetadata,
-  OAuthDiscoveryState,
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js'
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import type {
+  OAuthClientProvider,
+  OAuthDiscoveryState,
+} from '@modelcontextprotocol/sdk/client/auth.js'
 
 export type McpOAuthConfig = {
   enabled?: boolean
