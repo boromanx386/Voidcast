@@ -2,7 +2,7 @@
 
 ![Voidcast](logo.jpg)
 
-**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, or DeepSeek (direct API), and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, or DeepSeek (direct API), and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
 *Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
@@ -78,6 +78,7 @@ Available tools:
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
+- **MCP Servers (desktop)** — connect external MCP tools from `~/.voidcast/mcp.json` (see below)
 
 The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, and **DeepSeek** (direct API — no OpenRouter free-tier routing).
 
@@ -110,6 +111,30 @@ In **Options → SKILLS**, Voidcast discovers instruction packs from your user p
 On every turn, the agent sees a **catalog** of skill names and descriptions. When a request matches a skill, it loads the full `SKILL.md` on demand via `read_skill`. This keeps the system prompt lean while still making specialized workflows available. Project skills override globals with the same name.
 
 With coding tools on, Voidcast also injects **`AGENTS.md` / `CLAUDE.md`** from the project root into the system prompt — repo conventions available on every turn.
+
+### MCP Servers (desktop)
+
+In **Options → Tools → MCP_SERVERS**, enable MCP and edit `~/.voidcast/mcp.json` (OPEN_CONFIG). Servers can be:
+
+- **stdio** — `command` / `args` / `env` (e.g. `npx -y @runware/mcp`)
+- **remote** — `url` (Streamable HTTP or SSE). Optional `"oauth": true` opens a browser sign-in; tokens live under `~/.voidcast/mcp-oauth/`.
+
+Optional project **`.mcp.json`** merges with the global file. Untrusted project configs are blocked until you click **TRUST_PROJECT_MCP** (server preview first). Toggle servers individually; **RELOAD** reconnects.
+
+The agent discovers tools progressively (`mcp_list_tools` → `mcp_get_tool` → `mcp_call`) so schemas do not flood the context window. Large tool results spill to `~/.voidcast/mcp-results/` and are read via `mcp_read_result`. MCP write/call tools are blocked in Plan mode. Chat **Stop** cancels in-flight MCP calls.
+
+Example remote OAuth entry:
+
+```json
+{
+  "mcpServers": {
+    "runware": {
+      "url": "https://mcp.runware.ai",
+      "oauth": true
+    }
+  }
+}
+```
 
 ### Plan mode
 

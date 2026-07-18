@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.7.7] — 2026-07-18
+
+### Added
+
+- **MCP client (desktop)**: connect stdio and remote HTTP/SSE servers from `~/.voidcast/mcp.json` (optional project `.mcp.json`). Progressive discovery via `mcp_list_tools` → `mcp_get_tool` → `mcp_call` → `mcp_read_result`; large results spill to disk under `~/.voidcast/mcp-results/`. Per-server enable toggles in Options → Tools.
+- **MCP OAuth**: remote servers with `"oauth": true` support browser sign-in (PKCE); tokens stored under `~/.voidcast/mcp-oauth/`. SIGN_IN / SIGN_OUT in the MCP panel.
+- **MCP project trust**: untrusted project `.mcp.json` is ignored until you approve **TRUST_PROJECT_MCP** (preview of commands/URLs first).
+- **MCP reliability**: reconcile servers when project/enabled map changes (no stale cross-project tools), connect/call timeouts, and chat Stop cancels in-flight MCP calls.
+- **Model-aware CTX meter**: cloud providers (OpenRouter / DeepSeek / NVIDIA) use per-model context windows instead of Ollama `llmNumCtx`. DeepSeek V4 Pro/Flash use **1M**; OpenRouter presets include `tencent/hy3-preview` (262K).
+- **Custom Windows title bar** with native overlay window controls.
+
+### Changed
+
+- **CONTEXT_WINDOW** setting is shown only for Ollama — cloud providers ignore `num_ctx`; the footer CTX bar uses each model’s native limit (tooltip shows the source).
+
+### Fixed
+
+- TypeScript build: import `OAuthDiscoveryState` from the MCP SDK client auth module.
+
 ## [2.7.5] — 2026-07-13
 
 ### Added
