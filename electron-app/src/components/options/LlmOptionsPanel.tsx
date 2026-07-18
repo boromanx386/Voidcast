@@ -445,24 +445,28 @@ export function LlmOptionsPanel({
         </p>
       </div>
 
-      {/* Context Window */}
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-green mr-2">⬡</span> CONTEXT_WINDOW
-          <span className="ml-3 font-mono text-neon-cyan">
-            {settings.llmNumCtx.toLocaleString()} tokens
-          </span>
-        </label>
-        <NumericSettingInput
-          min={512}
-          max={262144}
-          value={settings.llmNumCtx}
-          onCommit={(llmNumCtx) => setSettings((s) => ({ ...s, llmNumCtx }))}
-        />
-        <p className="text-xs text-void-dim mt-1">
-          Model context window (Ollama options.num_ctx)
-        </p>
-      </div>
+      {/* Context Window — Ollama only (cloud providers use model-native limits) */}
+      {settings.llmProvider === 'ollama' && (
+        <div className="form-group">
+          <label className="form-label">
+            <span className="text-neon-green mr-2">⬡</span> CONTEXT_WINDOW
+            <span className="ml-3 font-mono text-neon-cyan">
+              {settings.llmNumCtx.toLocaleString()} tokens
+            </span>
+          </label>
+          <NumericSettingInput
+            min={512}
+            max={262144}
+            value={settings.llmNumCtx}
+            onCommit={(llmNumCtx) => setSettings((s) => ({ ...s, llmNumCtx }))}
+          />
+          <p className="text-xs text-void-dim mt-1">
+            Sent to Ollama as <code className="text-void-light">options.num_ctx</code>. Cloud
+            providers (OpenRouter / DeepSeek / NVIDIA) ignore this — CTX meter uses each
+            model&apos;s native window.
+          </p>
+        </div>
+      )}
 
       <div className="form-group">
         <label className="flex items-center gap-2 text-sm font-mono text-void-light cursor-pointer">

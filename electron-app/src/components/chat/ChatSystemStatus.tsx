@@ -1,4 +1,5 @@
 import { RobotIcon } from '@/components/icons/RobotIcon'
+import { contextLimitSourceLabel } from '@/lib/contextLimit'
 import { isWebStandalone } from '@/lib/platform'
 import { llmModelLabel, llmProviderTitle } from '@/lib/llmProviderDisplay'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
@@ -50,7 +51,11 @@ export function ChatSystemStatus({ app }: Props) {
               </span>
               <div
                 className="h-1 w-full max-w-[14rem] overflow-hidden rounded-sm bg-void-muted/70"
-                title={`Context window usage: ${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens`}
+                title={
+                  contextUsageInfo.limitSource
+                    ? `Context: ${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens · limit from ${contextLimitSourceLabel(contextUsageInfo.limitSource)}${contextUsageInfo.modelId ? ` · ${contextUsageInfo.modelId}` : ''}`
+                    : `Context window usage: ${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens`
+                }
               >
                 <div
                   className={`h-full transition-[width] duration-500 ${

@@ -17,6 +17,7 @@ import {
   estimateContextUsage,
   type ContextUsageInfo,
 } from '@/lib/contextUsage'
+import { resolveContextLimit } from '@/lib/contextLimit'
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
@@ -729,7 +730,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           setSettings((s) => (s.agentMode === 'agent' ? s : { ...s, agentMode: 'agent' }))
         }
 
-        const usageInfo = estimateContextUsage(usage, settings.llmNumCtx)
+        const usageInfo = estimateContextUsage(usage, resolveContextLimit(settings))
         setContextUsageInfo(usageInfo)
         if (usageInfo?.shouldWarn && !settings.contextAutoCompress) setContextWarnDismissed(false)
         if (retrievedLongMemory.length > 0) {

@@ -38,6 +38,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B IT (Free)' },
   { id: 'tencent/hy3:free', label: 'Tencent Hy3 (Free)' },
   { id: 'tencent/hy3', label: 'Tencent Hy3 (reasoning · agentic)' },
+  { id: 'tencent/hy3-preview', label: 'Tencent Hy3 Preview (agentic · 256K)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
