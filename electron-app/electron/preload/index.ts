@@ -268,6 +268,7 @@ contextBridge.exposeInMainWorld('voidcast', {
       done?: boolean
       code?: number
       timedOut?: boolean
+      killed?: boolean
     }) => void,
   ) => {
     const listener = (
@@ -279,6 +280,7 @@ contextBridge.exposeInMainWorld('voidcast', {
         done?: boolean
         code?: number
         timedOut?: boolean
+        killed?: boolean
       },
     ) => callback(payload)
     ipcRenderer.on('voidcast:coding-command-output', listener)
@@ -368,11 +370,16 @@ contextBridge.exposeInMainWorld('voidcast', {
           stderr: string
           code: number
           timedOut?: boolean
+          killed?: boolean
           pid?: number
           runId: string
           streamed: boolean
         }
       | { ok: false; error?: string; runId?: string; streamed?: boolean }
+    >,
+  codingKillCommand: (payload: { runId: string }) =>
+    ipcRenderer.invoke('voidcast:coding-kill-command', payload) as Promise<
+      { ok: true } | { ok: false; error?: string }
     >,
   pickChatAttachments: () =>
     ipcRenderer.invoke('voidcast:pick-chat-attachments') as Promise<

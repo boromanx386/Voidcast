@@ -11,6 +11,7 @@ import {
   type CodingContextMemo,
 } from '@/lib/codingContextMemo'
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
+import { codingRevealPathFromToolResult } from '@/lib/codingReveal'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
 import { MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
 import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
@@ -43,6 +44,8 @@ export type AgentToolResultHandlerDeps = {
   setCodingTerminalFeed: Dispatch<SetStateAction<TerminalLine[]>>
   setCodingFileTreeNonce: Dispatch<SetStateAction<number>>
   setCodingGitNonce: Dispatch<SetStateAction<number>>
+  /** Open coding panel + focus a project-relative path after read/write/edit. */
+  revealCodingFile?: (path: string) => void
   setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf'; text: string } | null>>
   setMessages: Dispatch<SetStateAction<UiMessage[]>>
   setAssistantGeneratedImages: Dispatch<SetStateAction<Record<string, string[]>>>
@@ -80,6 +83,7 @@ export function applyAgentToolResult(
     setCodingTerminalFeed,
     setCodingFileTreeNonce,
     setCodingGitNonce,
+    revealCodingFile,
     setToolResultBanner,
     setMessages,
     setAssistantGeneratedImages,
@@ -236,6 +240,10 @@ export function applyAgentToolResult(
   if (name === 'write_file' || name === 'edit_code' || name === 'execute_command') {
     setCodingFileTreeNonce((n) => n + 1)
     setCodingGitNonce((n) => n + 1)
+  }
+  const revealPath = codingRevealPathFromToolResult(name, result, args)
+  if (revealPath && revealCodingFile) {
+    revealCodingFile(revealPath)
   }
   if (
     name === 'git_status' ||

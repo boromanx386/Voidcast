@@ -314,6 +314,7 @@ interface VoidcastBridge {
       done?: boolean
       code?: number
       timedOut?: boolean
+      killed?: boolean
     }) => void,
   ) => () => void
 
@@ -392,11 +393,16 @@ interface VoidcastBridge {
         stderr: string
         code: number
         timedOut?: boolean
+        killed?: boolean
         pid?: number
         runId: string
         streamed: boolean
       }
     | { ok: false; error?: string; runId?: string; streamed?: boolean }
+  >
+
+  codingKillCommand: (payload: { runId: string }) => Promise<
+    { ok: true } | { ok: false; error?: string }
   >
 
   pickChatAttachments: () => Promise<

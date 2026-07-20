@@ -104,6 +104,12 @@ let tray: Tray | null = null
 /** True when user chose Quit (vs close-to-tray). */
 let isQuitting = false
 let toolsServerProcess: ChildProcessWithoutNullStreams | null = null
+
+/** Foreground `execute_command` runs — keyed by runId for STOP. */
+const activeForegroundCodingCommands = new Map<
+  string,
+  { pid: number; killed: boolean }
+>()
 let toolsServerStarting = false
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
@@ -2083,6 +2089,7 @@ ipcMain.handle(
       stderr: string
       code: number
       timedOut?: boolean
+      killed?: boolean
       pid?: number
       runId: string
       streamed: boolean
@@ -2116,6 +2123,7 @@ ipcMain.handle(
         done?: boolean
         code?: number
         timedOut?: boolean
+        killed?: boolean
       }) => {
         try {
           evt.sender.send('voidcast:coding-command-output', { runId, ...payloadOut })
@@ -2130,32 +2138,35 @@ ipcMain.handle(
         sendOutput({ stream, text })
       }, 50)
 
+      const pid = typeof child.pid === 'number' && child.pid > 0 ? child.pid : 0
+      const runState = { pid, killed: false }
+      if (pid > 0) activeForegroundCodingCommands.set(runId, runState)
+
       let stdout = ''
       let stderr = ''
       let settled = false
       let timedOut = false
       const timeoutLabel = `Command timed out after ${Math.round(timeoutMs / 1000)}s and was stopped.`
+      const stoppedLabel = 'Command was stopped.'
 
       const finish = (result: OkResult | ErrResult) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        activeForegroundCodingCommands.delete(runId)
         throttle.flush()
         sendOutput({
           done: true,
           code: result.ok ? result.code : undefined,
           timedOut: result.ok ? result.timedOut : undefined,
+          killed: result.ok ? result.killed : undefined,
         })
         resolve(result)
       }
 
       const timer = setTimeout(() => {
         timedOut = true
-        try {
-          child.kill()
-        } catch {
-          // ignore kill errors
-        }
+        void killProcessTree(pid)
       }, timeoutMs)
 
       child.stdout?.on('data', (chunk) => {
@@ -2173,6 +2184,19 @@ ipcMain.handle(
         finish({ ok: false, error: err.message, runId, streamed: true })
       })
       child.on('close', (code) => {
+        if (runState.killed) {
+          sendOutput({ stream: 'stderr', text: stoppedLabel })
+          finish({
+            ok: true,
+            stdout: stdout.trim(),
+            stderr: [stderr.trim(), stoppedLabel].filter(Boolean).join('\n'),
+            code: 130,
+            killed: true,
+            runId,
+            streamed: true,
+          })
+          return
+        }
         if (timedOut) {
           sendOutput({ stream: 'stderr', text: timeoutLabel })
           finish({
@@ -2196,6 +2220,23 @@ ipcMain.handle(
         })
       })
     })
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-kill-command',
+  async (_evt, payload: { runId?: string }) => {
+    const runId = String(payload?.runId ?? '').trim()
+    if (!runId) return { ok: false as const, error: 'Missing runId.' }
+    const entry = activeForegroundCodingCommands.get(runId)
+    if (!entry) return { ok: false as const, error: 'No running command for that runId.' }
+    entry.killed = true
+    try {
+      await killProcessTree(entry.pid)
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
   },
 )
 

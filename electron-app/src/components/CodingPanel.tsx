@@ -31,6 +31,7 @@ import {
   subscribeCodingFsChange,
 } from '@/lib/codingTools'
 import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImagePreview'
+import { codingRevealParentDirs, type CodingRevealRequest } from '@/lib/codingReveal'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
 
 type CodingUiVisibilityPatch = Partial<
@@ -54,6 +55,11 @@ type Props = {
   agentShellFeed?: TerminalLine[]
   /** Bumps when chat/session changes; clears local terminal + seen agent line ids. */
   agentShellEpoch?: number
+  /** Agent read/write/edit: expand parents + open preview. */
+  revealRequest?: CodingRevealRequest | null
+  /** Foreground coding command currently streaming. */
+  commandRunning?: boolean
+  onStopCommand?: () => void
 }
 
 type PreviewMode = 'file' | 'diff' | 'image'
@@ -74,6 +80,9 @@ export function CodingPanel({
   gitRevision = 0,
   agentShellFeed = [],
   agentShellEpoch = 0,
+  revealRequest = null,
+  commandRunning = false,
+  onStopCommand,
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
@@ -113,6 +122,9 @@ export function CodingPanel({
 
   const expandedDirsRef = useRef(expandedDirs)
   expandedDirsRef.current = expandedDirs
+
+  const revealRequestRef = useRef(revealRequest)
+  revealRequestRef.current = revealRequest
 
   const bodySplitRef = useRef<HTMLDivElement>(null)
   const seenAgentShellIdsRef = useRef<Set<string>>(new Set())
@@ -439,6 +451,47 @@ export function CodingPanel({
     [projectPath, loadFilePreview, confirmDiscardEdit, resetEditState],
   )
 
+  /** Expand ancestor folders (load children as needed) then open the file preview. */
+  useEffect(() => {
+    if (!revealRequest || !projectPath) return
+    const path = revealRequest.path
+    const nonce = revealRequest.nonce
+    let cancelled = false
+
+    if (!settings.coding.showFilePreview) {
+      onCodingUiChange({ showFilePreview: true })
+    }
+    if (!settings.coding.showFileTree) {
+      onCodingUiChange({ showFileTree: true })
+    }
+
+    void (async () => {
+      const parents = codingRevealParentDirs(path)
+      for (const dirPath of parents) {
+        if (cancelled) return
+        if (expandedDirsRef.current.has(dirPath)) continue
+        const r = await invokeListCodingDirectory(projectPath, dirPath)
+        if (cancelled) return
+        if (r.ok) {
+          setChildrenByDir((c) => ({ ...c, [dirPath]: filterCodingTreeEntries(r.entries) }))
+        }
+        setExpandedDirs((p) => new Set(p).add(dirPath))
+      }
+      if (cancelled) return
+      if (revealRequestRef.current?.nonce !== nonce) return
+      if (!confirmDiscardEdit()) return
+      resetEditState()
+      setSelectedPath(path)
+      await loadFilePreview(path)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // nonce is the intentional trigger; callbacks/settings read from latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- revealRequest.nonce
+  }, [revealRequest?.nonce, projectPath])
+
   const onStartEdit = useCallback(async () => {
     if (!projectPath || !selectedPath || editing || editBusy) return
     if (isCodingPreviewImage(selectedPath)) return
@@ -670,7 +723,7 @@ export function CodingPanel({
 
   const onRunCommand = useCallback(async () => {
     const trimmed = command.trim()
-    if (!projectPath || !trimmed) return
+    if (!projectPath || !trimmed || commandRunning) return
     const out = await invokeExecuteCodingCommand(projectPath, trimmed)
     // Clear agent anti-dup flag; manual RUN does not go through applyAgentToolResult.
     consumeLastExecuteCommandStreamed()
@@ -688,7 +741,7 @@ export function CodingPanel({
     setCommand('')
     void refreshFileTreeInPlace()
     setLocalGitBump((n) => n + 1)
-  }, [projectPath, command, pushTerminal, refreshFileTreeInPlace])
+  }, [projectPath, command, commandRunning, pushTerminal, refreshFileTreeInPlace])
 
   const visibleFileCount = useMemo(() => {
     let n = 0
@@ -947,7 +1000,12 @@ export function CodingPanel({
                     </div>
                   )}
                   {showTerminal && (
-                    <TerminalView lines={terminalLines} onClear={() => setTerminalLines([])} />
+                    <TerminalView
+                      lines={terminalLines}
+                      onClear={() => setTerminalLines([])}
+                      running={commandRunning}
+                      onStop={onStopCommand}
+                    />
                   )}
                 </div>
               )}
@@ -997,7 +1055,12 @@ export function CodingPanel({
           title="Enter: run · ↑ / ↓: command history"
           className="cyber-input flex-1 text-xs"
         />
-        <button type="button" className="cyber-btn text-xs" onClick={() => void onRunCommand()}>
+        <button
+          type="button"
+          className="cyber-btn text-xs disabled:opacity-40"
+          disabled={commandRunning || !command.trim()}
+          onClick={() => void onRunCommand()}
+        >
           RUN
         </button>
       </div>

@@ -155,6 +155,9 @@ export function ChatScreen({ app }: Props) {
               gitRevision={app.codingGitNonce}
               agentShellFeed={app.codingTerminalFeed}
               agentShellEpoch={app.codingTerminalEpoch}
+              revealRequest={app.codingRevealRequest}
+              commandRunning={Boolean(app.activeCodingRunId)}
+              onStopCommand={() => void app.stopCodingCommand()}
               onCodingUiChange={(patch) =>
                 app.setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
               }

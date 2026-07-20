@@ -3,6 +3,7 @@ import { ChunkThrottle } from '../src/lib/chunkThrottle'
 import {
   appendCodingCommandEventToFeed,
   consumeLastExecuteCommandStreamed,
+  formatCodingCommandExitLine,
   markLastExecuteCommandStreamed,
   resetCodingTerminalFeedState,
 } from '../src/lib/codingCommandStream'
@@ -60,8 +61,17 @@ describe('mark/consumeLastExecuteCommandStreamed', () => {
   })
 })
 
+describe('formatCodingCommandExitLine', () => {
+  it('formats exit, timeout, and stopped', () => {
+    expect(formatCodingCommandExitLine({ code: 0 })).toBe('[exit 0]')
+    expect(formatCodingCommandExitLine({ code: 1 })).toBe('[exit 1]')
+    expect(formatCodingCommandExitLine({ timedOut: true, code: 124 })).toBe('[timed out]')
+    expect(formatCodingCommandExitLine({ killed: true, code: 130 })).toBe('[stopped]')
+  })
+})
+
 describe('appendCodingCommandEventToFeed', () => {
-  it('appends text events and ignores done-only events', () => {
+  it('appends text events and an exit line on done', () => {
     const seq = { n: 0 }
     const prev: TerminalLine[] = []
     const withCmd = appendCodingCommandEventToFeed(
@@ -86,7 +96,19 @@ describe('appendCodingCommandEventToFeed', () => {
       { runId: 'r1', done: true, code: 0 },
       seq,
     )
-    expect(afterDone).toEqual(withOut)
+    expect(afterDone.map((l) => l.text)).toEqual(['$ echo hi', 'hi\n', '[exit 0]'])
+    expect(afterDone[2]!.stream).toBe('system')
+  })
+
+  it('appends [stopped] when done with killed', () => {
+    const seq = { n: 0 }
+    const after = appendCodingCommandEventToFeed(
+      [],
+      { runId: 'rk', done: true, killed: true, code: 130 },
+      seq,
+    )
+    expect(after).toHaveLength(1)
+    expect(after[0]!.text).toBe('[stopped]')
   })
 
   it('does not re-append a full body after stream chunks (feed already has output)', () => {

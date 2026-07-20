@@ -12,6 +12,19 @@ export type CodingCommandOutputEvent = {
   done?: boolean
   code?: number
   timedOut?: boolean
+  killed?: boolean
+}
+
+/** Human-readable exit line for the terminal panel. */
+export function formatCodingCommandExitLine(opts: {
+  code?: number
+  timedOut?: boolean
+  killed?: boolean
+}): string {
+  if (opts.killed) return '[stopped]'
+  if (opts.timedOut) return '[timed out]'
+  if (typeof opts.code === 'number') return `[exit ${opts.code}]`
+  return '[done]'
 }
 
 /** Set when a foreground coding command used IPC streaming (anti-dup for applyAgentToolResult). */
@@ -39,7 +52,24 @@ export function appendCodingCommandEventToFeed(
   event: CodingCommandOutputEvent,
   seqRef: { n: number },
 ): TerminalLine[] {
-  if (event.done || !event.text) return prev
+  if (event.done) {
+    const text = formatCodingCommandExitLine({
+      code: event.code,
+      timedOut: event.timedOut,
+      killed: event.killed,
+    })
+    seqRef.n += 1
+    return [
+      ...prev,
+      {
+        id: `stream-${event.runId}-${seqRef.n}`,
+        stream: 'system' as const,
+        text,
+        ts: Date.now(),
+      },
+    ].slice(-MAX_TERMINAL_ROWS)
+  }
+  if (!event.text) return prev
   const stream = event.stream ?? 'stdout'
   seqRef.n += 1
   return [

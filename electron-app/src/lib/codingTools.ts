@@ -55,6 +55,16 @@ export function subscribeCodingCommandOutput(
   return fn(callback)
 }
 
+export async function invokeKillCodingCommand(
+  runId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const fn = window.voidcast?.codingKillCommand
+  if (!fn) return { ok: false, error: 'Stop is available only in Electron desktop.' }
+  const res = await fn({ runId })
+  if (!res.ok) return { ok: false, error: res.error || 'Stop failed.' }
+  return { ok: true }
+}
+
 export async function invokeReadCodingFile(
   projectPath: string,
   filePath: string,
