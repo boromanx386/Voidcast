@@ -221,10 +221,11 @@ export async function buildAgentTurnContext(
   }
   if (settings.toolsEnabled.runwareMusic && !planMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
   if (settings.toolsEnabled.coding) {
+    const codingSub = Boolean(settings.subAgent?.codingEnabled)
     if (planMode) {
       toolsHintParts.push(
         [
-          'Coding tools are READ-ONLY in Plan mode: list_directory, read_file, search_files, glob_files, git_status, git_diff, git_log, git_show, check_types.',
+          `Coding tools are READ-ONLY in Plan mode: list_directory, read_file, search_files, glob_files, git_status, git_diff, git_log, git_show, check_types${codingSub ? ', coding_explore' : ''}.`,
           'write_file, edit_code, and execute_command are disabled until the user Approves & Builds.',
           codingProjectPath
             ? `Coding project root: ${codingProjectPath}`
@@ -232,7 +233,9 @@ export async function buildAgentTurnContext(
         ].join('\n'),
       )
     } else {
-      toolsHintParts.push(buildToolsCodingHint(codingProjectPath))
+      toolsHintParts.push(
+        buildToolsCodingHint(codingProjectPath, { codingSubAgentEnabled: codingSub }),
+      )
       toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
       if (settings.toolsEnabled.runwareImage) {
         toolsHintParts.push(

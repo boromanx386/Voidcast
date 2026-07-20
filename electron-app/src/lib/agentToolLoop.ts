@@ -86,6 +86,8 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     ) => Promise<void>
   }) => Promise<boolean>
   executeToolCall: (name: string, argsRaw: string | Record<string, unknown> | undefined) => Promise<string>
+  /** Optional: compress large coding tool results for the LLM only (UI still gets raw). */
+  maybeCompressCodingToolResult?: (name: string, resultForLlm: string) => Promise<string>
   parseArgsForToolResult?: (raw: string | Record<string, unknown> | undefined) => Record<string, unknown>
   onDelta: (fullText: string) => void
   onThinkingDelta?: (fullThinking: string) => void
@@ -318,7 +320,10 @@ export async function runSharedToolLoop<
       const phase = params.toolPhaseForName?.(shared.name) ?? null
       params.onToolPhase?.(phase)
       const result = await params.executeToolCall(shared.name, shared.argsRaw)
-      const resultForLlm = sanitizeImageToolResultForLlm(shared.name, result)
+      let resultForLlm = sanitizeImageToolResultForLlm(shared.name, result)
+      if (params.maybeCompressCodingToolResult) {
+        resultForLlm = await params.maybeCompressCodingToolResult(shared.name, resultForLlm)
+      }
       params.appendToolResult({
         messages,
         call,

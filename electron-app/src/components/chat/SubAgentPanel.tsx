@@ -26,7 +26,7 @@ export function SubAgentPanel({ app }: Props) {
 
   if (
     !subAgentPanelOpen ||
-    !settings.subAgent.enabled ||
+    (!(settings.subAgent.enabled || settings.subAgent.codingEnabled)) ||
     settings.subAgent.showAnalysisWindow === false
   ) {
     return null
@@ -36,7 +36,7 @@ export function SubAgentPanel({ app }: Props) {
     <div
       className="fixed right-4 top-20 z-[65] w-[min(22rem,calc(100vw-2rem))] max-h-[min(70vh,32rem)] flex flex-col rounded border border-neon-cyan/40 bg-void-dark/95 shadow-lg backdrop-blur-sm"
       role="dialog"
-      aria-label="Sub-agent vision analysis"
+      aria-label="Sub-agent analysis"
     >
       <div className="flex items-center justify-between gap-2 border-b border-void-muted/30 px-3 py-2">
         <div className="text-xs font-mono text-neon-cyan">

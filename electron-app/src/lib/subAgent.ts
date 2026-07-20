@@ -32,6 +32,9 @@ export type SubAgentUiCallbacks = {
   onStart?: (imageCount: number) => void
   onProgress?: (current: number, total: number) => void
   onDone?: (formatted: string) => void
+  /** Coding compress/explore status line (opens the floating panel). */
+  onCodingStart?: (label: string) => void
+  onCodingDone?: (formatted: string) => void
 }
 
 // ── types ────────────────────────────────────────────────────────────────
@@ -249,6 +252,196 @@ async function describeWithDeepSeek(
     choices?: Array<{ message?: { content?: string } }>
   }
   return (data.choices?.[0]?.message?.content || '').trim()
+}
+
+// ── text-only chat (coding compress / explore) ───────────────────────────
+
+async function textWithOllama(
+  model: string,
+  maxTokens: number,
+  contextTokens: number,
+  ollamaBaseUrl: string,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  signal?: AbortSignal,
+): Promise<string> {
+  const baseUrl = normalizeBaseUrl(ollamaBaseUrl || 'http://localhost:11434')
+  const res = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+      options: {
+        temperature: 0.2,
+        num_predict: maxTokens,
+        num_ctx: contextTokens,
+      },
+    }),
+  })
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`Ollama sub-agent ${res.status}: ${errText || res.statusText}`)
+  }
+  const data = (await res.json()) as { message?: { content?: string } }
+  return (data.message?.content || '').trim()
+}
+
+async function textWithOpenAiCompatible(
+  label: string,
+  model: string,
+  maxTokens: number,
+  baseUrl: string,
+  apiKey: string,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  signal?: AbortSignal,
+  extraBody?: Record<string, unknown>,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (apiKey.trim()) {
+    headers.Authorization = `Bearer ${apiKey.trim()}`
+  }
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: maxTokens,
+      temperature: 0.2,
+      stream: false,
+      ...extraBody,
+    }),
+  })
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`${label} sub-agent ${res.status}: ${errText || res.statusText}`)
+  }
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  return (data.choices?.[0]?.message?.content || '').trim()
+}
+
+/**
+ * Text-only sub-agent completion (no images). Used by coding compress / explore.
+ */
+export async function callSubAgentText(opts: {
+  prompt: string
+  system?: string
+  config: SubAgentConfig
+  keys: SubAgentKeys
+  signal?: AbortSignal
+  maxTokens?: number
+}): Promise<string> {
+  const provider = detectSubAgentProviderId(opts.config.model, opts.config.provider)
+  const maxTokens = opts.maxTokens ?? opts.config.outputTokens ?? 1024
+  const ctxTokens = opts.config.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+  if (opts.system?.trim()) {
+    messages.push({ role: 'system', content: opts.system.trim() })
+  }
+  messages.push({ role: 'user', content: opts.prompt })
+
+  if (provider === 'openrouter') {
+    const viaProxy = usesServerCloudProxy()
+    const baseUrl = viaProxy
+      ? `${normalizeBaseUrl(opts.keys.openrouterBaseUrl || window.location.origin)}/api/openrouter/api/v1`
+      : normalizeBaseUrl(opts.keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
+    return textWithOpenAiCompatible(
+      'OpenRouter',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      viaProxy ? '' : opts.keys.openrouterApiKey,
+      messages,
+      opts.signal,
+    )
+  }
+  if (provider === 'deepseek') {
+    const viaProxy = usesServerCloudProxy()
+    const baseUrl = viaProxy
+      ? deepseekApiBaseForRuntime()
+      : normalizeBaseUrl(opts.keys.deepseekBaseUrl || 'https://api.deepseek.com')
+    return textWithOpenAiCompatible(
+      'DeepSeek',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      viaProxy ? '' : opts.keys.deepseekApiKey,
+      messages,
+      opts.signal,
+      { thinking: { type: 'disabled' } },
+    )
+  }
+  return textWithOllama(
+    opts.config.model,
+    maxTokens,
+    ctxTokens,
+    opts.keys.ollamaBaseUrl,
+    messages,
+    opts.signal,
+  )
+}
+
+/**
+ * Multi-turn text chat for nested coding explore (system + alternating messages).
+ */
+export async function callSubAgentChat(opts: {
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  config: SubAgentConfig
+  keys: SubAgentKeys
+  signal?: AbortSignal
+  maxTokens?: number
+}): Promise<string> {
+  const provider = detectSubAgentProviderId(opts.config.model, opts.config.provider)
+  const maxTokens = opts.maxTokens ?? opts.config.outputTokens ?? 1024
+  const ctxTokens = opts.config.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS
+  const messages = opts.messages.filter((m) => m.content.trim())
+
+  if (provider === 'openrouter') {
+    const viaProxy = usesServerCloudProxy()
+    const baseUrl = viaProxy
+      ? `${normalizeBaseUrl(opts.keys.openrouterBaseUrl || window.location.origin)}/api/openrouter/api/v1`
+      : normalizeBaseUrl(opts.keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
+    return textWithOpenAiCompatible(
+      'OpenRouter',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      viaProxy ? '' : opts.keys.openrouterApiKey,
+      messages,
+      opts.signal,
+    )
+  }
+  if (provider === 'deepseek') {
+    const viaProxy = usesServerCloudProxy()
+    const baseUrl = viaProxy
+      ? deepseekApiBaseForRuntime()
+      : normalizeBaseUrl(opts.keys.deepseekBaseUrl || 'https://api.deepseek.com')
+    return textWithOpenAiCompatible(
+      'DeepSeek',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      viaProxy ? '' : opts.keys.deepseekApiKey,
+      messages,
+      opts.signal,
+      { thinking: { type: 'disabled' } },
+    )
+  }
+  return textWithOllama(
+    opts.config.model,
+    maxTokens,
+    ctxTokens,
+    opts.keys.ollamaBaseUrl,
+    messages,
+    opts.signal,
+  )
 }
 
 // ── single-image describe ────────────────────────────────────────────────

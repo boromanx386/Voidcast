@@ -215,11 +215,22 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent.showAnalysisWindow).toBe(true)
   })
 
+  test('codingEnabled: true → true', () => {
+    const s = normalizeSubAgent(makeSubAgent({ codingEnabled: true }))
+    expect(s.subAgent.codingEnabled).toBe(true)
+  })
+
+  test('codingEnabled: missing → false', () => {
+    const s = normalizeSubAgent(makeSubAgent({ enabled: true }))
+    expect(s.subAgent.codingEnabled).toBe(false)
+  })
+
   // --- combinations ---
   test('partial config: other fields get defaults', () => {
     const s = normalizeSubAgent(makeSubAgent({ enabled: true, model: 'claude' }))
     expect(s.subAgent.enabled).toBe(true)
     expect(s.subAgent.memoryEnabled).toBe(true)
+    expect(s.subAgent.codingEnabled).toBe(false)
     expect(s.subAgent.model).toBe('claude')
     expect(s.subAgent.provider).toBe('openrouter')
     expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
@@ -231,6 +242,7 @@ describe('normalizeSubAgent', () => {
     const s = normalizeSubAgent(makeSubAgent({
       enabled: true,
       memoryEnabled: false,
+      codingEnabled: true,
       model: 'gpt-4o',
       provider: 'openrouter',
       outputTokens: 2048,
@@ -240,6 +252,7 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent).toEqual({
       enabled: true,
       memoryEnabled: false,
+      codingEnabled: true,
       model: 'gpt-4o',
       provider: 'openrouter',
       outputTokens: 2048,

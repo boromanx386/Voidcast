@@ -67,6 +67,11 @@ import {
   formatSubAgentResultsForAgent,
   type SubAgentUiCallbacks,
 } from '@/lib/subAgent'
+import {
+  compressCodingToolResult,
+  runCodingExplore,
+  shouldCompressCodingResult,
+} from '@/lib/codingSubAgent'
 import type { SubAgentConfig } from '@/lib/settings'
 import type {
   OllamaApiMessage,
@@ -1691,6 +1696,43 @@ export async function executeToolCall(
       })
     ).text
   }
+  if (name === 'coding_explore') {
+    if (!toolsEnabled.coding) return 'Error: coding_explore tool is disabled in settings.'
+    if (!ctx.subAgent?.codingEnabled) {
+      return 'Error: coding sub-agent is disabled (Options → SUB → ENABLE_CODING_SUB_AGENT).'
+    }
+    const projectPath = (ctx.codingProjectPath || '').trim()
+    if (!projectPath) return 'Error: coding project folder is not set in settings.'
+    const goal = typeof args.goal === 'string' ? args.goal.trim() : ''
+    if (!goal) return 'Error: missing goal parameter for coding_explore.'
+    const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
+    const maxRounds =
+      typeof args.max_rounds === 'number' && Number.isFinite(args.max_rounds)
+        ? args.max_rounds
+        : undefined
+    return runCodingExplore({
+      goal,
+      pathPrefix: pathPrefix || undefined,
+      maxRounds,
+      recentFiles: ctx.codingRecentFiles,
+      config: ctx.subAgent,
+      keys: {
+        ollamaBaseUrl: ctx.ollamaBaseUrl || 'http://localhost:11434',
+        openrouterBaseUrl: ctx.openrouterBaseUrl || 'https://openrouter.ai/api/v1',
+        openrouterApiKey: ctx.openrouterApiKey || '',
+        deepseekBaseUrl: ctx.deepseekBaseUrl || 'https://api.deepseek.com',
+        deepseekApiKey: ctx.deepseekApiKey || '',
+      },
+      signal: ctx.signal,
+      ui: ctx.subAgentUi,
+      executeTool: (toolName, toolArgs) =>
+        executeToolCall(toolName, toolArgs, toolsEnabled, {
+          ...ctx,
+          // Nested explore must stay read-only even if main agent is not in plan mode.
+          agentMode: 'plan',
+        }),
+    })
+  }
   return `Error: unknown tool "${name}".`
 }
 
@@ -1900,6 +1942,7 @@ export async function runOllamaChatWithTools(
   const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
     agentMode: params.agentMode,
     mcpTools: params.mcpEnabled ? params.mcpTools : undefined,
+    subAgentCodingEnabled: Boolean(params.subAgent?.codingEnabled),
   })
   if (tools.length === 0) {
     throw new Error('runOllamaChatWithTools called with no tools enabled')
@@ -1909,6 +1952,13 @@ export async function runOllamaChatWithTools(
   const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
   const originalUserUrl = pickFirstHttpUrl(rawUserText)
   const originalNeedsFresh = shouldForceWebSearchOnRoundZero(rawUserText, params.toolsEnabled)
+  const subAgentKeys = {
+    ollamaBaseUrl: params.ollamaBaseUrlForSubAgent || params.baseUrl || 'http://localhost:11434',
+    openrouterBaseUrl: params.openrouterBaseUrlForSubAgent || 'https://openrouter.ai/api/v1',
+    openrouterApiKey: params.openrouterApiKeyForSubAgent || '',
+    deepseekBaseUrl: params.deepseekBaseUrlForSubAgent || 'https://api.deepseek.com',
+    deepseekApiKey: params.deepseekApiKeyForSubAgent || '',
+  }
   return runSharedToolLoop<OllamaApiMessage, OllamaToolCall>({
     initialMessages: [...params.initialMessages],
     maxToolRounds: MAX_TOOL_ROUNDS,
@@ -1955,6 +2005,20 @@ export async function runOllamaChatWithTools(
         role: 'tool',
         tool_name: name,
         content: result,
+      })
+    },
+    maybeCompressCodingToolResult: async (name, resultForLlm) => {
+      const cfg = params.subAgent
+      if (!cfg?.codingEnabled || !shouldCompressCodingResult(name, resultForLlm, true)) {
+        return resultForLlm
+      }
+      return compressCodingToolResult({
+        toolName: name,
+        raw: resultForLlm,
+        config: cfg,
+        keys: subAgentKeys,
+        signal: params.signal,
+        ui: params.subAgentUi,
       })
     },
     appendToolRequiredReprompt: (messages) => {

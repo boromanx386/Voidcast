@@ -323,6 +323,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         setSubAgentPanelBusy(false)
         setSubAgentPanelText(formatted || '[Sub-agent returned no descriptions.]')
       },
+      onCodingStart: (label) => {
+        setSubAgentPanelOpen(true)
+        setSubAgentPanelBusy(true)
+        setSubAgentPanelText(label)
+      },
+      onCodingDone: (formatted) => {
+        setSubAgentPanelBusy(false)
+        setSubAgentPanelText(formatted || '[Sub-agent returned no digest.]')
+      },
     }),
     [],
   )
@@ -541,7 +550,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             deepseekBaseUrlForSubAgent: settings.deepseekBaseUrl,
             deepseekApiKeyForSubAgent: settings.deepseekApiKey,
             subAgentUi:
-              settings.subAgent.enabled && settings.subAgent.showAnalysisWindow !== false
+              (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
+              settings.subAgent.showAnalysisWindow !== false
                 ? subAgentUi
                 : undefined,
             onImageVisionCacheUpdate: (entries: ImageVisionCache) => {

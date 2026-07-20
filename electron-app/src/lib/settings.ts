@@ -508,6 +508,11 @@ export type SubAgentConfig = {
   enabled: boolean
   /** When true, long-memory extract uses the sub-agent model instead of the main LLM. */
   memoryEnabled: boolean
+  /**
+   * When true, compress large coding tool results for the main model and expose
+   * the read-only `coding_explore` tool.
+   */
+  codingEnabled: boolean
   /** Sub-agent model id (e.g. 'llava:13b', 'sorc/foo:9b', 'gpt-4o'). */
   model: string
   /**
@@ -958,6 +963,7 @@ export const defaults: AppSettings = {
   subAgent: {
     enabled: false,
     memoryEnabled: false,
+    codingEnabled: false,
     model: 'llava:13b',
     provider: 'ollama',
     outputTokens: 4096,
@@ -1222,6 +1228,7 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
       : raw.memoryEnabled === false
         ? false
         : enabled
+  const codingEnabled = raw.codingEnabled === true
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
   const rawProvider =
     raw.provider === 'ollama' || raw.provider === 'openrouter' || raw.provider === 'deepseek'
@@ -1252,6 +1259,7 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
     subAgent: {
       enabled,
       memoryEnabled,
+      codingEnabled,
       model,
       provider,
       outputTokens,

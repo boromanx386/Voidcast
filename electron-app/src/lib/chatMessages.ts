@@ -68,8 +68,14 @@ export const TOOLS_RUNWARE_MUSIC_HINT = `You have a Runware music tool named gen
 export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolute file paths for attached images (user turns) and for locally saved generated images (assistant turns). Coding tools read/write only inside the coding project folder. To vision-analyze screenshots or assets already in the repo (e.g. demos/*.png), call image_recall with reference_image_paths set to the project-relative or absolute path—do not ask the user to re-attach. Chat images that live outside the project can be copied into the repo with execute_command, then recalled from the new path.`
 
 /** When coding tools are enabled — same MUST-call discipline as image/music hints. */
-export function buildToolsCodingHint(projectPath: string): string {
+export function buildToolsCodingHint(
+  projectPath: string,
+  opts?: { codingSubAgentEnabled?: boolean },
+): string {
   const path = projectPath.trim() || '(not set)'
+  const exploreLine = opts?.codingSubAgentEnabled
+    ? '- coding_explore — delegate read-only codebase mapping to the coding sub-agent (digest of paths/findings before you edit).\n'
+    : ''
   return `You have local coding tools scoped to the configured project folder. CRITICAL: When the user asks to read, list, search, write, edit, refactor, fix, run, build, test, install, or inspect git state in the project, you MUST call the matching coding tool on THIS turn BEFORE any final answer. Do NOT paste code blocks, diffs, terminal output, or "done/fixed/saved" claims unless that tool already returned real output in this turn.
 
 Tool choice (call the right one first):
@@ -80,7 +86,7 @@ Tool choice (call the right one first):
 - execute_command — run shell commands (build, test, npm, git via shell only when no dedicated git tool fits).
 - git_status / git_diff / git_log / git_show — repo inspection without guessing.
 - check_types — run TypeScript typecheck (tsc --noEmit) after editing .ts/.tsx files; use path_prefix when tsconfig lives in a subfolder.
-
+${exploreLine}
 Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. If you need contents before editing, call read_file first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
 
 Coding project path: ${path}`

@@ -3,6 +3,10 @@ import type { McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
+import {
+  compressCodingToolResult,
+  shouldCompressCodingResult,
+} from '@/lib/codingSubAgent'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
 import type { RunwareImageConfig } from '@/lib/runware'
@@ -100,8 +104,17 @@ export async function runOpenRouterChatWithTools(
   const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
     agentMode: params.agentMode,
     mcpTools: params.mcpEnabled ? params.mcpTools : undefined,
+    subAgentCodingEnabled: Boolean(params.subAgent?.codingEnabled),
   })
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
+
+  const subAgentKeys = {
+    ollamaBaseUrl: params.ollamaBaseUrlForSubAgent || 'http://localhost:11434',
+    openrouterBaseUrl: params.openrouterBaseUrlForSubAgent || params.baseUrl || 'https://openrouter.ai/api/v1',
+    openrouterApiKey: params.openrouterApiKeyForSubAgent || params.apiKey || '',
+    deepseekBaseUrl: params.deepseekBaseUrlForSubAgent || 'https://api.deepseek.com',
+    deepseekApiKey: params.deepseekApiKeyForSubAgent || '',
+  }
 
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
@@ -149,6 +162,20 @@ export async function runOpenRouterChatWithTools(
         tool_call_id: call.id || `tool_call_${name}_${round}`,
         name,
         content: result,
+      })
+    },
+    maybeCompressCodingToolResult: async (name, resultForLlm) => {
+      const cfg = params.subAgent
+      if (!cfg?.codingEnabled || !shouldCompressCodingResult(name, resultForLlm, true)) {
+        return resultForLlm
+      }
+      return compressCodingToolResult({
+        toolName: name,
+        raw: resultForLlm,
+        config: cfg,
+        keys: subAgentKeys,
+        signal: params.signal,
+        ui: params.subAgentUi,
       })
     },
     appendToolRequiredReprompt: (messages) => {

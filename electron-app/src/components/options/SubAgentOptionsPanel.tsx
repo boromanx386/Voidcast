@@ -49,7 +49,7 @@ export function SubAgentOptionsPanel({
   const sub = settings.subAgent
   const allModels = buildUnifiedModelList(ollamaModels)
   const currentInList = allModels.some((m) => m.id === sub.model)
-  const subActive = sub.enabled || sub.memoryEnabled
+  const subActive = sub.enabled || sub.memoryEnabled || sub.codingEnabled
 
   return (
     <div className="grid gap-5 text-sm">
@@ -97,7 +97,29 @@ export function SubAgentOptionsPanel({
         </p>
       </div>
 
-      {sub.enabled && (
+      {/* Coding toggle */}
+      <div className="form-group">
+        <label className="form-label flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="cyber-checkbox"
+            checked={sub.codingEnabled}
+            onChange={(e) =>
+              setSettings((s) => ({
+                ...s,
+                subAgent: { ...s.subAgent, codingEnabled: e.target.checked },
+              }))
+            }
+          />
+          <span className="text-neon-cyan">⬡ ENABLE_CODING_SUB_AGENT</span>
+        </label>
+        <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+          Compress large coding tool results for the main model and expose the
+          read-only coding_explore tool. Prefer a text-capable model (not vision-only).
+        </p>
+      </div>
+
+      {(sub.enabled || sub.codingEnabled) && (
         <div className="form-group">
           <label className="form-label flex items-center gap-3 cursor-pointer">
             <input
@@ -114,8 +136,8 @@ export function SubAgentOptionsPanel({
             <span className="text-neon-cyan">⬡ SHOW_ANALYSIS_WINDOW</span>
           </label>
           <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-            Floating panel on the right while image_recall runs the vision sub-agent
-            (progress and descriptions). Off = same behavior, no on-screen panel.
+            Floating panel on the right while vision or coding sub-agent runs
+            (progress and digests). Off = same behavior, no on-screen panel.
           </p>
         </div>
       )}

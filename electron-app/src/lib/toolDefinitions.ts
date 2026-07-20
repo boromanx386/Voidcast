@@ -733,6 +733,36 @@ const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
   },
 }
 
+const CODING_EXPLORE_TOOL: OllamaToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'coding_explore',
+    description:
+      'Delegate a read-only codebase exploration to the coding sub-agent. ' +
+      'Use when you need a map of relevant files/APIs before editing. ' +
+      'Returns a compact digest (paths, findings, suggested next edits). ' +
+      'Do not use for applying edits — use edit_code/write_file after.',
+    parameters: {
+      type: 'object',
+      properties: {
+        goal: {
+          type: 'string',
+          description: 'What to find or understand (1–3 sentences).',
+        },
+        path_prefix: {
+          type: 'string',
+          description: 'Optional subdirectory to scope search (project-relative).',
+        },
+        max_rounds: {
+          type: 'number',
+          description: 'Max nested tool rounds (default 8, max 12).',
+        },
+      },
+      required: ['goal'],
+    },
+  },
+}
+
 const ADD_REMINDER_TOOL: OllamaToolDefinition = {
   type: 'function',
   function: {
@@ -1026,7 +1056,7 @@ const MCP_READ_RESULT_TOOL: OllamaToolDefinition = {
 export function buildOllamaToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
-  opts?: { agentMode?: AgentChatMode; mcpTools?: McpToolInfo[] },
+  opts?: { agentMode?: AgentChatMode; mcpTools?: McpToolInfo[]; subAgentCodingEnabled?: boolean },
 ): OllamaToolDefinition[] {
   const planMode = opts?.agentMode === 'plan'
   const out: OllamaToolDefinition[] = []
@@ -1059,6 +1089,7 @@ export function buildOllamaToolsList(
     out.push(CODING_GIT_SHOW_TOOL)
     out.push(CODING_CHECK_TYPES_TOOL)
     if (!planMode) out.push(CODING_EXECUTE_COMMAND_TOOL)
+    if (opts?.subAgentCodingEnabled) out.push(CODING_EXPLORE_TOOL)
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)
   if (enabled.enterPlan && !planMode) out.push(ENTER_PLAN_MODE_TOOL)

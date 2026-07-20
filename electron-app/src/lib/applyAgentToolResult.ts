@@ -125,7 +125,8 @@ export function applyAgentToolResult(
     name === 'git_diff' ||
     name === 'git_log' ||
     name === 'git_show' ||
-    name === 'execute_command'
+    name === 'execute_command' ||
+    name === 'coding_explore'
   ) {
     setCodingContextMemo((prev) => {
       const next = { ...prev }
@@ -134,6 +135,11 @@ export function applyAgentToolResult(
         next.lastDirectory = p || '.'
       } else if (name === 'glob_files') {
         const p = typeof args?.path_prefix === 'string' ? args.path_prefix : ''
+        if (p) next.lastDirectory = p
+      } else if (name === 'coding_explore') {
+        const goal = typeof args?.goal === 'string' ? args.goal.trim() : ''
+        if (goal) next.recentSearches = pushRecentUnique(next.recentSearches, `explore:${goal}`, 8)
+        const p = typeof args?.path_prefix === 'string' ? args.path_prefix.trim() : ''
         if (p) next.lastDirectory = p
       } else if (name === 'read_file' || name === 'write_file' || name === 'edit_code') {
         const p = typeof args?.path === 'string' ? args.path : ''

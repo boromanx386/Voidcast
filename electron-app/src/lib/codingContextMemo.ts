@@ -134,6 +134,9 @@ export function isCodingToolFailure(toolName: string, result: string): boolean {
   if (toolName === 'execute_command') return !r.startsWith('$ ')
   if (toolName === 'write_file') return !r.startsWith('Saved ')
   if (toolName === 'edit_code') return !r.startsWith('Edited ')
+  if (toolName === 'coding_explore') {
+    return r.startsWith('Error:') || r.includes('\nError:')
+  }
 
   if (r.endsWith(' failed.')) return true
   if (r.startsWith('Target snippet not found')) return true

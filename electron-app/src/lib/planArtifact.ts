@@ -15,6 +15,7 @@ export function createPlanStep(text: string, done = false): PlanStep {
 /** System hint appended in Plan mode — explore read-only, end with JSON plan fence. */
 export const PLAN_MODE_SYSTEM_HINT = [
   'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or mutate settings/reminders.',
+  'When coding_explore is available, prefer it for broad codebase mapping before drafting the plan.',
   'After enough exploration, end with a structured plan. Default to ONE flat plan (no approaches) when the path is clear.',
   'Offer approaches only when there are real tradeoffs (e.g. speed vs safety vs scope). Prefer 2 distinct options; add a 3rd only if it is meaningfully different — never pad with filler. Optionally add a 4th (D) only when warranted.',
   'End your reply with a fenced JSON block tagged `json plan`. Preferred shapes:',
