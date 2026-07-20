@@ -10,7 +10,9 @@ import {
   pushRecentUnique,
   type CodingContextMemo,
 } from '@/lib/codingContextMemo'
+import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
+import { MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
 import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
 import { invokeSaveImageFromUrl, dataUrlToBlobUrl, isDataImageUrl, resolveGeneratedImageOutputDir } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
@@ -197,36 +199,39 @@ export function applyAgentToolResult(
   }
 
   if (name === 'execute_command') {
-    const cmd = typeof args?.command === 'string' ? args.command : ''
-    const raw = String(result ?? '').trimEnd()
-    const MAX = 120_000
-    const body =
-      raw.length > MAX
-        ? `${raw.slice(0, MAX)}\n\n… [truncated ${(raw.length - MAX).toLocaleString()} chars]`
-        : raw
-    const ts = Date.now()
-    const idBase = uid()
-    setCodingTerminalFeed((prev) =>
-      [
-        ...prev,
-        {
-          id: `exec-cmd-${idBase}`,
-          stream: 'system' as const,
-          text: `$ ${cmd || '(empty command)'}`,
-          ts,
-        },
-        ...(body
-          ? ([
-              {
-                id: `exec-out-${idBase}`,
-                stream: 'stdout' as const,
-                text: body,
-                ts,
-              },
-            ] as const)
-          : []),
-      ].slice(-80),
-    )
+    // Foreground runs already streamed `$ cmd` + chunks via IPC; skip duplicate dump.
+    if (!consumeLastExecuteCommandStreamed()) {
+      const cmd = typeof args?.command === 'string' ? args.command : ''
+      const raw = String(result ?? '').trimEnd()
+      const MAX = 120_000
+      const body =
+        raw.length > MAX
+          ? `${raw.slice(0, MAX)}\n\n… [truncated ${(raw.length - MAX).toLocaleString()} chars]`
+          : raw
+      const ts = Date.now()
+      const idBase = uid()
+      setCodingTerminalFeed((prev) =>
+        [
+          ...prev,
+          {
+            id: `exec-cmd-${idBase}`,
+            stream: 'system' as const,
+            text: `$ ${cmd || '(empty command)'}`,
+            ts,
+          },
+          ...(body
+            ? ([
+                {
+                  id: `exec-out-${idBase}`,
+                  stream: 'stdout' as const,
+                  text: body,
+                  ts,
+                },
+              ] as const)
+            : []),
+        ].slice(-MAX_TERMINAL_ROWS),
+      )
+    }
   }
   if (name === 'write_file' || name === 'edit_code' || name === 'execute_command') {
     setCodingFileTreeNonce((n) => n + 1)

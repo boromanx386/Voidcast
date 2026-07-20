@@ -15,4 +15,8 @@ export type TerminalLine = {
 export type CodingToolResult = {
   ok: boolean
   text: string
+  /** True when stdout/stderr were already streamed to the terminal panel via IPC. */
+  streamed?: boolean
+  code?: number
+  runId?: string
 }

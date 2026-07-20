@@ -154,6 +154,7 @@ export function ChatScreen({ app }: Props) {
               fileTreeRevision={app.codingFileTreeNonce}
               gitRevision={app.codingGitNonce}
               agentShellFeed={app.codingTerminalFeed}
+              agentShellEpoch={app.codingTerminalEpoch}
               onCodingUiChange={(patch) =>
                 app.setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
               }

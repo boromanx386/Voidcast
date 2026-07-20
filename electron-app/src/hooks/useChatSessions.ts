@@ -42,6 +42,7 @@ export type ChatSessionsDeps = {
     session: ChatSession,
     options?: { flushActiveSessionId?: string | null },
   ) => void
+  resetCodingTerminal: () => void
   abortActiveRuns: () => void
   cancelMessageEdit?: () => void
   setInput: Dispatch<SetStateAction<string>>
@@ -71,6 +72,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     contextOverflowLatchRef,
     resetAssistantMediaState,
     restoreCodingContextForSession,
+    resetCodingTerminal,
     abortActiveRuns,
     cancelMessageEdit,
     setInput,
@@ -274,6 +276,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setPendingImages([])
     setError(null)
     setToolResultBanner(null)
+    resetCodingTerminal()
     setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
     setImageVisionCache({})
   }
@@ -449,6 +452,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       setHiddenContextSummary('')
       setContextCompressedThroughIndex(0)
       contextOverflowLatchRef.current = false
+      resetCodingTerminal()
       setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
       setImageVisionCache({})
     }

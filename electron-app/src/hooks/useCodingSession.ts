@@ -10,6 +10,11 @@ import {
   type CodingContextMemo,
 } from '@/lib/codingContextMemo'
 import {
+  appendCodingCommandEventToFeed,
+  resetCodingTerminalFeedState,
+} from '@/lib/codingCommandStream'
+import { subscribeCodingCommandOutput } from '@/lib/codingTools'
+import {
   normalizeImageVisionCache,
   type ImageVisionCache,
 } from '@/lib/imageVisionCache'
@@ -23,8 +28,6 @@ export type UseCodingSessionParams = {
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>
   imageVisionCache: ImageVisionCache
   setImageVisionCache: React.Dispatch<React.SetStateAction<ImageVisionCache>>
-  sessions: ChatSession[]
-  activeSessionId: string | null
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>
 }
 
@@ -33,6 +36,9 @@ export type UseCodingSessionResult = {
   setShowCodingPanel: React.Dispatch<React.SetStateAction<boolean>>
   codingTerminalFeed: TerminalLine[]
   setCodingTerminalFeed: React.Dispatch<React.SetStateAction<TerminalLine[]>>
+  /** Bumps on session/new-chat boundaries so CodingPanel clears local terminal lines. */
+  codingTerminalEpoch: number
+  resetCodingTerminal: () => void
   codingFileTreeNonce: number
   setCodingFileTreeNonce: React.Dispatch<React.SetStateAction<number>>
   codingGitNonce: number
@@ -58,18 +64,32 @@ export function useCodingSession({
 }: UseCodingSessionParams): UseCodingSessionResult {
   const [showCodingPanel, setShowCodingPanel] = useState(false)
   const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
+  const [codingTerminalEpoch, setCodingTerminalEpoch] = useState(0)
   const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
   const [codingGitNonce, setCodingGitNonce] = useState(0)
   const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(() =>
     emptyCodingContextMemo(getCodingProjectPath(loadSettings())),
   )
   const codingProjectPathForMemoRef = useRef(getCodingProjectPath(loadSettings()))
+  const streamSeqRef = useRef({ n: 0 })
 
   const codingPanelAvailable = isElectron() && settings.toolsEnabled.coding
+
+  const resetCodingTerminal = useCallback(() => {
+    setCodingTerminalFeed(resetCodingTerminalFeedState(streamSeqRef.current))
+    setCodingTerminalEpoch((n) => n + 1)
+  }, [])
 
   useEffect(() => {
     if (!codingPanelAvailable) setShowCodingPanel(false)
   }, [codingPanelAvailable])
+
+  useEffect(() => {
+    if (!isElectron()) return
+    return subscribeCodingCommandOutput((event) => {
+      setCodingTerminalFeed((prev) => appendCodingCommandEventToFeed(prev, event, streamSeqRef.current))
+    })
+  }, [])
 
   useEffect(() => {
     const projectPath = getCodingProjectPath(settings)
@@ -125,11 +145,20 @@ export function useCodingSession({
         })
       }
 
+      resetCodingTerminal()
       syncCodingProjectPathToSettings(path)
       setCodingContextMemo(memo)
       setImageVisionCache(normalizeImageVisionCache(session.imageVisionCache))
     },
-    [settings, codingContextMemo, imageVisionCache, syncCodingProjectPathToSettings, setImageVisionCache, setSessions],
+    [
+      settings,
+      codingContextMemo,
+      imageVisionCache,
+      syncCodingProjectPathToSettings,
+      setImageVisionCache,
+      setSessions,
+      resetCodingTerminal,
+    ],
   )
 
   return {
@@ -137,6 +166,8 @@ export function useCodingSession({
     setShowCodingPanel,
     codingTerminalFeed,
     setCodingTerminalFeed,
+    codingTerminalEpoch,
+    resetCodingTerminal,
     codingFileTreeNonce,
     setCodingFileTreeNonce,
     codingGitNonce,

@@ -12,6 +12,7 @@ import {
   type GitStatusEntry,
 } from '@/lib/gitStatusParse'
 import { expandTextToTerminalLines, MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
+import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import {
   clampCodingFileTreeHeight,
   CODING_FILE_TREE_HEIGHT_MAX,
@@ -51,6 +52,8 @@ type Props = {
   gitRevision?: number
   /** Agent `execute_command` lines only (mirrors shell); manual RUN output is appended locally. */
   agentShellFeed?: TerminalLine[]
+  /** Bumps when chat/session changes; clears local terminal + seen agent line ids. */
+  agentShellEpoch?: number
 }
 
 type PreviewMode = 'file' | 'diff' | 'image'
@@ -70,6 +73,7 @@ export function CodingPanel({
   fileTreeRevision = 0,
   gitRevision = 0,
   agentShellFeed = [],
+  agentShellEpoch = 0,
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
@@ -350,6 +354,11 @@ export function CodingPanel({
       void invokeCodingWatchProject(null)
     }
   }, [projectPath, refreshFileTreeInPlace])
+
+  useEffect(() => {
+    seenAgentShellIdsRef.current.clear()
+    setTerminalLines([])
+  }, [agentShellEpoch])
 
   useEffect(() => {
     const feed = agentShellFeed
@@ -662,9 +671,14 @@ export function CodingPanel({
   const onRunCommand = useCallback(async () => {
     const trimmed = command.trim()
     if (!projectPath || !trimmed) return
-    pushTerminal('system', `$ ${trimmed}`)
     const out = await invokeExecuteCodingCommand(projectPath, trimmed)
-    pushTerminal(out.ok ? 'stdout' : 'stderr', out.text)
+    // Clear agent anti-dup flag; manual RUN does not go through applyAgentToolResult.
+    consumeLastExecuteCommandStreamed()
+    // Live IPC stream already mirrored `$ cmd` + chunks into agentShellFeed → terminalLines.
+    if (!out.streamed) {
+      pushTerminal('system', `$ ${trimmed}`)
+      pushTerminal(out.ok ? 'stdout' : 'stderr', out.text)
+    }
     setCommandHistory((prev) => {
       if (prev.length > 0 && prev[prev.length - 1] === trimmed) return prev
       return [...prev, trimmed].slice(-100)

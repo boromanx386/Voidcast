@@ -63,8 +63,6 @@ export function useVoidcastApp() {
     setSettings,
     imageVisionCache,
     setImageVisionCache,
-    sessions: sessionsRef.current,
-    activeSessionId: activeSessionIdRef.current,
     setSessions: (action) => setSessionsRef.current(action),
   })
 
@@ -147,6 +145,7 @@ export function useVoidcastApp() {
     contextOverflowLatchRef: agent.contextOverflowLatchRef,
     resetAssistantMediaState: agent.resetAssistantMediaState,
     restoreCodingContextForSession: coding.restoreCodingContextForSession,
+    resetCodingTerminal: coding.resetCodingTerminal,
     abortActiveRuns: () => {
       agent.onStop()
       abortTtsRef.current()

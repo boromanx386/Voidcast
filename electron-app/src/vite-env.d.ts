@@ -305,6 +305,18 @@ interface VoidcastBridge {
   /** Fired (debounced) when files change under the watched coding project. */
   onCodingFsChange: (callback: () => void) => () => void
 
+  /** Live stdout/stderr chunks while a foreground coding command runs. */
+  onCodingCommandOutput: (
+    callback: (event: {
+      runId: string
+      stream?: 'stdout' | 'stderr' | 'system'
+      text?: string
+      done?: boolean
+      code?: number
+      timedOut?: boolean
+    }) => void,
+  ) => () => void
+
   codingReadFile: (payload: {
     projectPath: string
     path: string
@@ -381,8 +393,10 @@ interface VoidcastBridge {
         code: number
         timedOut?: boolean
         pid?: number
+        runId: string
+        streamed: boolean
       }
-    | { ok: false; error?: string }
+    | { ok: false; error?: string; runId?: string; streamed?: boolean }
   >
 
   pickChatAttachments: () => Promise<

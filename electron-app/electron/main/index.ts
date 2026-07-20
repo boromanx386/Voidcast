@@ -17,8 +17,10 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
+import { randomUUID } from 'node:crypto'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, watch, type FSWatcher } from 'node:fs'
+import { ChunkThrottle } from '../../src/lib/chunkThrottle'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { rgPath as bundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
@@ -2063,7 +2065,7 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:coding-execute-command',
-  async (_evt, payload: { projectPath?: string; command?: string; timeoutSec?: number; runInBackground?: boolean }) => {
+  async (evt, payload: { projectPath?: string; command?: string; timeoutSec?: number; runInBackground?: boolean }) => {
     const projectPath = String(payload?.projectPath ?? '').trim()
     const command = String(payload?.command ?? '').trim()
     if (!projectPath || !command) {
@@ -2074,7 +2076,19 @@ ipcMain.handle(
       ? Math.min(120_000, Math.max(3_000, Math.round(timeoutSecRaw * 1000)))
       : 20_000
     const runInBackground = payload?.runInBackground === true
-    return new Promise<{ ok: true; stdout: string; stderr: string; code: number; timedOut?: boolean; pid?: number } | { ok: false; error: string }>((resolve) => {
+    const runId = randomUUID()
+    type OkResult = {
+      ok: true
+      stdout: string
+      stderr: string
+      code: number
+      timedOut?: boolean
+      pid?: number
+      runId: string
+      streamed: boolean
+    }
+    type ErrResult = { ok: false; error: string; runId?: string; streamed?: boolean }
+    return new Promise<OkResult | ErrResult>((resolve) => {
       const child = spawn(command, {
         cwd: projectPath,
         shell: true,
@@ -2090,47 +2104,96 @@ ipcMain.handle(
           stderr: '',
           code: 0,
           pid: child.pid ?? undefined,
+          runId,
+          streamed: false,
         })
         return
       }
+
+      const sendOutput = (payloadOut: {
+        stream?: 'stdout' | 'stderr' | 'system'
+        text?: string
+        done?: boolean
+        code?: number
+        timedOut?: boolean
+      }) => {
+        try {
+          evt.sender.send('voidcast:coding-command-output', { runId, ...payloadOut })
+        } catch {
+          // window may be gone
+        }
+      }
+
+      sendOutput({ stream: 'system', text: `$ ${command}` })
+
+      const throttle = new ChunkThrottle((stream, text) => {
+        sendOutput({ stream, text })
+      }, 50)
+
       let stdout = ''
       let stderr = ''
       let settled = false
-      const timer = setTimeout(() => {
+      let timedOut = false
+      const timeoutLabel = `Command timed out after ${Math.round(timeoutMs / 1000)}s and was stopped.`
+
+      const finish = (result: OkResult | ErrResult) => {
         if (settled) return
         settled = true
+        clearTimeout(timer)
+        throttle.flush()
+        sendOutput({
+          done: true,
+          code: result.ok ? result.code : undefined,
+          timedOut: result.ok ? result.timedOut : undefined,
+        })
+        resolve(result)
+      }
+
+      const timer = setTimeout(() => {
+        timedOut = true
         try {
           child.kill()
         } catch {
           // ignore kill errors
         }
-        resolve({
-          ok: true,
-          stdout: stdout.trim(),
-          stderr: [stderr.trim(), `Command timed out after ${Math.round(timeoutMs / 1000)}s and was stopped.`]
-            .filter(Boolean)
-            .join('\n'),
-          code: 124,
-          timedOut: true,
-        })
       }, timeoutMs)
+
       child.stdout?.on('data', (chunk) => {
-        stdout += String(chunk)
+        const text = String(chunk)
+        stdout += text
+        throttle.push('stdout', text)
       })
       child.stderr?.on('data', (chunk) => {
-        stderr += String(chunk)
+        const text = String(chunk)
+        stderr += text
+        throttle.push('stderr', text)
       })
       child.on('error', (err) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        resolve({ ok: false, error: err.message })
+        sendOutput({ stream: 'stderr', text: err.message })
+        finish({ ok: false, error: err.message, runId, streamed: true })
       })
       child.on('close', (code) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        resolve({ ok: true, stdout: stdout.trim(), stderr: stderr.trim(), code: code ?? 0 })
+        if (timedOut) {
+          sendOutput({ stream: 'stderr', text: timeoutLabel })
+          finish({
+            ok: true,
+            stdout: stdout.trim(),
+            stderr: [stderr.trim(), timeoutLabel].filter(Boolean).join('\n'),
+            code: 124,
+            timedOut: true,
+            runId,
+            streamed: true,
+          })
+          return
+        }
+        finish({
+          ok: true,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          code: code ?? 0,
+          runId,
+          streamed: true,
+        })
       })
     })
   },

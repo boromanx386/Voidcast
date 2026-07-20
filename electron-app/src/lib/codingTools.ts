@@ -5,6 +5,10 @@ import {
   type FileLineEndings,
 } from '@/lib/codingEol'
 import { formatSearchResults } from '@/lib/codingSearch'
+import {
+  markLastExecuteCommandStreamed,
+  type CodingCommandOutputEvent,
+} from '@/lib/codingCommandStream'
 
 function missingBridgeResult(action: string): CodingToolResult {
   return { ok: false, text: `${action} is available only in Electron desktop.` }
@@ -39,6 +43,14 @@ export async function invokeCodingWatchProject(
 
 export function subscribeCodingFsChange(callback: () => void): () => void {
   const fn = window.voidcast?.onCodingFsChange
+  if (!fn) return () => {}
+  return fn(callback)
+}
+
+export function subscribeCodingCommandOutput(
+  callback: (event: CodingCommandOutputEvent) => void,
+): () => void {
+  const fn = window.voidcast?.onCodingCommandOutput
   if (!fn) return () => {}
   return fn(callback)
 }
@@ -232,7 +244,24 @@ export async function invokeExecuteCodingCommand(
     timeoutSec: options?.timeoutSec,
     runInBackground: options?.runInBackground,
   })
-  if (!res.ok) return { ok: false, text: res.error || 'Command failed.' }
+  if (!res.ok) {
+    const streamed = res.streamed === true
+    markLastExecuteCommandStreamed(streamed)
+    return {
+      ok: false,
+      text: res.error || 'Command failed.',
+      streamed,
+      runId: res.runId,
+    }
+  }
+  const streamed = res.streamed === true
+  markLastExecuteCommandStreamed(streamed)
   const output = [res.stdout, res.stderr].filter(Boolean).join('\n').trim() || '(no output)'
-  return { ok: true, text: `$ ${command}\n${output}` }
+  return {
+    ok: true,
+    text: `$ ${command}\n${output}`,
+    streamed,
+    code: res.code,
+    runId: res.runId,
+  }
 }

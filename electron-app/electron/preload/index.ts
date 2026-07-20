@@ -260,6 +260,30 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.on('voidcast:coding-fs-change', listener)
     return () => ipcRenderer.removeListener('voidcast:coding-fs-change', listener)
   },
+  onCodingCommandOutput: (
+    callback: (event: {
+      runId: string
+      stream?: 'stdout' | 'stderr' | 'system'
+      text?: string
+      done?: boolean
+      code?: number
+      timedOut?: boolean
+    }) => void,
+  ) => {
+    const listener = (
+      _e: Electron.IpcRendererEvent,
+      payload: {
+        runId: string
+        stream?: 'stdout' | 'stderr' | 'system'
+        text?: string
+        done?: boolean
+        code?: number
+        timedOut?: boolean
+      },
+    ) => callback(payload)
+    ipcRenderer.on('voidcast:coding-command-output', listener)
+    return () => ipcRenderer.removeListener('voidcast:coding-command-output', listener)
+  },
   codingReadFile: (payload: {
     projectPath: string
     path: string
@@ -338,8 +362,17 @@ contextBridge.exposeInMainWorld('voidcast', {
     runInBackground?: boolean
   }) =>
     ipcRenderer.invoke('voidcast:coding-execute-command', payload) as Promise<
-      | { ok: true; stdout: string; stderr: string; code: number; timedOut?: boolean; pid?: number }
-      | { ok: false; error?: string }
+      | {
+          ok: true
+          stdout: string
+          stderr: string
+          code: number
+          timedOut?: boolean
+          pid?: number
+          runId: string
+          streamed: boolean
+        }
+      | { ok: false; error?: string; runId?: string; streamed?: boolean }
     >,
   pickChatAttachments: () =>
     ipcRenderer.invoke('voidcast:pick-chat-attachments') as Promise<
