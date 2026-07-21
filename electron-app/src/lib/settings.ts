@@ -509,8 +509,9 @@ export type SubAgentConfig = {
   /** When true, long-memory extract uses the sub-agent model instead of the main LLM. */
   memoryEnabled: boolean
   /**
-   * When true, compress large coding tool results for the main model and expose
-   * the read-only `coding_explore` tool.
+   * When true, enables coding context management: deterministic trim of noisy
+   * tool output, clearing of stale tool results from old rounds, and the
+   * read-only `coding_explore` tool (which runs on the sub-agent model).
    */
   codingEnabled: boolean
   /** Sub-agent model id (e.g. 'llava:13b', 'sorc/foo:9b', 'gpt-4o'). */

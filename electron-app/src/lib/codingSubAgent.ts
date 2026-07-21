@@ -1,28 +1,32 @@
 /**
- * Coding sub-agent — compress large tool results and run read-only explore.
+ * Coding sub-agent — context management for coding tool results + read-only explore.
+ *
+ * Standard layering (Claude Code / OpenAI ToolOutputTrimmer / Cursor subagents):
+ * 1. Deterministic head+tail trim of noisy outputs in the current turn (no LLM).
+ * 2. Clearing of old, re-fetchable tool results from prior rounds (placeholder).
+ * 3. Isolation of broad discovery in the coding_explore nested loop (digest only).
+ * Exact source (read_file, git_diff) always reaches the main model untouched.
  */
 
 import type { SubAgentConfig } from '@/lib/settings'
 import {
   callSubAgentChat,
-  callSubAgentText,
   type SubAgentKeys,
   type SubAgentUiCallbacks,
 } from '@/lib/subAgent'
 
-export const CODING_COMPRESS_THRESHOLD = 6_000
-export const CODING_COMPRESS_MAX_OUT = 1_500
-export const CODING_COMPRESS_FALLBACK_CHARS = 8_000
+// ── Layer 1: deterministic trim of noisy outputs (current turn) ──────────
 
-export const CODING_COMPRESS_TOOLS = new Set([
+export const CODING_TRIM_THRESHOLD = 8_000
+export const CODING_TRIM_HEAD_CHARS = 4_500
+export const CODING_TRIM_TAIL_CHARS = 2_500
+
+/** Noisy / high-volume tools only — never read_file (main agent needs exact source). */
+export const CODING_TRIM_TOOLS = new Set([
   'execute_command',
-  'git_diff',
-  'git_show',
   'git_log',
   'search_files',
   'check_types',
-  'read_file',
-  'list_directory',
 ])
 
 export const CODING_EXPLORE_ALLOWED_TOOLS = new Set([
@@ -41,67 +45,53 @@ export const CODING_EXPLORE_DEFAULT_ROUNDS = 8
 export const CODING_EXPLORE_MAX_ROUNDS = 12
 export const CODING_EXPLORE_READ_BUDGET = 48_000
 
-export function shouldCompressCodingResult(
+export function shouldTrimCodingResult(
   name: string,
   raw: string,
   enabled: boolean,
 ): boolean {
   if (!enabled) return false
-  if (!CODING_COMPRESS_TOOLS.has(name)) return false
-  return raw.length >= CODING_COMPRESS_THRESHOLD
+  if (!CODING_TRIM_TOOLS.has(name)) return false
+  return raw.length > CODING_TRIM_THRESHOLD
 }
 
-export function hardTruncateCodingResult(raw: string, max = CODING_COMPRESS_FALLBACK_CHARS): string {
-  if (raw.length <= max) return raw
-  return `${raw.slice(0, max)}\n\n… [truncated ${(raw.length - max).toLocaleString()} chars]`
+/**
+ * Deterministic head+tail trim (no LLM). Head keeps the command/context;
+ * tail keeps errors and exit status, which usually appear at the end.
+ */
+export function trimNoisyCodingResult(raw: string): string {
+  if (raw.length <= CODING_TRIM_THRESHOLD) return raw
+  const head = raw.slice(0, CODING_TRIM_HEAD_CHARS)
+  const tail = raw.slice(-CODING_TRIM_TAIL_CHARS)
+  const omitted = raw.length - CODING_TRIM_HEAD_CHARS - CODING_TRIM_TAIL_CHARS
+  return `${head}\n\n… [${omitted.toLocaleString()} chars omitted — noisy output trimmed; narrow the command/search or re-run if the middle matters] …\n\n${tail}`
 }
 
-function buildCompressPrompt(toolName: string, raw: string): string {
-  const clipped = raw.length > 80_000 ? `${raw.slice(0, 80_000)}\n\n…[input clipped]` : raw
-  return `Summarize this coding tool result for a senior engineer who will continue the task.
-Tool: ${toolName}
-Keep under ${CODING_COMPRESS_MAX_OUT} characters.
-Include: exit/status if present, errors/failures, relevant file paths and line numbers, and the most important findings.
-Use short bullets. No preamble.
+// ── Layer 2: clearing of old, re-fetchable tool results ──────────────────
 
---- TOOL OUTPUT ---
-${clipped}`
+export const CODING_CLEAR_MIN_CHARS = 2_000
+export const CODING_CLEAR_KEEP_RECENT_ROUNDS = 2
+
+/** Re-fetchable coding results — safe to clear from old rounds (agent can re-run). */
+export const CODING_CLEARABLE_TOOLS = new Set([
+  'read_file',
+  'list_directory',
+  'search_files',
+  'glob_files',
+  'git_status',
+  'git_diff',
+  'git_log',
+  'git_show',
+  'check_types',
+  'execute_command',
+])
+
+export function isClearableCodingToolResult(name: string): boolean {
+  return CODING_CLEARABLE_TOOLS.has(name)
 }
 
-export async function compressCodingToolResult(opts: {
-  toolName: string
-  raw: string
-  config: SubAgentConfig
-  keys: SubAgentKeys
-  signal?: AbortSignal
-  ui?: SubAgentUiCallbacks
-}): Promise<string> {
-  opts.ui?.onCodingStart?.(`SUB_AGENT · COMPRESS ${opts.toolName}`)
-  try {
-    const digest = await callSubAgentText({
-      prompt: buildCompressPrompt(opts.toolName, opts.raw),
-      system:
-        'You compress coding tool output. Return only the digest — no markdown fences unless quoting code briefly.',
-      config: opts.config,
-      keys: opts.keys,
-      signal: opts.signal,
-      maxTokens: Math.min(opts.config.outputTokens ?? 1024, 2048),
-    })
-    const text = digest.trim() || hardTruncateCodingResult(opts.raw)
-    const capped =
-      text.length > CODING_COMPRESS_MAX_OUT * 2
-        ? `${text.slice(0, CODING_COMPRESS_MAX_OUT * 2)}\n…[digest capped]`
-        : text
-    const formatted = `[Sub-agent compress · ${opts.toolName}]\n${capped}`
-    opts.ui?.onCodingDone?.(formatted)
-    return formatted
-  } catch (e) {
-    const fallback = hardTruncateCodingResult(opts.raw)
-    const msg = e instanceof Error ? e.message : String(e)
-    const formatted = `[Sub-agent compress failed: ${msg}]\n${fallback}`
-    opts.ui?.onCodingDone?.(formatted)
-    return formatted
-  }
+export function clearedCodingToolResultPlaceholder(name: string, chars: number): string {
+  return `[Old ${name} result (${chars.toLocaleString()} chars) cleared to save context. Call the tool again if you still need it.]`
 }
 
 export function isCodingExploreAllowedTool(name: string): boolean {

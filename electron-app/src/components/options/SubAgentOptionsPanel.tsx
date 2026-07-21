@@ -114,8 +114,9 @@ export function SubAgentOptionsPanel({
           <span className="text-neon-cyan">⬡ ENABLE_CODING_SUB_AGENT</span>
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-          Compress large coding tool results for the main model and expose the
-          read-only coding_explore tool. Prefer a text-capable model (not vision-only).
+          Coding context management: trim noisy tool output (commands, search, type
+          checks), clear stale tool results from old rounds, and expose the read-only
+          coding_explore tool (runs on this sub-agent model — prefer text-capable).
         </p>
       </div>
 

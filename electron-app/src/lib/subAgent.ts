@@ -32,7 +32,7 @@ export type SubAgentUiCallbacks = {
   onStart?: (imageCount: number) => void
   onProgress?: (current: number, total: number) => void
   onDone?: (formatted: string) => void
-  /** Coding compress/explore status line (opens the floating panel). */
+  /** Coding explore status line (opens the floating panel). */
   onCodingStart?: (label: string) => void
   onCodingDone?: (formatted: string) => void
 }
@@ -254,7 +254,7 @@ async function describeWithDeepSeek(
   return (data.choices?.[0]?.message?.content || '').trim()
 }
 
-// ── text-only chat (coding compress / explore) ───────────────────────────
+// ── text-only chat (coding explore) ──────────────────────────────────────
 
 async function textWithOllama(
   model: string,
@@ -325,67 +325,6 @@ async function textWithOpenAiCompatible(
     choices?: Array<{ message?: { content?: string } }>
   }
   return (data.choices?.[0]?.message?.content || '').trim()
-}
-
-/**
- * Text-only sub-agent completion (no images). Used by coding compress / explore.
- */
-export async function callSubAgentText(opts: {
-  prompt: string
-  system?: string
-  config: SubAgentConfig
-  keys: SubAgentKeys
-  signal?: AbortSignal
-  maxTokens?: number
-}): Promise<string> {
-  const provider = detectSubAgentProviderId(opts.config.model, opts.config.provider)
-  const maxTokens = opts.maxTokens ?? opts.config.outputTokens ?? 1024
-  const ctxTokens = opts.config.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS
-  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
-  if (opts.system?.trim()) {
-    messages.push({ role: 'system', content: opts.system.trim() })
-  }
-  messages.push({ role: 'user', content: opts.prompt })
-
-  if (provider === 'openrouter') {
-    const viaProxy = usesServerCloudProxy()
-    const baseUrl = viaProxy
-      ? `${normalizeBaseUrl(opts.keys.openrouterBaseUrl || window.location.origin)}/api/openrouter/api/v1`
-      : normalizeBaseUrl(opts.keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
-    return textWithOpenAiCompatible(
-      'OpenRouter',
-      opts.config.model,
-      maxTokens,
-      baseUrl,
-      viaProxy ? '' : opts.keys.openrouterApiKey,
-      messages,
-      opts.signal,
-    )
-  }
-  if (provider === 'deepseek') {
-    const viaProxy = usesServerCloudProxy()
-    const baseUrl = viaProxy
-      ? deepseekApiBaseForRuntime()
-      : normalizeBaseUrl(opts.keys.deepseekBaseUrl || 'https://api.deepseek.com')
-    return textWithOpenAiCompatible(
-      'DeepSeek',
-      opts.config.model,
-      maxTokens,
-      baseUrl,
-      viaProxy ? '' : opts.keys.deepseekApiKey,
-      messages,
-      opts.signal,
-      { thinking: { type: 'disabled' } },
-    )
-  }
-  return textWithOllama(
-    opts.config.model,
-    maxTokens,
-    ctxTokens,
-    opts.keys.ollamaBaseUrl,
-    messages,
-    opts.signal,
-  )
 }
 
 /**

@@ -86,8 +86,18 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     ) => Promise<void>
   }) => Promise<boolean>
   executeToolCall: (name: string, argsRaw: string | Record<string, unknown> | undefined) => Promise<string>
-  /** Optional: compress large coding tool results for the LLM only (UI still gets raw). */
-  maybeCompressCodingToolResult?: (name: string, resultForLlm: string) => Promise<string>
+  /** Optional deterministic trim of noisy tool results for the LLM only (UI still gets raw). */
+  trimToolResultForLlm?: (name: string, resultForLlm: string) => string
+  /**
+   * Optional clearing of old, re-fetchable tool results (ToolOutputTrimmer pattern):
+   * results from rounds older than `keepRecentRounds` are replaced with a placeholder.
+   */
+  oldToolResultClearing?: {
+    keepRecentRounds: number
+    minChars: number
+    shouldClear: (name: string) => boolean
+    placeholder: (name: string, chars: number) => string
+  }
   parseArgsForToolResult?: (raw: string | Record<string, unknown> | undefined) => Record<string, unknown>
   onDelta: (fullText: string) => void
   onThinkingDelta?: (fullThinking: string) => void
@@ -151,9 +161,25 @@ export async function runSharedToolLoop<
   let hasExecutedMusicToolInTurn = false
   const maxFalseImageClaimReprompts = params.maxFalseImageClaimReprompts ?? 2
   const maxFalseMusicClaimReprompts = params.maxFalseMusicClaimReprompts ?? 2
+  /** Tool-result message positions per round, for old-result clearing. */
+  const toolResultRecords: Array<{ index: number; round: number; name: string; cleared: boolean }> = []
 
   for (let round = 0; round < params.maxToolRounds; round++) {
     if (params.signal?.aborted) throw abortedError()
+
+    const clearing = params.oldToolResultClearing
+    if (clearing && round > 0) {
+      for (const rec of toolResultRecords) {
+        if (rec.cleared) continue
+        if (rec.round >= round - clearing.keepRecentRounds) continue
+        if (!clearing.shouldClear(rec.name)) continue
+        const msg = messages[rec.index] as { content?: unknown } | undefined
+        if (!msg || typeof msg.content !== 'string') continue
+        if (msg.content.length < clearing.minChars) continue
+        msg.content = clearing.placeholder(rec.name, msg.content.length)
+        rec.cleared = true
+      }
+    }
 
     const { content, thinking, toolCalls, usage } = await params.streamRound({
       messages,
@@ -321,9 +347,10 @@ export async function runSharedToolLoop<
       params.onToolPhase?.(phase)
       const result = await params.executeToolCall(shared.name, shared.argsRaw)
       let resultForLlm = sanitizeImageToolResultForLlm(shared.name, result)
-      if (params.maybeCompressCodingToolResult) {
-        resultForLlm = await params.maybeCompressCodingToolResult(shared.name, resultForLlm)
+      if (params.trimToolResultForLlm) {
+        resultForLlm = params.trimToolResultForLlm(shared.name, resultForLlm)
       }
+      const beforeAppendLen = messages.length
       params.appendToolResult({
         messages,
         call,
@@ -331,6 +358,9 @@ export async function runSharedToolLoop<
         result: resultForLlm,
         round,
       })
+      for (let i = beforeAppendLen; i < messages.length; i++) {
+        toolResultRecords.push({ index: i, round, name: shared.name, cleared: false })
+      }
       hasExecutedToolInTurn = true
       if (shared.name === 'generate_image' || shared.name === 'edit_image_runware') {
         hasExecutedImageToolInTurn = true

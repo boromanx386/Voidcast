@@ -4,8 +4,12 @@ import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
-  compressCodingToolResult,
-  shouldCompressCodingResult,
+  CODING_CLEAR_KEEP_RECENT_ROUNDS,
+  CODING_CLEAR_MIN_CHARS,
+  clearedCodingToolResultPlaceholder,
+  isClearableCodingToolResult,
+  shouldTrimCodingResult,
+  trimNoisyCodingResult,
 } from '@/lib/codingSubAgent'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
@@ -108,14 +112,7 @@ export async function runOpenRouterChatWithTools(
   })
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
-  const subAgentKeys = {
-    ollamaBaseUrl: params.ollamaBaseUrlForSubAgent || 'http://localhost:11434',
-    openrouterBaseUrl: params.openrouterBaseUrlForSubAgent || params.baseUrl || 'https://openrouter.ai/api/v1',
-    openrouterApiKey: params.openrouterApiKeyForSubAgent || params.apiKey || '',
-    deepseekBaseUrl: params.deepseekBaseUrlForSubAgent || 'https://api.deepseek.com',
-    deepseekApiKey: params.deepseekApiKeyForSubAgent || '',
-  }
-
+  const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
     initialMessages,
@@ -164,20 +161,20 @@ export async function runOpenRouterChatWithTools(
         content: result,
       })
     },
-    maybeCompressCodingToolResult: async (name, resultForLlm) => {
-      const cfg = params.subAgent
-      if (!cfg?.codingEnabled || !shouldCompressCodingResult(name, resultForLlm, true)) {
-        return resultForLlm
-      }
-      return compressCodingToolResult({
-        toolName: name,
-        raw: resultForLlm,
-        config: cfg,
-        keys: subAgentKeys,
-        signal: params.signal,
-        ui: params.subAgentUi,
-      })
-    },
+    trimToolResultForLlm: codingContextEnabled
+      ? (name, resultForLlm) =>
+          shouldTrimCodingResult(name, resultForLlm, true)
+            ? trimNoisyCodingResult(resultForLlm)
+            : resultForLlm
+      : undefined,
+    oldToolResultClearing: codingContextEnabled
+      ? {
+          keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+          minChars: CODING_CLEAR_MIN_CHARS,
+          shouldClear: isClearableCodingToolResult,
+          placeholder: clearedCodingToolResultPlaceholder,
+        }
+      : undefined,
     appendToolRequiredReprompt: (messages) => {
       messages.push({
         role: 'user',

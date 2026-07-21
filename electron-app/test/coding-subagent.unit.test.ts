@@ -1,51 +1,92 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CODING_COMPRESS_THRESHOLD,
-  CODING_COMPRESS_TOOLS,
+  CODING_CLEAR_MIN_CHARS,
+  CODING_TRIM_HEAD_CHARS,
+  CODING_TRIM_TAIL_CHARS,
+  CODING_TRIM_THRESHOLD,
+  CODING_TRIM_TOOLS,
   clampExploreMaxRounds,
-  hardTruncateCodingResult,
+  clearedCodingToolResultPlaceholder,
+  isClearableCodingToolResult,
   isCodingExploreAllowedTool,
   parseCodingExploreAction,
-  shouldCompressCodingResult,
+  shouldTrimCodingResult,
+  trimNoisyCodingResult,
 } from '../src/lib/codingSubAgent'
 import { buildOllamaToolsList } from '../src/lib/toolDefinitions'
 
-describe('shouldCompressCodingResult', () => {
-  it('returns false when coding sub-agent disabled', () => {
-    const raw = 'x'.repeat(CODING_COMPRESS_THRESHOLD + 10)
-    expect(shouldCompressCodingResult('execute_command', raw, false)).toBe(false)
+describe('shouldTrimCodingResult', () => {
+  it('returns false when coding context management disabled', () => {
+    const raw = 'x'.repeat(CODING_TRIM_THRESHOLD + 10)
+    expect(shouldTrimCodingResult('execute_command', raw, false)).toBe(false)
   })
 
-  it('returns false below threshold', () => {
-    const raw = 'x'.repeat(CODING_COMPRESS_THRESHOLD - 1)
-    expect(shouldCompressCodingResult('execute_command', raw, true)).toBe(false)
+  it('returns false at/below threshold', () => {
+    const raw = 'x'.repeat(CODING_TRIM_THRESHOLD)
+    expect(shouldTrimCodingResult('execute_command', raw, true)).toBe(false)
   })
 
-  it('returns true at/above threshold for allowlisted tools', () => {
-    const raw = 'x'.repeat(CODING_COMPRESS_THRESHOLD)
-    for (const name of CODING_COMPRESS_TOOLS) {
-      expect(shouldCompressCodingResult(name, raw, true)).toBe(true)
+  it('returns true above threshold for noisy tools', () => {
+    const raw = 'x'.repeat(CODING_TRIM_THRESHOLD + 1)
+    for (const name of CODING_TRIM_TOOLS) {
+      expect(shouldTrimCodingResult(name, raw, true)).toBe(true)
     }
   })
 
-  it('returns false for non-allowlisted tools even when large', () => {
-    const raw = 'x'.repeat(CODING_COMPRESS_THRESHOLD + 100)
-    expect(shouldCompressCodingResult('edit_code', raw, true)).toBe(false)
-    expect(shouldCompressCodingResult('write_file', raw, true)).toBe(false)
-    expect(shouldCompressCodingResult('web_search', raw, true)).toBe(false)
+  it('returns false for tools whose raw output the main agent needs', () => {
+    const raw = 'x'.repeat(CODING_TRIM_THRESHOLD + 100)
+    expect(shouldTrimCodingResult('edit_code', raw, true)).toBe(false)
+    expect(shouldTrimCodingResult('write_file', raw, true)).toBe(false)
+    expect(shouldTrimCodingResult('web_search', raw, true)).toBe(false)
+    expect(shouldTrimCodingResult('read_file', raw, true)).toBe(false)
+    expect(shouldTrimCodingResult('list_directory', raw, true)).toBe(false)
+    expect(shouldTrimCodingResult('git_diff', raw, true)).toBe(false)
+    expect(shouldTrimCodingResult('git_show', raw, true)).toBe(false)
   })
 })
 
-describe('hardTruncateCodingResult', () => {
-  it('passthrough when short', () => {
-    expect(hardTruncateCodingResult('hello', 100)).toBe('hello')
+describe('trimNoisyCodingResult', () => {
+  it('passthrough when at/below threshold', () => {
+    const raw = 'a'.repeat(CODING_TRIM_THRESHOLD)
+    expect(trimNoisyCodingResult(raw)).toBe(raw)
   })
 
-  it('truncates with marker when long', () => {
-    const raw = 'a'.repeat(100)
-    const out = hardTruncateCodingResult(raw, 40)
-    expect(out.startsWith('a'.repeat(40))).toBe(true)
-    expect(out).toContain('[truncated')
+  it('keeps head and tail with omitted marker', () => {
+    const raw = `HEAD${'m'.repeat(CODING_TRIM_THRESHOLD * 2)}TAIL`
+    const out = trimNoisyCodingResult(raw)
+    expect(out.startsWith(raw.slice(0, CODING_TRIM_HEAD_CHARS))).toBe(true)
+    expect(out.endsWith(raw.slice(-CODING_TRIM_TAIL_CHARS))).toBe(true)
+    expect(out).toContain('chars omitted')
+    expect(out.length).toBeLessThan(raw.length)
+  })
+
+  it('preserves errors at the end of command output', () => {
+    const raw = `${'log line\n'.repeat(2000)}ERROR: build failed at src/x.ts:12`
+    const out = trimNoisyCodingResult(raw)
+    expect(out).toContain('ERROR: build failed at src/x.ts:12')
+  })
+})
+
+describe('old tool result clearing helpers', () => {
+  it('marks re-fetchable coding tools as clearable', () => {
+    expect(isClearableCodingToolResult('read_file')).toBe(true)
+    expect(isClearableCodingToolResult('search_files')).toBe(true)
+    expect(isClearableCodingToolResult('execute_command')).toBe(true)
+    expect(isClearableCodingToolResult('git_diff')).toBe(true)
+  })
+
+  it('never clears mutations, digests, or non-coding tools', () => {
+    expect(isClearableCodingToolResult('edit_code')).toBe(false)
+    expect(isClearableCodingToolResult('write_file')).toBe(false)
+    expect(isClearableCodingToolResult('coding_explore')).toBe(false)
+    expect(isClearableCodingToolResult('web_search')).toBe(false)
+  })
+
+  it('placeholder names the tool and size and stays small', () => {
+    const p = clearedCodingToolResultPlaceholder('read_file', 12_345)
+    expect(p).toContain('read_file')
+    expect(p).toContain('12')
+    expect(p.length).toBeLessThan(CODING_CLEAR_MIN_CHARS)
   })
 })
 

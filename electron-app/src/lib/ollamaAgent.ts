@@ -68,9 +68,13 @@ import {
   type SubAgentUiCallbacks,
 } from '@/lib/subAgent'
 import {
-  compressCodingToolResult,
+  CODING_CLEAR_KEEP_RECENT_ROUNDS,
+  CODING_CLEAR_MIN_CHARS,
+  clearedCodingToolResultPlaceholder,
+  isClearableCodingToolResult,
   runCodingExplore,
-  shouldCompressCodingResult,
+  shouldTrimCodingResult,
+  trimNoisyCodingResult,
 } from '@/lib/codingSubAgent'
 import type { SubAgentConfig } from '@/lib/settings'
 import type {
@@ -1952,13 +1956,7 @@ export async function runOllamaChatWithTools(
   const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
   const originalUserUrl = pickFirstHttpUrl(rawUserText)
   const originalNeedsFresh = shouldForceWebSearchOnRoundZero(rawUserText, params.toolsEnabled)
-  const subAgentKeys = {
-    ollamaBaseUrl: params.ollamaBaseUrlForSubAgent || params.baseUrl || 'http://localhost:11434',
-    openrouterBaseUrl: params.openrouterBaseUrlForSubAgent || 'https://openrouter.ai/api/v1',
-    openrouterApiKey: params.openrouterApiKeyForSubAgent || '',
-    deepseekBaseUrl: params.deepseekBaseUrlForSubAgent || 'https://api.deepseek.com',
-    deepseekApiKey: params.deepseekApiKeyForSubAgent || '',
-  }
+  const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
   return runSharedToolLoop<OllamaApiMessage, OllamaToolCall>({
     initialMessages: [...params.initialMessages],
     maxToolRounds: MAX_TOOL_ROUNDS,
@@ -2007,20 +2005,20 @@ export async function runOllamaChatWithTools(
         content: result,
       })
     },
-    maybeCompressCodingToolResult: async (name, resultForLlm) => {
-      const cfg = params.subAgent
-      if (!cfg?.codingEnabled || !shouldCompressCodingResult(name, resultForLlm, true)) {
-        return resultForLlm
-      }
-      return compressCodingToolResult({
-        toolName: name,
-        raw: resultForLlm,
-        config: cfg,
-        keys: subAgentKeys,
-        signal: params.signal,
-        ui: params.subAgentUi,
-      })
-    },
+    trimToolResultForLlm: codingContextEnabled
+      ? (name, resultForLlm) =>
+          shouldTrimCodingResult(name, resultForLlm, true)
+            ? trimNoisyCodingResult(resultForLlm)
+            : resultForLlm
+      : undefined,
+    oldToolResultClearing: codingContextEnabled
+      ? {
+          keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+          minChars: CODING_CLEAR_MIN_CHARS,
+          shouldClear: isClearableCodingToolResult,
+          placeholder: clearedCodingToolResultPlaceholder,
+        }
+      : undefined,
     appendToolRequiredReprompt: (messages) => {
       messages.push({
         role: 'user',
