@@ -23,10 +23,7 @@ describe('codingRevealParentDirs', () => {
 })
 
 describe('codingRevealPathFromToolResult', () => {
-  it('returns path for successful read/write/edit', () => {
-    expect(
-      codingRevealPathFromToolResult('read_file', '1| hello', { path: 'src/a.ts' }),
-    ).toBe('src/a.ts')
+  it('returns path for successful write/edit only', () => {
     expect(
       codingRevealPathFromToolResult('write_file', 'Saved src/a.ts (12 bytes).', {
         path: 'src/a.ts',
@@ -39,9 +36,9 @@ describe('codingRevealPathFromToolResult', () => {
     ).toBe('src/a.ts')
   })
 
-  it('skips failures and unrelated tools', () => {
+  it('skips read_file, failures, and unrelated tools', () => {
     expect(
-      codingRevealPathFromToolResult('read_file', 'Error: missing file', { path: 'x.ts' }),
+      codingRevealPathFromToolResult('read_file', '1| hello', { path: 'src/a.ts' }),
     ).toBeNull()
     expect(
       codingRevealPathFromToolResult('edit_code', 'Target snippet not found (3 lines).', {
@@ -51,6 +48,6 @@ describe('codingRevealPathFromToolResult', () => {
     expect(
       codingRevealPathFromToolResult('execute_command', '$ ls\nok', { command: 'ls' }),
     ).toBeNull()
-    expect(codingRevealPathFromToolResult('read_file', 'ok', {})).toBeNull()
+    expect(codingRevealPathFromToolResult('write_file', 'ok', {})).toBeNull()
   })
 })

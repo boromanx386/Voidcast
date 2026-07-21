@@ -50,7 +50,7 @@ export type UseCodingSessionResult = {
   setCodingFileTreeNonce: React.Dispatch<React.SetStateAction<number>>
   codingGitNonce: number
   setCodingGitNonce: React.Dispatch<React.SetStateAction<number>>
-  /** Latest agent read/write/edit path to focus in CodingPanel (null until first reveal). */
+  /** Latest agent write/edit path to focus in CodingPanel (null until first reveal). */
   codingRevealRequest: CodingRevealRequest | null
   revealCodingFile: (path: string) => void
   codingContextMemo: CodingContextMemo

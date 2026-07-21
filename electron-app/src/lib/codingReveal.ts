@@ -23,7 +23,8 @@ export function codingRevealParentDirs(filePath: string): string[] {
 }
 
 /**
- * Path to open in the coding panel after a successful read/write/edit tool call.
+ * Path to open in the coding panel after a successful write/edit tool call.
+ * `read_file` is excluded — inspecting should not steal focus into preview.
  * Returns null when the tool is unrelated, failed, or missing a path.
  */
 export function codingRevealPathFromToolResult(
@@ -31,7 +32,7 @@ export function codingRevealPathFromToolResult(
   result: string,
   args?: Record<string, unknown>,
 ): string | null {
-  if (name !== 'read_file' && name !== 'write_file' && name !== 'edit_code') return null
+  if (name !== 'write_file' && name !== 'edit_code') return null
   if (isCodingToolFailure(name, result)) return null
   const raw = typeof args?.path === 'string' ? args.path : ''
   const path = normalizeCodingRevealPath(raw)

@@ -157,9 +157,13 @@ describe('buildGitStatusByPath / dirHasGitChanges', () => {
   })
 
   test('letter colors', () => {
-    expect(gitLetterTextClass('M')).toContain('yellow')
-    expect(gitLetterTextClass('A')).toContain('green')
-    expect(gitLetterTextClass('D')).toContain('red')
-    expect(gitLetterTextClass('?')).toContain('cyan')
+    expect(gitLetterTextClass('M')).toBe('coding-git--modified')
+    expect(gitLetterTextClass('A')).toBe('coding-git--added')
+    expect(gitLetterTextClass('C')).toBe('coding-git--added')
+    expect(gitLetterTextClass('D')).toBe('coding-git--deleted')
+    expect(gitLetterTextClass('R')).toBe('coding-git--renamed')
+    expect(gitLetterTextClass('?')).toBe('coding-git--untracked')
+    expect(gitLetterTextClass('U')).toBe('coding-git--conflict')
+    expect(gitLetterTextClass('X')).toBe('coding-git--default')
   })
 })

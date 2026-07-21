@@ -55,7 +55,7 @@ type Props = {
   agentShellFeed?: TerminalLine[]
   /** Bumps when chat/session changes; clears local terminal + seen agent line ids. */
   agentShellEpoch?: number
-  /** Agent read/write/edit: expand parents + open preview. */
+  /** Agent write/edit: expand parents + open preview. */
   revealRequest?: CodingRevealRequest | null
   /** Foreground coding command currently streaming. */
   commandRunning?: boolean

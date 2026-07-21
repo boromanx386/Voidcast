@@ -44,7 +44,7 @@ export type AgentToolResultHandlerDeps = {
   setCodingTerminalFeed: Dispatch<SetStateAction<TerminalLine[]>>
   setCodingFileTreeNonce: Dispatch<SetStateAction<number>>
   setCodingGitNonce: Dispatch<SetStateAction<number>>
-  /** Open coding panel + focus a project-relative path after read/write/edit. */
+  /** Open coding panel + focus a project-relative path after write/edit. */
   revealCodingFile?: (path: string) => void
   setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf'; text: string } | null>>
   setMessages: Dispatch<SetStateAction<UiMessage[]>>

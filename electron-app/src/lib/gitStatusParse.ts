@@ -187,7 +187,7 @@ export function dirHasGitChanges(
   return false
 }
 
-/** Tailwind text class for a status letter (coding panel semantic colors). */
+/** Semantic CSS class for a status letter (coding panel git colors). */
 export function gitLetterTextClass(letter: string): string {
   switch (letter) {
     case 'M':
