@@ -156,6 +156,8 @@ describe('describeImagesWithSubAgent vision cache', () => {
     codingEnabled: false,
     model: 'llava:13b',
     provider: 'ollama' as const,
+    codingModel: 'llava:13b',
+    codingProvider: 'ollama' as const,
   }
 
   it('returns cached descriptions without calling fetch', async () => {

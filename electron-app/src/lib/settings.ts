@@ -502,31 +502,66 @@ export type RunwareMusicModelProfile = {
 /** Default Ollama num_ctx for sub-agent calls (vision + long-memory extract). */
 export const SUB_AGENT_DEFAULT_CONTEXT_TOKENS = 65536
 
-/** Sub-agent config — delegates tasks (vision, etc.) to a separate model. */
+/** Sub-agent config — delegates tasks (vision, coding explore, etc.) to separate models. */
 export type SubAgentConfig = {
   /** When true, image_recall runs sub-agent instead of returning base64. */
   enabled: boolean
-  /** When true, long-memory extract uses the sub-agent model instead of the main LLM. */
+  /** When true, long-memory extract uses the vision sub-agent model instead of the main LLM. */
   memoryEnabled: boolean
   /**
    * When true, enables coding context management: deterministic trim of noisy
    * tool output, clearing of stale tool results from old rounds, and the
-   * read-only `coding_explore` tool (which runs on the sub-agent model).
+   * read-only `coding_explore` tool (which runs on the coding sub-agent model).
    */
   codingEnabled: boolean
-  /** Sub-agent model id (e.g. 'llava:13b', 'sorc/foo:9b', 'gpt-4o'). */
+  /**
+   * Vision (+ long-memory) model id (e.g. 'llava:13b', 'gpt-4o').
+   * Kept as `model` for backward-compatible settings JSON.
+   */
   model: string
   /**
-   * Explicit backend for `model`. Set when picking from the SUB options list.
+   * Explicit backend for vision `model`. Set when picking from the SUB options list.
    * When omitted, inferred via detectSubAgentProvider (needed for namespaced Ollama ids).
    */
   provider?: 'ollama' | 'openrouter' | 'deepseek'
-  /** Max generated tokens per sub-agent call (default 1024). */
+  /** Coding explore model id (text-capable). Migrates from `model` when missing. */
+  codingModel: string
+  /** Explicit backend for codingModel. */
+  codingProvider?: 'ollama' | 'openrouter' | 'deepseek'
+  /**
+   * OpenRouter provider slug lock for the vision model (provider.only, no fallbacks).
+   * Kept in sync with `openrouterProviderByModel[model]` when provider is openrouter.
+   */
+  openrouterProviderOnly?: string
+  /**
+   * OpenRouter provider slug lock for the coding model.
+   * Kept in sync with `openrouterProviderByModel[codingModel]`.
+   */
+  codingOpenrouterProviderOnly?: string
+  /** Max generated tokens per sub-agent call (default 1024). Shared by vision/coding. */
   outputTokens?: number
   /** Context window size sent to Ollama as num_ctx (default 64K). Ignored by OpenRouter. */
   contextTokens?: number
-  /** When true, show the floating analysis panel during image_recall (default on). */
+  /** When true, show the floating analysis panel during vision/coding sub-agent (default on). */
   showAnalysisWindow?: boolean
+}
+
+/**
+ * Project vision or coding endpoint fields onto the shared `model`/`provider` slots
+ * so callSubAgent* / describeImages can stay unchanged.
+ */
+export function subAgentConfigForRole(
+  sub: SubAgentConfig,
+  role: 'vision' | 'coding',
+): SubAgentConfig {
+  if (role !== 'coding') return sub
+  const model = (sub.codingModel || sub.model || '').trim() || sub.model
+  return {
+    ...sub,
+    model,
+    provider: sub.codingProvider ?? sub.provider,
+    openrouterProviderOnly: sub.codingOpenrouterProviderOnly ?? sub.openrouterProviderOnly,
+  }
 }
 
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
@@ -973,6 +1008,10 @@ export const defaults: AppSettings = {
     codingEnabled: false,
     model: 'llava:13b',
     provider: 'ollama',
+    codingModel: 'llava:13b',
+    codingProvider: 'ollama',
+    openrouterProviderOnly: '',
+    codingOpenrouterProviderOnly: '',
     outputTokens: 4096,
     contextTokens: SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
     showAnalysisWindow: true,
@@ -1234,6 +1273,15 @@ function normalizeTts(s: AppSettings): AppSettings {
   }
 }
 
+function normalizeSubAgentModelId(
+  rawModel: string,
+  provider: 'ollama' | 'openrouter' | 'deepseek',
+): string {
+  if (provider === 'ollama') return rawModel
+  if (provider === 'deepseek') return normalizeDeepSeekModelId(rawModel)
+  return normalizeOpenRouterModelId(rawModel)
+}
+
 export function normalizeSubAgent(s: AppSettings): AppSettings {
   const raw = s.subAgent
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
@@ -1251,12 +1299,37 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
       ? raw.provider
       : undefined
   const provider = detectSubAgentProvider(rawModel, rawProvider)
-  const model =
-    provider === 'ollama'
-      ? rawModel
-      : provider === 'deepseek'
-        ? normalizeDeepSeekModelId(rawModel)
-        : normalizeOpenRouterModelId(rawModel)
+  const model = normalizeSubAgentModelId(rawModel, provider)
+
+  const hasCodingModel = typeof raw.codingModel === 'string' && raw.codingModel.trim().length > 0
+  const rawCodingModel = hasCodingModel ? raw.codingModel.trim() : model
+  const rawCodingProvider =
+    raw.codingProvider === 'ollama' ||
+    raw.codingProvider === 'openrouter' ||
+    raw.codingProvider === 'deepseek'
+      ? raw.codingProvider
+      : hasCodingModel
+        ? undefined
+        : provider
+  const codingProvider = detectSubAgentProvider(rawCodingModel, rawCodingProvider)
+  const codingModel = normalizeSubAgentModelId(rawCodingModel, codingProvider)
+
+  const providerMap = s.openrouterProviderByModel || {}
+  const openrouterProviderOnly =
+    provider === 'openrouter' && model && Object.prototype.hasOwnProperty.call(providerMap, model)
+      ? (providerMap[model] || '').trim()
+      : typeof raw.openrouterProviderOnly === 'string'
+        ? raw.openrouterProviderOnly.trim()
+        : defaults.subAgent.openrouterProviderOnly ?? ''
+  const codingOpenrouterProviderOnly =
+    codingProvider === 'openrouter' &&
+    codingModel &&
+    Object.prototype.hasOwnProperty.call(providerMap, codingModel)
+      ? (providerMap[codingModel] || '').trim()
+      : typeof raw.codingOpenrouterProviderOnly === 'string'
+        ? raw.codingOpenrouterProviderOnly.trim()
+        : defaults.subAgent.codingOpenrouterProviderOnly ?? ''
+
   // outputTokens — migrate old maxTokensPerImage key if present
   const rawAny = raw as any
   const outputTokens =
@@ -1278,6 +1351,10 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
       codingEnabled,
       model,
       provider,
+      codingModel,
+      codingProvider,
+      openrouterProviderOnly,
+      codingOpenrouterProviderOnly,
       outputTokens,
       contextTokens,
       showAnalysisWindow,
@@ -1728,6 +1805,35 @@ export function normalizeOpenRouterProviderByModel(raw: unknown): Record<string,
     out[modelId] = provider
   }
   return out
+}
+
+/** Set OpenRouter provider lock for a sub-agent role model (persisted in shared per-model map). */
+export function withSubAgentOpenRouterProvider(
+  s: AppSettings,
+  role: 'vision' | 'coding',
+  providerOnly: string,
+): Pick<AppSettings, 'openrouterProviderOnly' | 'openrouterProviderByModel' | 'subAgent'> {
+  const modelId = (
+    role === 'coding' ? s.subAgent.codingModel || s.subAgent.model : s.subAgent.model
+  ).trim()
+  const nextProvider = providerOnly.trim()
+  const prev = s.openrouterProviderByModel || {}
+  const nextMap = { ...prev }
+  if (modelId) {
+    if (nextProvider) nextMap[modelId] = nextProvider
+    else delete nextMap[modelId]
+  }
+  const subAgent: SubAgentConfig =
+    role === 'coding'
+      ? { ...s.subAgent, codingOpenrouterProviderOnly: nextProvider }
+      : { ...s.subAgent, openrouterProviderOnly: nextProvider }
+  const mainOrModel = (s.openrouterModel || '').trim()
+  return {
+    openrouterProviderByModel: nextMap,
+    openrouterProviderOnly:
+      modelId && modelId === mainOrModel ? nextProvider : s.openrouterProviderOnly,
+    subAgent,
+  }
 }
 
 /** Provider slug lock for the active OpenRouter model (empty = default routing). */

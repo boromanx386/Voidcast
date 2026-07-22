@@ -2,8 +2,10 @@ import { describe, expect, test } from 'vitest'
 import {
   normalizeSubAgent,
   normalizeSettingsCandidate,
+  subAgentConfigForRole,
   withOpenRouterModel,
   withOpenRouterProviderOnly,
+  withSubAgentOpenRouterProvider,
   type AppSettings,
   defaults,
 } from '../src/lib/settings'
@@ -252,6 +254,8 @@ describe('normalizeSubAgent', () => {
       codingEnabled: true,
       model: 'gpt-4o',
       provider: 'openrouter',
+      codingModel: 'deepseek-v4-flash',
+      codingProvider: 'deepseek',
       outputTokens: 2048,
       contextTokens: 32768,
       showAnalysisWindow: false,
@@ -262,10 +266,39 @@ describe('normalizeSubAgent', () => {
       codingEnabled: true,
       model: 'gpt-4o',
       provider: 'openrouter',
+      codingModel: 'deepseek-v4-flash',
+      codingProvider: 'deepseek',
+      openrouterProviderOnly: '',
+      codingOpenrouterProviderOnly: '',
       outputTokens: 2048,
       contextTokens: 32768,
       showAnalysisWindow: false,
     })
+  })
+
+  test('codingModel migrates from vision model when missing', () => {
+    const s = normalizeSubAgent(
+      makeSubAgent({ enabled: true, model: 'llava:13b', provider: 'ollama' }),
+    )
+    expect(s.subAgent.codingModel).toBe('llava:13b')
+    expect(s.subAgent.codingProvider).toBe('ollama')
+  })
+
+  test('codingModel can differ from vision model', () => {
+    const s = normalizeSubAgent(
+      makeSubAgent({
+        enabled: true,
+        codingEnabled: true,
+        model: 'llava:13b',
+        provider: 'ollama',
+        codingModel: 'deepseek/deepseek-v4-flash',
+        codingProvider: 'openrouter',
+      }),
+    )
+    expect(s.subAgent.model).toBe('llava:13b')
+    expect(s.subAgent.provider).toBe('ollama')
+    expect(s.subAgent.codingModel).toBe('deepseek/deepseek-v4-flash')
+    expect(s.subAgent.codingProvider).toBe('openrouter')
   })
 
   test('namespaced Ollama model keeps id and routes to ollama', () => {
@@ -290,6 +323,57 @@ describe('normalizeSubAgent', () => {
     })
     const out = normalizeSubAgent(s)
     expect(out.ollamaModel).toBe('custom-model')
+  })
+})
+
+describe('subAgentConfigForRole', () => {
+  test('vision returns same config', () => {
+    const sub = defaults.subAgent
+    expect(subAgentConfigForRole(sub, 'vision')).toBe(sub)
+  })
+
+  test('coding projects codingModel onto model', () => {
+    const sub = {
+      ...defaults.subAgent,
+      model: 'llava:13b',
+      provider: 'ollama' as const,
+      codingModel: 'deepseek-v4-flash',
+      codingProvider: 'deepseek' as const,
+      codingOpenrouterProviderOnly: '',
+    }
+    const coding = subAgentConfigForRole(sub, 'coding')
+    expect(coding.model).toBe('deepseek-v4-flash')
+    expect(coding.provider).toBe('deepseek')
+    expect(coding.codingModel).toBe('deepseek-v4-flash')
+  })
+
+  test('coding projects OpenRouter provider lock', () => {
+    const sub = {
+      ...defaults.subAgent,
+      model: 'openai/gpt-4o',
+      provider: 'openrouter' as const,
+      openrouterProviderOnly: 'openai',
+      codingModel: 'anthropic/claude-sonnet-5',
+      codingProvider: 'openrouter' as const,
+      codingOpenrouterProviderOnly: 'anthropic',
+    }
+    const coding = subAgentConfigForRole(sub, 'coding')
+    expect(coding.openrouterProviderOnly).toBe('anthropic')
+  })
+})
+
+describe('withSubAgentOpenRouterProvider', () => {
+  test('stores provider in shared per-model map and subAgent field', () => {
+    const s = makeSettings({
+      subAgent: {
+        ...defaults.subAgent,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-5',
+      },
+    })
+    const patch = withSubAgentOpenRouterProvider(s, 'vision', 'anthropic')
+    expect(patch.subAgent.openrouterProviderOnly).toBe('anthropic')
+    expect(patch.openrouterProviderByModel['anthropic/claude-sonnet-5']).toBe('anthropic')
   })
 })
 

@@ -17,6 +17,7 @@ import {
   detectSubAgentProvider as detectSubAgentProviderId,
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
+import { openRouterProviderRoutingBody } from '@/lib/openrouter'
 import {
   lookupVisionCacheDescription,
   normalizeVisionFocus,
@@ -145,6 +146,7 @@ async function describeWithOpenRouter(
   openrouterApiKey: string,
   prompt: string,
   signal?: AbortSignal,
+  providerOnly?: string,
 ): Promise<string> {
   const viaProxy = usesServerCloudProxy()
   const baseUrl = viaProxy
@@ -159,6 +161,7 @@ async function describeWithOpenRouter(
   }
 
   const dataUri = toDataUri(img.base64, img.mime)
+  const provider = openRouterProviderRoutingBody(providerOnly)
 
   const body = {
     model,
@@ -174,6 +177,7 @@ async function describeWithOpenRouter(
     max_tokens: maxTokens,
     temperature: 0.2,
     stream: false,
+    ...(provider ? { provider } : {}),
   }
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -347,6 +351,7 @@ export async function callSubAgentChat(opts: {
     const baseUrl = viaProxy
       ? `${normalizeBaseUrl(opts.keys.openrouterBaseUrl || window.location.origin)}/api/openrouter/api/v1`
       : normalizeBaseUrl(opts.keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
+    const routing = openRouterProviderRoutingBody(opts.config.openrouterProviderOnly)
     return textWithOpenAiCompatible(
       'OpenRouter',
       opts.config.model,
@@ -355,6 +360,7 @@ export async function callSubAgentChat(opts: {
       viaProxy ? '' : opts.keys.openrouterApiKey,
       messages,
       opts.signal,
+      routing ? { provider: routing } : undefined,
     )
   }
   if (provider === 'deepseek') {
@@ -404,6 +410,7 @@ async function describeSingleImage(
       img, config.model, maxTokens,
       keys.openrouterBaseUrl, keys.openrouterApiKey,
       prompt, signal,
+      config.openrouterProviderOnly,
     )
   }
   if (provider === 'deepseek') {

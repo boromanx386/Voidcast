@@ -9,6 +9,7 @@
  */
 
 import type { SubAgentConfig } from '@/lib/settings'
+import { subAgentConfigForRole } from '@/lib/settings'
 import {
   callSubAgentChat,
   type SubAgentKeys,
@@ -210,6 +211,7 @@ export async function runCodingExplore(opts: {
   const goal = opts.goal.trim()
   if (!goal) return 'Error: missing goal for coding_explore.'
 
+  const codingConfig = subAgentConfigForRole(opts.config, 'coding')
   const maxRounds = clampExploreMaxRounds(opts.maxRounds)
   const pathPrefix = (opts.pathPrefix || '').trim()
   const recentFiles = opts.recentFiles ?? []
@@ -237,7 +239,7 @@ export async function runCodingExplore(opts: {
 
       const reply = await callSubAgentChat({
         messages,
-        config: opts.config,
+        config: codingConfig,
         keys: opts.keys,
         signal: opts.signal,
         maxTokens: Math.min(opts.config.outputTokens ?? 1024, 2048),
@@ -328,7 +330,7 @@ export async function runCodingExplore(opts: {
     })
     const finalReply = await callSubAgentChat({
       messages,
-      config: opts.config,
+      config: codingConfig,
       keys: opts.keys,
       signal: opts.signal,
       maxTokens: Math.min(opts.config.outputTokens ?? 1024, 2048),
