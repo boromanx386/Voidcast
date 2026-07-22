@@ -626,8 +626,13 @@ export type AppSettings = {
   openrouterBaseUrl: string
   openrouterApiKey: string
   openrouterModel: string
-  /** When set, OpenRouter requests use provider.only with no fallbacks. */
+  /**
+   * When set, OpenRouter requests use provider.only with no fallbacks.
+   * Kept in sync with `openrouterProviderByModel[openrouterModel]`.
+   */
   openrouterProviderOnly: string
+  /** Per OpenRouter model id → provider slug lock (empty = default routing). */
+  openrouterProviderByModel: Record<string, string>
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   nvidiaModel: string
@@ -835,6 +840,7 @@ export const defaults: AppSettings = {
   openrouterApiKey: '',
   openrouterModel: 'openrouter/free',
   openrouterProviderOnly: '',
+  openrouterProviderByModel: {},
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
   nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
@@ -1128,8 +1134,16 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? s.openrouterModel.trim()
       : defaults.openrouterModel,
   )
-  const openrouterProviderOnly =
+  const openrouterProviderByModel = normalizeOpenRouterProviderByModel(
+    s.openrouterProviderByModel,
+  )
+  const legacyProviderOnly =
     typeof s.openrouterProviderOnly === 'string' ? s.openrouterProviderOnly.trim() : ''
+  // Migrate single global provider into the per-model map for the active model.
+  if (legacyProviderOnly && !Object.prototype.hasOwnProperty.call(openrouterProviderByModel, openrouterModel)) {
+    openrouterProviderByModel[openrouterModel] = legacyProviderOnly
+  }
+  const openrouterProviderOnly = openrouterProviderByModel[openrouterModel] ?? ''
   const nvidiaBaseUrl =
     typeof s.nvidiaBaseUrl === 'string' && s.nvidiaBaseUrl.trim()
       ? s.nvidiaBaseUrl.trim()
@@ -1159,6 +1173,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     openrouterApiKey,
     openrouterModel,
     openrouterProviderOnly,
+    openrouterProviderByModel,
     nvidiaBaseUrl,
     nvidiaApiKey,
     nvidiaModel,
@@ -1700,6 +1715,63 @@ export function getAgentVisibleSettings(settings: AppSettings): Partial<AppSetti
 
 export function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')
+}
+
+/** Normalize OpenRouter provider slug map: trim keys/values; drop empty entries. */
+export function normalizeOpenRouterProviderByModel(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const modelId = typeof k === 'string' ? k.trim() : ''
+    const provider = typeof v === 'string' ? v.trim() : ''
+    if (!modelId || !provider) continue
+    out[modelId] = provider
+  }
+  return out
+}
+
+/** Provider slug lock for the active OpenRouter model (empty = default routing). */
+export function getOpenRouterProviderOnly(
+  s: Pick<AppSettings, 'openrouterModel' | 'openrouterProviderByModel' | 'openrouterProviderOnly'>,
+): string {
+  const modelId = (s.openrouterModel || '').trim()
+  if (modelId && s.openrouterProviderByModel && Object.prototype.hasOwnProperty.call(s.openrouterProviderByModel, modelId)) {
+    return (s.openrouterProviderByModel[modelId] || '').trim()
+  }
+  return (s.openrouterProviderOnly || '').trim()
+}
+
+/** Switch OpenRouter model and restore the remembered provider for that model. */
+export function withOpenRouterModel(
+  s: AppSettings,
+  modelId: string,
+): Pick<AppSettings, 'openrouterModel' | 'openrouterProviderOnly'> {
+  const nextModel = modelId.trim()
+  const map = s.openrouterProviderByModel || {}
+  return {
+    openrouterModel: nextModel,
+    openrouterProviderOnly: nextModel ? (map[nextModel] || '').trim() : '',
+  }
+}
+
+/** Set provider lock for the current OpenRouter model (persisted per model). */
+export function withOpenRouterProviderOnly(
+  s: AppSettings,
+  providerOnly: string,
+): Pick<AppSettings, 'openrouterProviderOnly' | 'openrouterProviderByModel'> {
+  const modelId = (s.openrouterModel || '').trim()
+  const nextProvider = providerOnly.trim()
+  const prev = s.openrouterProviderByModel || {}
+  const nextMap = { ...prev }
+  if (!modelId) {
+    return { openrouterProviderOnly: nextProvider, openrouterProviderByModel: nextMap }
+  }
+  if (nextProvider) nextMap[modelId] = nextProvider
+  else delete nextMap[modelId]
+  return {
+    openrouterProviderOnly: nextProvider,
+    openrouterProviderByModel: nextMap,
+  }
 }
 
 export function getOpenRouterImageProfile(

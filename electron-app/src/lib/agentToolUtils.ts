@@ -179,6 +179,73 @@ export function shouldGuardFalseMusicClaims(
   return assistantClaimsMusicWithoutTool(assistantText)
 }
 
+/** Coding tools whose execution proves an action claim ("edited/saved/ran") is real. */
+export const CODING_ACTION_TOOLS = new Set(['write_file', 'edit_code', 'execute_command'])
+
+/** User asked for a concrete coding action (change/run), not just a question. */
+const CODING_ACTION_REQUEST_RE =
+  /\b(fix|change|edit|update|modify|refactor|rename|implement|create|write|save|remove|delete|run|execute|build|install|apply|patch|add\s+(?:a|the|an|new|to)\b|popravi|ispravi|izmeni|promeni|sredi|dodaj|napravi|kreiraj|napiši|sačuvaj|obriši|ukloni|pokreni|izvrši|implementiraj|refaktoriši|uradi)/i
+
+/** First-person past-tense action claim (English). */
+const ASSISTANT_CODING_DONE_CLAIM_EN_RE =
+  /\bi(?:'ve| have)?\s+(?:now\s+|also\s+|just\s+|successfully\s+)?(?:created|saved|wrote|written|edited|updated|modified|changed|fixed|implemented|refactored|applied|added|removed|deleted|renamed|patched)\b/i
+
+/** First-person past-tense action claim (Serbian, both word orders). */
+const ASSISTANT_CODING_DONE_CLAIM_SR_RE =
+  /\b(?:(?:napravi|kreira|sačuva|snimi|izmeni|ažurira|popravi|ispravi|implementira|refaktorisa|doda|obrisa|ukloni|pokrenu|izvrši|primeni|uradi)(?:o|la)\s+sam|sam\s+(?:napravi|kreira|sačuva|snimi|izmeni|ažurira|popravi|ispravi|implementira|refaktorisa|doda|obrisa|ukloni|pokrenu|izvrši|primeni|uradi)(?:o|la))\b/i
+
+/** Passive "file was saved / changes have been applied" phrasing. */
+const ASSISTANT_CODING_PASSIVE_CLAIM_RE =
+  /\b(?:(?:file|fajl)\w*\s+(?:has\s+been|have\s+been|was|were|is\s+now|are\s+now|je|su)\s+(?:created|saved|updated|edited|written|modified|kreiran\w*|sačuvan\w*|izmenjen\w*|ažuriran\w*)|(?:changes?|izmen[ae])\s+(?:have\s+been|has\s+been|are|su)\s+(?:applied|saved|made|primenjen\w*|sačuvan\w*))\b/i
+
+/** "I ran the command/tests/build" style claim. */
+const ASSISTANT_CODING_RUN_CLAIM_RE =
+  /\bi(?:'ve| have)?\s+(?:ran|run|executed|started)\s+(?:the\s+)?(?:command|tests?|build|script|typecheck|npm|server)\b/i
+
+/** Claim must be anchored to code/file context to avoid firing on generic prose. */
+const CODING_CONTEXT_RE =
+  /\b(file|files|fajl\w*|code|kod\w*|function|funkcij\w*|class|klas[aeu]\w*|component|komponent\w*|module|modul\w*|script|skript\w*|config|test\w*|command|komand\w*|import\w*|bug\w*)\b|\.\w{1,5}\b/i
+
+/** Truthful references to earlier turns ("I edited it earlier") are not false claims. */
+const PAST_TURN_REFERENCE_RE =
+  /\b(earlier|previously|prethodno|ranije|malopre|u\s+prethodn\w+)\b/i
+
+/**
+ * True when assistant text claims a coding action (edit/write/run) was performed
+ * without a write_file / edit_code / execute_command tool result in this turn.
+ */
+export function assistantClaimsCodingActionWithoutTool(text: string): boolean {
+  const t = text.trim()
+  if (!t) return false
+  if (PAST_TURN_REFERENCE_RE.test(t)) return false
+  if (ASSISTANT_CODING_PASSIVE_CLAIM_RE.test(t)) return true
+  if (ASSISTANT_CODING_RUN_CLAIM_RE.test(t)) return true
+  if (
+    (ASSISTANT_CODING_DONE_CLAIM_EN_RE.test(t) || ASSISTANT_CODING_DONE_CLAIM_SR_RE.test(t)) &&
+    CODING_CONTEXT_RE.test(t)
+  ) {
+    return true
+  }
+  return false
+}
+
+/** Guard only when the user actually requested a coding action this turn. */
+export function shouldGuardFalseCodingClaims(
+  assistantText: string,
+  rawUserText: string,
+): boolean {
+  if (!CODING_ACTION_REQUEST_RE.test(rawUserText.trim())) return false
+  return assistantClaimsCodingActionWithoutTool(assistantText)
+}
+
+/** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */
+export const FALSE_CODING_CLAIM_REPROMPT_MESSAGE = [
+  '[Internal — not for the user] Your last message claimed a file was created/edited/saved or a command was run, but no write_file, edit_code, or execute_command tool was called this turn. Nothing was actually done.',
+  'Fix it now: call the correct coding tool(s) immediately to perform the work for real, then wait for the tool results.',
+  'In your next user-visible reply: report only what the tools actually did, based on their results. Do NOT apologize, mention mistakes, tools, or reprompts, and never claim work is done without a successful tool result in this turn.',
+  'If you cannot run the tools, say briefly that the coding action could not be performed — no extra explanation.',
+].join(' ')
+
 /** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */
 export const FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE = [
   '[Internal — not for the user] Your last message described or linked music/audio without calling generate_music_runware.',

@@ -95,6 +95,7 @@ import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPha
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import {
   deriveSearchQuery,
+  FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
   FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
   FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
   getLastUserText,
@@ -2042,6 +2043,15 @@ export async function runOllamaChatWithTools(
       messages.push({
         role: 'user',
         content: FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
+      })
+    },
+    guardFalseCodingClaims: params.toolsEnabled.coding && params.agentMode !== 'plan',
+    guardFalseCodingClaimsUserText: rawUserText,
+    maxFalseCodingClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
+    appendFalseCodingClaimReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
       })
     },
     appendRuntimeRecalledImages: (messages, recalled) => {

@@ -1,6 +1,11 @@
 import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
-import { shouldGuardFalseImageClaims, shouldGuardFalseMusicClaims } from '@/lib/agentToolUtils'
+import {
+  CODING_ACTION_TOOLS,
+  shouldGuardFalseCodingClaims,
+  shouldGuardFalseImageClaims,
+  shouldGuardFalseMusicClaims,
+} from '@/lib/agentToolUtils'
 import { sanitizeImageToolResultForLlm } from '@/lib/openrouterImage'
 
 /** Strip all http(s) URLs from message content so the model can't recycle
@@ -65,6 +70,11 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   guardFalseMusicClaimsUserText?: string
   appendFalseMusicClaimReprompt?: (messages: TMessage[]) => void
   maxFalseMusicClaimReprompts?: number
+  /** When true, reprompt if the model claims code was edited/saved/run without calling a mutating coding tool. */
+  guardFalseCodingClaims?: boolean
+  guardFalseCodingClaimsUserText?: string
+  appendFalseCodingClaimReprompt?: (messages: TMessage[]) => void
+  maxFalseCodingClaimReprompts?: number
   appendRuntimeRecalledImages?: (
     messages: TMessage[],
     recalled: Array<{ base64: string; mime: string }>,
@@ -156,11 +166,14 @@ export async function runSharedToolLoop<
   let requiredToolRepromptCount = 0
   let falseImageClaimRepromptCount = 0
   let falseMusicClaimRepromptCount = 0
+  let falseCodingClaimRepromptCount = 0
   let hasExecutedToolInTurn = false
   let hasExecutedImageToolInTurn = false
   let hasExecutedMusicToolInTurn = false
+  let hasExecutedCodingToolInTurn = false
   const maxFalseImageClaimReprompts = params.maxFalseImageClaimReprompts ?? 2
   const maxFalseMusicClaimReprompts = params.maxFalseMusicClaimReprompts ?? 2
+  const maxFalseCodingClaimReprompts = params.maxFalseCodingClaimReprompts ?? 2
   /** Tool-result message positions per round, for old-result clearing. */
   const toolResultRecords: Array<{ index: number; round: number; name: string; cleared: boolean }> = []
 
@@ -292,6 +305,27 @@ export async function runSharedToolLoop<
       }
 
       if (
+        params.guardFalseCodingClaims &&
+        params.appendFalseCodingClaimReprompt &&
+        !hasExecutedCodingToolInTurn &&
+        shouldGuardFalseCodingClaims(assistantText, params.guardFalseCodingClaimsUserText ?? '') &&
+        falseCodingClaimRepromptCount < maxFalseCodingClaimReprompts
+      ) {
+        falseCodingClaimRepromptCount += 1
+        params.appendAssistantWithToolCalls({
+          messages,
+          content: assistantText,
+          thinking,
+          toolCalls: [],
+        })
+        params.appendFalseCodingClaimReprompt(messages)
+        lastAssistantText = ''
+        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
+        clearStreamedAssistantContent(params)
+        continue
+      }
+
+      if (
         params.mustCallTool &&
         !hasExecutedToolInTurn &&
         requiredToolRepromptCount < params.maxRequiredToolReprompts
@@ -367,6 +401,9 @@ export async function runSharedToolLoop<
       }
       if (shared.name === 'generate_music_runware') {
         hasExecutedMusicToolInTurn = true
+      }
+      if (CODING_ACTION_TOOLS.has(shared.name)) {
+        hasExecutedCodingToolInTurn = true
       }
       params.onToolResult?.({
         name: shared.name,

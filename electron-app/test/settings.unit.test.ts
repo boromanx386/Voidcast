@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { normalizeSubAgent, type AppSettings, defaults } from '../src/lib/settings'
+import {
+  normalizeSubAgent,
+  normalizeSettingsCandidate,
+  withOpenRouterModel,
+  withOpenRouterProviderOnly,
+  type AppSettings,
+  defaults,
+} from '../src/lib/settings'
 
 function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
   return { ...defaults, ...overrides }
@@ -280,5 +287,66 @@ describe('normalizeSubAgent', () => {
     const s = makeSettings({ llmModel: 'custom-model', subAgent: { enabled: true } })
     const out = normalizeSubAgent(s)
     expect(out.llmModel).toBe('custom-model')
+  })
+})
+
+describe('openrouter provider by model', () => {
+  test('migrates legacy openrouterProviderOnly into the per-model map', () => {
+    const s = normalizeSettingsCandidate({
+      openrouterModel: 'anthropic/claude-sonnet-4.6',
+      openrouterProviderOnly: 'anthropic',
+    })
+    expect(s.openrouterProviderByModel['anthropic/claude-sonnet-4.6']).toBe('anthropic')
+    expect(s.openrouterProviderOnly).toBe('anthropic')
+  })
+
+  test('active provider follows the selected model map entry', () => {
+    const s = normalizeSettingsCandidate({
+      openrouterModel: 'openai/gpt-4o-mini',
+      openrouterProviderOnly: 'stale',
+      openrouterProviderByModel: {
+        'openai/gpt-4o-mini': 'openai',
+        'anthropic/claude-sonnet-4.6': 'anthropic',
+      },
+    })
+    expect(s.openrouterProviderOnly).toBe('openai')
+  })
+
+  test('withOpenRouterModel restores remembered provider', () => {
+    const base = makeSettings({
+      openrouterModel: 'openai/gpt-4o-mini',
+      openrouterProviderOnly: 'openai',
+      openrouterProviderByModel: {
+        'openai/gpt-4o-mini': 'openai',
+        'anthropic/claude-sonnet-4.6': 'anthropic',
+      },
+    })
+    expect(withOpenRouterModel(base, 'anthropic/claude-sonnet-4.6')).toEqual({
+      openrouterModel: 'anthropic/claude-sonnet-4.6',
+      openrouterProviderOnly: 'anthropic',
+    })
+    expect(withOpenRouterModel(base, 'google/gemini-flash')).toEqual({
+      openrouterModel: 'google/gemini-flash',
+      openrouterProviderOnly: '',
+    })
+  })
+
+  test('withOpenRouterProviderOnly writes and clears per-model entries', () => {
+    const base = makeSettings({
+      openrouterModel: 'openai/gpt-4o-mini',
+      openrouterProviderOnly: '',
+      openrouterProviderByModel: {},
+    })
+    const set = withOpenRouterProviderOnly(base, ' openai ')
+    expect(set).toEqual({
+      openrouterProviderOnly: 'openai',
+      openrouterProviderByModel: { 'openai/gpt-4o-mini': 'openai' },
+    })
+    const cleared = withOpenRouterProviderOnly(
+      { ...base, ...set },
+      '  ',
+    )
+    expect(cleared.openrouterProviderOnly).toBe('')
+    expect(cleared.openrouterProviderByModel).toEqual({})
   })
 })

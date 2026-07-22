@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
 import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
@@ -206,7 +207,7 @@ export function LlmOptionsPanel({
               onChange={(e) => {
                 const v = e.target.value
                 if (!v || v.startsWith('__custom__')) return
-                setSettings((s) => ({ ...s, openrouterModel: v }))
+                setSettings((s) => ({ ...s, ...withOpenRouterModel(s, v) }))
               }}
             >
               {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
@@ -224,9 +225,23 @@ export function LlmOptionsPanel({
             <input
               className="cyber-input"
               value={settings.openrouterModel}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, openrouterModel: e.target.value }))
-              }
+              onChange={(e) => {
+                const nextModel = e.target.value
+                setSettings((s) => {
+                  const key = nextModel.trim()
+                  const map = s.openrouterProviderByModel || {}
+                  // Restore remembered provider when the typed id matches a saved model;
+                  // otherwise keep the field as-is while typing a new/custom id.
+                  if (key && Object.prototype.hasOwnProperty.call(map, key)) {
+                    return {
+                      ...s,
+                      openrouterModel: nextModel,
+                      openrouterProviderOnly: (map[key] || '').trim(),
+                    }
+                  }
+                  return { ...s, openrouterModel: nextModel }
+                })
+              }}
               placeholder="openrouter/free"
             />
           </div>
@@ -238,16 +253,17 @@ export function LlmOptionsPanel({
               className="cyber-input"
               value={settings.openrouterProviderOnly}
               onChange={(e) =>
-                setSettings((s) => ({ ...s, openrouterProviderOnly: e.target.value.trim() }))
+                setSettings((s) => ({ ...s, ...withOpenRouterProviderOnly(s, e.target.value) }))
               }
               placeholder="anthropic"
             />
             <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-              Force routing to one OpenRouter provider slug (e.g.{' '}
+              Force routing to one OpenRouter provider slug for the selected model (e.g.{' '}
               <code className="text-void-light/90">anthropic</code>,{' '}
               <code className="text-void-light/90">openai</code>,{' '}
-              <code className="text-void-light/90">deepinfra</code>). Leave empty for default
-              load balancing. No fallbacks when set.
+              <code className="text-void-light/90">deepinfra</code>). Remembered per model —
+              switching models restores that model's provider. Leave empty for default load
+              balancing. No fallbacks when set.
             </p>
           </div>
         </>
@@ -548,7 +564,8 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
               Optional <code className="text-void-light/90">OPENROUTER_PROVIDER</code> locks routing
-              to one provider slug (no fallbacks).
+              to one provider slug per model (no fallbacks); switching models restores the saved
+              provider.
             </li>
           </ul>
         )}
