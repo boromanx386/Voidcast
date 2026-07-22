@@ -284,19 +284,22 @@ describe('normalizeSubAgent', () => {
   })
 
   test('does not mutate surrounding settings', () => {
-    const s = makeSettings({ llmModel: 'custom-model', subAgent: { enabled: true } })
+    const s = makeSettings({
+      ollamaModel: 'custom-model',
+      subAgent: { ...defaults.subAgent, enabled: true },
+    })
     const out = normalizeSubAgent(s)
-    expect(out.llmModel).toBe('custom-model')
+    expect(out.ollamaModel).toBe('custom-model')
   })
 })
 
 describe('openrouter provider by model', () => {
   test('migrates legacy openrouterProviderOnly into the per-model map', () => {
     const s = normalizeSettingsCandidate({
-      openrouterModel: 'anthropic/claude-sonnet-4.6',
+      openrouterModel: 'anthropic/claude-sonnet-5',
       openrouterProviderOnly: 'anthropic',
     })
-    expect(s.openrouterProviderByModel['anthropic/claude-sonnet-4.6']).toBe('anthropic')
+    expect(s.openrouterProviderByModel['anthropic/claude-sonnet-5']).toBe('anthropic')
     expect(s.openrouterProviderOnly).toBe('anthropic')
   })
 
@@ -306,7 +309,7 @@ describe('openrouter provider by model', () => {
       openrouterProviderOnly: 'stale',
       openrouterProviderByModel: {
         'openai/gpt-4o-mini': 'openai',
-        'anthropic/claude-sonnet-4.6': 'anthropic',
+        'anthropic/claude-sonnet-5': 'anthropic',
       },
     })
     expect(s.openrouterProviderOnly).toBe('openai')
@@ -318,11 +321,11 @@ describe('openrouter provider by model', () => {
       openrouterProviderOnly: 'openai',
       openrouterProviderByModel: {
         'openai/gpt-4o-mini': 'openai',
-        'anthropic/claude-sonnet-4.6': 'anthropic',
+        'anthropic/claude-sonnet-5': 'anthropic',
       },
     })
-    expect(withOpenRouterModel(base, 'anthropic/claude-sonnet-4.6')).toEqual({
-      openrouterModel: 'anthropic/claude-sonnet-4.6',
+    expect(withOpenRouterModel(base, 'anthropic/claude-sonnet-5')).toEqual({
+      openrouterModel: 'anthropic/claude-sonnet-5',
       openrouterProviderOnly: 'anthropic',
     })
     expect(withOpenRouterModel(base, 'google/gemini-flash')).toEqual({

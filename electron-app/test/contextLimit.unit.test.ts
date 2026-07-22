@@ -24,14 +24,14 @@ describe('resolveContextLimit', () => {
     })
   })
 
-  test('openrouter claude uses 200k preset/heuristic', () => {
+  test('openrouter claude uses 1M preset', () => {
     const limit = resolveContextLimit(
       baseSettings({
         llmProvider: 'openrouter',
-        openrouterModel: 'anthropic/claude-sonnet-4.6',
+        openrouterModel: 'anthropic/claude-sonnet-5',
       }),
     )
-    expect(limit.maxTokens).toBe(200_000)
+    expect(limit.maxTokens).toBe(1_000_000)
     expect(limit.source).toBe('preset')
   })
 
@@ -39,20 +39,20 @@ describe('resolveContextLimit', () => {
     const limit = resolveContextLimit(
       baseSettings({
         llmProvider: 'openrouter',
-        openrouterModel: 'google/gemini-3.5-flash',
+        openrouterModel: 'google/gemini-3.6-flash',
       }),
     )
     expect(limit.maxTokens).toBe(1_048_576)
   })
 
-  test('openrouter free route uses smaller window', () => {
+  test('openrouter laguna free route uses 256k window', () => {
     const limit = resolveContextLimit(
       baseSettings({
         llmProvider: 'openrouter',
-        openrouterModel: 'qwen/qwen3-coder:free',
+        openrouterModel: 'poolside/laguna-s-2.1:free',
       }),
     )
-    expect(limit.maxTokens).toBe(32_768)
+    expect(limit.maxTokens).toBe(262_144)
   })
 
   test('deepseek flash and pro use 1M', () => {
@@ -89,12 +89,12 @@ describe('estimateContextUsage with resolved limit', () => {
     const limit = resolveContextLimit(
       baseSettings({
         llmProvider: 'openrouter',
-        openrouterModel: 'anthropic/claude-sonnet-4.6',
+        openrouterModel: 'anthropic/claude-sonnet-5',
       }),
     )
-    const usage = estimateContextUsage({ prompt_eval_count: 100_000, eval_count: 500 }, limit)
-    expect(usage?.maxTokens).toBe(200_000)
+    const usage = estimateContextUsage({ prompt_eval_count: 500_000, eval_count: 500 }, limit)
+    expect(usage?.maxTokens).toBe(1_000_000)
     expect(usage?.ratio).toBe(0.5)
-    expect(usage?.modelId).toBe(activeLlmModelId(baseSettings({ llmProvider: 'openrouter', openrouterModel: 'anthropic/claude-sonnet-4.6' })))
+    expect(usage?.modelId).toBe(activeLlmModelId(baseSettings({ llmProvider: 'openrouter', openrouterModel: 'anthropic/claude-sonnet-5' })))
   })
 })
