@@ -1,4 +1,4 @@
-import { AmbientParticles, CrtOverlay, GlitchText } from '@/components/chat/ChatChrome'
+import { AmbientParticles, CrtOverlay, GlitchText, MatrixRain } from '@/components/chat/ChatChrome'
 import { GeneralOptionsPanel } from '@/components/options/GeneralOptionsPanel'
 import { LlmOptionsPanel } from '@/components/options/LlmOptionsPanel'
 import { MediaOptionsPanel } from '@/components/options/MediaOptionsPanel'
@@ -44,6 +44,7 @@ export function OptionsScreen({ app }: Props) {
   } = app
 
   const uiDystopian = settings.uiTheme === 'dystopian'
+  const uiMatrix = settings.uiTheme === 'matrix'
 
   return (
       <div className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}>
@@ -53,6 +54,7 @@ export function OptionsScreen({ app }: Props) {
             <AmbientParticles />
           </>
         )}
+        {uiMatrix && <MatrixRain />}
         
         {/* Header */}
         <header className="voidcast-header">

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 
 export function CrtOverlay() {
@@ -20,6 +21,91 @@ export function AmbientParticles() {
       ))}
     </div>
   )
+}
+
+const MATRIX_GLYPHS =
+  'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEF<>*+#='
+
+/** Classic falling green code rain for the Matrix UI theme. */
+export function MatrixRain() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const parent = canvas.parentElement
+    let width = 0
+    let height = 0
+    let columns = 0
+    let drops: number[] = []
+    let speeds: number[] = []
+    let raf = 0
+    let last = 0
+
+    const resize = () => {
+      const rect = parent?.getBoundingClientRect()
+      width = Math.max(1, Math.floor(rect?.width ?? window.innerWidth))
+      height = Math.max(1, Math.floor(rect?.height ?? window.innerHeight))
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      canvas.width = Math.floor(width * dpr)
+      canvas.height = Math.floor(height * dpr)
+      canvas.style.width = `${width}px`
+      canvas.style.height = `${height}px`
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+      const fontSize = width < 640 ? 12 : 14
+      columns = Math.max(1, Math.floor(width / fontSize))
+      drops = Array.from({ length: columns }, () => Math.random() * -40)
+      speeds = Array.from({ length: columns }, () => 0.55 + Math.random() * 0.9)
+      ctx.font = `${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
+    }
+
+    const draw = (now: number) => {
+      raf = requestAnimationFrame(draw)
+      if (now - last < 33) return
+      last = now
+
+      const fontSize = width < 640 ? 12 : 14
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)'
+      ctx.fillRect(0, 0, width, height)
+
+      for (let i = 0; i < columns; i++) {
+        const x = i * fontSize
+        const y = drops[i]! * fontSize
+        const ch = MATRIX_GLYPHS[(Math.random() * MATRIX_GLYPHS.length) | 0]!
+
+        ctx.fillStyle = 'rgba(180, 255, 190, 0.95)'
+        ctx.fillText(ch, x, y)
+        ctx.fillStyle = 'rgba(0, 255, 65, 0.55)'
+        ctx.fillText(ch, x, y - fontSize)
+
+        if (y > height && Math.random() > 0.975) {
+          drops[i] = Math.random() * -20
+        } else {
+          drops[i]! += speeds[i]!
+        }
+      }
+    }
+
+    resize()
+    raf = requestAnimationFrame(draw)
+    const ro = parent ? new ResizeObserver(resize) : null
+    if (parent && ro) ro.observe(parent)
+    window.addEventListener('resize', resize)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      ro?.disconnect()
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
+
+  return <canvas ref={canvasRef} className="matrix-rain" aria-hidden="true" />
 }
 
 export function GlitchText({

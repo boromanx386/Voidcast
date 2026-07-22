@@ -239,13 +239,13 @@ export function GeneralOptionsPanel({
         >
           <option value="dystopian">Dystopian (neon / CRT)</option>
           <option value="minimal">Minimal (zinc / indigo)</option>
-          <option value="matrix">Matrix (soft green terminal)</option>
+          <option value="matrix">Matrix (green / code rain)</option>
           <option value="light">Light (warm paper)</option>
           <option value="blood-moon">Blood Moon (crimson void)</option>
           <option value="obsidian">Obsidian (neutral dark)</option>
         </select>
         <p className="text-xs text-void-dim mt-1">
-          Minimal, Matrix, and Light use calmer visuals (scanlines/particles off) with gentler contrast.
+          Dystopian uses CRT/particles; Matrix uses green phosphor + digital rain. Minimal and Light stay calm.
         </p>
       </div>
 

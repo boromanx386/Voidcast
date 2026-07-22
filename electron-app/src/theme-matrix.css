@@ -1,121 +1,116 @@
-/* Soft Matrix shell — subtle green terminal vibe for html[data-ui-theme="matrix"] */
+/* Classic Matrix shell — deep black + phosphor green for html[data-ui-theme="matrix"] */
 
 html[data-ui-theme='matrix'] {
   --font-body: var(--font-mono);
-  --color-void-black: 5 12 8;
-  --color-void-dark: 10 20 14;
-  --color-void-mid: 15 30 22;
-  --color-void-muted: 42 82 62;
-  --color-void-dim: 74 122 96;
-  --color-void-text: 132 186 156;
-  --color-void-light: 188 230 204;
-  --color-void-white: 222 247 231;
+  --color-void-black: 0 0 0;
+  --color-void-dark: 2 8 2;
+  --color-void-mid: 4 16 4;
+  --color-void-muted: 0 70 20;
+  --color-void-dim: 0 120 40;
+  --color-void-text: 0 200 70;
+  --color-void-light: 120 255 150;
+  --color-void-white: 180 255 190;
 
-  --color-neon-cyan: 120 226 160;
-  --color-neon-cyan-dim: 78 182 126;
-  --color-neon-magenta: 108 202 144;
-  --color-neon-magenta-dim: 72 154 108;
-  --color-neon-green: 144 236 172;
-  --color-neon-green-dim: 94 193 126;
-  --color-neon-yellow: 180 220 138;
-  --color-neon-red: 204 120 120;
-  --color-neon-purple: 132 214 168;
-  --color-neon-orange: 180 160 100;
+  --color-neon-cyan: 0 255 65;
+  --color-neon-cyan-dim: 0 180 45;
+  --color-neon-magenta: 0 220 70;
+  --color-neon-magenta-dim: 0 150 40;
+  --color-neon-green: 0 255 65;
+  --color-neon-green-dim: 0 180 45;
+  --color-neon-yellow: 160 255 80;
+  --color-neon-red: 255 60 60;
+  --color-neon-purple: 40 220 100;
+  --color-neon-orange: 180 220 40;
 
-  --coding-accent-fg: 120 226 160;
-  --coding-preview-label-fg: 144 236 172;
-  --coding-edit-label-fg: 180 220 138;
-  --coding-terminal-label-fg: 180 220 138;
-  --coding-md-toggle-fg: 108 202 144;
-  --coding-diff-add-fg: 144 236 172;
-  --coding-diff-del-fg: 204 120 120;
-  --coding-diff-hunk-fg: 120 226 160;
-  --coding-git-modified-fg: 180 220 138;
-  --coding-git-added-fg: 144 236 172;
-  --coding-git-deleted-fg: 204 120 120;
-  --coding-git-renamed-fg: 108 202 144;
-  --coding-git-untracked-fg: 120 226 160;
-  --coding-git-conflict-fg: 180 160 100;
-  --coding-dir-dirty-fg: 180 220 138;
-  --coding-commit-accent-fg: 180 220 138;
-  --coding-action-stage-fg: 144 236 172;
-  --coding-action-unstage-fg: 180 220 138;
-  --coding-action-discard-fg: 204 120 120;
-  --coding-terminal-stderr-fg: 204 120 120;
-  --coding-terminal-system-fg: 120 226 160;
-  --coding-find-mark-fg: 180 220 138;
-  --coding-find-active-fg: 120 226 160;
-  --coding-find-status-fg: 180 220 138;
+  --coding-accent-fg: 0 255 65;
+  --coding-preview-label-fg: 120 255 150;
+  --coding-edit-label-fg: 160 255 80;
+  --coding-terminal-label-fg: 160 255 80;
+  --coding-md-toggle-fg: 0 220 70;
+  --coding-diff-add-fg: 0 255 65;
+  --coding-diff-del-fg: 255 60 60;
+  --coding-diff-hunk-fg: 0 255 65;
+  --coding-git-modified-fg: 160 255 80;
+  --coding-git-added-fg: 0 255 65;
+  --coding-git-deleted-fg: 255 60 60;
+  --coding-git-renamed-fg: 0 220 70;
+  --coding-git-untracked-fg: 0 255 65;
+  --coding-git-conflict-fg: 180 220 40;
+  --coding-dir-dirty-fg: 160 255 80;
+  --coding-commit-accent-fg: 160 255 80;
+  --coding-action-stage-fg: 0 255 65;
+  --coding-action-unstage-fg: 160 255 80;
+  --coding-action-discard-fg: 255 60 60;
+  --coding-terminal-stderr-fg: 255 60 60;
+  --coding-terminal-system-fg: 0 255 65;
+  --coding-find-mark-fg: 160 255 80;
+  --coding-find-active-fg: 0 255 65;
+  --coding-find-status-fg: 160 255 80;
 
-  --color-glitch-red: 174 124 124;
-  --color-glitch-blue: 112 204 148;
-  --color-glitch-green: 142 226 170;
+  --color-glitch-red: 255 60 60;
+  --color-glitch-blue: 0 200 80;
+  --color-glitch-green: 0 255 65;
 
-  --ui-accent-rgb: 120,226,160;
+  --ui-accent-rgb: 0,255,65;
 }
 
 html[data-ui-theme='matrix'] body {
-  background: #050c08 !important;
-  color: #def7e7 !important;
-  text-shadow: none !important;
+  background: #000 !important;
+  color: #b4ffbe !important;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.25) !important;
   font-family: var(--font-body) !important;
 }
 
 html[data-ui-theme='matrix'] ::selection {
-  background: rgba(120, 226, 160, 0.2);
-  color: #eafff2;
+  background: rgba(0, 255, 65, 0.35);
+  color: #000;
 }
 
 html[data-ui-theme='matrix'] ::-webkit-scrollbar-track {
-  background: #08130d;
+  background: #000;
 }
 
 html[data-ui-theme='matrix'] ::-webkit-scrollbar-thumb {
-  background: #2a5a43;
-  box-shadow: none;
+  background: #004414;
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.35);
 }
 
 html[data-ui-theme='matrix'] ::-webkit-scrollbar-thumb:hover {
-  background: #3a7a5c;
+  background: #007a28;
 }
 
 html[data-ui-theme='matrix'] textarea:focus,
 html[data-ui-theme='matrix'] input:focus,
 html[data-ui-theme='matrix'] select:focus {
-  box-shadow: 0 0 0 2px rgba(120, 226, 160, 0.3);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.55), 0 0 12px rgba(0, 255, 65, 0.25);
 }
 
 html[data-ui-theme='matrix'] .voidcast-app {
-  background:
-    radial-gradient(900px 420px at 50% -25%, rgba(120, 226, 160, 0.05), transparent 60%),
-    #050c08;
+  background: #000;
 }
 
 html[data-ui-theme='matrix'] .voidcast-header,
 html[data-ui-theme='matrix'] .voidcast-input-area,
 html[data-ui-theme='matrix'] .voidcast-sidebar {
-  background: rgba(8, 19, 13, 0.82);
-  border-color: rgba(74, 122, 96, 0.45);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 8, 0, 0.78);
+  border-color: rgba(0, 255, 65, 0.28);
+  backdrop-filter: blur(6px);
 }
 
 html[data-ui-theme='matrix'] .voidcast-header::after,
 html[data-ui-theme='matrix'] .voidcast-input-area::before {
-  background: linear-gradient(90deg, transparent, rgba(120, 226, 160, 0.35), transparent);
-  opacity: 0.22;
-}
-
-html[data-ui-theme='matrix'] .glitch-text,
-html[data-ui-theme='matrix'] .glitch-text::before,
-html[data-ui-theme='matrix'] .glitch-text::after,
-html[data-ui-theme='matrix'] .crt-overlay,
-html[data-ui-theme='matrix'] .ambient-particles {
-  animation: none !important;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.55), transparent);
+  opacity: 0.55;
 }
 
 html[data-ui-theme='matrix'] .glitch-text::before,
 html[data-ui-theme='matrix'] .glitch-text::after {
   display: none;
+}
+
+html[data-ui-theme='matrix'] .crt-overlay,
+html[data-ui-theme='matrix'] .ambient-particles {
+  display: none !important;
 }
 
 html[data-ui-theme='matrix'] .cyber-btn,
@@ -125,22 +120,24 @@ html[data-ui-theme='matrix'] .send-btn,
 html[data-ui-theme='matrix'] .voidcast-textarea,
 html[data-ui-theme='matrix'] .form-select {
   clip-path: none;
-  border-radius: 0.5rem;
+  border-radius: 0;
 }
 
 html[data-ui-theme='matrix'] .cyber-btn {
-  background: rgba(12, 28, 20, 0.92);
-  border-color: rgba(74, 122, 96, 0.62);
-  color: #bce6cc;
-  text-transform: none;
-  letter-spacing: 0.02em;
+  background: rgba(0, 18, 0, 0.92);
+  border-color: rgba(0, 255, 65, 0.45);
+  color: #78ff96;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.35);
 }
 
 html[data-ui-theme='matrix'] .cyber-btn:hover {
-  border-color: rgba(120, 226, 160, 0.6);
-  color: #d6f6e2;
-  box-shadow: none;
+  border-color: rgba(0, 255, 65, 0.9);
+  color: #c8ffd0;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.35);
   transform: none;
+  background: rgba(0, 32, 0, 0.95);
 }
 
 html[data-ui-theme='matrix'] .cyber-btn::before,
@@ -155,52 +152,83 @@ html[data-ui-theme='matrix'] .corner-br {
 html[data-ui-theme='matrix'] .voidcast-textarea,
 html[data-ui-theme='matrix'] .cyber-input,
 html[data-ui-theme='matrix'] .form-select {
-  background: rgba(7, 17, 12, 0.9);
-  border-color: rgba(58, 96, 76, 0.65);
+  background: rgba(0, 10, 0, 0.88);
+  border-color: rgba(0, 160, 40, 0.55);
+  color: #9affb0;
 }
 
 html[data-ui-theme='matrix'] .voidcast-textarea:focus,
 html[data-ui-theme='matrix'] .cyber-input:focus {
-  border-color: rgba(120, 226, 160, 0.65);
-  box-shadow: 0 0 0 2px rgba(120, 226, 160, 0.24);
+  border-color: rgba(0, 255, 65, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.4), 0 0 14px rgba(0, 255, 65, 0.2);
 }
 
 html[data-ui-theme='matrix'] .message-user {
-  background: rgba(33, 74, 58, 0.28);
-  border-color: rgba(104, 178, 142, 0.38);
+  background: rgba(0, 60, 20, 0.35);
+  border-color: rgba(0, 255, 65, 0.45);
+  box-shadow: 0 0 18px rgba(0, 255, 65, 0.08);
 }
 
 html[data-ui-theme='matrix'] .message-assistant {
-  background: rgba(11, 24, 18, 0.9);
-  border-color: rgba(56, 92, 74, 0.6);
+  background: rgba(0, 12, 0, 0.82);
+  border-color: rgba(0, 140, 40, 0.5);
 }
 
 html[data-ui-theme='matrix'] .option-tab.active {
-  color: #bce6cc;
-  border-color: rgba(104, 178, 142, 0.45);
-  background: rgba(120, 226, 160, 0.08);
+  color: #00ff41;
+  border-color: rgba(0, 255, 65, 0.55);
+  background: rgba(0, 255, 65, 0.1);
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
 }
 
 html[data-ui-theme='matrix'] .system-status {
-  border-top-color: rgba(56, 92, 74, 0.6);
+  border-top-color: rgba(0, 140, 40, 0.55);
 }
 
-html[data-ui-theme='matrix'] .tool-indicator,
-html[data-ui-theme='matrix'] .hover-glow-cyan:hover,
-html[data-ui-theme='matrix'] .hover-glow-magenta:hover,
-html[data-ui-theme='matrix'] .text-shadow-neon,
-html[data-ui-theme='matrix'] .text-shadow-glow,
 html[data-ui-theme='matrix'] .neon-text-cyan,
-html[data-ui-theme='matrix'] .neon-text-magenta,
 html[data-ui-theme='matrix'] .neon-text-green,
-html[data-ui-theme='matrix'] .chromatic-hover:hover {
-  box-shadow: none !important;
-  text-shadow: none !important;
+html[data-ui-theme='matrix'] .text-shadow-neon,
+html[data-ui-theme='matrix'] .text-shadow-glow {
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.55), 0 0 18px rgba(0, 255, 65, 0.25) !important;
+}
+
+html[data-ui-theme='matrix'] .hover-glow-cyan:hover,
+html[data-ui-theme='matrix'] .hover-glow-magenta:hover {
+  box-shadow: 0 0 14px rgba(0, 255, 65, 0.35) !important;
 }
 
 html[data-ui-theme='matrix'] .gradient-text,
 html[data-ui-theme='matrix'] .gradient-text-green {
   background-image: none !important;
   -webkit-text-fill-color: currentColor;
-  color: #bce6cc;
+  color: #00ff41;
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.45);
+}
+
+/* Digital rain backdrop */
+.matrix-rain {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.42;
+}
+
+html[data-ui-theme='matrix'] .voidcast-header,
+html[data-ui-theme='matrix'] .voidcast-main,
+html[data-ui-theme='matrix'] .system-status,
+html[data-ui-theme='matrix'] .voidcast-chat,
+html[data-ui-theme='matrix'] .voidcast-sidebar,
+html[data-ui-theme='matrix'] .options-panel,
+html[data-ui-theme='matrix'] .option-tab {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matrix-rain {
+    display: none !important;
+  }
 }

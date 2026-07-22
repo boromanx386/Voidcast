@@ -12,9 +12,9 @@ const EMPTY_STATE_VARIANTS = {
     'All set. Enter a prompt to continue.',
   ],
   matrix: [
-    'Terminal link established. Awaiting input.',
-    'Greenline channel open. Enter your prompt.',
-    'System ready. Type to continue.',
+    'Wake up, Neo… the terminal is listening.',
+    'Follow the white rabbit. Enter your prompt.',
+    'The Matrix has you. Type to jack in.',
   ],
   light: [
     'Workspace ready. Start with a prompt.',
@@ -70,7 +70,7 @@ const PLAN_EMPTY_STATE_VARIANTS = {
 export const CHAT_COMPOSER_PLACEHOLDER: Record<UiTheme, string> = {
   dystopian: 'Transmit message...',
   minimal: 'Ask anything...',
-  matrix: 'Enter prompt...',
+  matrix: 'Enter the code...',
   light: 'Type a message...',
   'blood-moon': 'Feed the void...',
   obsidian: 'Enter your query...',

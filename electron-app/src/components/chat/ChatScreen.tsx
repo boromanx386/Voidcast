@@ -3,6 +3,7 @@ import { CodingPanel } from '@/components/CodingPanel'
 import {
   AmbientParticles,
   CrtOverlay,
+  MatrixRain,
 } from '@/components/chat/ChatChrome'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatDragOverlay } from '@/components/chat/ChatDragOverlay'
@@ -22,6 +23,7 @@ type Props = { app: VoidcastApp }
 
 export function ChatScreen({ app }: Props) {
   const uiDystopian = app.settings.uiTheme === 'dystopian'
+  const uiMatrix = app.settings.uiTheme === 'matrix'
   const showCoding = app.showCodingPanel && app.codingPanelAvailable
   const setSettings = app.setSettings
   const savedPanelWidth = app.settings.coding.panelWidthPx
@@ -136,6 +138,7 @@ export function ChatScreen({ app }: Props) {
           <AmbientParticles />
         </>
       )}
+      {uiMatrix && <MatrixRain />}
       <ChatDragOverlay isDragOver={app.isDragOver} />
       <ChatHeader app={app} />
 

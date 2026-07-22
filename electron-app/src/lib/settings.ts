@@ -478,7 +478,7 @@ export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek'
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
 
-/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (soft green), light (warm paper), blood-moon (crimson void) */
+/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (green/code rain), light (warm paper), blood-moon (crimson void) */
 export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian'
 
 export type RunwareModelProfile = {
