@@ -26,19 +26,56 @@ export function ChatScreen({ app }: Props) {
   const setSettings = app.setSettings
   const savedPanelWidth = app.settings.coding.panelWidthPx
   const splitRef = useRef<HTMLDivElement>(null)
+  const preferredWidthRef = useRef(savedPanelWidth)
+  /** Panel share of the chat↔coding split; kept across maximize/restore. */
+  const widthRatioRef = useRef<number | null>(null)
   const [panelWidth, setPanelWidth] = useState(() => clampCodingPanelWidth(savedPanelWidth))
   const [isResizing, setIsResizing] = useState(false)
 
   useEffect(() => {
-    if (!isResizing) {
-      setPanelWidth(clampCodingPanelWidth(savedPanelWidth))
-    }
+    preferredWidthRef.current = savedPanelWidth
+    if (!isResizing) widthRatioRef.current = null
   }, [savedPanelWidth, isResizing])
+
+  const applyWidthForContainer = useCallback((containerWidth: number, preferredPx: number) => {
+    if (!(containerWidth > 0)) return
+    const ratio = widthRatioRef.current
+    const raw =
+      typeof ratio === 'number' && Number.isFinite(ratio)
+        ? ratio * containerWidth
+        : preferredPx
+    const next = clampCodingPanelWidth(raw, containerWidth)
+    if (widthRatioRef.current == null) {
+      widthRatioRef.current = next / containerWidth
+    }
+    setPanelWidth(next)
+  }, [])
+
+  useEffect(() => {
+    if (!showCoding) return
+    const el = splitRef.current
+    if (!el) return
+
+    const sync = () => {
+      if (isResizing) return
+      applyWidthForContainer(el.clientWidth, preferredWidthRef.current)
+    }
+
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [showCoding, applyWidthForContainer, isResizing, savedPanelWidth])
 
   const persistWidth = useCallback(
     (px: number) => {
-      const next = clampCodingPanelWidth(px, splitRef.current?.clientWidth)
+      const containerWidth = splitRef.current?.clientWidth
+      const next = clampCodingPanelWidth(px, containerWidth)
       setPanelWidth(next)
+      preferredWidthRef.current = next
+      if (typeof containerWidth === 'number' && containerWidth > 0) {
+        widthRatioRef.current = next / containerWidth
+      }
       setSettings((s) => ({
         ...s,
         coding: { ...s.coding, panelWidthPx: next },

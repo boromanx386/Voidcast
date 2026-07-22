@@ -53,6 +53,13 @@ export function ChatHeader({ app }: Props) {
         <SessionsToggleIcon collapsed={sessionsSidebarCollapsed} />
       </button>
 
+      <div className="voidcast-header-brand pointer-events-none ml-2 hidden min-w-0 items-center gap-1.5 sm:flex">
+        <span className="voidcast-header-mark" aria-hidden />
+        <span className="truncate font-display text-[10px] font-semibold tracking-[0.2em] text-void-text/80">
+          VOIDCAST
+        </span>
+      </div>
+
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
         {codingPanelAvailable && (
           <button

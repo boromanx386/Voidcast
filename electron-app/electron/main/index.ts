@@ -571,7 +571,7 @@ async function createWindow() {
           titleBarOverlay: {
             color: WIN_CHROME_BACKGROUND,
             symbolColor: '#9090b0',
-            height: 32,
+            height: 40,
           },
         }
       : {}),

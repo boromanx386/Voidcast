@@ -3,7 +3,7 @@ import './styles/hljs-voidcast.css'
 import type { RefObject } from 'react'
 import { ChatScreen } from '@/components/chat/ChatScreen'
 import { OptionsScreen } from '@/components/options/OptionsScreen'
-import { WindowTitleBar } from '@/components/WindowTitleBar'
+import { WinChromeBoot } from '@/components/WinChromeBoot'
 import { useVoidcastApp } from '@/hooks/useVoidcastApp'
 
 export default function App() {
@@ -12,7 +12,7 @@ export default function App() {
 
   return (
     <div className="relative flex h-full flex-col">
-      <WindowTitleBar />
+      <WinChromeBoot />
       <audio
         ref={app.audioRef as RefObject<HTMLAudioElement>}
         className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0"

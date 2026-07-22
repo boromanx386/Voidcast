@@ -58,16 +58,16 @@ export function OptionsScreen({ app }: Props) {
           <button
             type="button"
             onClick={() => setScreen('chat')}
-            className="cyber-btn text-sm"
+            className="cyber-btn shrink-0 text-sm"
           >
             ← RETURN
           </button>
-          
-          <GlitchText className="voidcast-logo text-xl">
+
+          <GlitchText className="voidcast-logo pointer-events-none flex-1 text-center text-xl">
             SETTINGS
           </GlitchText>
-          
-          <div className="w-24" /> {/* Spacer */}
+
+          <div className="pointer-events-none w-[4.5rem] shrink-0" aria-hidden />
         </header>
 
         {/* Tabs */}
