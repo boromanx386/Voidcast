@@ -568,11 +568,6 @@ async function createWindow() {
       ? {
           backgroundColor: WIN_CHROME_BACKGROUND,
           titleBarStyle: 'hidden',
-          titleBarOverlay: {
-            color: WIN_CHROME_BACKGROUND,
-            symbolColor: '#9090b0',
-            height: 40,
-          },
         }
       : {}),
     webPreferences: {
@@ -598,6 +593,12 @@ async function createWindow() {
   win.once('ready-to-show', () => {
     win?.show()
   })
+
+  const emitMaximized = () => {
+    win?.webContents.send('voidcast:window-maximized-changed', win.isMaximized())
+  }
+  win.on('maximize', emitMaximized)
+  win.on('unmaximize', emitMaximized)
 
   // Test actively push message to the Electron-Renderer
   win.webContents.on('did-finish-load', () => {
@@ -2504,6 +2505,25 @@ ipcMain.handle('voidcast:hide-window', () => {
   if (win) {
     win.hide()
   }
+})
+
+ipcMain.handle('voidcast:window-minimize', () => {
+  win?.minimize()
+})
+
+ipcMain.handle('voidcast:window-toggle-maximize', () => {
+  if (!win) return false
+  if (win.isMaximized()) win.unmaximize()
+  else win.maximize()
+  return win.isMaximized()
+})
+
+ipcMain.handle('voidcast:window-close', () => {
+  win?.close()
+})
+
+ipcMain.handle('voidcast:window-is-maximized', () => {
+  return win?.isMaximized() ?? false
 })
 
 ipcMain.handle('voidcast:quit-app', () => {

@@ -6,6 +6,7 @@ import { ToolsOptionsPanel } from '@/components/options/ToolsOptionsPanel'
 import { SkillsOptionsPanel } from '@/components/options/SkillsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
 import { SubAgentOptionsPanel } from '@/components/options/SubAgentOptionsPanel'
+import { WindowControls } from '@/components/WindowControls'
 import { isWebStandalone } from '@/lib/platform'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 import type { OptionsTab } from '@/types/voidcast'
@@ -67,7 +68,7 @@ export function OptionsScreen({ app }: Props) {
             SETTINGS
           </GlitchText>
 
-          <div className="pointer-events-none w-[4.5rem] shrink-0" aria-hidden />
+          <WindowControls />
         </header>
 
         {/* Tabs */}

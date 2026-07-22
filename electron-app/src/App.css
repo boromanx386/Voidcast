@@ -8,8 +8,7 @@
 }
 
 /*
- * Windows: merge native caption buttons into the app header (titleBarOverlay).
- * --win-caption-inset is synced from windowControlsOverlay in WinChromeBoot.
+ * Windows frameless chrome: header is the drag region; custom caption buttons live in-header.
  */
 html[data-win-chrome] .voidcast-header {
   -webkit-app-region: drag;
@@ -17,7 +16,6 @@ html[data-win-chrome] .voidcast-header {
   min-height: 40px;
   padding-top: 0;
   padding-bottom: 0;
-  padding-right: max(0.75rem, var(--win-caption-inset, 138px));
   user-select: none;
 }
 

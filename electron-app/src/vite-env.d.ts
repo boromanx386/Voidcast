@@ -433,6 +433,16 @@ interface VoidcastBridge {
 
   hideWindow: () => Promise<void>
 
+  windowMinimize: () => Promise<void>
+
+  windowToggleMaximize: () => Promise<boolean>
+
+  windowClose: () => Promise<void>
+
+  windowIsMaximized: () => Promise<boolean>
+
+  onWindowMaximizedChange: (callback: (maximized: boolean) => void) => () => void
+
   quitApp: () => Promise<void>
 
   checkForUpdates: () => Promise<unknown>

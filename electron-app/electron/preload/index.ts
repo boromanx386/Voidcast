@@ -411,6 +411,18 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:get-lan-network-info') as Promise<{ ips: string[] }>,
   showWindow: () => ipcRenderer.invoke('voidcast:show-window'),
   hideWindow: () => ipcRenderer.invoke('voidcast:hide-window'),
+  windowMinimize: () => ipcRenderer.invoke('voidcast:window-minimize'),
+  windowToggleMaximize: () =>
+    ipcRenderer.invoke('voidcast:window-toggle-maximize') as Promise<boolean>,
+  windowClose: () => ipcRenderer.invoke('voidcast:window-close'),
+  windowIsMaximized: () =>
+    ipcRenderer.invoke('voidcast:window-is-maximized') as Promise<boolean>,
+  onWindowMaximizedChange: (callback: (maximized: boolean) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, maximized: unknown) =>
+      callback(Boolean(maximized))
+    ipcRenderer.on('voidcast:window-maximized-changed', listener)
+    return () => ipcRenderer.removeListener('voidcast:window-maximized-changed', listener)
+  },
   quitApp: () => ipcRenderer.invoke('voidcast:quit-app'),
   checkForUpdates: () => ipcRenderer.invoke('check-update'),
   setAutoUpdateEnabled: (enabled: boolean) =>

@@ -1,5 +1,6 @@
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import { CodeIcon } from '@/components/icons/CodeIcon'
+import { WindowControls } from '@/components/WindowControls'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
 type Props = { app: VoidcastApp }
@@ -126,6 +127,7 @@ export function ChatHeader({ app }: Props) {
             ABORT
           </button>
         )}
+        <WindowControls />
       </div>
     </header>
   )
