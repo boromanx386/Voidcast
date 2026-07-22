@@ -763,13 +763,33 @@ export function CodingPanel({
     >
       <div className="flex shrink-0 items-center justify-between">
         <div className="text-sm font-mono coding-accent-text">CODING_PANEL</div>
-        <button type="button" className="cyber-btn text-xs" onClick={() => void onPickFolder()}>
-          <FolderIcon className="h-4 w-4" />
-        </button>
+        {!projectPath ? (
+          <button
+            type="button"
+            className="cyber-btn text-xs"
+            onClick={() => void onPickFolder()}
+            title="Select project folder for this chat"
+            aria-label="Select project folder"
+          >
+            <FolderIcon className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
       <div className="shrink-0 text-[11px] font-mono text-void-dim break-all">
-        {projectPath || 'No project folder selected.'}{' '}
-        {projectPath ? `(${visibleFileCount} files listed)` : ''}
+        {projectPath ? (
+          <>
+            {projectPath} ({visibleFileCount} files listed)
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void onPickFolder()}
+            className="text-left text-void-dim transition-colors hover:text-void-light"
+            title="Select project folder for this chat"
+          >
+            No project folder — click to select (binds this chat).
+          </button>
+        )}
       </div>
       <div className="flex shrink-0 flex-wrap gap-1.5" role="toolbar" aria-label="Coding panel sections">
         {SECTION_KEYS.map((key) => {

@@ -7,10 +7,10 @@ import {
   upsertSession,
 } from '@/lib/chatSessionsStorage'
 import {
+  emptyCodingContextMemo,
   getCodingProjectPath,
   mergeCodingProjectPathIntoSettings,
   normalizeCodingContextMemo,
-  resolveMemoForNewChat,
   resolveMemoForSession,
   sessionCodingProjectPath,
   type CodingContextMemo,
@@ -91,7 +91,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sessionDirty, setSessionDirty] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState({ today: false, older: false })
+  /** Collapsed state keyed by project group key (see sessionProjectGroups). */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<Record<string, boolean>>({})
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -134,11 +135,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         ),
       )
       const baseSettings = loadSettings()
-      const fallbackPath = getCodingProjectPath(baseSettings)
-      const projectPath = sessionCodingProjectPath(active ?? undefined, fallbackPath)
-      if (projectPath !== fallbackPath) {
-        setSettings(mergeCodingProjectPathIntoSettings(baseSettings, projectPath))
-      }
+      // Bound path only: no active / no path → General (clear settings folder).
+      const projectPath = sessionCodingProjectPath(active ?? undefined)
+      setSettings(mergeCodingProjectPathIntoSettings(baseSettings, projectPath))
       codingProjectPathForMemoRef.current = projectPath
       setCodingContextMemo(resolveMemoForSession(active ?? undefined, projectPath))
       setImageVisionCache(normalizeImageVisionCache(active?.imageVisionCache))
@@ -277,7 +276,10 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setError(null)
     setToolResultBanner(null)
     resetCodingTerminal()
-    setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
+    // 1C: New chat is always General until a folder is picked for this session.
+    codingProjectPathForMemoRef.current = ''
+    setSettings((s) => mergeCodingProjectPathIntoSettings(s, ''))
+    setCodingContextMemo(emptyCodingContextMemo(''))
     setImageVisionCache({})
   }
 
@@ -453,7 +455,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       setContextCompressedThroughIndex(0)
       contextOverflowLatchRef.current = false
       resetCodingTerminal()
-      setCodingContextMemo(resolveMemoForNewChat(getCodingProjectPath(settings)))
+      codingProjectPathForMemoRef.current = ''
+      setSettings((s) => mergeCodingProjectPathIntoSettings(s, ''))
+      setCodingContextMemo(emptyCodingContextMemo(''))
       setImageVisionCache({})
     }
     setContextUsageInfo(null)

@@ -244,13 +244,22 @@ export function resolveMemoForNewChat(projectPath: string): CodingContextMemo {
   return loadProjectCodingMemo(projectPath)
 }
 
-/** Path saved on the session, or global fallback for legacy sessions. */
+/**
+ * Path bound to the session itself (no settings fallback).
+ * Empty string = General chat (no project folder).
+ * Optional fallback is only used when the session has no bound path (legacy callers).
+ */
 export function sessionCodingProjectPath(
-  session: { codingProjectPath?: string } | undefined,
-  fallbackPath: string,
+  session:
+    | { codingProjectPath?: string; codingContextMemo?: { projectPath?: string } }
+    | undefined,
+  fallbackPath = '',
 ): string {
   const fromSession = (session?.codingProjectPath ?? '').trim()
-  return fromSession || fallbackPath.trim()
+  if (fromSession) return fromSession
+  const fromMemo = (session?.codingContextMemo?.projectPath ?? '').trim()
+  if (fromMemo) return fromMemo
+  return fallbackPath.trim()
 }
 
 /** Update settings project path without clearing coding memo. */

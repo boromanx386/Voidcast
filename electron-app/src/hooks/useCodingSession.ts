@@ -160,8 +160,8 @@ export function useCodingSession({
 
   const restoreCodingContextForSession = useCallback(
     (session: ChatSession, options?: { flushActiveSessionId?: string | null }) => {
-      const fallbackPath = getCodingProjectPath(settings)
-      const path = sessionCodingProjectPath(session, fallbackPath)
+      // Session-bound path only (empty = General). Do not inherit settings fallback.
+      const path = sessionCodingProjectPath(session)
       const memo = resolveMemoForSession(session, path)
 
       const flushId = options?.flushActiveSessionId
