@@ -53,7 +53,7 @@ export function ChatSidebar({ app }: Props) {
           type="button"
           onClick={newChat}
           className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-void-light transition-colors hover:bg-void-mid/50 hover:text-void-white"
-          title="Start a General chat (no project folder). Pick a folder in Coding panel to bind this chat to a project."
+          title="New chat (Ctrl+N). Starts General until you pick a folder in Coding panel."
         >
           <span className="text-neon-green" aria-hidden>
             +

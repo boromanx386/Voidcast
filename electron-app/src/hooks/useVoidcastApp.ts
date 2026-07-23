@@ -245,11 +245,37 @@ export function useVoidcastApp() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (screen === 'options') setScreen('chat')
+        return
+      }
+
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod || e.altKey || e.shiftKey) return
+      const key = e.key.toLowerCase()
+
+      if (key === 's') {
+        const target = e.target
+        if (
+          target instanceof HTMLElement &&
+          target.closest('.file-preview-edit-textarea, .file-preview-edit-stage')
+        ) {
+          return
+        }
+        if (screen !== 'chat') return
+        if (busyRef.current || agent.messages.length === 0) return
+        e.preventDefault()
+        sessions.saveOrUpdateSession()
+        return
+      }
+
+      if (key === 'n') {
+        if (screen !== 'chat') return
+        e.preventDefault()
+        sessions.newChat()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [screen])
+  }, [screen, agent.messages.length, sessions.saveOrUpdateSession, sessions.newChat])
 
   const handleDeleteReminder = useCallback(
     async (id: string) => {

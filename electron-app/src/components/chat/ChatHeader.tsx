@@ -36,9 +36,7 @@ export function ChatHeader({ app }: Props) {
     extractLongMemoryNow,
     canSaveSession,
     saveOrUpdateSession,
-    onStop,
   } = app
-  const canStop = busy
 
   return (
     <header className="voidcast-header min-w-0">
@@ -54,8 +52,7 @@ export function ChatHeader({ app }: Props) {
         <SessionsToggleIcon collapsed={sessionsSidebarCollapsed} />
       </button>
 
-      <div className="voidcast-header-brand pointer-events-none ml-2 hidden min-w-0 items-center gap-1.5 sm:flex">
-        <span className="voidcast-header-mark" aria-hidden />
+      <div className="voidcast-header-brand pointer-events-none ml-2 hidden min-w-0 items-center sm:flex">
         <span className="truncate font-display text-[10px] font-semibold tracking-[0.2em] text-void-text/80">
           VOIDCAST
         </span>
@@ -73,6 +70,7 @@ export function ChatHeader({ app }: Props) {
             <CodeIcon className="h-4 w-4 text-current" />
           </button>
         )}
+
         <button
           type="button"
           disabled={busy || longMemoryBusy || messages.length === 0}
@@ -98,7 +96,7 @@ export function ChatHeader({ app }: Props) {
             type="button"
             onClick={saveOrUpdateSession}
             className="cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0"
-            title="Save chat session"
+            title="Save chat session (Ctrl+S)"
             aria-label="Save chat session"
           >
             <svg
@@ -115,16 +113,6 @@ export function ChatHeader({ app }: Props) {
               <polyline points="17 21 17 13 7 13 7 21" />
               <polyline points="7 3 7 8 15 8" />
             </svg>
-          </button>
-        )}
-
-        {canStop && (
-          <button
-            type="button"
-            onClick={onStop}
-            className="cyber-btn cyber-btn-danger shrink-0 px-2 text-[11px] sm:px-3 sm:text-xs"
-          >
-            ABORT
           </button>
         )}
         <WindowControls />

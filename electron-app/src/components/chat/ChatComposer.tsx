@@ -14,6 +14,7 @@ type Props = {
     | 'setInput'
     | 'busy'
     | 'onSend'
+    | 'onStop'
     | 'pendingImages'
     | 'pendingFiles'
     | 'chatAttachmentInputRef'
@@ -36,6 +37,7 @@ export function ChatComposer({ app }: Props) {
     setInput,
     busy,
     onSend,
+    onStop,
     pendingImages,
     pendingFiles,
     chatAttachmentInputRef,
@@ -85,6 +87,11 @@ export function ChatComposer({ app }: Props) {
     setModeMenuOpen(false)
   }
 
+  const toggleAgentMode = () => {
+    if (busy) return
+    setAgentMode(agentMode === 'plan' ? 'agent' : 'plan')
+  }
+
   return (
     <footer className="voidcast-input-area">
       <div className="mx-auto max-w-4xl">
@@ -98,21 +105,14 @@ export function ChatComposer({ app }: Props) {
               : `${CHAT_IMAGE_ACCEPT},${chatFileAcceptList()}`
           }
           multiple
-          className={
-            isWebStandalone()
-              ? 'sr-only'
-              : 'hidden'
-          }
+          className={isWebStandalone() ? 'sr-only' : 'hidden'}
           aria-hidden={!isWebStandalone()}
           onChange={(e) => void onPickChatAttachments(e)}
         />
         {pendingImages.length > 0 && (
           <div className="mb-2 flex flex-wrap items-center gap-2" aria-live="polite">
             {pendingImages.map((p, i) => (
-              <div
-                key={`pending-${i}-${p.base64.slice(0, 8)}`}
-                className="relative shrink-0"
-              >
+              <div key={`pending-${i}-${p.base64.slice(0, 8)}`} className="relative shrink-0">
                 <img
                   src={imageDataUrl(p.base64, p.mime)}
                   alt=""
@@ -137,7 +137,10 @@ export function ChatComposer({ app }: Props) {
                 key={f.id}
                 className="relative rounded border border-void-muted/60 bg-void-black/30 px-2 py-1 text-xs font-mono text-void-dim"
               >
-                <div>{f.name}{f.truncated ? ' [truncated]' : ''}</div>
+                <div>
+                  {f.name}
+                  {f.truncated ? ' [truncated]' : ''}
+                </div>
                 <button
                   type="button"
                   onClick={() => removePendingFile(i)}
@@ -168,6 +171,11 @@ export function ChatComposer({ app }: Props) {
             disabled={busy}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault()
+                toggleAgentMode()
+                return
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 void onSend()
@@ -183,7 +191,11 @@ export function ChatComposer({ app }: Props) {
                 aria-haspopup="menu"
                 aria-expanded={modeMenuOpen}
                 aria-label={`Mode: ${agentMode === 'plan' ? 'Plan' : 'Agent'}`}
-                title={agentMode === 'plan' ? 'Plan mode (read-only)' : 'Agent mode'}
+                title={
+                  agentMode === 'plan'
+                    ? 'Plan mode (read-only) — Shift+Tab to switch'
+                    : 'Agent mode — Shift+Tab to switch'
+                }
                 onClick={() => setModeMenuOpen((open) => !open)}
                 className={`composer-mode-trigger ${
                   agentMode === 'plan'
@@ -321,45 +333,47 @@ export function ChatComposer({ app }: Props) {
               </button>
             )}
 
-            <button
-              type="button"
-              disabled={!canSend}
-              onClick={() => void onSend()}
-              className="composer-send-btn"
-              aria-label="Send message"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 2L11 13" />
-                <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-              </svg>
-            </button>
+            {busy ? (
+              <button
+                type="button"
+                onClick={onStop}
+                className="composer-send-btn composer-send-btn--stop"
+                title="Stop generation"
+                aria-label="Stop generation"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <rect x="6" y="6" width="12" height="12" rx="1" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={!canSend}
+                onClick={() => void onSend()}
+                className="composer-send-btn"
+                aria-label="Send message"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 2L11 13" />
+                  <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Input hints (attachments + unsaved only; model list lives in LLM options) */}
-        {(pendingImages.length > 0 ||
-          pendingFiles.length > 0) && (
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
-            <span>
-              {pendingImages.length > 0 && (
-                <span className="text-neon-cyan/70">
-                  {pendingImages.length} image{pendingImages.length === 1 ? '' : 's'}{' '}
-                  attached
-                </span>
-              )}
-              {pendingFiles.length > 0 && (
-                <span
-                  className={
-                    pendingImages.length > 0
-                      ? 'ml-2 text-neon-green/70'
-                      : 'text-neon-green/70'
-                  }
-                >
-                  {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} attached
-                </span>
-              )}
-            </span>
-            
+        {(pendingImages.length > 0 || pendingFiles.length > 0) && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono text-void-dim">
+            {pendingImages.length > 0 && (
+              <span className="text-neon-cyan/70">
+                {pendingImages.length} image{pendingImages.length === 1 ? '' : 's'} attached
+              </span>
+            )}
+            {pendingFiles.length > 0 && (
+              <span className="text-neon-green/70">
+                {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} attached
+              </span>
+            )}
           </div>
         )}
       </div>

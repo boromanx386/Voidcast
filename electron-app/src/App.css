@@ -375,6 +375,15 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   box-shadow: 0 0 12px rgb(var(--color-neon-cyan) / 0.35);
 }
 
+.composer-send-btn--stop {
+  @apply border-neon-red/50 text-neon-red;
+}
+
+.composer-send-btn--stop:hover {
+  @apply bg-neon-red/15 border-neon-red;
+  box-shadow: 0 0 12px rgb(var(--color-neon-red) / 0.3);
+}
+
 .composer-send-btn svg {
   @apply h-3.5 w-3.5;
 }
