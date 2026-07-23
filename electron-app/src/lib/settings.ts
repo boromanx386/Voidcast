@@ -726,6 +726,11 @@ export type AppSettings = {
   /** Which LLM tools are registered with Ollama (see Tools settings tab) */
   toolsEnabled: ToolsEnabled
   /**
+   * Max agent↔tool loop rounds per assistant turn (each round may include tool calls).
+   * Soft wrap-up warning fires near the end; hard wrap-up after exhaustion.
+   */
+  agentMaxToolRounds: number
+  /**
    * Discover Agent Skills from ~/.agents|~/.claude|~/.cursor/skills and expose
    * a catalog + read_skill tool (desktop only).
    */
@@ -918,6 +923,7 @@ export const defaults: AppSettings = {
     coding: true,
     enterPlan: true,
   },
+  agentMaxToolRounds: 50,
   skillsEnabled: true,
   mcpEnabled: false,
   mcpServerEnabled: {},
@@ -1022,6 +1028,16 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
 }
 
+/** Clamp max tool rounds per agent turn (Tools settings). */
+export function clampAgentMaxToolRounds(n: number): number {
+  if (!Number.isFinite(n)) return defaults.agentMaxToolRounds
+  return clamp(Math.round(n), 5, 120)
+}
+
+export const AGENT_MAX_TOOL_ROUNDS_MIN = 5
+export const AGENT_MAX_TOOL_ROUNDS_MAX = 120
+export const AGENT_MAX_TOOL_ROUNDS_DEFAULT = 50
+
 function normalizeTools(s: AppSettings): AppSettings {
   const te = s.toolsEnabled
   const codingEnabled =
@@ -1086,6 +1102,9 @@ function normalizeTools(s: AppSettings): AppSettings {
       enterPlan:
         typeof te?.enterPlan === 'boolean' ? te.enterPlan : defaults.toolsEnabled.enterPlan,
     },
+    agentMaxToolRounds: clampAgentMaxToolRounds(
+      typeof s.agentMaxToolRounds === 'number' ? s.agentMaxToolRounds : defaults.agentMaxToolRounds,
+    ),
     skillsEnabled:
       typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
     mcpEnabled: typeof s.mcpEnabled === 'boolean' ? s.mcpEnabled : defaults.mcpEnabled,

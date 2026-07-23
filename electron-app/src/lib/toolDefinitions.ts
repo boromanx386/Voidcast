@@ -710,7 +710,7 @@ const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
   function: {
     name: 'execute_command',
     description:
-      'MANDATORY: Execute a shell command in the configured coding project directory and return stdout/stderr. CRITICAL: When the user asks to run, execute, build, test, install, start, stop, or invoke any command/script, you MUST call this tool BEFORE responding with any text. Do NOT show example terminal output and claim the command ran - actually call the tool. Do NOT say "I ran the command" or paste fake stdout without calling this tool first. Never claim a command produced output unless this tool returned a real result with stdout/stderr in this turn.',
+      'MANDATORY: Execute a shell command in the configured coding project directory and return stdout/stderr. CRITICAL: When the user asks to run, execute, build, test, install, start, stop, or invoke any command/script, you MUST call this tool BEFORE responding with any text. Do NOT show example terminal output and claim the command ran - actually call the tool. Do NOT say "I ran the command" or paste fake stdout without calling this tool first. Never claim a command produced output unless this tool returned a real result with stdout/stderr in this turn. For long-lived CLIs that print then keep running (dev servers, agent-browser open/session, watchers), set run_in_background=true — otherwise the app may wait on process exit and stall the agent loop.',
     parameters: {
       type: 'object',
       properties: {
@@ -720,12 +720,12 @@ const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
         },
         timeout_sec: {
           type: 'number',
-          description: 'Optional timeout in seconds (default 20, max 120).',
+          description: 'Optional timeout in seconds (default 20, max 120). Ignored when run_in_background is true.',
         },
         run_in_background: {
           type: 'boolean',
           description:
-            'If true, starts command in background and returns immediately with process id.',
+            'If true, starts command in background and returns immediately with process id. Use for servers, watchers, and browser/agent CLIs that stay running after printing success.',
         },
       },
       required: ['command'],

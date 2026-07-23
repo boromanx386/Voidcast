@@ -261,3 +261,20 @@ export const FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE = [
   'In your next user-visible reply: short caption only (what changed in the image). Do NOT apologize, mention mistakes, fake links, tools, reprompts, or “now it is real”.',
   'If you cannot run the tool, say briefly that image generation is unavailable — no extra explanation.',
 ].join(' ')
+
+/** Soft nudge near the end of the tool-call budget (model-only). */
+export const TOOL_BUDGET_WARNING_REPROMPT_MESSAGE = [
+  '[Internal — not for the user] You are nearing the tool-call budget for this turn.',
+  'Prefer finishing soon: only essential remaining tool calls, then give the user a clear final answer without more tools.',
+  'Do not mention this budget warning in the user-visible reply.',
+].join(' ')
+
+/** Hard wrap-up after the tool budget is exhausted (model-only). */
+export const TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE = [
+  '[Internal — not for the user] The tool-call budget for this turn is exhausted. Do NOT call any more tools.',
+  'Write a final user-visible reply now: what you completed, what is still incomplete, and one concrete next step for the user.',
+  'Do not apologize at length about limits; keep it practical and grounded in tool results already received.',
+].join(' ')
+
+export const TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY =
+  'Stopped: tool-call budget reached this turn before a final answer. Tell me to continue and I will pick up from here.'

@@ -2,7 +2,9 @@ import { readAgentSkillBody } from '@/lib/agentSkills'
 import { formatPlanProgressToolResult } from '@/lib/planArtifact'
 import {
   AGENT_EDITABLE_SETTINGS_FIELDS,
+  AGENT_MAX_TOOL_ROUNDS_DEFAULT,
   RUNWARE_CONFIGURED_MODELS,
+  clampAgentMaxToolRounds,
   loadSettings,
   normalizeBaseUrl,
   normalizeSettingsCandidate,
@@ -101,9 +103,10 @@ import {
   getLastUserText,
   pickFirstHttpUrl,
   shouldForceWebSearchOnRoundZero,
+  TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE,
+  TOOL_BUDGET_WARNING_REPROMPT_MESSAGE,
 } from '@/lib/agentToolUtils'
 
-const MAX_TOOL_ROUNDS = 70
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
 
 function compactModelOptions(
@@ -1894,6 +1897,8 @@ export type RunChatWithToolsParams = {
   agentMode?: AgentChatMode
   /** Live approved plan during Approve & Build (for update_plan_progress). */
   getActiveBuildPlan?: () => PlanArtifact | undefined
+  /** Max shared tool-loop rounds for this turn (from settings.agentMaxToolRounds). */
+  maxToolRounds?: number
   /** Same host as TTS; used for `POST /tools/search` (DDGS). */
   ttsBaseUrl: string
   signal?: AbortSignal
@@ -1957,7 +1962,9 @@ export async function runOllamaChatWithTools(
   const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
   return runSharedToolLoop<OllamaApiMessage, OllamaToolCall>({
     initialMessages: [...params.initialMessages],
-    maxToolRounds: MAX_TOOL_ROUNDS,
+    maxToolRounds: clampAgentMaxToolRounds(
+      params.maxToolRounds ?? AGENT_MAX_TOOL_ROUNDS_DEFAULT,
+    ),
     maxRequiredToolReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     mustCallTool: false,
     signal: params.signal,
@@ -2022,6 +2029,18 @@ export async function runOllamaChatWithTools(
         role: 'user',
         content:
           'Tool call required: do not answer with plain text. Call the appropriate available tool now and only then provide the final answer from real tool output.',
+      })
+    },
+    appendToolBudgetWarningReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: TOOL_BUDGET_WARNING_REPROMPT_MESSAGE,
+      })
+    },
+    appendToolBudgetExhaustedReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE,
       })
     },
     guardFalseImageClaims: params.toolsEnabled.runwareImage,

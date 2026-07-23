@@ -5,6 +5,7 @@ import {
   shouldGuardFalseCodingClaims,
   shouldGuardFalseImageClaims,
   shouldGuardFalseMusicClaims,
+  TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY,
 } from '@/lib/agentToolUtils'
 import { sanitizeImageToolResultForLlm } from '@/lib/openrouterImage'
 
@@ -59,6 +60,16 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     round: number
   }) => void
   appendToolRequiredReprompt: (messages: TMessage[]) => void
+  /**
+   * Soft nudge when two rounds remain: prefer wrapping up soon.
+   * Called at most once per turn (entering maxToolRounds - 2).
+   */
+  appendToolBudgetWarningReprompt?: (messages: TMessage[]) => void
+  /**
+   * Hard wrap-up after the tool budget is exhausted without a final text reply.
+   * Loop will stream one more round and ignore further tool calls.
+   */
+  appendToolBudgetExhaustedReprompt?: (messages: TMessage[]) => void
   /** When true, reprompt if the model claims an image URL/result without calling image tools. */
   guardFalseImageClaims?: boolean
   /** User-typed message for this turn (skip image guard on music requests). */
@@ -179,6 +190,15 @@ export async function runSharedToolLoop<
 
   for (let round = 0; round < params.maxToolRounds; round++) {
     if (params.signal?.aborted) throw abortedError()
+
+    if (
+      params.appendToolBudgetWarningReprompt &&
+      hasExecutedToolInTurn &&
+      round === params.maxToolRounds - 2 &&
+      params.maxToolRounds >= 3
+    ) {
+      params.appendToolBudgetWarningReprompt(messages)
+    }
 
     const clearing = params.oldToolResultClearing
     if (clearing && round > 0) {
@@ -429,6 +449,38 @@ export async function runSharedToolLoop<
     lastAssistantText = ''
     persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
     clearStreamedAssistantContent(params)
+  }
+
+  // Budget exhausted after tool rounds often leaves empty streamed content — ask once for a final reply.
+  if (
+    !(lastAssistantText || '').trim() &&
+    hasExecutedToolInTurn &&
+    params.appendToolBudgetExhaustedReprompt
+  ) {
+    if (params.signal?.aborted) throw abortedError()
+    params.appendToolBudgetExhaustedReprompt(messages)
+    params.onToolPhase?.(null)
+    const wrap = await params.streamRound({
+      messages,
+      signal: params.signal,
+      onDelta: (full) => {
+        lastAssistantText = full
+        params.onDelta(full)
+      },
+      onThinkingDelta: (fullRound) => {
+        params.onThinkingDelta?.(`${persistedThinkingPrefix}${fullRound}`)
+      },
+    })
+    lastUsage = wrap.usage ?? lastUsage
+    const text = (wrap.content || lastAssistantText || '').trim()
+    // Ignore further tool calls — budget is done; force a user-visible close.
+    if (text) {
+      lastAssistantText = text
+      params.onDelta(lastAssistantText)
+    } else {
+      lastAssistantText = TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY
+      params.onDelta(lastAssistantText)
+    }
   }
 
   return { content: lastAssistantText, usage: lastUsage }

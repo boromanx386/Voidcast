@@ -499,6 +499,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             rawUserText: text,
             modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
             toolsEnabled: settings.toolsEnabled,
+            maxToolRounds: settings.agentMaxToolRounds,
             skillsEnabled: skillsActive,
             mcpEnabled: mcpActive,
             mcpTools,

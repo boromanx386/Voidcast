@@ -762,6 +762,11 @@ async function createWindow() {
 
 app.on('will-quit', () => {
   stopCodingProjectWatch()
+  for (const entry of activeCodingProcesses.values()) {
+    entry.killed = true
+    killProcessTreeSync(entry.pid)
+  }
+  activeCodingProcesses.clear()
   killTrackedToolsServerSync()
   void mcpManager.stopAll()
   globalShortcut.unregisterAll()
@@ -2271,13 +2276,26 @@ ipcMain.handle(
       let stderr = ''
       let settled = false
       let timedOut = false
+      let promotedToBackground = false
+      let idleTimer: ReturnType<typeof setTimeout> | null = null
+      /** After output stops arriving, return to the agent instead of waiting forever
+       *  for process exit (agent-browser, dev servers, etc. keep stdio open). */
+      const IDLE_PROMOTE_MS = 2_500
       const timeoutLabel = `Command timed out after ${Math.round(timeoutMs / 1000)}s and was stopped.`
       const stoppedLabel = 'Command was stopped.'
+
+      const clearIdleTimer = () => {
+        if (idleTimer) {
+          clearTimeout(idleTimer)
+          idleTimer = null
+        }
+      }
 
       const finish = (result: OkResult | ErrResult) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        clearIdleTimer()
         unregisterCodingProcess(evt.sender, runId)
         throttle.flush()
         sendOutput({
@@ -2289,6 +2307,44 @@ ipcMain.handle(
         resolve(result)
       }
 
+      const promoteToBackground = () => {
+        if (settled) return
+        if (!stdout.trim() && !stderr.trim()) return
+        settled = true
+        promotedToBackground = true
+        clearTimeout(timer)
+        clearIdleTimer()
+        runState.kind = 'background'
+        sendCodingProcessUpdate(evt.sender, {
+          action: 'upsert',
+          process: toPublicProcess(runState),
+        })
+        throttle.flush()
+        sendOutput({
+          stream: 'system',
+          text: '[still running — returned to agent; tracked as background]',
+        })
+        const body = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n')
+        resolve({
+          ok: true,
+          stdout:
+            `${body}\n\n[process still running — moved to background tracking (pid ${pid || 'n/a'})]`.trim(),
+          stderr: '',
+          code: 0,
+          pid: pid || undefined,
+          runId,
+          streamed: true,
+        })
+      }
+
+      const bumpIdlePromote = () => {
+        if (settled) return
+        clearIdleTimer()
+        idleTimer = setTimeout(() => {
+          promoteToBackground()
+        }, IDLE_PROMOTE_MS)
+      }
+
       const timer = setTimeout(() => {
         timedOut = true
         void killProcessTree(pid)
@@ -2298,17 +2354,33 @@ ipcMain.handle(
         const text = String(chunk)
         stdout += text
         throttle.push('stdout', text)
+        bumpIdlePromote()
       })
       child.stderr?.on('data', (chunk) => {
         const text = String(chunk)
         stderr += text
         throttle.push('stderr', text)
+        bumpIdlePromote()
       })
       child.on('error', (err) => {
         sendOutput({ stream: 'stderr', text: err.message })
         finish({ ok: false, error: err.message, runId, streamed: true })
       })
       child.on('close', (code) => {
+        clearIdleTimer()
+        if (promotedToBackground) {
+          throttle.flush()
+          if (runState.killed) {
+            sendOutput({ stream: 'stderr', text: stoppedLabel })
+          }
+          unregisterCodingProcess(evt.sender, runId)
+          sendOutput({
+            done: true,
+            code: runState.killed ? 130 : (code ?? 0),
+            killed: runState.killed || undefined,
+          })
+          return
+        }
         if (runState.killed) {
           sendOutput({ stream: 'stderr', text: stoppedLabel })
           finish({

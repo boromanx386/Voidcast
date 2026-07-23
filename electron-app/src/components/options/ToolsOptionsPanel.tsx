@@ -1,4 +1,11 @@
 import type { AppSettings } from '@/lib/settings'
+import {
+  AGENT_MAX_TOOL_ROUNDS_DEFAULT,
+  AGENT_MAX_TOOL_ROUNDS_MAX,
+  AGENT_MAX_TOOL_ROUNDS_MIN,
+  clampAgentMaxToolRounds,
+} from '@/lib/settings'
+import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import {
   addTrustedMcpProjectPath,
@@ -69,6 +76,28 @@ export function ToolsOptionsPanel({
           <span className="text-neon-yellow mr-2">⬡</span>
           Enable tools for the model to use during conversation.
           Requires a tool-capable model (e.g. Qwen 3.5, Gemma 4, MiniMax 2.7 — check Ollama library tags).
+        </p>
+      </div>
+
+      <div className="bg-void-black/50 border border-void-muted/30 p-4">
+        <label className="mb-1 block text-xs font-mono text-void-dim">
+          <span className="mr-2 text-neon-cyan">▸</span>MAX_TOOL_ROUNDS
+        </label>
+        <p className="mb-2 text-xs text-void-dim">
+          Max agent↔tool loop rounds per reply (default {AGENT_MAX_TOOL_ROUNDS_DEFAULT}). Near the end the
+          model is nudged to wrap up; after the limit it must finish with a text answer (no more tools).
+        </p>
+        <NumericSettingInput
+          className="cyber-input w-28"
+          value={settings.agentMaxToolRounds}
+          min={AGENT_MAX_TOOL_ROUNDS_MIN}
+          max={AGENT_MAX_TOOL_ROUNDS_MAX}
+          onCommit={(n) =>
+            setSettings((s) => ({ ...s, agentMaxToolRounds: clampAgentMaxToolRounds(n) }))
+          }
+        />
+        <p className="mt-1 text-[10px] font-mono text-void-dim">
+          {AGENT_MAX_TOOL_ROUNDS_MIN}–{AGENT_MAX_TOOL_ROUNDS_MAX}
         </p>
       </div>
 

@@ -2,6 +2,7 @@ import { buildOllamaToolsList } from '@/lib/toolDefinitions'
 import type { McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
+import { AGENT_MAX_TOOL_ROUNDS_DEFAULT, clampAgentMaxToolRounds } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
@@ -24,9 +25,8 @@ import { executeToolCall } from '@/lib/agentToolExecutor'
 import { resolveImageRecallRequest } from '@/lib/ollamaAgent'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
-import { FALSE_CODING_CLAIM_REPROMPT_MESSAGE, FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE, parseToolArguments } from '@/lib/agentToolUtils'
+import { FALSE_CODING_CLAIM_REPROMPT_MESSAGE, FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE, parseToolArguments, TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE, TOOL_BUDGET_WARNING_REPROMPT_MESSAGE } from '@/lib/agentToolUtils'
 
-const MAX_TOOL_ROUNDS = 70
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
 
 function toOpenRouterToolCalls(calls: OpenRouterToolCall[]): OpenRouterToolCall[] {
@@ -68,6 +68,8 @@ export type RunOpenRouterChatWithToolsParams = {
   agentMode?: AgentChatMode
   /** Live approved plan during Approve & Build (for update_plan_progress). */
   getActiveBuildPlan?: () => PlanArtifact | undefined
+  /** Max shared tool-loop rounds for this turn (from settings.agentMaxToolRounds). */
+  maxToolRounds?: number
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void
@@ -116,7 +118,9 @@ export async function runOpenRouterChatWithTools(
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
     initialMessages,
-    maxToolRounds: MAX_TOOL_ROUNDS,
+    maxToolRounds: clampAgentMaxToolRounds(
+      params.maxToolRounds ?? AGENT_MAX_TOOL_ROUNDS_DEFAULT,
+    ),
     maxRequiredToolReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     mustCallTool: false,
     signal: params.signal,
@@ -180,6 +184,18 @@ export async function runOpenRouterChatWithTools(
         role: 'user',
         content:
           'Tool call required: do not answer with plain text. Call the appropriate available tool now and only then provide the final answer from real tool output.',
+      })
+    },
+    appendToolBudgetWarningReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: TOOL_BUDGET_WARNING_REPROMPT_MESSAGE,
+      })
+    },
+    appendToolBudgetExhaustedReprompt: (messages) => {
+      messages.push({
+        role: 'user',
+        content: TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE,
       })
     },
     guardFalseImageClaims: params.toolsEnabled.runwareImage,
