@@ -13,7 +13,19 @@ import {
   appendCodingCommandEventToFeed,
   resetCodingTerminalFeedState,
 } from '@/lib/codingCommandStream'
-import { invokeKillCodingCommand, subscribeCodingCommandOutput } from '@/lib/codingTools'
+import {
+  applyOutputToActiveProcess,
+  removeActiveProcess,
+  upsertActiveProcess,
+  type ActiveCodingProcess,
+} from '@/lib/codingActiveProcesses'
+import {
+  invokeKillAllActiveCodingProcesses,
+  invokeKillCodingCommand,
+  invokeListActiveCodingProcesses,
+  subscribeCodingCommandOutput,
+  subscribeCodingProcessUpdate,
+} from '@/lib/codingTools'
 import {
   normalizeCodingRevealPath,
   type CodingRevealRequest,
@@ -46,6 +58,8 @@ export type UseCodingSessionResult = {
   /** Foreground command currently streaming (for STOP). */
   activeCodingRunId: string | null
   stopCodingCommand: () => Promise<void>
+  /** Live mirror of main-process active coding shell processes (for CTX hint). */
+  activeCodingProcesses: ActiveCodingProcess[]
   codingFileTreeNonce: number
   setCodingFileTreeNonce: React.Dispatch<React.SetStateAction<number>>
   codingGitNonce: number
@@ -76,6 +90,7 @@ export function useCodingSession({
   const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
   const [codingTerminalEpoch, setCodingTerminalEpoch] = useState(0)
   const [activeCodingRunId, setActiveCodingRunId] = useState<string | null>(null)
+  const [activeCodingProcesses, setActiveCodingProcesses] = useState<ActiveCodingProcess[]>([])
   const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
   const [codingGitNonce, setCodingGitNonce] = useState(0)
   const [codingRevealRequest, setCodingRevealRequest] = useState<CodingRevealRequest | null>(null)
@@ -92,9 +107,11 @@ export function useCodingSession({
   const resetCodingTerminal = useCallback(() => {
     const runId = activeCodingRunIdRef.current
     if (runId) void invokeKillCodingCommand(runId)
+    void invokeKillAllActiveCodingProcesses()
     setCodingTerminalFeed(resetCodingTerminalFeedState(streamSeqRef.current))
     setCodingTerminalEpoch((n) => n + 1)
     setActiveCodingRunId(null)
+    setActiveCodingProcesses([])
     setCodingRevealRequest(null)
   }, [])
 
@@ -127,11 +144,37 @@ export function useCodingSession({
     return subscribeCodingCommandOutput((event) => {
       if (event.done) {
         setActiveCodingRunId((cur) => (cur === event.runId ? null : cur))
+        setActiveCodingProcesses((prev) => removeActiveProcess(prev, event.runId))
       } else {
         setActiveCodingRunId(event.runId)
+        if (event.text) {
+          setActiveCodingProcesses((prev) =>
+            applyOutputToActiveProcess(prev, event.runId, event.text!),
+          )
+        }
       }
       setCodingTerminalFeed((prev) => appendCodingCommandEventToFeed(prev, event, streamSeqRef.current))
     })
+  }, [])
+
+  useEffect(() => {
+    if (!isElectron()) return
+    let cancelled = false
+    void invokeListActiveCodingProcesses().then((procs) => {
+      if (!cancelled) setActiveCodingProcesses(procs)
+    })
+    const unsub = subscribeCodingProcessUpdate((event) => {
+      if (event.action === 'upsert') {
+        setActiveCodingProcesses((prev) => upsertActiveProcess(prev, event.process))
+      } else {
+        setActiveCodingProcesses((prev) => removeActiveProcess(prev, event.runId))
+        setActiveCodingRunId((cur) => (cur === event.runId ? null : cur))
+      }
+    })
+    return () => {
+      cancelled = true
+      unsub()
+    }
   }, [])
 
   useEffect(() => {
@@ -213,6 +256,7 @@ export function useCodingSession({
     resetCodingTerminal,
     activeCodingRunId,
     stopCodingCommand,
+    activeCodingProcesses,
     codingFileTreeNonce,
     setCodingFileTreeNonce,
     codingGitNonce,

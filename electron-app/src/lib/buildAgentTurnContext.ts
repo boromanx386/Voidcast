@@ -26,6 +26,10 @@ import {
 } from '@/lib/chatHints'
 import { buildToolImageCatalog, type PendingChatImage } from '@/lib/chatImageCatalog'
 import { buildCodingMemoHint, type CodingContextMemo } from '@/lib/codingContextMemo'
+import {
+  buildActiveProcessesHint,
+  type ActiveCodingProcess,
+} from '@/lib/codingActiveProcesses'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import { searchMemories } from '@/lib/longMemoryStorage'
 import type { OllamaApiMessage } from '@/lib/ollama'
@@ -61,6 +65,8 @@ export type BuildAgentTurnContextParams = {
   contextCompressedThroughIndex: number
   imageVisionCache: ImageVisionCache
   codingContextMemo: CodingContextMemo
+  /** Live foreground/background coding shell processes for CTX hint. */
+  activeCodingProcesses?: ActiveCodingProcess[]
   activeSessionUseLongMemory: boolean
 }
 
@@ -95,6 +101,7 @@ export async function buildAgentTurnContext(
     contextCompressedThroughIndex,
     imageVisionCache,
     codingContextMemo,
+    activeCodingProcesses = [],
     activeSessionUseLongMemory,
   } = params
 
@@ -251,6 +258,8 @@ export async function buildAgentTurnContext(
       )
     }
     toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
+    const activeHint = buildActiveProcessesHint(activeCodingProcesses)
+    if (activeHint) toolsHintParts.push(activeHint)
   }
   if (useTools && !planMode) {
     const visible = getAgentVisibleSettings(settings)

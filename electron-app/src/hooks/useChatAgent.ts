@@ -19,6 +19,7 @@ import {
 } from '@/lib/contextUsage'
 import { resolveContextLimit } from '@/lib/contextLimit'
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
+import type { ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
@@ -88,6 +89,7 @@ export type UseChatAgentDeps = {
   setCodingFileTreeNonce: Dispatch<SetStateAction<number>>
   setCodingGitNonce: Dispatch<SetStateAction<number>>
   revealCodingFile: (path: string) => void
+  activeCodingProcesses: ActiveCodingProcess[]
 
   onSessionDirty: () => void
 }
@@ -163,6 +165,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     setCodingFileTreeNonce,
     setCodingGitNonce,
     revealCodingFile,
+    activeCodingProcesses,
     onSessionDirty,
   } = deps
 
@@ -391,6 +394,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         contextCompressedThroughIndex,
         imageVisionCache,
         codingContextMemo,
+        activeCodingProcesses,
         activeSessionUseLongMemory,
       })
 
@@ -823,6 +827,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       activeSessionUseLongMemory,
       busy,
       codingContextMemo,
+      activeCodingProcesses,
       contextCompressedThroughIndex,
       effectivePdfOutputDir,
       hiddenContextSummary,

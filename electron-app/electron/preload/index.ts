@@ -286,6 +286,42 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.on('voidcast:coding-command-output', listener)
     return () => ipcRenderer.removeListener('voidcast:coding-command-output', listener)
   },
+  onCodingProcessUpdate: (
+    callback: (
+      event:
+        | {
+            action: 'upsert'
+            process: {
+              runId: string
+              pid: number
+              command: string
+              kind: 'foreground' | 'background'
+              startedAt: number
+              lastLines: string[]
+            }
+          }
+        | { action: 'remove'; runId: string },
+    ) => void,
+  ) => {
+    const listener = (
+      _e: Electron.IpcRendererEvent,
+      payload:
+        | {
+            action: 'upsert'
+            process: {
+              runId: string
+              pid: number
+              command: string
+              kind: 'foreground' | 'background'
+              startedAt: number
+              lastLines: string[]
+            }
+          }
+        | { action: 'remove'; runId: string },
+    ) => callback(payload)
+    ipcRenderer.on('voidcast:coding-process-update', listener)
+    return () => ipcRenderer.removeListener('voidcast:coding-process-update', listener)
+  },
   codingReadFile: (payload: {
     projectPath: string
     path: string
@@ -380,6 +416,21 @@ contextBridge.exposeInMainWorld('voidcast', {
   codingKillCommand: (payload: { runId: string }) =>
     ipcRenderer.invoke('voidcast:coding-kill-command', payload) as Promise<
       { ok: true } | { ok: false; error?: string }
+    >,
+  codingListActiveProcesses: () =>
+    ipcRenderer.invoke('voidcast:coding-list-active-processes') as Promise<{
+      processes: {
+        runId: string
+        pid: number
+        command: string
+        kind: 'foreground' | 'background'
+        startedAt: number
+        lastLines: string[]
+      }[]
+    }>,
+  codingKillAllActiveProcesses: () =>
+    ipcRenderer.invoke('voidcast:coding-kill-all-active-processes') as Promise<
+      { ok: true; count: number }
     >,
   pickChatAttachments: () =>
     ipcRenderer.invoke('voidcast:pick-chat-attachments') as Promise<

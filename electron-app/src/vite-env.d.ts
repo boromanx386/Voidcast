@@ -318,6 +318,24 @@ interface VoidcastBridge {
     }) => void,
   ) => () => void
 
+  onCodingProcessUpdate: (
+    callback: (
+      event:
+        | {
+            action: 'upsert'
+            process: {
+              runId: string
+              pid: number
+              command: string
+              kind: 'foreground' | 'background'
+              startedAt: number
+              lastLines: string[]
+            }
+          }
+        | { action: 'remove'; runId: string },
+    ) => void,
+  ) => () => void
+
   codingReadFile: (payload: {
     projectPath: string
     path: string
@@ -404,6 +422,19 @@ interface VoidcastBridge {
   codingKillCommand: (payload: { runId: string }) => Promise<
     { ok: true } | { ok: false; error?: string }
   >
+
+  codingListActiveProcesses: () => Promise<{
+    processes: {
+      runId: string
+      pid: number
+      command: string
+      kind: 'foreground' | 'background'
+      startedAt: number
+      lastLines: string[]
+    }[]
+  }>
+
+  codingKillAllActiveProcesses: () => Promise<{ ok: true; count: number }>
 
   pickChatAttachments: () => Promise<
     | {

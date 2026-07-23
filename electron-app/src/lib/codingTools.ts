@@ -5,6 +5,7 @@ import {
   type FileLineEndings,
 } from '@/lib/codingEol'
 import { formatSearchResults } from '@/lib/codingSearch'
+import type { ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import {
   markLastExecuteCommandStreamed,
   type CodingCommandOutputEvent,
@@ -53,6 +54,29 @@ export function subscribeCodingCommandOutput(
   const fn = window.voidcast?.onCodingCommandOutput
   if (!fn) return () => {}
   return fn(callback)
+}
+
+export function subscribeCodingProcessUpdate(
+  callback: (
+    event: { action: 'upsert'; process: ActiveCodingProcess } | { action: 'remove'; runId: string },
+  ) => void,
+): () => void {
+  const fn = window.voidcast?.onCodingProcessUpdate
+  if (!fn) return () => {}
+  return fn(callback)
+}
+
+export async function invokeListActiveCodingProcesses(): Promise<ActiveCodingProcess[]> {
+  const fn = window.voidcast?.codingListActiveProcesses
+  if (!fn) return []
+  const res = await fn()
+  return res.processes ?? []
+}
+
+export async function invokeKillAllActiveCodingProcesses(): Promise<void> {
+  const fn = window.voidcast?.codingKillAllActiveProcesses
+  if (!fn) return
+  await fn()
 }
 
 export async function invokeKillCodingCommand(

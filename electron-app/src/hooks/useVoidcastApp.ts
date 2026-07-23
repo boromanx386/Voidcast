@@ -126,6 +126,7 @@ export function useVoidcastApp() {
     setCodingFileTreeNonce: coding.setCodingFileTreeNonce,
     setCodingGitNonce: coding.setCodingGitNonce,
     revealCodingFile: coding.revealCodingFile,
+    activeCodingProcesses: coding.activeCodingProcesses,
     onSessionDirty: () => setSessionDirtyRef.current(true),
   })
 

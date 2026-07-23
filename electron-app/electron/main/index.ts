@@ -12,6 +12,7 @@ import {
   nativeTheme,
   type NativeImage,
   type OpenDialogOptions,
+  type WebContents,
 } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -105,12 +106,99 @@ let tray: Tray | null = null
 let isQuitting = false
 let toolsServerProcess: ChildProcessWithoutNullStreams | null = null
 
-/** Foreground `execute_command` runs — keyed by runId for STOP. */
-const activeForegroundCodingCommands = new Map<
-  string,
-  { pid: number; killed: boolean }
->()
+import {
+  mergeActiveProcessOutputLines,
+  type ActiveCodingProcess,
+  type ActiveCodingProcessKind,
+} from '../../src/lib/codingActiveProcesses'
+
+/** Foreground + background `execute_command` runs — keyed by runId for STOP / CTX hint. */
+type ActiveCodingProcessEntry = ActiveCodingProcess & { killed: boolean }
+
+const activeCodingProcesses = new Map<string, ActiveCodingProcessEntry>()
 let toolsServerStarting = false
+
+function isPidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function toPublicProcess(entry: ActiveCodingProcessEntry): ActiveCodingProcess {
+  return {
+    runId: entry.runId,
+    pid: entry.pid,
+    command: entry.command,
+    kind: entry.kind,
+    startedAt: entry.startedAt,
+    lastLines: [...entry.lastLines],
+  }
+}
+
+function pruneDeadCodingProcesses(): void {
+  for (const [runId, entry] of activeCodingProcesses) {
+    if (entry.killed) continue
+    if (entry.pid > 0 && !isPidAlive(entry.pid)) {
+      activeCodingProcesses.delete(runId)
+    }
+  }
+}
+
+function listActiveCodingProcesses(): ActiveCodingProcess[] {
+  pruneDeadCodingProcesses()
+  return [...activeCodingProcesses.values()].map(toPublicProcess)
+}
+
+function sendCodingProcessUpdate(
+  sender: WebContents,
+  payload:
+    | { action: 'upsert'; process: ActiveCodingProcess }
+    | { action: 'remove'; runId: string },
+): void {
+  try {
+    sender.send('voidcast:coding-process-update', payload)
+  } catch {
+    // window may be gone
+  }
+}
+
+function registerCodingProcess(
+  sender: WebContents,
+  params: {
+    runId: string
+    pid: number
+    command: string
+    kind: ActiveCodingProcessKind
+  },
+): ActiveCodingProcessEntry {
+  const entry: ActiveCodingProcessEntry = {
+    runId: params.runId,
+    pid: params.pid,
+    command: params.command,
+    kind: params.kind,
+    startedAt: Date.now(),
+    lastLines: [],
+    killed: false,
+  }
+  activeCodingProcesses.set(params.runId, entry)
+  sendCodingProcessUpdate(sender, { action: 'upsert', process: toPublicProcess(entry) })
+  return entry
+}
+
+function appendCodingProcessOutput(runId: string, text: string): void {
+  const entry = activeCodingProcesses.get(runId)
+  if (!entry || !text) return
+  entry.lastLines = mergeActiveProcessOutputLines(entry.lastLines, text)
+}
+
+function unregisterCodingProcess(sender: WebContents, runId: string): void {
+  if (!activeCodingProcesses.delete(runId)) return
+  sendCodingProcessUpdate(sender, { action: 'remove', runId })
+}
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 const appIconPath = app.isPackaged
@@ -2101,22 +2189,9 @@ ipcMain.handle(
         cwd: projectPath,
         shell: true,
         detached: runInBackground,
-        stdio: runInBackground ? 'ignore' : 'pipe',
+        stdio: 'pipe',
         windowsHide: true,
       })
-      if (runInBackground) {
-        child.unref()
-        resolve({
-          ok: true,
-          stdout: `Started in background (pid ${child.pid ?? 'n/a'})`,
-          stderr: '',
-          code: 0,
-          pid: child.pid ?? undefined,
-          runId,
-          streamed: false,
-        })
-        return
-      }
 
       const sendOutput = (payloadOut: {
         stream?: 'stdout' | 'stderr' | 'system'
@@ -2133,15 +2208,64 @@ ipcMain.handle(
         }
       }
 
+      const pid = typeof child.pid === 'number' && child.pid > 0 ? child.pid : 0
+      const kind: ActiveCodingProcessKind = runInBackground ? 'background' : 'foreground'
+      const runState = registerCodingProcess(evt.sender, {
+        runId,
+        pid,
+        command,
+        kind,
+      })
+
+      if (runInBackground) {
+        sendOutput({ stream: 'system', text: `$ ${command}  (background)` })
+        const throttleBg = new ChunkThrottle((stream, text) => {
+          sendOutput({ stream, text })
+          appendCodingProcessOutput(runId, text)
+        }, 50)
+        child.stdout?.on('data', (chunk) => {
+          throttleBg.push('stdout', String(chunk))
+        })
+        child.stderr?.on('data', (chunk) => {
+          throttleBg.push('stderr', String(chunk))
+        })
+        child.on('error', (err) => {
+          sendOutput({ stream: 'stderr', text: err.message })
+          throttleBg.flush()
+          unregisterCodingProcess(evt.sender, runId)
+          sendOutput({ done: true, code: 1 })
+        })
+        child.on('close', (code) => {
+          throttleBg.flush()
+          if (runState.killed) {
+            sendOutput({ stream: 'stderr', text: 'Command was stopped.' })
+          }
+          unregisterCodingProcess(evt.sender, runId)
+          sendOutput({
+            done: true,
+            code: runState.killed ? 130 : (code ?? 0),
+            killed: runState.killed || undefined,
+          })
+        })
+        // Keep handle so we get close/exit; do not unref.
+        resolve({
+          ok: true,
+          stdout: `Started in background (pid ${pid || 'n/a'})`,
+          stderr: '',
+          code: 0,
+          pid: pid || undefined,
+          runId,
+          streamed: true,
+        })
+        return
+      }
+
       sendOutput({ stream: 'system', text: `$ ${command}` })
 
       const throttle = new ChunkThrottle((stream, text) => {
         sendOutput({ stream, text })
+        appendCodingProcessOutput(runId, text)
       }, 50)
-
-      const pid = typeof child.pid === 'number' && child.pid > 0 ? child.pid : 0
-      const runState = { pid, killed: false }
-      if (pid > 0) activeForegroundCodingCommands.set(runId, runState)
 
       let stdout = ''
       let stderr = ''
@@ -2154,7 +2278,7 @@ ipcMain.handle(
         if (settled) return
         settled = true
         clearTimeout(timer)
-        activeForegroundCodingCommands.delete(runId)
+        unregisterCodingProcess(evt.sender, runId)
         throttle.flush()
         sendOutput({
           done: true,
@@ -2229,7 +2353,7 @@ ipcMain.handle(
   async (_evt, payload: { runId?: string }) => {
     const runId = String(payload?.runId ?? '').trim()
     if (!runId) return { ok: false as const, error: 'Missing runId.' }
-    const entry = activeForegroundCodingCommands.get(runId)
+    const entry = activeCodingProcesses.get(runId)
     if (!entry) return { ok: false as const, error: 'No running command for that runId.' }
     entry.killed = true
     try {
@@ -2240,6 +2364,23 @@ ipcMain.handle(
     }
   },
 )
+
+ipcMain.handle('voidcast:coding-list-active-processes', async () => {
+  return { processes: listActiveCodingProcesses() }
+})
+
+ipcMain.handle('voidcast:coding-kill-all-active-processes', async () => {
+  const entries = [...activeCodingProcesses.values()]
+  for (const entry of entries) {
+    entry.killed = true
+    try {
+      await killProcessTree(entry.pid)
+    } catch {
+      // ignore per-process kill errors
+    }
+  }
+  return { ok: true as const, count: entries.length }
+})
 
 const MAX_CHAT_IMAGE_BYTES = 4 * 1024 * 1024
 const MAX_CHAT_IMAGE_FILES = 4

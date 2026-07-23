@@ -91,6 +91,7 @@ Tool choice (call the right one first):
 - check_types — run TypeScript typecheck (tsc --noEmit) after editing .ts/.tsx files; use path_prefix when tsconfig lives in a subfolder.
 ${exploreLine}
 Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. If you need contents before editing, call read_file first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
+If Active coding processes lists a server/dev command still running, do not start a duplicate; reuse or stop it first.
 
 Coding project path: ${path}`
 }
