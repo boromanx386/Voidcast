@@ -182,3 +182,41 @@ describe('buildOllamaToolsList coding_explore', () => {
     expect(tools.some((t) => t.function.name === 'write_file')).toBe(false)
   })
 })
+
+describe('buildOllamaToolsList image_recall vs runware', () => {
+  const noImageTools = {
+    webSearch: false,
+    youtube: false,
+    reddit: false,
+    weather: false,
+    scrape: false,
+    pdf: false,
+    runwareImage: false,
+    runwareMusic: false,
+    coding: false,
+    enterPlan: false,
+  }
+
+  it('exposes image_recall when Runware image tool is disabled', () => {
+    const tools = buildOllamaToolsList(noImageTools as never, false)
+    expect(tools.some((t) => t.function.name === 'image_recall')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'generate_image')).toBe(false)
+    expect(tools.some((t) => t.function.name === 'edit_image_runware')).toBe(false)
+  })
+
+  it('exposes generate/edit with image_recall when Runware is enabled', () => {
+    const tools = buildOllamaToolsList({ ...noImageTools, runwareImage: true } as never, false)
+    expect(tools.some((t) => t.function.name === 'image_recall')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'generate_image')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'edit_image_runware')).toBe(true)
+  })
+
+  it('keeps image_recall in plan mode without generate/edit', () => {
+    const tools = buildOllamaToolsList({ ...noImageTools, runwareImage: true } as never, false, {
+      agentMode: 'plan',
+    })
+    expect(tools.some((t) => t.function.name === 'image_recall')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'generate_image')).toBe(false)
+    expect(tools.some((t) => t.function.name === 'edit_image_runware')).toBe(false)
+  })
+})

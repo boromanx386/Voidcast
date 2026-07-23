@@ -1117,9 +1117,6 @@ export async function executeToolCall(
     }
   }
   if (name === 'image_recall') {
-    if (!toolsEnabled.runwareImage) {
-      return 'Error: image_recall tool is disabled in settings.'
-    }
     const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths)
     const requestedPaths = parseImagePaths(args.reference_image_paths)
     if (!selected.indexes.length && !requestedPaths.length && !parseImageIndexes(args.reference_image_indexes).length) {

@@ -1066,12 +1066,11 @@ export function buildOllamaToolsList(
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
   if (enabled.pdf && !planMode) out.push(SAVE_PDF_TOOL)
-  if (enabled.runwareImage) {
-    if (!planMode) {
-      out.push(GENERATE_IMAGE_TOOL)
-      out.push(EDIT_IMAGE_RUNWARE_TOOL)
-    }
-    out.push(IMAGE_RECALL_TOOL)
+  // Vision recall is independent of Runware generate/edit.
+  out.push(IMAGE_RECALL_TOOL)
+  if (enabled.runwareImage && !planMode) {
+    out.push(GENERATE_IMAGE_TOOL)
+    out.push(EDIT_IMAGE_RUNWARE_TOOL)
   }
   if (enabled.runwareMusic && !planMode) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
   if (enabled.coding) {

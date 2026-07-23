@@ -472,7 +472,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setToolPhase(null)
       setToolResultBanner(null)
 
-      const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive)
+      const useTools =
+        anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive) ||
+        settings.subAgent.enabled
 
       const ac = new AbortController()
       abortRef.current = ac

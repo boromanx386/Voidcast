@@ -5,6 +5,7 @@ import {
   buildToolsCodingHint,
   TOOLS_PDF_HINT,
   TOOLS_REDDIT_HINT,
+  TOOLS_IMAGE_RECALL_HINT,
   TOOLS_RUNWARE_IMAGE_HINT,
   TOOLS_RUNWARE_MUSIC_HINT,
   TOOLS_SCRAPE_HINT,
@@ -108,9 +109,7 @@ export async function buildAgentTurnContext(
     : []
   const attachedImageHint = buildQueuedImagePathHint(queued)
   const imageCatalogHint =
-    settings.toolsEnabled.runwareImage && toolImageCatalog.length > 0
-      ? buildImageCatalogHint(toolImageCatalog, queued.length)
-      : ''
+    toolImageCatalog.length > 0 ? buildImageCatalogHint(toolImageCatalog, queued.length) : ''
   const attachedFileHint = buildQueuedFilePathHint(queuedFiles)
   const ollamaUserText = [text, attachedImageHint, imageCatalogHint, attachedFileHint]
     .filter((x) => x.trim().length > 0)
@@ -176,7 +175,9 @@ export async function buildAgentTurnContext(
         )
       : []
   const mcpActive = settings.mcpEnabled && mcpTools.length > 0
-  const useTools = anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive)
+  const useTools =
+    anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive) ||
+    Boolean(settings.subAgent?.enabled)
   const skillsSystemHint = skillsActive ? buildSkillsCatalogHint(discoveredSkills) : ''
   const projectInstructionFiles =
     settings.toolsEnabled.coding && codingProjectPath
@@ -210,13 +211,21 @@ export async function buildAgentTurnContext(
   if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
   if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
   if (settings.toolsEnabled.pdf && !planMode) toolsHintParts.push(TOOLS_PDF_HINT)
-  if (settings.toolsEnabled.runwareImage) {
-    if (planMode) {
+  if (useTools) {
+    if (settings.toolsEnabled.runwareImage) {
+      if (planMode) {
+        toolsHintParts.push(
+          'image_recall is available in Plan mode for inspecting existing session/project images (read-only). Image generation/edit tools are disabled until Approve & Build.',
+        )
+      } else {
+        toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
+      }
+    } else if (planMode) {
       toolsHintParts.push(
-        'image_recall is available in Plan mode for inspecting existing session/project images (read-only). Image generation/edit tools are disabled until Approve & Build.',
+        'image_recall is available in Plan mode for inspecting existing session/project images (read-only).',
       )
     } else {
-      toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
+      toolsHintParts.push(TOOLS_IMAGE_RECALL_HINT)
     }
   }
   if (settings.toolsEnabled.runwareMusic && !planMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
@@ -237,11 +246,9 @@ export async function buildAgentTurnContext(
         buildToolsCodingHint(codingProjectPath, { codingSubAgentEnabled: codingSub }),
       )
       toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
-      if (settings.toolsEnabled.runwareImage) {
-        toolsHintParts.push(
-          'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
-        )
-      }
+      toolsHintParts.push(
+        'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
+      )
     }
     toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
   }
