@@ -20,7 +20,6 @@ import {
   type ActiveCodingProcess,
 } from '@/lib/codingActiveProcesses'
 import {
-  invokeKillAllActiveCodingProcesses,
   invokeKillCodingCommand,
   invokeListActiveCodingProcesses,
   subscribeCodingCommandOutput,
@@ -101,18 +100,27 @@ export function useCodingSession({
   const streamSeqRef = useRef({ n: 0 })
   const activeCodingRunIdRef = useRef<string | null>(null)
   activeCodingRunIdRef.current = activeCodingRunId
+  const activeCodingProcessesRef = useRef(activeCodingProcesses)
+  activeCodingProcessesRef.current = activeCodingProcesses
 
   const codingPanelAvailable = isElectron() && settings.toolsEnabled.coding
 
   const resetCodingTerminal = useCallback(() => {
+    // Only stop a confirmed foreground run. Unknown/bg ids stay alive.
     const runId = activeCodingRunIdRef.current
-    if (runId) void invokeKillCodingCommand(runId)
-    void invokeKillAllActiveCodingProcesses()
+    if (runId) {
+      const proc = activeCodingProcessesRef.current.find((p) => p.runId === runId)
+      if (proc?.kind === 'foreground') {
+        void invokeKillCodingCommand(runId)
+      }
+    }
     setCodingTerminalFeed(resetCodingTerminalFeedState(streamSeqRef.current))
     setCodingTerminalEpoch((n) => n + 1)
     setActiveCodingRunId(null)
-    setActiveCodingProcesses([])
     setCodingRevealRequest(null)
+    void invokeListActiveCodingProcesses().then((procs) => {
+      setActiveCodingProcesses(procs)
+    })
   }, [])
 
   const stopCodingCommand = useCallback(async () => {
