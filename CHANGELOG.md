@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Chat keyboard shortcuts**: Ctrl+S to save session, Ctrl+N for new chat, Shift+Tab to toggle Plan/Agent mode.
+- **Coding process tracking**: The agent sees active shell processes (foreground/background) as a CTX hint — knows about running dev servers, watchers, and agent-browser sessions.
+- **Background process promotion**: Long-lived CLI commands auto-promote to background after 2.5s of idle output; stop button targets only foreground runs.
+- **MAX_TOOL_ROUNDS setting**: Configurable in Options → Tools (default 50, range 5–120) with soft wrap-up and hard budget-exhausted fallback.
+- **Background processes survive chat switches**: Switching sessions no longer kills background processes — only foreground runs are stopped.
+- **App quit cleanup**: Active coding processes are killed on app quit.
+- **image_recall decoupled from Runware**: Vision recall is always available regardless of Runware image tool toggle.
+- **Sub-agent vision/coding split**: Separate endpoints and provider lock for sub-agent vision and coding.
+- **Matrix theme overhaul**: Classic green-black palette with digital code rain.
+- **Chat sessions grouped by project folder**: General chats + project-specific groups in the sidebar.
+- **Custom Windows title bar**: Cyber-btn header controls replace native caption buttons.
+- **OpenRouter/NVIDIA LLM presets refresh**: Updated model catalog.
+- **False coding claim reprompting**: Agent is reprompted when it claims completion without real tool calls.
+- **OpenRouter provider memory**: Provider slug is remembered per model.
+
+### Changed
+
+- **Composer**: Stop button merged into send button (replaces header diamond mark).
+- **Chat sessions sidebar**: Sessions grouped by project folder; General chats at the top.
+- **Matrix theme**: Classic green-black with digital code rain.
+- **Coding sub-agent**: Uses trim + clear-old-results instead of compress for context management.
+- **read_file UX**: No longer auto-reveals the coding panel.
+
+### Fixed
+
+- Long-lived shell commands no longer stall the tool budget.
+- OpenRouter provider slug is now correctly remembered per model across chat sessions.
+
 ## [2.7.7] — 2026-07-18
 
 ### Added

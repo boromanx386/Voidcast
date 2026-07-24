@@ -25,8 +25,8 @@ Change themes, toggle voice, or update settings directly via natural commands in
 **Work with your code**  
 The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. It also remembers your coding context across sessions — recent files, directories, searches, git operations, command results, and tool failures are persisted per-project and restored when you reopen a repo. Switch the composer to **Plan** mode to explore read-only, revise with **Something else…** if needed, then **Approve & Build** to implement with live step progress.
 
-**It remembers**  
-Remembers facts across sessions 
+**Facts & memory**  
+Facts, reminders, and preferences persist across sessions — stored locally in IndexedDB. 
 
 ---
 
@@ -165,8 +165,11 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `git_status`, `git_diff`, `git_log`, `git_show`
 - `check_types` — TypeScript only (`tsc --noEmit`; use `path_prefix` when `tsconfig.json` is in a subfolder)
 - `execute_command` (with timeout + background support)
+- `coding_explore` — read-only codebase exploration via sub-agent
 
 All coding operations are scoped to your configured project directory.
+
+**Process awareness** — the agent sees active shell processes (foreground/background) as a CTX hint, so it knows about running dev servers, watchers, and agent-browser sessions. Long-lived commands auto-promote to background after 2.5s of idle output. Background processes survive chat switches; only foreground runs are stopped on session change. The stop button targets the current foreground command; app quit kills everything.
 
 ### Git integration
 
@@ -255,7 +258,7 @@ Cross-chat memory is stored locally in IndexedDB:
 
 ## Image-Aware Chat
 
-Paste images into the chat. The assistant can analyze them and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware or OpenRouter from the same thread.
+Paste images into the chat. The assistant can analyze them via **image_recall** (always available, independent of the Runware toggle) and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware or OpenRouter from the same thread.
 
 <p align="center">
   <img src="demos/voidcast-chat-image-edit-scene-transfer.png" width="700" alt="Image editing in chat"/>
@@ -268,7 +271,7 @@ For **charts, diagrams, and infographics**, pick an image model in **Options →
 
 ## Themes & UI
 
-Six built-in themes: **Minimal** (default), **Dystopian**, **Matrix**, **Light**, **Blood Moon**, and **Obsidian**. Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
+Six built-in themes: **Minimal** (default), **Dystopian**, **Matrix** (classic green-black with digital code rain), **Light**, **Blood Moon**, and **Obsidian**. Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
 
 Other UX features:
 - **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens). Session history is stored in **IndexedDB** (migrated automatically from older `localStorage` data on first launch).
@@ -279,6 +282,10 @@ Other UX features:
 - **Thinking blocks** — collapsible reasoning; for Ollama, choose **off / low / medium / high / on** in LLM options
 - **Chat sounds** — optional local audio files for reply done and errors (**Options → General**)
 - **Reminder toasts** — native notification when a reminder is due (toggle in General)
+- **Chat keyboard shortcuts** — Ctrl+S save session, Ctrl+N new chat, Shift+Tab toggle Plan/Agent mode
+- **Chat sessions grouped by project folder** — General chats at top, project-specific groups below
+- **Custom Windows title bar** — cyber-btn header controls replace native caption buttons
+- **Coding process badge** — active foreground/background processes shown in the status bar
 
 ---
 
