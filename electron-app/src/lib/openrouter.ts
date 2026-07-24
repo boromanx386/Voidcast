@@ -134,6 +134,53 @@ function isOpenCodeGoApi(baseUrl: string): boolean {
   return root.includes('opencode.ai/zen/go') || root.includes('/api/opencode-go')
 }
 
+/**
+ * OpenCode Go upstream rejects replay fields some OpenAI-compatible clients send
+ * (notably `reasoning` on assistant turns) — that shows up as 400 on the 2nd chat turn.
+ */
+function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRouterMessage[] {
+  return messages.map((m) => {
+    if (m.role === 'tool') {
+      return {
+        role: 'tool',
+        content: m.content,
+        tool_call_id: m.tool_call_id,
+      }
+    }
+    if (m.role !== 'assistant') return m
+
+    const raw = m as {
+      role: 'assistant'
+      content: string | null
+      tool_calls?: OpenRouterToolCall[]
+      reasoning?: string | null
+    }
+    const toolCalls = raw.tool_calls
+      ?.filter((tc) => Boolean(tc.function?.name))
+      .map((tc) => ({
+        id: tc.id || `tool_call_${tc.function.name}`,
+        type: 'function' as const,
+        function: {
+          name: tc.function.name,
+          arguments:
+            typeof tc.function.arguments === 'string'
+              ? tc.function.arguments
+              : JSON.stringify(tc.function.arguments ?? {}),
+        },
+      }))
+    const hasTools = Boolean(toolCalls?.length)
+    const content =
+      hasTools && (raw.content == null || String(raw.content).trim() === '')
+        ? null
+        : (raw.content ?? '')
+    return {
+      role: 'assistant',
+      content,
+      ...(hasTools ? { tool_calls: toolCalls } : {}),
+    }
+  })
+}
+
 function apiLabelForBaseUrl(baseUrl: string): string {
   if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
   if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia')) return 'NVIDIA'
@@ -291,6 +338,7 @@ export async function streamOpenRouterChat(
   const extra = compactOpenRouterOptions(options.modelOptions)
   const models = [options.model]
   const apiLabel = apiLabelForBaseUrl(root)
+  const isOpenCodeGo = isOpenCodeGoApi(root)
   const cloudProvider =
     apiLabel === 'DeepSeek'
       ? 'deepseek'
@@ -305,9 +353,12 @@ export async function streamOpenRouterChat(
 
   for (const model of models) {
     for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
+      const messages = isOpenCodeGo
+        ? sanitizeMessagesForOpenCodeGo(options.messages)
+        : options.messages
       const body: Record<string, unknown> = {
         model,
-        messages: options.messages,
+        messages,
         stream: true,
       }
       if (extra) Object.assign(body, extra)
