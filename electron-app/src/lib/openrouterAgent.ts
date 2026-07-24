@@ -1,9 +1,9 @@
 import { buildToolsList } from '@/lib/toolDefinitions'
-import type { McpToolInfo } from '@/lib/mcpTools'
-import type { AgentChatMode, PlanArtifact } from '@/types/chat'
-import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
 import { AGENT_MAX_TOOL_ROUNDS_DEFAULT, clampAgentMaxToolRounds } from '@/lib/settings'
-import type { SubAgentUiCallbacks } from '@/lib/subAgent'
+import {
+  type ChatWithToolsCommonParams,
+  buildToolExecutorOptions,
+} from '@/lib/agentParams'
 import {
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
   CODING_CLEAR_MIN_CHARS,
@@ -12,9 +12,7 @@ import {
   shouldTrimCodingResult,
   trimNoisyCodingResult,
 } from '@/lib/codingSubAgent'
-import type { ImageVisionCache } from '@/lib/imageVisionCache'
-import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions } from '@/lib/ollama'
-import type { RunwareImageConfig } from '@/lib/runware'
+import type { OllamaChatUsage } from '@/lib/ollama'
 import {
   ollamaMessagesToOpenRouter,
   streamOpenRouterChat,
@@ -22,9 +20,17 @@ import {
   type OpenRouterToolCall,
 } from '@/lib/openrouter'
 import { executeToolCall, resolveImageRecallRequest } from '@/lib/agentToolExecutor'
-import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
-import { FALSE_CODING_CLAIM_REPROMPT_MESSAGE, FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE, parseToolArguments, TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE, TOOL_BUDGET_WARNING_REPROMPT_MESSAGE } from '@/lib/agentToolUtils'
+import {
+  FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
+  FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
+  FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
+  getLastUserText,
+  parseToolArguments,
+  TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE,
+  TOOL_BUDGET_WARNING_REPROMPT_MESSAGE,
+} from '@/lib/agentToolUtils'
 
 const MAX_REQUIRED_TOOL_REPROMPTS = 2
 
@@ -51,58 +57,10 @@ function toDataImageUri(base64: string, mime: string): string {
   return `data:${safeMime};base64,${base64.replace(/\s+/g, '')}`
 }
 
-export type RunOpenRouterChatWithToolsParams = {
-  baseUrl: string
+export type RunOpenRouterChatWithToolsParams = ChatWithToolsCommonParams & {
   apiKey: string
-  model: string
-  initialMessages: OllamaApiMessage[]
-  modelOptions?: OllamaModelOptions
-  toolsEnabled: ToolsEnabled
-  /** When true, register read_skill and allow loading SKILL.md bodies. */
-  skillsEnabled?: boolean
-  /** MCP tools discovered from configured servers (qualified names). */
-  mcpTools?: McpToolInfo[]
-  /** When true, allow executing mcp__* tools. */
-  mcpEnabled?: boolean
-  /** Per-server enable map passed through to MCP execute. */
-  mcpServerEnabled?: Record<string, boolean>
-  mcpTrustedProjectPaths?: string[]
-  /** Plan mode: read-only tool subset + executor hard gate. */
-  agentMode?: AgentChatMode
-  /** Live approved plan during Approve & Build (for update_plan_progress). */
-  getActiveBuildPlan?: () => PlanArtifact | undefined
-  /** Max shared tool-loop rounds for this turn (from settings.agentMaxToolRounds). */
-  maxToolRounds?: number
-  ttsBaseUrl: string
-  signal?: AbortSignal
-  onDelta: (fullText: string) => void
-  onThinkingDelta?: (fullReasoning: string) => void
-  onToolPhase?: (phase: AgentToolUiPhase | null) => void
-  pdfOutputDir?: string
-  onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
-  runware?: RunwareImageConfig
-  userImages?: string[]
-  userImageMimes?: string[]
-  userImagePaths?: string[]
-  codingProjectPath?: string
-  /** Recently touched files from coding session memo (boosts search ranking). */
-  codingRecentFiles?: string[]
-  /** Ignored by OpenRouter path (no round-0 synthetic web); kept for shared App call site. */
-  rawUserText?: string
-  /** Sub-agent config for image_recall delegation. */
-  subAgent?: SubAgentConfig
-  /** Keys for sub-agent API calls (from main app settings). */
-  ollamaBaseUrlForSubAgent?: string
-  openrouterBaseUrlForSubAgent?: string
-  openrouterApiKeyForSubAgent?: string
-  deepseekBaseUrlForSubAgent?: string
-  deepseekApiKeyForSubAgent?: string
-  thinkLevel?: LlmThinkLevel
   /** OpenRouter provider slug lock from settings. */
   providerOnly?: string
-  subAgentUi?: SubAgentUiCallbacks
-  onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
-  imageVisionCache?: ImageVisionCache
   /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). */
   onEscalateToPlan?: (ctx: { messages: OpenRouterMessage[] }) => void
 }
@@ -117,6 +75,7 @@ export async function runOpenRouterChatWithTools(
   })
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
+  const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
   const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
@@ -216,7 +175,7 @@ export async function runOpenRouterChatWithTools(
       })
     },
     guardFalseImageClaims: params.toolsEnabled.runwareImage,
-    guardFalseImageClaimsUserText: params.rawUserText ?? '',
+    guardFalseImageClaimsUserText: rawUserText,
     maxFalseImageClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     appendFalseImageClaimReprompt: (messages) => {
       messages.push({
@@ -225,7 +184,7 @@ export async function runOpenRouterChatWithTools(
       })
     },
     guardFalseMusicClaims: params.toolsEnabled.runwareMusic,
-    guardFalseMusicClaimsUserText: params.rawUserText ?? '',
+    guardFalseMusicClaimsUserText: rawUserText,
     maxFalseMusicClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     appendFalseMusicClaimReprompt: (messages) => {
       messages.push({
@@ -234,7 +193,7 @@ export async function runOpenRouterChatWithTools(
       })
     },
     guardFalseCodingClaims: params.toolsEnabled.coding && params.agentMode !== 'plan',
-    guardFalseCodingClaimsUserText: params.rawUserText ?? '',
+    guardFalseCodingClaimsUserText: rawUserText,
     maxFalseCodingClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     appendFalseCodingClaimReprompt: (messages) => {
       messages.push({
@@ -272,33 +231,12 @@ export async function runOpenRouterChatWithTools(
       return recall.recalled.map((img) => ({ base64: img.base64, mime: img.mime }))
     },
     executeToolCall: (name, argsRaw) =>
-      executeToolCall(name, argsRaw, params.toolsEnabled, {
-        ttsBaseUrl: params.ttsBaseUrl,
-        signal: params.signal,
-        pdfOutputDir: params.pdfOutputDir,
-        runware: params.runware,
-        userImages: params.userImages,
-        userImageMimes: params.userImageMimes,
-        userImagePaths: params.userImagePaths,
-        codingProjectPath: params.codingProjectPath,
-        codingRecentFiles: params.codingRecentFiles,
-        skillsEnabled: Boolean(params.skillsEnabled),
-        mcpEnabled: Boolean(params.mcpEnabled),
-        mcpTools: params.mcpTools,
-        mcpServerEnabled: params.mcpServerEnabled,
-        mcpTrustedProjectPaths: params.mcpTrustedProjectPaths,
-        agentMode: params.agentMode,
-        getActiveBuildPlan: params.getActiveBuildPlan,
-        subAgent: params.subAgent,
-        ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
-        openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
-        openrouterApiKey: params.openrouterApiKeyForSubAgent,
-        deepseekBaseUrl: params.deepseekBaseUrlForSubAgent,
-        deepseekApiKey: params.deepseekApiKeyForSubAgent,
-        subAgentUi: params.subAgentUi,
-        onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
-        imageVisionCache: params.imageVisionCache,
-      }),
+      executeToolCall(
+        name,
+        argsRaw,
+        params.toolsEnabled,
+        buildToolExecutorOptions({ ...params, rawUserText }),
+      ),
     parseArgsForToolResult: parseToolArguments,
     onDelta: params.onDelta,
     onThinkingDelta: params.onThinkingDelta,

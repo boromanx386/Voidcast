@@ -2,16 +2,13 @@ import {
   AGENT_MAX_TOOL_ROUNDS_DEFAULT,
   clampAgentMaxToolRounds,
   normalizeBaseUrl,
-  type ToolsEnabled,
-  type SubAgentConfig,
   type LlmThinkLevel,
 } from '@/lib/settings'
 import { buildToolsList } from '@/lib/toolDefinitions'
-import { type McpToolInfo } from '@/lib/mcpTools'
-import type { AgentChatMode, PlanArtifact } from '@/types/chat'
-import { type RunwareImageConfig } from '@/lib/runware'
-import { type ImageVisionCache } from '@/lib/imageVisionCache'
-import { type SubAgentUiCallbacks } from '@/lib/subAgent'
+import {
+  type ChatWithToolsCommonParams,
+  buildToolExecutorOptions,
+} from '@/lib/agentParams'
 import {
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
   CODING_CLEAR_MIN_CHARS,
@@ -33,7 +30,7 @@ import {
   parseChatStreamUsage,
   toOllamaThinkBodyValue,
 } from '@/lib/ollama'
-import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import { executeToolCall, resolveImageRecallRequest } from '@/lib/agentToolExecutor'
 import {
@@ -267,64 +264,7 @@ export async function streamOllamaChatOnce(options: {
   }
 }
 
-export type RunChatWithToolsParams = {
-  baseUrl: string
-  model: string
-  initialMessages: OllamaApiMessage[]
-  modelOptions?: OllamaModelOptions
-  toolsEnabled: ToolsEnabled
-  /** When true, register read_skill and allow loading SKILL.md bodies. */
-  skillsEnabled?: boolean
-  /** MCP tools discovered from configured servers (qualified names). */
-  mcpTools?: McpToolInfo[]
-  /** When true, allow executing mcp__* tools. */
-  mcpEnabled?: boolean
-  /** Per-server enable map passed through to MCP execute. */
-  mcpServerEnabled?: Record<string, boolean>
-  mcpTrustedProjectPaths?: string[]
-  /** Plan mode: read-only tool subset + executor hard gate. */
-  agentMode?: AgentChatMode
-  /** Live approved plan during Approve & Build (for update_plan_progress). */
-  getActiveBuildPlan?: () => PlanArtifact | undefined
-  /** Max shared tool-loop rounds for this turn (from settings.agentMaxToolRounds). */
-  maxToolRounds?: number
-  /** Same host as TTS; used for `POST /tools/search` (DDGS). */
-  ttsBaseUrl: string
-  signal?: AbortSignal
-  onDelta: (fullText: string) => void
-  /** Ollama `think` level from settings. */
-  thinkLevel?: LlmThinkLevel
-  /** Accumulated thinking across tool rounds + current stream. */
-  onThinkingDelta?: (fullThinking: string) => void
-  /** Called when a tool phase starts; pass null to clear (e.g. before next model stream). */
-  onToolPhase?: (phase: AgentToolUiPhase | null) => void
-  /** Folder for `save_pdf` (from app settings). */
-  pdfOutputDir?: string
-  /** After each tool runs; use to show real outcomes (e.g. PDF path) in the UI. */
-  onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
-  runware?: RunwareImageConfig
-  /** Attached images from the latest user message (raw base64). */
-  userImages?: string[]
-  /** MIME list matching `userImages` indexes. */
-  userImageMimes?: string[]
-  /** Optional source paths matching `userImages` indexes. */
-  userImagePaths?: string[]
-  codingProjectPath?: string
-  /** Recently touched files from coding session memo (boosts search ranking). */
-  codingRecentFiles?: string[]
-  /** User-typed message only (no catalog/file hint blocks). Used for forced web_search / scrape heuristics. */
-  rawUserText?: string
-  /** Sub-agent config for image_recall delegation. */
-  subAgent?: SubAgentConfig
-  /** Keys for sub-agent API calls (from main app settings). */
-  ollamaBaseUrlForSubAgent?: string
-  openrouterBaseUrlForSubAgent?: string
-  openrouterApiKeyForSubAgent?: string
-  deepseekBaseUrlForSubAgent?: string
-  deepseekApiKeyForSubAgent?: string
-  subAgentUi?: SubAgentUiCallbacks
-  onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
-  imageVisionCache?: ImageVisionCache
+export type RunChatWithToolsParams = ChatWithToolsCommonParams & {
   /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). */
   onEscalateToPlan?: (ctx: { messages: OllamaApiMessage[] }) => void
 }
@@ -531,34 +471,12 @@ export async function runOllamaChatWithTools(
       return false
     },
     executeToolCall: (name, argsRaw) =>
-      executeToolCall(name, argsRaw, params.toolsEnabled, {
-        ttsBaseUrl: params.ttsBaseUrl,
-        signal: params.signal,
-        pdfOutputDir: params.pdfOutputDir,
-        runware: params.runware,
-        userImages: params.userImages,
-        userImageMimes: params.userImageMimes,
-        userImagePaths: params.userImagePaths,
-        codingProjectPath: params.codingProjectPath,
-        codingRecentFiles: params.codingRecentFiles,
-        userText: rawUserText,
-        skillsEnabled: Boolean(params.skillsEnabled),
-        mcpEnabled: Boolean(params.mcpEnabled),
-        mcpTools: params.mcpTools,
-        mcpServerEnabled: params.mcpServerEnabled,
-        mcpTrustedProjectPaths: params.mcpTrustedProjectPaths,
-        agentMode: params.agentMode,
-        getActiveBuildPlan: params.getActiveBuildPlan,
-        subAgent: params.subAgent,
-        ollamaBaseUrl: params.ollamaBaseUrlForSubAgent,
-        openrouterBaseUrl: params.openrouterBaseUrlForSubAgent,
-        openrouterApiKey: params.openrouterApiKeyForSubAgent,
-        deepseekBaseUrl: params.deepseekBaseUrlForSubAgent,
-        deepseekApiKey: params.deepseekApiKeyForSubAgent,
-        subAgentUi: params.subAgentUi,
-        onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
-        imageVisionCache: params.imageVisionCache,
-      }),
+      executeToolCall(
+        name,
+        argsRaw,
+        params.toolsEnabled,
+        buildToolExecutorOptions({ ...params, rawUserText }),
+      ),
     parseArgsForToolResult: argumentsStringToObject,
     onDelta: params.onDelta,
     onThinkingDelta:
