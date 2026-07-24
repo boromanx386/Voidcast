@@ -7,7 +7,13 @@ import {
   OPENCODE_GO_LLM_PRESET_MODELS,
 } from '@/lib/cloudLlmPresets'
 import { fetchOllamaModels } from '@/lib/ollama'
-import { currentPinnedModelId, toOllamaPinnedId } from '@/lib/pinnedModels'
+import {
+  currentPinnedModelId,
+  parsePinnedId,
+  pinnedIdLabel,
+  toOllamaPinnedId,
+  toScopedPinnedId,
+} from '@/lib/pinnedModels'
 
 interface PinnedItem {
   id: string
@@ -86,34 +92,83 @@ export default function ModelSwitcherPopup({
       map.push({ id: p.id, label: p.label, provider: 'openrouter' })
     }
     for (const p of DEEPSEEK_LLM_PRESET_MODELS) {
-      map.push({ id: p.id, label: p.label, provider: 'deepseek' })
+      map.push({
+        id: toScopedPinnedId('deepseek', p.id),
+        label: p.label,
+        provider: 'deepseek',
+      })
     }
     for (const p of NVIDIA_LLM_PRESET_MODELS) {
       map.push({ id: p.id, label: p.label, provider: 'nvidia' })
     }
     for (const p of OPENCODE_GO_LLM_PRESET_MODELS) {
-      map.push({ id: p.id, label: p.label, provider: 'opencode-go' })
+      map.push({
+        id: toScopedPinnedId('opencode-go', p.id),
+        label: p.label,
+        provider: 'opencode-go',
+      })
     }
     for (const p of ollamaModels) map.push(p)
     return map
   }, [ollamaModels])
 
   const pinnedItems = useMemo(() => {
+    const byId = new Map(allPresets.map((item) => [item.id, item]))
     const items: PinnedItem[] = []
     for (const id of pinned) {
-      if (id.startsWith('ollama/')) {
-        const found = ollamaModels.find((item) => item.id === id)
-        items.push(found ?? { id, label: id.replace(/^ollama\//, ''), provider: 'ollama' })
+      const found = byId.get(id)
+      if (found) {
+        items.push(found)
         continue
       }
-      const match =
-        allPresets.find((item) => item.id === id && item.provider === settings.llmProvider) ??
-        allPresets.find((item) => item.id === id)
-      if (match) items.push(match)
-      else items.push({ id, label: id, provider: 'openrouter' })
+      const parsed = parsePinnedId(id)
+      if (parsed) {
+        items.push({
+          id: toScopedPinnedId(parsed.provider, parsed.modelId),
+          label: parsed.modelId,
+          provider: parsed.provider,
+        })
+        continue
+      }
+      // Legacy bare DeepSeek/OpenCode ids → prefer current provider if it matches a preset.
+      const deepseekHit = DEEPSEEK_LLM_PRESET_MODELS.find((p) => p.id === id)
+      const opencodeHit = OPENCODE_GO_LLM_PRESET_MODELS.find((p) => p.id === id)
+      if (deepseekHit && settings.llmProvider === 'deepseek') {
+        items.push({
+          id: toScopedPinnedId('deepseek', id),
+          label: deepseekHit.label,
+          provider: 'deepseek',
+        })
+        continue
+      }
+      if (opencodeHit && settings.llmProvider === 'opencode-go') {
+        items.push({
+          id: toScopedPinnedId('opencode-go', id),
+          label: opencodeHit.label,
+          provider: 'opencode-go',
+        })
+        continue
+      }
+      if (deepseekHit) {
+        items.push({
+          id: toScopedPinnedId('deepseek', id),
+          label: deepseekHit.label,
+          provider: 'deepseek',
+        })
+        continue
+      }
+      const openrouterHit = OPENROUTER_LLM_PRESET_MODELS.find((p) => p.id === id)
+      const nvidiaHit = NVIDIA_LLM_PRESET_MODELS.find((p) => p.id === id)
+      if (openrouterHit) {
+        items.push({ id, label: openrouterHit.label, provider: 'openrouter' })
+      } else if (nvidiaHit) {
+        items.push({ id, label: nvidiaHit.label, provider: 'nvidia' })
+      } else {
+        items.push({ id, label: pinnedIdLabel(id), provider: 'openrouter' })
+      }
     }
     return items
-  }, [allPresets, pinned, settings.llmProvider, ollamaModels])
+  }, [allPresets, pinned, settings.llmProvider])
 
   const currentProviderItems = useMemo((): PinnedItem[] => {
     const currProv = settings.llmProvider

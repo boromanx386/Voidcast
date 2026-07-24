@@ -3,7 +3,7 @@ import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
 import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENCODE_GO_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
-import { fromOllamaPinnedId, toOllamaPinnedId } from '@/lib/pinnedModels'
+import { fromOllamaPinnedId, pinnedIdLabel, pinBelongsToProvider, toOllamaPinnedId, toScopedPinnedId } from '@/lib/pinnedModels'
 import { useCallback } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { CloudLlmPreset } from '@/lib/cloudLlmPresets'
@@ -19,7 +19,7 @@ function pinnedChips(
     <div className="mb-3 flex flex-wrap gap-1.5">
       {pinnedModels.map((id) => {
         const preset = presets.find((p) => p.id === id)
-        const label = preset?.label ?? (id.startsWith('ollama/') ? fromOllamaPinnedId(id) : id)
+        const label = preset?.label ?? pinnedIdLabel(id)
         const isCurrent = id === currentModelId
         return (
           <span
@@ -488,9 +488,18 @@ export function LlmOptionsPanel({
               <span className="text-neon-cyan mr-2">◈</span> DEEPSEEK_MODEL
             </label>
             {pinnedChips(
-              pinned,
-              DEEPSEEK_LLM_PRESET_MODELS,
-              settings.deepseekModel,
+              pinned.filter((id) =>
+                pinBelongsToProvider(
+                  id,
+                  'deepseek',
+                  new Set(DEEPSEEK_LLM_PRESET_MODELS.map((m) => m.id)),
+                ),
+              ),
+              DEEPSEEK_LLM_PRESET_MODELS.map((m) => ({
+                id: toScopedPinnedId('deepseek', m.id),
+                label: m.label,
+              })),
+              toScopedPinnedId('deepseek', settings.deepseekModel),
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
@@ -522,8 +531,10 @@ export function LlmOptionsPanel({
                 )}
             </select>
             <PinToggleButton
-              pinned={pinned.includes(settings.deepseekModel)}
-              onToggle={() => handleTogglePin(settings.deepseekModel)}
+              pinned={pinned.includes(toScopedPinnedId('deepseek', settings.deepseekModel))}
+              onToggle={() =>
+                handleTogglePin(toScopedPinnedId('deepseek', settings.deepseekModel))
+              }
             />
             </div>
             <input
@@ -565,9 +576,12 @@ export function LlmOptionsPanel({
               <span className="text-neon-cyan mr-2">◈</span> OPENCODE_GO_MODEL
             </label>
             {pinnedChips(
-              pinned,
-              OPENCODE_GO_LLM_PRESET_MODELS,
-              settings.opencodeGoModel,
+              pinned.filter((id) => pinBelongsToProvider(id, 'opencode-go')),
+              OPENCODE_GO_LLM_PRESET_MODELS.map((m) => ({
+                id: toScopedPinnedId('opencode-go', m.id),
+                label: m.label,
+              })),
+              toScopedPinnedId('opencode-go', settings.opencodeGoModel),
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
@@ -600,8 +614,10 @@ export function LlmOptionsPanel({
                 )}
             </select>
             <PinToggleButton
-              pinned={pinned.includes(settings.opencodeGoModel)}
-              onToggle={() => handleTogglePin(settings.opencodeGoModel)}
+              pinned={pinned.includes(toScopedPinnedId('opencode-go', settings.opencodeGoModel))}
+              onToggle={() =>
+                handleTogglePin(toScopedPinnedId('opencode-go', settings.opencodeGoModel))
+              }
             />
             </div>
             <input
