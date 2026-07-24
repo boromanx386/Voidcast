@@ -1,4 +1,14 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
+
+function stringArraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+  const aa = a ?? []
+  const bb = b ?? []
+  if (aa.length !== bb.length) return false
+  for (let i = 0; i < aa.length; i++) {
+    if (aa[i] !== bb[i]) return false
+  }
+  return true
+}
 import {
   clearCloudSecretsFromServer,
   pushCloudSecretsToServer,
@@ -35,7 +45,8 @@ export function useAppSettings() {
           prev.runwareWidth !== stored.runwareWidth ||
           prev.runwareHeight !== stored.runwareHeight ||
           prev.runwareImageModel !== stored.runwareImageModel ||
-          prev.runwareEditModel !== stored.runwareEditModel
+          prev.runwareEditModel !== stored.runwareEditModel ||
+          !stringArraysEqual(prev.pinnedModels, stored.pinnedModels)
         return changed ? stored : prev
       })
     }, 1000)

@@ -669,6 +669,8 @@ export type AppSettings = {
   openrouterProviderOnly: string
   /** Per OpenRouter model id → provider slug lock (empty = default routing). */
   openrouterProviderByModel: Record<string, string>
+  /** User-pinned model IDs (provider-specific ids like "openai/gpt-4.1"). */
+  pinnedModels: string[]
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   nvidiaModel: string
@@ -887,6 +889,11 @@ export const defaults: AppSettings = {
   openrouterModel: 'openrouter/free',
   openrouterProviderOnly: '',
   openrouterProviderByModel: {},
+  pinnedModels: [
+    'anthropic/claude-sonnet-5',
+    'openai/gpt-5.6-sol',
+    'openai/gpt-5.6-terra',
+  ],
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
   nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
@@ -1213,6 +1220,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
     openrouterProviderByModel[openrouterModel] = legacyProviderOnly
   }
   const openrouterProviderOnly = openrouterProviderByModel[openrouterModel] ?? ''
+  const pinnedModels: string[] = Array.isArray(s.pinnedModels)
+    ? s.pinnedModels.filter((m: unknown): m is string => typeof m === 'string' && m.length > 0)
+    : [...defaults.pinnedModels]
   const nvidiaBaseUrl =
     typeof s.nvidiaBaseUrl === 'string' && s.nvidiaBaseUrl.trim()
       ? s.nvidiaBaseUrl.trim()
@@ -1254,6 +1264,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     openrouterModel,
     openrouterProviderOnly,
     openrouterProviderByModel,
+    pinnedModels,
     nvidiaBaseUrl,
     nvidiaApiKey,
     nvidiaModel,

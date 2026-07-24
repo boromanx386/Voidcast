@@ -3,7 +3,71 @@ import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
 import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENCODE_GO_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
+import { fromOllamaPinnedId, toOllamaPinnedId } from '@/lib/pinnedModels'
+import { useCallback } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
+import type { CloudLlmPreset } from '@/lib/cloudLlmPresets'
+
+function pinnedChips(
+  pinnedModels: string[],
+  presets: CloudLlmPreset[],
+  currentModelId: string,
+  onToggle: (id: string) => void,
+) {
+  if (pinnedModels.length === 0) return null
+  return (
+    <div className="mb-3 flex flex-wrap gap-1.5">
+      {pinnedModels.map((id) => {
+        const preset = presets.find((p) => p.id === id)
+        const label = preset?.label ?? (id.startsWith('ollama/') ? fromOllamaPinnedId(id) : id)
+        const isCurrent = id === currentModelId
+        return (
+          <span
+            key={id}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs transition-colors ${
+              isCurrent
+                ? 'border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan'
+                : 'border-void-muted/40 bg-void-muted/20 text-void-dim hover:border-void-dim'
+            }`}
+          >
+            <span className="max-w-[160px] truncate">{label}</span>
+            <button
+              type="button"
+              className="ml-0.5 leading-none text-void-dim transition-colors hover:text-neon-red"
+              title={`Unpin ${label}`}
+              onClick={() => onToggle(id)}
+            >
+              ×
+            </button>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function PinToggleButton({
+  pinned,
+  onToggle,
+}: {
+  pinned: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`shrink-0 rounded border px-2 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+        pinned
+          ? 'border-neon-cyan/50 bg-neon-cyan/10 text-neon-cyan'
+          : 'border-void-muted/40 text-void-dim hover:border-void-dim hover:text-void-text'
+      }`}
+      title={pinned ? 'Unpin this model' : 'Pin this model'}
+      onClick={onToggle}
+    >
+      {pinned ? 'PINNED' : 'PIN'}
+    </button>
+  )
+}
 
 type Props = {
   settings: AppSettings
@@ -26,6 +90,24 @@ export function LlmOptionsPanel({
   ollamaModels,
   modelsError,
 }: Props) {
+  const pinned = settings.pinnedModels ?? []
+
+  const handleTogglePin = useCallback(
+    (modelId: string) => {
+      setSettings((prev) => {
+        const prevList = prev.pinnedModels ?? []
+        const alreadyPinned = prevList.includes(modelId)
+        return {
+          ...prev,
+          pinnedModels: alreadyPinned
+            ? prevList.filter((id) => id !== modelId)
+            : [...prevList, modelId],
+        }
+      })
+    },
+    [setSettings],
+  )
+
   return (
     <div className="grid gap-5 text-sm">
       {/* Ollama URL */}
@@ -122,9 +204,20 @@ export function LlmOptionsPanel({
           </div>
         )}
 
+        {/* Pinned chips for Ollama */}
+        {pinnedChips(
+          pinned.filter((id) => id.startsWith('ollama/')),
+          pinned
+            .filter((id) => id.startsWith('ollama/'))
+            .map((id) => ({ id, label: fromOllamaPinnedId(id) })),
+          toOllamaPinnedId(settings.ollamaModel),
+          handleTogglePin,
+        )}
+
         {/* Model Dropdown */}
+        <div className="flex items-center gap-2">
         <select
-          className="form-select mb-3"
+          className="form-select flex-1"
           value={
             ollamaModels.includes(settings.ollamaModel)
               ? settings.ollamaModel
@@ -155,10 +248,15 @@ export function LlmOptionsPanel({
               </option>
             )}
         </select>
+        <PinToggleButton
+          pinned={pinned.includes(toOllamaPinnedId(settings.ollamaModel))}
+          onToggle={() => handleTogglePin(toOllamaPinnedId(settings.ollamaModel))}
+        />
+        </div>
 
         {/* Manual Model Input */}
         <input
-          className="cyber-input"
+          className="cyber-input mt-2"
           placeholder="Enter model name manually..."
           value={
             ollamaModels.includes(settings.ollamaModel)
@@ -198,8 +296,15 @@ export function LlmOptionsPanel({
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> OPENROUTER_MODEL
             </label>
+            {pinnedChips(
+              pinned,
+              OPENROUTER_LLM_PRESET_MODELS,
+              settings.openrouterModel,
+              handleTogglePin,
+            )}
+            <div className="flex items-center gap-2">
             <select
-              className="form-select mb-3"
+              className="form-select flex-1"
               value={
                 OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel)
                   ? settings.openrouterModel
@@ -225,8 +330,13 @@ export function LlmOptionsPanel({
                   </option>
                 )}
             </select>
+            <PinToggleButton
+              pinned={pinned.includes(settings.openrouterModel)}
+              onToggle={() => handleTogglePin(settings.openrouterModel)}
+            />
+            </div>
             <input
-              className="cyber-input"
+              className="cyber-input mt-2"
               value={settings.openrouterModel}
               onChange={(e) => {
                 const nextModel = e.target.value
@@ -299,8 +409,15 @@ export function LlmOptionsPanel({
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> NVIDIA_MODEL
             </label>
+            {pinnedChips(
+              pinned,
+              NVIDIA_LLM_PRESET_MODELS,
+              settings.nvidiaModel,
+              handleTogglePin,
+            )}
+            <div className="flex items-center gap-2">
             <select
-              className="form-select mb-3"
+              className="form-select flex-1"
               value={
                 NVIDIA_LLM_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel)
                   ? settings.nvidiaModel
@@ -326,8 +443,13 @@ export function LlmOptionsPanel({
                   </option>
                 )}
             </select>
+            <PinToggleButton
+              pinned={pinned.includes(settings.nvidiaModel)}
+              onToggle={() => handleTogglePin(settings.nvidiaModel)}
+            />
+            </div>
             <input
-              className="cyber-input"
+              className="cyber-input mt-2"
               value={settings.nvidiaModel}
               onChange={(e) =>
                 setSettings((s) => ({ ...s, nvidiaModel: e.target.value }))
@@ -365,8 +487,15 @@ export function LlmOptionsPanel({
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> DEEPSEEK_MODEL
             </label>
+            {pinnedChips(
+              pinned,
+              DEEPSEEK_LLM_PRESET_MODELS,
+              settings.deepseekModel,
+              handleTogglePin,
+            )}
+            <div className="flex items-center gap-2">
             <select
-              className="form-select mb-3"
+              className="form-select flex-1"
               value={
                 DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === settings.deepseekModel)
                   ? settings.deepseekModel
@@ -392,8 +521,13 @@ export function LlmOptionsPanel({
                   </option>
                 )}
             </select>
+            <PinToggleButton
+              pinned={pinned.includes(settings.deepseekModel)}
+              onToggle={() => handleTogglePin(settings.deepseekModel)}
+            />
+            </div>
             <input
-              className="cyber-input"
+              className="cyber-input mt-2"
               value={settings.deepseekModel}
               onChange={(e) =>
                 setSettings((s) => ({ ...s, deepseekModel: e.target.value }))
@@ -430,8 +564,15 @@ export function LlmOptionsPanel({
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> OPENCODE_GO_MODEL
             </label>
+            {pinnedChips(
+              pinned,
+              OPENCODE_GO_LLM_PRESET_MODELS,
+              settings.opencodeGoModel,
+              handleTogglePin,
+            )}
+            <div className="flex items-center gap-2">
             <select
-              className="form-select mb-2"
+              className="form-select flex-1"
               value={
                 OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel)
                   ? settings.opencodeGoModel
@@ -458,8 +599,13 @@ export function LlmOptionsPanel({
                   </option>
                 )}
             </select>
+            <PinToggleButton
+              pinned={pinned.includes(settings.opencodeGoModel)}
+              onToggle={() => handleTogglePin(settings.opencodeGoModel)}
+            />
+            </div>
             <input
-              className="cyber-input"
+              className="cyber-input mt-2"
               value={settings.opencodeGoModel}
               onChange={(e) =>
                 setSettings((s) => ({ ...s, opencodeGoModel: e.target.value }))
