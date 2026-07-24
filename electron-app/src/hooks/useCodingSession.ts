@@ -134,7 +134,7 @@ export function useCodingSession({
       if (!codingPanelAvailable) return
       const normalized = normalizeCodingRevealPath(path)
       if (!normalized) return
-      setShowCodingPanel(true)
+      // Queue preview focus only — do not force-open a collapsed coding panel.
       setCodingRevealRequest((prev) => ({
         path: normalized,
         nonce: (prev?.nonce ?? 0) + 1,
