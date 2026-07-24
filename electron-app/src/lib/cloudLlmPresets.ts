@@ -59,6 +59,24 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
 ]
 
+/**
+ * OpenCode Go models on OpenAI-compatible `/v1/chat/completions`
+ * (https://opencode.ai/docs/go/). Anthropic `/messages` models (MiniMax, Qwen) omitted.
+ */
+export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
+  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
+  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (fast)' },
+  { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code' },
+  { id: 'kimi-k2.6', label: 'Kimi K2.6' },
+  { id: 'kimi-k3', label: 'Kimi K3' },
+  { id: 'glm-5.2', label: 'GLM 5.2' },
+  { id: 'glm-5.1', label: 'GLM 5.1' },
+  { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
+  { id: 'mimo-v2.5', label: 'MiMo V2.5' },
+  { id: 'grok-4.5', label: 'Grok 4.5' },
+  { id: 'hy3', label: 'Hy3' },
+]
+
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
   'minimax/minimax-m2.5:free': 'minimax/minimax-m2.5',
   'moonshotai/kimi-k2.6:free': 'moonshotai/kimi-k2.6',
@@ -105,6 +123,24 @@ export function normalizeNvidiaModelId(model: string): string {
   const trimmed = model.trim()
   if (!trimmed) return NVIDIA_LLM_PRESET_MODELS[0]?.id ?? 'nvidia/nemotron-3-super-120b-a12b'
   return NVIDIA_MODEL_ALIASES[trimmed] ?? trimmed
+}
+
+const OPENCODE_GO_MODEL_ALIASES: Record<string, string> = {
+  'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
+  'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
+  'moonshotai/kimi-k2.7-code': 'kimi-k2.7-code',
+  'moonshotai/kimi-k2.6': 'kimi-k2.6',
+  'moonshotai/kimi-k3': 'kimi-k3',
+  'z-ai/glm-5.2': 'glm-5.2',
+  'z-ai/glm-5.1': 'glm-5.1',
+  'x-ai/grok-4.5': 'grok-4.5',
+  'tencent/hy3': 'hy3',
+}
+
+export function normalizeOpenCodeGoModelId(model: string): string {
+  const trimmed = model.trim()
+  if (!trimmed) return OPENCODE_GO_LLM_PRESET_MODELS[0]?.id ?? 'deepseek-v4-pro'
+  return OPENCODE_GO_MODEL_ALIASES[trimmed] ?? trimmed
 }
 
 /** OpenRouter route suffixes after `provider/model:` (not Ollama tags). */

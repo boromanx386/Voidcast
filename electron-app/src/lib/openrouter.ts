@@ -129,9 +129,15 @@ function isDeepSeekApi(baseUrl: string): boolean {
   return root.includes('api.deepseek.com') || root.includes('/api/deepseek')
 }
 
+function isOpenCodeGoApi(baseUrl: string): boolean {
+  const root = normalizeBaseUrl(baseUrl)
+  return root.includes('opencode.ai/zen/go') || root.includes('/api/opencode-go')
+}
+
 function apiLabelForBaseUrl(baseUrl: string): string {
   if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
   if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia')) return 'NVIDIA'
+  if (isOpenCodeGoApi(baseUrl)) return 'OpenCode Go'
   return 'OpenRouter'
 }
 
@@ -286,7 +292,13 @@ export async function streamOpenRouterChat(
   const models = [options.model]
   const apiLabel = apiLabelForBaseUrl(root)
   const cloudProvider =
-    apiLabel === 'DeepSeek' ? 'deepseek' : apiLabel === 'NVIDIA' ? 'nvidia' : 'openrouter'
+    apiLabel === 'DeepSeek'
+      ? 'deepseek'
+      : apiLabel === 'NVIDIA'
+        ? 'nvidia'
+        : apiLabel === 'OpenCode Go'
+          ? 'opencode-go'
+          : 'openrouter'
   assertCloudLlmApiKey(cloudProvider, options.apiKey)
   let res: Response | null = null
   let lastErr = ''

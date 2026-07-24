@@ -1,6 +1,6 @@
 import type { AppSettings } from '@/lib/settings'
 import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
-import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
+import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENCODE_GO_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import type { Dispatch, SetStateAction } from 'react'
@@ -46,7 +46,9 @@ export function LlmOptionsPanel({
                     ? 'nvidia'
                     : e.target.value === 'deepseek'
                       ? 'deepseek'
-                      : 'ollama',
+                      : e.target.value === 'opencode-go'
+                        ? 'opencode-go'
+                        : 'ollama',
             }))
           }
         >
@@ -54,6 +56,7 @@ export function LlmOptionsPanel({
           <option value="openrouter">OpenRouter (cloud)</option>
           <option value="nvidia">NVIDIA (cloud)</option>
           <option value="deepseek">DeepSeek (cloud)</option>
+          <option value="opencode-go">OpenCode Go (cloud)</option>
         </select>
       </div>
 
@@ -401,6 +404,71 @@ export function LlmOptionsPanel({
         </>
       )}
 
+      {settings.llmProvider === 'opencode-go' && (
+        <>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-purple mr-2">◇</span> OPENCODE_GO_BASE_URL
+            </label>
+            <input
+              type="text"
+              className="cyber-input"
+              value={settings.opencodeGoBaseUrl}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, opencodeGoBaseUrl: e.target.value }))
+              }
+              placeholder="https://opencode.ai/zen/go/v1"
+              autoComplete="off"
+            />
+            <p className="mt-1 text-xs text-void-dim font-mono">
+              OpenAI-compatible chat models only (DeepSeek, Kimi, GLM, MiMo, Grok, Hy3). MiniMax/Qwen
+              use Anthropic Messages and are not wired yet.
+            </p>
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> OPENCODE_GO_MODEL
+            </label>
+            <select
+              className="form-select mb-2"
+              value={
+                OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel)
+                  ? settings.opencodeGoModel
+                  : settings.opencodeGoModel
+                    ? `__custom__${settings.opencodeGoModel}`
+                    : OPENCODE_GO_LLM_PRESET_MODELS[0]?.id
+              }
+              onChange={(e) => {
+                const raw = e.target.value
+                const v = raw.startsWith('__custom__') ? raw.slice('__custom__'.length) : raw
+                if (raw === '__custom__') return
+                setSettings((s) => ({ ...s, opencodeGoModel: v }))
+              }}
+            >
+              {OPENCODE_GO_LLM_PRESET_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              {settings.opencodeGoModel &&
+                !OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel) && (
+                  <option value={`__custom__${settings.opencodeGoModel}`}>
+                    {settings.opencodeGoModel} (manual)
+                  </option>
+                )}
+            </select>
+            <input
+              className="cyber-input"
+              value={settings.opencodeGoModel}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, opencodeGoModel: e.target.value }))
+              }
+              placeholder="deepseek-v4-pro"
+            />
+          </div>
+        </>
+      )}
+
       {/* Temperature */}
       <div className="form-group">
         <label className="form-label">
@@ -478,7 +546,7 @@ export function LlmOptionsPanel({
           />
           <p className="text-xs text-void-dim mt-1">
             Sent to Ollama as <code className="text-void-light">options.num_ctx</code>. Cloud
-            providers (OpenRouter / DeepSeek / NVIDIA) ignore this — CTX meter uses each
+            providers (OpenRouter / DeepSeek / NVIDIA / OpenCode Go) ignore this — CTX meter uses each
             model&apos;s native window.
           </p>
         </div>
@@ -524,7 +592,16 @@ export function LlmOptionsPanel({
       {/* Model Info Panel */}
       <div className="bg-void-black/50 border border-neon-cyan/20 p-4">
         <p className="text-xs font-mono text-neon-cyan mb-3 uppercase tracking-wider">
-          <span className="mr-2">◈</span>{settings.llmProvider === 'openrouter' ? 'OPENROUTER_NOTES' : settings.llmProvider === 'nvidia' ? 'NVIDIA_NOTES' : settings.llmProvider === 'deepseek' ? 'DEEPSEEK_NOTES' : 'RECOMMENDED_MODELS'}
+          <span className="mr-2">◈</span>
+          {settings.llmProvider === 'openrouter'
+            ? 'OPENROUTER_NOTES'
+            : settings.llmProvider === 'nvidia'
+              ? 'NVIDIA_NOTES'
+              : settings.llmProvider === 'deepseek'
+                ? 'DEEPSEEK_NOTES'
+                : settings.llmProvider === 'opencode-go'
+                  ? 'OPENCODE_GO_NOTES'
+                  : 'RECOMMENDED_MODELS'}
         </p>
         {settings.llmProvider === 'ollama' && <ul className="text-xs font-mono text-void-dim space-y-1">
           <li className="flex items-center gap-2">
@@ -599,6 +676,30 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
               API key in General options; THINKING_LEVEL maps to DeepSeek reasoning mode
+            </li>
+          </ul>
+        )}
+        {settings.llmProvider === 'opencode-go' && (
+          <ul className="text-xs font-mono text-void-dim space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Subscription gateway for curated open coding models (OpenAI-compatible)
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Get a key at{' '}
+              <a
+                href="https://opencode.ai/auth"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-neon-cyan underline decoration-neon-cyan/35"
+              >
+                opencode.ai/auth
+              </a>
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              MiniMax / Qwen on Go use Anthropic Messages — not supported in this app yet
             </li>
           </ul>
         )}

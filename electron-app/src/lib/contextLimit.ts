@@ -1,9 +1,11 @@
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
+  OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
+  normalizeOpenCodeGoModelId,
   normalizeOpenRouterModelId,
 } from '@/lib/cloudLlmPresets'
 import type { AppSettings, LlmProvider } from '@/lib/settings'
@@ -25,6 +27,7 @@ const PROVIDER_DEFAULT_CONTEXT: Record<Exclude<LlmProvider, 'ollama'>, number> =
   openrouter: 128_000,
   nvidia: 128_000,
   deepseek: 1_000_000,
+  'opencode-go': 128_000,
 }
 
 /** Explicit overrides for models where heuristics would be wrong. */
@@ -60,6 +63,15 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'poolside/laguna-s-2.1:free': 262_144,
   'tencent/hy3-preview': 262_144,
   'tencent/hy3': 262_144,
+  'kimi-k2.7-code': 262_144,
+  'kimi-k2.6': 128_000,
+  'kimi-k3': 1_048_576,
+  'glm-5.2': 1_048_576,
+  'glm-5.1': 1_048_576,
+  'mimo-v2.5': 128_000,
+  'mimo-v2.5-pro': 128_000,
+  'grok-4.5': 500_000,
+  hy3: 262_144,
 }
 
 function buildPresetLookup(
@@ -77,11 +89,17 @@ function buildPresetLookup(
 const OPENROUTER_PRESET_CONTEXT = buildPresetLookup(OPENROUTER_LLM_PRESET_MODELS)
 const DEEPSEEK_PRESET_CONTEXT = buildPresetLookup(DEEPSEEK_LLM_PRESET_MODELS)
 const NVIDIA_PRESET_CONTEXT = buildPresetLookup(NVIDIA_LLM_PRESET_MODELS)
+const OPENCODE_GO_PRESET_CONTEXT = buildPresetLookup(OPENCODE_GO_LLM_PRESET_MODELS)
 
 export function activeLlmModelId(
   settings: Pick<
     AppSettings,
-    'llmProvider' | 'ollamaModel' | 'openrouterModel' | 'deepseekModel' | 'nvidiaModel'
+    | 'llmProvider'
+    | 'ollamaModel'
+    | 'openrouterModel'
+    | 'deepseekModel'
+    | 'nvidiaModel'
+    | 'opencodeGoModel'
   >,
 ): string {
   switch (settings.llmProvider) {
@@ -91,6 +109,8 @@ export function activeLlmModelId(
       return normalizeDeepSeekModelId(settings.deepseekModel)
     case 'nvidia':
       return normalizeNvidiaModelId(settings.nvidiaModel)
+    case 'opencode-go':
+      return normalizeOpenCodeGoModelId(settings.opencodeGoModel)
     default:
       return settings.ollamaModel.trim()
   }
@@ -140,6 +160,7 @@ function lookupPresetContext(
     openrouter: OPENROUTER_PRESET_CONTEXT,
     deepseek: DEEPSEEK_PRESET_CONTEXT,
     nvidia: NVIDIA_PRESET_CONTEXT,
+    'opencode-go': OPENCODE_GO_PRESET_CONTEXT,
   }
   return maps[provider].get(modelId)
 }
@@ -153,6 +174,7 @@ export function resolveContextLimit(
     | 'openrouterModel'
     | 'deepseekModel'
     | 'nvidiaModel'
+    | 'opencodeGoModel'
   >,
 ): ResolvedContextLimit {
   const provider = settings.llmProvider

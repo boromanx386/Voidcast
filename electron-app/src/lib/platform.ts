@@ -67,3 +67,10 @@ export function deepseekApiBaseForRuntime(desktopUrl?: string): string {
   const u = (desktopUrl || '').trim()
   return u || 'https://api.deepseek.com'
 }
+
+/** OpenCode Go OpenAI-compatible base (`/v1`). Desktop talks direct; LAN uses same host until a proxy exists. */
+export function opencodeGoApiBaseForRuntime(desktopUrl?: string): string {
+  if (isLanWebClient()) return `${window.location.origin}/api/opencode-go/v1`
+  const u = (desktopUrl || '').trim()
+  return u || 'https://opencode.ai/zen/go/v1'
+}

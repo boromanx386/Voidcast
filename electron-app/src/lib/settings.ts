@@ -1,6 +1,7 @@
 import {
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
+  normalizeOpenCodeGoModelId,
   normalizeOpenRouterModelId,
   detectSubAgentProvider,
 } from '@/lib/cloudLlmPresets'
@@ -473,7 +474,7 @@ export function buildRunwareTtsSettingsPayload(
 
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
-export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek'
+export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'opencode-go'
 
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
@@ -674,6 +675,10 @@ export type AppSettings = {
   deepseekBaseUrl: string
   deepseekApiKey: string
   deepseekModel: string
+  /** OpenCode Go (https://opencode.ai/zen/go/v1) — OpenAI-compatible chat models. */
+  opencodeGoBaseUrl: string
+  opencodeGoApiKey: string
+  opencodeGoModel: string
   /** Default OpenRouter TTS model id. */
   openrouterTtsModel: string
   /** Optional OpenRouter TTS voice id/preset. */
@@ -858,12 +863,13 @@ import {
   isLanWebClient,
   nvidiaApiBaseForRuntime,
   openRouterApiBaseForRuntime,
+  opencodeGoApiBaseForRuntime,
 } from '@/lib/platform'
 
 const STORAGE_KEY = 'voidcast-settings-v1'
 /** Previous key; read once to migrate */
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
-const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'deepseekApiKey', 'runwareApiKey'] as const
+const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'deepseekApiKey', 'opencodeGoApiKey', 'runwareApiKey'] as const
 
 const DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, a highly intelligent, quick‑witted, and candid virtual assistant.
 
@@ -887,6 +893,9 @@ export const defaults: AppSettings = {
   deepseekBaseUrl: 'https://api.deepseek.com',
   deepseekApiKey: '',
   deepseekModel: 'deepseek-v4-pro',
+  opencodeGoBaseUrl: 'https://opencode.ai/zen/go/v1',
+  opencodeGoApiKey: '',
+  opencodeGoModel: 'deepseek-v4-pro',
   openrouterTtsModel: OPENROUTER_TTS_MODEL_DEFAULT,
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
@@ -1178,7 +1187,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
         ? 'nvidia'
         : providerRaw === 'deepseek'
           ? 'deepseek'
-          : 'ollama'
+          : providerRaw === 'opencode-go'
+            ? 'opencode-go'
+            : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
   const openrouterBaseUrl =
@@ -1224,6 +1235,17 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? s.deepseekModel.trim()
       : defaults.deepseekModel,
   )
+  const opencodeGoBaseUrl =
+    typeof s.opencodeGoBaseUrl === 'string' && s.opencodeGoBaseUrl.trim()
+      ? s.opencodeGoBaseUrl.trim()
+      : defaults.opencodeGoBaseUrl
+  const opencodeGoApiKey =
+    typeof s.opencodeGoApiKey === 'string' ? s.opencodeGoApiKey.trim() : ''
+  const opencodeGoModel = normalizeOpenCodeGoModelId(
+    typeof s.opencodeGoModel === 'string' && s.opencodeGoModel.trim()
+      ? s.opencodeGoModel.trim()
+      : defaults.opencodeGoModel,
+  )
   return {
     ...s,
     llmProvider,
@@ -1238,6 +1260,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
     deepseekBaseUrl,
     deepseekApiKey,
     deepseekModel,
+    opencodeGoBaseUrl,
+    opencodeGoApiKey,
+    opencodeGoModel,
     llmTemperature: Number.isFinite(t) ? clamp(t, 0, 2) : defaults.llmTemperature,
     llmNumCtx: Number.isFinite(ctx)
       ? clamp(Math.round(ctx), 512, 262144)
@@ -1685,6 +1710,7 @@ function stripCloudSecrets(s: AppSettings): AppSettings {
     runwareApiKey: '',
     nvidiaApiKey: '',
     deepseekApiKey: '',
+    opencodeGoApiKey: '',
   }
 }
 
@@ -1729,6 +1755,12 @@ function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
   if (isViteDevServerUrl(next.deepseekBaseUrl) || next.deepseekBaseUrl.includes('/api/deepseek')) {
     assign({ deepseekBaseUrl: defaults.deepseekBaseUrl })
   }
+  if (
+    isViteDevServerUrl(next.opencodeGoBaseUrl) ||
+    next.opencodeGoBaseUrl.includes('/api/opencode-go')
+  ) {
+    assign({ opencodeGoBaseUrl: defaults.opencodeGoBaseUrl })
+  }
 
   return next
 }
@@ -1747,6 +1779,7 @@ function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
       openrouterBaseUrl: openRouterApiBaseForRuntime(),
       nvidiaBaseUrl: nvidiaApiBaseForRuntime(),
       deepseekBaseUrl: deepseekApiBaseForRuntime(),
+      opencodeGoBaseUrl: opencodeGoApiBaseForRuntime(),
       voiceMode: 'design',
       sttProvider: 'none',
     })
