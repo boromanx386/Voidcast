@@ -217,7 +217,7 @@ Voidcast does not charge anything. It connects to free tiers of providers you ca
 |----------|-------------|
 | **OpenRouter** | Claude, GPT-4o, DeepSeek, Gemini + 100 others |
 | **DeepSeek** | Direct API — V4 Pro / Flash; billed from your DeepSeek balance |
-| **Ollama** | Open-source models (Llama, Qwen, Gemma, Mistral...) |
+| **Ollama** | Open-source models (Qwen, Gemma, GLM, Mistral...) |
 | **NVIDIA NIM** | Enterprise-grade inference for open models |
 | **Runware** | Image generation, image edit, and AI music (pay-per-use, typically pennies) |
 | **OpenRouter** | Optional image generation (Gemini Flash Image, GPT Image 2) via the same API key as chat/TTS |
