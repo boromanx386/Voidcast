@@ -628,7 +628,7 @@ export type CodingSettings = {
 /** Default / clamp bounds for the chat ↔ coding panel splitter. */
 export const CODING_PANEL_WIDTH_DEFAULT = 416
 export const CODING_PANEL_WIDTH_MIN = 280
-export const CODING_PANEL_WIDTH_MAX = 720
+export const CODING_PANEL_WIDTH_MAX = 1200
 
 /** Default / clamp bounds for FILES ↔ rest vertical split inside coding panel. */
 export const CODING_FILE_TREE_HEIGHT_DEFAULT = 220
@@ -638,7 +638,7 @@ export const CODING_FILE_TREE_HEIGHT_MAX = 480
 export function clampCodingPanelWidth(px: number, containerWidth?: number): number {
   const maxByContainer =
     typeof containerWidth === 'number' && Number.isFinite(containerWidth)
-      ? Math.max(CODING_PANEL_WIDTH_MIN, Math.floor(containerWidth * 0.65))
+      ? Math.max(CODING_PANEL_WIDTH_MIN, Math.floor(containerWidth * 0.85))
       : CODING_PANEL_WIDTH_MAX
   const max = Math.min(CODING_PANEL_WIDTH_MAX, maxByContainer)
   if (!Number.isFinite(px)) return CODING_PANEL_WIDTH_DEFAULT

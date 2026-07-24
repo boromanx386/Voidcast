@@ -67,7 +67,7 @@ export function ChatSidebar({ app }: Props) {
           <div className="px-4 py-2 text-xs text-void-dim/60">No sessions yet</div>
         )}
         {projectGroups.map((group, index) => {
-          const collapsed = Boolean(sidebarCollapsed[group.key])
+          const collapsed = sidebarCollapsed[group.key] !== true
           return (
             <div key={group.key} className={index > 0 ? 'mt-2' : undefined}>
               <button
