@@ -1,4 +1,4 @@
-import { buildOllamaToolsList } from '@/lib/toolDefinitions'
+import { buildToolsList } from '@/lib/toolDefinitions'
 import type { McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
@@ -21,8 +21,7 @@ import {
   type OpenRouterMessage,
   type OpenRouterToolCall,
 } from '@/lib/openrouter'
-import { executeToolCall } from '@/lib/agentToolExecutor'
-import { resolveImageRecallRequest } from '@/lib/ollamaAgent'
+import { executeToolCall, resolveImageRecallRequest } from '@/lib/agentToolExecutor'
 import { toolPhaseForAgentTool, type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import { FALSE_CODING_CLAIM_REPROMPT_MESSAGE, FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE, FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE, parseToolArguments, TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE, TOOL_BUDGET_WARNING_REPROMPT_MESSAGE } from '@/lib/agentToolUtils'
@@ -107,7 +106,7 @@ export type RunOpenRouterChatWithToolsParams = {
 export async function runOpenRouterChatWithTools(
   params: RunOpenRouterChatWithToolsParams,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
-  const tools = buildOllamaToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
+  const tools = buildToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
     agentMode: params.agentMode,
     mcpTools: params.mcpEnabled ? params.mcpTools : undefined,
     subAgentCodingEnabled: Boolean(params.subAgent?.codingEnabled),

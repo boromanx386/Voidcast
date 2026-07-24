@@ -31,28 +31,28 @@ export function isPlanModeBlockedTool(name: string): boolean {
 }
 
 /** Minimal JSON-schema subset for tool `parameters.properties` values */
-export type OllamaToolParameterSchema = {
+export type AgentToolParameterSchema = {
   type: string
   description?: string
   enum?: readonly string[]
   items?: { type: string; minimum?: number }
 }
 
-/** Ollama /api/chat `tools` entry (OpenAI-style function tool) */
-export type OllamaToolDefinition = {
+/** Shared OpenAI-style function tool definition (Ollama / OpenRouter / future providers). */
+export type AgentToolDefinition = {
   type: 'function'
   function: {
     name: string
     description: string
     parameters: {
       type: 'object'
-      properties: Record<string, OllamaToolParameterSchema>
+      properties: Record<string, AgentToolParameterSchema>
       required?: string[]
     }
   }
 }
 
-const GET_WEATHER_TOOL: OllamaToolDefinition = {
+const GET_WEATHER_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'get_weather',
@@ -75,7 +75,7 @@ const GET_WEATHER_TOOL: OllamaToolDefinition = {
   },
 }
 
-const SCRAPE_URL_TOOL: OllamaToolDefinition = {
+const SCRAPE_URL_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'scrape_url',
@@ -99,7 +99,7 @@ const SCRAPE_URL_TOOL: OllamaToolDefinition = {
   },
 }
 
-const SAVE_PDF_TOOL: OllamaToolDefinition = {
+const SAVE_PDF_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'save_pdf',
@@ -155,7 +155,7 @@ const SAVE_PDF_TOOL: OllamaToolDefinition = {
   },
 }
 
-const WEB_SEARCH_TOOL: OllamaToolDefinition = {
+const WEB_SEARCH_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'web_search',
@@ -174,7 +174,7 @@ const WEB_SEARCH_TOOL: OllamaToolDefinition = {
   },
 }
 
-const REDDIT_FEED_TOOL: OllamaToolDefinition = {
+const REDDIT_FEED_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'reddit_feed',
@@ -223,7 +223,7 @@ const REDDIT_FEED_TOOL: OllamaToolDefinition = {
   },
 }
 
-const SEARCH_YOUTUBE_TOOL: OllamaToolDefinition = {
+const SEARCH_YOUTUBE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'search_youtube',
@@ -256,7 +256,7 @@ const SEARCH_YOUTUBE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
+const GENERATE_IMAGE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'generate_image',
@@ -291,7 +291,7 @@ const GENERATE_IMAGE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
+const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'edit_image_runware',
@@ -336,7 +336,7 @@ const EDIT_IMAGE_RUNWARE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const IMAGE_RECALL_TOOL: OllamaToolDefinition = {
+const IMAGE_RECALL_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'image_recall',
@@ -371,7 +371,7 @@ const IMAGE_RECALL_TOOL: OllamaToolDefinition = {
   },
 }
 
-const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
+const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'generate_music_runware',
@@ -414,7 +414,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const UPDATE_SETTINGS_TOOL: OllamaToolDefinition = {
+const UPDATE_SETTINGS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'update_settings',
@@ -440,7 +440,7 @@ const UPDATE_SETTINGS_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_LIST_DIRECTORY_TOOL: OllamaToolDefinition = {
+const CODING_LIST_DIRECTORY_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'list_directory',
@@ -459,7 +459,7 @@ const CODING_LIST_DIRECTORY_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_READ_FILE_TOOL: OllamaToolDefinition = {
+const CODING_READ_FILE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'read_file',
@@ -491,7 +491,7 @@ const CODING_READ_FILE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_WRITE_FILE_TOOL: OllamaToolDefinition = {
+const CODING_WRITE_FILE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'write_file',
@@ -514,7 +514,7 @@ const CODING_WRITE_FILE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_EDIT_CODE_TOOL: OllamaToolDefinition = {
+const CODING_EDIT_CODE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'edit_code',
@@ -546,7 +546,7 @@ const CODING_EDIT_CODE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_SEARCH_FILES_TOOL: OllamaToolDefinition = {
+const CODING_SEARCH_FILES_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'search_files',
@@ -570,7 +570,7 @@ const CODING_SEARCH_FILES_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_GLOB_FILES_TOOL: OllamaToolDefinition = {
+const CODING_GLOB_FILES_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'glob_files',
@@ -598,7 +598,7 @@ const CODING_GLOB_FILES_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_GIT_STATUS_TOOL: OllamaToolDefinition = {
+const CODING_GIT_STATUS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'git_status',
@@ -611,7 +611,7 @@ const CODING_GIT_STATUS_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_GIT_DIFF_TOOL: OllamaToolDefinition = {
+const CODING_GIT_DIFF_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'git_diff',
@@ -634,7 +634,7 @@ const CODING_GIT_DIFF_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_GIT_LOG_TOOL: OllamaToolDefinition = {
+const CODING_GIT_LOG_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'git_log',
@@ -657,7 +657,7 @@ const CODING_GIT_LOG_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_GIT_SHOW_TOOL: OllamaToolDefinition = {
+const CODING_GIT_SHOW_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'git_show',
@@ -680,7 +680,7 @@ const CODING_GIT_SHOW_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_CHECK_TYPES_TOOL: OllamaToolDefinition = {
+const CODING_CHECK_TYPES_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'check_types',
@@ -705,7 +705,7 @@ const CODING_CHECK_TYPES_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
+const CODING_EXECUTE_COMMAND_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'execute_command',
@@ -733,7 +733,7 @@ const CODING_EXECUTE_COMMAND_TOOL: OllamaToolDefinition = {
   },
 }
 
-const CODING_EXPLORE_TOOL: OllamaToolDefinition = {
+const CODING_EXPLORE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'coding_explore',
@@ -763,7 +763,7 @@ const CODING_EXPLORE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const ADD_REMINDER_TOOL: OllamaToolDefinition = {
+const ADD_REMINDER_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'add_reminder',
@@ -792,7 +792,7 @@ const ADD_REMINDER_TOOL: OllamaToolDefinition = {
   },
 }
 
-const LIST_REMINDERS_TOOL: OllamaToolDefinition = {
+const LIST_REMINDERS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'list_reminders',
@@ -821,7 +821,7 @@ const LIST_REMINDERS_TOOL: OllamaToolDefinition = {
   },
 }
 
-const DELETE_REMINDER_TOOL: OllamaToolDefinition = {
+const DELETE_REMINDER_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'delete_reminder',
@@ -841,7 +841,7 @@ const DELETE_REMINDER_TOOL: OllamaToolDefinition = {
   },
 }
 
-const UPDATE_REMINDER_TOOL: OllamaToolDefinition = {
+const UPDATE_REMINDER_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'update_reminder',
@@ -875,7 +875,7 @@ const UPDATE_REMINDER_TOOL: OllamaToolDefinition = {
   },
 }
 
-const READ_SKILL_TOOL: OllamaToolDefinition = {
+const READ_SKILL_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'read_skill',
@@ -894,7 +894,7 @@ const READ_SKILL_TOOL: OllamaToolDefinition = {
   },
 }
 
-const ENTER_PLAN_MODE_TOOL: OllamaToolDefinition = {
+const ENTER_PLAN_MODE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'enter_plan_mode',
@@ -904,7 +904,7 @@ const ENTER_PLAN_MODE_TOOL: OllamaToolDefinition = {
   },
 }
 
-const UPDATE_PLAN_PROGRESS_TOOL: OllamaToolDefinition = {
+const UPDATE_PLAN_PROGRESS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'update_plan_progress',
@@ -941,7 +941,7 @@ const UPDATE_PLAN_PROGRESS_TOOL: OllamaToolDefinition = {
   },
 }
 
-const MCP_LIST_TOOLS_TOOL: OllamaToolDefinition = {
+const MCP_LIST_TOOLS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: MCP_LIST_TOOLS_NAME,
@@ -964,7 +964,7 @@ const MCP_LIST_TOOLS_TOOL: OllamaToolDefinition = {
   },
 }
 
-const MCP_GET_TOOL_TOOL: OllamaToolDefinition = {
+const MCP_GET_TOOL_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: MCP_GET_TOOL_NAME,
@@ -983,7 +983,7 @@ const MCP_GET_TOOL_TOOL: OllamaToolDefinition = {
   },
 }
 
-const MCP_CALL_TOOL: OllamaToolDefinition = {
+const MCP_CALL_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: MCP_CALL_NAME,
@@ -1006,7 +1006,7 @@ const MCP_CALL_TOOL: OllamaToolDefinition = {
   },
 }
 
-const MCP_READ_RESULT_TOOL: OllamaToolDefinition = {
+const MCP_READ_RESULT_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: MCP_READ_RESULT_NAME,
@@ -1053,13 +1053,13 @@ const MCP_READ_RESULT_TOOL: OllamaToolDefinition = {
   },
 }
 
-export function buildOllamaToolsList(
+export function buildToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
   opts?: { agentMode?: AgentChatMode; mcpTools?: McpToolInfo[]; subAgentCodingEnabled?: boolean },
-): OllamaToolDefinition[] {
+): AgentToolDefinition[] {
   const planMode = opts?.agentMode === 'plan'
-  const out: OllamaToolDefinition[] = []
+  const out: AgentToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
   if (enabled.reddit) out.push(REDDIT_FEED_TOOL)

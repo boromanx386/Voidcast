@@ -13,7 +13,7 @@ import {
   shouldTrimCodingResult,
   trimNoisyCodingResult,
 } from '../src/lib/codingSubAgent'
-import { buildOllamaToolsList } from '../src/lib/toolDefinitions'
+import { buildToolsList } from '../src/lib/toolDefinitions'
 
 describe('shouldTrimCodingResult', () => {
   it('returns false when coding context management disabled', () => {
@@ -142,7 +142,7 @@ describe('coding explore allowlist / parse', () => {
   })
 })
 
-describe('buildOllamaToolsList coding_explore', () => {
+describe('buildToolsList coding_explore', () => {
   const codingEnabled = {
     webSearch: false,
     youtube: false,
@@ -157,14 +157,14 @@ describe('buildOllamaToolsList coding_explore', () => {
   }
 
   it('omits coding_explore when subAgentCodingEnabled is false', () => {
-    const tools = buildOllamaToolsList(codingEnabled as never, false, {
+    const tools = buildToolsList(codingEnabled as never, false, {
       subAgentCodingEnabled: false,
     })
     expect(tools.some((t) => t.function.name === 'coding_explore')).toBe(false)
   })
 
   it('includes coding_explore when subAgentCodingEnabled is true', () => {
-    const tools = buildOllamaToolsList(codingEnabled as never, false, {
+    const tools = buildToolsList(codingEnabled as never, false, {
       subAgentCodingEnabled: true,
     })
     const explore = tools.find((t) => t.function.name === 'coding_explore')
@@ -173,7 +173,7 @@ describe('buildOllamaToolsList coding_explore', () => {
   })
 
   it('keeps coding_explore in plan mode', () => {
-    const tools = buildOllamaToolsList(codingEnabled as never, false, {
+    const tools = buildToolsList(codingEnabled as never, false, {
       agentMode: 'plan',
       subAgentCodingEnabled: true,
     })
@@ -183,7 +183,7 @@ describe('buildOllamaToolsList coding_explore', () => {
   })
 })
 
-describe('buildOllamaToolsList image_recall vs runware', () => {
+describe('buildToolsList image_recall vs runware', () => {
   const noImageTools = {
     webSearch: false,
     youtube: false,
@@ -198,21 +198,21 @@ describe('buildOllamaToolsList image_recall vs runware', () => {
   }
 
   it('exposes image_recall when Runware image tool is disabled', () => {
-    const tools = buildOllamaToolsList(noImageTools as never, false)
+    const tools = buildToolsList(noImageTools as never, false)
     expect(tools.some((t) => t.function.name === 'image_recall')).toBe(true)
     expect(tools.some((t) => t.function.name === 'generate_image')).toBe(false)
     expect(tools.some((t) => t.function.name === 'edit_image_runware')).toBe(false)
   })
 
   it('exposes generate/edit with image_recall when Runware is enabled', () => {
-    const tools = buildOllamaToolsList({ ...noImageTools, runwareImage: true } as never, false)
+    const tools = buildToolsList({ ...noImageTools, runwareImage: true } as never, false)
     expect(tools.some((t) => t.function.name === 'image_recall')).toBe(true)
     expect(tools.some((t) => t.function.name === 'generate_image')).toBe(true)
     expect(tools.some((t) => t.function.name === 'edit_image_runware')).toBe(true)
   })
 
   it('keeps image_recall in plan mode without generate/edit', () => {
-    const tools = buildOllamaToolsList({ ...noImageTools, runwareImage: true } as never, false, {
+    const tools = buildToolsList({ ...noImageTools, runwareImage: true } as never, false, {
       agentMode: 'plan',
     })
     expect(tools.some((t) => t.function.name === 'image_recall')).toBe(true)

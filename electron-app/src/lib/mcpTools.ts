@@ -3,7 +3,7 @@
  * Process lifecycle lives in Electron main (`mcpManager.ts`).
  */
 import { isElectron } from '@/lib/platform'
-import type { OllamaToolDefinition, OllamaToolParameterSchema } from '@/lib/toolDefinitions'
+import type { AgentToolDefinition, AgentToolParameterSchema } from '@/lib/toolDefinitions'
 
 export type McpToolInfo = {
   serverId: string
@@ -165,13 +165,13 @@ export function formatMcpGetToolResult(tools: McpToolInfo[], name: string): stri
   ].join('\n')
 }
 
-function toParameterSchema(raw: unknown): OllamaToolParameterSchema {
+function toParameterSchema(raw: unknown): AgentToolParameterSchema {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { type: 'string' }
   }
   const obj = raw as Record<string, unknown>
   const type = typeof obj.type === 'string' ? obj.type : 'string'
-  const out: OllamaToolParameterSchema = { type }
+  const out: AgentToolParameterSchema = { type }
   if (typeof obj.description === 'string') out.description = obj.description
   if (Array.isArray(obj.enum) && obj.enum.every((x) => typeof x === 'string')) {
     out.enum = obj.enum as string[]
@@ -186,7 +186,7 @@ function toParameterSchema(raw: unknown): OllamaToolParameterSchema {
   return out
 }
 
-export function convertMcpToolToOllama(tool: McpToolInfo): OllamaToolDefinition {
+export function convertMcpToolToAgent(tool: McpToolInfo): AgentToolDefinition {
   const params = tool.parameters
   const propertiesRaw =
     typeof params.properties === 'object' &&
@@ -194,7 +194,7 @@ export function convertMcpToolToOllama(tool: McpToolInfo): OllamaToolDefinition 
     !Array.isArray(params.properties)
       ? (params.properties as Record<string, unknown>)
       : {}
-  const properties: Record<string, OllamaToolParameterSchema> = {}
+  const properties: Record<string, AgentToolParameterSchema> = {}
   for (const [key, value] of Object.entries(propertiesRaw)) {
     properties[key] = toParameterSchema(value)
   }

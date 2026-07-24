@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
-  convertMcpToolToOllama,
+  convertMcpToolToAgent,
   formatMcpGetToolResult,
   formatMcpToolName,
   formatMcpToolsListResult,
@@ -13,7 +13,7 @@ import {
   parseMcpToolName,
   type McpToolInfo,
 } from '@/lib/mcpTools'
-import { buildOllamaToolsList, isPlanModeBlockedTool } from '@/lib/toolDefinitions'
+import { buildToolsList, isPlanModeBlockedTool } from '@/lib/toolDefinitions'
 
 const sampleTools: McpToolInfo[] = [
   {
@@ -78,8 +78,8 @@ describe('mcp progressive disclosure (3 layers)', () => {
     expect(formatMcpGetToolResult(sampleTools, 'mcp__nope__x')).toMatch(/^Error:/)
   })
 
-  test('buildOllamaToolsList exposes list + get + read + call (no mcp__*)', () => {
-    const tools = buildOllamaToolsList(
+  test('buildToolsList exposes list + get + read + call (no mcp__*)', () => {
+    const tools = buildToolsList(
       {
         webSearch: false,
         youtube: false,
@@ -103,8 +103,8 @@ describe('mcp progressive disclosure (3 layers)', () => {
     expect(names.some((n) => n.startsWith('mcp__'))).toBe(false)
   })
 
-  test('convertMcpToolToOllama still works for legacy', () => {
-    const def = convertMcpToolToOllama(sampleTools[0]!)
+  test('convertMcpToolToAgent still works for legacy', () => {
+    const def = convertMcpToolToAgent(sampleTools[0]!)
     expect(def.function.name).toBe('mcp__runware__list_models')
   })
 })
