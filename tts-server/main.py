@@ -57,6 +57,7 @@ from cloud_secrets import (
     get_deepseek_key,
     get_nvidia_key,
     get_openrouter_key,
+    get_opencode_go_key,
     get_runware_key,
     register_secrets,
 )
@@ -99,6 +100,10 @@ NVIDIA_UPSTREAM = os.environ.get(
 ).rstrip("/")
 DEEPSEEK_UPSTREAM = os.environ.get(
     "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
+).rstrip("/")
+# OpenCode Go OpenAI-compatible API (no browser CORS — always proxy from renderer).
+OPENCODE_GO_UPSTREAM = os.environ.get(
+    "OPENCODE_GO_BASE_URL", "https://opencode.ai/zen/go"
 ).rstrip("/")
 
 
@@ -215,6 +220,7 @@ class CloudSecretsRequest(BaseModel):
     runwareApiKey: str = Field(default="", max_length=2048)
     nvidiaApiKey: str = Field(default="", max_length=2048)
     deepseekApiKey: str = Field(default="", max_length=2048)
+    opencodeGoApiKey: str = Field(default="", max_length=2048)
 
 
 class HostToolConfigRequest(BaseModel):
@@ -727,6 +733,7 @@ async def tools_cloud_secrets_status():
         "runware": bool(get_runware_key()),
         "nvidia": bool(get_nvidia_key()),
         "deepseek": bool(get_deepseek_key()),
+        "opencode_go": bool(get_opencode_go_key()),
     }
 
 
@@ -985,6 +992,28 @@ async def deepseek_proxy(request: Request, full_path: str):
             detail="DeepSeek API key not configured (desktop General or DEEPSEEK_API_KEY env)",
         )
     return await _reverse_proxy(request, DEEPSEEK_UPSTREAM, full_path, bearer_key=key)
+
+
+@app.api_route(
+    "/api/opencode-go/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+)
+async def opencode_go_proxy(request: Request, full_path: str):
+    """Proxy OpenCode Go (no CORS on upstream). Desktop may pass Bearer; LAN uses registered key."""
+    key = get_opencode_go_key()
+    if not key:
+        auth = (request.headers.get("authorization") or "").strip()
+        if auth.lower().startswith("bearer "):
+            key = auth[7:].strip()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "OpenCode Go API key not configured "
+                "(desktop General / OPENCODE_GO_API_KEY env, or Authorization header)"
+            ),
+        )
+    return await _reverse_proxy(request, OPENCODE_GO_UPSTREAM, full_path, bearer_key=key)
 
 
 @app.post("/tts")

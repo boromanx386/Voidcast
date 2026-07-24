@@ -13,6 +13,7 @@ type SecretsStatus = {
   runware: boolean
   nvidia: boolean
   deepseek: boolean
+  opencode_go: boolean
 }
 
 function portFromTtsBaseUrl(ttsBaseUrl: string): number {
@@ -107,6 +108,7 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
             runware: Boolean(data.runware),
             nvidia: Boolean(data.nvidia),
             deepseek: Boolean(data.deepseek),
+            opencode_go: Boolean(data.opencode_go),
           })
         })
         .catch(() => {
@@ -126,7 +128,8 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
     (secretsStatus.openrouter ||
       secretsStatus.runware ||
       secretsStatus.nvidia ||
-      secretsStatus.deepseek)
+      secretsStatus.deepseek ||
+      secretsStatus.opencode_go)
 
   const copyUrl = async () => {
     if (!lanUrl) return

@@ -421,8 +421,9 @@ export function LlmOptionsPanel({
               autoComplete="off"
             />
             <p className="mt-1 text-xs text-void-dim font-mono">
-              OpenAI-compatible chat models only (DeepSeek, Kimi, GLM, MiMo, Grok, Hy3). MiniMax/Qwen
-              use Anthropic Messages and are not wired yet.
+              Upstream has no CORS — requests go through your local TTS server proxy
+              (<code className="text-void-light/90">/api/opencode-go</code>). Keep the local server
+              running. OpenAI-compatible models only (not MiniMax/Qwen).
             </p>
           </div>
           <div className="form-group">
@@ -683,7 +684,7 @@ export function LlmOptionsPanel({
           <ul className="text-xs font-mono text-void-dim space-y-1">
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Subscription gateway for curated open coding models (OpenAI-compatible)
+              Proxied via local TTS server (upstream blocks browser CORS)
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
@@ -699,7 +700,11 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
-              MiniMax / Qwen on Go use Anthropic Messages — not supported in this app yet
+              Restart the local TTS server after updating, then retry
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              MiniMax / Qwen on Go use Anthropic Messages — not supported yet
             </li>
           </ul>
         )}

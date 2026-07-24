@@ -1,5 +1,5 @@
 import type { AppSettings, LlmProvider, LlmThinkLevel } from '@/lib/settings'
-import { usesServerCloudProxy } from '@/lib/platform'
+import { opencodeGoApiBaseForRuntime, usesServerCloudProxy } from '@/lib/platform'
 
 export function cloudLlmProviderLabel(provider: LlmProvider): string {
   switch (provider) {
@@ -58,6 +58,8 @@ export type CloudLlmSettingsSlice = {
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
+  /** Used to reach local TTS reverse proxy for OpenCode Go (no CORS on upstream). */
+  ttsBaseUrl?: string
   llmThinkLevel?: LlmThinkLevel
 }
 
@@ -87,7 +89,8 @@ export function resolveCloudLlmChatConfig(
       }
     case 'opencode-go':
       return {
-        baseUrl: settings.opencodeGoBaseUrl || '',
+        // Upstream has no CORS; always use local TTS reverse proxy (desktop + LAN).
+        baseUrl: opencodeGoApiBaseForRuntime(settings.opencodeGoBaseUrl, settings.ttsBaseUrl),
         apiKey: settings.opencodeGoApiKey || '',
         model: settings.opencodeGoModel || '',
       }
@@ -124,7 +127,7 @@ export function resolveCloudLlmChatConfigForProvider(
       }
     case 'opencode-go':
       return {
-        baseUrl: settings.opencodeGoBaseUrl || '',
+        baseUrl: opencodeGoApiBaseForRuntime(settings.opencodeGoBaseUrl, settings.ttsBaseUrl),
         apiKey: settings.opencodeGoApiKey || '',
         model: modelOverride || settings.opencodeGoModel || '',
       }

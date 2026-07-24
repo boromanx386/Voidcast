@@ -68,9 +68,9 @@ export function deepseekApiBaseForRuntime(desktopUrl?: string): string {
   return u || 'https://api.deepseek.com'
 }
 
-/** OpenCode Go OpenAI-compatible base (`/v1`). Desktop talks direct; LAN uses same host until a proxy exists. */
-export function opencodeGoApiBaseForRuntime(desktopUrl?: string): string {
+/** OpenCode Go has no browser CORS — always hit local TTS reverse proxy. */
+export function opencodeGoApiBaseForRuntime(_desktopUrl?: string, ttsBaseUrl?: string): string {
   if (isLanWebClient()) return `${window.location.origin}/api/opencode-go/v1`
-  const u = (desktopUrl || '').trim()
-  return u || 'https://opencode.ai/zen/go/v1'
+  const tts = (ttsBaseUrl || defaultTtsBaseUrlForRuntime()).trim().replace(/\/+$/, '')
+  return `${tts}/api/opencode-go/v1`
 }

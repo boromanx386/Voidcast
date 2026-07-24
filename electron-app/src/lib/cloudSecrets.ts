@@ -6,6 +6,7 @@ export type CloudSecretsPayload = {
   runwareApiKey: string
   nvidiaApiKey: string
   deepseekApiKey: string
+  opencodeGoApiKey: string
 }
 
 /** Push API keys from desktop to the local TTS server for LAN web proxy (not full settings sync). */

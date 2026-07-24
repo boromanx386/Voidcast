@@ -88,6 +88,7 @@ export function useAppSettings() {
         runwareApiKey: settings.runwareApiKey,
         nvidiaApiKey: settings.nvidiaApiKey,
         deepseekApiKey: settings.deepseekApiKey,
+        opencodeGoApiKey: settings.opencodeGoApiKey,
       }).catch(() => {
         // Best-effort; web client shows 503 if keys were not registered.
       })
@@ -104,6 +105,7 @@ export function useAppSettings() {
     settings.runwareApiKey,
     settings.nvidiaApiKey,
     settings.deepseekApiKey,
+    settings.opencodeGoApiKey,
   ])
 
   useEffect(() => {
