@@ -31,15 +31,19 @@ const MAX_REQUIRED_TOOL_REPROMPTS = 2
 function toOpenRouterToolCalls(calls: OpenRouterToolCall[]): OpenRouterToolCall[] {
   return calls
     .filter((t) => t.function?.name)
-    .map((t, idx) => ({
-      id: t.id || `tool_call_${idx + 1}`,
-      type: 'function',
-      index: t.index ?? idx,
-      function: {
-        name: t.function.name,
-        arguments: t.function.arguments || '{}',
-      },
-    }))
+    .map((t, idx) => {
+      const id = t.id || `tool_call_${idx + 1}`
+      // Keep provider call id in sync so tool results match assistant.tool_calls[].id
+      if (!t.id) t.id = id
+      return {
+        id,
+        type: 'function' as const,
+        function: {
+          name: t.function.name,
+          arguments: t.function.arguments || '{}',
+        },
+      }
+    })
 }
 
 function toDataImageUri(base64: string, mime: string): string {
@@ -149,17 +153,31 @@ export async function runOpenRouterChatWithTools(
         .filter((t) => t.function?.name)
         .map((call) => ({ name: call.function.name, argsRaw: call.function.arguments, raw: call })),
     appendAssistantWithToolCalls: ({ messages, content, thinking, toolCalls }) => {
+      const normalized = toOpenRouterToolCalls(toolCalls.filter((t) => t.function?.name))
       messages.push({
         role: 'assistant',
         content,
+        // Keep thinking even when empty string is needed later — sanitize maps to reasoning_content.
         ...(thinking.trim() ? { reasoning: thinking.trim() } : {}),
-        tool_calls: toOpenRouterToolCalls(toolCalls.filter((t) => t.function?.name)),
+        ...(normalized.length ? { tool_calls: normalized } : {}),
       })
     },
     appendToolResult: ({ messages, call, name, result, round }) => {
+      let toolCallId = call.id
+      if (!toolCallId) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const m = messages[i]
+          if (m.role !== 'assistant' || !('tool_calls' in m) || !m.tool_calls?.length) continue
+          const hit = m.tool_calls.find((tc) => tc.function?.name === name)
+          if (hit?.id) {
+            toolCallId = hit.id
+            break
+          }
+        }
+      }
       messages.push({
         role: 'tool',
-        tool_call_id: call.id || `tool_call_${name}_${round}`,
+        tool_call_id: toolCallId || `tool_call_${name}_${round}`,
         name,
         content: result,
       })

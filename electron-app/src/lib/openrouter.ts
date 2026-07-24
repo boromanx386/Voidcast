@@ -135,10 +135,34 @@ function isOpenCodeGoApi(baseUrl: string): boolean {
 }
 
 /**
- * OpenCode Go upstream rejects replay fields some OpenAI-compatible clients send
- * (notably `reasoning` on assistant turns) — that shows up as 400 on the 2nd chat turn.
+ * OpenCode Go (DeepSeek / Kimi / etc.) expects OpenAI-compatible payloads but:
+ * - use `reasoning_content` (not OpenRouter-style `reasoning`)
+ * - after a tool call, that assistant turn's reasoning MUST be echoed back
+ *   or upstream returns 400 (see DeepSeek/Kimi thinking + tools via zen/go).
+ * Docs: https://opencode.ai/docs/go
  */
 function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRouterMessage[] {
+  type WireAssistant = {
+    role: 'assistant'
+    content: string | null
+    tool_calls?: OpenRouterToolCall[]
+    reasoning_content?: string
+  }
+
+  const needsReasoningEcho = messages.some((m) => {
+    if (m.role !== 'assistant') return false
+    const raw = m as {
+      reasoning?: string | null
+      reasoning_content?: string | null
+      tool_calls?: OpenRouterToolCall[]
+    }
+    return Boolean(
+      raw.tool_calls?.length ||
+        raw.reasoning?.trim() ||
+        raw.reasoning_content?.trim(),
+    )
+  })
+
   return messages.map((m) => {
     if (m.role === 'tool') {
       return {
@@ -154,11 +178,12 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
       content: string | null
       tool_calls?: OpenRouterToolCall[]
       reasoning?: string | null
+      reasoning_content?: string | null
     }
     const toolCalls = raw.tool_calls
       ?.filter((tc) => Boolean(tc.function?.name))
-      .map((tc) => ({
-        id: tc.id || `tool_call_${tc.function.name}`,
+      .map((tc, idx) => ({
+        id: tc.id || `tool_call_${idx + 1}`,
         type: 'function' as const,
         function: {
           name: tc.function.name,
@@ -173,11 +198,20 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
       hasTools && (raw.content == null || String(raw.content).trim() === '')
         ? null
         : (raw.content ?? '')
-    return {
+    const reasoningText =
+      (typeof raw.reasoning_content === 'string' && raw.reasoning_content) ||
+      (typeof raw.reasoning === 'string' && raw.reasoning) ||
+      ''
+    const out: WireAssistant = {
       role: 'assistant',
       content,
       ...(hasTools ? { tool_calls: toolCalls } : {}),
     }
+    // Never send OpenRouter `reasoning`; echo DeepSeek/Kimi `reasoning_content`.
+    if (needsReasoningEcho || reasoningText.trim()) {
+      out.reasoning_content = reasoningText
+    }
+    return out as OpenRouterMessage
   })
 }
 
@@ -364,6 +398,10 @@ export async function streamOpenRouterChat(
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
       if (isDeepSeekApi(root)) applyDeepSeekThinkingBody(body, options.thinkLevel)
+      // OpenCode Go: honor THINKING_LEVEL without forcing disable when unset.
+      if (isOpenCodeGo && options.thinkLevel !== undefined) {
+        applyDeepSeekThinkingBody(body, options.thinkLevel)
+      }
       if (apiLabel === 'OpenRouter') {
         const provider = openRouterProviderRoutingBody(options.providerOnly)
         if (provider) body.provider = provider

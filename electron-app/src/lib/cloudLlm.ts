@@ -93,6 +93,8 @@ export function resolveCloudLlmChatConfig(
         baseUrl: opencodeGoApiBaseForRuntime(settings.opencodeGoBaseUrl, settings.ttsBaseUrl),
         apiKey: settings.opencodeGoApiKey || '',
         model: settings.opencodeGoModel || '',
+        // Keep thinking on by default (DeepSeek/Kimi via Go); respect user think level.
+        thinkLevel: settings.llmThinkLevel,
       }
     default:
       return null
@@ -130,6 +132,7 @@ export function resolveCloudLlmChatConfigForProvider(
         baseUrl: opencodeGoApiBaseForRuntime(settings.opencodeGoBaseUrl, settings.ttsBaseUrl),
         apiKey: settings.opencodeGoApiKey || '',
         model: modelOverride || settings.opencodeGoModel || '',
+        thinkLevel: settings.llmThinkLevel,
       }
     default:
       return null
