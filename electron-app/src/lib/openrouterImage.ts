@@ -1,4 +1,4 @@
-import { fitGptImage2Dimensions, quantizeToStep16 } from '@/lib/runware'
+import { fitGptImage2Dimensions } from '@/lib/runware'
 import {
   normalizeBaseUrl,
   normalizeOpenRouterImageModel,
@@ -52,22 +52,20 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
 
-/** Fit dimensions for non-GPT OpenRouter image models: clamp + snap to step 16. */
+/** Fit dimensions for non-GPT OpenRouter image models (Gemini etc.): clamp only.
+ *  These models accept arbitrary pixel dimensions — no mod-16 snapping needed
+ *  (that constraint is GPT Image 2 specific, handled by fitGptImage2Dimensions). */
 function fitOpenRouterDefaultDimensions(
   rawWidth: number,
   rawHeight: number,
 ): { width: number; height: number; adjusted: boolean; notes: string[] } {
   const MIN = 256
   const MAX = 2048
-  const originalW = clamp(Math.round(rawWidth), MIN, MAX)
-  const originalH = clamp(Math.round(rawHeight), MIN, MAX)
-  let w = quantizeToStep16(originalW)
-  let h = quantizeToStep16(originalH)
-  w = clamp(w, MIN, MAX)
-  h = clamp(h, MIN, MAX)
-  const adjusted = w !== originalW || h !== originalH
+  const w = clamp(Math.round(rawWidth), MIN, MAX)
+  const h = clamp(Math.round(rawHeight), MIN, MAX)
+  const adjusted = w !== Math.round(rawWidth) || h !== Math.round(rawHeight)
   const notes: string[] = []
-  if (adjusted) notes.push(`size_adjusted_for_model: ${originalW}x${originalH} -> ${w}x${h}`)
+  if (adjusted) notes.push(`size_adjusted_for_model: ${Math.round(rawWidth)}x${Math.round(rawHeight)} -> ${w}x${h}`)
   return { width: w, height: h, adjusted, notes }
 }
 
