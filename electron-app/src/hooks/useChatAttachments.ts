@@ -115,6 +115,33 @@ export function useChatAttachments({
         } else {
           content = raw
         }
+      } else if (
+        (ext === 'pdf' || ext === 'docx') &&
+        typeof window !== 'undefined' &&
+        window.voidcast?.parseChatAttachmentBuffer
+      ) {
+        // Binary document formats go through the main process (pdf-parse /
+        // mammoth) via IPC so drag-and-drop gets the same extraction as the
+        // native file picker. In web-standalone mode (no bridge) this is a
+        // no-op and content stays undefined.
+        try {
+          const bytes = await file.arrayBuffer()
+          const res = await window.voidcast.parseChatAttachmentBuffer({
+            name: file.name,
+            ext,
+            bytes,
+          })
+          if (res?.ok) {
+            content = res.content
+            truncated = !!res.truncated
+          } else {
+            setError(res?.error || `Could not parse .${ext}: ${file.name}`)
+            continue
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err))
+          continue
+        }
       }
       newFiles.push({
         id: uid(),

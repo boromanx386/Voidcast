@@ -2584,37 +2584,51 @@ async function toChatFileSnapshot(filePath: string): Promise<{
     ext,
   }
   if (!CHAT_TEXT_FILE_EXTENSIONS.has(ext)) return base
+  const buf = await readFile(filePath)
+  try {
+    return { ...base, ...(await extractTextFromBuffer(buf, ext)) }
+  } catch {
+    // Soft-fail: still attach the file metadata if PDF/DOCX parsing blows up.
+    return base
+  }
+}
+
+/**
+ * Extract text content from a file Buffer for chat attachment snapshots.
+ * Shared by the native file picker (toChatFileSnapshot) and the renderer
+ * buffer round-trip (voidcast:parse-chat-attachment-buffer), so both paths
+ * use the exact same parser logic — zero divergence between drag-and-drop
+ * and the native picker.
+ *
+ * Throws on PDF/DOCX parser failures so the IPC path can surface `ok: false`.
+ * Callers that want soft-fail (native picker) should catch.
+ */
+async function extractTextFromBuffer(
+  buf: Buffer,
+  ext: string,
+): Promise<{ content?: string; truncated?: boolean }> {
   if (ext === 'pdf') {
+    const pdfParseMod = await import('pdf-parse')
+    const PDFParseCtor = (pdfParseMod as { PDFParse: new (args: { data: Buffer }) => {
+      getText: () => Promise<{ text?: string }>
+      destroy: () => Promise<void>
+    } }).PDFParse
+    const parser = new PDFParseCtor({ data: buf })
     try {
-      const pdfParseMod = await import('pdf-parse')
-      const buf = await readFile(filePath)
-      const PDFParseCtor = (pdfParseMod as { PDFParse: new (args: { data: Buffer }) => {
-        getText: () => Promise<{ text?: string }>
-        destroy: () => Promise<void>
-      } }).PDFParse
-      const parser = new PDFParseCtor({ data: buf })
-      try {
-        const parsed = await parser.getText()
-        return { ...base, ...clampSnapshotText(parsed?.text || '') }
-      } finally {
-        await parser.destroy().catch(() => {})
-      }
-    } catch {
-      return base
+      const parsed = await parser.getText()
+      return clampSnapshotText(parsed?.text || '')
+    } finally {
+      await parser.destroy().catch(() => {})
     }
   }
   if (ext === 'docx') {
-    try {
-      const mammothMod = await import('mammoth')
-      const mammoth = mammothMod.default ?? mammothMod
-      const extracted = await mammoth.extractRawText({ path: filePath })
-      return { ...base, ...clampSnapshotText(extracted?.value || '') }
-    } catch {
-      return base
-    }
+    const mammothMod = await import('mammoth')
+    const mammoth = mammothMod.default ?? mammothMod
+    // Node input is `{ buffer }`; `{ arrayBuffer }` is browser-only and rejected here.
+    const extracted = await mammoth.extractRawText({ buffer: buf })
+    return clampSnapshotText(extracted?.value || '')
   }
-  const buf = await readFile(filePath)
-  return { ...base, ...clampSnapshotText(buf.toString('utf8')) }
+  return clampSnapshotText(buf.toString('utf8'))
 }
 
 ipcMain.handle('voidcast:read-image-file', async (_evt, payload: { path?: string }) => {
@@ -2683,6 +2697,42 @@ ipcMain.handle('voidcast:pick-chat-attachments', async () => {
   }
   return { ok: true as const, images, files }
 })
+
+/**
+ * Renderer → Main buffer round-trip for PDF/DOCX text extraction.
+ * Drag-and-drop and the <input> file picker land here so that binary
+ * document formats go through the exact same parser as the native picker.
+ */
+ipcMain.handle(
+  'voidcast:parse-chat-attachment-buffer',
+  async (
+    _evt,
+    payload: { name?: string; ext?: string; bytes?: ArrayBuffer },
+  ): Promise<
+    | { ok: true; content?: string; truncated?: boolean }
+    | { ok: false; error?: string }
+  > => {
+    try {
+      const name = String(payload?.name ?? '')
+      const ext = String(payload?.ext ?? '').toLowerCase()
+      const bytes = payload?.bytes
+      if (!ext || !CHAT_TEXT_FILE_EXTENSIONS.has(ext)) {
+        return { ok: false, error: `Unsupported file type: .${ext || '?'}` }
+      }
+      if (!bytes || bytes.byteLength <= 0) {
+        return { ok: false, error: 'Empty file buffer' }
+      }
+      if (bytes.byteLength > MAX_CHAT_FILE_BYTES) {
+        return { ok: false, error: `Too large (max 5 MB): ${name || ext}` }
+      }
+      const buf = Buffer.from(bytes)
+      const extracted = await extractTextFromBuffer(buf, ext)
+      return { ok: true as const, ...extracted }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
 
 ipcMain.handle(
   'voidcast:get-weather',

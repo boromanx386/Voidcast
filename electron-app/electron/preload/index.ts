@@ -449,6 +449,18 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
+  parseChatAttachmentBuffer: (payload: {
+    name: string
+    ext: string
+    bytes: ArrayBuffer
+  }) =>
+    ipcRenderer.invoke(
+      'voidcast:parse-chat-attachment-buffer',
+      payload,
+    ) as Promise<
+      | { ok: true; content?: string; truncated?: boolean }
+      | { ok: false; error?: string }
+    >,
   readImageFile: (payload: { path: string }) =>
     ipcRenderer.invoke('voidcast:read-image-file', payload) as Promise<
       | {

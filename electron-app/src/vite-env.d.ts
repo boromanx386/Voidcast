@@ -453,6 +453,15 @@ interface VoidcastBridge {
     | { ok: false; error?: string }
   >
 
+  parseChatAttachmentBuffer: (payload: {
+    name: string
+    ext: string
+    bytes: ArrayBuffer
+  }) => Promise<
+    | { ok: true; content?: string; truncated?: boolean }
+    | { ok: false; error?: string }
+  >
+
   readImageFile: (payload: { path: string }) => Promise<
     | { ok: true; file: { base64: string; mime: string; name: string; path: string } }
     | { ok: false; error?: string }
