@@ -11,7 +11,6 @@ import {
   currentPinnedModelId,
   parsePinnedId,
   pinnedIdLabel,
-  toOllamaPinnedId,
   toScopedPinnedId,
 } from '@/lib/pinnedModels'
 
@@ -40,7 +39,6 @@ interface ModelSwitcherPopupProps {
   onSelectModel: (selection: ModelSwitcherSelection) => void
   onManageModels: () => void
   onClose: () => void
-  /** When set, outside-click ignores this whole wrap (trigger + popup). */
   rootRef?: RefObject<HTMLElement | null>
 }
 
@@ -61,7 +59,7 @@ export default function ModelSwitcherPopup({
   useEffect(() => {
     if (ollamaFetched) return
     const needsOllama =
-      settings.llmProvider === 'ollama' || pinned.some((id) => id.startsWith('ollama/'))
+      settings.llmProvider === 'ollama' || pinned.some((id) => parsePinnedId(id)?.provider === 'ollama')
     if (!needsOllama) return
     let cancelled = false
     fetchOllamaModels(settings.ollamaBaseUrl || 'http://127.0.0.1:11434')
@@ -69,7 +67,7 @@ export default function ModelSwitcherPopup({
         if (cancelled) return
         setOllamaModels(
           models.map((m) => ({
-            id: toOllamaPinnedId(m),
+            id: toScopedPinnedId('ollama', m),
             label: m,
             provider: 'ollama' as const,
           })),
@@ -89,7 +87,11 @@ export default function ModelSwitcherPopup({
   const allPresets = useMemo((): PinnedItem[] => {
     const map: PinnedItem[] = []
     for (const p of OPENROUTER_LLM_PRESET_MODELS) {
-      map.push({ id: p.id, label: p.label, provider: 'openrouter' })
+      map.push({
+        id: toScopedPinnedId('openrouter', p.id),
+        label: p.label,
+        provider: 'openrouter',
+      })
     }
     for (const p of DEEPSEEK_LLM_PRESET_MODELS) {
       map.push({
@@ -99,7 +101,11 @@ export default function ModelSwitcherPopup({
       })
     }
     for (const p of NVIDIA_LLM_PRESET_MODELS) {
-      map.push({ id: p.id, label: p.label, provider: 'nvidia' })
+      map.push({
+        id: toScopedPinnedId('nvidia', p.id),
+        label: p.label,
+        provider: 'nvidia',
+      })
     }
     for (const p of OPENCODE_GO_LLM_PRESET_MODELS) {
       map.push({
@@ -130,45 +136,10 @@ export default function ModelSwitcherPopup({
         })
         continue
       }
-      // Legacy bare DeepSeek/OpenCode ids → prefer current provider if it matches a preset.
-      const deepseekHit = DEEPSEEK_LLM_PRESET_MODELS.find((p) => p.id === id)
-      const opencodeHit = OPENCODE_GO_LLM_PRESET_MODELS.find((p) => p.id === id)
-      if (deepseekHit && settings.llmProvider === 'deepseek') {
-        items.push({
-          id: toScopedPinnedId('deepseek', id),
-          label: deepseekHit.label,
-          provider: 'deepseek',
-        })
-        continue
-      }
-      if (opencodeHit && settings.llmProvider === 'opencode-go') {
-        items.push({
-          id: toScopedPinnedId('opencode-go', id),
-          label: opencodeHit.label,
-          provider: 'opencode-go',
-        })
-        continue
-      }
-      if (deepseekHit) {
-        items.push({
-          id: toScopedPinnedId('deepseek', id),
-          label: deepseekHit.label,
-          provider: 'deepseek',
-        })
-        continue
-      }
-      const openrouterHit = OPENROUTER_LLM_PRESET_MODELS.find((p) => p.id === id)
-      const nvidiaHit = NVIDIA_LLM_PRESET_MODELS.find((p) => p.id === id)
-      if (openrouterHit) {
-        items.push({ id, label: openrouterHit.label, provider: 'openrouter' })
-      } else if (nvidiaHit) {
-        items.push({ id, label: nvidiaHit.label, provider: 'nvidia' })
-      } else {
-        items.push({ id, label: pinnedIdLabel(id), provider: 'openrouter' })
-      }
+      items.push({ id, label: pinnedIdLabel(id), provider: 'openrouter' })
     }
     return items
-  }, [allPresets, pinned, settings.llmProvider])
+  }, [allPresets, pinned])
 
   const currentProviderItems = useMemo((): PinnedItem[] => {
     const currProv = settings.llmProvider
@@ -223,7 +194,7 @@ export default function ModelSwitcherPopup({
           const active = item.provider === settings.llmProvider && item.id === currentId
           return (
             <button
-              key={`${item.provider}:${item.id}`}
+              key={item.id}
               type="button"
               className={`flex w-full items-center gap-1.5 px-2.5 py-1 text-left text-[11px] transition-colors hover:bg-void-mid/60 ${
                 active ? 'font-semibold text-neon-cyan' : 'text-void-text'

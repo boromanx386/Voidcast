@@ -3,7 +3,7 @@ import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
 import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENCODE_GO_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
-import { fromOllamaPinnedId, pinnedIdLabel, pinBelongsToProvider, toOllamaPinnedId, toScopedPinnedId } from '@/lib/pinnedModels'
+import { pinnedIdLabel, pinsForProvider, toScopedPinnedId } from '@/lib/pinnedModels'
 import { useCallback } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { CloudLlmPreset } from '@/lib/cloudLlmPresets'
@@ -206,11 +206,12 @@ export function LlmOptionsPanel({
 
         {/* Pinned chips for Ollama */}
         {pinnedChips(
-          pinned.filter((id) => id.startsWith('ollama/')),
-          pinned
-            .filter((id) => id.startsWith('ollama/'))
-            .map((id) => ({ id, label: fromOllamaPinnedId(id) })),
-          toOllamaPinnedId(settings.ollamaModel),
+          pinsForProvider(pinned, 'ollama'),
+          pinsForProvider(pinned, 'ollama').map((id) => ({
+            id,
+            label: pinnedIdLabel(id),
+          })),
+          toScopedPinnedId('ollama', settings.ollamaModel),
           handleTogglePin,
         )}
 
@@ -249,8 +250,8 @@ export function LlmOptionsPanel({
             )}
         </select>
         <PinToggleButton
-          pinned={pinned.includes(toOllamaPinnedId(settings.ollamaModel))}
-          onToggle={() => handleTogglePin(toOllamaPinnedId(settings.ollamaModel))}
+          pinned={pinned.includes(toScopedPinnedId('ollama', settings.ollamaModel))}
+          onToggle={() => handleTogglePin(toScopedPinnedId('ollama', settings.ollamaModel))}
         />
         </div>
 
@@ -297,9 +298,12 @@ export function LlmOptionsPanel({
               <span className="text-neon-cyan mr-2">◈</span> OPENROUTER_MODEL
             </label>
             {pinnedChips(
-              pinned,
-              OPENROUTER_LLM_PRESET_MODELS,
-              settings.openrouterModel,
+              pinsForProvider(pinned, 'openrouter'),
+              OPENROUTER_LLM_PRESET_MODELS.map((m) => ({
+                id: toScopedPinnedId('openrouter', m.id),
+                label: m.label,
+              })),
+              toScopedPinnedId('openrouter', settings.openrouterModel),
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
@@ -331,8 +335,10 @@ export function LlmOptionsPanel({
                 )}
             </select>
             <PinToggleButton
-              pinned={pinned.includes(settings.openrouterModel)}
-              onToggle={() => handleTogglePin(settings.openrouterModel)}
+              pinned={pinned.includes(toScopedPinnedId('openrouter', settings.openrouterModel))}
+              onToggle={() =>
+                handleTogglePin(toScopedPinnedId('openrouter', settings.openrouterModel))
+              }
             />
             </div>
             <input
@@ -410,9 +416,12 @@ export function LlmOptionsPanel({
               <span className="text-neon-cyan mr-2">◈</span> NVIDIA_MODEL
             </label>
             {pinnedChips(
-              pinned,
-              NVIDIA_LLM_PRESET_MODELS,
-              settings.nvidiaModel,
+              pinsForProvider(pinned, 'nvidia'),
+              NVIDIA_LLM_PRESET_MODELS.map((m) => ({
+                id: toScopedPinnedId('nvidia', m.id),
+                label: m.label,
+              })),
+              toScopedPinnedId('nvidia', settings.nvidiaModel),
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
@@ -444,8 +453,8 @@ export function LlmOptionsPanel({
                 )}
             </select>
             <PinToggleButton
-              pinned={pinned.includes(settings.nvidiaModel)}
-              onToggle={() => handleTogglePin(settings.nvidiaModel)}
+              pinned={pinned.includes(toScopedPinnedId('nvidia', settings.nvidiaModel))}
+              onToggle={() => handleTogglePin(toScopedPinnedId('nvidia', settings.nvidiaModel))}
             />
             </div>
             <input
@@ -488,13 +497,7 @@ export function LlmOptionsPanel({
               <span className="text-neon-cyan mr-2">◈</span> DEEPSEEK_MODEL
             </label>
             {pinnedChips(
-              pinned.filter((id) =>
-                pinBelongsToProvider(
-                  id,
-                  'deepseek',
-                  new Set(DEEPSEEK_LLM_PRESET_MODELS.map((m) => m.id)),
-                ),
-              ),
+              pinsForProvider(pinned, 'deepseek'),
               DEEPSEEK_LLM_PRESET_MODELS.map((m) => ({
                 id: toScopedPinnedId('deepseek', m.id),
                 label: m.label,
@@ -576,7 +579,7 @@ export function LlmOptionsPanel({
               <span className="text-neon-cyan mr-2">◈</span> OPENCODE_GO_MODEL
             </label>
             {pinnedChips(
-              pinned.filter((id) => pinBelongsToProvider(id, 'opencode-go')),
+              pinsForProvider(pinned, 'opencode-go'),
               OPENCODE_GO_LLM_PRESET_MODELS.map((m) => ({
                 id: toScopedPinnedId('opencode-go', m.id),
                 label: m.label,

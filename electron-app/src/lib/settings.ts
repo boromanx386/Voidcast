@@ -5,6 +5,7 @@ import {
   normalizeOpenRouterModelId,
   detectSubAgentProvider,
 } from '@/lib/cloudLlmPresets'
+import { normalizePinnedModels } from '@/lib/pinnedModels'
 import type { AgentChatMode } from '@/types/chat'
 
 export type { AgentChatMode } from '@/types/chat'
@@ -890,9 +891,9 @@ export const defaults: AppSettings = {
   openrouterProviderOnly: '',
   openrouterProviderByModel: {},
   pinnedModels: [
-    'anthropic/claude-sonnet-5',
-    'openai/gpt-5.6-sol',
-    'openai/gpt-5.6-terra',
+    'openrouter:anthropic/claude-sonnet-5',
+    'openrouter:openai/gpt-5.6-sol',
+    'openrouter:openai/gpt-5.6-terra',
   ],
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
@@ -1220,9 +1221,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     openrouterProviderByModel[openrouterModel] = legacyProviderOnly
   }
   const openrouterProviderOnly = openrouterProviderByModel[openrouterModel] ?? ''
-  const pinnedModels: string[] = Array.isArray(s.pinnedModels)
-    ? s.pinnedModels.filter((m: unknown): m is string => typeof m === 'string' && m.length > 0)
-    : [...defaults.pinnedModels]
+  const pinnedModels = normalizePinnedModels(s.pinnedModels, defaults.pinnedModels)
   const nvidiaBaseUrl =
     typeof s.nvidiaBaseUrl === 'string' && s.nvidiaBaseUrl.trim()
       ? s.nvidiaBaseUrl.trim()
