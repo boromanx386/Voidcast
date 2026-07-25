@@ -2,19 +2,26 @@ import { describe, expect, test } from 'vitest'
 import {
   advancePlanStepsOnProgress,
   applyPlanProgressUpdate,
+  attachResearchToPlan,
+  emptyPlanResearchHarvest,
   extractPlanArtifactFromReply,
   finalizePlanAfterBuild,
   formatPlanForBuildPrompt,
   formatPlanForRevisePrompt,
   formatPlanProgressToolResult,
+  harvestPlanToolIntoBuffer,
   isPlanProgressToolResult,
   markAllPlanStepsDone,
+  mergePlanResearch,
   normalizePlanArtifact,
   parsePlanChecklistFromText,
   parsePlanJsonFromText,
+  planHasResearch,
+  planResearchFromHarvest,
   reopenPlanAsDraft,
   selectPlanApproach,
   stripPlanJsonFenceFromContent,
+  stripPlanResearchPathEntry,
 } from '../src/lib/planArtifact'
 
 describe('parsePlanJsonFromText', () => {
@@ -62,6 +69,28 @@ describe('parsePlanJsonFromText', () => {
     const plan = parsePlanJsonFromText(text)
     expect(plan?.title).toBe('Fix bug')
     expect(plan?.steps).toHaveLength(2)
+  })
+
+  test('parses research block from json plan', () => {
+    const text = `\`\`\`json plan
+{
+  "title": "Handoff",
+  "steps": ["Edit planArtifact"],
+  "research": {
+    "keyFiles": ["src/lib/planArtifact.ts", "src/hooks/useChatAgent.ts"],
+    "findings": "Plan stores checklist only; Build needs research snapshot.",
+    "searches": ["formatPlanForBuildPrompt"]
+  }
+}
+\`\`\``
+    const plan = parsePlanJsonFromText(text)
+    expect(plan?.research?.keyFiles).toEqual([
+      'src/lib/planArtifact.ts',
+      'src/hooks/useChatAgent.ts',
+    ])
+    expect(plan?.research?.findings).toContain('research snapshot')
+    expect(plan?.research?.searches).toEqual(['formatPlanForBuildPrompt'])
+    expect(planHasResearch(plan!)).toBe(true)
   })
 })
 
@@ -141,6 +170,27 @@ describe('formatPlanForBuildPrompt', () => {
     expect(prompt).toContain('Chosen approach: A')
     expect(prompt).toMatch(/1\. \[id=.+\] One/)
     expect(prompt).toMatch(/2\. \[id=.+\] Two/)
+    expect(prompt).not.toContain('Research (from Plan mode')
+  })
+
+  test('injects research and no-reexplore instructions', () => {
+    const plan = extractPlanArtifactFromReply(`\`\`\`json plan
+{
+  "title":"Ship",
+  "steps":["One"],
+  "research": {
+    "keyFiles": ["src/a.ts"],
+    "findings": "Edit buildAgentTurnContext for the hint.",
+    "searches": ["BUILD_WITH_RESEARCH"]
+  }
+}
+\`\`\``)!
+    const prompt = formatPlanForBuildPrompt(plan)
+    expect(prompt).toContain('Prefer it over re-exploring')
+    expect(prompt).toContain('Research (from Plan mode — reuse this):')
+    expect(prompt).toContain('Key files: src/a.ts')
+    expect(prompt).toContain('Searches: BUILD_WITH_RESEARCH')
+    expect(prompt).toContain('Edit buildAgentTurnContext for the hint.')
   })
 })
 
@@ -155,6 +205,37 @@ describe('formatPlanForRevisePrompt', () => {
     expect(prompt).toContain('Current title: Auth')
     expect(prompt).toContain('1. Add middleware')
     expect(prompt).toContain('2. Wire routes')
+  })
+
+  test('includes previous research searches', () => {
+    const plan = extractPlanArtifactFromReply(`\`\`\`json plan
+{
+  "title":"Auth",
+  "steps":["Add middleware"],
+  "research": {
+    "keyFiles": ["src/auth.ts"],
+    "findings": "Middleware lives here.",
+    "searches": ["session helper"]
+  }
+}
+\`\`\``)!
+    const prompt = formatPlanForRevisePrompt(plan, 'Keep it minimal')
+    expect(prompt).toContain('Key files: src/auth.ts')
+    expect(prompt).toContain('Searches: session helper')
+    expect(prompt).toContain('Middleware lives here.')
+  })
+})
+
+describe('stripPlanResearchPathEntry', () => {
+  test('strips real-world line-count suffixes', () => {
+    expect(
+      stripPlanResearchPathEntry(
+        'src/hooks/useChatMessageRender.ts (215 lines; spaces must match)',
+      ),
+    ).toBe('src/hooks/useChatMessageRender.ts')
+    expect(stripPlanResearchPathEntry('src/a.ts (lines 12-18)')).toBe('src/a.ts')
+    expect(stripPlanResearchPathEntry('src/a.ts (from line 5)')).toBe('src/a.ts')
+    expect(stripPlanResearchPathEntry('src/a.ts (written)')).toBe('src/a.ts')
   })
 })
 
@@ -251,8 +332,94 @@ describe('normalizePlanArtifact', () => {
     expect(plan?.steps[0]?.done).toBe(true)
   })
 
+  test('persists research round-trip', () => {
+    const plan = normalizePlanArtifact({
+      title: 'T',
+      status: 'draft',
+      steps: [{ id: 'a', text: 'One' }],
+      research: {
+        keyFiles: [' src/foo.ts ', 'src/foo.ts', 'src/bar.ts'],
+        findings: '  Keep this  ',
+        searches: ['q1', 'q1'],
+      },
+    })
+    expect(plan?.research?.keyFiles).toEqual(['src/foo.ts', 'src/bar.ts'])
+    expect(plan?.research?.findings).toBe('Keep this')
+    expect(plan?.research?.searches).toEqual(['q1'])
+  })
+
   test('rejects garbage', () => {
     expect(normalizePlanArtifact(null)).toBeUndefined()
     expect(normalizePlanArtifact({ title: 'x' })).toBeUndefined()
+  })
+})
+
+describe('plan research harvest + merge', () => {
+  test('harvests read_file, search_files, and coding_explore digests', () => {
+    const harvest = emptyPlanResearchHarvest()
+    harvestPlanToolIntoBuffer(
+      harvest,
+      'read_file',
+      { path: 'src/lib/planArtifact.ts' },
+      'export function formatPlanForBuildPrompt',
+    )
+    harvestPlanToolIntoBuffer(harvest, 'search_files', { query: 'PlanArtifact' }, 'src/types/chat.ts:20')
+    harvestPlanToolIntoBuffer(
+      harvest,
+      'coding_explore',
+      { goal: 'plan build handoff' },
+      '[Coding explore]\nTouch src/hooks/useChatAgent.ts and src/lib/buildAgentTurnContext.ts for the hint.',
+    )
+    const fromHarvest = planResearchFromHarvest(harvest)
+    expect(fromHarvest?.keyFiles).toContain('src/lib/planArtifact.ts')
+    expect(fromHarvest?.keyFiles).toContain('src/hooks/useChatAgent.ts')
+    expect(fromHarvest?.searches).toContain('PlanArtifact')
+    expect(fromHarvest?.searches?.some((s) => s.startsWith('explore:'))).toBe(true)
+    expect(fromHarvest?.findings).toContain('buildAgentTurnContext')
+  })
+
+  test('merge prefers richer findings and unions files', () => {
+    const merged = mergePlanResearch(
+      {
+        keyFiles: ['a.ts'],
+        findings: 'short',
+        searches: ['x'],
+      },
+      {
+        keyFiles: ['b.ts'],
+        findings: 'much longer harvested digest from coding_explore',
+        searches: ['y'],
+      },
+    )
+    expect(merged?.keyFiles).toEqual(['a.ts', 'b.ts'])
+    expect(merged?.findings).toContain('coding_explore')
+    expect(merged?.searches).toEqual(['x', 'y'])
+  })
+
+  test('attachResearchToPlan fills missing research from harvest', () => {
+    const plan = extractPlanArtifactFromReply(`\`\`\`json plan
+{"title":"T","steps":["One"]}
+\`\`\``)!
+    expect(plan.research).toBeUndefined()
+    const harvest = emptyPlanResearchHarvest()
+    harvestPlanToolIntoBuffer(
+      harvest,
+      'read_file',
+      { path: 'src/a.ts' },
+      'const x = 1',
+    )
+    const next = attachResearchToPlan(plan, harvest)
+    expect(next.research?.keyFiles).toEqual(['src/a.ts'])
+  })
+
+  test('skips failed tool results', () => {
+    const harvest = emptyPlanResearchHarvest()
+    harvestPlanToolIntoBuffer(
+      harvest,
+      'read_file',
+      { path: 'missing.ts' },
+      'Error: File not found',
+    )
+    expect(planResearchFromHarvest(harvest)).toBeUndefined()
   })
 })

@@ -322,6 +322,18 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply text-[11px] font-medium uppercase tracking-wide text-void-dim;
 }
 
+.plan-artifact-card__research {
+  @apply rounded border border-void-muted/35 bg-void-black/40;
+}
+
+.plan-artifact-card__research-toggle {
+  @apply flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-void-mid/40;
+}
+
+.plan-artifact-card__research-body {
+  @apply border-t border-void-muted/30 px-2.5 py-2;
+}
+
 .plan-artifact-card__approve {
   @apply w-full rounded border border-neon-purple/40 bg-neon-purple/10 px-3 py-2 text-sm font-medium text-neon-purple transition-colors hover:bg-neon-purple/15 disabled:opacity-40;
 }

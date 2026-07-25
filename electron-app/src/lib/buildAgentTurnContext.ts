@@ -48,7 +48,7 @@ import {
   discoverAgentSkills,
   loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
-import { PLAN_MODE_SYSTEM_HINT } from '@/lib/planArtifact'
+import { BUILD_WITH_RESEARCH_SYSTEM_HINT, PLAN_MODE_SYSTEM_HINT } from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { ensureMcpToolsCached, type McpToolInfo } from '@/lib/mcpTools'
 import { isElectron } from '@/lib/platform'
@@ -68,6 +68,10 @@ export type BuildAgentTurnContextParams = {
   /** Live foreground/background coding shell processes for CTX hint. */
   activeCodingProcesses?: ActiveCodingProcess[]
   activeSessionUseLongMemory: boolean
+  /**
+   * Approve & Build turn with Plan research attached — softens broad explore pressure.
+   */
+  buildWithResearch?: boolean
 }
 
 export type BuildAgentTurnContextResult = {
@@ -103,6 +107,7 @@ export async function buildAgentTurnContext(
     codingContextMemo,
     activeCodingProcesses = [],
     activeSessionUseLongMemory,
+    buildWithResearch = false,
   } = params
 
   const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
@@ -192,7 +197,10 @@ export async function buildAgentTurnContext(
       : []
   const projectInstructionsHint = buildProjectInstructionsHint(projectInstructionFiles)
   const planModeSystemHint = planMode ? PLAN_MODE_SYSTEM_HINT : ''
+  const buildResearchSystemHint =
+    !planMode && buildWithResearch ? BUILD_WITH_RESEARCH_SYSTEM_HINT : ''
   const toolsHintParts: string[] = []
+  if (buildResearchSystemHint) toolsHintParts.push(buildResearchSystemHint)
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
   if (mcpActive) {
     const servers = [...new Set(mcpTools.map((t) => t.serverId))].sort()
@@ -257,7 +265,7 @@ export async function buildAgentTurnContext(
         'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
       )
     }
-    toolsHintParts.push(buildCodingMemoHint(codingContextMemo))
+    toolsHintParts.push(buildCodingMemoHint(codingContextMemo, { buildWithResearch }))
     const activeHint = buildActiveProcessesHint(activeCodingProcesses)
     if (activeHint) toolsHintParts.push(activeHint)
   }

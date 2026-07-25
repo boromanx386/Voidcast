@@ -26,12 +26,17 @@ import { touchMemoryUsage } from '@/lib/longMemoryStorage'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import {
   applyPlanProgressUpdate,
+  attachResearchToPlan,
+  emptyPlanResearchHarvest,
   extractPlanArtifactFromReply,
   finalizePlanAfterBuild,
   formatPlanForBuildPrompt,
   formatPlanForRevisePrompt,
+  harvestPlanToolIntoBuffer,
+  planHasResearch,
   reopenPlanAsDraft,
   stripPlanJsonFenceFromContent,
+  type PlanResearchHarvest,
 } from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
@@ -396,6 +401,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         codingContextMemo,
         activeCodingProcesses,
         activeSessionUseLongMemory,
+        buildWithResearch: (() => {
+          const planMsgId = opts?.buildFromPlanMessageId
+          if (!planMsgId) return false
+          const plan =
+            messages.find((m) => m.id === planMsgId)?.plan ??
+            activeHistory.find((m) => m.id === planMsgId)?.plan
+          return planHasResearch(plan)
+        })(),
       })
 
       const {
@@ -491,6 +504,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           ? messages.find((m) => m.id === opts.buildFromPlanMessageId)?.plan ??
             activeHistory.find((m) => m.id === opts.buildFromPlanMessageId)?.plan
           : undefined
+      const planResearchHarvest: PlanResearchHarvest = emptyPlanResearchHarvest()
+      const harvestingPlanResearch = turnAgentMode === 'plan'
 
       try {
         if (useTools) {
@@ -589,6 +604,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             },
             onToolResult: (payload: AgentToolResultPayload) => {
               if (!isRunActive()) return
+              if (harvestingPlanResearch) {
+                harvestPlanToolIntoBuffer(
+                  planResearchHarvest,
+                  payload.name,
+                  payload.args,
+                  payload.result,
+                )
+              }
               applyAgentToolResult(
                 {
                   asstId,
@@ -720,7 +743,10 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
 
         if (turnAgentMode === 'plan' && replyText.trim()) {
-          const plan = extractPlanArtifactFromReply(replyText)
+          const extracted = extractPlanArtifactFromReply(replyText)
+          const plan = extracted
+            ? attachResearchToPlan(extracted, planResearchHarvest)
+            : null
           const stripped = stripPlanJsonFenceFromContent(replyText)
           // Fence-only replies: show empty body (card has the structure), not raw JSON.
           const displayContent = stripped.trim() ? stripped : plan ? '' : replyText

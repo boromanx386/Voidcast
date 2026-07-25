@@ -17,6 +17,13 @@ export type PlanApproach = {
   steps: PlanStep[]
 }
 
+/** Compact Plan-mode findings carried into Approve & Build so Build skips re-exploration. */
+export type PlanResearch = {
+  keyFiles: string[]
+  findings: string
+  searches?: string[]
+}
+
 export type PlanArtifact = {
   title: string
   summary?: string
@@ -26,6 +33,8 @@ export type PlanArtifact = {
   approaches?: PlanApproach[]
   /** Selected approach id (A/B/C/D); steps mirror that approach once chosen. */
   selectedApproachId?: string
+  /** Research snapshot from Plan exploration (model-authored and/or tool-harvested). */
+  research?: PlanResearch
 }
 
 export type FileAttachmentSnapshot = {

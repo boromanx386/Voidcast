@@ -152,12 +152,19 @@ export function isCodingToolFailure(toolName: string, result: string): boolean {
   return false
 }
 
-export function buildCodingMemoHint(memo: CodingContextMemo): string {
+export function buildCodingMemoHint(
+  memo: CodingContextMemo,
+  opts?: { buildWithResearch?: boolean },
+): string {
   const commandLines = memo.recentCommands.map((c) => {
     const status = c.ok ? 'OK' : 'FAIL'
     const tail = c.snippet ? `: ${c.snippet}` : ''
     return `${c.command} → ${status}${tail}`
   })
+
+  const reuseLine = opts?.buildWithResearch
+    ? 'These files/searches were opened during Plan mode — do not re-list the whole tree or run broad coding_explore unless Plan research is missing or insufficient.'
+    : 'Prefer reusing this context before scanning the whole project again.'
 
   const lines: string[] = [
     'Coding context memory from this chat session:',
@@ -168,7 +175,7 @@ export function buildCodingMemoHint(memo: CodingContextMemo): string {
     `- Recent commands: ${commandLines.length ? commandLines.join(' | ') : '(none yet)'}`,
     `- Recent git operations: ${memo.recentGitOps.length ? memo.recentGitOps.join(' | ') : '(none yet)'}`,
     `- Recent failures: ${memo.recentFailures.length ? memo.recentFailures.join(' | ') : '(none yet)'}`,
-    'Prefer reusing this context before scanning the whole project again.',
+    reuseLine,
   ]
   return lines.join('\n')
 }

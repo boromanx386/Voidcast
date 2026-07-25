@@ -1,5 +1,11 @@
 import { isCodingToolFailure } from '@/lib/codingContextMemo'
-import type { PlanApproach, PlanArtifact, PlanStep, UiMessage } from '@/types/chat'
+import type {
+  PlanApproach,
+  PlanArtifact,
+  PlanResearch,
+  PlanStep,
+  UiMessage,
+} from '@/types/chat'
 
 let planStepSeq = 0
 
@@ -12,12 +18,205 @@ export function createPlanStep(text: string, done = false): PlanStep {
   return { id: newPlanStepId(), text: text.trim(), done }
 }
 
+const PLAN_RESEARCH_FINDINGS_MAX = 3000
+const PLAN_RESEARCH_KEY_FILES_MAX = 16
+const PLAN_RESEARCH_SEARCHES_MAX = 8
+
+/** Mutable buffer filled during a Plan turn from tool calls (fallback when JSON omits research). */
+export type PlanResearchHarvest = {
+  keyFiles: string[]
+  searches: string[]
+  digests: string[]
+}
+
+export function emptyPlanResearchHarvest(): PlanResearchHarvest {
+  return { keyFiles: [], searches: [], digests: [] }
+}
+
+function dedupePush(values: string[], next: string, limit: number): string[] {
+  const trimmed = next.trim()
+  if (!trimmed) return values
+  const without = values.filter((v) => v !== trimmed)
+  return [trimmed, ...without].slice(0, limit)
+}
+
+/** Strip line-range / written suffixes from coding memo-style path entries. */
+export function stripPlanResearchPathEntry(entry: string): string {
+  return entry
+    // e.g. "(215 lines; spaces must match)", "(lines 12-18)", "(12 lines)"
+    .replace(/\s*\(\d+\s+lines?(?:\s*[-–]\s*\d+)?\s*(?:;\s*[^)]*)?\)\s*$/i, '')
+    .replace(/\s*\([^)]*lines?\b[^)]*\)\s*$/i, '')
+    .replace(/\s*\(from line \d+\)\s*$/i, '')
+    .replace(/\s*\(to line \d+\)\s*$/i, '')
+    .replace(/\s*\(written\)\s*$/i, '')
+    .trim()
+}
+
+export function normalizePlanResearch(raw: unknown): PlanResearch | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const r = raw as Partial<PlanResearch>
+  const keyFiles = Array.isArray(r.keyFiles)
+    ? Array.from(
+        new Set(
+          r.keyFiles
+            .filter((x): x is string => typeof x === 'string')
+            .map((x) => stripPlanResearchPathEntry(x))
+            .filter(Boolean),
+        ),
+      ).slice(0, PLAN_RESEARCH_KEY_FILES_MAX)
+    : []
+  const findings =
+    typeof r.findings === 'string' ? r.findings.trim().slice(0, PLAN_RESEARCH_FINDINGS_MAX) : ''
+  const searches = Array.isArray(r.searches)
+    ? Array.from(
+        new Set(
+          r.searches
+            .filter((x): x is string => typeof x === 'string')
+            .map((x) => x.trim())
+            .filter(Boolean),
+        ),
+      ).slice(0, PLAN_RESEARCH_SEARCHES_MAX)
+    : []
+  if (keyFiles.length === 0 && !findings && searches.length === 0) return undefined
+  return {
+    keyFiles,
+    findings,
+    ...(searches.length > 0 ? { searches } : {}),
+  }
+}
+
+/** Merge model research with tool-harvested fallback; prefer longer/richer findings. */
+export function mergePlanResearch(
+  primary: PlanResearch | undefined,
+  harvested: PlanResearch | undefined,
+): PlanResearch | undefined {
+  if (!primary && !harvested) return undefined
+  const keyFiles = Array.from(
+    new Set([...(primary?.keyFiles ?? []), ...(harvested?.keyFiles ?? [])]),
+  ).slice(0, PLAN_RESEARCH_KEY_FILES_MAX)
+  const searches = Array.from(
+    new Set([...(primary?.searches ?? []), ...(harvested?.searches ?? [])]),
+  ).slice(0, PLAN_RESEARCH_SEARCHES_MAX)
+  const pFind = primary?.findings?.trim() ?? ''
+  const hFind = harvested?.findings?.trim() ?? ''
+  const findings = (pFind.length >= hFind.length ? pFind : hFind).slice(
+    0,
+    PLAN_RESEARCH_FINDINGS_MAX,
+  )
+  return normalizePlanResearch({ keyFiles, findings, searches })
+}
+
+export function planResearchFromHarvest(harvest: PlanResearchHarvest): PlanResearch | undefined {
+  const keyFiles = Array.from(
+    new Set(harvest.keyFiles.map(stripPlanResearchPathEntry).filter(Boolean)),
+  ).slice(0, PLAN_RESEARCH_KEY_FILES_MAX)
+  const searches = Array.from(new Set(harvest.searches.map((s) => s.trim()).filter(Boolean))).slice(
+    0,
+    PLAN_RESEARCH_SEARCHES_MAX,
+  )
+  const findings = harvest.digests
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, PLAN_RESEARCH_FINDINGS_MAX)
+  return normalizePlanResearch({ keyFiles, findings, searches })
+}
+
+/**
+ * Record a Plan-turn tool call into the harvest buffer.
+ * Only coding explore/read/search tools contribute.
+ */
+export function harvestPlanToolIntoBuffer(
+  harvest: PlanResearchHarvest,
+  name: string,
+  args: Record<string, unknown> | undefined,
+  result: string,
+): void {
+  if (isCodingToolFailure(name, result)) return
+
+  if (name === 'read_file' || name === 'glob_files') {
+    const p = typeof args?.path === 'string' ? args.path.trim() : ''
+    if (p && name === 'read_file') {
+      harvest.keyFiles = dedupePush(harvest.keyFiles, stripPlanResearchPathEntry(p), PLAN_RESEARCH_KEY_FILES_MAX)
+    }
+    const prefix = typeof args?.path_prefix === 'string' ? args.path_prefix.trim() : ''
+    if (name === 'glob_files' && prefix) {
+      harvest.searches = dedupePush(harvest.searches, `glob:${prefix}`, PLAN_RESEARCH_SEARCHES_MAX)
+    }
+    return
+  }
+
+  if (name === 'search_files') {
+    const q = typeof args?.query === 'string' ? args.query.trim() : ''
+    if (q) harvest.searches = dedupePush(harvest.searches, q, PLAN_RESEARCH_SEARCHES_MAX)
+    return
+  }
+
+  if (name === 'list_directory') {
+    const p = typeof args?.path === 'string' ? args.path.trim() : ''
+    if (p) harvest.searches = dedupePush(harvest.searches, `list:${p || '.'}`, PLAN_RESEARCH_SEARCHES_MAX)
+    return
+  }
+
+  if (name === 'coding_explore') {
+    const goal = typeof args?.goal === 'string' ? args.goal.trim() : ''
+    if (goal) harvest.searches = dedupePush(harvest.searches, `explore:${goal}`, PLAN_RESEARCH_SEARCHES_MAX)
+    const digest = result
+      .replace(/^\[Coding explore\]\s*/i, '')
+      .trim()
+      .slice(0, PLAN_RESEARCH_FINDINGS_MAX)
+    if (digest && !/^Error:/i.test(digest) && !/^Aborted/i.test(digest)) {
+      harvest.digests = dedupePush(harvest.digests, digest, 4)
+      // Pull path-like tokens from digest into keyFiles (best-effort).
+      const pathHits = digest.match(
+        /(?:^|[\s`"'(])((?:[\w.-]+\/)+[\w.-]+\.[a-zA-Z0-9]{1,8})/g,
+      )
+      if (pathHits) {
+        for (const hit of pathHits) {
+          const path = hit.replace(/^[\s`"'(]+/, '').trim()
+          if (path) {
+            harvest.keyFiles = dedupePush(
+              harvest.keyFiles,
+              stripPlanResearchPathEntry(path),
+              PLAN_RESEARCH_KEY_FILES_MAX,
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+export function attachResearchToPlan(
+  plan: PlanArtifact,
+  harvest: PlanResearchHarvest,
+): PlanArtifact {
+  const merged = mergePlanResearch(plan.research, planResearchFromHarvest(harvest))
+  if (!merged) return plan
+  return { ...plan, research: merged }
+}
+
+export function planHasResearch(plan: PlanArtifact | undefined): boolean {
+  if (!plan?.research) return false
+  const r = plan.research
+  return Boolean(r.findings.trim() || r.keyFiles.length > 0 || (r.searches?.length ?? 0) > 0)
+}
+
+/** System hint when Approve & Build includes a research snapshot. */
+export const BUILD_WITH_RESEARCH_SYSTEM_HINT = [
+  'This turn builds an approved plan that already includes Plan-mode research (key files + findings).',
+  'Plan-mode research is attached. Prefer it over re-exploring — skip broad coding_explore / glob_files / full-tree list_directory unless the research is empty or a specific file you are about to edit is not cited.',
+  'Prefer the cited key files. Re-read a file when you are about to edit it, or when a cited path looks missing/stale.',
+  'Use write_file / edit_code / execute_command for real implementation work, and call update_plan_progress as you finish steps.',
+].join(' ')
+
 /** System hint appended in Plan mode — explore read-only, end with JSON plan fence. */
 export const PLAN_MODE_SYSTEM_HINT = [
   'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or mutate settings/reminders.',
   'When coding_explore is available, prefer it for broad codebase mapping before drafting the plan.',
   'After enough exploration, end with a structured plan. Default to ONE flat plan (no approaches) when the path is clear.',
   'Offer approaches only when there are real tradeoffs (e.g. speed vs safety vs scope). Prefer 2 distinct options; add a 3rd only if it is meaningfully different — never pad with filler. Optionally add a 4th (D) only when warranted.',
+  'Always include a compact "research" object with keyFiles (paths you explored), findings (1-3 sentence summary of architecture + where to edit), and searches so Approve & Build can reuse them. Base findings on what coding_explore / read_file / search_files revealed — do not invent them from the user prompt alone. Keep findings under ~2500 characters.',
   'End your reply with a fenced JSON block tagged `json plan`. Preferred shapes:',
   '',
   'Flat plan (most tasks):',
@@ -25,7 +224,12 @@ export const PLAN_MODE_SYSTEM_HINT = [
   '{',
   '  "title": "Short plan title",',
   '  "summary": "Optional 1-3 sentence overview",',
-  '  "steps": ["Step 1…", "Step 2…"]',
+  '  "steps": ["Step 1…", "Step 2…"],',
+  '  "research": {',
+  '    "keyFiles": ["src/path/a.ts", "src/path/b.ts"],',
+  '    "findings": "Compact digest for Build: where to edit, relevant APIs, constraints.",',
+  '    "searches": ["optional query crumbs"]',
+  '  }',
   '}',
   '```',
   '',
@@ -38,11 +242,15 @@ export const PLAN_MODE_SYSTEM_HINT = [
   '    { "id": "A", "label": "Short name", "summary": "Tradeoff in one line", "steps": ["Step 1…", "Step 2…"] },',
   '    { "id": "B", "label": "…", "summary": "…", "steps": ["…"] }',
   '  ],',
-  '  "recommended": "A"',
+  '  "recommended": "A",',
+  '  "research": {',
+  '    "keyFiles": ["…"],',
+  '    "findings": "…"',
+  '  }',
   '}',
   '```',
   'Each approach must have actionable ordered steps. Do not claim work was already done.',
-  'If the user asks to revise with their own idea, adapt the plan to that preference and emit a fresh json plan fence (flat or approaches as appropriate).',
+  'If the user asks to revise with their own idea, adapt the plan to that preference and emit a fresh json plan fence (flat or approaches as appropriate), including updated research when exploration changed.',
 ].join('\n')
 
 type RawPlanJson = {
@@ -51,6 +259,7 @@ type RawPlanJson = {
   steps?: unknown
   approaches?: unknown
   recommended?: unknown
+  research?: unknown
 }
 
 function stepsFromUnknown(steps: unknown): string[] {
@@ -103,8 +312,10 @@ export function planArtifactFromParts(
   status: PlanArtifact['status'] = 'draft',
   approaches?: PlanApproach[],
   selectedApproachId?: string,
+  research?: PlanResearch,
 ): PlanArtifact {
   const cleanSteps = steps.map((t) => t.trim()).filter(Boolean)
+  const normalizedResearch = research ? normalizePlanResearch(research) : undefined
   return {
     title: title.trim() || 'Plan',
     ...(summary?.trim() ? { summary: summary.trim() } : {}),
@@ -114,6 +325,7 @@ export function planArtifactFromParts(
     status,
     ...(approaches && approaches.length > 0 ? { approaches } : {}),
     ...(selectedApproachId ? { selectedApproachId } : {}),
+    ...(normalizedResearch ? { research: normalizedResearch } : {}),
   }
 }
 
@@ -130,6 +342,7 @@ export function selectPlanApproach(plan: PlanArtifact, approachId: string): Plan
       : plan.summary
         ? { summary: plan.summary }
         : {}),
+    ...(plan.research ? { research: plan.research } : {}),
   }
 }
 
@@ -156,6 +369,7 @@ export function parsePlanJsonFromText(text: string): PlanArtifact | null {
         typeof parsed.summary === 'string' && parsed.summary.trim()
           ? parsed.summary.trim()
           : undefined
+      const research = normalizePlanResearch(parsed.research)
 
       if (approaches.length > 0) {
         const recommendedRaw =
@@ -170,10 +384,11 @@ export function parsePlanJsonFromText(text: string): PlanArtifact | null {
           selectedApproachId: selected.id,
           steps: selected.steps.map((s) => createPlanStep(s.text)),
           status: 'draft',
+          ...(research ? { research } : {}),
         }
       }
 
-      return planArtifactFromParts(title, stepTexts, summary)
+      return planArtifactFromParts(title, stepTexts, summary, 'draft', undefined, undefined, research)
     } catch {
       // try next
     }
@@ -238,9 +453,15 @@ export function stripPlanJsonFenceFromContent(text: string): string {
 }
 
 export function formatPlanForBuildPrompt(plan: PlanArtifact): string {
+  const hasResearch = planHasResearch(plan)
   const lines = [
     'Build the approved plan. Implement it with the available tools. Do not ask for another plan unless blocked.',
     'When you finish a step, call update_plan_progress with that step_id (or 1-based step_index) before moving on. The UI only checks steps when you call this tool — file edits alone do not advance the checklist.',
+    ...(hasResearch
+      ? [
+          'Plan-mode research is attached below. Prefer it over re-exploring — skip broad coding_explore / glob_files / full-tree list_directory unless research is empty or a file you are about to edit is not cited. Re-read when about to edit or when a path looks stale/missing.',
+        ]
+      : []),
     '',
     `Title: ${plan.title}`,
   ]
@@ -253,6 +474,19 @@ export function formatPlanForBuildPrompt(plan: PlanArtifact): string {
   }
   if (plan.summary?.trim()) {
     lines.push(`Summary: ${plan.summary.trim()}`)
+  }
+  if (hasResearch && plan.research) {
+    lines.push('', 'Research (from Plan mode — reuse this):')
+    if (plan.research.keyFiles.length) {
+      lines.push(`Key files: ${plan.research.keyFiles.join(', ')}`)
+    }
+    if (plan.research.searches?.length) {
+      lines.push(`Searches: ${plan.research.searches.join(' | ')}`)
+    }
+    if (plan.research.findings.trim()) {
+      lines.push('Findings:')
+      lines.push(plan.research.findings.trim())
+    }
   }
   lines.push('Steps:')
   plan.steps.forEach((s, i) => {
@@ -288,6 +522,18 @@ export function formatPlanForRevisePrompt(plan: PlanArtifact, customNote: string
   }
   if (plan.summary?.trim()) {
     lines.push(`Previous summary: ${plan.summary.trim()}`)
+  }
+  if (planHasResearch(plan) && plan.research) {
+    lines.push('Previous research (update if exploration changes):')
+    if (plan.research.keyFiles.length) {
+      lines.push(`Key files: ${plan.research.keyFiles.join(', ')}`)
+    }
+    if (plan.research.searches?.length) {
+      lines.push(`Searches: ${plan.research.searches.join(' | ')}`)
+    }
+    if (plan.research.findings.trim()) {
+      lines.push(plan.research.findings.trim())
+    }
   }
   lines.push('Previous steps:')
   plan.steps.forEach((s, i) => {
@@ -503,6 +749,8 @@ export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {
     ? selectedRaw
     : undefined
 
+  const research = normalizePlanResearch(p.research)
+
   return {
     title: p.title.trim() || 'Plan',
     ...(typeof p.summary === 'string' && p.summary.trim()
@@ -512,5 +760,6 @@ export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {
     status,
     ...(approaches.length > 0 ? { approaches } : {}),
     ...(selectedApproachId ? { selectedApproachId } : {}),
+    ...(research ? { research } : {}),
   }
 }

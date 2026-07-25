@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createPlanStep, selectPlanApproach } from '@/lib/planArtifact'
+import { createPlanStep, planHasResearch, selectPlanApproach } from '@/lib/planArtifact'
 import type { PlanArtifact, PlanStep } from '@/types/chat'
 
 type Props = {
@@ -17,6 +17,8 @@ function planStatusLabel(status: PlanArtifact['status']): string {
   return 'Draft'
 }
 
+const FINDINGS_PREVIEW_MAX = 280
+
 export function PlanArtifactCard({
   messageId,
   plan,
@@ -30,6 +32,8 @@ export function PlanArtifactCard({
   const selectedId = plan.selectedApproachId
   const [customOpen, setCustomOpen] = useState(false)
   const [customNote, setCustomNote] = useState('')
+  const [researchOpen, setResearchOpen] = useState(false)
+  const showResearch = planHasResearch(plan)
 
   const setTitle = (title: string) => {
     onChange(messageId, { ...plan, title })
@@ -75,6 +79,11 @@ export function PlanArtifactCard({
   const statusLabel = planStatusLabel(plan.status)
   const doneCount = plan.steps.filter((s) => s.done).length
   const isRetry = plan.status === 'draft' && doneCount > 0 && doneCount < plan.steps.length
+  const findings = plan.research?.findings?.trim() ?? ''
+  const findingsPreview =
+    findings.length > FINDINGS_PREVIEW_MAX
+      ? `${findings.slice(0, FINDINGS_PREVIEW_MAX).trimEnd()}…`
+      : findings
 
   return (
     <div className="plan-artifact-card">
@@ -151,6 +160,43 @@ export function PlanArtifactCard({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {showResearch && plan.research && (
+        <div className="plan-artifact-card__research mb-3">
+          <button
+            type="button"
+            className="plan-artifact-card__research-toggle"
+            onClick={() => setResearchOpen((o) => !o)}
+            aria-expanded={researchOpen}
+          >
+            <span className="plan-artifact-card__section-label">
+              Research
+              {plan.research.keyFiles.length ? ` · ${plan.research.keyFiles.length} files` : ''}
+            </span>
+            <span className="text-[10px] text-void-dim">{researchOpen ? 'Hide' : 'Show'}</span>
+          </button>
+          {researchOpen && (
+            <div className="plan-artifact-card__research-body">
+              {plan.research.keyFiles.length > 0 && (
+                <p className="mb-1.5 text-[11px] leading-relaxed text-void-light">
+                  <span className="text-void-dim">Key files: </span>
+                  {plan.research.keyFiles.join(', ')}
+                </p>
+              )}
+              {plan.research.searches && plan.research.searches.length > 0 && (
+                <p className="mb-1.5 text-[11px] leading-relaxed text-void-dim">
+                  Searches: {plan.research.searches.join(' | ')}
+                </p>
+              )}
+              {findingsPreview && (
+                <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-void-dim">
+                  {findingsPreview}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
