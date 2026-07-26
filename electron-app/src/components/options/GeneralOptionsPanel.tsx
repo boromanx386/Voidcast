@@ -233,7 +233,9 @@ export function GeneralOptionsPanel({
                         ? 'blood-moon'
                         : e.target.value === 'obsidian'
                           ? 'obsidian'
-                          : 'dystopian',
+                          : e.target.value === 'terminal'
+                            ? 'terminal'
+                            : 'dystopian',
             }))
           }
         >
@@ -243,9 +245,10 @@ export function GeneralOptionsPanel({
           <option value="light">Light (warm paper)</option>
           <option value="blood-moon">Blood Moon (crimson void)</option>
           <option value="obsidian">Obsidian (neutral dark)</option>
+          <option value="terminal">Terminal (amber phosphor)</option>
         </select>
         <p className="text-xs text-void-dim mt-1">
-          Dystopian uses CRT/particles; Matrix uses green phosphor + digital rain. Minimal and Light stay calm.
+          Dystopian uses CRT/particles. Matrix uses green phosphor + digital rain. Obsidian stays neutral. Terminal strips all decoration for a pure amber-CLI feel.
         </p>
       </div>
 

@@ -480,8 +480,8 @@ export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'ope
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
 
-/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (green/code rain), light (warm paper), blood-moon (crimson void) */
-export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian'
+/** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (green/code rain), light (warm paper), blood-moon (crimson void), obsidian (neutral dark), terminal (amber CLI) */
+export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian' | 'terminal'
 
 export type RunwareModelProfile = {
   width: number
@@ -1424,7 +1424,7 @@ function normalizePdfDir(s: AppSettings): AppSettings {
 function normalizeUiTheme(s: AppSettings): AppSettings {
   const t = s.uiTheme
   const uiTheme: UiTheme =
-    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' || t === 'blood-moon' || t === 'obsidian' ? t : 'minimal'
+    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' || t === 'blood-moon' || t === 'obsidian' || t === 'terminal' ? t : 'minimal'
   return { ...s, uiTheme }
 }
 

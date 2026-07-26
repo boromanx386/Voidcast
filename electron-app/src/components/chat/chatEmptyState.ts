@@ -74,6 +74,7 @@ export const CHAT_COMPOSER_PLACEHOLDER: Record<UiTheme, string> = {
   light: 'Type a message...',
   'blood-moon': 'Feed the void...',
   obsidian: 'Enter your query...',
+  terminal: '$ _',
 }
 
 export { EMPTY_STATE_VARIANTS }

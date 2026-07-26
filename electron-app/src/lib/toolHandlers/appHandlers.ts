@@ -101,7 +101,7 @@ export const handleUpdateSettings: ToolHandlerFn = async (args, ctx) => {
       .trim()
       .toLowerCase() as UiTheme;
     if (!UI_THEME_SET.has(next)) {
-      return "Error: uiTheme must be one of: dystopian, minimal, matrix, light, blood-moon, obsidian.";
+      return "Error: uiTheme must be one of: dystopian, minimal, matrix, light, blood-moon, obsidian, terminal.";
     }
     candidate.uiTheme = next;
   } else if (field === "longMemoryAdd") {

@@ -142,6 +142,7 @@ export const UI_THEME_SET = new Set<UiTheme>([
   "light",
   "blood-moon",
   "obsidian",
+  "terminal",
 ]);
 const LONG_MEMORY_KIND_SET = new Set<LongMemoryKind>([
   "preference",

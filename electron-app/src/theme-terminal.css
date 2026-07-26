@@ -1,0 +1,509 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Terminal — Raw Retro CLI
+   Amber phosphor on pure black. No chat bubbles. No rounded corners.
+   No decorative effects. Just monospaced text, $ / > prompts, and a
+   block-cursor input area.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html[data-ui-theme='terminal'] {
+  /* ── Full-amber monochrome palette ── */
+  --color-void-black: 0 0 0;
+  --color-void-dark: 5 5 5;
+  --color-void-mid: 10 10 8;
+  --color-void-muted: 35 30 20;
+  --color-void-dim: 90 78 55;
+  --color-void-text: 200 185 150;
+  --color-void-light: 220 210 180;
+  --color-void-white: 235 225 200;
+
+  /* Every neon slot maps to a variant of amber/phosphor. */
+  --color-neon-cyan: 255 185 60;
+  --color-neon-magenta: 220 180 100;
+  --color-neon-green: 200 180 80;
+  --color-neon-yellow: 230 200 70;
+  --color-neon-red: 200 90 50;
+  --color-neon-purple: 190 150 80;
+  --color-neon-orange: 230 140 50;
+  --ui-accent-rgb: 255 185 60;
+
+  /* Everything is monospaced — no exceptions */
+  --font-body: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-mono: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-display: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+
+  /* Kill every decorative effect */
+  --glitch-intensity: 0;
+  --crt-opacity: 0;
+  --digit-rain-opacity: 0;
+}
+
+/* ═══ Global resets ═══ */
+html[data-ui-theme='terminal'] body {
+  background: #000 !important;
+  color: rgb(var(--color-void-light)) !important;
+  text-shadow: none !important;
+  font-family: var(--font-mono) !important;
+}
+
+html[data-ui-theme='terminal'] ::selection {
+  background: rgba(255, 185, 60, 0.3);
+  color: #000;
+}
+
+html[data-ui-theme='terminal'] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html[data-ui-theme='terminal'] ::-webkit-scrollbar-track {
+  background: #000;
+}
+html[data-ui-theme='terminal'] ::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-void-muted));
+  border-radius: 0;
+}
+html[data-ui-theme='terminal'] ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-void-dim));
+}
+
+/* ═══ App shell ═══ */
+html[data-ui-theme='terminal'] .voidcast-app {
+  background: #000;
+}
+
+html[data-ui-theme='terminal'] .voidcast-header,
+html[data-ui-theme='terminal'] .voidcast-input-area,
+html[data-ui-theme='terminal'] .voidcast-sidebar {
+  background: #000;
+  border-color: rgb(var(--color-void-muted) / 0.6);
+  backdrop-filter: none;
+}
+
+html[data-ui-theme='terminal'] .voidcast-header::after,
+html[data-ui-theme='terminal'] .voidcast-input-area::before {
+  display: none;
+}
+
+/* Header → minimal single-line status bar */
+html[data-ui-theme='terminal'] .voidcast-header {
+  border-bottom: 1px solid rgb(var(--color-void-muted) / 0.4);
+  padding: 4px 12px;
+  min-height: auto;
+}
+
+/* Sidebar */
+html[data-ui-theme='terminal'] .voidcast-sidebar {
+  border-right: 1px solid rgb(var(--color-void-muted) / 0.4);
+}
+
+/* ═══ Messages — no bubbles, just prompt-prefixed text ═══ */
+html[data-ui-theme='terminal'] .message-container {
+  padding: 2px 12px !important;
+  margin: 0 !important;
+  animation: none !important;
+}
+
+html[data-ui-theme='terminal'] .message-bubble {
+  background: transparent !important;
+  border: none !important;
+  clip-path: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Hide the role label (USER / Void Agent) — prompt prefixes replace it */
+html[data-ui-theme='terminal'] .message-meta {
+  display: none !important;
+}
+
+/* User message = one line prefixed with >  */
+html[data-ui-theme='terminal'] .message-user,
+html[data-ui-theme='terminal'] .message-assistant {
+  color: rgb(var(--color-void-light)) !important;
+  background: transparent !important;
+  border: none !important;
+  clip-path: none !important;
+  border-radius: 0 !important;
+}
+
+html[data-ui-theme='terminal'] .message-container.user .message-bubble::before {
+  content: '> ';
+  color: rgb(var(--color-neon-cyan));
+  font-weight: bold;
+}
+
+html[data-ui-theme='terminal'] .message-container.assistant .message-bubble::before {
+  content: '$ ';
+  color: rgb(var(--color-neon-green));
+  font-weight: bold;
+}
+
+/* Messages that are DIVs of markdown content: squash whitespace */
+html[data-ui-theme='terminal'] .message-user .min-w-0,
+html[data-ui-theme='terminal'] .message-assistant .min-w-0 {
+  display: inline;
+}
+
+html[data-ui-theme='terminal'] .message-user p,
+html[data-ui-theme='terminal'] .message-assistant p {
+  margin: 0;
+}
+
+html[data-ui-theme='terminal'] .message-user p + p,
+html[data-ui-theme='terminal'] .message-assistant p + p {
+  margin-top: 0.5em;
+}
+
+html[data-ui-theme='terminal'] .message-user code,
+html[data-ui-theme='terminal'] .message-assistant code {
+  background: transparent;
+  color: rgb(var(--color-neon-yellow));
+  font-family: var(--font-mono);
+}
+
+html[data-ui-theme='terminal'] .message-user pre,
+html[data-ui-theme='terminal'] .message-assistant pre {
+  background: rgba(255, 185, 60, 0.04);
+  border: 1px solid rgb(var(--color-void-muted));
+  border-radius: 0;
+  padding: 8px 12px;
+  margin: 4px 0;
+}
+
+html[data-ui-theme='terminal'] .message-user ul,
+html[data-ui-theme='terminal'] .message-assistant ul,
+html[data-ui-theme='terminal'] .message-user ol,
+html[data-ui-theme='terminal'] .message-assistant ol {
+  padding-left: 20px;
+  margin: 2px 0;
+}
+
+html[data-ui-theme='terminal'] .message-user li,
+html[data-ui-theme='terminal'] .message-assistant li {
+  list-style: square;
+}
+
+/* ═══ Thinking details block ═══ */
+html[data-ui-theme='terminal'] details.rounded.border {
+  border-color: rgb(var(--color-void-muted)) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html[data-ui-theme='terminal'] details summary {
+  font-family: var(--font-mono);
+  color: rgb(var(--color-neon-cyan)) !important;
+}
+
+html[data-ui-theme='terminal'] details summary span {
+  font-family: var(--font-mono);
+}
+
+html[data-ui-theme='terminal'] details summary button {
+  border-color: rgb(var(--color-void-muted));
+  border-radius: 0;
+  background: transparent;
+  color: rgb(var(--color-void-dim));
+}
+
+html[data-ui-theme='terminal'] details summary button:hover {
+  background: rgba(255, 185, 60, 0.1);
+}
+
+html[data-ui-theme='terminal'] details .font-mono.text-void-dim {
+  color: rgb(var(--color-void-dim)) !important;
+}
+
+/* ═══ Plan artifact cards ═══ */
+html[data-ui-theme='terminal'] .plan-artifact-card,
+html[data-ui-theme='terminal'] .composer-plan-banner {
+  background: #000 !important;
+  border: 1px solid rgb(var(--color-void-muted)) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-theme='terminal'] .plan-artifact-card .cyber-btn {
+  border-color: rgb(var(--color-void-muted));
+  background: transparent;
+  color: rgb(var(--color-void-text));
+  border-radius: 0;
+}
+
+html[data-ui-theme='terminal'] .plan-artifact-card .cyber-btn:hover {
+  background: rgba(255, 185, 60, 0.1);
+  border-color: rgb(var(--color-neon-cyan));
+}
+
+/* ═══ Input area ═══ */
+html[data-ui-theme='terminal'] .voidcast-input-area {
+  border-top: 1px solid rgb(var(--color-void-muted) / 0.4);
+  padding: 6px 12px 8px;
+}
+
+html[data-ui-theme='terminal'] .voidcast-textarea {
+  background: #000 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: rgb(var(--color-void-light)) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 14px !important;
+  box-shadow: none !important;
+  resize: none;
+  caret-color: rgb(var(--color-neon-cyan));
+}
+
+html[data-ui-theme='terminal'] .voidcast-textarea:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Block cursor animation for the textarea */
+html[data-ui-theme='terminal'] .voidcast-textarea::after {
+  content: '_';
+  color: rgb(var(--color-neon-cyan));
+  animation: terminal-blink 1s step-end infinite;
+}
+
+@keyframes terminal-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ═══ Send button ═══ */
+html[data-ui-theme='terminal'] .send-btn,
+html[data-ui-theme='terminal'] [class*="send-btn"]:not(.send-btn-tooltip) {
+  background: transparent !important;
+  border: 1px solid rgb(var(--color-void-muted)) !important;
+  border-radius: 0 !important;
+  color: rgb(var(--color-neon-cyan)) !important;
+  box-shadow: none !important;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 2px 10px;
+  min-width: auto;
+}
+
+html[data-ui-theme='terminal'] .send-btn:hover,
+html[data-ui-theme='terminal'] [class*="send-btn"]:hover {
+  background: rgba(255, 185, 60, 0.1) !important;
+  border-color: rgb(var(--color-neon-cyan)) !important;
+}
+
+/* ═══ Buttons (cyber, options, settings) ═══ */
+html[data-ui-theme='terminal'] .cyber-btn,
+html[data-ui-theme='terminal'] .cyber-input,
+html[data-ui-theme='terminal'] .cyber-panel,
+html[data-ui-theme='terminal'] .form-select {
+  border-color: rgb(var(--color-void-muted));
+  border-radius: 0;
+}
+
+html[data-ui-theme='terminal'] .cyber-btn {
+  background: transparent;
+  color: rgb(var(--color-void-text));
+  box-shadow: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+html[data-ui-theme='terminal'] .cyber-btn:hover {
+  background: rgba(255, 185, 60, 0.1);
+  border-color: rgb(var(--color-neon-cyan));
+  box-shadow: none;
+}
+
+html[data-ui-theme='terminal'] .cyber-btn::before,
+html[data-ui-theme='terminal'] .cyber-panel::before,
+html[data-ui-theme='terminal'] .corner-tl,
+html[data-ui-theme='terminal'] .corner-tr,
+html[data-ui-theme='terminal'] .corner-bl,
+html[data-ui-theme='terminal'] .corner-br {
+  display: none !important;
+}
+
+html[data-ui-theme='terminal'] .cyber-input,
+html[data-ui-theme='terminal'] .form-select {
+  background: #000;
+  color: rgb(var(--color-void-text));
+  font-family: var(--font-mono);
+}
+
+html[data-ui-theme='terminal'] .cyber-input:focus,
+html[data-ui-theme='terminal'] .form-select:focus {
+  border-color: rgb(var(--color-neon-cyan) / 0.5);
+  box-shadow: 0 0 0 1px rgb(var(--color-neon-cyan) / 0.15);
+  outline: none;
+}
+
+html[data-ui-theme='terminal'] textarea:focus,
+html[data-ui-theme='terminal'] input:focus,
+html[data-ui-theme='terminal'] select:focus {
+  box-shadow: 0 0 0 1px rgb(var(--color-neon-cyan) / 0.15);
+  outline: none;
+}
+
+/* ═══ Sidebar entries ═══ */
+html[data-ui-theme='terminal'] .sidebar-entry {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: rgb(var(--color-void-text));
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+html[data-ui-theme='terminal'] .sidebar-entry:hover {
+  background: rgba(255, 185, 60, 0.06);
+}
+
+html[data-ui-theme='terminal'] .sidebar-entry.active,
+html[data-ui-theme='terminal'] .sidebar-entry.selected {
+  background: rgba(255, 185, 60, 0.12);
+  color: rgb(var(--color-neon-cyan));
+}
+
+html[data-ui-theme='terminal'] .sidebar-new-btn {
+  background: transparent;
+  border: 1px solid rgb(var(--color-void-muted));
+  border-radius: 0;
+  color: rgb(var(--color-neon-cyan));
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+html[data-ui-theme='terminal'] .sidebar-new-btn:hover {
+  background: rgba(255, 185, 60, 0.12);
+  border-color: rgb(var(--color-neon-cyan));
+}
+
+/* ═══ Options / Settings panels ═══ */
+html[data-ui-theme='terminal'] .option-tab {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: rgb(var(--color-void-dim));
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+html[data-ui-theme='terminal'] .option-tab.active {
+  background: transparent;
+  border-bottom: 2px solid rgb(var(--color-neon-cyan));
+  color: rgb(var(--color-neon-cyan));
+}
+
+html[data-ui-theme='terminal'] .option-tab:hover {
+  color: rgb(var(--color-void-light));
+}
+
+html[data-ui-theme='terminal'] .option-panel {
+  background: #000;
+  border: 1px solid rgb(var(--color-void-muted));
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ═══ System status ═══ */
+html[data-ui-theme='terminal'] .system-status {
+  color: rgb(var(--color-void-dim));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: transparent;
+  border: none;
+}
+
+/* ═══ Coding panel ═══ */
+html[data-ui-theme='terminal'] .coding-panel,
+html[data-ui-theme='terminal'] .coding-output,
+html[data-ui-theme='terminal'] .coding-sidebar {
+  background: #000;
+  border-color: rgb(var(--color-void-muted));
+  border-radius: 0;
+}
+
+html[data-ui-theme='terminal'] .panel-splitter {
+  background: rgb(var(--color-void-muted) / 0.5);
+}
+
+.html[data-ui-theme='terminal'] .coding-terminal {
+  background: #000;
+  font-family: var(--font-mono);
+}
+
+/* ═══ Kill ALL decorative / glow / gradient text effects ═══ */
+html[data-ui-theme='terminal'] .glitch-text,
+html[data-ui-theme='terminal'] .glitch-text::before,
+html[data-ui-theme='terminal'] .glitch-text::after,
+html[data-ui-theme='terminal'] .crt-overlay,
+html[data-ui-theme='terminal'] .ambient-particles {
+  animation: none !important;
+  display: none !important;
+}
+
+html[data-ui-theme='terminal'] .tool-indicator,
+html[data-ui-theme='terminal'] .hover-glow-cyan:hover,
+html[data-ui-theme='terminal'] .hover-glow-magenta:hover,
+html[data-ui-theme='terminal'] .text-shadow-neon,
+html[data-ui-theme='terminal'] .text-shadow-glow,
+html[data-ui-theme='terminal'] .neon-text-cyan,
+html[data-ui-theme='terminal'] .neon-text-magenta,
+html[data-ui-theme='terminal'] .neon-text-green,
+html[data-ui-theme='terminal'] .chromatic-hover:hover {
+  text-shadow: none !important;
+}
+
+html[data-ui-theme='terminal'] .gradient-text,
+html[data-ui-theme='terminal'] .gradient-text-green,
+html[data-ui-theme='terminal'] .gradient-text-cyan,
+html[data-ui-theme='terminal'] .gradient-text-magenta {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  -webkit-text-fill-color: initial !important;
+  background-clip: initial !important;
+  color: rgb(var(--color-void-light)) !important;
+}
+
+/* ═══ Message animation — none ═══ */
+html[data-ui-theme='terminal'] .animate-message-in {
+  animation: none !important;
+}
+
+/* ═══ Override common bg util classes ═══ */
+html[data-ui-theme='terminal'] .bg-void-mid\/70 {
+  background-color: rgba(10, 10, 8, 0.7) !important;
+}
+html[data-ui-theme='terminal'] .bg-void-dark\/80 {
+  background-color: rgba(5, 5, 5, 0.8) !important;
+}
+html[data-ui-theme='terminal'] .border-void-muted\/50 {
+  border-color: rgba(35, 30, 20, 0.5) !important;
+}
+html[data-ui-theme='terminal'] .border-neon-cyan\/20 {
+  border-color: rgba(255, 185, 60, 0.2) !important;
+}
+html[data-ui-theme='terminal'] .border-neon-cyan\/25 {
+  border-color: rgba(255, 185, 60, 0.25) !important;
+}
+
+/* ═══ Chat empty state ═══ */
+html[data-ui-theme='terminal'] .chat-empty-state {
+  color: rgb(var(--color-void-dim));
+  font-family: var(--font-mono);
+}
+
+html[data-ui-theme='terminal'] .chat-empty-state h2,
+html[data-ui-theme='terminal'] .chat-empty-state h3 {
+  font-family: var(--font-mono);
+  color: rgb(var(--color-void-text));
+}
+
+/* ═══ Audio / media indicator ═══ */
+html[data-ui-theme='terminal'] .media-attachment-preview,
+html[data-ui-theme='terminal'] .file-preview {
+  border: 1px solid rgb(var(--color-void-muted));
+  border-radius: 0;
+  background: transparent;
+}
