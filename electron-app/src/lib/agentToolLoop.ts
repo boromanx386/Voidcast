@@ -117,7 +117,8 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     keepRecentRounds: number
     minChars: number
     shouldClear: (name: string) => boolean
-    placeholder: (name: string, chars: number) => string
+    /** Replaces cleared body; `content` is the full result about to be evicted. */
+    placeholder: (name: string, chars: number, content: string) => string
   }
   parseArgsForToolResult?: (raw: string | Record<string, unknown> | undefined) => Record<string, unknown>
   onDelta: (fullText: string) => void
@@ -209,7 +210,7 @@ export async function runSharedToolLoop<
         const msg = messages[rec.index] as { content?: unknown } | undefined
         if (!msg || typeof msg.content !== 'string') continue
         if (msg.content.length < clearing.minChars) continue
-        msg.content = clearing.placeholder(rec.name, msg.content.length)
+        msg.content = clearing.placeholder(rec.name, msg.content.length, msg.content)
         rec.cleared = true
       }
     }

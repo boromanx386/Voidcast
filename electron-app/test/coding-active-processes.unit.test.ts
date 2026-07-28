@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyOutputToActiveProcess,
+  appendProcessOutputBuffer,
   buildActiveProcessesHint,
   mergeActiveProcessOutputLines,
   removeActiveProcess,
+  sliceProcessOutputBuffer,
   upsertActiveProcess,
   type ActiveCodingProcess,
 } from '../src/lib/codingActiveProcesses'
@@ -100,10 +102,11 @@ describe('buildActiveProcessesHint', () => {
       1_012_000,
     )
     expect(hint).toContain('Active coding processes:')
-    expect(hint).toContain('[fg] npm run dev → pid 1234, running 12s')
+    expect(hint).toContain('[fg] runId=r1 npm run dev → pid 1234, running 12s')
     expect(hint).toContain('Local: http://localhost:5173/')
-    expect(hint).toContain('[bg] python -m http.server → pid 5678, running 3s')
+    expect(hint).toContain('[bg] runId=r2 python -m http.server → pid 5678, running 3s')
     expect(hint).toContain('(no output yet)')
+    expect(hint).toContain('stop_process')
   })
 
   it('caps listed processes and notes overflow', () => {
@@ -113,5 +116,26 @@ describe('buildActiveProcessesHint', () => {
     const hint = buildActiveProcessesHint(many, 0)
     expect(hint.split('\n').filter((l) => l.startsWith('- [')).length).toBe(4)
     expect(hint).toContain('…and 2 more')
+  })
+})
+
+describe('process output ring buffer', () => {
+  it('appends and drops from the front when over max', () => {
+    let state = { buffer: '', startOffset: 0 }
+    state = appendProcessOutputBuffer(state, 'abcdefghij', 6)
+    expect(state.buffer).toBe('efghij')
+    expect(state.startOffset).toBe(4)
+  })
+
+  it('slices by absolute offset', () => {
+    const state = { buffer: 'hello world', startOffset: 10 }
+    const mid = sliceProcessOutputBuffer(state, 15)
+    expect(mid.text).toBe(' world')
+    expect(mid.nextOffset).toBe(21)
+    expect(mid.truncatedFromStart).toBe(false)
+
+    const early = sliceProcessOutputBuffer(state, 0)
+    expect(early.text).toBe('hello world')
+    expect(early.truncatedFromStart).toBe(true)
   })
 })

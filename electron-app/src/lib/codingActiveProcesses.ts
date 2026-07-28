@@ -15,6 +15,9 @@ export const ACTIVE_PROCESS_MAX_LINES = 8
 export const ACTIVE_PROCESS_HINT_MAX = 4
 export const ACTIVE_PROCESS_LAST_MAX_CHARS = 120
 
+/** Ring buffer size for agent `read_process_output` (main process). */
+export const ACTIVE_PROCESS_OUTPUT_BUFFER_MAX_CHARS = 64_000
+
 /** Merge a stdout/stderr chunk into a rolling last-lines buffer.
  *  The last element is the current (possibly incomplete) line; a trailing `''`
  *  means the previous chunk ended with a newline.
@@ -38,6 +41,39 @@ export function mergeActiveProcessOutputLines(
   }
   // Keep at most maxLines completed lines + one incomplete trailing slot.
   return out.slice(-(maxLines + 1))
+}
+
+/** Append to a capped output ring; returns updated buffer + absolute start offset. */
+export function appendProcessOutputBuffer(
+  prev: { buffer: string; startOffset: number },
+  text: string,
+  maxChars = ACTIVE_PROCESS_OUTPUT_BUFFER_MAX_CHARS,
+): { buffer: string; startOffset: number } {
+  if (!text) return prev
+  let buffer = prev.buffer + text
+  let startOffset = prev.startOffset
+  if (buffer.length > maxChars) {
+    const drop = buffer.length - maxChars
+    buffer = buffer.slice(drop)
+    startOffset += drop
+  }
+  return { buffer, startOffset }
+}
+
+export function sliceProcessOutputBuffer(
+  state: { buffer: string; startOffset: number },
+  offset?: number,
+): { text: string; nextOffset: number; truncatedFromStart: boolean; startOffset: number } {
+  const req = typeof offset === 'number' && Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : state.startOffset
+  const truncatedFromStart = req < state.startOffset
+  const localStart = Math.max(0, req - state.startOffset)
+  const text = state.buffer.slice(localStart)
+  return {
+    text,
+    nextOffset: state.startOffset + state.buffer.length,
+    truncatedFromStart,
+    startOffset: state.startOffset,
+  }
 }
 
 export function upsertActiveProcess(
@@ -100,6 +136,7 @@ function formatLastSnippet(lines: string[]): string {
 
 /**
  * Compact CTX block. Empty list → empty string (omit from prompt).
+ * Includes runId so the agent can call stop_process / read_process_output.
  */
 export function buildActiveProcessesHint(
   procs: ActiveCodingProcess[],
@@ -114,11 +151,14 @@ export function buildActiveProcessesHint(
       const secs = Math.max(0, Math.round((nowMs - p.startedAt) / 1000))
       const cmd = p.command.trim() || '(empty)'
       const last = formatLastSnippet(p.lastLines)
-      return `- [${kind}] ${cmd} → pid ${p.pid || 'n/a'}, running ${secs}s, last: "${last}"`
+      return `- [${kind}] runId=${p.runId} ${cmd} → pid ${p.pid || 'n/a'}, running ${secs}s, last: "${last}"`
     }),
   ]
   if (procs.length > ACTIVE_PROCESS_HINT_MAX) {
     lines.push(`- …and ${procs.length - ACTIVE_PROCESS_HINT_MAX} more`)
   }
+  lines.push(
+    'Use list_processes / read_process_output(runId) to inspect logs; stop_process(runId) to stop. Do not start a duplicate server.',
+  )
   return lines.join('\n')
 }

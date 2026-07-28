@@ -87,11 +87,12 @@ Tool choice (call the right one first):
 - write_file — create or fully replace a file.
 - edit_code — patch an existing file (preferred over write_file when changing part of a file).
 - execute_command — run shell commands (build, test, npm, git via shell only when no dedicated git tool fits).
+- list_processes / read_process_output / stop_process — inspect or stop Active coding processes by runId (do not start a duplicate server).
 - git_status / git_diff / git_log / git_show — repo inspection without guessing.
 - check_types — run TypeScript typecheck (tsc --noEmit) after editing .ts/.tsx files; use path_prefix when tsconfig lives in a subfolder.
 ${exploreLine}
 Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. If you need contents before editing, call read_file first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
-If Active coding processes lists a server/dev command still running, do not start a duplicate; reuse or stop it first.
+If Active coding processes lists a server/dev command still running, do not start a duplicate; reuse or stop_process(runId) first.
 
 Coding project path: ${path}`
 }

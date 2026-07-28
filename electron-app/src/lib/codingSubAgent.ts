@@ -40,6 +40,8 @@ export const CODING_EXPLORE_ALLOWED_TOOLS = new Set([
   'git_log',
   'git_show',
   'check_types',
+  'list_processes',
+  'read_process_output',
 ])
 
 export const CODING_EXPLORE_DEFAULT_ROUNDS = 8
@@ -85,14 +87,130 @@ export const CODING_CLEARABLE_TOOLS = new Set([
   'git_show',
   'check_types',
   'execute_command',
+  'list_processes',
+  'read_process_output',
 ])
 
 export function isClearableCodingToolResult(name: string): boolean {
   return CODING_CLEARABLE_TOOLS.has(name)
 }
 
-export function clearedCodingToolResultPlaceholder(name: string, chars: number): string {
-  return `[Old ${name} result (${chars.toLocaleString()} chars) cleared to save context. Call the tool again if you still need it.]`
+export const CODING_CLEAR_DIGEST_MAX = 560
+
+const READ_FILE_SYMBOL_RE =
+  /^(?:export\s+)?(?:async\s+)?(?:function|class|const|let|var|type|interface|enum)\s+(\w+)|^(?:export\s+default\s+(?:async\s+)?function\s+(\w+))|^ipcMain\.handle\(\s*['"]([^'"]+)/
+
+function stripNumberedLine(line: string): { lineNo: number | null; text: string } {
+  const m = line.match(/^(\d+)\|(.*)$/)
+  if (m) return { lineNo: Number(m[1]), text: m[2] ?? '' }
+  return { lineNo: null, text: line }
+}
+
+function digestReadFile(content: string): string {
+  const lines = content.split(/\r?\n/)
+  const bodyLines = lines.filter((l) => !l.startsWith('[Note:') && l.trim() !== '')
+  const symbols: string[] = []
+  for (const raw of bodyLines) {
+    if (symbols.length >= 8) break
+    const { lineNo, text } = stripNumberedLine(raw)
+    const trimmed = text.trim()
+    const m = trimmed.match(READ_FILE_SYMBOL_RE)
+    if (!m) continue
+    const name = m[1] || m[2] || m[3]
+    if (!name) continue
+    const loc = lineNo != null ? `L${lineNo}` : '?'
+    symbols.push(`${name}(${loc})`)
+  }
+  const lineCount = bodyLines.length
+  const symbolPart = symbols.length ? `: ${symbols.join('; ')}` : ''
+  return `read_file [${lineCount} lines]${symbolPart}`
+}
+
+function digestPathList(content: string, label: string, maxPaths = 40): string {
+  const lines = content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (lines.length === 0) return `${label}: (empty)`
+  const shown = lines.slice(0, maxPaths)
+  const more = lines.length > maxPaths ? `; …+${lines.length - maxPaths} more` : ''
+  return `${label} [${lines.length}]: ${shown.join(', ')}${more}`
+}
+
+function digestSearchFiles(content: string): string {
+  const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const files: string[] = []
+  for (const line of lines) {
+    // Blocks often start with path:line or "## path" / bare path headers
+    const pathHit =
+      line.match(/^(?:##\s+)?([^\s:]+\.[a-zA-Z0-9]+)(?::\d+)?/) ||
+      line.match(/^([^\s]+\.[a-zA-Z0-9]+)\s*\(/)
+    if (pathHit) {
+      const p = pathHit[1]!
+      if (!files.includes(p)) files.push(p)
+    }
+    if (files.length >= 12) break
+  }
+  const head = lines[0]?.slice(0, 80) ?? ''
+  const filePart = files.length ? ` hits: ${files.join(', ')}` : ''
+  return `search_files${head ? ` (${head})` : ''}${filePart}`
+}
+
+function digestHeadTail(label: string, content: string): string {
+  const lines = content.split(/\r?\n/).map((l) => l.trimEnd())
+  const nonempty = lines.filter((l) => l.trim())
+  if (nonempty.length === 0) return `${label}: (empty)`
+  const first = nonempty[0]!.slice(0, 120)
+  const last = nonempty.slice(-3).map((l) => l.slice(0, 100))
+  const lastPart = last.length > 1 || last[0] !== first ? ` → ${last.join(' | ')}` : ''
+  return `${label}: ${first}${lastPart}`
+}
+
+/** Compact structural digest left behind when an old tool result is cleared. */
+export function buildClearedToolDigest(name: string, content: string): string {
+  const c = content.trim()
+  if (!c) return `${name}: (empty)`
+  let body: string
+  switch (name) {
+    case 'read_file':
+      body = digestReadFile(c)
+      break
+    case 'list_directory':
+      body = digestPathList(c, 'list_directory')
+      break
+    case 'glob_files':
+      body = digestPathList(c, 'glob_files')
+      break
+    case 'search_files':
+      body = digestSearchFiles(c)
+      break
+    case 'git_status':
+    case 'git_diff':
+    case 'git_log':
+    case 'git_show':
+    case 'check_types':
+    case 'execute_command':
+    case 'list_processes':
+    case 'read_process_output':
+      body = digestHeadTail(name, c)
+      break
+    default:
+      body = digestHeadTail(name, c)
+  }
+  if (body.length > CODING_CLEAR_DIGEST_MAX) {
+    return `${body.slice(0, CODING_CLEAR_DIGEST_MAX - 1)}…`
+  }
+  return body
+}
+
+export function clearedCodingToolResultPlaceholder(
+  name: string,
+  chars: number,
+  content = '',
+): string {
+  const digest = content ? buildClearedToolDigest(name, content) : ''
+  const digestLine = digest ? `\nDigest: ${digest}` : ''
+  return `[Old ${name} result (${chars.toLocaleString()} chars) cleared to save context. Call the tool again if you still need it.]${digestLine}`
 }
 
 export function isCodingExploreAllowedTool(name: string): boolean {

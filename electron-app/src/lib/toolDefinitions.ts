@@ -13,6 +13,7 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'write_file',
   'edit_code',
   'execute_command',
+  'stop_process',
   'save_pdf',
   'generate_image',
   'edit_image_runware',
@@ -445,7 +446,7 @@ const CODING_LIST_DIRECTORY_TOOL: AgentToolDefinition = {
   function: {
     name: 'list_directory',
     description:
-      'List files and folders inside the configured coding project directory. Use this to browse project structure before reading or editing files.',
+      'List files and folders inside the configured coding project directory. Use this to browse project structure before reading or editing files. By default skips heavy/generated folders (node_modules, .venv, dist, __pycache__, etc.); set include_ignored=true to show them.',
     parameters: {
       type: 'object',
       properties: {
@@ -453,6 +454,11 @@ const CODING_LIST_DIRECTORY_TOOL: AgentToolDefinition = {
           type: 'string',
           description:
             'Optional relative path inside coding project. Empty means project root.',
+        },
+        include_ignored: {
+          type: 'boolean',
+          description:
+            'If true, include normally skipped folders (node_modules, .venv, dist, etc.). Default false.',
         },
       },
     },
@@ -539,6 +545,20 @@ const CODING_EDIT_CODE_TOOL: AgentToolDefinition = {
         replace_all: {
           type: 'boolean',
           description: 'If true, replace all matches. Default false (first match only).',
+        },
+        start_line: {
+          type: 'number',
+          description:
+            'Optional 1-based start line to restrict the search (use with end_line when the snippet repeats).',
+        },
+        end_line: {
+          type: 'number',
+          description: 'Optional 1-based end line to restrict the search.',
+        },
+        ignore_whitespace: {
+          type: 'boolean',
+          description:
+            'If true, match ignoring indentation and runs of spaces (useful after reformats). Default false.',
         },
       },
       required: ['path', 'find_text', 'replace_text'],
@@ -725,10 +745,66 @@ const CODING_EXECUTE_COMMAND_TOOL: AgentToolDefinition = {
         run_in_background: {
           type: 'boolean',
           description:
-            'If true, starts command in background and returns immediately with process id. Use for servers, watchers, and browser/agent CLIs that stay running after printing success.',
+            'If true, starts command in background and returns immediately with process id. Use for servers, watchers, and browser/agent CLIs that stay running after printing success. Manage with list_processes / read_process_output / stop_process.',
         },
       },
       required: ['command'],
+    },
+  },
+}
+
+const CODING_LIST_PROCESSES_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'list_processes',
+    description:
+      'List active coding shell processes started via execute_command (foreground and background). Returns runId, command, status snippet. Use before starting a duplicate server/dev command.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+}
+
+const CODING_STOP_PROCESS_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'stop_process',
+    description:
+      'Stop an active coding process by runId (from list_processes or the Active coding processes hint). Prefer this over starting a duplicate.',
+    parameters: {
+      type: 'object',
+      properties: {
+        run_id: {
+          type: 'string',
+          description: 'Process runId from list_processes / Active coding processes hint.',
+        },
+      },
+      required: ['run_id'],
+    },
+  },
+}
+
+const CODING_READ_PROCESS_OUTPUT_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'read_process_output',
+    description:
+      'Read retained stdout/stderr from an active coding process (last ~64KB). Pass offset from a previous nextOffset to poll for new output (e.g. wait for "Listening on").',
+    parameters: {
+      type: 'object',
+      properties: {
+        run_id: {
+          type: 'string',
+          description: 'Process runId from list_processes / Active coding processes hint.',
+        },
+        offset: {
+          type: 'number',
+          description:
+            'Optional absolute byte offset from a prior nextOffset (omit to read from the start of the retained buffer).',
+        },
+      },
+      required: ['run_id'],
     },
   },
 }
@@ -1087,7 +1163,12 @@ export function buildToolsList(
     out.push(CODING_GIT_LOG_TOOL)
     out.push(CODING_GIT_SHOW_TOOL)
     out.push(CODING_CHECK_TYPES_TOOL)
-    if (!planMode) out.push(CODING_EXECUTE_COMMAND_TOOL)
+    out.push(CODING_LIST_PROCESSES_TOOL)
+    out.push(CODING_READ_PROCESS_OUTPUT_TOOL)
+    if (!planMode) {
+      out.push(CODING_EXECUTE_COMMAND_TOOL)
+      out.push(CODING_STOP_PROCESS_TOOL)
+    }
     if (opts?.subAgentCodingEnabled) out.push(CODING_EXPLORE_TOOL)
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)

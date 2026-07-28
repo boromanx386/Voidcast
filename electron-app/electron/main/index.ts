@@ -21,8 +21,7 @@ import os from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, watch, type FSWatcher } from 'node:fs'
-import { ChunkThrottle } from '../../src/lib/chunkThrottle'
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, unlink, stat, writeFile } from 'node:fs/promises'
 import { rgPath as bundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
@@ -38,6 +37,10 @@ import {
   readPersistedMcpResult,
 } from './mcpManager'
 import { buildMcpProjectServerPreviews } from '../../src/lib/mcpProjectTrust'
+import {
+  attachCodingProcessStdio,
+  codingCommandSpawnEnv,
+} from '../../src/lib/codingProcessStdio'
 import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
@@ -107,13 +110,19 @@ let isQuitting = false
 let toolsServerProcess: ChildProcessWithoutNullStreams | null = null
 
 import {
+  appendProcessOutputBuffer,
   mergeActiveProcessOutputLines,
+  sliceProcessOutputBuffer,
   type ActiveCodingProcess,
   type ActiveCodingProcessKind,
 } from '../../src/lib/codingActiveProcesses'
 
 /** Foreground + background `execute_command` runs — keyed by runId for STOP / CTX hint. */
-type ActiveCodingProcessEntry = ActiveCodingProcess & { killed: boolean }
+type ActiveCodingProcessEntry = ActiveCodingProcess & {
+  killed: boolean
+  outputBuffer: string
+  outputStartOffset: number
+}
 
 const activeCodingProcesses = new Map<string, ActiveCodingProcessEntry>()
 let toolsServerStarting = false
@@ -183,6 +192,8 @@ function registerCodingProcess(
     startedAt: Date.now(),
     lastLines: [],
     killed: false,
+    outputBuffer: '',
+    outputStartOffset: 0,
   }
   activeCodingProcesses.set(params.runId, entry)
   sendCodingProcessUpdate(sender, { action: 'upsert', process: toPublicProcess(entry) })
@@ -193,6 +204,44 @@ function appendCodingProcessOutput(runId: string, text: string): void {
   const entry = activeCodingProcesses.get(runId)
   if (!entry || !text) return
   entry.lastLines = mergeActiveProcessOutputLines(entry.lastLines, text)
+  const next = appendProcessOutputBuffer(
+    { buffer: entry.outputBuffer, startOffset: entry.outputStartOffset },
+    text,
+  )
+  entry.outputBuffer = next.buffer
+  entry.outputStartOffset = next.startOffset
+}
+
+function readCodingProcessOutput(
+  runId: string,
+  offset?: number,
+):
+  | {
+      ok: true
+      text: string
+      nextOffset: number
+      truncatedFromStart: boolean
+      startOffset: number
+      command: string
+      kind: ActiveCodingProcessKind
+    }
+  | { ok: false; error: string } {
+  pruneDeadCodingProcesses()
+  const entry = activeCodingProcesses.get(runId)
+  if (!entry) return { ok: false, error: 'No active process for that runId.' }
+  const sliced = sliceProcessOutputBuffer(
+    { buffer: entry.outputBuffer, startOffset: entry.outputStartOffset },
+    offset,
+  )
+  return {
+    ok: true,
+    text: sliced.text,
+    nextOffset: sliced.nextOffset,
+    truncatedFromStart: sliced.truncatedFromStart,
+    startOffset: sliced.startOffset,
+    command: entry.command,
+    kind: entry.kind,
+  }
 }
 
 function unregisterCodingProcess(sender: WebContents, runId: string): void {
@@ -1553,15 +1602,20 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:coding-list-directory',
-  async (_evt, payload: { projectPath?: string; path?: string }) => {
+  async (_evt, payload: { projectPath?: string; path?: string; includeIgnored?: boolean }) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
       if (!projectPath) return { ok: false as const, error: 'Missing coding project path.' }
       const absDir = resolveInsideProject(projectPath, String(payload?.path ?? ''))
+      const includeIgnored = payload?.includeIgnored === true
       const entries = await readdir(absDir, { withFileTypes: true })
       const mapped = await Promise.all(
         entries
-          .filter((e) => !e.name.startsWith('.git'))
+          .filter((e) => {
+            if (e.name.startsWith('.git')) return false
+            if (!includeIgnored && e.isDirectory() && shouldSkipCodingWalkDir(e.name)) return false
+            return true
+          })
           .map(async (entry) => {
             const fullPath = path.join(absDir, entry.name)
             const st = await stat(fullPath).catch(() => null)
@@ -1685,7 +1739,18 @@ ipcMain.handle(
       const absFile = resolveInsideProject(projectPath, filePath)
       const content = String(payload?.content ?? '')
       await mkdir(path.dirname(absFile), { recursive: true })
-      await writeFile(absFile, content, 'utf8')
+      const tmpFile = `${absFile}.voidcast-tmp`
+      try {
+        await writeFile(tmpFile, content, 'utf8')
+        await rename(tmpFile, absFile)
+      } catch (e) {
+        try {
+          await unlink(tmpFile)
+        } catch {
+          // ignore cleanup errors
+        }
+        throw e
+      }
       return { ok: true as const, path: filePath.replace(/\\/g, '/') }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
@@ -2193,9 +2258,11 @@ ipcMain.handle(
       const child = spawn(command, {
         cwd: projectPath,
         shell: true,
-        detached: runInBackground,
+        // Never detach — Windows detached children often abandon our pipes (empty output buffer).
+        detached: false,
         stdio: 'pipe',
         windowsHide: true,
+        env: codingCommandSpawnEnv(),
       })
 
       const sendOutput = (payloadOut: {
@@ -2224,24 +2291,18 @@ ipcMain.handle(
 
       if (runInBackground) {
         sendOutput({ stream: 'system', text: `$ ${command}  (background)` })
-        const throttleBg = new ChunkThrottle((stream, text) => {
+        const stdio = attachCodingProcessStdio(child, (stream, text) => {
           sendOutput({ stream, text })
           appendCodingProcessOutput(runId, text)
         }, 50)
-        child.stdout?.on('data', (chunk) => {
-          throttleBg.push('stdout', String(chunk))
-        })
-        child.stderr?.on('data', (chunk) => {
-          throttleBg.push('stderr', String(chunk))
-        })
         child.on('error', (err) => {
           sendOutput({ stream: 'stderr', text: err.message })
-          throttleBg.flush()
+          stdio.flush()
           unregisterCodingProcess(evt.sender, runId)
           sendOutput({ done: true, code: 1 })
         })
         child.on('close', (code) => {
-          throttleBg.flush()
+          stdio.flush()
           if (runState.killed) {
             sendOutput({ stream: 'stderr', text: 'Command was stopped.' })
           }
@@ -2267,11 +2328,6 @@ ipcMain.handle(
 
       sendOutput({ stream: 'system', text: `$ ${command}` })
 
-      const throttle = new ChunkThrottle((stream, text) => {
-        sendOutput({ stream, text })
-        appendCodingProcessOutput(runId, text)
-      }, 50)
-
       let stdout = ''
       let stderr = ''
       let settled = false
@@ -2291,13 +2347,29 @@ ipcMain.handle(
         }
       }
 
+      const bumpIdlePromote = () => {
+        if (settled) return
+        clearIdleTimer()
+        idleTimer = setTimeout(() => {
+          promoteToBackground()
+        }, IDLE_PROMOTE_MS)
+      }
+
+      const stdio = attachCodingProcessStdio(child, (stream, text) => {
+        if (stream === 'stdout') stdout += text
+        else stderr += text
+        sendOutput({ stream, text })
+        appendCodingProcessOutput(runId, text)
+        bumpIdlePromote()
+      }, 50)
+
       const finish = (result: OkResult | ErrResult) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
         clearIdleTimer()
         unregisterCodingProcess(evt.sender, runId)
-        throttle.flush()
+        stdio.flush()
         sendOutput({
           done: true,
           code: result.ok ? result.code : undefined,
@@ -2319,7 +2391,7 @@ ipcMain.handle(
           action: 'upsert',
           process: toPublicProcess(runState),
         })
-        throttle.flush()
+        stdio.flush()
         sendOutput({
           stream: 'system',
           text: '[still running — returned to agent; tracked as background]',
@@ -2337,31 +2409,11 @@ ipcMain.handle(
         })
       }
 
-      const bumpIdlePromote = () => {
-        if (settled) return
-        clearIdleTimer()
-        idleTimer = setTimeout(() => {
-          promoteToBackground()
-        }, IDLE_PROMOTE_MS)
-      }
-
       const timer = setTimeout(() => {
         timedOut = true
         void killProcessTree(pid)
       }, timeoutMs)
 
-      child.stdout?.on('data', (chunk) => {
-        const text = String(chunk)
-        stdout += text
-        throttle.push('stdout', text)
-        bumpIdlePromote()
-      })
-      child.stderr?.on('data', (chunk) => {
-        const text = String(chunk)
-        stderr += text
-        throttle.push('stderr', text)
-        bumpIdlePromote()
-      })
       child.on('error', (err) => {
         sendOutput({ stream: 'stderr', text: err.message })
         finish({ ok: false, error: err.message, runId, streamed: true })
@@ -2369,7 +2421,7 @@ ipcMain.handle(
       child.on('close', (code) => {
         clearIdleTimer()
         if (promotedToBackground) {
-          throttle.flush()
+          stdio.flush()
           if (runState.killed) {
             sendOutput({ stream: 'stderr', text: stoppedLabel })
           }
@@ -2395,7 +2447,6 @@ ipcMain.handle(
           return
         }
         if (timedOut) {
-          sendOutput({ stream: 'stderr', text: timeoutLabel })
           finish({
             ok: true,
             stdout: stdout.trim(),
@@ -2440,6 +2491,19 @@ ipcMain.handle(
 ipcMain.handle('voidcast:coding-list-active-processes', async () => {
   return { processes: listActiveCodingProcesses() }
 })
+
+ipcMain.handle(
+  'voidcast:coding-read-process-output',
+  async (_evt, payload: { runId?: string; offset?: number }) => {
+    const runId = String(payload?.runId ?? '').trim()
+    if (!runId) return { ok: false as const, error: 'Missing runId.' }
+    const offset =
+      typeof payload?.offset === 'number' && Number.isFinite(payload.offset)
+        ? Math.floor(payload.offset)
+        : undefined
+    return readCodingProcessOutput(runId, offset)
+  },
+)
 
 ipcMain.handle('voidcast:coding-kill-all-active-processes', async () => {
   const entries = [...activeCodingProcesses.values()]

@@ -4,6 +4,7 @@ import {
   toLf,
   restoreLineEndings,
   applySnippetEdit,
+  buildEditUnifiedDiff,
   parseEditedLineRangeFromToolResult,
   formatEditedFileMemoEntry,
   readFileToolDisplayPrefix,
@@ -201,6 +202,42 @@ describe('applySnippetEdit', () => {
     expect(result.ok).toBe(false)
   })
 
+  it('restricts match to start_line/end_line', () => {
+    const file = 'foo\nbar\nfoo\nbaz'
+    const result = applySnippetEdit(file, 'foo', 'FOO', {
+      startLine: 3,
+      endLine: 4,
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.next).toBe('foo\nbar\nFOO\nbaz')
+      expect(result.startLine).toBe(3)
+    }
+  })
+
+  it('ignore_whitespace matches indentation drift', () => {
+    const file = 'function x() {\n  return 1\n}'
+    const result = applySnippetEdit(file, 'function x() {\nreturn 1\n}', 'function x() {\n  return 2\n}', {
+      ignoreWhitespace: true,
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.mode).toBe('whitespace-normalized')
+      expect(result.next).toContain('return 2')
+    }
+  })
+
+  it('failure includes closest match hint', () => {
+    const file = 'alpha\nbravo\ncharlie\ndelta'
+    const result = applySnippetEdit(file, 'bravoo\ncharlie', 'x', false)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.closest).toBeTruthy()
+      expect(result.closest!.similarity).toBeGreaterThanOrEqual(40)
+      expect(result.closest!.startLine).toBeGreaterThanOrEqual(1)
+    }
+  })
+
   it('handles find_text same as replace_text (no-op)', () => {
     const result = applySnippetEdit('hello world', 'hello', 'hello', false)
     expect(result.ok).toBe(true)
@@ -211,6 +248,19 @@ describe('applySnippetEdit', () => {
     const result = applySnippetEdit('\n\n', '\n\n', '\n', false)
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.next).toBe('\n')
+  })
+})
+
+describe('buildEditUnifiedDiff', () => {
+  it('includes unified diff markers for a simple change', () => {
+    const before = 'a\nb\nc\nd\ne'
+    const after = 'a\nB\nc\nd\ne'
+    const diff = buildEditUnifiedDiff(before, after, 'src/x.ts', 2, 2)
+    expect(diff).toContain('--- a/src/x.ts')
+    expect(diff).toContain('+++ b/src/x.ts')
+    expect(diff).toContain('@@')
+    expect(diff).toContain('-b')
+    expect(diff).toContain('+B')
   })
 })
 

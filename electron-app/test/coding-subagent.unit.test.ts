@@ -6,6 +6,7 @@ import {
   CODING_TRIM_THRESHOLD,
   CODING_TRIM_TOOLS,
   clampExploreMaxRounds,
+  buildClearedToolDigest,
   clearedCodingToolResultPlaceholder,
   isClearableCodingToolResult,
   isCodingExploreAllowedTool,
@@ -88,6 +89,38 @@ describe('old tool result clearing helpers', () => {
     expect(p).toContain('12')
     expect(p.length).toBeLessThan(CODING_CLEAR_MIN_CHARS)
   })
+
+  it('placeholder includes a structural digest when content is provided', () => {
+    const content = [
+      '[Note: LF line endings]',
+      '10|export function handleEditCode() {',
+      '11|  return 1',
+      '12|}',
+      '50|export class Foo {}',
+      '80|function helper() {}',
+    ].join('\n')
+    const p = clearedCodingToolResultPlaceholder('read_file', content.length, content)
+    expect(p).toContain('Digest:')
+    expect(p).toContain('handleEditCode(L10)')
+    expect(p).toContain('Foo(L50)')
+    expect(p.length).toBeLessThan(CODING_CLEAR_MIN_CHARS)
+  })
+
+  it('buildClearedToolDigest summarizes path lists and command output', () => {
+    const list = buildClearedToolDigest(
+      'list_directory',
+      ['[dir] src', '[file] package.json', '[dir] node_modules'].join('\n'),
+    )
+    expect(list).toContain('list_directory [3]')
+    expect(list).toContain('[dir] src')
+
+    const cmd = buildClearedToolDigest(
+      'execute_command',
+      ['$ npm test', 'ok', 'failing', 'exit 1'].join('\n'),
+    )
+    expect(cmd).toContain('execute_command:')
+    expect(cmd).toContain('exit 1')
+  })
 })
 
 describe('coding explore allowlist / parse', () => {
@@ -95,9 +128,12 @@ describe('coding explore allowlist / parse', () => {
     expect(isCodingExploreAllowedTool('search_files')).toBe(true)
     expect(isCodingExploreAllowedTool('read_file')).toBe(true)
     expect(isCodingExploreAllowedTool('check_types')).toBe(true)
+    expect(isCodingExploreAllowedTool('list_processes')).toBe(true)
+    expect(isCodingExploreAllowedTool('read_process_output')).toBe(true)
     expect(isCodingExploreAllowedTool('write_file')).toBe(false)
     expect(isCodingExploreAllowedTool('edit_code')).toBe(false)
     expect(isCodingExploreAllowedTool('execute_command')).toBe(false)
+    expect(isCodingExploreAllowedTool('stop_process')).toBe(false)
     expect(isCodingExploreAllowedTool('coding_explore')).toBe(false)
   })
 
@@ -178,8 +214,18 @@ describe('buildToolsList coding_explore', () => {
       subAgentCodingEnabled: true,
     })
     expect(tools.some((t) => t.function.name === 'coding_explore')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'list_processes')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'read_process_output')).toBe(true)
     expect(tools.some((t) => t.function.name === 'execute_command')).toBe(false)
+    expect(tools.some((t) => t.function.name === 'stop_process')).toBe(false)
     expect(tools.some((t) => t.function.name === 'write_file')).toBe(false)
+  })
+
+  it('exposes process tools outside plan mode', () => {
+    const tools = buildToolsList(codingEnabled as never, false)
+    expect(tools.some((t) => t.function.name === 'list_processes')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'read_process_output')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'stop_process')).toBe(true)
   })
 })
 

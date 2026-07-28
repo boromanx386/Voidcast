@@ -82,6 +82,10 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'coding_typecheck'
     case 'execute_command':
       return 'coding_shell'
+    case 'list_processes':
+    case 'stop_process':
+    case 'read_process_output':
+      return 'coding_shell'
     case 'coding_explore':
       return 'coding_explore'
     case 'update_settings':

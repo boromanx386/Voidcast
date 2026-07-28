@@ -284,6 +284,7 @@ interface VoidcastBridge {
   codingListDirectory: (payload: {
     projectPath: string
     path?: string
+    includeIgnored?: boolean
   }) => Promise<
     | {
         ok: true
@@ -433,6 +434,22 @@ interface VoidcastBridge {
       lastLines: string[]
     }[]
   }>
+
+  codingReadProcessOutput: (payload: {
+    runId: string
+    offset?: number
+  }) => Promise<
+    | {
+        ok: true
+        text: string
+        nextOffset: number
+        truncatedFromStart: boolean
+        startOffset: number
+        command: string
+        kind: 'foreground' | 'background'
+      }
+    | { ok: false; error?: string }
+  >
 
   codingKillAllActiveProcesses: () => Promise<{ ok: true; count: number }>
 

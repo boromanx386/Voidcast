@@ -4,13 +4,19 @@ import {
   invokeCodingGit,
   invokeCheckCodingTypes,
   invokeGlobCodingFiles,
+  invokeKillCodingCommand,
+  invokeListActiveCodingProcesses,
   invokeListCodingDirectory,
   invokeReadCodingFile,
+  invokeReadCodingProcessOutput,
   invokeSearchCodingFiles,
   invokeWriteCodingFile,
 } from "@/lib/codingTools";
 import { runCodingExplore } from "@/lib/codingSubAgent";
 import type { ToolHandlerFn, ToolHandlerRegistry } from "@/lib/toolExecTypes";
+import {
+  ACTIVE_PROCESS_LAST_MAX_CHARS,
+} from "@/lib/codingActiveProcesses";
 
 export const handleListDirectory: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.coding)
@@ -19,8 +25,11 @@ export const handleListDirectory: ToolHandlerFn = async (args, ctx) => {
   if (!projectPath)
     return "Error: coding project folder is not set in settings.";
   const relativePath = typeof args.path === "string" ? args.path.trim() : "";
+  const includeIgnored = args.include_ignored === true;
   try {
-    const listed = await invokeListCodingDirectory(projectPath, relativePath);
+    const listed = await invokeListCodingDirectory(projectPath, relativePath, {
+      includeIgnored,
+    });
     if (!listed.ok) return `Error: ${listed.error}`;
     if (listed.entries.length === 0) return "Directory is empty.";
     return listed.entries
@@ -84,6 +93,15 @@ export const handleEditCode: ToolHandlerFn = async (args, ctx) => {
   const replaceText =
     typeof args.replace_text === "string" ? args.replace_text : "";
   const replaceAll = args.replace_all === true;
+  const startLine =
+    typeof args.start_line === "number" && Number.isFinite(args.start_line)
+      ? Math.floor(args.start_line)
+      : undefined;
+  const endLine =
+    typeof args.end_line === "number" && Number.isFinite(args.end_line)
+      ? Math.floor(args.end_line)
+      : undefined;
+  const ignoreWhitespace = args.ignore_whitespace === true;
   if (!relativePath) return "Error: missing path parameter for edit_code.";
   return (
     await invokeEditCodingFile(
@@ -92,6 +110,7 @@ export const handleEditCode: ToolHandlerFn = async (args, ctx) => {
       findText,
       replaceText,
       replaceAll,
+      { startLine, endLine, ignoreWhitespace },
     )
   ).text;
 };
@@ -246,6 +265,53 @@ export const handleExecuteCommand: ToolHandlerFn = async (args, ctx) => {
   ).text;
 };
 
+export const handleListProcesses: ToolHandlerFn = async (_args, ctx) => {
+  if (!ctx.toolsEnabled.coding)
+    return "Error: list_processes tool is disabled in settings.";
+  const procs = await invokeListActiveCodingProcesses();
+  if (procs.length === 0) return "No active coding processes.";
+  const now = Date.now();
+  return procs
+    .map((p) => {
+      const kind = p.kind === "background" ? "bg" : "fg";
+      const secs = Math.max(0, Math.round((now - p.startedAt) / 1000));
+      const last = p.lastLines
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .slice(-2)
+        .join(" | ");
+      const lastShown = last
+        ? last.length > ACTIVE_PROCESS_LAST_MAX_CHARS
+          ? `${last.slice(0, ACTIVE_PROCESS_LAST_MAX_CHARS - 1)}…`
+          : last
+        : "(no output yet)";
+      return `- [${kind}] runId=${p.runId} pid=${p.pid || "n/a"} running ${secs}s\n  cmd: ${p.command}\n  last: ${lastShown}`;
+    })
+    .join("\n");
+};
+
+export const handleStopProcess: ToolHandlerFn = async (args, ctx) => {
+  if (!ctx.toolsEnabled.coding)
+    return "Error: stop_process tool is disabled in settings.";
+  const runId = typeof args.run_id === "string" ? args.run_id.trim() : "";
+  if (!runId) return "Error: missing run_id parameter for stop_process.";
+  const res = await invokeKillCodingCommand(runId);
+  if (!res.ok) return `Error: ${res.error}`;
+  return `Stopped process ${runId}.`;
+};
+
+export const handleReadProcessOutput: ToolHandlerFn = async (args, ctx) => {
+  if (!ctx.toolsEnabled.coding)
+    return "Error: read_process_output tool is disabled in settings.";
+  const runId = typeof args.run_id === "string" ? args.run_id.trim() : "";
+  if (!runId) return "Error: missing run_id parameter for read_process_output.";
+  const offset =
+    typeof args.offset === "number" && Number.isFinite(args.offset)
+      ? Math.floor(args.offset)
+      : undefined;
+  return (await invokeReadCodingProcessOutput(runId, offset)).text;
+};
+
 export const handleCodingExplore: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.coding)
     return "Error: coding_explore tool is disabled in settings.";
@@ -305,5 +371,8 @@ export const codingHandlersRegistry: ToolHandlerRegistry = {
   ["git_show"]: handleGitShow,
   ["check_types"]: handleCheckTypes,
   ["execute_command"]: handleExecuteCommand,
+  ["list_processes"]: handleListProcesses,
+  ["stop_process"]: handleStopProcess,
+  ["read_process_output"]: handleReadProcessOutput,
   ["coding_explore"]: handleCodingExplore,
 };

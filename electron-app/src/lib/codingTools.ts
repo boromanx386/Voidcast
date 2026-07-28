@@ -1,6 +1,8 @@
 import type { CodingFileNode, CodingToolResult } from '@/types/coding'
 import {
   applySnippetEdit,
+  buildEditUnifiedDiff,
+  formatClosestMatchFailure,
   readFileToolDisplayPrefix,
   type FileLineEndings,
 } from '@/lib/codingEol'
@@ -24,10 +26,15 @@ export async function invokePickCodingDirectory(): Promise<{ ok: true; path: str
 export async function invokeListCodingDirectory(
   projectPath: string,
   path = '',
+  options?: { includeIgnored?: boolean },
 ): Promise<{ ok: true; entries: CodingFileNode[] } | { ok: false; error: string }> {
   const fn = window.voidcast?.codingListDirectory
   if (!fn) return { ok: false, error: 'Not available outside Electron.' }
-  const res = await fn({ projectPath, path })
+  const res = await fn({
+    projectPath,
+    path,
+    includeIgnored: options?.includeIgnored === true,
+  })
   if (!res.ok) return { ok: false, error: res.error || 'List directory failed.' }
   return { ok: true, entries: res.entries }
 }
@@ -71,6 +78,26 @@ export async function invokeListActiveCodingProcesses(): Promise<ActiveCodingPro
   if (!fn) return []
   const res = await fn()
   return res.processes ?? []
+}
+
+export async function invokeReadCodingProcessOutput(
+  runId: string,
+  offset?: number,
+): Promise<CodingToolResult> {
+  const fn = window.voidcast?.codingReadProcessOutput
+  if (!fn) return missingBridgeResult('Read process output')
+  const res = await fn({ runId, offset })
+  if (!res.ok) return { ok: false, text: res.error || 'Read process output failed.' }
+  const header = [
+    `Process ${runId} (${res.kind}): ${res.command}`,
+    `offset ${offset ?? res.startOffset} → nextOffset ${res.nextOffset}` +
+      (res.truncatedFromStart ? ' (requested offset older than retained buffer)' : ''),
+  ].join('\n')
+  const body = res.text.trimEnd()
+  return {
+    ok: true,
+    text: body ? `${header}\n\n${body}` : `${header}\n\n(no output yet)`,
+  }
 }
 
 export async function invokeKillAllActiveCodingProcesses(): Promise<void> {
@@ -134,17 +161,28 @@ export async function invokeEditCodingFile(
   findText: string,
   replaceText: string,
   replaceAll = false,
+  options?: {
+    startLine?: number
+    endLine?: number
+    ignoreWhitespace?: boolean
+  },
 ): Promise<CodingToolResult> {
   const read = await invokeReadCodingFile(projectPath, path, { allowLargeRead: true })
   if (!read.ok) return read
   if (!findText) return { ok: false, text: 'find_text must not be empty.' }
 
-  const applied = applySnippetEdit(read.text, findText, replaceText, replaceAll)
+  const before = read.text
+  const applied = applySnippetEdit(before, findText, replaceText, {
+    replaceAll,
+    startLine: options?.startLine,
+    endLine: options?.endLine,
+    ignoreWhitespace: options?.ignoreWhitespace,
+  })
   if (!applied.ok) {
-    const lineCount = read.text.split(/\r?\n/).length
+    const lineCount = before.split(/\r?\n/).length
     return {
       ok: false,
-      text: `Target snippet not found (${lineCount} lines; spaces must match). On Windows/CRLF files you can use \\n in find_text — matching is EOL-aware. Prefer edit_code over rewriting the whole file.`,
+      text: `Target snippet not found (${lineCount} lines). ${formatClosestMatchFailure(applied.closest)}`,
     }
   }
 
@@ -155,9 +193,21 @@ export async function invokeEditCodingFile(
       ? replaceAll
         ? 'all matches'
         : 'first match'
-      : `${applied.mode === 'crlf-expanded' ? 'CRLF-adjusted' : 'EOL-normalized'} ${replaceAll ? 'all matches' : 'first match'}`
+      : applied.mode === 'whitespace-normalized'
+        ? `whitespace-normalized ${replaceAll ? 'all matches' : 'first match'}`
+        : `${applied.mode === 'crlf-expanded' ? 'CRLF-adjusted' : 'EOL-normalized'} ${replaceAll ? 'all matches' : 'first match'}`
   const lineNote = `lines ${applied.startLine}-${applied.endLine}`
-  return { ok: true, text: `Edited ${path} (${lineNote}, ${modeNote})` }
+  const diff = buildEditUnifiedDiff(
+    before,
+    applied.next,
+    path,
+    applied.startLine,
+    applied.endLine,
+  )
+  return {
+    ok: true,
+    text: `Edited ${path} (${lineNote}, ${modeNote})\n${diff}`,
+  }
 }
 
 export async function invokeSearchCodingFiles(

@@ -180,7 +180,12 @@ export function shouldGuardFalseMusicClaims(
 }
 
 /** Coding tools whose execution proves an action claim ("edited/saved/ran") is real. */
-export const CODING_ACTION_TOOLS = new Set(['write_file', 'edit_code', 'execute_command'])
+export const CODING_ACTION_TOOLS = new Set([
+  'write_file',
+  'edit_code',
+  'execute_command',
+  'stop_process',
+])
 
 /** User asked for a concrete coding action (change/run), not just a question. */
 const CODING_ACTION_REQUEST_RE =

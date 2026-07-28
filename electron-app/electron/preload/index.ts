@@ -238,7 +238,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:coding-pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }
     >,
-  codingListDirectory: (payload: { projectPath: string; path?: string }) =>
+  codingListDirectory: (payload: { projectPath: string; path?: string; includeIgnored?: boolean }) =>
     ipcRenderer.invoke('voidcast:coding-list-directory', payload) as Promise<
       | {
           ok: true
@@ -428,6 +428,19 @@ contextBridge.exposeInMainWorld('voidcast', {
         lastLines: string[]
       }[]
     }>,
+  codingReadProcessOutput: (payload: { runId: string; offset?: number }) =>
+    ipcRenderer.invoke('voidcast:coding-read-process-output', payload) as Promise<
+      | {
+          ok: true
+          text: string
+          nextOffset: number
+          truncatedFromStart: boolean
+          startOffset: number
+          command: string
+          kind: 'foreground' | 'background'
+        }
+      | { ok: false; error?: string }
+    >,
   codingKillAllActiveProcesses: () =>
     ipcRenderer.invoke('voidcast:coding-kill-all-active-processes') as Promise<
       { ok: true; count: number }
