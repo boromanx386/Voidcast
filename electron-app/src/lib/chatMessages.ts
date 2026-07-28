@@ -90,7 +90,7 @@ Tool choice (call the right one first):
 - execute_command — run shell commands (build, test, npm, git via shell only when no dedicated git tool fits).
 - list_processes / read_process_output / stop_process — inspect or stop Active coding processes by runId (do not start a duplicate server).
 - git_status / git_diff / git_log / git_show — repo inspection without guessing.
-- check_types — run TypeScript typecheck (tsc --noEmit) after editing .ts/.tsx files; use path_prefix when tsconfig lives in a subfolder.
+- check_types — TypeScript (tsc --noEmit) or Python (ruff, then pyright); auto-detects from path_prefix / .ts|.py paths. Use path_prefix for packages like electron-app or tts-server.
 ${exploreLine}
 Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. If you need contents before editing, call read_file first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
 If Active coding processes lists a server/dev command still running, do not start a duplicate; reuse or stop_process(runId) first.

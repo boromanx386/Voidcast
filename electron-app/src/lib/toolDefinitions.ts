@@ -732,20 +732,20 @@ const CODING_CHECK_TYPES_TOOL: AgentToolDefinition = {
   function: {
     name: 'check_types',
     description:
-      'Run TypeScript typecheck (tsc --noEmit) in the coding project. Use after editing .ts/.tsx files to catch type errors before claiming the fix is complete. Read-only — safe in Plan mode. Requires tsconfig.json in the check root (project root or path_prefix subfolder).',
+      'Run a project check after edits. Auto-detects TypeScript (tsc --noEmit when tsconfig.json is present) or Python (ruff check preferred; pyright fallback). Use path_prefix for monorepo packages (e.g. electron-app, tts-server). Pass paths of edited .ts/.tsx/.py files to bias detection and limit reported issues. Read-only — safe in Plan mode.',
     parameters: {
       type: 'object',
       properties: {
         path_prefix: {
           type: 'string',
           description:
-            'Optional subdirectory inside the project where tsconfig.json lives (e.g. electron-app). Default: project root.',
+            'Optional subdirectory to check (e.g. electron-app for tsconfig, tts-server for Python). Default: project root.',
         },
         paths: {
           type: 'array',
           items: { type: 'string' },
           description:
-            'Optional list of project-relative file paths to limit reported errors (useful after editing specific files).',
+            'Optional project-relative file paths. .py paths select the Python checker; .ts/.tsx select TypeScript. Also limits reported diagnostics when possible.',
         },
       },
     },

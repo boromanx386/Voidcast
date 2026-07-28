@@ -164,7 +164,7 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `glob_files`
 - `find_symbols` — read-only symbol outline (functions, classes, methods, types, headings) with 1-based line numbers; regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown), no external deps. Line numbers feed `edit_code` `start_line`/`end_line`.
 - `git_status`, `git_diff`, `git_log`, `git_show`
-- `check_types` — TypeScript only (`tsc --noEmit`; use `path_prefix` when `tsconfig.json` is in a subfolder)
+- `check_types` — TypeScript (`tsc --noEmit`) or Python (`ruff check`, then `pyright`); auto-detects from `path_prefix` / `.ts`|`.py` paths (e.g. `tts-server`)
 - `execute_command` (with timeout + background support)
 - `coding_explore` — read-only codebase exploration via sub-agent
 

@@ -63,10 +63,14 @@ import {
   type ScoredSearchMatch,
 } from '../../src/lib/codingSearch'
 import {
+  detectCheckKind,
   filterTscDiagnostics,
   formatTypecheckReport,
   normalizeTypecheckPath,
+  parsePyrightJsonDiagnostics,
+  parseRuffJsonDiagnostics,
   parseTscDiagnostics,
+  PYTHON_PROJECT_MARKER_FILES,
 } from '../../src/lib/codingTypecheck'
 import {
   detectLanguageFromExt,
@@ -2222,6 +2226,43 @@ function typecheckRootLabel(projectRoot: string, checkCwd: string): string {
   return normalizeTypecheckPath(rel)
 }
 
+function hasPythonProjectMarkers(dir: string): boolean {
+  for (const name of PYTHON_PROJECT_MARKER_FILES) {
+    if (existsSync(path.join(dir, name))) return true
+  }
+  return false
+}
+
+/** Resolve ruff or pyright from project venv, then PATH. */
+function resolvePythonToolCommand(
+  cwd: string,
+  tool: 'ruff' | 'pyright',
+): { command: string; args: string[] } | null {
+  const win = process.platform === 'win32'
+  const exe = win ? `${tool}.exe` : tool
+  const candidates = [
+    path.join(cwd, '.venv', win ? 'Scripts' : 'bin', exe),
+    path.join(cwd, 'venv', win ? 'Scripts' : 'bin', exe),
+  ]
+  for (const c of candidates) {
+    if (existsSync(c)) return { command: c, args: [] }
+  }
+  // Fall back to PATH — existence checked via spawn ENOENT.
+  return { command: tool, args: [] }
+}
+
+function relativizeDiagnosticFiles(
+  diags: ReturnType<typeof parseRuffJsonDiagnostics>,
+  checkCwd: string,
+): ReturnType<typeof parseRuffJsonDiagnostics> {
+  return diags.map((d) => {
+    const abs = path.isAbsolute(d.file) ? d.file : path.resolve(checkCwd, d.file)
+    let rel = path.relative(checkCwd, abs).replace(/\\/g, '/')
+    if (rel.startsWith('..')) rel = normalizeTypecheckPath(d.file)
+    return { ...d, file: rel || normalizeTypecheckPath(d.file) }
+  })
+}
+
 ipcMain.handle(
   'voidcast:coding-check-types',
   async (
@@ -2242,56 +2283,183 @@ ipcMain.handle(
           error: e instanceof Error ? e.message : 'Invalid path_prefix.',
         }
       }
-      const tsconfigPath = path.join(checkCwd, 'tsconfig.json')
-      if (!existsSync(tsconfigPath)) {
-        const where = typecheckRootLabel(root, checkCwd)
-        return {
-          ok: false as const,
-          error: `No tsconfig.json in ${where}. Set path_prefix to the package folder that contains tsconfig.json.`,
-        }
-      }
-      const tsc = resolveTscCommand(checkCwd)
-      if (!tsc) {
+      const filterPaths = Array.isArray(payload?.paths)
+        ? payload.paths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+        : []
+      const hasTsconfig = existsSync(path.join(checkCwd, 'tsconfig.json'))
+      const hasPython = hasPythonProjectMarkers(checkCwd)
+      const kind = detectCheckKind({
+        paths: filterPaths,
+        hasTsconfig,
+        hasPythonProject: hasPython,
+      })
+      const label = typecheckRootLabel(root, checkCwd)
+
+      if (!kind) {
         return {
           ok: false as const,
           error:
-            'TypeScript not found in node_modules. Run npm install (or pnpm/yarn install) in the check root first.',
+            `No check target in ${label}. Need tsconfig.json (TypeScript) or a Python project marker ` +
+            `(requirements.txt / pyproject.toml / ruff.toml / …), or pass paths ending in .ts/.tsx/.py. ` +
+            `Set path_prefix to e.g. electron-app or tts-server.`,
         }
       }
-      const r = await captureSpawnCommand({
-        command: tsc.command,
-        args: tsc.args,
-        cwd: checkCwd,
-        timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
-        timeoutLabel: 'Typecheck',
-        notFoundMessage: 'TypeScript compiler (tsc) not found.',
-      })
-      const label = typecheckRootLabel(root, checkCwd)
-      if (!r.ok) {
+
+      if (kind === 'typescript') {
+        if (!hasTsconfig) {
+          return {
+            ok: false as const,
+            error: `No tsconfig.json in ${label}. Set path_prefix to the package folder that contains tsconfig.json.`,
+          }
+        }
+        const tsc = resolveTscCommand(checkCwd)
+        if (!tsc) {
+          return {
+            ok: false as const,
+            error:
+              'TypeScript not found in node_modules. Run npm install (or pnpm/yarn install) in the check root first.',
+          }
+        }
+        const r = await captureSpawnCommand({
+          command: tsc.command,
+          args: tsc.args,
+          cwd: checkCwd,
+          timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
+          timeoutLabel: 'Typecheck',
+          notFoundMessage: 'TypeScript compiler (tsc) not found.',
+        })
+        if (!r.ok) {
+          return {
+            ok: true as const,
+            text: formatTypecheckReport({
+              checkRootLabel: label,
+              diagnostics: [],
+              exitCode: 1,
+              timedOut: /timed out/i.test(r.error),
+              rawOutput: r.error,
+              checker: 'TypeScript',
+            }),
+          }
+        }
+        const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
+        const parsed = parseTscDiagnostics(rawOutput)
+        const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
         return {
           ok: true as const,
           text: formatTypecheckReport({
             checkRootLabel: label,
-            diagnostics: [],
-            exitCode: 1,
-            timedOut: /timed out/i.test(r.error),
-            rawOutput: r.error,
+            diagnostics,
+            exitCode: r.code,
+            rawOutput,
+            checker: 'TypeScript',
           }),
         }
       }
-      const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
-      const parsed = parseTscDiagnostics(rawOutput)
-      const filterPaths = Array.isArray(payload?.paths)
-        ? payload.paths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
-        : []
-      const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
-      const text = formatTypecheckReport({
-        checkRootLabel: label,
-        diagnostics,
-        exitCode: r.code,
-        rawOutput,
-      })
-      return { ok: true as const, text }
+
+      // Python: ruff first, then pyright.
+      const pyTargets = filterPaths.filter((p) => /\.pyw?$/i.test(p))
+      const ruffTargets =
+        pyTargets.length > 0
+          ? pyTargets.map((p) => {
+              try {
+                return path.relative(checkCwd, resolveInsideProject(root, p)) || p
+              } catch {
+                return p
+              }
+            })
+          : ['.']
+
+      const ruff = resolvePythonToolCommand(checkCwd, 'ruff')
+      if (ruff) {
+        const r = await captureSpawnCommand({
+          command: ruff.command,
+          args: [...ruff.args, 'check', '--output-format', 'json', ...ruffTargets],
+          cwd: checkCwd,
+          timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
+          timeoutLabel: 'ruff',
+          notFoundMessage: 'ENOENT',
+        })
+        if (r.ok || (r.error && !/ENOENT|not found/i.test(r.error))) {
+          if (!r.ok) {
+            return {
+              ok: true as const,
+              text: formatTypecheckReport({
+                checkRootLabel: label,
+                diagnostics: [],
+                exitCode: 1,
+                timedOut: /timed out/i.test(r.error),
+                rawOutput: r.error,
+                checker: 'ruff',
+              }),
+            }
+          }
+          const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
+          // ruff exit 1 = findings; still parse stdout JSON
+          const parsed = relativizeDiagnosticFiles(parseRuffJsonDiagnostics(r.stdout || rawOutput), checkCwd)
+          const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
+          return {
+            ok: true as const,
+            text: formatTypecheckReport({
+              checkRootLabel: label,
+              diagnostics,
+              exitCode: r.code,
+              rawOutput,
+              checker: 'ruff',
+            }),
+          }
+        }
+      }
+
+      const pyright = resolvePythonToolCommand(checkCwd, 'pyright')
+      if (pyright) {
+        const args = [...pyright.args, '--outputjson', ...ruffTargets]
+        const r = await captureSpawnCommand({
+          command: pyright.command,
+          args,
+          cwd: checkCwd,
+          timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
+          timeoutLabel: 'pyright',
+          notFoundMessage: 'ENOENT',
+        })
+        if (r.ok || (r.error && !/ENOENT|not found/i.test(r.error))) {
+          if (!r.ok) {
+            return {
+              ok: true as const,
+              text: formatTypecheckReport({
+                checkRootLabel: label,
+                diagnostics: [],
+                exitCode: 1,
+                timedOut: /timed out/i.test(r.error),
+                rawOutput: r.error,
+                checker: 'pyright',
+              }),
+            }
+          }
+          const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
+          const parsed = relativizeDiagnosticFiles(
+            parsePyrightJsonDiagnostics(r.stdout || rawOutput),
+            checkCwd,
+          )
+          const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
+          return {
+            ok: true as const,
+            text: formatTypecheckReport({
+              checkRootLabel: label,
+              diagnostics,
+              exitCode: r.code,
+              rawOutput,
+              checker: 'pyright',
+            }),
+          }
+        }
+      }
+
+      return {
+        ok: false as const,
+        error:
+          `Python check requested for ${label}, but neither ruff nor pyright was found ` +
+          `(looked in .venv/venv and PATH). Install with: pip install ruff`,
+      }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }

@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **`find_symbols` coding tool**: read-only symbol outline (functions, classes, methods, interfaces, types, exports, headings) with 1-based line numbers for a single file. Regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown) — zero new deps. Output line numbers mirror `read_file`'s `N|` convention and feed straight into `edit_code` `start_line`/`end_line` anchoring. Supports an optional `query` filter on symbol name and a `max_symbols` cap. Wired through the full pipeline (tool definition → handler → IPC bridge → preload → main), plus the `coding_outline` UI phase, a clear-result digest, Plan-mode read-only allowlist, tool-choice hint, and docs. Available in Plan mode (read-only).
+- **`check_types` Python support**: auto-detects Python projects (requirements/pyproject/ruff markers or `.py` paths) and runs **ruff check** first, then **pyright** if ruff is missing. TypeScript/`tsc` path unchanged. Same unified `file:line:col — code: message` report format.
 
 ## [2.7.9] — 2026-07-24
 
