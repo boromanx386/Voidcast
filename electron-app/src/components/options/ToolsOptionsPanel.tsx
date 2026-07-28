@@ -328,6 +328,7 @@ export function ToolsOptionsPanel({
               , <code className="text-void-light">read_file</code>,{' '}
               <code className="text-void-light">write_file</code>, <code className="text-void-light">edit_code</code>,{' '}
               <code className="text-void-light">search_files</code>, <code className="text-void-light">glob_files</code>,{' '}
+              <code className="text-void-light">find_symbols</code>,{' '}
               <code className="text-void-light">git_status</code>, <code className="text-void-light">git_diff</code>,{' '}
               <code className="text-void-light">git_log</code>, <code className="text-void-light">git_show</code>,{' '}
               <code className="text-void-light">check_types</code>,{' '}

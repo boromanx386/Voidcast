@@ -35,6 +35,7 @@ export const CODING_EXPLORE_ALLOWED_TOOLS = new Set([
   'read_file',
   'search_files',
   'glob_files',
+  'find_symbols',
   'git_status',
   'git_diff',
   'git_log',
@@ -81,6 +82,7 @@ export const CODING_CLEARABLE_TOOLS = new Set([
   'list_directory',
   'search_files',
   'glob_files',
+  'find_symbols',
   'git_status',
   'git_diff',
   'git_log',
@@ -167,6 +169,25 @@ function digestHeadTail(label: string, content: string): string {
 }
 
 /** Compact structural digest left behind when an old tool result is cleared. */
+function digestFindSymbols(c: string): string {
+  const lines = c.split('\n').filter((l) => l.trim().length > 0)
+  if (lines.length === 0) return 'find_symbols: (empty)'
+  // First line is the header: "find_symbols: relPath (N lines, M symbols)"
+  const header = stripNumberedLine(lines[0]!).text
+  const symLines = lines.slice(1)
+  const out: string[] = [header]
+  const shown = symLines.slice(0, 4)
+  for (const l of shown) {
+    const m = /^\s*(\d+)\s+(\S+)\s+(\S+)/.exec(l)
+    if (m) out.push(`${m[1]} ${m[2]} ${m[3]}`)
+    else out.push(stripNumberedLine(l).text)
+  }
+  if (symLines.length > shown.length) {
+    out.push(`… (+${symLines.length - shown.length} more)`)
+  }
+  return out.join(' | ')
+}
+
 export function buildClearedToolDigest(name: string, content: string): string {
   const c = content.trim()
   if (!c) return `${name}: (empty)`
@@ -180,6 +201,9 @@ export function buildClearedToolDigest(name: string, content: string): string {
       break
     case 'glob_files':
       body = digestPathList(c, 'glob_files')
+      break
+    case 'find_symbols':
+      body = digestFindSymbols(c)
       break
     case 'search_files':
       body = digestSearchFiles(c)

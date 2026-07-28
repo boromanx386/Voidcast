@@ -249,7 +249,7 @@ export async function buildAgentTurnContext(
     if (planMode) {
       toolsHintParts.push(
         [
-          `Coding tools are READ-ONLY in Plan mode: list_directory, read_file, search_files, glob_files, git_status, git_diff, git_log, git_show, check_types, list_processes, read_process_output${codingSub ? ', coding_explore' : ''}.`,
+          `Coding tools are READ-ONLY in Plan mode: list_directory, read_file, search_files, glob_files, find_symbols, git_status, git_diff, git_log, git_show, check_types, list_processes, read_process_output${codingSub ? ', coding_explore' : ''}.`,
           'write_file, edit_code, execute_command, and stop_process are disabled until the user Approves & Builds.',
           codingProjectPath
             ? `Coding project root: ${codingProjectPath}`

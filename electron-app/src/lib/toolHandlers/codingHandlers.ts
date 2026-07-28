@@ -4,6 +4,7 @@ import {
   invokeCodingGit,
   invokeCheckCodingTypes,
   invokeGlobCodingFiles,
+  invokeFindSymbols,
   invokeKillCodingCommand,
   invokeListActiveCodingProcesses,
   invokeListCodingDirectory,
@@ -153,6 +154,29 @@ export const handleGlobFiles: ToolHandlerFn = async (args, ctx) => {
       pathPrefix: pathPrefix || undefined,
       extensions,
       maxResults,
+    })
+  ).text;
+};
+
+export const handleFindSymbols: ToolHandlerFn = async (args, ctx) => {
+  if (!ctx.toolsEnabled.coding)
+    return "Error: find_symbols tool is disabled in settings.";
+  const projectPath = (ctx.codingProjectPath || "").trim();
+  if (!projectPath)
+    return "Error: coding project folder is not set in settings.";
+  const path = typeof args.path === "string" ? args.path.trim() : "";
+  if (!path) return "Error: find_symbols requires a 'path' argument.";
+  const query =
+    typeof args.query === "string" && args.query.trim() ? args.query.trim() : undefined;
+  const maxSymbols =
+    typeof args.max_symbols === "number" && Number.isFinite(args.max_symbols)
+      ? args.max_symbols
+      : undefined;
+  return (
+    await invokeFindSymbols(projectPath, {
+      path,
+      query,
+      maxSymbols,
     })
   ).text;
 };
@@ -365,6 +389,7 @@ export const codingHandlersRegistry: ToolHandlerRegistry = {
   ["edit_code"]: handleEditCode,
   ["search_files"]: handleSearchFiles,
   ["glob_files"]: handleGlobFiles,
+  ["find_symbols"]: handleFindSymbols,
   ["git_status"]: handleGitStatus,
   ["git_diff"]: handleGitDiff,
   ["git_log"]: handleGitLog,

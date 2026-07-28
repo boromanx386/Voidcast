@@ -83,6 +83,7 @@ export function buildToolsCodingHint(
 
 Tool choice (call the right one first):
 - list_directory / glob_files / search_files — discover paths and matches (use path_prefix on search_files when the user names a folder).
+- find_symbols — read-only symbol outline (functions, classes, methods, types) with 1-based line numbers for ONE file; line numbers feed edit_code start_line/end_line. Use to navigate large files without paging read_file.
 - read_file — inspect file contents (use start_line/end_line or max_chars on large files).
 - write_file — create or fully replace a file.
 - edit_code — patch an existing file (preferred over write_file when changing part of a file).

@@ -359,6 +359,21 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: true; paths: string[] }
       | { ok: false; error?: string }
     >,
+  codingFindSymbols: (payload: {
+    projectPath: string
+    path: string
+    query?: string
+    maxSymbols?: number
+  }) =>
+    ipcRenderer.invoke('voidcast:coding-find-symbols', payload) as Promise<
+      | {
+          ok: true
+          relPath: string
+          symbols: import('../../src/lib/codingOutline').SymbolEntry[]
+          fileLineCount: number
+        }
+      | { ok: false; error?: string }
+    >,
   codingGit: (payload: {
     projectPath: string
     mode:

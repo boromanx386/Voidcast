@@ -618,6 +618,33 @@ const CODING_GLOB_FILES_TOOL: AgentToolDefinition = {
   },
 }
 
+const CODING_FIND_SYMBOLS_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'find_symbols',
+    description:
+      'Read-only symbol outline (functions, classes, methods, interfaces, types, exports, headings) with 1-based line numbers for ONE file. Use to navigate large files without paging read_file. The returned line numbers feed straight into edit_code start_line/end_line anchoring. Regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown), no external deps. Supports an optional query filter on symbol name.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative file path inside the coding project (required).',
+        },
+        query: {
+          type: 'string',
+          description: 'Optional substring filter on symbol name (case-insensitive).',
+        },
+        max_symbols: {
+          type: 'number',
+          description: 'Maximum symbols to return (default 400).',
+        },
+      },
+      required: ['path'],
+    },
+  },
+}
+
 const CODING_GIT_STATUS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1158,6 +1185,7 @@ export function buildToolsList(
     }
     out.push(CODING_SEARCH_FILES_TOOL)
     out.push(CODING_GLOB_FILES_TOOL)
+    out.push(CODING_FIND_SYMBOLS_TOOL)
     out.push(CODING_GIT_STATUS_TOOL)
     out.push(CODING_GIT_DIFF_TOOL)
     out.push(CODING_GIT_LOG_TOOL)

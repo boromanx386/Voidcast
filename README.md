@@ -162,6 +162,7 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `list_directory`, `read_file`, `write_file`, `edit_code`
 - `search_files` (bundled ripgrep; walk fallback)
 - `glob_files`
+- `find_symbols` — read-only symbol outline (functions, classes, methods, types, headings) with 1-based line numbers; regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown), no external deps. Line numbers feed `edit_code` `start_line`/`end_line`.
 - `git_status`, `git_diff`, `git_log`, `git_show`
 - `check_types` — TypeScript only (`tsc --noEmit`; use `path_prefix` when `tsconfig.json` is in a subfolder)
 - `execute_command` (with timeout + background support)

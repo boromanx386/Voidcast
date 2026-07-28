@@ -7,6 +7,7 @@ import {
   type FileLineEndings,
 } from '@/lib/codingEol'
 import { formatSearchResults } from '@/lib/codingSearch'
+import { formatSymbolsOutline, type SymbolEntry } from '@/lib/codingOutline'
 import type { ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import {
   markLastExecuteCommandStreamed,
@@ -242,6 +243,26 @@ export async function invokeGlobCodingFiles(
   if (!res.ok) return { ok: false, text: res.error || 'Glob failed.' }
   if (res.paths.length === 0) return { ok: true, text: 'No matching files.' }
   return { ok: true, text: res.paths.join('\n') }
+}
+
+export async function invokeFindSymbols(
+  projectPath: string,
+  options: { path: string; query?: string; maxSymbols?: number },
+): Promise<CodingToolResult> {
+  const fn = window.voidcast?.codingFindSymbols
+  if (!fn) return missingBridgeResult('Find symbols')
+  const res = await fn({
+    projectPath,
+    path: options.path,
+    query: options.query,
+    maxSymbols: options.maxSymbols,
+  })
+  if (!res.ok) return { ok: false, text: res.error || 'find_symbols failed.' }
+  // Query already applied during extraction; pass through for header annotation only.
+  const text = formatSymbolsOutline(res.relPath, res.symbols as SymbolEntry[], res.fileLineCount, {
+    query: options.query,
+  })
+  return { ok: true, text }
 }
 
 export async function invokeCodingGit(

@@ -74,6 +74,7 @@ describe('old tool result clearing helpers', () => {
     expect(isClearableCodingToolResult('search_files')).toBe(true)
     expect(isClearableCodingToolResult('execute_command')).toBe(true)
     expect(isClearableCodingToolResult('git_diff')).toBe(true)
+    expect(isClearableCodingToolResult('find_symbols')).toBe(true)
   })
 
   it('never clears mutations, digests, or non-coding tools', () => {
@@ -121,6 +122,19 @@ describe('old tool result clearing helpers', () => {
     expect(cmd).toContain('execute_command:')
     expect(cmd).toContain('exit 1')
   })
+
+  it('buildClearedToolDigest for find_symbols keeps header text (not [object Object])', () => {
+    const content = [
+      'find_symbols: src/foo.ts (200 lines, 3 symbols)',
+      '  3  const         VERSION  export const VERSION',
+      ' 12  class         Handler',
+      ' 16  method        handleGlobFiles  handleGlobFiles(args, ctx)',
+    ].join('\n')
+    const d = buildClearedToolDigest('find_symbols', content)
+    expect(d).not.toContain('[object Object]')
+    expect(d).toContain('find_symbols: src/foo.ts')
+    expect(d).toContain('3 const VERSION')
+  })
 })
 
 describe('coding explore allowlist / parse', () => {
@@ -130,6 +144,7 @@ describe('coding explore allowlist / parse', () => {
     expect(isCodingExploreAllowedTool('check_types')).toBe(true)
     expect(isCodingExploreAllowedTool('list_processes')).toBe(true)
     expect(isCodingExploreAllowedTool('read_process_output')).toBe(true)
+    expect(isCodingExploreAllowedTool('find_symbols')).toBe(true)
     expect(isCodingExploreAllowedTool('write_file')).toBe(false)
     expect(isCodingExploreAllowedTool('edit_code')).toBe(false)
     expect(isCodingExploreAllowedTool('execute_command')).toBe(false)

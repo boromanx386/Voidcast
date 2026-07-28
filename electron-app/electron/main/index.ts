@@ -68,6 +68,10 @@ import {
   normalizeTypecheckPath,
   parseTscDiagnostics,
 } from '../../src/lib/codingTypecheck'
+import {
+  detectLanguageFromExt,
+  extractSymbols,
+} from '../../src/lib/codingOutline'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -1832,6 +1836,72 @@ ipcMain.handle(
       }
       await visit(walkRoot)
       return { ok: true as const, paths }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-find-symbols',
+  async (
+    _evt,
+    payload: {
+      projectPath: string
+      path: string
+      query?: string
+      maxSymbols?: number
+    },
+  ) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      const filePath = String(payload?.path ?? '').trim()
+      if (!projectPath || !filePath) {
+        return { ok: false as const, error: 'Missing projectPath or path.' }
+      }
+      const absFile = resolveInsideProject(projectPath, filePath)
+      const relPath = path.relative(projectPath, absFile).replace(/\\/g, '/')
+      const lang = detectLanguageFromExt(relPath)
+      if (!lang) {
+        return {
+          ok: false as const,
+          error: `Unsupported file type for symbol extraction: ${relPath}. Supported: .ts/.tsx/.js/.jsx/.mjs/.cjs/.py/.go/.rs/.md/.mdx`,
+        }
+      }
+      const buf = await readFile(absFile)
+      if (fileLooksBinary(buf)) {
+        return {
+          ok: false as const,
+          error:
+            'File appears to be binary (e.g. contains null bytes in the first portion scanned); text read skipped.',
+        }
+      }
+      const fullContent = buf.toString('utf8')
+      const totalLines = fullContent.split(/\r?\n/).length
+      const maxSymbols =
+        typeof payload?.maxSymbols === 'number' && Number.isFinite(payload.maxSymbols)
+          ? Math.max(1, Math.floor(payload.maxSymbols))
+          : 400
+      const query =
+        typeof payload?.query === 'string' && payload.query.trim()
+          ? payload.query.trim()
+          : undefined
+      // For very large files, extract from a truncated prefix to bound regex cost;
+      // the output is already capped by maxSymbols regardless.
+      let content = fullContent
+      let truncatedNote = ''
+      if (fullContent.length > CODING_READ_SOFT_CHAR_LIMIT) {
+        content = fullContent.slice(0, CODING_READ_SOFT_CHAR_LIMIT)
+        truncatedNote = ` (symbols from first ${CODING_READ_SOFT_CHAR_LIMIT} chars; file truncated)`
+      }
+      // Filter by query during scan, then cap — so late matches aren't dropped by an early cap.
+      const symbols = extractSymbols(content, lang, maxSymbols, query)
+      return {
+        ok: true as const,
+        relPath: relPath + truncatedNote,
+        symbols,
+        fileLineCount: totalLines,
+      }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }

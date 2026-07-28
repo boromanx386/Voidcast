@@ -372,6 +372,26 @@ interface VoidcastBridge {
     maxResults?: number
   }) => Promise<{ ok: true; paths: string[] } | { ok: false; error?: string }>
 
+  codingFindSymbols: (payload: {
+    projectPath: string
+    path: string
+    query?: string
+    maxSymbols?: number
+  }) => Promise<
+    | {
+        ok: true
+        relPath: string
+        symbols: {
+          line: number
+          kind: string
+          name: string
+          signature?: string
+        }[]
+        fileLineCount: number
+      }
+    | { ok: false; error?: string }
+  >
+
   codingGit: (payload: {
     projectPath: string
     mode:

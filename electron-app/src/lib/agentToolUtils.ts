@@ -18,7 +18,7 @@ const SOFT_FRESHNESS_RE =
 
 /** Typical coding turn — do not auto-inject web_search on round 0 unless user asked for web/news. */
 const CODING_TASK_RE =
-  /\b(refactor|read_file|write_file|edit_code|execute_command|list_directory|search_files|glob_files|git_|fix\s+(?:the\s+)?bug|implement|codebase|repositor(?:y|ies)|\brepo\b|typescript|javascript|python|npm\s+install|cargo\s+)\b/i
+  /\b(refactor|read_file|write_file|edit_code|execute_command|list_directory|search_files|glob_files|find_symbols|git_|fix\s+(?:the\s+)?bug|implement|codebase|repositor(?:y|ies)|\brepo\b|typescript|javascript|python|npm\s+install|cargo\s+)\b/i
 
 export function parseToolArguments(
   raw: string | Record<string, unknown> | undefined,

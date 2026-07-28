@@ -19,6 +19,7 @@ export type AgentToolUiPhase =
   | 'coding_edit'
   | 'coding_search'
   | 'coding_glob'
+  | 'coding_outline'
   | 'coding_git'
   | 'coding_typecheck'
   | 'coding_shell'
@@ -73,6 +74,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'coding_search'
     case 'glob_files':
       return 'coding_glob'
+    case 'find_symbols':
+      return 'coding_outline'
     case 'git_status':
     case 'git_diff':
     case 'git_log':

@@ -121,6 +121,7 @@ export function applyAgentToolResult(
     name === 'edit_code' ||
     name === 'search_files' ||
     name === 'glob_files' ||
+    name === 'find_symbols' ||
     name === 'git_status' ||
     name === 'git_diff' ||
     name === 'git_log' ||
