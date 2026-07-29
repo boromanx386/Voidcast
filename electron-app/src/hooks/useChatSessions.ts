@@ -21,7 +21,7 @@ import {
   normalizeImageVisionCache,
   type ImageVisionCache,
 } from '@/lib/imageVisionCache'
-import { loadSettings, type AppSettings } from '@/lib/settings'
+import { LLM_PROMPT_PRESETS, loadSettings, type AppSettings } from '@/lib/settings'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import type { ChatSession, UiMessage } from '@/types/chat'
@@ -184,6 +184,12 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         codingContextMemo: normalizeCodingContextMemo(codingContextMemo, projectPath),
         codingProjectPath: projectPath || undefined,
         imageVisionCache: normalizeImageVisionCache(imageVisionCache),
+        promptPreset: (() => {
+          const match = Object.entries(LLM_PROMPT_PRESETS).find(
+            ([, v]) => v === settings.llmSystemPrompt,
+          )
+          return match ? match[0] : 'void'
+        })(),
       }
       setSessions((prev) => [...prev, newSession].sort((a, b) => b.updatedAt - a.updatedAt))
       setActiveSessionId(newId)
@@ -233,6 +239,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         codingContextMemo: nextMemo,
         codingProjectPath: projectPath || undefined,
         imageVisionCache: nextVisionCache,
+        promptPreset: current.promptPreset,
       }
       next.sort((a, b) => b.updatedAt - a.updatedAt)
       return next
@@ -281,6 +288,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setSettings((s) => mergeCodingProjectPathIntoSettings(s, ''))
     setCodingContextMemo(emptyCodingContextMemo(''))
     setImageVisionCache({})
+    // Reset system prompt to default Void preset for fresh chats.
+    setSettings((s) => ({ ...s, llmSystemPrompt: LLM_PROMPT_PRESETS.void }))
   }
 
   const openSession = (session: ChatSession) => {
@@ -318,6 +327,13 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setRenamingSessionId(null)
     setRenameValue('')
     setPendingImages([])
+    // Restore the system prompt from this session's preset, or keep global default.
+    if (session.promptPreset && LLM_PROMPT_PRESETS[session.promptPreset]) {
+      setSettings((s) => ({
+        ...s,
+        llmSystemPrompt: LLM_PROMPT_PRESETS[session.promptPreset],
+      }))
+    }
   }
 
   const forkSession = (session: ChatSession) => {
@@ -334,6 +350,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       codingContextMemo: session.codingContextMemo,
       codingProjectPath: session.codingProjectPath,
       imageVisionCache: session.imageVisionCache,
+      promptPreset: session.promptPreset,
     }
     const nextState = upsertSession({ sessions, activeSessionId }, forked)
     setSessions(nextState.sessions)

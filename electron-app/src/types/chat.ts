@@ -102,6 +102,8 @@ export type ChatSession = {
   codingProjectPath?: string
   /** Sub-agent vision descriptions keyed by image catalog key (path or base64 prefix). */
   imageVisionCache?: ImageVisionCache
+  /** Prompt preset key (from LLM_PROMPT_PRESETS) used for this chat, or 'custom'. */
+  promptPreset?: string
 }
 
 export type ChatSessionsState = {
