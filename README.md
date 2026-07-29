@@ -2,7 +2,7 @@
 
 ![Voidcast](logo.jpg)
 
-**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, or DeepSeek (direct API), and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, DeepSeek (direct API), or **OpenCode Go**, and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
 *Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
@@ -80,7 +80,7 @@ Available tools:
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 - **MCP Servers (desktop)** — connect external MCP tools from `~/.voidcast/mcp.json` (see below)
 
-The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, and **DeepSeek** (direct API — no OpenRouter free-tier routing).
+The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, **DeepSeek** (direct API — no OpenRouter free-tier routing), and **OpenCode Go** (OpenAI-compatible; desktop chat goes through the local tools/TTS proxy so CORS is not an issue). All providers share the same tool catalog and executor.
 
 
 
@@ -141,7 +141,7 @@ Example remote OAuth entry:
 In the chat composer, switch **AGENT | PLAN**:
 
 - **Plan** — read-only tools only (list/read/search/git inspect). The agent proposes a structured plan card with editable steps and, when useful, competing approaches. Prefer a single flat plan; A/B (rarely C/D) only for real tradeoffs. Pick an approach, edit steps, or use **Something else…** / **Revise plan** for your own idea — then **Approve & Build**. A banner above the composer reminds you that edits are blocked until approval; Plan mode has its own empty-state copy.
-- **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel). The agent marks steps done via `update_plan_progress` (not guessed from file edits). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after at least one step was checked off.
+- **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel). Research and context gathered in Plan mode carry into the build phase. The agent marks steps done via `update_plan_progress` (not guessed from file edits). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after at least one step was checked off.
 
 <p align="center">
   <img src="demos/voidcast-options-skills-9x16.png" width="700" alt="Skills tab"/>
@@ -164,13 +164,14 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `glob_files`
 - `find_symbols` — read-only symbol outline (functions, classes, methods, types, headings) with 1-based line numbers; regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown), no external deps. Line numbers feed `edit_code` `start_line`/`end_line`.
 - `git_status`, `git_diff`, `git_log`, `git_show`
-- `check_types` — TypeScript (`tsc --noEmit`) or Python (`ruff check`, then `pyright`); auto-detects from `path_prefix` / `.ts`|`.py` paths (e.g. `tts-server`)
-- `execute_command` (with timeout + background support)
+- `check_types` — TypeScript (`tsc --noEmit`) or Python (`ruff check`, then `pyright`); auto-detects from `path_prefix` / `.ts`|`.py` paths (e.g. `tts-server`); optional `paths` to filter after edits
+- `execute_command` (with timeout + `run_in_background` flag for dev servers/watchers)
+- `list_processes`, `stop_process`, `read_process_output` — explicit process control (list active processes by runId, kill by runId, poll stdout/stderr with offset paging)
 - `coding_explore` — read-only codebase exploration via sub-agent
 
-All coding operations are scoped to your configured project directory.
+Hardened tools: `edit_code` requires exact `find_text` match — if it doesn't match, returns the actual file snippet and `closest_matches` (no model-invented fuzzy diffs). `write_file` writes atomically via temp+rename, with auto-closing newline and range support for large files. Clear-result digests replace multi-thousand-char dumps from `git_diff`, `search_files`, and `list_directory`.
 
-**Process awareness** — the agent sees active shell processes (foreground/background) as a CTX hint, so it knows about running dev servers, watchers, and agent-browser sessions. Long-lived commands auto-promote to background after 2.5s of idle output. Background processes survive chat switches; only foreground runs are stopped on session change. The stop button targets the current foreground command; app quit kills everything.
+**Process awareness** — the agent sees active shell processes (foreground/background) as a CTX hint, so it knows about running dev servers, watchers, and agent-browser sessions. Three explicit process tools — `list_processes` (active processes with runId/command/status), `stop_process` (kill by runId), and `read_process_output` (poll last ~64KB with offset) — give reliable foreground/background management. `execute_command` gained `run_in_background` for dev servers/watchers. Long-lived commands auto-promote to background after 2.5s of idle output. Background processes survive chat switches; only foreground runs are stopped on session change. The stop button targets the current foreground command; app quit kills everything.
 
 ### Git integration
 
@@ -192,7 +193,7 @@ The coding panel surfaces git state visually and lets you commit without leaving
 
 The coding panel uses a two-level split:
 
-- **Chat ↔ coding panel** — a draggable vertical divider between the chat and the coding panel. Width persists across app restarts (`panelWidthPx`, default 416px, range 280–720). Keyboard: ←/→ to resize, Home/End for extremes.
+- **Chat ↔ coding panel** — a draggable vertical divider between the chat and the coding panel. Width persists across app restarts (`panelWidthPx`, default 416px, range 280–1200). The panel stays collapsed when the agent edits files (no auto-expand on every write). Keyboard: ←/→ to resize, Home/End for extremes.
 - **File tree ↔ preview/terminal** — a draggable horizontal divider inside the coding panel between the file tree and the lower sections (preview, commit bar, terminal). Height persists (`fileTreeHeightPx`, default 220px, range 100–480). Keyboard: ↑/↓ to resize, Home/End for extremes.
 
 ### Project instructions & local skills
@@ -218,6 +219,7 @@ Voidcast does not charge anything. It connects to free tiers of providers you ca
 |----------|-------------|
 | **OpenRouter** | Claude, GPT-4o, DeepSeek, Gemini + 100 others |
 | **DeepSeek** | Direct API — V4 Pro / Flash; billed from your DeepSeek balance |
+| **OpenCode Go** | OpenAI-compatible chat models via [OpenCode Go](https://opencode.ai/docs/go) |
 | **Ollama** | Open-source models (Qwen, Gemma, GLM, Mistral...) |
 | **NVIDIA NIM** | Enterprise-grade inference for open models |
 | **Runware** | Image generation, image edit, and AI music (pay-per-use, typically pennies) |
@@ -227,7 +229,7 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 
 **Multimodal pricing:** OpenRouter Whisper (STT), TTS, and image models bill per request or token at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 
-**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, Runware, or Ollama directly from your PC. With **LAN_WEB_ACCESS** enabled, keys are registered on the local tools host for phone proxying — not baked into the phone browser build.
+**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, OpenCode Go, Runware, or Ollama from your PC (OpenCode Go via the local tools proxy). With **LAN_WEB_ACCESS** enabled, keys are registered on the local tools host for phone proxying — not baked into the phone browser build.
 
 ---
 
@@ -238,7 +240,7 @@ Local and small-context models hit a wall after long chats. When prompt usage ne
 <p align="center">
   <img src="demos/voidcast-options-llm-openrouter-9x16.png" width="700" alt="LLM options panel"/>
 </p>
-<p align="center"><em>Options → LLM: pick a provider (Ollama, OpenRouter, NVIDIA NIM, DeepSeek), set context compression, and thinking level.</em></p>
+<p align="center"><em>Options → LLM: pick a provider (Ollama, OpenRouter, NVIDIA NIM, DeepSeek, OpenCode Go), set context compression, and thinking level.</em></p>
 
 ---
 
@@ -259,7 +261,7 @@ Cross-chat memory is stored locally in IndexedDB:
 
 ## Image-Aware Chat
 
-Paste images into the chat. The assistant can analyze them via **image_recall** (always available, independent of the Runware toggle) and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware or OpenRouter from the same thread.
+Paste images into the chat, or drag-and-drop images and documents. On desktop, **PDF** and **DOCX** attachments extract text the same way as the native file picker (main-process parsers). The assistant can analyze images via **image_recall** (always available, independent of the Runware toggle) and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware or OpenRouter from the same thread.
 
 <p align="center">
   <img src="demos/voidcast-chat-image-edit-scene-transfer.png" width="700" alt="Image editing in chat"/>
@@ -272,11 +274,12 @@ For **charts, diagrams, and infographics**, pick an image model in **Options →
 
 ## Themes & UI
 
-Six built-in themes: **Minimal** (default), **Dystopian**, **Matrix** (classic green-black with digital code rain), **Light**, **Blood Moon**, and **Obsidian**. Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
+Eight built-in themes: **Minimal** (default), **Dystopian**, **Matrix** (classic green-black with digital code rain), **Light**, **Blood Moon**, **Obsidian** (dark violet accents), **Terminal** (amber-phosphor CLI look with CRT scanline texture), and **Neutrino** (ultra-minimal gray with no neon — pure function). Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
 
 Other UX features:
-- **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens). Session history is stored in **IndexedDB** (migrated automatically from older `localStorage` data on first launch).
-- **Drag-and-drop** — drop images and supported text/code files onto the chat (same limits as the file picker)
+- **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens). Project folder groups default collapsed. Session history is stored in **IndexedDB** (migrated automatically from older `localStorage` data on first launch).
+- **Pinned model switcher** — status-bar popup to jump between pinned models; pins are scoped per provider so the same slug on OpenRouter vs NVIDIA / DeepSeek / OpenCode Go does not collide.
+- **Drag-and-drop** — drop images and supported files (TXT, MD, PDF, DOCX, CSV, JSON, code) onto the chat (same limits as the file picker); PDF/DOCX text is extracted on desktop
 - **Edit any message inline** — history regenerates from that point
 - **Fork chat session** — explore a different branch of the conversation
 - **Export to Markdown** — entire chat as `.md`
@@ -419,7 +422,7 @@ Coding tools run inside the Electron app (not as separate HTTP routes). Image ed
 │   │   ├── hooks/             # App state: sessions, agent, TTS/STT, attachments…
 │   │   ├── components/chat/   # Chat UI (header, sidebar, messages, composer…)
 │   │   ├── components/options/
-│   │   └── lib/               # Agent tools, settings, providers, pure helpers
+│   │   └── lib/               # Shared tool catalog/handlers, settings, providers, helpers
 │   └── test/                  # Vitest unit tests
 ├── tts-server/                # Python tools + TTS server
 │   ├── main.py                # Combined FastAPI app (tools + web UI)

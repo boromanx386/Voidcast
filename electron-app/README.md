@@ -12,7 +12,7 @@ This folder contains the Electron + React + TypeScript desktop frontend for **Vo
 │   ├── App.tsx            # Thin orchestrator (chat vs options routing)
 │   ├── hooks/             # App state: sessions, agent loop, TTS/STT, attachments…
 │   ├── components/        # UI: chat (sidebar, Plan cards), options, coding panel (preview/edit), themes
-│   ├── lib/               # Agent tools, plan artifacts, providers, settings, storage
+│   ├── lib/               # Shared tool catalog + domain handlers, plan artifacts, providers, settings, storage
 │   └── types/             # Shared TypeScript types
 ├── test/                  # Vitest unit tests (incl. plan-artifact)
 ├── dist-electron/         # Built main + preload (gitignored)

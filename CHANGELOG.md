@@ -6,8 +6,30 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Shared agent tools architecture**: tool execution moved out of the Ollama-centric path into a shared catalog + domain handlers (`toolHandlers/` for web, media, coding, app, MCP, image recall) and `agentToolExecutor`, so Ollama / OpenRouter / cloud adapters share one executor. Shared `ChatWithToolsCommonParams` + `buildToolExecutorOptions` in `agentParams.ts` remove duplicated tool-loop wiring.
+- **OpenCode Go LLM provider**: OpenAI-compatible chat provider preset (`opencode-go`) with settings, model list, and desktop CORS via the local TTS reverse proxy (`/api/opencode-go/...`). Reasoning fields sanitized for Go; `reasoning_content` round-tripped on tool turns (including empty string when tool_calls are present).
+- **Pinned model switcher**: status-bar popup to jump between pinned models; pin IDs scoped with a provider prefix so OpenRouter / NVIDIA / DeepSeek / OpenCode Go no longer collide on the same model slug.
+- **PDF/DOCX chat attachment text extraction on drag-and-drop**: renderer sends the file buffer over IPC (`parseChatAttachmentBuffer`); main uses the same `extractTextFromBuffer` path as the native picker (`pdf-parse` / mammoth), so DnD and picker stay in sync. Web-standalone without the bridge still attaches metadata only.
+- **Plan-mode research persistence**: research/context from Plan mode carries into the Approve & Build phase instead of being dropped on handoff.
 - **`find_symbols` coding tool**: read-only symbol outline (functions, classes, methods, interfaces, types, exports, headings) with 1-based line numbers for a single file. Regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown) — zero new deps. Output line numbers mirror `read_file`'s `N|` convention and feed straight into `edit_code` `start_line`/`end_line` anchoring. Supports an optional `query` filter on symbol name and a `max_symbols` cap. Wired through the full pipeline (tool definition → handler → IPC bridge → preload → main), plus the `coding_outline` UI phase, a clear-result digest, Plan-mode read-only allowlist, tool-choice hint, and docs. Available in Plan mode (read-only).
 - **`check_types` Python support**: auto-detects Python projects (requirements/pyproject/ruff markers or `.py` paths) and runs **ruff check** first, then **pyright** if ruff is missing. TypeScript/`tsc` path unchanged. Same unified `file:line:col — code: message` report format.
+- **Terminal theme**: raw retro CLI amber-phosphor on dark-black — terminal-style scrollbar, cyan/amber highlights, CRT scanline texture, `IBM Plex Mono` monospace, amber `#ffb000` accents, phosphor glow on focused inputs and buttons. Added `uiTheme.css` rules and registered `terminal` in settings and the theme picker.
+- **Hardened coding tools — structural digests**: cleared tool results (`git_diff`, `search_files`, `list_directory`) now emit a compact digest (line count, file count, summary) instead of raw multi-thousand-char dumps; Plan mode gets the digest without full text. Git `git_show` gains a `path` parameter for single-file diff; `git_diff` accepts a `path` prefix. `check_types` supports optional `paths` to filter after edits.
+- **Hardened coding tools — safer edits**: `edit_code` now requires an exact `find_text` match (no model-invented fuzzy diffs). Fallback strategy: tries exact, then CRLF-expanded, then LF-normalized; on mismatch returns the first 200 chars of the actual file content and a `closest_matches` list with 50-char context lines. `write_file` writes to a temp file and renames (atomic), with auto-closing trailing newline and optional `start_line`/`end_line` range for large files (400 lines or ~25k chars per call).
+- **Hardened coding tools — process control**: three new tools `list_processes` (active shell processes with runId, command, status), `stop_process` (kill foreground/background by runId), and `read_process_output` (poll last ~64KB of stdout/stderr with an `offset` for incremental reads). Added `run_in_background` flag to `execute_command` for dev servers/watchers that stay running after printing success. Stdout/stderr ring buffer (~256KB per process).
+- **Qwen TTS extras**: Positive prompt (style/emotion) for `customvoice` / `voicedesign`, and speed (0.25–4) for all Qwen models, in the TTS options panel. `buildRunwareTtsSpeechPayload` routes voice/language/speed/prompt per Qwen variant; playback and bake-phrase preview pass the new settings through. New settings: `runwareXaiPositivePrompt` (string) and `runwareTtsSpeed` (default 1.0).
+
+### Changed
+
+- **Session folders default collapsed**; coding panel width range widened.
+- **Coding panel stays collapsed** when the agent edits files (no auto-expand on every write/edit).
+
+### Fixed
+
+- OpenCode Go desktop chat no longer fails with opaque `Failed to fetch` (missing CORS) — requests go through the TTS proxy.
+- OpenCode Go multi-turn / tool-loop 400s from incompatible OpenRouter-style `reasoning` payloads — sanitized + `reasoning_content` echoed on tool turns.
+- Pinned-model IDs colliding across providers (same slug on OpenRouter vs NVIDIA / DeepSeek / OpenCode Go).
+- Gemini image generation no longer snaps dimensions to multiples of 16.
 
 ## [2.7.9] — 2026-07-24
 
