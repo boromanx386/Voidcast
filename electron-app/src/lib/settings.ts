@@ -192,32 +192,477 @@ export function normalizeOpenRouterTtsModel(model: string | undefined): string {
 export const RUNWARE_TTS_MODEL_DEFAULT = 'xai:tts@0'
 
 const INWORLD_TTS_VOICES = [
-  'Serena',
-  'Claire',
-  'James',
-  'Olivia',
-  'Liam',
-  'Graham',
-  'Ethan',
-  'Victoria',
+  'Abby',
   'Alex',
+  'Amina',
+  'Anjali',
+  'Arjun',
   'Ashley',
+  'Blake',
+  'Brian',
+  'Callum',
+  'Carter',
+  'Celeste',
+  'Chloe',
+  'Claire',
+  'Clive',
+  'Craig',
+  'Darlene',
+  'Deborah',
+  'Dennis',
+  'Derek',
+  'Dominus',
+  'Edward',
+  'Elizabeth',
+  'Elliot',
+  'Ethan',
+  'Evan',
+  'Evelyn',
+  'Gareth',
+  'Graham',
+  'Grant',
+  'Hades',
+  'Hamish',
+  'Hana',
   'Hank',
+  'Jake',
+  'James',
+  'Jason',
+  'Jessica',
   'Julia',
+  'Kayla',
+  'Kelsey',
+  'Lauren',
+  'Liam',
+  'Loretta',
+  'Luna',
+  'Malcolm',
   'Mark',
+  'Marlene',
+  'Miranda',
+  'Mortimer',
+  'Nate',
+  'Oliver',
+  'Olivia',
+  'Pippa',
+  'Pixie',
+  'Priya',
+  'Ronald',
+  'Rupert',
+  'Saanvi',
   'Sarah',
+  'Sebastian',
+  'Serena',
+  'Shaun',
+  'Simon',
+  'Snik',
+  'Tessa',
   'Theodore',
+  'Timothy',
+  'Tyler',
+  'Veronica',
+  'Victor',
+  'Victoria',
+  'Vinny',
+  'Wendy',
 ] as const
 
 const GEMINI_RUNWARE_TTS_VOICES = [
   'Zephyr',
-  'Kore',
-  'Puck',
-  'Charon',
-  'Fenrir',
+  'Achernar',
+  'Achird',
+  'Algenib',
+  'Algieba',
+  'Alnilam',
   'Aoede',
+  'Autonoe',
+  'Callirrhoe',
+  'Charon',
+  'Despina',
+  'Enceladus',
+  'Erinome',
+  'Fenrir',
+  'Gacrux',
+  'Iapetus',
+  'Kore',
+  'Laomedeia',
   'Leda',
   'Orus',
+  'Puck',
+  'Pulcherrima',
+  'Rasalgethi',
+  'Sadachbia',
+  'Sadaltager',
+  'Schedar',
+  'Sulafat',
+  'Umbriel',
+  'Vindemiatrix',
+  'Zubenelgenubi',
+] as const
+
+const XAI_RUNWARE_TTS_VOICES = [
+  'eve',
+  'ara',
+  'leo',
+  'rex',
+  'sal',
+  'una',
+  'carina',
+  'zagan',
+  'helix',
+  'orion',
+  'luna',
+  'iris',
+  'altair',
+  'zenith',
+  'perseus',
+  'helios',
+  'lux',
+  'kepler',
+  'rigel',
+  'cosmo',
+  'celeste',
+  'ursa',
+  'sirius',
+  'lumen',
+  'castor',
+  'naksh',
+  'atlas',
+] as const
+
+const MINIMAX_TTS_VOICES = [
+  'English_expressive_narrator',
+  'English_radiant_girl',
+  'English_magnetic_voiced_man',
+  'English_compelling_lady1',
+  'English_Aussie_Bloke',
+  'English_captivating_female1',
+  'English_Upbeat_Woman',
+  'English_Trustworth_Man',
+  'English_CalmWoman',
+  'English_UpsetGirl',
+  'English_Gentle-voiced_man',
+  'English_Whispering_girl',
+  'English_Diligent_Man',
+  'English_Graceful_Lady',
+  'English_ReservedYoungMan',
+  'English_PlayfulGirl',
+  'English_ManWithDeepVoice',
+  'English_MaturePartner',
+  'English_FriendlyPerson',
+  'English_MatureBoss',
+  'English_Debator',
+  'English_LovelyGirl',
+  'English_Steadymentor',
+  'English_Deep-VoicedGentleman',
+  'English_Wiselady',
+  'English_CaptivatingStoryteller',
+  'English_DecentYoungMan',
+  'English_SentimentalLady',
+  'English_ImposingManner',
+  'English_SadTeen',
+  'English_PassionateWarrior',
+  'English_WiseScholar',
+  'English_Soft-spokenGirl',
+  'English_SereneWoman',
+  'English_ConfidentWoman',
+  'English_PatientMan',
+  'English_Comedian',
+  'English_BossyLeader',
+  'English_Strong-WilledBoy',
+  'English_StressedLady',
+  'English_AssertiveQueen',
+  'English_AnimeCharacter',
+  'English_Jovialman',
+  'English_WhimsicalGirl',
+  'English_Kind-heartedGirl',
+  'Chinese (Mandarin)_Reliable_Executive',
+  'Chinese (Mandarin)_News_Anchor',
+  'Chinese (Mandarin)_Unrestrained_Young_Man',
+  'Chinese (Mandarin)_Mature_Woman',
+  'Arrogant_Miss',
+  'Robot_Armor',
+  'Chinese (Mandarin)_Kind-hearted_Antie',
+  'Chinese (Mandarin)_HK_Flight_Attendant',
+  'Chinese (Mandarin)_Humorous_Elder',
+  'Chinese (Mandarin)_Gentleman',
+  'Chinese (Mandarin)_Warm_Bestie',
+  'Chinese (Mandarin)_Stubborn_Friend',
+  'Chinese (Mandarin)_Sweet_Lady',
+  'Chinese (Mandarin)_Southern_Young_Man',
+  'Chinese (Mandarin)_Wise_Women',
+  'Chinese (Mandarin)_Gentle_Youth',
+  'Chinese (Mandarin)_Warm_Girl',
+  'Chinese (Mandarin)_Male_Announcer',
+  'Chinese (Mandarin)_Kind-hearted_Elder',
+  'Chinese (Mandarin)_Cute_Spirit',
+  'Chinese (Mandarin)_Radio_Host',
+  'Chinese (Mandarin)_Lyrical_Voice',
+  'Chinese (Mandarin)_Straightforward_Boy',
+  'Chinese (Mandarin)_Sincere_Adult',
+  'Chinese (Mandarin)_Gentle_Senior',
+  'Chinese (Mandarin)_Crisp_Girl',
+  'Chinese (Mandarin)_Pure-hearted_Boy',
+  'Chinese (Mandarin)_Soft_Girl',
+  'Chinese (Mandarin)_IntellectualGirl',
+  'Chinese (Mandarin)_Warm_HeartedGirl',
+  'Chinese (Mandarin)_Laid_BackGirl',
+  'Chinese (Mandarin)_ExplorativeGirl',
+  'Chinese (Mandarin)_Warm-HeartedAunt',
+  'Chinese (Mandarin)_BashfulGirl',
+  'Japanese_IntellectualSenior',
+  'Japanese_DecisivePrincess',
+  'Japanese_LoyalKnight',
+  'Japanese_DominantMan',
+  'Japanese_SeriousCommander',
+  'Japanese_ColdQueen',
+  'Japanese_DependableWoman',
+  'Japanese_GentleButler',
+  'Japanese_KindLady',
+  'Japanese_CalmLady',
+  'Japanese_OptimisticYouth',
+  'Japanese_GenerousIzakayaOwner',
+  'Japanese_SportyStudent',
+  'Japanese_InnocentBoy',
+  'Japanese_GracefulMaiden',
+  'Cantonese_ProfessionalHost (F)',
+  'Cantonese_GentleLady',
+  'Cantonese_ProfessionalHost (M)',
+  'Cantonese_PlayfulMan',
+  'Cantonese_CuteGirl',
+  'Cantonese_KindWoman',
+  'Korean_AirheadedGirl',
+  'Korean_AthleticGirl',
+  'Korean_AthleticStudent',
+  'Korean_BraveAdventurer',
+  'Korean_BraveFemaleWarrior',
+  'Korean_BraveYouth',
+  'Korean_CalmGentleman',
+  'Korean_CalmLady',
+  'Korean_CaringWoman',
+  'Korean_CharmingElderSister',
+  'Korean_CharmingSister',
+  'Korean_CheerfulBoyfriend',
+  'Korean_CheerfulCoolJunior',
+  'Korean_CheerfulLittleSister',
+  'Korean_ChildhoodFriendGirl',
+  'Korean_CockyGuy',
+  'Korean_ColdGirl',
+  'Korean_ColdYoungMan',
+  'Korean_ConfidentBoss',
+  'Korean_ConsiderateSenior',
+  'Korean_DecisiveQueen',
+  'Korean_DominantMan',
+  'Korean_ElegantPrincess',
+  'Korean_EnchantingSister',
+  'Korean_EnthusiasticTeen',
+  'Korean_FriendlyBigSister',
+  'Korean_GentleBoss',
+  'Korean_GentleWoman',
+  'Korean_HaughtyLady',
+  'Korean_InnocentBoy',
+  'Korean_IntellectualMan',
+  'Korean_IntellectualSenior',
+  'Korean_LonelyWarrior',
+  'Korean_MatureLady',
+  'Korean_MysteriousGirl',
+  'Korean_OptimisticYouth',
+  'Korean_PlayboyCharmer',
+  'Korean_PossessiveMan',
+  'Korean_QuirkyGirl',
+  'Korean_ReliableSister',
+  'Korean_ReliableYouth',
+  'Korean_SassyGirl',
+  'Korean_ShyGirl',
+  'Korean_SoothingLady',
+  'Korean_StrictBoss',
+  'Korean_SweetGirl',
+  'Korean_ThoughtfulWoman',
+  'Korean_WiseElf',
+  'Korean_WiseTeacher',
+  'Spanish_SereneWoman',
+  'Spanish_MaturePartner',
+  'Spanish_CaptivatingStoryteller',
+  'Spanish_Narrator',
+  'Spanish_WiseScholar',
+  'Spanish_Kind-heartedGirl',
+  'Spanish_DeterminedManager',
+  'Spanish_BossyLeader',
+  'Spanish_ReservedYoungMan',
+  'Spanish_ConfidentWoman',
+  'Spanish_ThoughtfulMan',
+  'Spanish_Strong-WilledBoy',
+  'Spanish_SophisticatedLady',
+  'Spanish_RationalMan',
+  'Spanish_AnimeCharacter',
+  'Spanish_Deep-tonedMan',
+  'Spanish_Fussyhostess',
+  'Spanish_SincereTeen',
+  'Spanish_FrankLady',
+  'Spanish_Comedian',
+  'Spanish_Debator',
+  'Spanish_ToughBoss',
+  'Spanish_Wiselady',
+  'Spanish_Steadymentor',
+  'Spanish_Jovialman',
+  'Spanish_SantaClaus',
+  'Spanish_Rudolph',
+  'Spanish_Intonategirl',
+  'Spanish_Arnold',
+  'Spanish_Ghost',
+  'Spanish_HumorousElder',
+  'Spanish_EnergeticBoy',
+  'Spanish_WhimsicalGirl',
+  'Spanish_StrictBoss',
+  'Spanish_ReliableMan',
+  'Spanish_SereneElder',
+  'Spanish_AngryMan',
+  'Spanish_AssertiveQueen',
+  'Spanish_CaringGirlfriend',
+  'Spanish_PowerfulSoldier',
+  'Spanish_PassionateWarrior',
+  'Spanish_ChattyGirl',
+  'Spanish_RomanticHusband',
+  'Spanish_CompellingGirl',
+  'Spanish_PowerfulVeteran',
+  'Spanish_SensibleManager',
+  'Spanish_ThoughtfulLady',
+  'Portuguese_SentimentalLady',
+  'Portuguese_BossyLeader',
+  'Portuguese_Wiselady',
+  'Portuguese_Strong-WilledBoy',
+  'Portuguese_Deep-VoicedGentleman',
+  'Portuguese_UpsetGirl',
+  'Portuguese_PassionateWarrior',
+  'Portuguese_AnimeCharacter',
+  'Portuguese_ConfidentWoman',
+  'Portuguese_AngryMan',
+  'Portuguese_CaptivatingStoryteller',
+  'Portuguese_Godfather',
+  'Portuguese_ReservedYoungMan',
+  'Portuguese_SmartYoungGirl',
+  'Portuguese_Kind-heartedGirl',
+  'Portuguese_Pompouslady',
+  'Portuguese_Grinch',
+  'Portuguese_Debator',
+  'Portuguese_SweetGirl',
+  'Portuguese_AttractiveGirl',
+  'Portuguese_ThoughtfulMan',
+  'Portuguese_PlayfulGirl',
+  'Portuguese_GorgeousLady',
+  'Portuguese_LovelyLady',
+  'Portuguese_SereneWoman',
+  'Portuguese_SadTeen',
+  'Portuguese_MaturePartner',
+  'Portuguese_Comedian',
+  'Portuguese_NaughtySchoolgirl',
+  'Portuguese_Narrator',
+  'Portuguese_ToughBoss',
+  'Portuguese_Fussyhostess',
+  'Portuguese_Dramatist',
+  'Portuguese_Steadymentor',
+  'Portuguese_Jovialman',
+  'Portuguese_CharmingQueen',
+  'Portuguese_SantaClaus',
+  'Portuguese_Rudolph',
+  'Portuguese_Arnold',
+  'Portuguese_CharmingSanta',
+  'Portuguese_CharmingLady',
+  'Portuguese_Ghost',
+  'Portuguese_HumorousElder',
+  'Portuguese_CalmLeader',
+  'Portuguese_GentleTeacher',
+  'Portuguese_EnergeticBoy',
+  'Portuguese_ReliableMan',
+  'Portuguese_SereneElder',
+  'Portuguese_GrimReaper',
+  'Portuguese_AssertiveQueen',
+  'Portuguese_WhimsicalGirl',
+  'Portuguese_StressedLady',
+  'Portuguese_FriendlyNeighbor',
+  'Portuguese_CaringGirlfriend',
+  'Portuguese_PowerfulSoldier',
+  'Portuguese_FascinatingBoy',
+  'Portuguese_RomanticHusband',
+  'Portuguese_StrictBoss',
+  'Portuguese_InspiringLady',
+  'Portuguese_PlayfulSpirit',
+  'Portuguese_ElegantGirl',
+  'Portuguese_CompellingGirl',
+  'Portuguese_PowerfulVeteran',
+  'Portuguese_SensibleManager',
+  'Portuguese_ThoughtfulLady',
+  'Portuguese_TheatricalActor',
+  'Portuguese_FragileBoy',
+  'Portuguese_ChattyGirl',
+  'Portuguese_Conscientiousinstructor',
+  'Portuguese_RationalMan',
+  'Portuguese_WiseScholar',
+  'Portuguese_FrankLady',
+  'Portuguese_DeterminedManager',
+  'French_Male_Speech_New',
+  'French_Female_News Anchor',
+  'French_CasualMan',
+  'French_MovieLeadFemale',
+  'French_FemaleAnchor',
+  'French_MaleNarrator',
+  'Indonesian_SweetGirl',
+  'Indonesian_ReservedYoungMan',
+  'Indonesian_CharmingGirl',
+  'Indonesian_CalmWoman',
+  'Indonesian_ConfidentWoman',
+  'Indonesian_CaringMan',
+  'Indonesian_BossyLeader',
+  'Indonesian_DeterminedBoy',
+  'Indonesian_GentleGirl',
+  'German_FriendlyMan',
+  'German_SweetLady',
+  'German_PlayfulMan',
+  'Russian_HandsomeChildhoodFriend',
+  'Russian_BrightHeroine',
+  'Russian_AmbitiousWoman',
+  'Russian_ReliableMan',
+  'Russian_CrazyQueen',
+  'Russian_PessimisticGirl',
+  'Russian_AttractiveGuy',
+  'Russian_Bad-temperedBoy',
+  'Italian_BraveHeroine',
+  'Italian_Narrator',
+  'Italian_WanderingSorcerer',
+  'Italian_DiligentLeader',
+  'Dutch_kindhearted_girl',
+  'Dutch_bossy_leader',
+  'Vietnamese_kindhearted_girl',
+  'Arabic_CalmWoman',
+  'Arabic_FriendlyGuy',
+  'Turkish_CalmWoman',
+  'Turkish_Trustworthyman',
+  'Ukrainian_CalmWoman',
+  'Ukrainian_WiseScholar',
+  'Thai_male_1_sample8',
+  'Thai_male_2_sample2',
+  'Thai_female_1_sample1',
+  'Thai_female_2_sample2',
+  'Polish_male_1_sample4',
+  'Polish_male_2_sample3',
+  'Polish_female_1_sample1',
+  'Polish_female_2_sample3',
+  'Romanian_male_1_sample2',
+  'Romanian_male_2_sample1',
+  'Romanian_female_1_sample4',
+  'Romanian_female_2_sample1',
+  'greek_male_1a_v1',
+  'Greek_female_1_sample1',
+  'Greek_female_2_sample3',
+  'czech_male_1_v1',
+  'czech_female_5_v7',
+  'czech_female_2_v2',
+  'finnish_male_3_v1',
+  'finnish_male_1_v2',
+  'finnish_female_4_v1',
+  'hindi_male_1_v2',
+  'hindi_female_2_v1',
+  'hindi_female_1_v2',
 ] as const
 
 export const RUNWARE_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> = [
@@ -231,20 +676,11 @@ export const RUNWARE_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> = [
 ]
 
 export const RUNWARE_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
-  [RUNWARE_TTS_MODEL_DEFAULT]: ['auto', 'eve', 'ara', 'leo', 'rex', 'sal', 'una'],
+  [RUNWARE_TTS_MODEL_DEFAULT]: XAI_RUNWARE_TTS_VOICES,
   'google:gemini@3.1-flash-tts': GEMINI_RUNWARE_TTS_VOICES,
   'inworld:tts@1.5-max': INWORLD_TTS_VOICES,
   'inworld:tts@1.5-mini': INWORLD_TTS_VOICES,
-  'minimax:speech@2.8': [
-    'English_expressive_narrator',
-    'English_radiant_girl',
-    'English_magnetic_voiced_man',
-    'English_CalmWoman',
-    'English_Gentle-voiced_man',
-    'English_CaptivatingStoryteller',
-    'English_Trustworth_Man',
-    'English_PlayfulGirl',
-  ],
+  'minimax:speech@2.8': MINIMAX_TTS_VOICES,
   'alibaba:qwen@3-tts-1.7b-customvoice': [
     'vivian',
     'serena',
@@ -262,6 +698,9 @@ export const RUNWARE_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
     '933563129e564b19a115bedd57b7406a',
     'e3cd384158934cc9a01029cd7d278634',
     '79d0bd3e4e5444b18f7b6d89b5927bf1',
+    '536d3a5e000945adb7038665781a4aca',
+    '9a9cf47702da476aa4629e2506d4a857',
+    '98655a12fa944e26b274c535e5e03842',
   ],
 }
 
@@ -271,6 +710,9 @@ export const RUNWARE_TTS_VOICE_LABELS: Record<string, string> = {
   '933563129e564b19a115bedd57b7406a': 'Sarah',
   e3cd384158934cc9a01029cd7d278634: 'Laura',
   '79d0bd3e4e5444b18f7b6d89b5927bf1': 'Jordan',
+  '536d3a5e000945adb7038665781a4aca': 'Ethan',
+  '9a9cf47702da476aa4629e2506d4a857': 'Hannah',
+  '98655a12fa944e26b274c535e5e03842': 'Egirl',
 }
 
 export function runwareTtsVoicesForModel(model: string): readonly string[] {
@@ -279,7 +721,7 @@ export function runwareTtsVoicesForModel(model: string): readonly string[] {
 }
 
 export function runwareTtsDefaultVoice(model: string): string {
-  return runwareTtsVoicesForModel(model)[0] || 'auto'
+  return runwareTtsVoicesForModel(model)[0] || 'eve'
 }
 
 export function normalizeRunwareTtsModel(model: string | undefined): string {
@@ -292,13 +734,21 @@ export function runwareTtsSupportsLanguage(model: string): boolean {
   return (
     id === RUNWARE_TTS_MODEL_DEFAULT ||
     id === 'minimax:speech@2.8' ||
-    id === 'alibaba:qwen@3-tts-1.7b-customvoice'
+    id === 'alibaba:qwen@3-tts-1.7b-customvoice' ||
+    id === 'alibaba:qwen@3-tts-1.7b-voicedesign' ||
+    id === 'alibaba:qwen@3-tts-1.7b-base'
   )
 }
 
 export function runwareTtsLanguagePlaceholder(model: string): string {
   const id = model.trim()
-  if (id === 'alibaba:qwen@3-tts-1.7b-customvoice') return 'English, Auto, Chinese…'
+  if (
+    id === 'alibaba:qwen@3-tts-1.7b-customvoice' ||
+    id === 'alibaba:qwen@3-tts-1.7b-voicedesign' ||
+    id === 'alibaba:qwen@3-tts-1.7b-base'
+  ) {
+    return 'English, Auto, Chinese…'
+  }
   if (id === 'minimax:speech@2.8') return 'languageBoost: en, auto, de, es…'
   return 'en, de, es-ES…'
 }
@@ -413,7 +863,11 @@ function mapRunwareTtsLanguage(model: string, language: string): string | undefi
   if (id === RUNWARE_TTS_MODEL_DEFAULT) {
     return lang || undefined
   }
-  if (id === 'alibaba:qwen@3-tts-1.7b-customvoice') {
+  if (
+    id === 'alibaba:qwen@3-tts-1.7b-customvoice' ||
+    id === 'alibaba:qwen@3-tts-1.7b-voicedesign' ||
+    id === 'alibaba:qwen@3-tts-1.7b-base'
+  ) {
     if (!lang) return 'Auto'
     const lower = lang.toLowerCase()
     const qwenMap: Record<string, string> = {
@@ -448,43 +902,44 @@ export function clampRunwareTtsSpeed(speed: number): number {
   return Math.max(0.25, Math.min(4, speed))
 }
 
+export function runwareTtsSupportsPositivePrompt(model: string): boolean {
+  const id = normalizeRunwareTtsModel(model)
+  return (
+    id === 'alibaba:qwen@3-tts-1.7b-customvoice' ||
+    id === 'alibaba:qwen@3-tts-1.7b-voicedesign'
+  )
+}
+
 export function buildRunwareTtsSpeechPayload(
   model: string,
   text: string,
   voice: string,
   language: string,
-  positivePrompt?: string,
   speed?: number,
 ): Record<string, unknown> {
   const id = normalizeRunwareTtsModel(model)
   const isQwen = id.startsWith('alibaba:qwen@3-tts-1.7b-')
-  const isQwenCustom = id.startsWith('alibaba:qwen@3-tts-1.7b-customvoice')
-  const isQwenDesign = id.startsWith('alibaba:qwen@3-tts-1.7b-voicedesign')
+  const isQwenCustom = id === 'alibaba:qwen@3-tts-1.7b-customvoice'
+  const isQwenDesign = id === 'alibaba:qwen@3-tts-1.7b-voicedesign'
 
   const speech: Record<string, unknown> = {
     text,
     voice: voice.trim() || runwareTtsDefaultVoice(id),
   }
 
-  if (isQwenCustom) {
-    speech.voice = voice.trim() || speech.voice
-  } else if (isQwenDesign) {
+  if (isQwenDesign) {
     speech.voice = 'design'
-  } else if (!isQwen) {
-    const mappedLanguage = mapRunwareTtsLanguage(id, language)
-    if (mappedLanguage) {
-      speech.language = mappedLanguage
-    }
+  } else if (isQwenCustom) {
+    speech.voice = voice.trim() || speech.voice
   }
 
-  if (isQwen) {
-    const prompt = positivePrompt?.trim()
-    if (prompt && (isQwenCustom || isQwenDesign)) {
-      speech.positive_prompt = prompt
-    }
-    if (speed != null && Number.isFinite(speed)) {
-      speech.speed = clampRunwareTtsSpeed(speed)
-    }
+  const mappedLanguage = mapRunwareTtsLanguage(id, language)
+  if (mappedLanguage) {
+    speech.language = mappedLanguage
+  }
+
+  if (isQwen && speed != null && Number.isFinite(speed)) {
+    speech.speed = clampRunwareTtsSpeed(speed)
   }
 
   return speech
@@ -502,7 +957,7 @@ export function buildRunwareTtsSettingsPayload(
 }
 
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
-export type RunwareXaiVoice = 'auto' | 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
+export type RunwareXaiVoice = 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
 export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'opencode-go'
 
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
@@ -956,7 +1411,7 @@ export const defaults: AppSettings = {
   ttsNumStep: 32,
   ttsDurationSec: null,
   ttsChunkMaxChars: 300,
-  runwareXaiVoice: 'auto',
+  runwareXaiVoice: 'eve',
   runwareTtsModel: RUNWARE_TTS_MODEL_DEFAULT,
   runwareXaiLanguage: '',
   runwareXaiPositivePrompt: '',
@@ -1339,8 +1794,12 @@ function normalizeTts(s: AppSettings): AppSettings {
   const runwareTtsModel = normalizeRunwareTtsModel(previousRunwareModel)
   const runwareModelChanged =
     Boolean(previousRunwareModel) && runwareTtsModel !== previousRunwareModel
+  const allowedVoices = runwareTtsVoicesForModel(runwareTtsModel)
+  const voiceAllowed = Boolean(voiceRaw) && allowedVoices.includes(voiceRaw)
   const runwareXaiVoice =
-    runwareModelChanged || !voiceRaw ? runwareTtsDefaultVoice(runwareTtsModel) : voiceRaw
+    runwareModelChanged || !voiceAllowed
+      ? runwareTtsDefaultVoice(runwareTtsModel)
+      : voiceRaw
   const runwareXaiLanguage =
     typeof s.runwareXaiLanguage === 'string' ? s.runwareXaiLanguage.trim() : ''
   const runwareXaiPositivePrompt =

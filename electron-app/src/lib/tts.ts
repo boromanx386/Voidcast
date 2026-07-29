@@ -6,6 +6,7 @@ import {
   openRouterTtsDefaultVoice,
   OPENROUTER_TTS_MODEL_DEFAULT,
   RUNWARE_TTS_MODEL_DEFAULT,
+  runwareTtsSupportsPositivePrompt,
 } from './settings'
 import type { VoiceMode } from './settings'
 import type { TtsProvider } from './settings'
@@ -211,9 +212,12 @@ export async function synthesizeSpeech(options: {
         options.text,
         options.runwareXaiVoice || '',
         language,
-        options.runwarePositivePrompt,
         options.runwareTtsSpeed,
       ),
+    }
+    const positivePrompt = (options.runwarePositivePrompt || '').trim()
+    if (positivePrompt && runwareTtsSupportsPositivePrompt(model)) {
+      payload.positivePrompt = positivePrompt
     }
     const settingsPayload = buildRunwareTtsSettingsPayload(model, language)
     if (settingsPayload) {

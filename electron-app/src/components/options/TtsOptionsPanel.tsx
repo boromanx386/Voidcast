@@ -371,7 +371,7 @@ export function TtsOptionsPanel({
                 />
               </div>
             )}
-            {/* Qwen CustomVoice / VoiceDesign extras */}
+            {/* Qwen CustomVoice / VoiceDesign — top-level Runware positivePrompt */}
             {(settings.runwareTtsModel.includes('customvoice') || settings.runwareTtsModel.includes('voicedesign')) && (
               <div className="form-group sm:col-span-2">
                 <label className="form-label">
@@ -384,7 +384,11 @@ export function TtsOptionsPanel({
                   onChange={(e) =>
                     setSettings((s) => ({ ...s, runwareXaiPositivePrompt: e.target.value }))
                   }
-                  placeholder="e.g. happy, energetic, professional (leave empty for default)"
+                  placeholder={
+                    settings.runwareTtsModel.includes('voicedesign')
+                      ? 'e.g. A warm, cheerful male voice with moderate pace'
+                      : 'e.g. Speak with great enthusiasm (leave empty for default)'
+                  }
                 />
               </div>
             )}
