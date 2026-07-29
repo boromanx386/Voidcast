@@ -138,6 +138,8 @@ export function TtsOptionsPanel({
         runwareTtsModel: settings.runwareTtsModel,
         runwareXaiVoice: settings.runwareXaiVoice,
         runwareXaiLanguage: settings.runwareXaiLanguage,
+        runwarePositivePrompt: settings.runwareXaiPositivePrompt || undefined,
+        runwareTtsSpeed: settings.runwareTtsSpeed,
         text: settings.voiceBakePhrase,
         voiceMode,
         instruct: voiceMode === 'design' ? settings.voiceInstruct : undefined,
@@ -367,6 +369,54 @@ export function TtsOptionsPanel({
                   }
                   placeholder={runwareTtsLanguagePlaceholder(settings.runwareTtsModel)}
                 />
+              </div>
+            )}
+            {/* Qwen CustomVoice / VoiceDesign extras */}
+            {(settings.runwareTtsModel.includes('customvoice') || settings.runwareTtsModel.includes('voicedesign')) && (
+              <div className="form-group sm:col-span-2">
+                <label className="form-label">
+                  <span className="text-neon-purple">◈</span> POSITIVE PROMPT (style/emotion)
+                </label>
+                <textarea
+                  className="cyber-input resize-y"
+                  rows={2}
+                  value={settings.runwareXaiPositivePrompt}
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, runwareXaiPositivePrompt: e.target.value }))
+                  }
+                  placeholder="e.g. happy, energetic, professional (leave empty for default)"
+                />
+              </div>
+            )}
+            {settings.runwareTtsModel.includes('qwen') && (
+              <div className="form-group sm:col-span-2">
+                <label className="form-label">
+                  <span className="text-neon-cyan">◈</span> SPEED
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0.25}
+                    max={4}
+                    step={0.05}
+                    value={settings.runwareTtsSpeed}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, runwareTtsSpeed: parseFloat(e.target.value) }))
+                    }
+                    className="flex-1 accent-neon-cyan"
+                  />
+                  <input
+                    type="number"
+                    min={0.25}
+                    max={4}
+                    step={0.05}
+                    value={settings.runwareTtsSpeed}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, runwareTtsSpeed: parseFloat(e.target.value) || 1.0 }))
+                    }
+                    className="w-16 cyber-input text-right accent-neon-cyan"
+                  />
+                </div>
               </div>
             )}
           </div>

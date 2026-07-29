@@ -444,21 +444,49 @@ function mapRunwareTtsLanguage(model: string, language: string): string | undefi
   return undefined
 }
 
+export function clampRunwareTtsSpeed(speed: number): number {
+  return Math.max(0.25, Math.min(4, speed))
+}
+
 export function buildRunwareTtsSpeechPayload(
   model: string,
   text: string,
   voice: string,
   language: string,
+  positivePrompt?: string,
+  speed?: number,
 ): Record<string, unknown> {
   const id = normalizeRunwareTtsModel(model)
+  const isQwen = id.startsWith('alibaba:qwen@3-tts-1.7b-')
+  const isQwenCustom = id.startsWith('alibaba:qwen@3-tts-1.7b-customvoice')
+  const isQwenDesign = id.startsWith('alibaba:qwen@3-tts-1.7b-voicedesign')
+
   const speech: Record<string, unknown> = {
     text,
     voice: voice.trim() || runwareTtsDefaultVoice(id),
   }
-  const mappedLanguage = mapRunwareTtsLanguage(id, language)
-  if (mappedLanguage) {
-    speech.language = mappedLanguage
+
+  if (isQwenCustom) {
+    speech.voice = voice.trim() || speech.voice
+  } else if (isQwenDesign) {
+    speech.voice = 'design'
+  } else if (!isQwen) {
+    const mappedLanguage = mapRunwareTtsLanguage(id, language)
+    if (mappedLanguage) {
+      speech.language = mappedLanguage
+    }
   }
+
+  if (isQwen) {
+    const prompt = positivePrompt?.trim()
+    if (prompt && (isQwenCustom || isQwenDesign)) {
+      speech.positive_prompt = prompt
+    }
+    if (speed != null && Number.isFinite(speed)) {
+      speech.speed = clampRunwareTtsSpeed(speed)
+    }
+  }
+
   return speech
 }
 
@@ -729,6 +757,10 @@ export type AppSettings = {
   runwareTtsModel: string
   /** Optional xAI language code (auto-detect when empty). */
   runwareXaiLanguage: string
+  /** Optional positive prompt for Qwen voice design/custom voice (style/emotion description). */
+  runwareXaiPositivePrompt: string
+  /** Runware TTS speed (0.25–4). Default 1.0. */
+  runwareTtsSpeed: number
   /** Short line spoken when baking a voice anchor (auto/design → consistent chunks) */
   voiceBakePhrase: string
   /** Which LLM tools are registered with Ollama (see Tools settings tab) */
@@ -927,6 +959,8 @@ export const defaults: AppSettings = {
   runwareXaiVoice: 'auto',
   runwareTtsModel: RUNWARE_TTS_MODEL_DEFAULT,
   runwareXaiLanguage: '',
+  runwareXaiPositivePrompt: '',
+  runwareTtsSpeed: 1.0,
   voiceBakePhrase: 'This is my reference voice for consistent synthesis.',
   toolsEnabled: {
     webSearch: true,
@@ -1309,6 +1343,13 @@ function normalizeTts(s: AppSettings): AppSettings {
     runwareModelChanged || !voiceRaw ? runwareTtsDefaultVoice(runwareTtsModel) : voiceRaw
   const runwareXaiLanguage =
     typeof s.runwareXaiLanguage === 'string' ? s.runwareXaiLanguage.trim() : ''
+  const runwareXaiPositivePrompt =
+    typeof s.runwareXaiPositivePrompt === 'string' ? s.runwareXaiPositivePrompt : ''
+  const runwareTtsSpeedRaw =
+    typeof s.runwareTtsSpeed === 'number' && Number.isFinite(s.runwareTtsSpeed)
+      ? s.runwareTtsSpeed
+      : defaults.runwareTtsSpeed
+  const runwareTtsSpeed = clampRunwareTtsSpeed(runwareTtsSpeedRaw)
   const previousModel =
     typeof s.openrouterTtsModel === 'string' ? s.openrouterTtsModel.trim() : ''
   const openrouterTtsModel = normalizeOpenRouterTtsModel(previousModel)
@@ -1322,6 +1363,8 @@ function normalizeTts(s: AppSettings): AppSettings {
     runwareXaiVoice,
     runwareTtsModel,
     runwareXaiLanguage,
+    runwareXaiPositivePrompt,
+    runwareTtsSpeed,
     openrouterTtsModel,
     openrouterTtsVoice,
   }

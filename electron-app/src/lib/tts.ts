@@ -123,6 +123,10 @@ export async function synthesizeSpeech(options: {
   runwareTtsModel?: string
   runwareXaiVoice?: string
   runwareXaiLanguage?: string
+  /** Optional positive prompt for Qwen customvoice/voicedesign (style/emotion). */
+  runwarePositivePrompt?: string
+  /** Runware TTS speed override (0.25–4). Omitted → API default. */
+  runwareTtsSpeed?: number
   text: string
   voiceMode: VoiceMode
   instruct?: string
@@ -207,6 +211,8 @@ export async function synthesizeSpeech(options: {
         options.text,
         options.runwareXaiVoice || '',
         language,
+        options.runwarePositivePrompt,
+        options.runwareTtsSpeed,
       ),
     }
     const settingsPayload = buildRunwareTtsSettingsPayload(model, language)
