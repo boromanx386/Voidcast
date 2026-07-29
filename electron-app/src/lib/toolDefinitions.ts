@@ -470,7 +470,7 @@ const CODING_READ_FILE_TOOL: AgentToolDefinition = {
   function: {
     name: 'read_file',
     description:
-      'Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. Prefer start_line/end_line or max_chars on large files (whole-file reads above ~220k characters are rejected unless you use a range). Lines are returned as N|text with 1-based line numbers.',
+      'Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. For large or unfamiliar files, prefer find_symbols first, then read with start_line/end_line (whole-file reads above ~220k characters are rejected unless you use a range). Do not re-read a path you already have in context this turn unless you need exact text for edit_code. Lines are returned as N|text with 1-based line numbers.',
     parameters: {
       type: 'object',
       properties: {
@@ -623,7 +623,7 @@ const CODING_FIND_SYMBOLS_TOOL: AgentToolDefinition = {
   function: {
     name: 'find_symbols',
     description:
-      'Read-only symbol outline (functions, classes, methods, interfaces, types, exports, headings) with 1-based line numbers for ONE file. Use to navigate large files without paging read_file. The returned line numbers feed straight into edit_code start_line/end_line anchoring. Regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown), no external deps. Supports an optional query filter on symbol name.',
+      'Read-only symbol outline (functions, classes, methods, interfaces, types, exports, headings) with 1-based line numbers for ONE file. Prefer this before paging large files with many read_file ranges. Returned line numbers feed edit_code start_line/end_line and targeted read_file ranges. Regex-based per-language heuristics (TS/JS, Python, Go, Rust, Markdown), no external deps. Supports an optional query filter on symbol name.',
     parameters: {
       type: 'object',
       properties: {

@@ -16,6 +16,82 @@ export type CodingContextMemo = {
   recentFailures: string[]
 }
 
+/** Per-turn working-set cache — survives old-tool-result clearing. */
+export type CodingFileCacheEntry = {
+  path: string
+  content: string
+}
+
+export type CodingFileCache = {
+  entries: CodingFileCacheEntry[]
+}
+
+export const CODING_FILE_CACHE_MAX_FILES = 6
+export const CODING_FILE_CACHE_MAX_TOTAL_CHARS = 15_000
+export const CODING_FILE_CACHE_MAX_PER_FILE_CHARS = 3_000
+
+export function emptyCodingFileCache(): CodingFileCache {
+  return { entries: [] }
+}
+
+/** Upsert a file read/edit/write result into the working-set cache. LRU: promoted to front. */
+export function upsertCodingFileCache(
+  cache: CodingFileCache,
+  path: string,
+  content: string,
+): CodingFileCache {
+  const trimmed = path.trim()
+  if (!trimmed || !content) return cache
+  const capped = content.length > CODING_FILE_CACHE_MAX_PER_FILE_CHARS
+    ? content.slice(0, CODING_FILE_CACHE_MAX_PER_FILE_CHARS)
+    : content
+  const without = cache.entries.filter((e) => e.path !== trimmed)
+  const entry: CodingFileCacheEntry = { path: trimmed, content: capped }
+  const next = [entry, ...without].slice(0, CODING_FILE_CACHE_MAX_FILES)
+  // Trim by total char budget (drop oldest entries first).
+  let total = 0
+  const survivors: CodingFileCacheEntry[] = []
+  for (const e of next) {
+    total += e.content.length
+    if (total > CODING_FILE_CACHE_MAX_TOTAL_CHARS) break
+    survivors.push(e)
+  }
+  return { entries: survivors.slice(0, CODING_FILE_CACHE_MAX_FILES) }
+}
+
+/** Remove a path from cache (on edit code or stale read). */
+export function invalidateCodingFileCache(
+  cache: CodingFileCache,
+  path: string,
+): CodingFileCache {
+  return {
+    entries: cache.entries.filter((e) => e.path !== path.trim()),
+  }
+}
+
+/** Build a compact injection block for the working set. Empty string if nothing to inject. */
+export function buildWorkingSetHint(
+  cache: CodingFileCache,
+  /** Paths currently uncleared in tool-result messages — skip these to avoid duplication. */
+  unclearedPaths: string[],
+): string {
+  const toShow = cache.entries.filter(
+    (e) => !unclearedPaths.includes(e.path) && e.content.trim(),
+  )
+  if (toShow.length === 0) return ''
+  const lines = [
+    '[Working memory — files read this turn, still current. Use this instead of re-reading.]',
+    ...toShow.map((e) => {
+      const label =
+        e.content.length >= CODING_FILE_CACHE_MAX_PER_FILE_CHARS
+          ? `${e.path} (first ${CODING_FILE_CACHE_MAX_PER_FILE_CHARS} chars cached)`
+          : e.path
+      return `### ${label}\n${e.content}`
+    }),
+  ]
+  return lines.join('\n\n')
+}
+
 export type CodingProjectSnapshot = Pick<
   CodingContextMemo,
   'lastDirectory' | 'recentFiles' | 'recentFailures' | 'recentCommands'
@@ -164,8 +240,8 @@ export function buildCodingMemoHint(
   })
 
   const reuseLine = opts?.buildWithResearch
-    ? 'These files/searches were opened during Plan mode — do not re-list the whole tree or run broad coding_explore unless Plan research is missing or insufficient.'
-    : 'Prefer reusing this context before scanning the whole project again.'
+    ? 'These files/searches were opened during Plan mode — do not re-list the whole tree or run broad coding_explore unless Plan research is missing or insufficient. Prefer find_symbols + targeted range-reads over re-reading whole files.'
+    : 'Prefer reusing this context (and any in-turn Digests) before scanning the whole project or re-reading the same files again.'
 
   const lines: string[] = [
     'Coding context memory from this chat session:',

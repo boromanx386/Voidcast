@@ -92,6 +92,7 @@ export function useVoidcastApp() {
     imageVisionCache,
     setImageVisionCache,
     codingContextMemo: coding.codingContextMemo,
+    codingFileCacheRef: coding.codingFileCacheRef,
     activeSessionId: activeSessionIdRef.current,
     onContextCompressed: ({ summary, throughIndex, activeSessionId: sessionId }) => {
       if (!sessionId) return

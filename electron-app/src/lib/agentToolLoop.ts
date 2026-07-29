@@ -7,6 +7,7 @@ import {
   shouldGuardFalseMusicClaims,
   TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY,
 } from '@/lib/agentToolUtils'
+import { shouldEvictOldToolResult } from '@/lib/codingSubAgent'
 import { sanitizeImageToolResultForLlm } from '@/lib/openrouterImage'
 
 /** Strip all http(s) URLs from message content so the model can't recycle
@@ -115,6 +116,13 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
    */
   oldToolResultClearing?: {
     keepRecentRounds: number
+    /** Per-tool override for how many recent rounds to keep full (e.g. read_file longer). */
+    keepRecentRoundsByTool?: Record<string, number>
+    /**
+     * Always keep the last N results of this tool full (most recent by round/index),
+     * even if they fall outside keepRecentRounds — used to pin working-set reads.
+     */
+    pinRecentByTool?: Record<string, number>
     minChars: number
     shouldClear: (name: string) => boolean
     /** Replaces cleared body; `content` is the full result about to be evicted. */
@@ -126,6 +134,8 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
   toolPhaseForName?: (name: string) => AgentToolUiPhase | null
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
+  /** Called at the start of each tool round; returns a user message to inject (e.g. working-set cache). Empty string = skip. */
+  injectWorkingSet?: (unclearedPaths: string[]) => string
   /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). The orchestrator flips the composer to Plan mode and re-sends as a plan turn. */
   onEscalateToPlan?: (ctx: { messages: TMessage[] }) => void
 }
@@ -205,13 +215,46 @@ export async function runSharedToolLoop<
     if (clearing && round > 0) {
       for (const rec of toolResultRecords) {
         if (rec.cleared) continue
-        if (rec.round >= round - clearing.keepRecentRounds) continue
+        if (
+          !shouldEvictOldToolResult({
+            rec,
+            currentRound: round,
+            keepRecentRounds: clearing.keepRecentRounds,
+            keepRecentRoundsByTool: clearing.keepRecentRoundsByTool,
+            pinRecentByTool: clearing.pinRecentByTool,
+            allRecords: toolResultRecords,
+          })
+        ) {
+          continue
+        }
         if (!clearing.shouldClear(rec.name)) continue
         const msg = messages[rec.index] as { content?: unknown } | undefined
         if (!msg || typeof msg.content !== 'string') continue
         if (msg.content.length < clearing.minChars) continue
         msg.content = clearing.placeholder(rec.name, msg.content.length, msg.content)
         rec.cleared = true
+      }
+    }
+
+    // Inject working-set cache at top of each round so the model sees current file contents.
+    const inject = params.injectWorkingSet
+    if (inject && round > 0) {
+      const uncleared = toolResultRecords
+        .filter((r) => !r.cleared && (r.name === 'read_file' || r.name === 'find_symbols'))
+        .map((r) => {
+          const msg = messages[r.index] as { content?: unknown } | undefined
+          if (typeof msg?.content === 'string') {
+            // Extract file path from content (first line typically has the path).
+            const firstLine = msg.content.split('\n')[0]
+            const m = firstLine?.match(/^\[File:?\s*(.+?)\]/) ?? firstLine?.match(/^(\S+?):/)
+            return m ? m[1].trim() : ''
+          }
+          return ''
+        })
+        .filter(Boolean)
+      const hint = inject(uncleared)
+      if (hint) {
+        messages.push({ role: 'user', content: hint } as unknown as TMessage)
       }
     }
 

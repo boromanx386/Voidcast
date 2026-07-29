@@ -74,7 +74,24 @@ export function trimNoisyCodingResult(raw: string): string {
 // ── Layer 2: clearing of old, re-fetchable tool results ──────────────────
 
 export const CODING_CLEAR_MIN_CHARS = 2_000
-export const CODING_CLEAR_KEEP_RECENT_ROUNDS = 2
+/** Default: keep last 4 rounds of clearable tools full (was 2 — caused thrashing). */
+export const CODING_CLEAR_KEEP_RECENT_ROUNDS = 4
+/** Keep read_file / find_symbols longer — these are the working set for edits. */
+export const CODING_CLEAR_KEEP_READ_ROUNDS = 8
+/** Always pin the last N read_file results full regardless of round age. */
+export const CODING_PIN_RECENT_READS = 3
+/** Always pin the last N find_symbols outlines (cheap + high reuse). */
+export const CODING_PIN_RECENT_OUTLINES = 2
+
+export const CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL: Record<string, number> = {
+  read_file: CODING_CLEAR_KEEP_READ_ROUNDS,
+  find_symbols: CODING_CLEAR_KEEP_READ_ROUNDS,
+}
+
+export const CODING_PIN_RECENT_BY_TOOL: Record<string, number> = {
+  read_file: CODING_PIN_RECENT_READS,
+  find_symbols: CODING_PIN_RECENT_OUTLINES,
+}
 
 /** Re-fetchable coding results — safe to clear from old rounds (agent can re-run). */
 export const CODING_CLEARABLE_TOOLS = new Set([
@@ -95,6 +112,33 @@ export const CODING_CLEARABLE_TOOLS = new Set([
 
 export function isClearableCodingToolResult(name: string): boolean {
   return CODING_CLEARABLE_TOOLS.has(name)
+}
+
+/**
+ * Whether an old tool-result record should be replaced with a digest placeholder.
+ * Keeps recent rounds (per-tool override) and pins the last N of read-heavy tools.
+ */
+export function shouldEvictOldToolResult(params: {
+  rec: { index: number; round: number; name: string }
+  currentRound: number
+  keepRecentRounds: number
+  keepRecentRoundsByTool?: Record<string, number>
+  pinRecentByTool?: Record<string, number>
+  allRecords: Array<{ index: number; round: number; name: string }>
+}): boolean {
+  const keepRounds =
+    params.keepRecentRoundsByTool?.[params.rec.name] ?? params.keepRecentRounds
+  if (params.rec.round >= params.currentRound - keepRounds) return false
+
+  const pinN = params.pinRecentByTool?.[params.rec.name] ?? 0
+  if (pinN > 0) {
+    const sameTool = [...params.allRecords]
+      .filter((r) => r.name === params.rec.name)
+      .sort((a, b) => b.round - a.round || b.index - a.index)
+    const rank = sameTool.findIndex((r) => r.index === params.rec.index)
+    if (rank >= 0 && rank < pinN) return false
+  }
+  return true
 }
 
 export const CODING_CLEAR_DIGEST_MAX = 560
@@ -234,7 +278,11 @@ export function clearedCodingToolResultPlaceholder(
 ): string {
   const digest = content ? buildClearedToolDigest(name, content) : ''
   const digestLine = digest ? `\nDigest: ${digest}` : ''
-  return `[Old ${name} result (${chars.toLocaleString()} chars) cleared to save context. Call the tool again if you still need it.]${digestLine}`
+  const reuseHint =
+    name === 'read_file' || name === 'find_symbols'
+      ? ' Prefer the Digest below — only re-read if you need exact lines for edit_code or the digest is insufficient.'
+      : ' Call the tool again only if you still need the full result.'
+  return `[Old ${name} result (${chars.toLocaleString()} chars) cleared to save context.${reuseHint}]${digestLine}`
 }
 
 export function isCodingExploreAllowedTool(name: string): boolean {

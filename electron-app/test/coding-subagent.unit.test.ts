@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CODING_CLEAR_KEEP_READ_ROUNDS,
+  CODING_CLEAR_KEEP_RECENT_ROUNDS,
   CODING_CLEAR_MIN_CHARS,
+  CODING_PIN_RECENT_READS,
   CODING_TRIM_HEAD_CHARS,
   CODING_TRIM_TAIL_CHARS,
   CODING_TRIM_THRESHOLD,
@@ -11,6 +14,7 @@ import {
   isClearableCodingToolResult,
   isCodingExploreAllowedTool,
   parseCodingExploreAction,
+  shouldEvictOldToolResult,
   shouldTrimCodingResult,
   trimNoisyCodingResult,
 } from '../src/lib/codingSubAgent'
@@ -88,6 +92,7 @@ describe('old tool result clearing helpers', () => {
     const p = clearedCodingToolResultPlaceholder('read_file', 12_345)
     expect(p).toContain('read_file')
     expect(p).toContain('12')
+    expect(p).toContain('Prefer the Digest')
     expect(p.length).toBeLessThan(CODING_CLEAR_MIN_CHARS)
   })
 
@@ -104,7 +109,62 @@ describe('old tool result clearing helpers', () => {
     expect(p).toContain('Digest:')
     expect(p).toContain('handleEditCode(L10)')
     expect(p).toContain('Foo(L50)')
+    expect(p).toContain('only re-read if you need exact lines')
     expect(p.length).toBeLessThan(CODING_CLEAR_MIN_CHARS)
+  })
+
+  it('shouldEvictOldToolResult keeps recent rounds and pins last N reads', () => {
+    const records = [
+      { index: 1, round: 0, name: 'read_file' },
+      { index: 2, round: 1, name: 'read_file' },
+      { index: 3, round: 2, name: 'read_file' },
+      { index: 4, round: 3, name: 'read_file' },
+      { index: 5, round: 0, name: 'list_directory' },
+    ]
+    // list_directory outside keep window → evict
+    expect(
+      shouldEvictOldToolResult({
+        rec: records[4]!,
+        currentRound: 10,
+        keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+        allRecords: records,
+      }),
+    ).toBe(true)
+
+    // Oldest read_file: outside keep-read window and outside pin-of-3 → evict
+    expect(
+      shouldEvictOldToolResult({
+        rec: records[0]!,
+        currentRound: 10,
+        keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+        keepRecentRoundsByTool: { read_file: CODING_CLEAR_KEEP_READ_ROUNDS },
+        pinRecentByTool: { read_file: CODING_PIN_RECENT_READS },
+        allRecords: records,
+      }),
+    ).toBe(true)
+
+    // More recent read (round 2) still in pin-of-3 → keep
+    expect(
+      shouldEvictOldToolResult({
+        rec: records[3]!,
+        currentRound: 10,
+        keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+        keepRecentRoundsByTool: { read_file: CODING_CLEAR_KEEP_READ_ROUNDS },
+        pinRecentByTool: { read_file: CODING_PIN_RECENT_READS },
+        allRecords: records,
+      }),
+    ).toBe(false)
+
+    // Within keep-read window even without pin
+    expect(
+      shouldEvictOldToolResult({
+        rec: { index: 9, round: 5, name: 'read_file' },
+        currentRound: 10,
+        keepRecentRounds: 4,
+        keepRecentRoundsByTool: { read_file: 8 },
+        allRecords: [{ index: 9, round: 5, name: 'read_file' }],
+      }),
+    ).toBe(false)
   })
 
   it('buildClearedToolDigest summarizes path lists and command output', () => {

@@ -6,12 +6,15 @@ import {
 } from '@/lib/agentParams'
 import {
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
+  CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
   CODING_CLEAR_MIN_CHARS,
+  CODING_PIN_RECENT_BY_TOOL,
   clearedCodingToolResultPlaceholder,
   isClearableCodingToolResult,
   shouldTrimCodingResult,
   trimNoisyCodingResult,
 } from '@/lib/codingSubAgent'
+import { buildWorkingSetHint } from '@/lib/codingContextMemo'
 import type { OllamaChatUsage } from '@/lib/ollama'
 import {
   ollamaMessagesToOpenRouter,
@@ -150,9 +153,18 @@ export async function runOpenRouterChatWithTools(
     oldToolResultClearing: codingContextEnabled
       ? {
           keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+          keepRecentRoundsByTool: CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
+          pinRecentByTool: CODING_PIN_RECENT_BY_TOOL,
           minChars: CODING_CLEAR_MIN_CHARS,
           shouldClear: isClearableCodingToolResult,
           placeholder: clearedCodingToolResultPlaceholder,
+        }
+      : undefined,
+    injectWorkingSet: codingContextEnabled
+      ? (unclearedPaths) => {
+          const ref = params.codingFileCacheRef
+          if (!ref?.current) return ''
+          return buildWorkingSetHint(ref.current, unclearedPaths)
         }
       : undefined,
     appendToolRequiredReprompt: (messages) => {

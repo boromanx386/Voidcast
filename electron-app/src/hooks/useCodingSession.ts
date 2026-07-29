@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   emptyCodingContextMemo,
+  emptyCodingFileCache,
   getCodingProjectPath,
   mergeCodingProjectPathIntoSettings,
   patchSessionCodingState,
@@ -8,6 +9,7 @@ import {
   saveProjectCodingMemo,
   sessionCodingProjectPath,
   type CodingContextMemo,
+  type CodingFileCache,
 } from '@/lib/codingContextMemo'
 import {
   appendCodingCommandEventToFeed,
@@ -68,6 +70,9 @@ export type UseCodingSessionResult = {
   revealCodingFile: (path: string) => void
   codingContextMemo: CodingContextMemo
   setCodingContextMemo: React.Dispatch<React.SetStateAction<CodingContextMemo>>
+  codingFileCache: CodingFileCache
+  setCodingFileCache: React.Dispatch<React.SetStateAction<CodingFileCache>>
+  codingFileCacheRef: React.MutableRefObject<CodingFileCache>
   codingPanelAvailable: boolean
   syncCodingProjectPathToSettings: (path: string) => void
   applyCodingProjectPath: (path: string) => void
@@ -96,6 +101,11 @@ export function useCodingSession({
   const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(() =>
     emptyCodingContextMemo(getCodingProjectPath(loadSettings())),
   )
+  const [codingFileCache, setCodingFileCache] = useState<CodingFileCache>(() =>
+    emptyCodingFileCache(),
+  )
+  const codingFileCacheRef = useRef(codingFileCache)
+  codingFileCacheRef.current = codingFileCache
   const codingProjectPathForMemoRef = useRef(getCodingProjectPath(loadSettings()))
   const streamSeqRef = useRef({ n: 0 })
   const activeCodingRunIdRef = useRef<string | null>(null)
@@ -273,6 +283,9 @@ export function useCodingSession({
     revealCodingFile,
     codingContextMemo,
     setCodingContextMemo,
+    codingFileCache,
+    setCodingFileCache,
+    codingFileCacheRef,
     codingPanelAvailable,
     syncCodingProjectPathToSettings,
     applyCodingProjectPath,

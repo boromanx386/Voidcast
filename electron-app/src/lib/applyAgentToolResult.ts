@@ -9,6 +9,9 @@ import {
   pushRecentCommand,
   pushRecentUnique,
   type CodingContextMemo,
+  type CodingFileCache,
+  upsertCodingFileCache,
+  invalidateCodingFileCache,
 } from '@/lib/codingContextMemo'
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import { codingRevealPathFromToolResult } from '@/lib/codingReveal'
@@ -41,6 +44,8 @@ export type AgentToolResultHandlerDeps = {
   refreshReminders: () => void | Promise<void>
   refreshLongMemories: () => void | Promise<void>
   setCodingContextMemo: Dispatch<SetStateAction<CodingContextMemo>>
+  /** Mutable ref for the per-turn working-set file cache, updated on read/write/edit. */
+  codingFileCacheRef: React.MutableRefObject<CodingFileCache>
   setCodingTerminalFeed: Dispatch<SetStateAction<TerminalLine[]>>
   setCodingFileTreeNonce: Dispatch<SetStateAction<number>>
   setCodingGitNonce: Dispatch<SetStateAction<number>>
@@ -80,6 +85,7 @@ export function applyAgentToolResult(
     refreshReminders,
     refreshLongMemories,
     setCodingContextMemo,
+    codingFileCacheRef,
     setCodingTerminalFeed,
     setCodingFileTreeNonce,
     setCodingGitNonce,
@@ -207,6 +213,38 @@ export function applyAgentToolResult(
 
       return normalizeCodingContextMemo(next, getCodingProjectPath(settings))
     })
+
+    // Update per-turn file cache for working-set reuse.
+    const filePath = typeof args?.path === 'string' ? args.path.trim() : ''
+    if (name === 'read_file' && filePath && !isCodingToolFailure('read_file', result)) {
+      // Strip line-number prefix for clean cache content (single-read result only).
+      const lines = result.split('\n')
+      const cleanLines: string[] = []
+      for (const l of lines) {
+        const m = l.match(/^\s*\d+\|\s?(.*)$/)
+        cleanLines.push(m ? m[1] : l)
+      }
+      codingFileCacheRef.current = upsertCodingFileCache(
+        codingFileCacheRef.current,
+        filePath,
+        cleanLines.join('\n'),
+      )
+    } else if (name === 'write_file' && filePath && !isCodingToolFailure('write_file', result)) {
+      const content = typeof args?.content === 'string' ? args.content : ''
+      if (content) {
+        codingFileCacheRef.current = upsertCodingFileCache(
+          codingFileCacheRef.current,
+          filePath,
+          content,
+        )
+      }
+    } else if (name === 'edit_code' && filePath && !isCodingToolFailure('edit_code', result)) {
+      // Content changed; invalidate so next read_file freshens the cache.
+      codingFileCacheRef.current = invalidateCodingFileCache(
+        codingFileCacheRef.current,
+        filePath,
+      )
+    }
   }
 
   if (name === 'execute_command') {

@@ -7,6 +7,7 @@ import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { OllamaApiMessage, OllamaModelOptions } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import type { ExecCtx } from '@/lib/toolExecTypes'
+import type { CodingFileCache } from '@/lib/codingContextMemo'
 
 /**
  * Fields shared by both Ollama and OpenRouter chat-with-tools param types.
@@ -43,6 +44,8 @@ export interface ChatWithToolsCommonParams {
   userImagePaths?: string[]
   codingProjectPath?: string
   codingRecentFiles?: string[]
+  /** Mutable ref for per-turn working-set file cache (updated on read/write/edit, injected as user msg). */
+  codingFileCacheRef?: React.MutableRefObject<CodingFileCache>
   rawUserText?: string
   subAgent?: SubAgentConfig
   ollamaBaseUrlForSubAgent?: string

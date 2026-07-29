@@ -18,7 +18,7 @@ import {
   type ContextUsageInfo,
 } from '@/lib/contextUsage'
 import { resolveContextLimit } from '@/lib/contextLimit'
-import type { CodingContextMemo } from '@/lib/codingContextMemo'
+import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
 import type { ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
@@ -68,6 +68,7 @@ export type UseChatAgentDeps = {
   imageVisionCache: ImageVisionCache
   setImageVisionCache: Dispatch<SetStateAction<ImageVisionCache>>
   codingContextMemo: CodingContextMemo
+  codingFileCacheRef: React.MutableRefObject<CodingFileCache>
   activeSessionId: string | null
   onContextCompressed?: (params: {
     summary: string
@@ -152,6 +153,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     imageVisionCache,
     setImageVisionCache,
     codingContextMemo,
+    codingFileCacheRef,
     activeSessionId,
     onContextCompressed,
     pendingImages,
@@ -565,6 +567,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             userImagePaths: toolImageCatalog.map((x) => x.path || ''),
             codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
             codingRecentFiles: codingContextMemo.recentFiles,
+            codingFileCacheRef,
             subAgent: settings.subAgent,
             ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
             openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,
@@ -621,6 +624,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   refreshReminders,
                   refreshLongMemories,
                   setCodingContextMemo,
+                  codingFileCacheRef,
                   setCodingTerminalFeed,
                   setCodingFileTreeNonce,
                   setCodingGitNonce,

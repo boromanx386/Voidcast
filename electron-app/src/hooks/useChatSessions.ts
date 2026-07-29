@@ -328,10 +328,11 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setRenameValue('')
     setPendingImages([])
     // Restore the system prompt from this session's preset, or keep global default.
-    if (session.promptPreset && LLM_PROMPT_PRESETS[session.promptPreset]) {
+    const preset = session.promptPreset
+    if (preset && LLM_PROMPT_PRESETS[preset]) {
       setSettings((s) => ({
         ...s,
-        llmSystemPrompt: LLM_PROMPT_PRESETS[session.promptPreset],
+        llmSystemPrompt: LLM_PROMPT_PRESETS[preset],
       }))
     }
   }
