@@ -20,6 +20,39 @@ export type CodingContextMemo = {
    * Session-scoped — not written to the project localStorage snapshot.
    */
   lastTurnSummary: string
+  /**
+   * Structural digests of recently read/outlined files (cross-turn).
+   * Session-scoped — not written to the project localStorage snapshot.
+   */
+  recentFileDigests: CodingFileDigestEntry[]
+}
+
+export type CodingFileDigestEntry = {
+  path: string
+  digest: string
+}
+
+export const CODING_FILE_DIGEST_MAX_ENTRIES = 8
+export const CODING_FILE_DIGEST_MAX_CHARS = 400
+
+/** Upsert a path digest into the memo (LRU front). */
+export function upsertFileDigest(
+  digests: CodingFileDigestEntry[],
+  path: string,
+  digest: string,
+): CodingFileDigestEntry[] {
+  const trimmed = path.trim()
+  const body = digest.trim().slice(0, CODING_FILE_DIGEST_MAX_CHARS)
+  if (!trimmed || !body) return digests
+  const without = digests.filter((d) => d.path !== trimmed)
+  return [{ path: trimmed, digest: body }, ...without].slice(0, CODING_FILE_DIGEST_MAX_ENTRIES)
+}
+
+export function removeFileDigest(
+  digests: CodingFileDigestEntry[],
+  path: string,
+): CodingFileDigestEntry[] {
+  return digests.filter((d) => d.path !== path.trim())
 }
 
 /** Per-turn working-set cache — survives old-tool-result clearing. */
@@ -374,6 +407,7 @@ export function emptyCodingContextMemo(projectPath = ''): CodingContextMemo {
     recentGitOps: [],
     recentFailures: [],
     lastTurnSummary: '',
+    recentFileDigests: [],
   }
 }
 
@@ -431,6 +465,22 @@ export function normalizeCodingContextMemo(raw: unknown, projectPath: string): C
       typeof r.lastTurnSummary === 'string'
         ? r.lastTurnSummary.trim().slice(0, CODING_TURN_SUMMARY_MAX_CHARS)
         : '',
+    recentFileDigests: Array.isArray(r.recentFileDigests)
+      ? r.recentFileDigests
+          .filter(
+            (d): d is CodingFileDigestEntry =>
+              !!d &&
+              typeof d === 'object' &&
+              typeof (d as CodingFileDigestEntry).path === 'string' &&
+              typeof (d as CodingFileDigestEntry).digest === 'string',
+          )
+          .map((d) => ({
+            path: d.path.trim(),
+            digest: d.digest.trim().slice(0, CODING_FILE_DIGEST_MAX_CHARS),
+          }))
+          .filter((d) => d.path && d.digest)
+          .slice(0, CODING_FILE_DIGEST_MAX_ENTRIES)
+      : [],
   }
 }
 
@@ -513,8 +563,8 @@ export function buildCodingMemoHint(
   })
 
   const reuseLine = opts?.buildWithResearch
-    ? 'These files/searches were opened during Plan mode — do not re-list the whole tree or run broad coding_explore unless Plan research is missing or insufficient. Prefer find_symbols + targeted range-reads over re-reading whole files.'
-    : 'Prefer reusing this context (and any in-turn Digests) before scanning the whole project or re-reading the same files again.'
+    ? 'These files/searches/digests came from Plan mode — do not re-list the whole tree or run broad coding_explore unless research is missing. Prefer digests + targeted range-reads over re-reading whole files.'
+    : 'Prefer reusing this context (digests and any in-turn working memory) before scanning the whole project or re-reading the same files again.'
 
   const lines: string[] = [
     'Coding context memory from this chat session:',
@@ -522,6 +572,13 @@ export function buildCodingMemoHint(
   ]
   if (memo.lastTurnSummary.trim()) {
     lines.push('', memo.lastTurnSummary.trim(), '')
+  }
+  if (memo.recentFileDigests.length > 0) {
+    lines.push(
+      'Recent file digests (reuse; prefer find_symbols / range-read only if you need exact text for edit_code):',
+      ...memo.recentFileDigests.map((d) => `- ${d.path}: ${d.digest}`),
+      '',
+    )
   }
   lines.push(
     `- Last listed directory: ${memo.lastDirectory || '(none yet)'}`,

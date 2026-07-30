@@ -152,7 +152,8 @@ function stripNumberedLine(line: string): { lineNo: number | null; text: string 
   return { lineNo: null, text: line }
 }
 
-function digestReadFile(content: string): string {
+/** Structural digest of a read_file tool result (symbols + line count). */
+export function digestReadFile(content: string): string {
   const lines = content.split(/\r?\n/)
   const bodyLines = lines.filter((l) => !l.startsWith('[Note:') && l.trim() !== '')
   const symbols: string[] = []
@@ -212,8 +213,8 @@ function digestHeadTail(label: string, content: string): string {
   return `${label}: ${first}${lastPart}`
 }
 
-/** Compact structural digest left behind when an old tool result is cleared. */
-function digestFindSymbols(c: string): string {
+/** Compact structural digest of a find_symbols tool result. */
+export function digestFindSymbols(c: string): string {
   const lines = c.split('\n').filter((l) => l.trim().length > 0)
   if (lines.length === 0) return 'find_symbols: (empty)'
   // First line is the header: "find_symbols: relPath (N lines, M symbols)"

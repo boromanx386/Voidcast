@@ -1,4 +1,5 @@
 import { isCodingToolFailure } from '@/lib/codingContextMemo'
+import { digestFindSymbols, digestReadFile } from '@/lib/codingSubAgent'
 import type {
   PlanApproach,
   PlanArtifact,
@@ -21,6 +22,8 @@ export function createPlanStep(text: string, done = false): PlanStep {
 const PLAN_RESEARCH_FINDINGS_MAX = 3000
 const PLAN_RESEARCH_KEY_FILES_MAX = 16
 const PLAN_RESEARCH_SEARCHES_MAX = 8
+const PLAN_RESEARCH_DIGESTS_MAX = 6
+const PLAN_RESEARCH_DIGEST_ENTRY_MAX = 500
 
 /** Mutable buffer filled during a Plan turn from tool calls (fallback when JSON omits research). */
 export type PlanResearchHarvest = {
@@ -99,10 +102,9 @@ export function mergePlanResearch(
   ).slice(0, PLAN_RESEARCH_SEARCHES_MAX)
   const pFind = primary?.findings?.trim() ?? ''
   const hFind = harvested?.findings?.trim() ?? ''
-  const findings = (pFind.length >= hFind.length ? pFind : hFind).slice(
-    0,
-    PLAN_RESEARCH_FINDINGS_MAX,
-  )
+  const findings = (
+    pFind && hFind && pFind !== hFind ? `${pFind}\n\n${hFind}` : pFind || hFind
+  ).slice(0, PLAN_RESEARCH_FINDINGS_MAX)
   return normalizePlanResearch({ keyFiles, findings, searches })
 }
 
@@ -134,10 +136,17 @@ export function harvestPlanToolIntoBuffer(
 ): void {
   if (isCodingToolFailure(name, result)) return
 
-  if (name === 'read_file' || name === 'glob_files') {
+  if (name === 'read_file' || name === 'glob_files' || name === 'find_symbols') {
     const p = typeof args?.path === 'string' ? args.path.trim() : ''
-    if (p && name === 'read_file') {
+    if (p && (name === 'read_file' || name === 'find_symbols')) {
       harvest.keyFiles = dedupePush(harvest.keyFiles, stripPlanResearchPathEntry(p), PLAN_RESEARCH_KEY_FILES_MAX)
+      const digest =
+        name === 'read_file' ? digestReadFile(result) : digestFindSymbols(result)
+      const entry = `${stripPlanResearchPathEntry(p)}: ${digest}`.slice(
+        0,
+        PLAN_RESEARCH_DIGEST_ENTRY_MAX,
+      )
+      harvest.digests = dedupePush(harvest.digests, entry, PLAN_RESEARCH_DIGESTS_MAX)
     }
     const prefix = typeof args?.path_prefix === 'string' ? args.path_prefix.trim() : ''
     if (name === 'glob_files' && prefix) {
@@ -204,9 +213,9 @@ export function planHasResearch(plan: PlanArtifact | undefined): boolean {
 
 /** System hint when Approve & Build includes a research snapshot. */
 export const BUILD_WITH_RESEARCH_SYSTEM_HINT = [
-  'This turn builds an approved plan that already includes Plan-mode research (key files + findings).',
-  'Plan-mode research is attached. Prefer it over re-exploring — skip broad coding_explore / glob_files / full-tree list_directory unless the research is empty or a specific file you are about to edit is not cited.',
-  'Prefer the cited key files. Re-read a file when you are about to edit it, or when a cited path looks missing/stale.',
+  'This turn builds an approved plan that already includes Plan-mode research (key files + digests/findings).',
+  'Prefer the attached research and coding memo digests over re-exploring — skip coding_explore, broad glob_files, and full-tree list_directory unless research is empty or a path is clearly missing.',
+  'Do not re-read whole files by default. Use a targeted range-read only when edit_code needs an exact snippet that is not already in digests/context.',
   'Use write_file / edit_code / execute_command for real implementation work, and call update_plan_progress as you finish steps.',
 ].join(' ')
 
@@ -459,7 +468,7 @@ export function formatPlanForBuildPrompt(plan: PlanArtifact): string {
     'When you finish a step, call update_plan_progress with that step_id (or 1-based step_index) before moving on. The UI only checks steps when you call this tool — file edits alone do not advance the checklist.',
     ...(hasResearch
       ? [
-          'Plan-mode research is attached below. Prefer it over re-exploring — skip broad coding_explore / glob_files / full-tree list_directory unless research is empty or a file you are about to edit is not cited. Re-read when about to edit or when a path looks stale/missing.',
+          'Plan-mode research (including file digests) is attached below. Prefer it over re-exploring — skip broad coding_explore / glob_files / full-tree list_directory unless research is empty. Range-read only when you need an exact snippet for edit_code that is not already in the digests.',
         ]
       : []),
     '',

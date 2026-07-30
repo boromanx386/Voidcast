@@ -378,7 +378,7 @@ describe('plan research harvest + merge', () => {
     expect(fromHarvest?.findings).toContain('buildAgentTurnContext')
   })
 
-  test('merge prefers richer findings and unions files', () => {
+  test('merge concatenates distinct findings and unions files', () => {
     const merged = mergePlanResearch(
       {
         keyFiles: ['a.ts'],
@@ -392,6 +392,7 @@ describe('plan research harvest + merge', () => {
       },
     )
     expect(merged?.keyFiles).toEqual(['a.ts', 'b.ts'])
+    expect(merged?.findings).toContain('short')
     expect(merged?.findings).toContain('coding_explore')
     expect(merged?.searches).toEqual(['x', 'y'])
   })

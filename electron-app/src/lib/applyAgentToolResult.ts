@@ -14,7 +14,10 @@ import {
   updateCodingFileCacheAfterEdit,
   invalidateCodingFileCache,
   emptyCodingFileCache,
+  upsertFileDigest,
+  removeFileDigest,
 } from '@/lib/codingContextMemo'
+import { digestFindSymbols, digestReadFile } from '@/lib/codingSubAgent'
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import { codingRevealPathFromToolResult } from '@/lib/codingReveal'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
@@ -139,6 +142,60 @@ export function applyAgentToolResult(
     name === 'execute_command' ||
     name === 'coding_explore'
   ) {
+    // Update per-turn file cache first so digests can use post-edit content.
+    const filePath = typeof args?.path === 'string' ? args.path.trim() : ''
+    if (name === 'read_file' && filePath && !isCodingToolFailure('read_file', result)) {
+      const lines = result.split('\n')
+      const cleanLines: string[] = []
+      for (const l of lines) {
+        const m = l.match(/^\s*\d+\|\s?(.*)$/)
+        cleanLines.push(m ? m[1] : l)
+      }
+      codingFileCacheRef.current = upsertCodingFileCache(
+        codingFileCacheRef.current,
+        filePath,
+        cleanLines.join('\n'),
+      )
+    } else if (name === 'write_file' && filePath && !isCodingToolFailure('write_file', result)) {
+      const content = typeof args?.content === 'string' ? args.content : ''
+      if (content) {
+        codingFileCacheRef.current = upsertCodingFileCache(
+          codingFileCacheRef.current,
+          filePath,
+          content,
+        )
+      }
+    } else if (name === 'edit_code' && filePath && !isCodingToolFailure('edit_code', result)) {
+      const findText = typeof args?.find_text === 'string' ? args.find_text : ''
+      const replaceText = typeof args?.replace_text === 'string' ? args.replace_text : ''
+      const replaceAll = args?.replace_all === true
+      const ignoreWhitespace = args?.ignore_whitespace === true
+      const startLine = typeof args?.start_line === 'number' ? args.start_line : undefined
+      const endLine = typeof args?.end_line === 'number' ? args.end_line : undefined
+      codingFileCacheRef.current = updateCodingFileCacheAfterEdit(
+        codingFileCacheRef.current,
+        filePath,
+        findText,
+        replaceText,
+        { replaceAll, ignoreWhitespace, startLine, endLine },
+      )
+    } else if (
+      name === 'git_restore' &&
+      filePath &&
+      !isCodingToolFailure('git_restore', result)
+    ) {
+      codingFileCacheRef.current = invalidateCodingFileCache(
+        codingFileCacheRef.current,
+        filePath,
+      )
+    } else if (name === 'git_stash' && !isCodingToolFailure('git_stash', result)) {
+      const action =
+        typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+      if (action === 'push' || action === 'pop') {
+        codingFileCacheRef.current = emptyCodingFileCache()
+      }
+    }
+
     setCodingContextMemo((prev) => {
       const next = { ...prev }
       if (name === 'list_directory') {
@@ -231,66 +288,55 @@ export function applyAgentToolResult(
         }
         const failureEntry = `${failureLabel}: ${result.slice(0, 120)}`
         next.recentFailures = pushRecentUnique(next.recentFailures, failureEntry, 6)
+      } else if (filePath) {
+        // Cross-turn structural digests (session-scoped).
+        if (name === 'read_file') {
+          next.recentFileDigests = upsertFileDigest(
+            next.recentFileDigests ?? [],
+            filePath,
+            digestReadFile(result),
+          )
+        } else if (name === 'find_symbols') {
+          next.recentFileDigests = upsertFileDigest(
+            next.recentFileDigests ?? [],
+            filePath,
+            digestFindSymbols(result),
+          )
+        } else if (name === 'write_file') {
+          const content = typeof args?.content === 'string' ? args.content : ''
+          if (content) {
+            next.recentFileDigests = upsertFileDigest(
+              next.recentFileDigests ?? [],
+              filePath,
+              digestReadFile(content),
+            )
+          }
+        } else if (name === 'edit_code') {
+          const cached = codingFileCacheRef.current.entries.find((e) => e.path === filePath)
+          if (cached) {
+            next.recentFileDigests = upsertFileDigest(
+              next.recentFileDigests ?? [],
+              filePath,
+              digestReadFile(cached.content),
+            )
+          }
+        } else if (name === 'git_restore') {
+          next.recentFileDigests = removeFileDigest(next.recentFileDigests ?? [], filePath)
+        }
+      }
+      if (
+        name === 'git_stash' &&
+        !isCodingToolFailure('git_stash', result)
+      ) {
+        const action =
+          typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+        if (action === 'push' || action === 'pop') {
+          next.recentFileDigests = []
+        }
       }
 
       return normalizeCodingContextMemo(next, getCodingProjectPath(settings))
     })
-
-    // Update per-turn file cache for working-set reuse.
-    const filePath = typeof args?.path === 'string' ? args.path.trim() : ''
-    if (name === 'read_file' && filePath && !isCodingToolFailure('read_file', result)) {
-      // Strip line-number prefix for clean cache content (single-read result only).
-      const lines = result.split('\n')
-      const cleanLines: string[] = []
-      for (const l of lines) {
-        const m = l.match(/^\s*\d+\|\s?(.*)$/)
-        cleanLines.push(m ? m[1] : l)
-      }
-      codingFileCacheRef.current = upsertCodingFileCache(
-        codingFileCacheRef.current,
-        filePath,
-        cleanLines.join('\n'),
-      )
-    } else if (name === 'write_file' && filePath && !isCodingToolFailure('write_file', result)) {
-      const content = typeof args?.content === 'string' ? args.content : ''
-      if (content) {
-        codingFileCacheRef.current = upsertCodingFileCache(
-          codingFileCacheRef.current,
-          filePath,
-          content,
-        )
-      }
-    } else if (name === 'edit_code' && filePath && !isCodingToolFailure('edit_code', result)) {
-      const findText = typeof args?.find_text === 'string' ? args.find_text : ''
-      const replaceText = typeof args?.replace_text === 'string' ? args.replace_text : ''
-      const replaceAll = args?.replace_all === true
-      const ignoreWhitespace = args?.ignore_whitespace === true
-      const startLine = typeof args?.start_line === 'number' ? args.start_line : undefined
-      const endLine = typeof args?.end_line === 'number' ? args.end_line : undefined
-      codingFileCacheRef.current = updateCodingFileCacheAfterEdit(
-        codingFileCacheRef.current,
-        filePath,
-        findText,
-        replaceText,
-        { replaceAll, ignoreWhitespace, startLine, endLine },
-      )
-    } else if (
-      name === 'git_restore' &&
-      filePath &&
-      !isCodingToolFailure('git_restore', result)
-    ) {
-      // Disk content changed under us — drop stale working-set entry.
-      codingFileCacheRef.current = invalidateCodingFileCache(
-        codingFileCacheRef.current,
-        filePath,
-      )
-    } else if (name === 'git_stash' && !isCodingToolFailure('git_stash', result)) {
-      const action =
-        typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
-      if (action === 'push' || action === 'pop') {
-        codingFileCacheRef.current = emptyCodingFileCache()
-      }
-    }
   }
 
   if (name === 'execute_command') {
