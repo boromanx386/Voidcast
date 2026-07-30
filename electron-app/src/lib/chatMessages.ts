@@ -90,6 +90,8 @@ Tool choice (call the right one first):
 - execute_command — run shell commands (build, test, npm, git via shell only when no dedicated git tool fits).
 - list_processes / read_process_output / stop_process — inspect or stop Active coding processes by runId (do not start a duplicate server).
 - git_status / git_diff / git_log / git_show — repo inspection without guessing.
+- git_restore — undo a bad edit on one tracked path (worktree from index; to_head=true resets to HEAD). Never commits.
+- git_stash — checkpoint without commit (list / push / pop). Use push before risky multi-file work.
 - check_types — TypeScript (tsc), Python (ruff/pyright), Go (go vet), or Rust (cargo check); auto-detects from path_prefix / .ts|.py|.go|.rs paths and project markers.
 ${exploreLine}
 Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. Before edit_code, ensure you have the exact snippet (from an in-context read_file this turn, or one targeted range-read). Prefer find_symbols to locate lines first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.

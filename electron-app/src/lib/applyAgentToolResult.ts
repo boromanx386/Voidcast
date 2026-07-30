@@ -11,7 +11,9 @@ import {
   type CodingContextMemo,
   type CodingFileCache,
   upsertCodingFileCache,
+  updateCodingFileCacheAfterEdit,
   invalidateCodingFileCache,
+  emptyCodingFileCache,
 } from '@/lib/codingContextMemo'
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import { codingRevealPathFromToolResult } from '@/lib/codingReveal'
@@ -132,6 +134,8 @@ export function applyAgentToolResult(
     name === 'git_diff' ||
     name === 'git_log' ||
     name === 'git_show' ||
+    name === 'git_restore' ||
+    name === 'git_stash' ||
     name === 'execute_command' ||
     name === 'coding_explore'
   ) {
@@ -170,7 +174,9 @@ export function applyAgentToolResult(
         name === 'git_status' ||
         name === 'git_diff' ||
         name === 'git_log' ||
-        name === 'git_show'
+        name === 'git_show' ||
+        name === 'git_restore' ||
+        name === 'git_stash'
       ) {
         let label = name
         if (name === 'git_log') {
@@ -186,6 +192,22 @@ export function applyAgentToolResult(
           label = p
             ? `git_diff${staged ? ' --staged' : ''} -- ${p}`
             : `git_diff${staged ? ' --staged' : ''}`
+        } else if (name === 'git_restore') {
+          const p = typeof args?.path === 'string' ? args.path : ''
+          const toHead = args?.to_head === true
+          label = p
+            ? `git_restore ${p}${toHead ? ' --HEAD' : ''}`
+            : 'git_restore'
+        } else if (name === 'git_stash') {
+          const action =
+            typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+          const p = typeof args?.path === 'string' ? args.path : ''
+          label =
+            action === 'push'
+              ? `git_stash push${p ? ` -- ${p}` : ''}`
+              : action === 'pop'
+                ? 'git_stash pop'
+                : 'git_stash list'
         }
         next.recentGitOps = pushRecentUnique(next.recentGitOps, label, 6)
       } else if (name === 'execute_command') {
@@ -239,11 +261,35 @@ export function applyAgentToolResult(
         )
       }
     } else if (name === 'edit_code' && filePath && !isCodingToolFailure('edit_code', result)) {
-      // Content changed; invalidate so next read_file freshens the cache.
+      const findText = typeof args?.find_text === 'string' ? args.find_text : ''
+      const replaceText = typeof args?.replace_text === 'string' ? args.replace_text : ''
+      const replaceAll = args?.replace_all === true
+      const ignoreWhitespace = args?.ignore_whitespace === true
+      const startLine = typeof args?.start_line === 'number' ? args.start_line : undefined
+      const endLine = typeof args?.end_line === 'number' ? args.end_line : undefined
+      codingFileCacheRef.current = updateCodingFileCacheAfterEdit(
+        codingFileCacheRef.current,
+        filePath,
+        findText,
+        replaceText,
+        { replaceAll, ignoreWhitespace, startLine, endLine },
+      )
+    } else if (
+      name === 'git_restore' &&
+      filePath &&
+      !isCodingToolFailure('git_restore', result)
+    ) {
+      // Disk content changed under us — drop stale working-set entry.
       codingFileCacheRef.current = invalidateCodingFileCache(
         codingFileCacheRef.current,
         filePath,
       )
+    } else if (name === 'git_stash' && !isCodingToolFailure('git_stash', result)) {
+      const action =
+        typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+      if (action === 'push' || action === 'pop') {
+        codingFileCacheRef.current = emptyCodingFileCache()
+      }
     }
   }
 
@@ -282,7 +328,13 @@ export function applyAgentToolResult(
       )
     }
   }
-  if (name === 'write_file' || name === 'edit_code' || name === 'execute_command') {
+  if (
+    name === 'write_file' ||
+    name === 'edit_code' ||
+    name === 'execute_command' ||
+    name === 'git_restore' ||
+    name === 'git_stash'
+  ) {
     setCodingFileTreeNonce((n) => n + 1)
     setCodingGitNonce((n) => n + 1)
   }

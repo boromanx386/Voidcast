@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/lib/settings'
+import { applySnippetEdit } from '@/lib/codingEol'
 
 export type CodingCommandMemo = {
   command: string
@@ -14,6 +15,11 @@ export type CodingContextMemo = {
   recentCommands: CodingCommandMemo[]
   recentGitOps: string[]
   recentFailures: string[]
+  /**
+   * Compact digest of the last completed coding turn (what changed / failed / agent note).
+   * Session-scoped — not written to the project localStorage snapshot.
+   */
+  lastTurnSummary: string
 }
 
 /** Per-turn working-set cache — survives old-tool-result clearing. */
@@ -69,6 +75,50 @@ export function invalidateCodingFileCache(
   }
 }
 
+/**
+ * After a successful edit_code, patch the working-set cache in memory so the agent
+ * does not need to re-read. If the snippet is not in the cached text (partial/stale
+ * range), invalidate the entry instead of leaving wrong content.
+ */
+export function updateCodingFileCacheAfterEdit(
+  cache: CodingFileCache,
+  path: string,
+  findText: string,
+  replaceText: string,
+  options?: {
+    replaceAll?: boolean
+    startLine?: number
+    endLine?: number
+    ignoreWhitespace?: boolean
+  },
+): CodingFileCache {
+  const trimmed = path.trim()
+  if (!trimmed) return cache
+  const entry = cache.entries.find((e) => e.path === trimmed)
+  if (!entry) return cache
+  if (!findText) return invalidateCodingFileCache(cache, trimmed)
+
+  const baseOpts = {
+    replaceAll: options?.replaceAll === true,
+    ignoreWhitespace: options?.ignoreWhitespace === true,
+  }
+
+  let applied = applySnippetEdit(entry.content, findText, replaceText, {
+    ...baseOpts,
+    startLine: options?.startLine,
+    endLine: options?.endLine,
+  })
+  // Cached body may be a range slice — full-file line anchors won't match; retry without them.
+  if (
+    !applied.ok &&
+    (options?.startLine != null || options?.endLine != null)
+  ) {
+    applied = applySnippetEdit(entry.content, findText, replaceText, baseOpts)
+  }
+  if (!applied.ok) return invalidateCodingFileCache(cache, trimmed)
+  return upsertCodingFileCache(cache, trimmed, applied.next)
+}
+
 /** Build a compact injection block for the working set. Empty string if nothing to inject. */
 export function buildWorkingSetHint(
   cache: CodingFileCache,
@@ -99,6 +149,216 @@ export type CodingProjectSnapshot = Pick<
 
 const PROJECT_MEMO_STORAGE_KEY = 'voidcast-coding-project-memo-v1'
 const COMMAND_SNIPPET_MAX = 150
+/** ~450–500 tokens; keep the next-prompt digest compact. */
+export const CODING_TURN_SUMMARY_MAX_CHARS = 1800
+const CODING_TURN_LOG_MAX_EVENTS = 40
+
+export type CodingTurnEventKind =
+  | 'edit'
+  | 'write'
+  | 'command'
+  | 'search'
+  | 'git'
+  | 'check'
+  | 'explore'
+  | 'symbols'
+  | 'fail'
+
+export type CodingTurnEvent = {
+  kind: CodingTurnEventKind
+  detail: string
+}
+
+export type CodingTurnLog = {
+  events: CodingTurnEvent[]
+}
+
+export function emptyCodingTurnLog(): CodingTurnLog {
+  return { events: [] }
+}
+
+function pushTurnEvent(log: CodingTurnLog, kind: CodingTurnEventKind, detail: string): CodingTurnLog {
+  const d = detail.trim()
+  if (!d) return log
+  const event: CodingTurnEvent = { kind, detail: d.slice(0, 220) }
+  // Drop exact duplicate of the previous event (common with retries).
+  const last = log.events[log.events.length - 1]
+  if (last && last.kind === event.kind && last.detail === event.detail) return log
+  return { events: [...log.events, event].slice(-CODING_TURN_LOG_MAX_EVENTS) }
+}
+
+/** Record a coding tool call into the in-turn event log (skips pure reads — noise). */
+export function recordCodingToolInTurnLog(
+  log: CodingTurnLog,
+  name: string,
+  args: Record<string, unknown> | undefined,
+  result: string,
+): CodingTurnLog {
+  const failed = isCodingToolFailure(name, result)
+  const path = typeof args?.path === 'string' ? args.path.trim() : ''
+
+  if (failed) {
+    let label = name
+    if (path && (name === 'edit_code' || name === 'write_file' || name === 'read_file' || name === 'find_symbols')) {
+      label = `${name} (${path})`
+    } else if (name === 'execute_command') {
+      const c = typeof args?.command === 'string' ? args.command.trim() : ''
+      if (c) label = `${name}: ${c.split(/\s+/)[0]}`
+    }
+    return pushTurnEvent(log, 'fail', `${label}: ${result.trim().slice(0, 140)}`)
+  }
+
+  switch (name) {
+    case 'edit_code': {
+      if (!path) return log
+      // Lazy import avoided — formatEditedFileMemoEntry lives in codingEol; use result prefix.
+      const edited = result.trim().split(/\r?\n/)[0] || `${path} (edited)`
+      return pushTurnEvent(log, 'edit', edited.startsWith('Edited ') ? edited.slice('Edited '.length) : edited)
+    }
+    case 'write_file':
+      return path ? pushTurnEvent(log, 'write', `${path} (written)`) : log
+    case 'execute_command': {
+      const c = typeof args?.command === 'string' ? args.command.trim() : ''
+      if (!c) return log
+      const snip = commandResultSnippet(result)
+      return pushTurnEvent(log, 'command', snip ? `${c} → OK: ${snip}` : `${c} → OK`)
+    }
+    case 'search_files': {
+      const q = typeof args?.query === 'string' ? args.query.trim() : ''
+      return q ? pushTurnEvent(log, 'search', q) : log
+    }
+    case 'find_symbols': {
+      const q = typeof args?.query === 'string' ? args.query.trim() : ''
+      const label = path ? (q ? `${path} ? ${q}` : path) : q
+      return label ? pushTurnEvent(log, 'symbols', label) : log
+    }
+    case 'check_types': {
+      const first = result.trim().split(/\r?\n/)[0] || 'check_types'
+      return pushTurnEvent(log, 'check', first.slice(0, 220))
+    }
+    case 'git_status':
+    case 'git_diff':
+    case 'git_log':
+    case 'git_show': {
+      let label: string = name
+      if (name === 'git_diff') {
+        const p = typeof args?.path === 'string' ? args.path : ''
+        const staged = args?.staged === true
+        label = p
+          ? `git_diff${staged ? ' --staged' : ''} -- ${p}`
+          : `git_diff${staged ? ' --staged' : ''}`
+      } else if (name === 'git_log') {
+        const p = typeof args?.path === 'string' ? args.path : ''
+        label = p ? `git_log -- ${p}` : 'git_log'
+      } else if (name === 'git_show') {
+        const ref = typeof args?.ref === 'string' ? args.ref : ''
+        const p = typeof args?.path === 'string' ? args.path : ''
+        label = p ? `git_show ${ref || 'HEAD'} -- ${p}` : `git_show ${ref || 'HEAD'}`
+      }
+      return pushTurnEvent(log, 'git', label)
+    }
+    case 'git_restore': {
+      const p = typeof args?.path === 'string' ? args.path.trim() : ''
+      const toHead = args?.to_head === true
+      return p
+        ? pushTurnEvent(log, 'git', `git_restore ${p}${toHead ? ' (HEAD)' : ''}`)
+        : log
+    }
+    case 'git_stash': {
+      const action =
+        typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+      const p = typeof args?.path === 'string' ? args.path.trim() : ''
+      const label =
+        action === 'push'
+          ? `git_stash push${p ? ` -- ${p}` : ''}`
+          : action === 'pop'
+            ? `git_stash pop`
+            : 'git_stash list'
+      return pushTurnEvent(log, 'git', label)
+    }
+    case 'coding_explore': {
+      const goal = typeof args?.goal === 'string' ? args.goal.trim() : ''
+      return goal ? pushTurnEvent(log, 'explore', goal.slice(0, 160)) : log
+    }
+    default:
+      return log
+  }
+}
+
+function uniqueDetails(events: CodingTurnEvent[], kind: CodingTurnEventKind, limit: number): string[] {
+  const out: string[] = []
+  for (const e of events) {
+    if (e.kind !== kind) continue
+    if (out.includes(e.detail)) continue
+    out.push(e.detail)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/**
+ * Build a compact next-prompt digest from this turn's tool events + a short reply note.
+ * Empty string when nothing actionable happened.
+ */
+export function buildCodingTurnSummary(params: {
+  userGoal: string
+  log: CodingTurnLog
+  assistantReply?: string
+}): string {
+  const { log } = params
+  if (log.events.length === 0) return ''
+
+  const edits = uniqueDetails(log.events, 'edit', 10)
+  const writes = uniqueDetails(log.events, 'write', 8)
+  const commands = uniqueDetails(log.events, 'command', 6)
+  const checks = uniqueDetails(log.events, 'check', 3)
+  const fails = uniqueDetails(log.events, 'fail', 6)
+  const searches = uniqueDetails(log.events, 'search', 4)
+  const explores = uniqueDetails(log.events, 'explore', 2)
+
+  // Skip summary if the turn was only searches/explores with no mutations — still useful though.
+  const hasSignal =
+    edits.length + writes.length + commands.length + checks.length + fails.length > 0
+  if (!hasSignal && searches.length === 0 && explores.length === 0) return ''
+
+  const goal = params.userGoal.trim().replace(/\s+/g, ' ').slice(0, 160)
+  const lines: string[] = ['Last coding turn:']
+  if (goal) lines.push(`Goal: ${goal}`)
+
+  if (edits.length || writes.length) {
+    lines.push('Changed:')
+    for (const e of edits) lines.push(`- edited ${e}`)
+    for (const w of writes) lines.push(`- wrote ${w}`)
+  }
+  if (commands.length) {
+    lines.push('Commands:')
+    for (const c of commands) lines.push(`- ${c}`)
+  }
+  if (checks.length) {
+    lines.push('Checks:')
+    for (const c of checks) lines.push(`- ${c}`)
+  }
+  if (searches.length || explores.length) {
+    lines.push('Looked at:')
+    for (const s of searches) lines.push(`- search: ${s}`)
+    for (const e of explores) lines.push(`- explore: ${e}`)
+  }
+  if (fails.length) {
+    lines.push('Unresolved failures:')
+    for (const f of fails) lines.push(`- ${f}`)
+  }
+
+  const reply = (params.assistantReply ?? '').trim().replace(/\s+/g, ' ')
+  if (reply) {
+    // Prefer the end of the reply — that's where "what's left" usually lives.
+    const note =
+      reply.length <= 320 ? reply : `…${reply.slice(-300)}`
+    lines.push(`Agent note: ${note}`)
+  }
+
+  lines.push('Continue from this state; do not redo completed edits unless asked.')
+  return lines.join('\n').slice(0, CODING_TURN_SUMMARY_MAX_CHARS)
+}
 
 export function getCodingProjectPath(settings: Pick<AppSettings, 'coding' | 'codingProjectPath'>): string {
   return (settings.coding.projectPath || settings.codingProjectPath || '').trim()
@@ -113,6 +373,7 @@ export function emptyCodingContextMemo(projectPath = ''): CodingContextMemo {
     recentCommands: [],
     recentGitOps: [],
     recentFailures: [],
+    lastTurnSummary: '',
   }
 }
 
@@ -166,6 +427,10 @@ export function normalizeCodingContextMemo(raw: unknown, projectPath: string): C
     recentFailures: Array.isArray(r.recentFailures)
       ? dedupeNonEmpty(r.recentFailures.filter((x): x is string => typeof x === 'string')).slice(0, 8)
       : [],
+    lastTurnSummary:
+      typeof r.lastTurnSummary === 'string'
+        ? r.lastTurnSummary.trim().slice(0, CODING_TURN_SUMMARY_MAX_CHARS)
+        : '',
   }
 }
 
@@ -211,6 +476,14 @@ export function isCodingToolFailure(toolName: string, result: string): boolean {
   if (toolName === 'write_file') return !r.startsWith('Saved ')
   if (toolName === 'edit_code') return !r.startsWith('Edited ')
   if (toolName === 'stop_process') return !r.startsWith('Stopped process ')
+  if (toolName === 'git_restore') return !/^restored\b/i.test(r)
+  if (toolName === 'git_stash') {
+    // list may be empty; push/pop success messages vary — treat Error: as failure only below
+    if (r.startsWith('Error:')) return true
+    if (/^Invalid stash ref/i.test(r)) return true
+    if (/failed \(exit/i.test(r)) return true
+    return false
+  }
   if (toolName === 'coding_explore') {
     return r.startsWith('Error:') || r.includes('\nError:')
   }
@@ -246,6 +519,11 @@ export function buildCodingMemoHint(
   const lines: string[] = [
     'Coding context memory from this chat session:',
     `- Active project: ${memo.projectPath || '(not set)'}`,
+  ]
+  if (memo.lastTurnSummary.trim()) {
+    lines.push('', memo.lastTurnSummary.trim(), '')
+  }
+  lines.push(
     `- Last listed directory: ${memo.lastDirectory || '(none yet)'}`,
     `- Recently opened/edited files: ${memo.recentFiles.length ? memo.recentFiles.join(', ') : '(none yet)'}`,
     `- Recent searches: ${memo.recentSearches.length ? memo.recentSearches.join(' | ') : '(none yet)'}`,
@@ -253,7 +531,7 @@ export function buildCodingMemoHint(
     `- Recent git operations: ${memo.recentGitOps.length ? memo.recentGitOps.join(' | ') : '(none yet)'}`,
     `- Recent failures: ${memo.recentFailures.length ? memo.recentFailures.join(' | ') : '(none yet)'}`,
     reuseLine,
-  ]
+  )
   return lines.join('\n')
 }
 

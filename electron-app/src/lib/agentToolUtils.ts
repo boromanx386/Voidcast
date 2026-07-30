@@ -185,6 +185,8 @@ export const CODING_ACTION_TOOLS = new Set([
   'edit_code',
   'execute_command',
   'stop_process',
+  'git_restore',
+  'git_stash',
 ])
 
 /** User asked for a concrete coding action (change/run), not just a question. */

@@ -1930,8 +1930,13 @@ ipcMain.handle(
         | 'commit'
         | 'discard'
         | 'discardAll'
+        | 'stashList'
+        | 'stashPush'
+        | 'stashPop'
       path?: string
       staged?: boolean
+      /** When discarding: also reset index to HEAD (`git restore --source=HEAD --staged --worktree`). */
+      toHead?: boolean
       /** When committing: stage all changes first (`git add -A`), like VS Code Commit All. */
       commitAll?: boolean
       commitMessage?: string
@@ -1939,6 +1944,11 @@ ipcMain.handle(
       logPath?: string
       showRef?: string
       showPath?: string
+      /** stash push message / stash pop ref (stash@{n}). */
+      stashMessage?: string
+      stashRef?: string
+      /** stash push: include untracked files (-u). */
+      stashIncludeUntracked?: boolean
     },
   ) => {
     try {
@@ -1955,7 +1965,10 @@ ipcMain.handle(
         | 'unstage'
         | 'commit'
         | 'discard'
-        | 'discardAll' =
+        | 'discardAll'
+        | 'stashList'
+        | 'stashPush'
+        | 'stashPop' =
         modeRaw === 'diff' ||
         modeRaw === 'log' ||
         modeRaw === 'show' ||
@@ -1963,7 +1976,10 @@ ipcMain.handle(
         modeRaw === 'unstage' ||
         modeRaw === 'commit' ||
         modeRaw === 'discard' ||
-        modeRaw === 'discardAll'
+        modeRaw === 'discardAll' ||
+        modeRaw === 'stashList' ||
+        modeRaw === 'stashPush' ||
+        modeRaw === 'stashPop'
           ? modeRaw
           : 'status'
 
@@ -2075,12 +2091,24 @@ ipcMain.handle(
         }
         const abs = resolveInsideProject(projectPath, rel)
         const relGit = path.relative(root, abs).replace(/\\/g, '/')
+        const toHead = mode === 'discard' && payload?.toHead === true
         const args =
           mode === 'stage'
             ? ['-c', 'core.quotepath=false', 'add', '--', relGit]
             : mode === 'unstage'
               ? ['-c', 'core.quotepath=false', 'restore', '--staged', '--', relGit]
-              : ['-c', 'core.quotepath=false', 'restore', '--', relGit]
+              : toHead
+                ? [
+                    '-c',
+                    'core.quotepath=false',
+                    'restore',
+                    '--source=HEAD',
+                    '--staged',
+                    '--worktree',
+                    '--',
+                    relGit,
+                  ]
+                : ['-c', 'core.quotepath=false', 'restore', '--', relGit]
         const r = await runGitCapture(root, args)
         if (!r.ok) return { ok: false as const, error: r.error }
         if (r.code !== 0) {
@@ -2094,10 +2122,97 @@ ipcMain.handle(
         }
         const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
         const doneLabel =
-          mode === 'stage' ? 'staged' : mode === 'unstage' ? 'unstaged' : 'discarded'
+          mode === 'stage'
+            ? 'staged'
+            : mode === 'unstage'
+              ? 'unstaged'
+              : toHead
+                ? 'restored (HEAD, staged+worktree)'
+                : 'restored (worktree from index)'
         return {
           ok: true as const,
-          text: truncateGitOutput(combined || `${doneLabel} ${relGit}`),
+          text: truncateGitOutput(combined || `${doneLabel}: ${relGit}`),
+        }
+      }
+
+      if (mode === 'stashList') {
+        const r = await runGitCapture(root, ['-c', 'core.quotepath=false', 'stash', 'list'])
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error: r.stderr.trim() || `git stash list failed (exit ${r.code}).`,
+          }
+        }
+        const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
+        return {
+          ok: true as const,
+          text: truncateGitOutput(combined || '(no stashes)'),
+        }
+      }
+
+      if (mode === 'stashPush') {
+        const messageRaw = String(payload?.stashMessage ?? '').trim() || 'voidcast checkpoint'
+        const message = messageRaw.replace(/[\r\n]+/g, ' ').slice(0, 200)
+        const includeUntracked = payload?.stashIncludeUntracked === true
+        const rel = String(payload?.path ?? '').trim()
+        const args = ['-c', 'core.quotepath=false', 'stash', 'push', '-m', message]
+        if (includeUntracked) args.push('-u')
+        if (rel) {
+          const abs = resolveInsideProject(projectPath, rel)
+          const relGit = path.relative(root, abs).replace(/\\/g, '/')
+          args.push('--', relGit)
+        }
+        const r = await runGitCapture(root, args)
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error:
+              r.stderr.trim() ||
+              r.stdout.trim() ||
+              `git stash push failed (exit ${r.code}).`,
+          }
+        }
+        const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
+        return {
+          ok: true as const,
+          text: truncateGitOutput(
+            combined || `Stashed checkpoint${rel ? ` for ${rel}` : ''}: ${message}`,
+          ),
+        }
+      }
+
+      if (mode === 'stashPop') {
+        const refRaw = String(payload?.stashRef ?? '').trim()
+        let ref = 'stash@{0}'
+        if (refRaw) {
+          if (/^stash@\{\d+\}$/.test(refRaw)) {
+            ref = refRaw
+          } else if (/^\d+$/.test(refRaw)) {
+            ref = `stash@{${refRaw}}`
+          } else {
+            return {
+              ok: false as const,
+              error: 'Invalid stash ref. Use stash@{n} or a non-negative integer.',
+            }
+          }
+        }
+        const r = await runGitCapture(root, ['-c', 'core.quotepath=false', 'stash', 'pop', ref])
+        if (!r.ok) return { ok: false as const, error: r.error }
+        if (r.code !== 0) {
+          return {
+            ok: false as const,
+            error:
+              r.stderr.trim() ||
+              r.stdout.trim() ||
+              `git stash pop failed (exit ${r.code}).`,
+          }
+        }
+        const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
+        return {
+          ok: true as const,
+          text: truncateGitOutput(combined || `Popped ${ref}.`),
         }
       }
 

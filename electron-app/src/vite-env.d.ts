@@ -404,14 +404,21 @@ interface VoidcastBridge {
       | 'commit'
       | 'discard'
       | 'discardAll'
+      | 'stashList'
+      | 'stashPush'
+      | 'stashPop'
     path?: string
     staged?: boolean
+    toHead?: boolean
     commitAll?: boolean
     commitMessage?: string
     logMaxCount?: number
     logPath?: string
     showRef?: string
     showPath?: string
+    stashMessage?: string
+    stashRef?: string
+    stashIncludeUntracked?: boolean
   }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
   codingCheckTypes: (payload: {

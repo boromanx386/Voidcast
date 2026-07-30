@@ -80,6 +80,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
     case 'git_diff':
     case 'git_log':
     case 'git_show':
+    case 'git_restore':
+    case 'git_stash':
       return 'coding_git'
     case 'check_types':
       return 'coding_typecheck'

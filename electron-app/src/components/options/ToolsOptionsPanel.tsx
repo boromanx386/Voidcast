@@ -331,6 +331,7 @@ export function ToolsOptionsPanel({
               <code className="text-void-light">find_symbols</code>,{' '}
               <code className="text-void-light">git_status</code>, <code className="text-void-light">git_diff</code>,{' '}
               <code className="text-void-light">git_log</code>, <code className="text-void-light">git_show</code>,{' '}
+              <code className="text-void-light">git_restore</code>, <code className="text-void-light">git_stash</code>,{' '}
               <code className="text-void-light">check_types</code>,{' '}
               <code className="text-void-light">execute_command</code>.
             </>

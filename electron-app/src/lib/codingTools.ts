@@ -274,8 +274,16 @@ export async function invokeCodingGit(
     | { mode: 'show'; showRef?: string; showPath?: string }
     | { mode: 'stage'; path: string }
     | { mode: 'unstage'; path: string }
-    | { mode: 'discard'; path: string }
+    | { mode: 'discard'; path: string; toHead?: boolean }
     | { mode: 'discardAll' }
+    | { mode: 'stashList' }
+    | {
+        mode: 'stashPush'
+        message?: string
+        path?: string
+        includeUntracked?: boolean
+      }
+    | { mode: 'stashPop'; stashRef?: string }
     | { mode: 'commit'; message: string; all?: boolean },
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingGit
@@ -313,11 +321,34 @@ export async function invokeCodingGit(
                 }
               : options.mode === 'discardAll'
                 ? { projectPath, mode: 'discardAll' as const }
-                : {
-                    projectPath,
-                    mode: options.mode,
-                    path: options.path,
-                  }
+                : options.mode === 'stashList'
+                  ? { projectPath, mode: 'stashList' as const }
+                  : options.mode === 'stashPush'
+                    ? {
+                        projectPath,
+                        mode: 'stashPush' as const,
+                        stashMessage: options.message,
+                        path: options.path,
+                        stashIncludeUntracked: options.includeUntracked,
+                      }
+                    : options.mode === 'stashPop'
+                      ? {
+                          projectPath,
+                          mode: 'stashPop' as const,
+                          stashRef: options.stashRef,
+                        }
+                      : options.mode === 'discard'
+                        ? {
+                            projectPath,
+                            mode: 'discard' as const,
+                            path: options.path,
+                            toHead: options.toHead,
+                          }
+                        : {
+                            projectPath,
+                            mode: options.mode,
+                            path: options.path,
+                          }
   const res = await fn(payload)
   return { ok: res.ok, text: res.ok ? res.text : res.error || 'Git command failed.' }
 }

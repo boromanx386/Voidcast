@@ -14,6 +14,8 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'edit_code',
   'execute_command',
   'stop_process',
+  'git_restore',
+  'git_stash',
   'save_pdf',
   'generate_image',
   'edit_image_runware',
@@ -727,6 +729,64 @@ const CODING_GIT_SHOW_TOOL: AgentToolDefinition = {
   },
 }
 
+const CODING_GIT_RESTORE_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'git_restore',
+    description:
+      'Recover a tracked file after a bad edit: restore one project-relative path via git restore. Default restores the worktree from the index (undoes unstaged edit_code/write changes for tracked files). Set to_head=true to reset both index and worktree to HEAD for that path. Does NOT commit, reset the whole repo, or delete untracked files. Prefer this over rewriting a broken file from memory.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Required relative file path inside the project to restore.',
+        },
+        to_head: {
+          type: 'boolean',
+          description:
+            'If true, restore staged+worktree from HEAD for this path. Default false (worktree from index only).',
+        },
+      },
+      required: ['path'],
+    },
+  },
+}
+
+const CODING_GIT_STASH_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'git_stash',
+    description:
+      'Safe checkpoint without committing. action=list shows stashes; action=push saves current changes (optional path scope, optional include_untracked); action=pop reapplies stash@{n} (default 0). Does NOT commit or rewrite history. Use push before a risky multi-file refactor; pop to recover. Conflicts on pop are reported — resolve carefully.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description: 'One of: list, push, pop. Default list.',
+        },
+        message: {
+          type: 'string',
+          description: 'Optional stash message for action=push (default: voidcast checkpoint).',
+        },
+        path: {
+          type: 'string',
+          description: 'Optional relative path to stash only that file/folder (action=push).',
+        },
+        include_untracked: {
+          type: 'boolean',
+          description: 'If true with action=push, include untracked files (-u). Default false.',
+        },
+        stash_ref: {
+          type: 'string',
+          description: 'For action=pop: stash@{n} or n (default stash@{0}).',
+        },
+      },
+    },
+  },
+}
+
 const CODING_CHECK_TYPES_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1194,6 +1254,8 @@ export function buildToolsList(
     out.push(CODING_LIST_PROCESSES_TOOL)
     out.push(CODING_READ_PROCESS_OUTPUT_TOOL)
     if (!planMode) {
+      out.push(CODING_GIT_RESTORE_TOOL)
+      out.push(CODING_GIT_STASH_TOOL)
       out.push(CODING_EXECUTE_COMMAND_TOOL)
       out.push(CODING_STOP_PROCESS_TOOL)
     }

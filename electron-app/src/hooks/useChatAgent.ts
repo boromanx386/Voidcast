@@ -19,6 +19,12 @@ import {
 } from '@/lib/contextUsage'
 import { resolveContextLimit } from '@/lib/contextLimit'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
+import {
+  buildCodingTurnSummary,
+  emptyCodingFileCache,
+  emptyCodingTurnLog,
+  recordCodingToolInTurnLog,
+} from '@/lib/codingContextMemo'
 import type { ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
@@ -508,6 +514,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           : undefined
       const planResearchHarvest: PlanResearchHarvest = emptyPlanResearchHarvest()
       const harvestingPlanResearch = turnAgentMode === 'plan'
+      let turnLogMutable = emptyCodingTurnLog()
+      // Fresh working-set for this turn (do not carry file contents across prompts).
+      codingFileCacheRef.current = emptyCodingFileCache()
 
       try {
         if (useTools) {
@@ -615,6 +624,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   payload.result,
                 )
               }
+              turnLogMutable = recordCodingToolInTurnLog(
+                turnLogMutable,
+                payload.name,
+                payload.args,
+                payload.result,
+              )
               applyAgentToolResult(
                 {
                   asstId,
@@ -785,6 +800,21 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         if (usageInfo?.shouldWarn && !settings.contextAutoCompress) setContextWarnDismissed(false)
         if (retrievedLongMemory.length > 0) {
           void touchMemoryUsage(retrievedLongMemory.map((m) => m.id))
+        }
+
+        // Persist a compact digest for the next prompt (paths alone are not enough after a big turn).
+        if (settings.toolsEnabled.coding && turnLogMutable.events.length > 0) {
+          const summary = buildCodingTurnSummary({
+            userGoal: text,
+            log: turnLogMutable,
+            assistantReply: replyText,
+          })
+          if (summary) {
+            setCodingContextMemo((prev) => ({
+              ...prev,
+              lastTurnSummary: summary,
+            }))
+          }
         }
       } catch (e) {
         const reopenBuildPlan = () => {

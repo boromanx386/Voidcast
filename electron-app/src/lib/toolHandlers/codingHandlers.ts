@@ -247,6 +247,66 @@ export const handleGitShow: ToolHandlerFn = async (args, ctx) => {
   ).text;
 };
 
+export const handleGitRestore: ToolHandlerFn = async (args, ctx) => {
+  if (!ctx.toolsEnabled.coding)
+    return "Error: git_restore tool is disabled in settings.";
+  const projectPath = (ctx.codingProjectPath || "").trim();
+  if (!projectPath)
+    return "Error: coding project folder is not set in settings.";
+  const relPath = typeof args.path === "string" ? args.path.trim() : "";
+  if (!relPath) return "Error: path is required for git_restore.";
+  const toHead = args.to_head === true;
+  return (
+    await invokeCodingGit(projectPath, {
+      mode: "discard",
+      path: relPath,
+      toHead,
+    })
+  ).text;
+};
+
+export const handleGitStash: ToolHandlerFn = async (args, ctx) => {
+  if (!ctx.toolsEnabled.coding)
+    return "Error: git_stash tool is disabled in settings.";
+  const projectPath = (ctx.codingProjectPath || "").trim();
+  if (!projectPath)
+    return "Error: coding project folder is not set in settings.";
+  const actionRaw =
+    typeof args.action === "string" ? args.action.trim().toLowerCase() : "list";
+  const action =
+    actionRaw === "push" || actionRaw === "pop" || actionRaw === "list"
+      ? actionRaw
+      : null;
+  if (!action) {
+    return "Error: git_stash action must be one of: list, push, pop.";
+  }
+  if (action === "list") {
+    return (await invokeCodingGit(projectPath, { mode: "stashList" })).text;
+  }
+  if (action === "push") {
+    const message =
+      typeof args.message === "string" ? args.message.trim() : undefined;
+    const relPath = typeof args.path === "string" ? args.path.trim() : "";
+    const includeUntracked = args.include_untracked === true;
+    return (
+      await invokeCodingGit(projectPath, {
+        mode: "stashPush",
+        message,
+        path: relPath || undefined,
+        includeUntracked,
+      })
+    ).text;
+  }
+  const stashRef =
+    typeof args.stash_ref === "string" ? args.stash_ref.trim() : undefined;
+  return (
+    await invokeCodingGit(projectPath, {
+      mode: "stashPop",
+      stashRef,
+    })
+  ).text;
+};
+
 export const handleCheckTypes: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.coding)
     return "Error: check_types tool is disabled in settings.";
@@ -394,6 +454,8 @@ export const codingHandlersRegistry: ToolHandlerRegistry = {
   ["git_diff"]: handleGitDiff,
   ["git_log"]: handleGitLog,
   ["git_show"]: handleGitShow,
+  ["git_restore"]: handleGitRestore,
+  ["git_stash"]: handleGitStash,
   ["check_types"]: handleCheckTypes,
   ["execute_command"]: handleExecuteCommand,
   ["list_processes"]: handleListProcesses,

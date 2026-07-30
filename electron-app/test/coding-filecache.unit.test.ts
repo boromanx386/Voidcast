@@ -3,6 +3,7 @@ import {
   buildWorkingSetHint,
   emptyCodingFileCache,
   invalidateCodingFileCache,
+  updateCodingFileCacheAfterEdit,
   upsertCodingFileCache,
   CODING_FILE_CACHE_MAX_FILES,
   CODING_FILE_CACHE_MAX_PER_FILE_CHARS,
@@ -86,6 +87,44 @@ describe('invalidateCodingFileCache', () => {
     c.entries.push({ path: '/a.ts', content: 'A' })
     const next = invalidateCodingFileCache(c, '/nonexistent.ts')
     expect(next.entries.map((e) => e.path)).toEqual(['/a.ts'])
+  })
+})
+
+describe('updateCodingFileCacheAfterEdit', () => {
+  it('patches cached content after a successful in-memory edit', () => {
+    let c = upsertCodingFileCache(
+      emptyCodingFileCache(),
+      'src/a.ts',
+      'const x = 1\nconst y = 2\n',
+    )
+    c = updateCodingFileCacheAfterEdit(c, 'src/a.ts', 'const x = 1', 'const x = 99')
+    expect(c.entries[0]?.content).toContain('const x = 99')
+    expect(c.entries[0]?.content).toContain('const y = 2')
+  })
+
+  it('retries without line anchors when cache is a range slice', () => {
+    let c = upsertCodingFileCache(
+      emptyCodingFileCache(),
+      'src/a.ts',
+      'function foo() {\n  return 1\n}\n',
+    )
+    c = updateCodingFileCacheAfterEdit(c, 'src/a.ts', 'return 1', 'return 2', {
+      startLine: 100,
+      endLine: 110,
+    })
+    expect(c.entries[0]?.content).toContain('return 2')
+  })
+
+  it('invalidates when snippet is not in the cached text', () => {
+    let c = upsertCodingFileCache(emptyCodingFileCache(), 'src/a.ts', 'hello only')
+    c = updateCodingFileCacheAfterEdit(c, 'src/a.ts', 'missing snippet', 'x')
+    expect(c.entries.find((e) => e.path === 'src/a.ts')).toBeUndefined()
+  })
+
+  it('no-ops when path was never cached', () => {
+    const c = emptyCodingFileCache()
+    const next = updateCodingFileCacheAfterEdit(c, 'src/a.ts', 'a', 'b')
+    expect(next.entries).toHaveLength(0)
   })
 })
 
