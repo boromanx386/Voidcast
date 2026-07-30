@@ -1,13 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
-import { BookmarkIcon } from '@/components/icons/BookmarkIcon'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import { CodeIcon } from '@/components/icons/CodeIcon'
 import { WindowControls } from '@/components/WindowControls'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
-import {
-  LLM_PROMPT_PRESETS,
-  LLM_PROMPT_PRESET_NAMES,
-} from '@/lib/settings'
 
 type Props = { app: VoidcastApp }
 
@@ -31,11 +25,6 @@ function SessionsToggleIcon({ collapsed }: { collapsed: boolean }) {
 
 export function ChatHeader({ app }: Props) {
   const {
-    settings,
-    setSettings,
-    sessions,
-    activeSessionId,
-    setSessions,
     sessionsSidebarCollapsed,
     setSessionsSidebarCollapsed,
     codingPanelAvailable,
@@ -48,26 +37,6 @@ export function ChatHeader({ app }: Props) {
     canSaveSession,
     saveOrUpdateSession,
   } = app
-
-  const [presetsOpen, setPresetsOpen] = useState(false)
-  const presetsRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!presetsOpen) return
-    function handleClick(e: MouseEvent) {
-      if (presetsRef.current && !presetsRef.current.contains(e.target as Node)) {
-        setPresetsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [presetsOpen])
-
-  const activeSession = activeSessionId
-    ? sessions.find((s) => s.id === activeSessionId)
-    : undefined
-  const activePresetKey = activeSession?.promptPreset ?? 'void'
-  const presetKeys = Object.keys(LLM_PROMPT_PRESETS)
 
   return (
     <header className="voidcast-header min-w-0">
@@ -102,86 +71,6 @@ export function ChatHeader({ app }: Props) {
           </button>
         )}
 
-        <div className="relative" ref={presetsRef}>
-          <button
-            type="button"
-            onClick={() => setPresetsOpen((v) => !v)}
-            className={`cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 ${
-              activePresetKey !== 'void' ? 'border-neon-cyan/60 text-neon-cyan' : ''
-            }`}
-            title={`System prompt preset: ${LLM_PROMPT_PRESET_NAMES[activePresetKey] ?? 'Custom'}`}
-            aria-label="System prompt presets"
-            aria-expanded={presetsOpen}
-            aria-haspopup="listbox"
-          >
-            <BrainIcon className="h-4 w-4 text-current" />
-          </button>
-          {presetsOpen && (
-            <div
-              className="absolute right-0 top-full z-50 mt-1 w-40 border border-void-border bg-void-black/95 shadow-lg backdrop-blur-sm"
-              role="listbox"
-              aria-label="System prompt presets"
-            >
-              {presetKeys.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="option"
-                  aria-selected={activePresetKey === key}
-                  onClick={() => {
-                    if (activeSessionId) {
-                      setSessions((prev) =>
-                        prev.map((s) =>
-                          s.id === activeSessionId
-                            ? { ...s, promptPreset: key }
-                            : s,
-                        ),
-                      )
-                    }
-                    setSettings((s) => ({
-                      ...s,
-                      llmSystemPrompt: LLM_PROMPT_PRESETS[key],
-                    }))
-                    setPresetsOpen(false)
-                  }}
-                  className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-void-surface/60 ${
-                    activePresetKey === key
-                      ? 'text-neon-cyan'
-                      : 'text-void-text/80'
-                  }`}
-                >
-                  {LLM_PROMPT_PRESET_NAMES[key]}
-                </button>
-              ))}
-              <div className="border-t border-void-border" />
-              <button
-                type="button"
-                role="option"
-                aria-selected={activePresetKey === 'custom'}
-                onClick={() => {
-                  if (activeSessionId) {
-                    setSessions((prev) =>
-                      prev.map((s) =>
-                        s.id === activeSessionId
-                          ? { ...s, promptPreset: 'custom' }
-                          : s,
-                      ),
-                    )
-                  }
-                  setPresetsOpen(false)
-                }}
-                className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-void-surface/60 ${
-                  activePresetKey === 'custom' || !LLM_PROMPT_PRESETS[activePresetKey]
-                    ? 'text-neon-cyan'
-                    : 'text-void-dim'
-                }`}
-              >
-                Custom
-              </button>
-            </div>
-          )}
-        </div>
-
         <button
           type="button"
           disabled={busy || longMemoryBusy || messages.length === 0}
@@ -198,7 +87,7 @@ export function ChatHeader({ app }: Props) {
               aria-hidden
             />
           ) : (
-            <BookmarkIcon className="h-4 w-4 text-current" />
+            <BrainIcon className="h-4 w-4 text-current" />
           )}
         </button>
 

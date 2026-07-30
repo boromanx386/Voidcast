@@ -1,5 +1,4 @@
 import type { AppSettings } from '@/lib/settings'
-import { LLM_PROMPT_PRESETS, LLM_PROMPT_PRESET_NAMES } from '@/lib/settings'
 import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
 import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENCODE_GO_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
@@ -747,19 +746,12 @@ export function LlmOptionsPanel({
           className="cyber-input resize-y"
           value={settings.llmSystemPrompt}
           onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
-              llmSystemPrompt: e.target.value,
-            }))
+            setSettings((s) => ({ ...s, llmSystemPrompt: e.target.value }))
           }
           placeholder="e.g. Answer concisely. Do not invent facts."
         />
         <p className="text-xs text-void-dim mt-1">
           System message sent at start of each request
-          {' · '}
-          <span className="text-neon-cyan/70">
-            Preset: {LLM_PROMPT_PRESET_NAMES[Object.entries(LLM_PROMPT_PRESETS).find(([, v]) => v === settings.llmSystemPrompt)?.[0] ?? ''] ?? 'Custom'}
-          </span>
         </p>
       </div>
 
