@@ -1,4 +1,4 @@
-/** Shared diagnostics + parsers for coding `check_types` (tsc / ruff / pyright). */
+/** Shared diagnostics + parsers for coding `check_types` (tsc / ruff / pyright / go vet / cargo). */
 
 export type CheckDiagnostic = {
   file: string
@@ -11,7 +11,10 @@ export type CheckDiagnostic = {
 /** @deprecated Use CheckDiagnostic — kept as alias for existing imports. */
 export type TscDiagnostic = CheckDiagnostic
 
-export type CheckKind = 'typescript' | 'python'
+export type CheckKind = 'typescript' | 'python' | 'go' | 'rust'
+
+/** Preference order when path counts tie (TypeScript first — historical default). */
+const CHECK_KIND_TIE_ORDER: CheckKind[] = ['typescript', 'python', 'go', 'rust']
 
 export const TYPECHECK_MAX_REPORTED_ERRORS = 50
 
@@ -27,28 +30,49 @@ export function isTypeScriptSourcePath(filePath: string): boolean {
   return /\.tsx?$/i.test(filePath.trim())
 }
 
+export function isGoSourcePath(filePath: string): boolean {
+  return /\.go$/i.test(filePath.trim())
+}
+
+export function isRustSourcePath(filePath: string): boolean {
+  return /\.rs$/i.test(filePath.trim())
+}
+
 /**
  * Decide which checker to run from path hints + on-disk project signals.
- * Explicit `.py` / `.ts` paths win; otherwise prefer tsconfig, then Python markers.
+ * Explicit source extensions win (majority); ties prefer typescript → python → go → rust.
+ * Without paths: tsconfig → Python markers → go.mod → Cargo.toml.
  */
 export function detectCheckKind(params: {
   paths?: string[]
   hasTsconfig: boolean
   hasPythonProject: boolean
+  hasGoMod?: boolean
+  hasCargoToml?: boolean
 }): CheckKind | null {
   const paths = (params.paths ?? []).map((p) => p.trim()).filter(Boolean)
-  const pyPaths = paths.filter(isPythonSourcePath)
-  const tsPaths = paths.filter(isTypeScriptSourcePath)
+  const counts: Record<CheckKind, number> = {
+    typescript: paths.filter(isTypeScriptSourcePath).length,
+    python: paths.filter(isPythonSourcePath).length,
+    go: paths.filter(isGoSourcePath).length,
+    rust: paths.filter(isRustSourcePath).length,
+  }
 
-  if (pyPaths.length > 0 && tsPaths.length === 0) return 'python'
-  if (tsPaths.length > 0 && pyPaths.length === 0) return 'typescript'
-  if (pyPaths.length > 0 && tsPaths.length > 0) {
-    // Mixed edit set — prefer the majority; ties go to TypeScript (historical default).
-    return pyPaths.length > tsPaths.length ? 'python' : 'typescript'
+  const ranked = (Object.entries(counts) as [CheckKind, number][])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+
+  if (ranked.length === 1) return ranked[0]![0]
+  if (ranked.length > 1) {
+    const max = ranked[0]![1]
+    const tied = ranked.filter(([, n]) => n === max).map(([k]) => k)
+    return CHECK_KIND_TIE_ORDER.find((k) => tied.includes(k)) ?? ranked[0]![0]
   }
 
   if (params.hasTsconfig) return 'typescript'
   if (params.hasPythonProject) return 'python'
+  if (params.hasGoMod) return 'go'
+  if (params.hasCargoToml) return 'rust'
   return null
 }
 
@@ -180,6 +204,90 @@ export function parsePyrightJsonDiagnostics(output: string): CheckDiagnostic[] {
       column,
       code,
       message,
+    })
+  }
+  return diags
+}
+
+/**
+ * Parse `go vet` / `go build` style diagnostics:
+ *   path/file.go:12:5: message
+ */
+const GO_VET_DIAG_RE = /^(.+\.go):(\d+):(\d+):\s*(.+)$/i
+
+export function parseGoVetDiagnostics(output: string): CheckDiagnostic[] {
+  const diags: CheckDiagnostic[] = []
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) continue
+    const m = line.match(GO_VET_DIAG_RE)
+    if (!m) continue
+    diags.push({
+      file: normalizeTypecheckPath(m[1]!),
+      line: Number(m[2]),
+      column: Number(m[3]),
+      code: 'govet',
+      message: m[4]!.trim(),
+    })
+  }
+  return diags
+}
+
+/**
+ * Parse `cargo check --message-format=json` NDJSON lines (compiler-message records).
+ * Keeps error + warning; skips notes/helps.
+ */
+export function parseCargoJsonDiagnostics(output: string): CheckDiagnostic[] {
+  const diags: CheckDiagnostic[] = []
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line[0] !== '{') continue
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (!parsed || typeof parsed !== 'object') continue
+    const rec = parsed as Record<string, unknown>
+    if (rec.reason !== 'compiler-message') continue
+    const message = rec.message
+    if (!message || typeof message !== 'object') continue
+    const msg = message as Record<string, unknown>
+    const level = typeof msg.level === 'string' ? msg.level.toLowerCase() : ''
+    if (level !== 'error' && level !== 'warning') continue
+    const text = typeof msg.message === 'string' ? msg.message : ''
+    let code = level === 'warning' ? 'cargo-warning' : 'cargo'
+    const codeObj = msg.code
+    if (codeObj && typeof codeObj === 'object') {
+      const c = (codeObj as { code?: string }).code
+      if (typeof c === 'string' && c) code = c
+    }
+    const spans = Array.isArray(msg.spans) ? msg.spans : []
+    const primary =
+      spans.find(
+        (s) => s && typeof s === 'object' && (s as { is_primary?: boolean }).is_primary === true,
+      ) ?? spans[0]
+    let file = ''
+    let lineNo = 1
+    let column = 1
+    if (primary && typeof primary === 'object') {
+      const sp = primary as {
+        file_name?: string
+        line_start?: number
+        column_start?: number
+      }
+      if (typeof sp.file_name === 'string') file = sp.file_name
+      if (typeof sp.line_start === 'number') lineNo = sp.line_start
+      if (typeof sp.column_start === 'number') column = sp.column_start
+    }
+    if (!file && !text) continue
+    diags.push({
+      file: normalizeTypecheckPath(file),
+      line: lineNo,
+      column,
+      code,
+      message: text,
     })
   }
   return diags

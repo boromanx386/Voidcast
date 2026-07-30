@@ -732,20 +732,20 @@ const CODING_CHECK_TYPES_TOOL: AgentToolDefinition = {
   function: {
     name: 'check_types',
     description:
-      'Run a project check after edits. Auto-detects TypeScript (tsc --noEmit when tsconfig.json is present) or Python (ruff check preferred; pyright fallback). Use path_prefix for monorepo packages (e.g. electron-app, tts-server). Pass paths of edited .ts/.tsx/.py files to bias detection and limit reported issues. Read-only — safe in Plan mode.',
+      'Run a project check after edits. Auto-detects TypeScript (tsc --noEmit), Python (ruff, then pyright), Go (go vet), or Rust (cargo check). Detection uses path extensions (.ts/.tsx/.py/.go/.rs) and project markers (tsconfig.json, pyproject/requirements, go.mod, Cargo.toml). Use path_prefix for monorepo packages. Pass paths of edited files to bias detection and limit reported issues. Read-only — safe in Plan mode.',
     parameters: {
       type: 'object',
       properties: {
         path_prefix: {
           type: 'string',
           description:
-            'Optional subdirectory to check (e.g. electron-app for tsconfig, tts-server for Python). Default: project root.',
+            'Optional subdirectory to check (e.g. electron-app for tsconfig, crate root for Cargo.toml). Default: project root.',
         },
         paths: {
           type: 'array',
           items: { type: 'string' },
           description:
-            'Optional project-relative file paths. .py paths select the Python checker; .ts/.tsx select TypeScript. Also limits reported diagnostics when possible.',
+            'Optional project-relative file paths. Extension selects the checker (.ts/.tsx → TypeScript, .py → Python, .go → Go, .rs → Rust). Also limits reported diagnostics when possible.',
         },
       },
     },

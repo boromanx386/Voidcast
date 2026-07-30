@@ -3,6 +3,8 @@ import {
   detectCheckKind,
   filterTscDiagnostics,
   formatTypecheckReport,
+  parseCargoJsonDiagnostics,
+  parseGoVetDiagnostics,
   parsePyrightJsonDiagnostics,
   parseRuffJsonDiagnostics,
   parseTscDiagnostics,
@@ -59,9 +61,42 @@ describe('detectCheckKind', () => {
     ).toBe('typescript')
   })
 
+  it('selects go from .go paths', () => {
+    expect(
+      detectCheckKind({
+        paths: ['cmd/main.go'],
+        hasTsconfig: true,
+        hasPythonProject: true,
+        hasGoMod: false,
+      }),
+    ).toBe('go')
+  })
+
+  it('selects rust from .rs paths', () => {
+    expect(
+      detectCheckKind({
+        paths: ['src/main.rs'],
+        hasTsconfig: true,
+        hasPythonProject: false,
+        hasCargoToml: false,
+      }),
+    ).toBe('rust')
+  })
+
+  it('prefers majority language when mixed paths', () => {
+    expect(
+      detectCheckKind({
+        paths: ['a.go', 'b.go', 'c.ts'],
+        hasTsconfig: true,
+        hasPythonProject: false,
+        hasGoMod: true,
+      }),
+    ).toBe('go')
+  })
+
   it('prefers tsconfig when no paths', () => {
     expect(
-      detectCheckKind({ hasTsconfig: true, hasPythonProject: true }),
+      detectCheckKind({ hasTsconfig: true, hasPythonProject: true, hasGoMod: true }),
     ).toBe('typescript')
   })
 
@@ -71,8 +106,114 @@ describe('detectCheckKind', () => {
     ).toBe('python')
   })
 
+  it('falls back to go.mod', () => {
+    expect(
+      detectCheckKind({
+        hasTsconfig: false,
+        hasPythonProject: false,
+        hasGoMod: true,
+        hasCargoToml: true,
+      }),
+    ).toBe('go')
+  })
+
+  it('falls back to Cargo.toml', () => {
+    expect(
+      detectCheckKind({
+        hasTsconfig: false,
+        hasPythonProject: false,
+        hasGoMod: false,
+        hasCargoToml: true,
+      }),
+    ).toBe('rust')
+  })
+
   it('returns null when nothing matches', () => {
     expect(detectCheckKind({ hasTsconfig: false, hasPythonProject: false })).toBeNull()
+  })
+})
+
+describe('parseGoVetDiagnostics', () => {
+  it('parses go vet file:line:col: message lines', () => {
+    const output = [
+      '# example.com/mod',
+      './main.go:12:5: unreachable code',
+      'pkg/util.go:3:1: fmt.Printf format %s has arg of wrong type int',
+    ].join('\n')
+    expect(parseGoVetDiagnostics(output)).toEqual([
+      {
+        file: 'main.go',
+        line: 12,
+        column: 5,
+        code: 'govet',
+        message: 'unreachable code',
+      },
+      {
+        file: 'pkg/util.go',
+        line: 3,
+        column: 1,
+        code: 'govet',
+        message: 'fmt.Printf format %s has arg of wrong type int',
+      },
+    ])
+  })
+
+  it('skips non-diagnostic lines', () => {
+    expect(parseGoVetDiagnostics('vet: something failed\n# pkg')).toEqual([])
+  })
+})
+
+describe('parseCargoJsonDiagnostics', () => {
+  it('parses compiler-message NDJSON', () => {
+    const output = [
+      JSON.stringify({
+        reason: 'compiler-message',
+        message: {
+          level: 'error',
+          message: 'mismatched types',
+          code: { code: 'E0308' },
+          spans: [
+            {
+              file_name: 'src/main.rs',
+              line_start: 10,
+              column_start: 5,
+              is_primary: true,
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        reason: 'compiler-message',
+        message: {
+          level: 'note',
+          message: 'ignored note',
+          spans: [],
+        },
+      }),
+      JSON.stringify({ reason: 'build-finished', success: false }),
+    ].join('\n')
+    const diags = parseCargoJsonDiagnostics(output)
+    expect(diags).toHaveLength(1)
+    expect(diags[0]).toEqual({
+      file: 'src/main.rs',
+      line: 10,
+      column: 5,
+      code: 'E0308',
+      message: 'mismatched types',
+    })
+  })
+
+  it('keeps warnings', () => {
+    const line = JSON.stringify({
+      reason: 'compiler-message',
+      message: {
+        level: 'warning',
+        message: 'unused variable: `x`',
+        code: { code: 'unused_variables' },
+        spans: [{ file_name: 'lib.rs', line_start: 1, column_start: 5, is_primary: true }],
+      },
+    })
+    expect(parseCargoJsonDiagnostics(line)[0]?.code).toBe('unused_variables')
   })
 })
 
@@ -170,6 +311,25 @@ describe('formatTypecheckReport', () => {
       checker: 'ruff',
     })
     expect(text).toBe('No ruff errors found (tts-server).')
+  })
+
+  it('names go vet and cargo', () => {
+    expect(
+      formatTypecheckReport({
+        checkRootLabel: 'module',
+        diagnostics: [],
+        exitCode: 0,
+        checker: 'go vet',
+      }),
+    ).toBe('No go vet errors found (module).')
+    expect(
+      formatTypecheckReport({
+        checkRootLabel: 'crate',
+        diagnostics: [],
+        exitCode: 0,
+        checker: 'cargo',
+      }),
+    ).toBe('No cargo errors found (crate).')
   })
 
   it('formats capped error list', () => {

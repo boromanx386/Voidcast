@@ -67,6 +67,8 @@ import {
   filterTscDiagnostics,
   formatTypecheckReport,
   normalizeTypecheckPath,
+  parseCargoJsonDiagnostics,
+  parseGoVetDiagnostics,
   parsePyrightJsonDiagnostics,
   parseRuffJsonDiagnostics,
   parseTscDiagnostics,
@@ -2288,10 +2290,14 @@ ipcMain.handle(
         : []
       const hasTsconfig = existsSync(path.join(checkCwd, 'tsconfig.json'))
       const hasPython = hasPythonProjectMarkers(checkCwd)
+      const hasGoMod = existsSync(path.join(checkCwd, 'go.mod'))
+      const hasCargoToml = existsSync(path.join(checkCwd, 'Cargo.toml'))
       const kind = detectCheckKind({
         paths: filterPaths,
         hasTsconfig,
         hasPythonProject: hasPython,
+        hasGoMod,
+        hasCargoToml,
       })
       const label = typecheckRootLabel(root, checkCwd)
 
@@ -2299,9 +2305,9 @@ ipcMain.handle(
         return {
           ok: false as const,
           error:
-            `No check target in ${label}. Need tsconfig.json (TypeScript) or a Python project marker ` +
-            `(requirements.txt / pyproject.toml / ruff.toml / …), or pass paths ending in .ts/.tsx/.py. ` +
-            `Set path_prefix to e.g. electron-app or tts-server.`,
+            `No check target in ${label}. Need tsconfig.json (TypeScript), a Python project marker ` +
+            `(requirements.txt / pyproject.toml / ruff.toml / …), go.mod, or Cargo.toml — ` +
+            `or pass paths ending in .ts/.tsx/.py/.go/.rs. Set path_prefix to the package folder.`,
         }
       }
 
@@ -2352,6 +2358,129 @@ ipcMain.handle(
             exitCode: r.code,
             rawOutput,
             checker: 'TypeScript',
+          }),
+        }
+      }
+
+      if (kind === 'go') {
+        if (!hasGoMod) {
+          return {
+            ok: false as const,
+            error: `No go.mod in ${label}. Set path_prefix to the module root that contains go.mod.`,
+          }
+        }
+        const r = await captureSpawnCommand({
+          command: 'go',
+          args: ['vet', './...'],
+          cwd: checkCwd,
+          timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
+          timeoutLabel: 'go vet',
+          notFoundMessage: 'Go toolchain (go) not found on PATH.',
+        })
+        if (!r.ok) {
+          const timedOut = /timed out/i.test(r.error)
+          const notFound = /not found|ENOENT/i.test(r.error)
+          if (notFound) {
+            return {
+              ok: false as const,
+              error: `Go check requested for ${label}, but go was not found on PATH. Install Go from https://go.dev/dl/`,
+            }
+          }
+          return {
+            ok: true as const,
+            text: formatTypecheckReport({
+              checkRootLabel: label,
+              diagnostics: [],
+              exitCode: 1,
+              timedOut,
+              rawOutput: r.error,
+              checker: 'go vet',
+            }),
+          }
+        }
+        const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
+        // go vet prints findings to stderr and exits non-zero when issues exist.
+        const parsed = relativizeDiagnosticFiles(parseGoVetDiagnostics(rawOutput), checkCwd)
+        const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
+        return {
+          ok: true as const,
+          text: formatTypecheckReport({
+            checkRootLabel: label,
+            diagnostics,
+            exitCode: r.code,
+            rawOutput,
+            checker: 'go vet',
+          }),
+        }
+      }
+
+      if (kind === 'rust') {
+        if (!hasCargoToml) {
+          return {
+            ok: false as const,
+            error: `No Cargo.toml in ${label}. Set path_prefix to the crate/workspace root that contains Cargo.toml.`,
+          }
+        }
+        const r = await captureSpawnCommand({
+          command: 'cargo',
+          args: ['check', '--message-format=json'],
+          cwd: checkCwd,
+          timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
+          timeoutLabel: 'cargo check',
+          notFoundMessage: 'Rust toolchain (cargo) not found on PATH.',
+        })
+        if (!r.ok) {
+          const timedOut = /timed out/i.test(r.error)
+          const notFound = /not found|ENOENT/i.test(r.error)
+          if (notFound) {
+            return {
+              ok: false as const,
+              error: `Rust check requested for ${label}, but cargo was not found on PATH. Install Rust from https://rustup.rs/`,
+            }
+          }
+          // cargo may exit non-zero with JSON still on stdout — try parsing error string too
+          const fromErr = parseCargoJsonDiagnostics(r.error)
+          if (fromErr.length > 0) {
+            const diagnostics = filterTscDiagnostics(
+              relativizeDiagnosticFiles(fromErr, checkCwd),
+              filterPaths,
+              pathPrefix,
+            )
+            return {
+              ok: true as const,
+              text: formatTypecheckReport({
+                checkRootLabel: label,
+                diagnostics,
+                exitCode: 1,
+                timedOut,
+                rawOutput: r.error,
+                checker: 'cargo',
+              }),
+            }
+          }
+          return {
+            ok: true as const,
+            text: formatTypecheckReport({
+              checkRootLabel: label,
+              diagnostics: [],
+              exitCode: 1,
+              timedOut,
+              rawOutput: r.error,
+              checker: 'cargo',
+            }),
+          }
+        }
+        const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
+        const parsed = relativizeDiagnosticFiles(parseCargoJsonDiagnostics(rawOutput), checkCwd)
+        const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
+        return {
+          ok: true as const,
+          text: formatTypecheckReport({
+            checkRootLabel: label,
+            diagnostics,
+            exitCode: r.code,
+            rawOutput,
+            checker: 'cargo',
           }),
         }
       }
