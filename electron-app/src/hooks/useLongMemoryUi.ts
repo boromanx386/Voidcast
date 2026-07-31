@@ -107,6 +107,9 @@ export function useLongMemoryUi({
         deepseekBaseUrl: settings.deepseekBaseUrl,
         deepseekApiKey: settings.deepseekApiKey,
         deepseekModel: settings.deepseekModel,
+        openaiBaseUrl: settings.openaiBaseUrl,
+        openaiApiKey: settings.openaiApiKey,
+        openaiModel: settings.openaiModel,
         cloudModelOverride: useSub && subProvider !== 'ollama' ? subModel : undefined,
         modelOptions: {
           temperature: settings.llmTemperature,

@@ -13,6 +13,7 @@ type SecretsStatus = {
   runware: boolean
   nvidia: boolean
   deepseek: boolean
+  openai: boolean
   opencode_go: boolean
 }
 
@@ -108,6 +109,7 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
             runware: Boolean(data.runware),
             nvidia: Boolean(data.nvidia),
             deepseek: Boolean(data.deepseek),
+            openai: Boolean(data.openai),
             opencode_go: Boolean(data.opencode_go),
           })
         })
@@ -129,6 +131,7 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
       secretsStatus.runware ||
       secretsStatus.nvidia ||
       secretsStatus.deepseek ||
+      secretsStatus.openai ||
       secretsStatus.opencode_go)
 
   const copyUrl = async () => {

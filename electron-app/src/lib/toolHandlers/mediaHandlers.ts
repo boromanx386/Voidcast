@@ -216,6 +216,8 @@ export const handleImageRecall: ToolHandlerFn = async (args, ctx) => {
         openrouterApiKey: ctx.openrouterApiKey || "",
         deepseekBaseUrl: ctx.deepseekBaseUrl || "https://api.deepseek.com",
         deepseekApiKey: ctx.deepseekApiKey || "",
+        openaiBaseUrl: ctx.openaiBaseUrl || "https://api.openai.com/v1",
+        openaiApiKey: ctx.openaiApiKey || "",
       },
       ctx.userText,
       ctx.signal,

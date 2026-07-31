@@ -511,6 +511,30 @@ export function GeneralOptionsPanel({
 
       <div className="form-group">
         <label className="form-label">
+          <span className="text-neon-cyan mr-2">⚿</span> OPENAI_API_KEY
+        </label>
+        <input
+          type="password"
+          className="cyber-input"
+          value={settings.openaiApiKey}
+          onChange={(e) =>
+            setSettings((s) => ({ ...s, openaiApiKey: e.target.value }))
+          }
+          placeholder="sk-..."
+          autoComplete="off"
+        />
+        <a
+          href="https://platform.openai.com/api-keys"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
+        >
+          Get OpenAI API key
+        </a>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
           <span className="text-neon-cyan mr-2">⚿</span> OPENCODE_GO_API_KEY
         </label>
         <input

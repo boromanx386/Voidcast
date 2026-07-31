@@ -2,6 +2,7 @@ import type { AppSettings, SubAgentConfig } from '@/lib/settings'
 import { SUB_AGENT_DEFAULT_CONTEXT_TOKENS, withSubAgentOpenRouterProvider } from '@/lib/settings'
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
+  OPENAI_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
@@ -56,7 +57,9 @@ function SubAgentEndpointPicker({
       ? OPENROUTER_LLM_PRESET_MODELS
       : provider === 'deepseek'
         ? DEEPSEEK_LLM_PRESET_MODELS
-        : null
+        : provider === 'openai'
+          ? OPENAI_LLM_PRESET_MODELS
+          : null
   const ollamaInList = ollamaModels.includes(model)
   const presetInList = Boolean(presets?.some((m) => m.id === model))
   const inList = provider === 'ollama' ? ollamaInList : presetInList
@@ -105,13 +108,16 @@ function SubAgentEndpointPicker({
                 ? 'openrouter'
                 : e.target.value === 'deepseek'
                   ? 'deepseek'
-                  : 'ollama',
+                  : e.target.value === 'openai'
+                    ? 'openai'
+                    : 'ollama',
             )
           }
         >
           <option value="ollama">Ollama (local)</option>
           <option value="openrouter">OpenRouter (cloud)</option>
           <option value="deepseek">DeepSeek (cloud)</option>
+          <option value="openai">OpenAI (cloud)</option>
         </select>
       </div>
 
@@ -304,6 +310,41 @@ function SubAgentEndpointPicker({
           />
           <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
             Uses Options → LLM DeepSeek base URL and API key.
+          </p>
+        </div>
+      )}
+
+      {provider === 'openai' && (
+        <div className="form-group mb-0">
+          <label className="form-label">
+            <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
+          </label>
+          <select
+            className="form-select mb-3"
+            value={inList ? model : model ? `__custom__${model}` : ''}
+            onChange={(e) => {
+              const v = e.target.value
+              if (!v || v.startsWith('__custom__')) return
+              setModel(v, 'openai')
+            }}
+          >
+            {OPENAI_LLM_PRESET_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+            {model && !inList && (
+              <option value={`__custom__${model}`}>{model} (manual)</option>
+            )}
+          </select>
+          <input
+            className="cyber-input"
+            placeholder="Or type OpenAI model id..."
+            value={inList ? '' : model}
+            onChange={(e) => setModel(e.target.value, 'openai')}
+          />
+          <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
+            Uses Options → LLM OpenAI base URL and API key.
           </p>
         </div>
       )}

@@ -1,10 +1,12 @@
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
+  OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
+  normalizeOpenAiModelId,
   normalizeOpenCodeGoModelId,
   normalizeOpenRouterModelId,
 } from '@/lib/cloudLlmPresets'
@@ -27,6 +29,7 @@ const PROVIDER_DEFAULT_CONTEXT: Record<Exclude<LlmProvider, 'ollama'>, number> =
   openrouter: 128_000,
   nvidia: 128_000,
   deepseek: 1_000_000,
+  openai: 128_000,
   'opencode-go': 128_000,
 }
 
@@ -45,6 +48,12 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'openai/gpt-5.6-sol-pro': 1_050_000,
   'openai/gpt-5.6-terra-pro': 1_050_000,
   'openai/gpt-5.6-luna-pro': 1_050_000,
+  'gpt-5.6-sol': 1_050_000,
+  'gpt-5.6-terra': 1_050_000,
+  'gpt-5.6-luna': 1_050_000,
+  'gpt-5.6-sol-pro': 1_050_000,
+  'gpt-5.6-terra-pro': 1_050_000,
+  'gpt-5.6-luna-pro': 1_050_000,
   'x-ai/grok-4.5': 500_000,
   'anthropic/claude-opus-4.8': 1_000_000,
   'anthropic/claude-sonnet-5': 1_000_000,
@@ -88,6 +97,7 @@ function buildPresetLookup(
 
 const OPENROUTER_PRESET_CONTEXT = buildPresetLookup(OPENROUTER_LLM_PRESET_MODELS)
 const DEEPSEEK_PRESET_CONTEXT = buildPresetLookup(DEEPSEEK_LLM_PRESET_MODELS)
+const OPENAI_PRESET_CONTEXT = buildPresetLookup(OPENAI_LLM_PRESET_MODELS)
 const NVIDIA_PRESET_CONTEXT = buildPresetLookup(NVIDIA_LLM_PRESET_MODELS)
 const OPENCODE_GO_PRESET_CONTEXT = buildPresetLookup(OPENCODE_GO_LLM_PRESET_MODELS)
 
@@ -98,6 +108,7 @@ export function activeLlmModelId(
     | 'ollamaModel'
     | 'openrouterModel'
     | 'deepseekModel'
+    | 'openaiModel'
     | 'nvidiaModel'
     | 'opencodeGoModel'
   >,
@@ -107,6 +118,8 @@ export function activeLlmModelId(
       return normalizeOpenRouterModelId(settings.openrouterModel)
     case 'deepseek':
       return normalizeDeepSeekModelId(settings.deepseekModel)
+    case 'openai':
+      return normalizeOpenAiModelId(settings.openaiModel)
     case 'nvidia':
       return normalizeNvidiaModelId(settings.nvidiaModel)
     case 'opencode-go':
@@ -159,6 +172,7 @@ function lookupPresetContext(
   const maps: Record<Exclude<LlmProvider, 'ollama'>, Map<string, number>> = {
     openrouter: OPENROUTER_PRESET_CONTEXT,
     deepseek: DEEPSEEK_PRESET_CONTEXT,
+    openai: OPENAI_PRESET_CONTEXT,
     nvidia: NVIDIA_PRESET_CONTEXT,
     'opencode-go': OPENCODE_GO_PRESET_CONTEXT,
   }
@@ -173,6 +187,7 @@ export function resolveContextLimit(
     | 'ollamaModel'
     | 'openrouterModel'
     | 'deepseekModel'
+    | 'openaiModel'
     | 'nvidiaModel'
     | 'opencodeGoModel'
   >,

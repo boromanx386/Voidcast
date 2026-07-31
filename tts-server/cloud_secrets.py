@@ -18,6 +18,7 @@ def _merged() -> dict[str, str]:
         "runware": _env_key("RUNWARE_API_KEY"),
         "nvidia": _env_key("NVIDIA_API_KEY"),
         "deepseek": _env_key("DEEPSEEK_API_KEY"),
+        "openai": _env_key("OPENAI_API_KEY"),
         "opencode_go": _env_key("OPENCODE_GO_API_KEY"),
     }
     for k, v in _registered.items():
@@ -33,6 +34,7 @@ def register_secrets(payload: dict[str, Any]) -> None:
         "runwareApiKey": "runware",
         "nvidiaApiKey": "nvidia",
         "deepseekApiKey": "deepseek",
+        "openaiApiKey": "openai",
         "opencodeGoApiKey": "opencode_go",
     }
     for field, slot in mapping.items():
@@ -60,6 +62,10 @@ def get_nvidia_key() -> str:
 
 def get_deepseek_key() -> str:
     return _merged().get("deepseek", "")
+
+
+def get_openai_key() -> str:
+    return _merged().get("openai", "")
 
 
 def get_opencode_go_key() -> str:

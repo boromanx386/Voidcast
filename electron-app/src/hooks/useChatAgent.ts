@@ -270,6 +270,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         deepseekBaseUrl: settings.deepseekBaseUrl,
         deepseekApiKey: settings.deepseekApiKey,
         deepseekModel: settings.deepseekModel,
+        openaiBaseUrl: settings.openaiBaseUrl,
+        openaiApiKey: settings.openaiApiKey,
+        openaiModel: settings.openaiModel,
         turns,
         existingSummary: hiddenContextSummary,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
@@ -583,6 +586,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             openrouterApiKeyForSubAgent: settings.openrouterApiKey,
             deepseekBaseUrlForSubAgent: settings.deepseekBaseUrl,
             deepseekApiKeyForSubAgent: settings.deepseekApiKey,
+            openaiBaseUrlForSubAgent: settings.openaiBaseUrl,
+            openaiApiKeyForSubAgent: settings.openaiApiKey,
             subAgentUi:
               (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
               settings.subAgent.showAnalysisWindow !== false

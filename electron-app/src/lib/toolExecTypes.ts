@@ -44,6 +44,8 @@ export interface ExecCtx {
   openrouterApiKey?: string;
   deepseekBaseUrl?: string;
   deepseekApiKey?: string;
+  openaiBaseUrl?: string;
+  openaiApiKey?: string;
   /** UI hooks while sub-agent describes images (header-style panel in App). */
   subAgentUi?: SubAgentUiCallbacks;
   /** Persist sub-agent descriptions onto the session (for later history context). */

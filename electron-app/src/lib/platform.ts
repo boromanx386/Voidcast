@@ -68,6 +68,12 @@ export function deepseekApiBaseForRuntime(desktopUrl?: string): string {
   return u || 'https://api.deepseek.com'
 }
 
+export function openaiApiBaseForRuntime(desktopUrl?: string): string {
+  if (isLanWebClient()) return `${window.location.origin}/api/openai/v1`
+  const u = (desktopUrl || '').trim()
+  return u || 'https://api.openai.com/v1'
+}
+
 /** OpenCode Go has no browser CORS — always hit local TTS reverse proxy. */
 export function opencodeGoApiBaseForRuntime(_desktopUrl?: string, ttsBaseUrl?: string): string {
   if (isLanWebClient()) return `${window.location.origin}/api/opencode-go/v1`

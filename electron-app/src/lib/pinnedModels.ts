@@ -1,6 +1,7 @@
 ﻿import {
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
+  OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
 } from '@/lib/cloudLlmPresets'
@@ -11,6 +12,7 @@ const SCOPED_PROVIDERS: LlmProvider[] = [
   'opencode-go',
   'openrouter',
   'deepseek',
+  'openai',
   'nvidia',
   'ollama',
 ]
@@ -75,6 +77,8 @@ export function currentPinnedModelId(settings: AppSettings): string {
       return toScopedPinnedId('nvidia', settings.nvidiaModel)
     case 'deepseek':
       return toScopedPinnedId('deepseek', settings.deepseekModel)
+    case 'openai':
+      return toScopedPinnedId('openai', settings.openaiModel)
     case 'opencode-go':
       return toScopedPinnedId('opencode-go', settings.opencodeGoModel)
     default:
@@ -129,6 +133,9 @@ function migrateLegacyPin(id: string): string | null {
   if (DEEPSEEK_LLM_PRESET_MODELS.some((p) => p.id === id)) {
     return toScopedPinnedId('deepseek', id)
   }
+  if (OPENAI_LLM_PRESET_MODELS.some((p) => p.id === id)) {
+    return toScopedPinnedId('openai', id)
+  }
   if (OPENCODE_GO_LLM_PRESET_MODELS.some((p) => p.id === id)) {
     return toScopedPinnedId('opencode-go', id)
   }
@@ -161,6 +168,9 @@ export function applyModelSwitcherSelection(
   }
   if (provider === 'deepseek') {
     return { ...settings, llmProvider: 'deepseek', deepseekModel: model }
+  }
+  if (provider === 'openai') {
+    return { ...settings, llmProvider: 'openai', openaiModel: model }
   }
   return { ...settings, llmProvider: 'opencode-go', opencodeGoModel: model }
 }

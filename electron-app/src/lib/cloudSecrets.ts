@@ -6,6 +6,7 @@ export type CloudSecretsPayload = {
   runwareApiKey: string
   nvidiaApiKey: string
   deepseekApiKey: string
+  openaiApiKey: string
   opencodeGoApiKey: string
 }
 

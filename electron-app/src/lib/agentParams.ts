@@ -53,6 +53,8 @@ export interface ChatWithToolsCommonParams {
   openrouterApiKeyForSubAgent?: string
   deepseekBaseUrlForSubAgent?: string
   deepseekApiKeyForSubAgent?: string
+  openaiBaseUrlForSubAgent?: string
+  openaiApiKeyForSubAgent?: string
   thinkLevel?: LlmThinkLevel
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
@@ -91,6 +93,8 @@ export function buildToolExecutorOptions(
     openrouterApiKey: params.openrouterApiKeyForSubAgent,
     deepseekBaseUrl: params.deepseekBaseUrlForSubAgent,
     deepseekApiKey: params.deepseekApiKeyForSubAgent,
+    openaiBaseUrl: params.openaiBaseUrlForSubAgent,
+    openaiApiKey: params.openaiApiKeyForSubAgent,
     subAgentUi: params.subAgentUi,
     onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
     imageVisionCache: params.imageVisionCache,

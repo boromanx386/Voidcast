@@ -18,6 +18,8 @@ function providerShortLabel(settings: AppSettings): string {
       return 'NVIDIA'
     case 'deepseek':
       return 'DeepSeek'
+    case 'openai':
+      return 'OpenAI'
     case 'opencode-go':
       return 'OpenCode Go'
     default:

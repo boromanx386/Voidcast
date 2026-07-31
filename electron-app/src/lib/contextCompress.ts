@@ -29,6 +29,9 @@ export async function compressConversationContext(params: {
   deepseekBaseUrl?: string
   deepseekApiKey?: string
   deepseekModel?: string
+  openaiBaseUrl?: string
+  openaiApiKey?: string
+  openaiModel?: string
   turns: ContextTurn[]
   existingSummary?: string
   modelOptions?: OllamaModelOptions

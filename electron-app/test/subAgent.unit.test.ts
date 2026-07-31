@@ -110,7 +110,8 @@ describe('detectSubAgentProvider', () => {
   })
 
   it('detects OpenRouter for plain model names without colon (e.g. gpt-4)', () => {
-    expect(detectSubAgentProvider('gpt-4')).toBe('openrouter')
+    expect(detectSubAgentProvider('gpt-4')).toBe('openai')
+    expect(detectSubAgentProvider('gpt-5.6-sol')).toBe('openai')
   })
 
   it('detects OpenRouter for plain model names (e.g. claude-3-opus)', () => {
@@ -148,6 +149,8 @@ describe('describeImagesWithSubAgent vision cache', () => {
     openrouterApiKey: '',
     deepseekBaseUrl: 'https://api.deepseek.com',
     deepseekApiKey: '',
+    openaiBaseUrl: 'https://api.openai.com/v1',
+    openaiApiKey: '',
   }
 
   const config = {

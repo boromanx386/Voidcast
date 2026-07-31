@@ -9,7 +9,9 @@ function baseSettings(overrides: Record<string, unknown> = {}) {
     ollamaModel: 'qwen3:8b',
     openrouterModel: 'openrouter/free',
     deepseekModel: 'deepseek-v4-pro',
+    openaiModel: 'gpt-5.6-sol',
     nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
+    opencodeGoModel: 'deepseek-v4-pro',
     ...overrides,
   }
 }
@@ -70,6 +72,20 @@ describe('resolveContextLimit', () => {
     )
     expect(flash.maxTokens).toBe(1_000_000)
     expect(pro.maxTokens).toBe(1_000_000)
+  })
+
+  test('openai gpt-5.6-sol uses 1.05M override', () => {
+    const limit = resolveContextLimit(
+      baseSettings({
+        llmProvider: 'openai',
+        openaiModel: 'gpt-5.6-sol',
+      }),
+    )
+    expect(limit.maxTokens).toBe(1_050_000)
+    expect(limit.source).toBe('preset')
+    expect(activeLlmModelId(baseSettings({ llmProvider: 'openai', openaiModel: 'openai/gpt-5.6-sol' }))).toBe(
+      'gpt-5.6-sol',
+    )
   })
 
   test('unknown cloud model falls back to provider default', () => {

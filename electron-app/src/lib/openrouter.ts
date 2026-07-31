@@ -217,6 +217,7 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
 
 function apiLabelForBaseUrl(baseUrl: string): string {
   if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
+  if (baseUrl.includes('api.openai.com') || baseUrl.includes('/api/openai')) return 'OpenAI'
   if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia')) return 'NVIDIA'
   if (isOpenCodeGoApi(baseUrl)) return 'OpenCode Go'
   return 'OpenRouter'
@@ -231,6 +232,29 @@ function applyDeepSeekThinkingBody(
     return
   }
   body.thinking = { type: 'enabled' }
+  const effort = thinkLevel === 'on' ? 'medium' : thinkLevel
+  if (effort === 'low' || effort === 'medium' || effort === 'high') {
+    body.reasoning_effort = effort
+  }
+}
+
+/**
+ * GPT-5.x on Chat Completions rejects function tools unless reasoning_effort is
+ * explicitly 'none' (default reasoning is on). Tool agent loop must force none.
+ */
+function applyOpenAiReasoningBody(
+  body: Record<string, unknown>,
+  thinkLevel: LlmThinkLevel | undefined,
+  hasTools: boolean,
+): void {
+  if (hasTools) {
+    body.reasoning_effort = 'none'
+    return
+  }
+  if (!thinkLevel || thinkLevel === 'off') {
+    body.reasoning_effort = 'none'
+    return
+  }
   const effort = thinkLevel === 'on' ? 'medium' : thinkLevel
   if (effort === 'low' || effort === 'medium' || effort === 'high') {
     body.reasoning_effort = effort
@@ -376,11 +400,13 @@ export async function streamOpenRouterChat(
   const cloudProvider =
     apiLabel === 'DeepSeek'
       ? 'deepseek'
-      : apiLabel === 'NVIDIA'
-        ? 'nvidia'
-        : apiLabel === 'OpenCode Go'
-          ? 'opencode-go'
-          : 'openrouter'
+      : apiLabel === 'OpenAI'
+        ? 'openai'
+        : apiLabel === 'NVIDIA'
+          ? 'nvidia'
+          : apiLabel === 'OpenCode Go'
+            ? 'opencode-go'
+            : 'openrouter'
   assertCloudLlmApiKey(cloudProvider, options.apiKey)
   let res: Response | null = null
   let lastErr = ''
@@ -394,6 +420,8 @@ export async function streamOpenRouterChat(
         model,
         messages,
         stream: true,
+        // OpenAI (and most OpenAI-compatible hosts) omit usage on streams unless asked.
+        stream_options: { include_usage: true },
       }
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
@@ -401,6 +429,9 @@ export async function streamOpenRouterChat(
       // OpenCode Go: honor THINKING_LEVEL without forcing disable when unset.
       if (isOpenCodeGo && options.thinkLevel !== undefined) {
         applyDeepSeekThinkingBody(body, options.thinkLevel)
+      }
+      if (apiLabel === 'OpenAI') {
+        applyOpenAiReasoningBody(body, options.thinkLevel, options.tools !== undefined)
       }
       if (apiLabel === 'OpenRouter') {
         const provider = openRouterProviderRoutingBody(options.providerOnly)

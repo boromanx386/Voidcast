@@ -8,6 +8,8 @@ export function llmModelLabel(settings: AppSettings): string {
       return settings.nvidiaModel
     case 'deepseek':
       return settings.deepseekModel
+    case 'openai':
+      return settings.openaiModel
     case 'opencode-go':
       return settings.opencodeGoModel
     default:

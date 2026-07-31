@@ -41,6 +41,16 @@ export const DEEPSEEK_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (fast)' },
 ]
 
+/** Curated OpenAI chat models (https://api.openai.com/v1). Bare ids, not OpenRouter `openai/` routes. */
+export const OPENAI_LLM_PRESET_MODELS: CloudLlmPreset[] = [
+  { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol (flagship · coding)' },
+  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra (balanced)' },
+  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna (fast · cheap)' },
+  { id: 'gpt-5.6-sol-pro', label: 'GPT-5.6 Sol Pro' },
+  { id: 'gpt-5.6-terra-pro', label: 'GPT-5.6 Terra Pro' },
+  { id: 'gpt-5.6-luna-pro', label: 'GPT-5.6 Luna Pro' },
+]
+
 /** Curated NVIDIA NIM chat models (integrate.api.nvidia.com/v1/models). */
 export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B' },
@@ -119,6 +129,33 @@ export function isDeepSeekModelId(model: string): boolean {
   return trimmed in DEEPSEEK_MODEL_ALIASES || DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === trimmed)
 }
 
+const OPENAI_MODEL_ALIASES: Record<string, string> = {
+  'openai/gpt-5.6-sol': 'gpt-5.6-sol',
+  'openai/gpt-5.6-terra': 'gpt-5.6-terra',
+  'openai/gpt-5.6-luna': 'gpt-5.6-luna',
+  'openai/gpt-5.6-sol-pro': 'gpt-5.6-sol-pro',
+  'openai/gpt-5.6-terra-pro': 'gpt-5.6-terra-pro',
+  'openai/gpt-5.6-luna-pro': 'gpt-5.6-luna-pro',
+}
+
+export function normalizeOpenAiModelId(model: string): string {
+  const trimmed = model.trim()
+  if (!trimmed) return OPENAI_LLM_PRESET_MODELS[0]?.id ?? 'gpt-5.6-sol'
+  if (OPENAI_MODEL_ALIASES[trimmed]) return OPENAI_MODEL_ALIASES[trimmed]
+  if (trimmed.startsWith('openai/')) return trimmed.slice('openai/'.length).trim() || OPENAI_LLM_PRESET_MODELS[0]?.id || 'gpt-5.6-sol'
+  return trimmed
+}
+
+export function isOpenAiModelId(model: string): boolean {
+  const trimmed = model.trim().toLowerCase()
+  if (!trimmed) return false
+  if (trimmed.startsWith('openai/')) return true
+  if (trimmed.startsWith('gpt-') || trimmed.startsWith('o1') || trimmed.startsWith('o3') || trimmed.startsWith('o4')) {
+    return true
+  }
+  return OPENAI_LLM_PRESET_MODELS.some((m) => m.id === trimmed)
+}
+
 export function normalizeNvidiaModelId(model: string): string {
   const trimmed = model.trim()
   if (!trimmed) return NVIDIA_LLM_PRESET_MODELS[0]?.id ?? 'nvidia/nemotron-3-super-120b-a12b'
@@ -152,7 +189,7 @@ const OPENROUTER_ROUTE_VARIANTS = new Set([
   'extended',
 ])
 
-export type SubAgentProviderId = 'ollama' | 'openrouter' | 'deepseek'
+export type SubAgentProviderId = 'ollama' | 'openrouter' | 'deepseek' | 'openai'
 
 /**
  * Resolve which backend a sub-agent model id should hit.
@@ -165,11 +202,18 @@ export function detectSubAgentProvider(
   model: string,
   explicit?: SubAgentProviderId | null,
 ): SubAgentProviderId {
-  if (explicit === 'ollama' || explicit === 'openrouter' || explicit === 'deepseek') {
+  if (
+    explicit === 'ollama' ||
+    explicit === 'openrouter' ||
+    explicit === 'deepseek' ||
+    explicit === 'openai'
+  ) {
     return explicit
   }
   if (!model) return 'ollama'
   if (isDeepSeekModelId(model)) return 'deepseek'
+  // Bare gpt-* / o-series without org/ prefix → native OpenAI (not OpenRouter openai/…)
+  if (!model.includes('/') && isOpenAiModelId(model)) return 'openai'
 
   const hasColon = model.includes(':')
   const hasSlash = model.includes('/')

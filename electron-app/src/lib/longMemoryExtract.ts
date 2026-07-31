@@ -20,6 +20,9 @@ type ExtractParams = {
   deepseekBaseUrl?: string
   deepseekApiKey?: string
   deepseekModel?: string
+  openaiBaseUrl?: string
+  openaiApiKey?: string
+  openaiModel?: string
   modelOptions?: OllamaModelOptions
   turns: Turn[]
   signal?: AbortSignal

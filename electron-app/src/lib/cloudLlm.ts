@@ -9,6 +9,8 @@ export function cloudLlmProviderLabel(provider: LlmProvider): string {
       return 'NVIDIA'
     case 'deepseek':
       return 'DeepSeek'
+    case 'openai':
+      return 'OpenAI'
     case 'opencode-go':
       return 'OpenCode Go'
     default:
@@ -31,6 +33,7 @@ export function isOpenAiCompatibleCloudLlmProvider(provider: LlmProvider): boole
     provider === 'openrouter' ||
     provider === 'nvidia' ||
     provider === 'deepseek' ||
+    provider === 'openai' ||
     provider === 'opencode-go'
   )
 }
@@ -55,6 +58,9 @@ export type CloudLlmSettingsSlice = {
   deepseekBaseUrl?: string
   deepseekApiKey?: string
   deepseekModel?: string
+  openaiBaseUrl?: string
+  openaiApiKey?: string
+  openaiModel?: string
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
@@ -86,6 +92,12 @@ export function resolveCloudLlmChatConfig(
         apiKey: settings.deepseekApiKey || '',
         model: settings.deepseekModel || '',
         thinkLevel: settings.llmThinkLevel,
+      }
+    case 'openai':
+      return {
+        baseUrl: settings.openaiBaseUrl || '',
+        apiKey: settings.openaiApiKey || '',
+        model: settings.openaiModel || '',
       }
     case 'opencode-go':
       return {
@@ -126,6 +138,12 @@ export function resolveCloudLlmChatConfigForProvider(
         apiKey: settings.deepseekApiKey || '',
         model: modelOverride || settings.deepseekModel || '',
         thinkLevel: settings.llmThinkLevel,
+      }
+    case 'openai':
+      return {
+        baseUrl: settings.openaiBaseUrl || '',
+        apiKey: settings.openaiApiKey || '',
+        model: modelOverride || settings.openaiModel || '',
       }
     case 'opencode-go':
       return {

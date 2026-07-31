@@ -12,7 +12,7 @@
 
 import { normalizeBaseUrl, SUB_AGENT_DEFAULT_CONTEXT_TOKENS } from './settings'
 import type { SubAgentConfig } from './settings'
-import { deepseekApiBaseForRuntime, usesServerCloudProxy } from './platform'
+import { deepseekApiBaseForRuntime, openaiApiBaseForRuntime, usesServerCloudProxy } from './platform'
 import {
   detectSubAgentProvider as detectSubAgentProviderId,
   type SubAgentProviderId,
@@ -46,6 +46,8 @@ export type SubAgentKeys = {
   openrouterApiKey: string
   deepseekBaseUrl: string
   deepseekApiKey: string
+  openaiBaseUrl: string
+  openaiApiKey: string
 }
 
 export type SubAgentImageInput = {
@@ -258,6 +260,65 @@ async function describeWithDeepSeek(
   return (data.choices?.[0]?.message?.content || '').trim()
 }
 
+// ── OpenAI path (vision via Chat Completions) ────────────────────────────
+
+async function describeWithOpenAi(
+  img: SubAgentImageInput,
+  model: string,
+  maxTokens: number,
+  openaiBaseUrl: string,
+  openaiApiKey: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const viaProxy = usesServerCloudProxy()
+  const baseUrl = viaProxy
+    ? openaiApiBaseForRuntime()
+    : normalizeBaseUrl(openaiBaseUrl || 'https://api.openai.com/v1')
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (!viaProxy && openaiApiKey.trim()) {
+    headers.Authorization = `Bearer ${openaiApiKey.trim()}`
+  }
+
+  const dataUri = toDataUri(img.base64, img.mime)
+
+  const body = {
+    model,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: dataUri } },
+        ],
+      },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.2,
+    stream: false,
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`OpenAI sub-agent ${res.status}: ${errText || res.statusText}`)
+  }
+
+  const data2 = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  return (data2.choices?.[0]?.message?.content || '').trim()
+}
+
 // ── text-only chat (coding explore) ──────────────────────────────────────
 
 async function textWithOllama(
@@ -379,6 +440,21 @@ export async function callSubAgentChat(opts: {
       { thinking: { type: 'disabled' } },
     )
   }
+  if (provider === 'openai') {
+    const viaProxy = usesServerCloudProxy()
+    const baseUrl = viaProxy
+      ? openaiApiBaseForRuntime()
+      : normalizeBaseUrl(opts.keys.openaiBaseUrl || 'https://api.openai.com/v1')
+    return textWithOpenAiCompatible(
+      'OpenAI',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      viaProxy ? '' : opts.keys.openaiApiKey,
+      messages,
+      opts.signal,
+    )
+  }
   return textWithOllama(
     opts.config.model,
     maxTokens,
@@ -417,6 +493,13 @@ async function describeSingleImage(
     return describeWithDeepSeek(
       img, config.model, maxTokens,
       keys.deepseekBaseUrl, keys.deepseekApiKey,
+      prompt, signal,
+    )
+  }
+  if (provider === 'openai') {
+    return describeWithOpenAi(
+      img, config.model, maxTokens,
+      keys.openaiBaseUrl, keys.openaiApiKey,
       prompt, signal,
     )
   }

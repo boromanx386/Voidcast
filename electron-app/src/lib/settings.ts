@@ -1,6 +1,7 @@
 import {
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
+  normalizeOpenAiModelId,
   normalizeOpenCodeGoModelId,
   normalizeOpenRouterModelId,
   detectSubAgentProvider,
@@ -958,7 +959,7 @@ export function buildRunwareTtsSettingsPayload(
 
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
-export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'opencode-go'
+export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'
 
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
@@ -1008,11 +1009,11 @@ export type SubAgentConfig = {
    * Explicit backend for vision `model`. Set when picking from the SUB options list.
    * When omitted, inferred via detectSubAgentProvider (needed for namespaced Ollama ids).
    */
-  provider?: 'ollama' | 'openrouter' | 'deepseek'
+  provider?: 'ollama' | 'openrouter' | 'deepseek' | 'openai'
   /** Coding explore model id (text-capable). Migrates from `model` when missing. */
   codingModel: string
   /** Explicit backend for codingModel. */
-  codingProvider?: 'ollama' | 'openrouter' | 'deepseek'
+  codingProvider?: 'ollama' | 'openrouter' | 'deepseek' | 'openai'
   /**
    * OpenRouter provider slug lock for the vision model (provider.only, no fallbacks).
    * Kept in sync with `openrouterProviderByModel[model]` when provider is openrouter.
@@ -1161,6 +1162,10 @@ export type AppSettings = {
   deepseekBaseUrl: string
   deepseekApiKey: string
   deepseekModel: string
+  /** Native OpenAI Chat Completions (https://api.openai.com/v1). */
+  openaiBaseUrl: string
+  openaiApiKey: string
+  openaiModel: string
   /** OpenCode Go (https://opencode.ai/zen/go/v1) — OpenAI-compatible chat models. */
   opencodeGoBaseUrl: string
   opencodeGoApiKey: string
@@ -1352,6 +1357,7 @@ import {
   isElectron,
   isLanWebClient,
   nvidiaApiBaseForRuntime,
+  openaiApiBaseForRuntime,
   openRouterApiBaseForRuntime,
   opencodeGoApiBaseForRuntime,
 } from '@/lib/platform'
@@ -1359,7 +1365,14 @@ import {
 const STORAGE_KEY = 'voidcast-settings-v1'
 /** Previous key; read once to migrate */
 const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
-const AGENT_HIDDEN_SETTINGS_FIELDS = ['openrouterApiKey', 'nvidiaApiKey', 'deepseekApiKey', 'opencodeGoApiKey', 'runwareApiKey'] as const
+const AGENT_HIDDEN_SETTINGS_FIELDS = [
+  'openrouterApiKey',
+  'nvidiaApiKey',
+  'deepseekApiKey',
+  'openaiApiKey',
+  'opencodeGoApiKey',
+  'runwareApiKey',
+] as const
 
 const DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, a highly intelligent, quick‑witted, and candid virtual assistant.
 
@@ -1388,6 +1401,9 @@ export const defaults: AppSettings = {
   deepseekBaseUrl: 'https://api.deepseek.com',
   deepseekApiKey: '',
   deepseekModel: 'deepseek-v4-pro',
+  openaiBaseUrl: 'https://api.openai.com/v1',
+  openaiApiKey: '',
+  openaiModel: 'gpt-5.6-sol',
   opencodeGoBaseUrl: 'https://opencode.ai/zen/go/v1',
   opencodeGoApiKey: '',
   opencodeGoModel: 'deepseek-v4-pro',
@@ -1684,9 +1700,11 @@ function normalizeLlm(s: AppSettings): AppSettings {
         ? 'nvidia'
         : providerRaw === 'deepseek'
           ? 'deepseek'
-          : providerRaw === 'opencode-go'
-            ? 'opencode-go'
-            : 'ollama'
+          : providerRaw === 'openai'
+            ? 'openai'
+            : providerRaw === 'opencode-go'
+              ? 'opencode-go'
+              : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
   const openrouterBaseUrl =
@@ -1733,6 +1751,17 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? s.deepseekModel.trim()
       : defaults.deepseekModel,
   )
+  const openaiBaseUrl =
+    typeof s.openaiBaseUrl === 'string' && s.openaiBaseUrl.trim()
+      ? s.openaiBaseUrl.trim()
+      : defaults.openaiBaseUrl
+  const openaiApiKey =
+    typeof s.openaiApiKey === 'string' ? s.openaiApiKey.trim() : ''
+  const openaiModel = normalizeOpenAiModelId(
+    typeof s.openaiModel === 'string' && s.openaiModel.trim()
+      ? s.openaiModel.trim()
+      : defaults.openaiModel,
+  )
   const opencodeGoBaseUrl =
     typeof s.opencodeGoBaseUrl === 'string' && s.opencodeGoBaseUrl.trim()
       ? s.opencodeGoBaseUrl.trim()
@@ -1759,6 +1788,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
     deepseekBaseUrl,
     deepseekApiKey,
     deepseekModel,
+    openaiBaseUrl,
+    openaiApiKey,
+    openaiModel,
     opencodeGoBaseUrl,
     opencodeGoApiKey,
     opencodeGoModel,
@@ -1831,10 +1863,11 @@ function normalizeTts(s: AppSettings): AppSettings {
 
 function normalizeSubAgentModelId(
   rawModel: string,
-  provider: 'ollama' | 'openrouter' | 'deepseek',
+  provider: 'ollama' | 'openrouter' | 'deepseek' | 'openai',
 ): string {
   if (provider === 'ollama') return rawModel
   if (provider === 'deepseek') return normalizeDeepSeekModelId(rawModel)
+  if (provider === 'openai') return normalizeOpenAiModelId(rawModel)
   return normalizeOpenRouterModelId(rawModel)
 }
 
@@ -1851,7 +1884,10 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const codingEnabled = raw.codingEnabled === true
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
   const rawProvider =
-    raw.provider === 'ollama' || raw.provider === 'openrouter' || raw.provider === 'deepseek'
+    raw.provider === 'ollama' ||
+    raw.provider === 'openrouter' ||
+    raw.provider === 'deepseek' ||
+    raw.provider === 'openai'
       ? raw.provider
       : undefined
   const provider = detectSubAgentProvider(rawModel, rawProvider)
@@ -1862,7 +1898,8 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const rawCodingProvider =
     raw.codingProvider === 'ollama' ||
     raw.codingProvider === 'openrouter' ||
-    raw.codingProvider === 'deepseek'
+    raw.codingProvider === 'deepseek' ||
+    raw.codingProvider === 'openai'
       ? raw.codingProvider
       : hasCodingModel
         ? undefined
@@ -2222,6 +2259,7 @@ function stripCloudSecrets(s: AppSettings): AppSettings {
     runwareApiKey: '',
     nvidiaApiKey: '',
     deepseekApiKey: '',
+    openaiApiKey: '',
     opencodeGoApiKey: '',
   }
 }
@@ -2267,6 +2305,9 @@ function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
   if (isViteDevServerUrl(next.deepseekBaseUrl) || next.deepseekBaseUrl.includes('/api/deepseek')) {
     assign({ deepseekBaseUrl: defaults.deepseekBaseUrl })
   }
+  if (isViteDevServerUrl(next.openaiBaseUrl) || next.openaiBaseUrl.includes('/api/openai')) {
+    assign({ openaiBaseUrl: defaults.openaiBaseUrl })
+  }
   if (
     isViteDevServerUrl(next.opencodeGoBaseUrl) ||
     next.opencodeGoBaseUrl.includes('/api/opencode-go')
@@ -2291,6 +2332,7 @@ function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
       openrouterBaseUrl: openRouterApiBaseForRuntime(),
       nvidiaBaseUrl: nvidiaApiBaseForRuntime(),
       deepseekBaseUrl: deepseekApiBaseForRuntime(),
+      openaiBaseUrl: openaiApiBaseForRuntime(),
       opencodeGoBaseUrl: opencodeGoApiBaseForRuntime(),
       voiceMode: 'design',
       sttProvider: 'none',

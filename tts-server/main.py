@@ -56,6 +56,7 @@ from cloud_secrets import (
     clear_registered_secrets,
     get_deepseek_key,
     get_nvidia_key,
+    get_openai_key,
     get_openrouter_key,
     get_opencode_go_key,
     get_runware_key,
@@ -100,6 +101,9 @@ NVIDIA_UPSTREAM = os.environ.get(
 ).rstrip("/")
 DEEPSEEK_UPSTREAM = os.environ.get(
     "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
+).rstrip("/")
+OPENAI_UPSTREAM = os.environ.get(
+    "OPENAI_BASE_URL", "https://api.openai.com"
 ).rstrip("/")
 # OpenCode Go OpenAI-compatible API (no browser CORS — always proxy from renderer).
 OPENCODE_GO_UPSTREAM = os.environ.get(
@@ -220,6 +224,7 @@ class CloudSecretsRequest(BaseModel):
     runwareApiKey: str = Field(default="", max_length=2048)
     nvidiaApiKey: str = Field(default="", max_length=2048)
     deepseekApiKey: str = Field(default="", max_length=2048)
+    openaiApiKey: str = Field(default="", max_length=2048)
     opencodeGoApiKey: str = Field(default="", max_length=2048)
 
 
@@ -733,6 +738,7 @@ async def tools_cloud_secrets_status():
         "runware": bool(get_runware_key()),
         "nvidia": bool(get_nvidia_key()),
         "deepseek": bool(get_deepseek_key()),
+        "openai": bool(get_openai_key()),
         "opencode_go": bool(get_opencode_go_key()),
     }
 
@@ -992,6 +998,21 @@ async def deepseek_proxy(request: Request, full_path: str):
             detail="DeepSeek API key not configured (desktop General or DEEPSEEK_API_KEY env)",
         )
     return await _reverse_proxy(request, DEEPSEEK_UPSTREAM, full_path, bearer_key=key)
+
+
+@app.api_route(
+    "/api/openai/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+)
+async def openai_proxy(request: Request, full_path: str):
+    """Proxy OpenAI API for LAN web clients."""
+    key = get_openai_key()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI API key not configured (desktop General or OPENAI_API_KEY env)",
+        )
+    return await _reverse_proxy(request, OPENAI_UPSTREAM, full_path, bearer_key=key)
 
 
 @app.api_route(

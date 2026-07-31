@@ -35,6 +35,14 @@ describe('pinnedModels helpers', () => {
     })
   })
 
+  test('openai pins use bare model ids', () => {
+    expect(toScopedPinnedId('openai', 'gpt-5.6-sol')).toBe('openai:gpt-5.6-sol')
+    expect(parsePinnedId('openai:gpt-5.6-sol')).toEqual({
+      provider: 'openai',
+      modelId: 'gpt-5.6-sol',
+    })
+  })
+
   test('openrouter and nvidia can pin the same model id', () => {
     expect(toScopedPinnedId('openrouter', 'z-ai/glm-5.2')).toBe('openrouter:z-ai/glm-5.2')
     expect(toScopedPinnedId('nvidia', 'z-ai/glm-5.2')).toBe('nvidia:z-ai/glm-5.2')
@@ -56,6 +64,13 @@ describe('pinnedModels helpers', () => {
         deepseekModel: 'deepseek-v4-pro',
       }),
     ).toBe('deepseek:deepseek-v4-pro')
+    expect(
+      currentPinnedModelId({
+        ...defaults,
+        llmProvider: 'openai',
+        openaiModel: 'gpt-5.6-sol',
+      }),
+    ).toBe('openai:gpt-5.6-sol')
     expect(
       currentPinnedModelId({
         ...defaults,
@@ -111,6 +126,10 @@ describe('pinnedModels helpers', () => {
     const ds = applyModelSwitcherSelection(base, 'deepseek', 'deepseek:deepseek-v4-flash')
     expect(ds.llmProvider).toBe('deepseek')
     expect(ds.deepseekModel).toBe('deepseek-v4-flash')
+
+    const oa = applyModelSwitcherSelection(base, 'openai', 'openai:gpt-5.6-terra')
+    expect(oa.llmProvider).toBe('openai')
+    expect(oa.openaiModel).toBe('gpt-5.6-terra')
 
     const og = applyModelSwitcherSelection(base, 'opencode-go', 'opencode-go:deepseek-v4-pro')
     expect(og.llmProvider).toBe('opencode-go')
