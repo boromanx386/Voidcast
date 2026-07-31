@@ -41,6 +41,168 @@ type Props = {
   onMarkDoneReminder: (id: string) => void
 }
 
+type CloudKeyProviderId =
+  | 'runware'
+  | 'openrouter'
+  | 'nvidia'
+  | 'deepseek'
+  | 'openai'
+  | 'opencode-go'
+
+type CloudKeyProvider = {
+  id: CloudKeyProviderId
+  label: string
+  field: keyof Pick<
+    AppSettings,
+    | 'runwareApiKey'
+    | 'openrouterApiKey'
+    | 'nvidiaApiKey'
+    | 'deepseekApiKey'
+    | 'openaiApiKey'
+    | 'opencodeGoApiKey'
+  >
+  placeholder: string
+  href: string
+  linkLabel: string
+}
+
+const CLOUD_KEY_PROVIDERS: CloudKeyProvider[] = [
+  {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    field: 'openrouterApiKey',
+    placeholder: 'sk-or-v1-...',
+    href: 'https://openrouter.ai/keys',
+    linkLabel: 'Get OpenRouter API key',
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    field: 'openaiApiKey',
+    placeholder: 'sk-...',
+    href: 'https://platform.openai.com/api-keys',
+    linkLabel: 'Get OpenAI API key',
+  },
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    field: 'deepseekApiKey',
+    placeholder: 'sk-...',
+    href: 'https://platform.deepseek.com/api_keys',
+    linkLabel: 'Get DeepSeek API key',
+  },
+  {
+    id: 'nvidia',
+    label: 'NVIDIA',
+    field: 'nvidiaApiKey',
+    placeholder: 'nvapi-...',
+    href: 'https://build.nvidia.com/',
+    linkLabel: 'Get NVIDIA API key',
+  },
+  {
+    id: 'opencode-go',
+    label: 'OpenCode Go',
+    field: 'opencodeGoApiKey',
+    placeholder: 'sk-...',
+    href: 'https://opencode.ai/auth',
+    linkLabel: 'Get OpenCode Go API key',
+  },
+  {
+    id: 'runware',
+    label: 'Runware',
+    field: 'runwareApiKey',
+    placeholder: 'rw_...',
+    href: 'https://runware.ai/',
+    linkLabel: 'Get Runware API key',
+  },
+]
+
+/** Compact key manager: pick a provider chip, edit just its key. */
+function CloudApiKeysSection({
+  settings,
+  setSettings,
+}: {
+  settings: AppSettings
+  setSettings: Dispatch<SetStateAction<AppSettings>>
+}) {
+  const llmCloudId: CloudKeyProviderId | null = CLOUD_KEY_PROVIDERS.some(
+    (p) => p.id === settings.llmProvider,
+  )
+    ? (settings.llmProvider as CloudKeyProviderId)
+    : null
+  const [selected, setSelected] = useState<CloudKeyProviderId>(
+    llmCloudId ?? 'openrouter',
+  )
+  const provider = CLOUD_KEY_PROVIDERS.find((p) => p.id === selected)!
+
+  return (
+    <>
+      <div className="bg-void-black/50 border border-void-muted/30 p-3 rounded">
+        <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-1">
+          CLOUD_API_KEYS
+        </p>
+        <p className="text-xs text-void-dim leading-relaxed">
+          Stored locally on this PC.
+          {settings.lanWebAccessEnabled
+            ? ' With LAN web access on, keys are also forwarded to the local server for phone clients.'
+            : ''}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {CLOUD_KEY_PROVIDERS.map((p) => {
+          const active = p.id === selected
+          const keySet = Boolean(settings[p.field].trim())
+          return (
+            <button
+              key={p.id}
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors ${
+                active
+                  ? 'border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan'
+                  : 'border-void-muted/40 bg-void-muted/20 text-void-dim hover:border-void-dim'
+              }`}
+              onClick={() => setSelected(p.id)}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  keySet ? 'bg-neon-green' : 'bg-void-muted/60'
+                }`}
+              />
+              {p.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          <span className="text-neon-cyan mr-2">⚿</span>
+          {provider.label.toUpperCase().replace(/[\s-]+/g, '_')}_API_KEY
+        </label>
+        <input
+          type="password"
+          className="cyber-input"
+          value={settings[provider.field]}
+          onChange={(e) =>
+            setSettings((s) => ({ ...s, [provider.field]: e.target.value }))
+          }
+          placeholder={provider.placeholder}
+          autoComplete="off"
+        />
+        <a
+          href={provider.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
+        >
+          {provider.linkLabel}
+        </a>
+      </div>
+    </>
+  )
+}
+
 export function GeneralOptionsPanel({
   settings,
   setSettings,
@@ -401,162 +563,8 @@ export function GeneralOptionsPanel({
         <>
       {isElectron() && <LanWebAccessPanel settings={settings} setSettings={setSettings} />}
 
-      <div className="bg-void-black/50 border border-void-muted/30 p-3 rounded">
-        <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-1">
-          CLOUD_API_KEYS
-        </p>
-        <p className="text-xs text-void-dim leading-relaxed">
-          Stored locally on this PC.
-          {settings.lanWebAccessEnabled
-            ? ' With LAN web access on, keys are also forwarded to the local server for phone clients.'
-            : ''}
-        </p>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-yellow mr-2">⚿</span> RUNWARE_API_KEY
-        </label>
-        <input
-          type="password"
-          className="cyber-input"
-          value={settings.runwareApiKey}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, runwareApiKey: e.target.value }))
-          }
-          placeholder="rw_..."
-          autoComplete="off"
-        />
-        <a
-          href="https://runware.ai/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
-        >
-          Get Runware API key
-        </a>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan mr-2">⚿</span> OPENROUTER_API_KEY
-        </label>
-        <input
-          type="password"
-          className="cyber-input"
-          value={settings.openrouterApiKey}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, openrouterApiKey: e.target.value }))
-          }
-          placeholder="sk-or-v1-..."
-          autoComplete="off"
-        />
-        <a
-          href="https://openrouter.ai/keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
-        >
-          Get OpenRouter API key
-        </a>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan mr-2">⚿</span> NVIDIA_API_KEY
-        </label>
-        <input
-          type="password"
-          className="cyber-input"
-          value={settings.nvidiaApiKey}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, nvidiaApiKey: e.target.value }))
-          }
-          placeholder="nvapi-..."
-          autoComplete="off"
-        />
-        <a
-          href="https://build.nvidia.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
-        >
-          Get NVIDIA API key
-        </a>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan mr-2">⚿</span> DEEPSEEK_API_KEY
-        </label>
-        <input
-          type="password"
-          className="cyber-input"
-          value={settings.deepseekApiKey}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, deepseekApiKey: e.target.value }))
-          }
-          placeholder="sk-..."
-          autoComplete="off"
-        />
-        <a
-          href="https://platform.deepseek.com/api_keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
-        >
-          Get DeepSeek API key
-        </a>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan mr-2">⚿</span> OPENAI_API_KEY
-        </label>
-        <input
-          type="password"
-          className="cyber-input"
-          value={settings.openaiApiKey}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, openaiApiKey: e.target.value }))
-          }
-          placeholder="sk-..."
-          autoComplete="off"
-        />
-        <a
-          href="https://platform.openai.com/api-keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
-        >
-          Get OpenAI API key
-        </a>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan mr-2">⚿</span> OPENCODE_GO_API_KEY
-        </label>
-        <input
-          type="password"
-          className="cyber-input"
-          value={settings.opencodeGoApiKey}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, opencodeGoApiKey: e.target.value }))
-          }
-          placeholder="sk-..."
-          autoComplete="off"
-        />
-        <a
-          href="https://opencode.ai/auth"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
-        >
-          Get OpenCode Go API key
-        </a>
-      </div>
-        </>
+      <CloudApiKeysSection settings={settings} setSettings={setSettings} />
+      </>
       )}
 
       {isElectron() && (
