@@ -2863,6 +2863,8 @@ ipcMain.handle(
 
       const promoteToBackground = () => {
         if (settled) return
+        // Drain throttle before the empty check / agent snapshot (same race as close).
+        stdio.flush()
         if (!stdout.trim() && !stderr.trim()) return
         settled = true
         promotedToBackground = true
@@ -2873,7 +2875,6 @@ ipcMain.handle(
           action: 'upsert',
           process: toPublicProcess(runState),
         })
-        stdio.flush()
         sendOutput({
           stream: 'system',
           text: '[still running — returned to agent; tracked as background]',
@@ -2915,6 +2916,11 @@ ipcMain.handle(
           })
           return
         }
+        // Drain ChunkThrottle BEFORE snapshotting stdout/stderr. Fast commands
+        // (nvidia-smi, echo, …) often exit while output is still buffered; flushing
+        // only inside finish() left the agent with "(no output)" while the UI still
+        // received the late chunks.
+        stdio.flush()
         if (runState.killed) {
           sendOutput({ stream: 'stderr', text: stoppedLabel })
           finish({

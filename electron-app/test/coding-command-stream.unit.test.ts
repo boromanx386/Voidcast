@@ -46,6 +46,23 @@ describe('ChunkThrottle', () => {
     vi.advanceTimersByTime(50)
     expect(flushed).toEqual(['hello'])
   })
+
+  it('flush-before-snapshot keeps agent return in sync with UI (fast-exit race)', () => {
+    vi.useFakeTimers()
+    let stdout = ''
+    const t = new ChunkThrottle((stream, text) => {
+      if (stream === 'stdout') stdout += text
+    }, 50)
+
+    // Process writes and exits before the 50ms throttle fires.
+    t.push('stdout', 'NVIDIA-SMI 591.59')
+    const agentSawWithoutFlush = stdout.trim() || '(no output)'
+    expect(agentSawWithoutFlush).toBe('(no output)')
+
+    t.flush()
+    const agentSawAfterFlush = stdout.trim() || '(no output)'
+    expect(agentSawAfterFlush).toBe('NVIDIA-SMI 591.59')
+  })
 })
 
 describe('mark/consumeLastExecuteCommandStreamed', () => {

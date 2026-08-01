@@ -28,6 +28,11 @@ export type CodingStdioAttachResult = {
 
 /**
  * Wire stdout/stderr → throttled onChunk. Same path for foreground and background.
+ *
+ * Callers that return captured stdout/stderr to the agent MUST `flush()` before
+ * reading those accumulators. Otherwise a process that exits within `throttleMs`
+ * leaves bytes in the buffer: the UI still gets them on a late flush, but the
+ * tool result can be empty (`(no output)`).
  */
 export function attachCodingProcessStdio(
   child: Pick<ChildProcessWithoutNullStreams, 'stdout' | 'stderr'>,
