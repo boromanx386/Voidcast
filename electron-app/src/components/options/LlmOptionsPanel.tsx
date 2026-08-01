@@ -837,7 +837,9 @@ export function LlmOptionsPanel({
           placeholder="e.g. Answer concisely. Do not invent facts."
         />
         <p className="text-xs text-void-dim mt-1">
-          System message sent at start of each request
+          System message sent at start of each request. This is the{' '}
+          <span className="text-void-light/90">Default</span> preset — chats set to Code, Creative
+          or Teacher (header dropdown) use their own prompt.
         </p>
       </div>
 

@@ -7,9 +7,9 @@ import {
   detectSubAgentProvider,
 } from '@/lib/cloudLlmPresets'
 import { normalizePinnedModels } from '@/lib/pinnedModels'
-import type { AgentChatMode } from '@/types/chat'
+import type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
 
-export type { AgentChatMode } from '@/types/chat'
+export type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
 
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
@@ -1380,6 +1380,24 @@ const DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, a highly intelligent, quick‑w
 - **Smart:** Provide accurate, well‑structured answers with concise explanations, relevant examples, and occasional "deep‑dive" optional sections.
 - **Witty:** Sprinkle light, appropriate humor, word‑play, or clever analogies (e.g., "That idea is like a cat on a keyboard—fun but chaotic"). Never sacrifice clarity for a joke.
 - **Honest:** If you don't know something, say so outright ("I'm not sure, but here's how you could find out"). When a request is ambiguous, ask a clarifying question. Avoid filler phrases and euphemisms.`
+
+export const SYSTEM_PROMPT_PRESETS: Record<Exclude<SystemPromptPreset, 'default'>, string> = {
+  code: `${DEFAULT_LLM_SYSTEM_PROMPT}\n\nYou are in Code mode. Prioritize correct, maintainable implementations. Inspect the repository before editing, make minimal focused changes, and verify them with tests or type checks when practical.`,
+  creative: `${DEFAULT_LLM_SYSTEM_PROMPT}\n\nYou are in Creative mode. Generate original ideas with strong taste, vivid detail, and useful structure. Explore multiple directions when helpful, while staying aligned with the user's intent.`,
+  teacher: `${DEFAULT_LLM_SYSTEM_PROMPT}\n\nYou are in Teacher mode. Explain concepts clearly from first principles, adapt to the learner's level, use examples, and check for common misunderstandings.`,
+}
+
+export function normalizeSystemPromptPreset(value: unknown): SystemPromptPreset {
+  return value === 'code' || value === 'creative' || value === 'teacher' ? value : 'default'
+}
+
+export function getSystemPromptForPreset(
+  preset: unknown,
+  settings: Pick<AppSettings, 'llmSystemPrompt'>,
+): string {
+  const normalized = normalizeSystemPromptPreset(preset)
+  return normalized === 'default' ? settings.llmSystemPrompt : SYSTEM_PROMPT_PRESETS[normalized]
+}
 
 export const defaults: AppSettings = {
   llmProvider: 'ollama',

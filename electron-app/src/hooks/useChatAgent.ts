@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type MutableRefObject,
   type SetStateAction,
 } from 'react'
 import { buildAgentTurnContext } from '@/lib/buildAgentTurnContext'
@@ -59,7 +60,13 @@ import {
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import { toConversationTurns } from '@/lib/chatHints'
-import type { AgentChatMode, FileAttachmentSnapshot, PlanArtifact, UiMessage } from '@/types/chat'
+import type {
+  AgentChatMode,
+  FileAttachmentSnapshot,
+  PlanArtifact,
+  SystemPromptPreset,
+  UiMessage,
+} from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
 
 export type UseChatAgentDeps = {
@@ -76,6 +83,8 @@ export type UseChatAgentDeps = {
   codingContextMemo: CodingContextMemo
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
   activeSessionId: string | null
+  /** Live per-chat preset — read at send time so the current session wins. */
+  systemPromptPresetRef: MutableRefObject<SystemPromptPreset>
   onContextCompressed?: (params: {
     summary: string
     throughIndex: number
@@ -161,6 +170,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     codingContextMemo,
     codingFileCacheRef,
     activeSessionId,
+    systemPromptPresetRef,
     onContextCompressed,
     pendingImages,
     setPendingImages,
@@ -402,6 +412,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       const turnContext = await buildAgentTurnContext({
         settings: turnSettings,
+        systemPromptPreset: systemPromptPresetRef.current,
         activeHistory,
         text,
         queued,

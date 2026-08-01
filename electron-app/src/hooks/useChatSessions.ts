@@ -21,10 +21,14 @@ import {
   normalizeImageVisionCache,
   type ImageVisionCache,
 } from '@/lib/imageVisionCache'
-import { loadSettings, type AppSettings } from '@/lib/settings'
+import {
+  loadSettings,
+  normalizeSystemPromptPreset,
+  type AppSettings,
+} from '@/lib/settings'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
-import type { ChatSession, UiMessage } from '@/types/chat'
+import type { ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
 
 export type ChatSessionsDeps = {
   settings: AppSettings
@@ -97,6 +101,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [sessionsHydrated, setSessionsHydrated] = useState(false)
+  /** Preset applied when the next brand-new session is created (no active session yet). */
+  const [pendingNewSessionPreset, setPendingNewSessionPreset] =
+    useState<SystemPromptPreset>('default')
 
   // Load sessions from IndexedDB (one-time localStorage migration on first run)
   useEffect(() => {
@@ -106,15 +113,22 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       if (cancelled) return
       let sessionsMigrated = false
       const sessions = state.sessions.map((s) => {
-        if (!s.hiddenContextSummary?.trim()) return s
+        // Legacy/unknown system prompt preset values resolve to 'default'.
+        let next = s
+        const preset = normalizeSystemPromptPreset(s.systemPromptPreset)
+        if (preset !== s.systemPromptPreset) {
+          sessionsMigrated = true
+          next = { ...s, systemPromptPreset: preset }
+        }
+        if (!next.hiddenContextSummary?.trim()) return next
         const through = resolveContextCompressedThroughIndex(
-          s.hiddenContextSummary,
-          s.contextCompressedThroughIndex,
-          s.messages.length,
+          next.hiddenContextSummary,
+          next.contextCompressedThroughIndex,
+          next.messages.length,
         )
-        if ((s.contextCompressedThroughIndex ?? 0) === through) return s
+        if ((next.contextCompressedThroughIndex ?? 0) === through) return next
         sessionsMigrated = true
-        return { ...s, contextCompressedThroughIndex: through }
+        return { ...next, contextCompressedThroughIndex: through }
       })
       setSessions(sessions)
       if (sessionsMigrated) {
@@ -177,6 +191,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         createdAt: now,
         updatedAt: now,
         messages,
+        systemPromptPreset: pendingNewSessionPreset,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         contextCompressedThroughIndex: hiddenContextSummary.trim()
           ? contextCompressedThroughIndex
@@ -249,6 +264,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     settings.coding.projectPath,
     settings.codingProjectPath,
     settings.autoSaveChat,
+    pendingNewSessionPreset,
   ])
 
   const activeSessionUseLongMemory = settings.longMemoryDefaultEnabled
@@ -267,6 +283,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
     setActiveSessionId(null)
+    setPendingNewSessionPreset('default')
     setSessionDirty(false)
     setPendingDeleteId(null)
     setRenamingSessionId(null)
@@ -329,6 +346,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       createdAt: now,
       updatedAt: now,
       messages: session.messages,
+      systemPromptPreset: session.systemPromptPreset,
       hiddenContextSummary: session.hiddenContextSummary,
       contextCompressedThroughIndex: session.contextCompressedThroughIndex,
       codingContextMemo: session.codingContextMemo,
@@ -403,6 +421,27 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setSettings((prev) => ({ ...prev, longMemoryDefaultEnabled: enabled }))
   }
 
+  /** Per-chat system prompt preset: applies from the next message. */
+  const setSystemPromptPresetForActiveChat = (preset: SystemPromptPreset) => {
+    if (!activeSessionId) {
+      // Brand-new (unsaved) chat — stash for the session created on first message.
+      setPendingNewSessionPreset(preset)
+      return
+    }
+    const idx = sessions.findIndex((s) => s.id === activeSessionId)
+    if (idx < 0) return
+    const current = sessions[idx]
+    if ((current.systemPromptPreset ?? 'default') === preset) return
+    const next = [...sessions]
+    next[idx] = { ...current, systemPromptPreset: preset, updatedAt: Date.now() }
+    setSessions(next)
+    scheduleSaveChatSessions({ sessions: next, activeSessionId })
+  }
+
+  const activeSystemPromptPreset: SystemPromptPreset = activeSessionId
+    ? sessions.find((s) => s.id === activeSessionId)?.systemPromptPreset ?? 'default'
+    : pendingNewSessionPreset
+
   const saveOrUpdateSession = () => {
     if (messages.length === 0) return
     const now = Date.now()
@@ -413,6 +452,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       messages,
+      systemPromptPreset: existing?.systemPromptPreset ?? pendingNewSessionPreset,
       hiddenContextSummary: hiddenContextSummary.trim() || undefined,
       contextCompressedThroughIndex: hiddenContextSummary.trim()
         ? contextCompressedThroughIndex
@@ -525,5 +565,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     cancelRenameSession,
     commitRenameSession,
     setUseLongMemoryForActiveChat,
+    activeSystemPromptPreset,
+    setSystemPromptPresetForActiveChat,
   }
 }

@@ -4,6 +4,7 @@ import { chatFileAcceptList } from '@/lib/fileAttachment'
 import { isWebStandalone } from '@/lib/platform'
 import { getChatComposerPlaceholder } from '@/components/chat/chatEmptyState'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
+import type { SystemPromptPreset } from '@/types/chat'
 
 type Props = {
   app: Pick<
@@ -26,6 +27,8 @@ type Props = {
     | 'sttPending'
     | 'recordingDuration'
     | 'toggleSttRecording'
+    | 'activeSystemPromptPreset'
+    | 'setSystemPromptPresetForActiveChat'
   >
 }
 
@@ -49,6 +52,8 @@ export function ChatComposer({ app }: Props) {
     sttPending,
     recordingDuration,
     toggleSttRecording,
+    activeSystemPromptPreset,
+    setSystemPromptPresetForActiveChat,
   } = app
 
   const canSend = useMemo(
@@ -332,6 +337,32 @@ export function ChatComposer({ app }: Props) {
                 )}
               </button>
             )}
+
+            {/* Per-chat system prompt preset — chip styled like pinned LLM models */}
+            <div
+              className="relative shrink-0"
+              title="System prompt preset — applies from the next message"
+            >
+              <select
+                className="cursor-pointer appearance-none rounded-full border py-px pl-2 pr-3.5 font-mono text-[9px] uppercase tracking-wide transition-colors border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan hover:border-neon-cyan"
+                value={activeSystemPromptPreset}
+                onChange={(e) =>
+                  setSystemPromptPresetForActiveChat(e.target.value as SystemPromptPreset)
+                }
+                aria-label="System prompt preset"
+              >
+                <option value="default">Default</option>
+                <option value="code">Code</option>
+                <option value="creative">Creative</option>
+                <option value="teacher">Teacher</option>
+              </select>
+              <span
+                className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[7px] leading-none text-neon-cyan/80"
+                aria-hidden
+              >
+                ▾
+              </span>
+            </div>
 
             {busy ? (
               <button

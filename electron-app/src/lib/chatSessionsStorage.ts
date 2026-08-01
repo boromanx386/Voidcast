@@ -7,6 +7,7 @@ import {
 } from '@/lib/chatSessionsIndexedDb'
 import { normalizeImageVisionCache } from '@/lib/imageVisionCache'
 import { normalizePlanArtifact } from '@/lib/planArtifact'
+import { normalizeSystemPromptPreset } from '@/lib/settings'
 import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
 /** Drop image payloads before persistence — avoids quota blowups (MVP). */
@@ -83,7 +84,9 @@ function normalizeSession(raw: ChatSession): ChatSession {
   const imageVisionCache = normalizeImageVisionCache(raw.imageVisionCache)
   const hasVisionCache = Object.keys(imageVisionCache).length > 0
   const messages = Array.isArray(raw.messages) ? raw.messages.map(normalizeMessage) : raw.messages
-  const base: ChatSession = { ...raw, messages }
+  // Legacy/unknown preset values normalize to 'default' before persistence.
+  const systemPromptPreset = normalizeSystemPromptPreset(raw.systemPromptPreset)
+  const base: ChatSession = { ...raw, messages, systemPromptPreset }
   if (!raw.codingContextMemo) {
     return hasVisionCache ? { ...base, imageVisionCache } : base
   }

@@ -3,6 +3,8 @@ export type ChatRole = 'user' | 'assistant'
 /** Composer / turn mode: Agent implements; Plan explores read-only then proposes steps. */
 export type AgentChatMode = 'agent' | 'plan'
 
+export type SystemPromptPreset = 'default' | 'code' | 'creative' | 'teacher'
+
 export type PlanStep = {
   id: string
   text: string
@@ -86,6 +88,8 @@ export type ChatSession = {
   createdAt: number
   updatedAt: number
   messages: ChatSessionMessage[]
+  /** System prompt preset used by this chat. Missing legacy values resolve to default. */
+  systemPromptPreset?: SystemPromptPreset
   /**
    * Internal compressed memory for long chats.
    * Never rendered as a visible chat message.

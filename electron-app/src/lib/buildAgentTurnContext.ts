@@ -38,6 +38,7 @@ import {
   getAgentVisibleSettings,
   getRunwareMusicProfileForModel,
   getRunwareProfileForModel,
+  getSystemPromptForPreset,
   type AppSettings,
   type RunwareModelProfile,
   type RunwareMusicModelProfile,
@@ -68,6 +69,8 @@ export type BuildAgentTurnContextParams = {
   /** Live foreground/background coding shell processes for CTX hint. */
   activeCodingProcesses?: ActiveCodingProcess[]
   activeSessionUseLongMemory: boolean
+  /** Per-chat system prompt preset; resolved via getSystemPromptForPreset. */
+  systemPromptPreset?: unknown
   /**
    * Approve & Build turn with Plan research attached — softens broad explore pressure.
    */
@@ -107,6 +110,7 @@ export async function buildAgentTurnContext(
     codingContextMemo,
     activeCodingProcesses = [],
     activeSessionUseLongMemory,
+    systemPromptPreset,
     buildWithResearch = false,
   } = params
 
@@ -320,7 +324,7 @@ export async function buildAgentTurnContext(
       : undefined
 
   const history = buildOllamaMessages(priorHistory, ollamaUserText, {
-    systemPrompt: settings.llmSystemPrompt,
+    systemPrompt: getSystemPromptForPreset(systemPromptPreset, settings),
     projectInstructionsHint: projectInstructionsHint || undefined,
     planModeSystemHint: planModeSystemHint || undefined,
     skillsSystemHint: skillsSystemHint || undefined,

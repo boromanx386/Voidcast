@@ -12,7 +12,7 @@ import { useLongMemoryUi } from '@/hooks/useLongMemoryUi'
 import { useSttInput } from '@/hooks/useSttInput'
 import { useTtsPlayback } from '@/hooks/useTtsPlayback'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
-import type { ChatSession, UiMessage } from '@/types/chat'
+import type { ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
 import type { OptionsTab, Screen } from '@/types/voidcast'
 
 export type { OptionsTab, Screen } from '@/types/voidcast'
@@ -48,6 +48,7 @@ export function useVoidcastApp() {
   const sessionsRef = useRef<ChatSession[]>([])
   const setSessionsRef = useRef<React.Dispatch<React.SetStateAction<ChatSession[]>>>(() => {})
   const activeSessionIdRef = useRef<string | null>(null)
+  const activeSystemPromptPresetRef = useRef<SystemPromptPreset>('default')
   const busyRef = useRef(false)
   const editingMessageIdRef = useRef<string | null>(null)
   const setErrorRef = useRef<(error: string | null) => void>(() => {})
@@ -94,6 +95,7 @@ export function useVoidcastApp() {
     codingContextMemo: coding.codingContextMemo,
     codingFileCacheRef: coding.codingFileCacheRef,
     activeSessionId: activeSessionIdRef.current,
+    systemPromptPresetRef: activeSystemPromptPresetRef,
     onContextCompressed: ({ summary, throughIndex, activeSessionId: sessionId }) => {
       if (!sessionId) return
       setSessionsRef.current((prev) => {
@@ -170,6 +172,7 @@ export function useVoidcastApp() {
   sessionsRef.current = sessions.sessions
   setSessionsRef.current = sessions.setSessions
   activeSessionIdRef.current = sessions.activeSessionId
+  activeSystemPromptPresetRef.current = sessions.activeSystemPromptPreset
   setSessionDirtyRef.current = sessions.setSessionDirty
 
   const stt = useSttInput({
