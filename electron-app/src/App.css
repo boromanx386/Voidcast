@@ -286,6 +286,42 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply bg-neon-purple/10 text-neon-purple;
 }
 
+.composer-preset-trigger {
+  @apply shrink-0 inline-flex items-center justify-center gap-1;
+  @apply rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide;
+  @apply border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan transition-colors;
+  @apply hover:border-neon-cyan hover:bg-neon-cyan/15 disabled:opacity-40;
+}
+
+.composer-preset-trigger[aria-expanded='true'] {
+  @apply border-neon-cyan bg-neon-cyan/20;
+}
+
+.composer-preset-dropdown {
+  @apply absolute bottom-full left-0 z-50 mb-1.5 min-w-[9.5rem];
+  @apply border border-void-muted/80 bg-void-black/95 py-1 shadow-lg backdrop-blur-sm;
+  clip-path: polygon(
+    0 6px,
+    6px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    0 calc(100% - 6px)
+  );
+}
+
+.composer-preset-option {
+  @apply flex w-full items-center gap-2 px-3 py-1.5 text-left;
+  @apply font-mono text-[10px] uppercase tracking-wider transition-colors;
+  @apply text-void-dim hover:bg-void-mid/50 hover:text-void-light;
+}
+
+.composer-preset-option--active {
+  @apply text-neon-cyan;
+}
+
 .composer-plan-hint {
   @apply mt-1.5 text-[10px] font-mono text-void-dim/80 leading-relaxed;
 }
