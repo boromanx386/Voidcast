@@ -348,11 +348,14 @@ export function buildCodingTurnSummary(params: {
   const fails = uniqueDetails(log.events, 'fail', 6)
   const searches = uniqueDetails(log.events, 'search', 4)
   const explores = uniqueDetails(log.events, 'explore', 2)
+  const symbols = uniqueDetails(log.events, 'symbols', 4)
 
   // Skip summary if the turn was only searches/explores with no mutations — still useful though.
   const hasSignal =
     edits.length + writes.length + commands.length + checks.length + fails.length > 0
-  if (!hasSignal && searches.length === 0 && explores.length === 0) return ''
+  if (!hasSignal && searches.length === 0 && explores.length === 0 && symbols.length === 0) {
+    return ''
+  }
 
   const goal = params.userGoal.trim().replace(/\s+/g, ' ').slice(0, 160)
   const lines: string[] = ['Last coding turn:']
@@ -371,10 +374,11 @@ export function buildCodingTurnSummary(params: {
     lines.push('Checks:')
     for (const c of checks) lines.push(`- ${c}`)
   }
-  if (searches.length || explores.length) {
+  if (searches.length || explores.length || symbols.length) {
     lines.push('Looked at:')
     for (const s of searches) lines.push(`- search: ${s}`)
     for (const e of explores) lines.push(`- explore: ${e}`)
+    for (const s of symbols) lines.push(`- symbols: ${s}`)
   }
   if (fails.length) {
     lines.push('Unresolved failures:')
@@ -391,6 +395,44 @@ export function buildCodingTurnSummary(params: {
 
   lines.push('Continue from this state; do not redo completed edits unless asked.')
   return lines.join('\n').slice(0, CODING_TURN_SUMMARY_MAX_CHARS)
+}
+
+export const CODING_PLAN_HANDOFF_MAX_CHARS = 4500
+
+/**
+ * Compact block injected into a Plan turn after enter_plan_mode so exploration
+ * from the aborted agent turn is not discarded. Empty when nothing useful.
+ */
+export function buildPlanHandoffContextHint(
+  memo: CodingContextMemo,
+  opts?: { turnSummary?: string },
+): string {
+  const summary = (opts?.turnSummary ?? memo.lastTurnSummary).trim()
+  const digests = memo.recentFileDigests ?? []
+  const files = memo.recentFiles ?? []
+  const searches = memo.recentSearches ?? []
+  if (!summary && digests.length === 0 && files.length === 0 && searches.length === 0) {
+    return ''
+  }
+
+  const lines: string[] = [
+    'Prior agent-mode exploration for this same user request — do NOT redo broad coding_explore, glob_files, full-tree list_directory, or whole-file re-reads. Draft the plan from this research; use targeted tools only for clear gaps.',
+  ]
+  if (summary) {
+    lines.push('', summary)
+  }
+  if (digests.length > 0) {
+    lines.push('', 'File digests:')
+    for (const d of digests) {
+      lines.push(`- ${d.path}: ${d.digest}`)
+    }
+  } else if (files.length > 0) {
+    lines.push('', `Recent files: ${files.join(', ')}`)
+  }
+  if (searches.length > 0) {
+    lines.push(`Recent searches: ${searches.join(' | ')}`)
+  }
+  return lines.join('\n').slice(0, CODING_PLAN_HANDOFF_MAX_CHARS)
 }
 
 export function getCodingProjectPath(settings: Pick<AppSettings, 'coding' | 'codingProjectPath'>): string {

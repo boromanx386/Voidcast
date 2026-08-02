@@ -49,7 +49,7 @@ import {
   discoverAgentSkills,
   loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
-import { BUILD_WITH_RESEARCH_SYSTEM_HINT, PLAN_MODE_SYSTEM_HINT } from '@/lib/planArtifact'
+import { BUILD_WITH_RESEARCH_SYSTEM_HINT, buildPlanModeSystemHint } from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { ensureMcpToolsCached, type McpToolInfo } from '@/lib/mcpTools'
 import { isElectron } from '@/lib/platform'
@@ -75,6 +75,10 @@ export type BuildAgentTurnContextParams = {
    * Approve & Build turn with Plan research attached — softens broad explore pressure.
    */
   buildWithResearch?: boolean
+  /**
+   * enter_plan_mode handoff: prior agent-turn exploration to reuse in Plan mode.
+   */
+  planHandoffContext?: string
 }
 
 export type BuildAgentTurnContextResult = {
@@ -112,6 +116,7 @@ export async function buildAgentTurnContext(
     activeSessionUseLongMemory,
     systemPromptPreset,
     buildWithResearch = false,
+    planHandoffContext = '',
   } = params
 
   const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
@@ -200,10 +205,14 @@ export async function buildAgentTurnContext(
       ? await loadProjectAgentInstructions({ projectPath: codingProjectPath })
       : []
   const projectInstructionsHint = buildProjectInstructionsHint(projectInstructionFiles)
-  const planModeSystemHint = planMode ? PLAN_MODE_SYSTEM_HINT : ''
+  const handoffHint = planHandoffContext.trim()
+  const planModeSystemHint = planMode
+    ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint) })
+    : ''
   const buildResearchSystemHint =
     !planMode && buildWithResearch ? BUILD_WITH_RESEARCH_SYSTEM_HINT : ''
   const toolsHintParts: string[] = []
+  if (handoffHint && planMode) toolsHintParts.push(handoffHint)
   if (buildResearchSystemHint) toolsHintParts.push(buildResearchSystemHint)
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
   if (mcpActive) {

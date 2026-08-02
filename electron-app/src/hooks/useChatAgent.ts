@@ -22,6 +22,7 @@ import { resolveContextLimit } from '@/lib/contextLimit'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
 import {
   buildCodingTurnSummary,
+  buildPlanHandoffContextHint,
   emptyCodingFileCache,
   emptyCodingTurnLog,
   recordCodingToolInTurnLog,
@@ -81,6 +82,7 @@ export type UseChatAgentDeps = {
   imageVisionCache: ImageVisionCache
   setImageVisionCache: Dispatch<SetStateAction<ImageVisionCache>>
   codingContextMemo: CodingContextMemo
+  codingContextMemoRef: MutableRefObject<CodingContextMemo>
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
   activeSessionId: string | null
   /** Live per-chat preset — read at send time so the current session wins. */
@@ -125,6 +127,8 @@ export type OnSendOptions = {
   buildFromPlanMessageId?: string
   /** enter_plan_mode handoff: reuse attachments from the last user message in history. */
   planHandoff?: boolean
+  /** Prior agent-turn exploration text injected into the Plan turn system/tools hint. */
+  planHandoffContext?: string
 }
 
 function lastUserMessage(history: UiMessage[]): UiMessage | undefined {
@@ -168,6 +172,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     imageVisionCache,
     setImageVisionCache,
     codingContextMemo,
+    codingContextMemoRef,
     codingFileCacheRef,
     activeSessionId,
     systemPromptPresetRef,
@@ -420,7 +425,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         hiddenContextSummary,
         contextCompressedThroughIndex,
         imageVisionCache,
-        codingContextMemo,
+        codingContextMemo: codingContextMemoRef.current,
         activeCodingProcesses,
         activeSessionUseLongMemory,
         buildWithResearch: (() => {
@@ -431,6 +436,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             activeHistory.find((m) => m.id === planMsgId)?.plan
           return planHasResearch(plan)
         })(),
+        planHandoffContext: opts?.planHandoffContext,
       })
 
       const {
@@ -589,7 +595,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             userImageMimes: toolImageCatalog.map((x) => x.mime),
             userImagePaths: toolImageCatalog.map((x) => x.path || ''),
             codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
-            codingRecentFiles: codingContextMemo.recentFiles,
+            codingRecentFiles: codingContextMemoRef.current.recentFiles,
             codingFileCacheRef,
             subAgent: settings.subAgent,
             ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
@@ -878,6 +884,25 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           : userMsg
             ? [...activeHistory, userMsg]
             : activeHistory
+        // Sync turn summary + digests into memo/ref before the Plan re-send so the
+        // handoff turn does not see a stale closure memo and re-explore from scratch.
+        let handoffContext = ''
+        if (settings.toolsEnabled.coding) {
+          const summary = buildCodingTurnSummary({
+            userGoal: text,
+            log: turnLogMutable,
+            assistantReply: replyText,
+          })
+          if (summary) {
+            setCodingContextMemo((prev) => ({
+              ...prev,
+              lastTurnSummary: summary,
+            }))
+          }
+          handoffContext = buildPlanHandoffContextHint(codingContextMemoRef.current, {
+            turnSummary: summary || codingContextMemoRef.current.lastTurnSummary,
+          })
+        }
         setMessages((prev) => prev.filter((m) => m.id !== asstId))
         onSessionDirty()
         void onSend({
@@ -886,6 +911,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           skipAddUserMsg: true,
           history: handoffHistory,
           planHandoff: true,
+          planHandoffContext: handoffContext || undefined,
         })
         return
       }
@@ -904,6 +930,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       activeSessionUseLongMemory,
       busy,
       codingContextMemo,
+      codingContextMemoRef,
       activeCodingProcesses,
       contextCompressedThroughIndex,
       effectivePdfOutputDir,

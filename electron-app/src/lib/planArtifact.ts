@@ -220,47 +220,65 @@ export const BUILD_WITH_RESEARCH_SYSTEM_HINT = [
 ].join(' ')
 
 /** System hint appended in Plan mode — explore read-only, end with JSON plan fence. */
-export const PLAN_MODE_SYSTEM_HINT = [
-  'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or mutate settings/reminders.',
-  'When coding_explore is available, prefer it for broad codebase mapping before drafting the plan.',
-  'After enough exploration, end with a structured plan. Default to ONE flat plan (no approaches) when the path is clear.',
-  'Offer approaches only when there are real tradeoffs (e.g. speed vs safety vs scope). Prefer 2 distinct options; add a 3rd only if it is meaningfully different — never pad with filler. Optionally add a 4th (D) only when warranted.',
-  'Always include a compact "research" object with keyFiles (paths you explored), findings (1-3 sentence summary of architecture + where to edit), and searches so Approve & Build can reuse them. Base findings on what coding_explore / read_file / search_files revealed — do not invent them from the user prompt alone. Keep findings under ~2500 characters.',
-  'End your reply with a fenced JSON block tagged `json plan`. Preferred shapes:',
-  '',
-  'Flat plan (most tasks):',
-  '```json plan',
-  '{',
-  '  "title": "Short plan title",',
-  '  "summary": "Optional 1-3 sentence overview",',
-  '  "steps": ["Step 1…", "Step 2…"],',
-  '  "research": {',
-  '    "keyFiles": ["src/path/a.ts", "src/path/b.ts"],',
-  '    "findings": "Compact digest for Build: where to edit, relevant APIs, constraints.",',
-  '    "searches": ["optional query crumbs"]',
-  '  }',
-  '}',
-  '```',
-  '',
-  'When tradeoffs matter (2 approaches — add C/D only if needed):',
-  '```json plan',
-  '{',
-  '  "title": "Short plan title",',
-  '  "summary": "Optional overview of the decision",',
-  '  "approaches": [',
-  '    { "id": "A", "label": "Short name", "summary": "Tradeoff in one line", "steps": ["Step 1…", "Step 2…"] },',
-  '    { "id": "B", "label": "…", "summary": "…", "steps": ["…"] }',
-  '  ],',
-  '  "recommended": "A",',
-  '  "research": {',
-  '    "keyFiles": ["…"],',
-  '    "findings": "…"',
-  '  }',
-  '}',
-  '```',
-  'Each approach must have actionable ordered steps. Do not claim work was already done.',
-  'If the user asks to revise with their own idea, adapt the plan to that preference and emit a fresh json plan fence (flat or approaches as appropriate), including updated research when exploration changed.',
-].join('\n')
+export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string {
+  const lines = [
+    'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or mutate settings/reminders.',
+  ]
+  if (opts?.hasHandoff) {
+    lines.push(
+      'A prior agent-mode exploration handoff is attached (digests / files / searches). Prefer that research over coding_explore, broad glob_files, and full-tree list_directory. Use a targeted read or find_symbols only when a concrete gap blocks a good plan.',
+    )
+  } else {
+    lines.push(
+      'When coding_explore is available, prefer it for broad codebase mapping before drafting the plan.',
+      'After enough exploration, end with a structured plan.',
+    )
+  }
+  lines.push(
+    'Default to ONE flat plan (no approaches) when the path is clear.',
+    'Offer approaches only when there are real tradeoffs (e.g. speed vs safety vs scope). Prefer 2 distinct options; add a 3rd only if it is meaningfully different — never pad with filler. Optionally add a 4th (D) only when warranted.',
+    'Steps must be concrete: name the files/modules to touch and what to change in each (not vague "update the module" / "wire it up").',
+    'Always include a compact "research" object with keyFiles (paths you explored), findings (architecture + exact edit points), and searches so Approve & Build can reuse them. Base findings on coding_explore / read_file / search_files / handoff digests — do not invent them from the user prompt alone. Keep findings under ~2500 characters.',
+    'End your reply with a fenced JSON block tagged `json plan`. Preferred shapes:',
+    '',
+    'Flat plan (most tasks):',
+    '```json plan',
+    '{',
+    '  "title": "Short plan title",',
+    '  "summary": "Optional 1-3 sentence overview",',
+    '  "steps": ["Edit src/foo.ts: …", "Step 2…"],',
+    '  "research": {',
+    '    "keyFiles": ["src/path/a.ts", "src/path/b.ts"],',
+    '    "findings": "Compact digest for Build: where to edit, relevant APIs, constraints.",',
+    '    "searches": ["optional query crumbs"]',
+    '  }',
+    '}',
+    '```',
+    '',
+    'When tradeoffs matter (2 approaches — add C/D only if needed):',
+    '```json plan',
+    '{',
+    '  "title": "Short plan title",',
+    '  "summary": "Optional overview of the decision",',
+    '  "approaches": [',
+    '    { "id": "A", "label": "Short name", "summary": "Tradeoff in one line", "steps": ["Edit path: …", "Step 2…"] },',
+    '    { "id": "B", "label": "…", "summary": "…", "steps": ["…"] }',
+    '  ],',
+    '  "recommended": "A",',
+    '  "research": {',
+    '    "keyFiles": ["…"],',
+    '    "findings": "…"',
+    '  }',
+    '}',
+    '```',
+    'Each approach must have actionable ordered steps with file-level detail. Do not claim work was already done.',
+    'If the user asks to revise with their own idea, adapt the plan to that preference and emit a fresh json plan fence (flat or approaches as appropriate), including updated research when exploration changed.',
+  )
+  return lines.join('\n')
+}
+
+/** @deprecated Prefer buildPlanModeSystemHint() — kept for callers/tests that import the constant. */
+export const PLAN_MODE_SYSTEM_HINT = buildPlanModeSystemHint()
 
 type RawPlanJson = {
   title?: unknown

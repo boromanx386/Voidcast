@@ -70,6 +70,8 @@ export type UseCodingSessionResult = {
   revealCodingFile: (path: string) => void
   codingContextMemo: CodingContextMemo
   setCodingContextMemo: React.Dispatch<React.SetStateAction<CodingContextMemo>>
+  /** Always-current memo for same-tick handoffs (enter_plan_mode); prefer over closure state. */
+  codingContextMemoRef: React.MutableRefObject<CodingContextMemo>
   codingFileCache: CodingFileCache
   setCodingFileCache: React.Dispatch<React.SetStateAction<CodingFileCache>>
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
@@ -98,9 +100,19 @@ export function useCodingSession({
   const [codingFileTreeNonce, setCodingFileTreeNonce] = useState(0)
   const [codingGitNonce, setCodingGitNonce] = useState(0)
   const [codingRevealRequest, setCodingRevealRequest] = useState<CodingRevealRequest | null>(null)
-  const [codingContextMemo, setCodingContextMemo] = useState<CodingContextMemo>(() =>
+  const [codingContextMemo, setCodingContextMemoState] = useState<CodingContextMemo>(() =>
     emptyCodingContextMemo(getCodingProjectPath(loadSettings())),
   )
+  const codingContextMemoRef = useRef(codingContextMemo)
+  codingContextMemoRef.current = codingContextMemo
+  /** Sync ref inside the updater so enter_plan_mode handoff sees digests before React re-renders. */
+  const setCodingContextMemo: React.Dispatch<React.SetStateAction<CodingContextMemo>> =
+    useCallback((action) => {
+      const prev = codingContextMemoRef.current
+      const next = typeof action === 'function' ? action(prev) : action
+      codingContextMemoRef.current = next
+      setCodingContextMemoState(next)
+    }, [])
   const [codingFileCache, setCodingFileCache] = useState<CodingFileCache>(() =>
     emptyCodingFileCache(),
   )
@@ -283,6 +295,7 @@ export function useCodingSession({
     revealCodingFile,
     codingContextMemo,
     setCodingContextMemo,
+    codingContextMemoRef,
     codingFileCache,
     setCodingFileCache,
     codingFileCacheRef,

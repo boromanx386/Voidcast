@@ -93,6 +93,7 @@ export function useVoidcastApp() {
     imageVisionCache,
     setImageVisionCache,
     codingContextMemo: coding.codingContextMemo,
+    codingContextMemoRef: coding.codingContextMemoRef,
     codingFileCacheRef: coding.codingFileCacheRef,
     activeSessionId: activeSessionIdRef.current,
     systemPromptPresetRef: activeSystemPromptPresetRef,
