@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-08-03
+
 ### Added
 
 - **Shared agent tools architecture**: tool execution moved out of the Ollama-centric path into a shared catalog + domain handlers (`toolHandlers/` for web, media, coding, app, MCP, image recall) and `agentToolExecutor`, so Ollama / OpenRouter / cloud adapters share one executor. Shared `ChatWithToolsCommonParams` + `buildToolExecutorOptions` in `agentParams.ts` remove duplicated tool-loop wiring.
@@ -19,8 +21,17 @@ All notable changes to this project will be documented in this file.
 - **Hardened coding tools — process control**: three new tools `list_processes` (active shell processes with runId, command, status), `stop_process` (kill foreground/background by runId), and `read_process_output` (poll last ~64KB of stdout/stderr with an `offset` for incremental reads). Added `run_in_background` flag to `execute_command` for dev servers/watchers that stay running after printing success. Stdout/stderr ring buffer (~256KB per process).
 - **Qwen TTS extras**: Top-level Runware `positivePrompt` (style/emotion) for `customvoice` / `voicedesign`, plus `speech.speed` (0.25–4) and `speech.language` for Qwen models. Playback and bake-phrase preview pass the new settings through. New settings: `runwareXaiPositivePrompt` (string) and `runwareTtsSpeed` (default 1.0).
 - **Runware TTS voice catalogs**: synced voice presets from current Runware schemas — full xAI (dropped invalid `auto`), Gemini (30), Inworld 1.5 (~73), MiniMax multilingual library, Fish Audio (+Ethan/Hannah/Egirl). Invalid/legacy voice ids reset to the model default on load.
+- **OpenAI Chat Completions provider**: first-class `openai` preset wired through settings, model list, sub-agents, and the LAN proxy (like DeepSeek). `reasoning_effort` is forced to `none` whenever tools are active (OpenAI rejects it with tool calling), and stream usage is requested so the CTX meter can show real token counts.
+- **Per-chat system prompt presets**: composer preset chip (`default` / `code` / `creative` / `teacher`) — select a persona per chat session, stored with the session. Presets ship in the chip as a dropup menu styled like the pinned-LLM chips.
+- **`check_types` Go + Rust support**: auto-detects Go (`go.mod` / `.go` → `go vet`) and Rust (`Cargo.toml` / `.rs` → `cargo check --message-format=json`), parsing `file:line:col` diagnostics into the same unified report format as TS/`tsc` and Python.
+- **`git_restore` / `git_stash` coding tools**: undo a bad edit on a tracked path (`git restore` from the index, or to `HEAD` with `to_head`) and checkpoint without committing (`git stash list / push / pop`). Both are blocked in Plan mode.
+- **Turn summary + post-edit working-set patch**: a compact last-turn digest is carried into the next prompt so the agent knows what changed; the file cache is patched after a successful `edit_code` instead of being invalidated wholesale.
+- **File digests across turns harvested into Plan research**: session-scoped digests from `read_file` / `find_symbols` / edits survive turn boundaries, so the Build phase reuses Plan knowledge without re-reading whole files.
+- **Exploration carried into Plan mode**: on `enter_plan_mode` handoff the coding memo is synced via ref and its digests/summary are injected into the Plan turn, softening explore pressure so Plan mode does not re-read everything from scratch.
 
 ### Changed
+
+- **Cloud API key fields collapsed into a provider chip selector**: one dynamic key input with per-provider chips (showing whether a key is set), defaulting to the active LLM provider — replaces the long list of separate key inputs in Options → General.
 
 - **Session folders default collapsed**; coding panel width range widened.
 - **Coding panel stays collapsed** when the agent edits files (no auto-expand on every write/edit).
@@ -31,6 +42,7 @@ All notable changes to this project will be documented in this file.
 - OpenCode Go multi-turn / tool-loop 400s from incompatible OpenRouter-style `reasoning` payloads — sanitized + `reasoning_content` echoed on tool turns.
 - Pinned-model IDs colliding across providers (same slug on OpenRouter vs NVIDIA / DeepSeek / OpenCode Go).
 - Gemini image generation no longer snaps dimensions to multiples of 16.
+- Command stdout throttle is flushed before the agent snapshot so the final chunk of a long-running command's output is not lost.
 
 ## [2.7.9] — 2026-07-24
 
