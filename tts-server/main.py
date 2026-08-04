@@ -33,7 +33,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -55,6 +55,7 @@ from cloud_secrets import (
     client_may_register,
     clear_registered_secrets,
     get_deepseek_key,
+    get_lan_access_token,
     get_nvidia_key,
     get_openai_key,
     get_openrouter_key,
@@ -306,11 +307,37 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="OmniVoice TTS", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
+    # Auth is header-based (x-voidcast-access-token), not cookie-based, so wildcard
+    # origin is safe here. allow_credentials MUST stay False (True + ["*"] is invalid).
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _is_loopback_host(host: str | None) -> bool:
+    return (host or "").strip().lower() in ("127.0.0.1", "::1", "localhost")
+
+
+async def require_lan_access(request: Request) -> None:
+    """Gate phone/LAN-reachable routes behind the shared access token.
+
+    Loopback (the desktop app) is always allowed so the desktop never needs the token.
+    Non-loopback callers must send `x-voidcast-access-token` (or Authorization: Bearer)
+    matching the server's token. CORS preflight (OPTIONS) is short-circuited by the
+    CORSMiddleware before this dependency runs, so browsers can negotiate the header.
+    """
+    if _is_loopback_host(request.client.host if request.client else None):
+        return
+    expected = get_lan_access_token()
+    supplied = (request.headers.get("x-voidcast-access-token") or "").strip()
+    if not supplied:
+        supplied = (request.headers.get("authorization") or "").strip()
+        if supplied.lower().startswith("bearer "):
+            supplied = supplied[7:].strip()
+    if not expected or supplied != expected:
+        raise HTTPException(status_code=401, detail="Missing or invalid LAN access token")
 
 
 def _generate_wav_bytes(req: TtsRequest) -> bytes:
@@ -518,7 +545,7 @@ def _search_web_ddgs(query: str) -> str:
     return "\n\n---\n\n".join(out)
 
 
-@app.post("/tools/search")
+@app.post("/tools/search", dependencies=[Depends(require_lan_access)])
 async def tools_search(req: SearchRequest):
     """Web search via ddgs (multiple backends); requires `pip install ddgs`."""
     try:
@@ -532,7 +559,7 @@ async def tools_search(req: SearchRequest):
         ) from e
 
 
-@app.post("/tools/youtube")
+@app.post("/tools/youtube", dependencies=[Depends(require_lan_access)])
 async def tools_youtube(req: YoutubeToolRequest):
     """YouTube search (ddgs) and/or video info + optional captions (yt-dlp, youtube-transcript-api)."""
     q = (req.query or "").strip()
@@ -599,7 +626,7 @@ def _fetch_wttr_json(city: str) -> dict[str, Any]:
     return r.json()
 
 
-@app.post("/tools/scrape")
+@app.post("/tools/scrape", dependencies=[Depends(require_lan_access)])
 async def tools_scrape(req: ScrapeRequest):
     """Fetch public http(s) URL, strip HTML → plain text (SSRF-safe)."""
     try:
@@ -615,7 +642,7 @@ async def tools_scrape(req: ScrapeRequest):
         ) from e
 
 
-@app.post("/tools/weather")
+@app.post("/tools/weather", dependencies=[Depends(require_lan_access)])
 async def tools_weather(req: WeatherRequest):
     """wttr.in JSON → same text format as Electron main."""
     try:
@@ -630,7 +657,7 @@ async def tools_weather(req: WeatherRequest):
         ) from e
 
 
-@app.post("/tools/reddit")
+@app.post("/tools/reddit", dependencies=[Depends(require_lan_access)])
 async def tools_reddit(req: RedditRequest):
     """Reddit read-only feed / search / post via public JSON endpoints (no auth)."""
     try:
@@ -655,7 +682,7 @@ async def tools_reddit(req: RedditRequest):
         ) from e
 
 
-@app.post("/tools/pdf")
+@app.post("/tools/pdf", dependencies=[Depends(require_lan_access)])
 async def tools_pdf(req: PdfRequest):
     """Render Markdown-lite content into a PDF inside `output_dir` (no dialog)."""
     if not HAS_REPORTLAB:
@@ -729,7 +756,7 @@ async def tools_cloud_secrets_clear(request: Request):
     return {"ok": True}
 
 
-@app.get("/tools/cloud-secrets-status")
+@app.get("/tools/cloud-secrets-status", dependencies=[Depends(require_lan_access)])
 async def tools_cloud_secrets_status():
     """Whether cloud API keys are available for LAN web proxy (no secret values)."""
     return {
@@ -741,6 +768,17 @@ async def tools_cloud_secrets_status():
         "openai": bool(get_openai_key()),
         "opencode_go": bool(get_opencode_go_key()),
     }
+
+
+@app.get("/tools/access-token", dependencies=[Depends(require_lan_access)])
+async def tools_access_token():
+    """Desktop LAN panel reads the LAN access token.
+
+    Gated by require_lan_access: the loopback desktop is always allowed (no header
+    needed), and any non-loopback caller must already present the token — which is
+    exactly the value returned, so nothing extra is exposed.
+    """
+    return {"token": get_lan_access_token()}
 
 
 @app.post("/tools/host-tool-config")
@@ -767,19 +805,19 @@ async def tools_host_tool_config_clear(request: Request):
     return {"ok": True}
 
 
-@app.get("/tools/host-tool-config")
+@app.get("/tools/host-tool-config", dependencies=[Depends(require_lan_access)])
 async def tools_host_tool_config_get():
     """PDF output folder on the PC running the tools server (for LAN web UI)."""
     return get_host_tool_config_snapshot()
 
 
-@app.get("/tools/user-data")
+@app.get("/tools/user-data", dependencies=[Depends(require_lan_access)])
 async def tools_user_data_get():
     """Long memory + reminders snapshot for LAN web ↔ desktop sync (no API keys)."""
     return get_snapshot()
 
 
-@app.post("/tools/user-data-sync")
+@app.post("/tools/user-data-sync", dependencies=[Depends(require_lan_access)])
 async def tools_user_data_sync(req: UserDataSyncRequest):
     """Merge long memory + reminders from any LAN client (bidirectional sync)."""
     apply_sync(req.model_dump())
@@ -810,7 +848,7 @@ def _normalize_runware_tasks(tasks: list[Any]) -> list[Any]:
     return out
 
 
-@app.post("/tools/runware_proxy")
+@app.post("/tools/runware_proxy", dependencies=[Depends(require_lan_access)])
 async def tools_runware_proxy(req: RunwareProxyRequest):
     """Proxy Runware tasks through local server to avoid renderer CORS/network issues."""
     base = req.api_base_url.strip().rstrip("/")
@@ -947,6 +985,7 @@ async def _reverse_proxy(
 @app.api_route(
     "/api/ollama/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    dependencies=[Depends(require_lan_access)],
 )
 async def ollama_proxy(request: Request, full_path: str):
     """Reverse proxy to Ollama (default http://127.0.0.1:11434). Set OLLAMA_BASE_URL."""
@@ -956,6 +995,7 @@ async def ollama_proxy(request: Request, full_path: str):
 @app.api_route(
     "/api/openrouter/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    dependencies=[Depends(require_lan_access)],
 )
 async def openrouter_proxy(request: Request, full_path: str):
     """Proxy OpenRouter for LAN web clients; API key stays on server."""
@@ -973,6 +1013,7 @@ async def openrouter_proxy(request: Request, full_path: str):
 @app.api_route(
     "/api/nvidia/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    dependencies=[Depends(require_lan_access)],
 )
 async def nvidia_proxy(request: Request, full_path: str):
     """Proxy NVIDIA integrate API for LAN web clients."""
@@ -988,6 +1029,7 @@ async def nvidia_proxy(request: Request, full_path: str):
 @app.api_route(
     "/api/deepseek/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    dependencies=[Depends(require_lan_access)],
 )
 async def deepseek_proxy(request: Request, full_path: str):
     """Proxy DeepSeek API for LAN web clients."""
@@ -1003,6 +1045,7 @@ async def deepseek_proxy(request: Request, full_path: str):
 @app.api_route(
     "/api/openai/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    dependencies=[Depends(require_lan_access)],
 )
 async def openai_proxy(request: Request, full_path: str):
     """Proxy OpenAI API for LAN web clients."""
@@ -1018,6 +1061,7 @@ async def openai_proxy(request: Request, full_path: str):
 @app.api_route(
     "/api/opencode-go/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    dependencies=[Depends(require_lan_access)],
 )
 async def opencode_go_proxy(request: Request, full_path: str):
     """Proxy OpenCode Go (no CORS on upstream). Desktop may pass Bearer; LAN uses registered key."""
@@ -1037,7 +1081,7 @@ async def opencode_go_proxy(request: Request, full_path: str):
     return await _reverse_proxy(request, OPENCODE_GO_UPSTREAM, full_path, bearer_key=key)
 
 
-@app.post("/tts")
+@app.post("/tts", dependencies=[Depends(require_lan_access)])
 async def tts(req: TtsRequest):
     """JSON: auto / design, ili voice clone preko ref_audio_base64 + opciono ref_text."""
     if not TTS_ENABLED:

@@ -41,9 +41,17 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
   const [copied, setCopied] = useState(false)
   const [lanError, setLanError] = useState<string | null>(null)
   const [secretsStatus, setSecretsStatus] = useState<SecretsStatus | null>(null)
+  const [accessToken, setAccessToken] = useState('')
 
   const port = useMemo(() => portFromTtsBaseUrl(settings.ttsBaseUrl), [settings.ttsBaseUrl])
-  const lanUrl = selectedIp ? `http://${selectedIp}:${port}/` : ''
+  const root = useMemo(
+    () => normalizeBaseUrl(settings.ttsBaseUrl.trim() || 'http://127.0.0.1:8765'),
+    [settings.ttsBaseUrl],
+  )
+  const baseUrl = selectedIp ? `http://${selectedIp}:${port}/` : ''
+  // The shared access token rides in the URL so the phone can authenticate to the
+  // proxies/data endpoints; the phone's lanAuth interceptor strips it from the bar.
+  const lanUrl = baseUrl && accessToken ? `${baseUrl}?t=${encodeURIComponent(accessToken)}` : baseUrl
 
   const refreshIps = useCallback(async () => {
     if (!isElectron() || !window.voidcast?.getLanNetworkInfo) {
@@ -75,6 +83,29 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
   }, [enabled, refreshIps])
 
   useEffect(() => {
+    if (!enabled) {
+      setAccessToken('')
+      return
+    }
+    // Fetch the shared access token from the loopback server (desktop is loopback → allowed).
+    let cancelled = false
+    fetch(`${root}/tools/access-token`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return (await res.json()) as { token?: string }
+      })
+      .then((data) => {
+        if (!cancelled && data?.token) setAccessToken(data.token)
+      })
+      .catch(() => {
+        if (!cancelled) setAccessToken('')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [enabled, root])
+
+  useEffect(() => {
     if (!enabled || !lanUrl) {
       setQrDataUrl('')
       return
@@ -94,7 +125,6 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
 
   useEffect(() => {
     if (!enabled) return
-    const root = normalizeBaseUrl(settings.ttsBaseUrl.trim() || 'http://127.0.0.1:8765')
     let cancelled = false
     const poll = () => {
       void fetch(`${root}/tools/cloud-secrets-status`)
@@ -123,7 +153,7 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
       cancelled = true
       window.clearInterval(interval)
     }
-  }, [enabled, settings.ttsBaseUrl])
+  }, [enabled, root])
 
   const anyKeyRegistered =
     secretsStatus &&
@@ -172,7 +202,14 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
         <div className="border-t border-void-muted/25 pt-3 space-y-3">
           <p className="text-xs text-void-dim leading-relaxed">
             Scan the QR code or open the URL on your phone. Keep this desktop app running so keys
-            stay registered on the local server.
+            stay registered on the local server. The URL carries a shared access token the phone
+            sends on every request (then strips from the address bar) so the LAN server only
+            serves authenticated clients.
+          </p>
+          <p className="text-[10px] font-mono text-void-dim">
+            NOTE: the token is transmitted over plain HTTP on your LAN (no TLS). Anyone already on
+            the same network can sniff it — the same trust boundary as the rest of this no-TLS
+            server. Don't port-forward 8765; TLS is out of scope for now.
           </p>
 
           {lanError && !selectedIp ? (

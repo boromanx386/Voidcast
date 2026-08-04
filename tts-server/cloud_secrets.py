@@ -3,13 +3,34 @@
 from __future__ import annotations
 
 import os
+import secrets as _secrets
 from typing import Any
 
 _registered: dict[str, str] = {}
 
+# Shared access token required from non-loopback LAN web clients (phones/tablets).
+# Priority: VOIDCAST_LAN_ACCESS_TOKEN > VOIDCAST_SECRETS_TOKEN > random per-process.
+_lan_access_token: str | None = None
+
 
 def _env_key(name: str) -> str:
     return os.environ.get(name, "").strip()
+
+
+def get_lan_access_token() -> str:
+    """Return the token LAN web clients must send to use the proxy/data endpoints.
+
+    Loopback (the desktop app) is always allowed and does not need this token; it is
+    fetched by the desktop LAN panel and embedded in the phone's QR / connection URL.
+    """
+    global _lan_access_token
+    if _lan_access_token is None:
+        _lan_access_token = (
+            _env_key("VOIDCAST_LAN_ACCESS_TOKEN")
+            or _env_key("VOIDCAST_SECRETS_TOKEN")
+            or _secrets.token_urlsafe(24)
+        )
+    return _lan_access_token
 
 
 def _merged() -> dict[str, str]:
