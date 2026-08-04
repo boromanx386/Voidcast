@@ -233,6 +233,9 @@ export function CodingPanel({
     setDirtyOnly(false)
     setCommitMessage('')
     setCommitOpen(false)
+    setFiles([])
+    setChildrenByDir({})
+    setExpandedDirs(new Set())
     resetEditState()
   }, [projectPath, resetEditState])
 
@@ -265,7 +268,12 @@ export function CodingPanel({
   }, [refreshGitStatus, gitRevision, localGitBump])
 
   const refreshFiles = useCallback(async () => {
-    if (!projectPath) return
+    if (!projectPath) {
+      setFiles([])
+      setChildrenByDir({})
+      setExpandedDirs(new Set())
+      return
+    }
     const listed = await invokeListCodingDirectory(projectPath)
     if (listed.ok) {
       setFiles(filterCodingTreeEntries(listed.entries))
@@ -834,6 +842,7 @@ export function CodingPanel({
                   >
                     <FileTree
                       rootEntries={files}
+                      noProject={!projectPath}
                       expandedDirs={expandedDirs}
                       loadingDirs={loadingDirs}
                       childrenByDir={childrenByDir}

@@ -18,6 +18,8 @@ export type FileTreeProps = {
   gitBranchLabel?: string | null
   /** When true, hide clean files; keep dirs that contain changes. */
   dirtyOnly?: boolean
+  /** When true, no coding folder is selected — show a clear empty status. */
+  noProject?: boolean
   onDirtyOnlyChange?: (next: boolean) => void
   onToggleDirectory: (dirPath: string) => void | Promise<void>
   onSelectFile: (path: string) => void
@@ -217,6 +219,7 @@ export function FileTree({
   gitStatusByPath,
   gitBranchLabel,
   dirtyOnly = false,
+  noProject = false,
   onDirtyOnlyChange,
   onToggleDirectory,
   onSelectFile,
@@ -259,28 +262,38 @@ export function FileTree({
         ) : null}
       </div>
       <div className="min-h-0 flex-1 overflow-auto space-y-0.5">
-        {rootEntries.length === 0 && (
-          <div className="text-xs text-void-dim">No files loaded.</div>
-        )}
-        {rootEntries.length > 0 && visibleRoot.length === 0 && dirtyOnly && (
-          <div className="text-xs text-void-dim">No changed files in tree.</div>
-        )}
-        {visibleRoot.length > 0 && (
-          <TreeRows
-            entries={rootEntries}
-            depth={0}
-            expandedDirs={expandedDirs}
-            loadingDirs={loadingDirs}
-            childrenByDir={childrenByDir}
-            onToggleDirectory={onToggleDirectory}
-            onSelectFile={onSelectFile}
-            onStageFile={onStageFile}
-            onUnstageFile={onUnstageFile}
-            onDiscardFile={onDiscardFile}
-            selectedPath={selectedPath}
-            gitStatusByPath={gitStatusByPath}
-            dirtyOnly={dirtyOnly}
-          />
+        {noProject ? (
+          <div className="flex h-full items-start justify-center px-1 pt-5 text-center">
+            <div className="font-semibold text-[11px] uppercase tracking-wide text-void-dim">
+              No folder selected
+            </div>
+          </div>
+        ) : (
+          <>
+            {rootEntries.length === 0 && (
+              <div className="text-xs text-void-dim">No files loaded.</div>
+            )}
+            {rootEntries.length > 0 && visibleRoot.length === 0 && dirtyOnly && (
+              <div className="text-xs text-void-dim">No changed files in tree.</div>
+            )}
+            {visibleRoot.length > 0 && (
+              <TreeRows
+                entries={rootEntries}
+                depth={0}
+                expandedDirs={expandedDirs}
+                loadingDirs={loadingDirs}
+                childrenByDir={childrenByDir}
+                onToggleDirectory={onToggleDirectory}
+                onSelectFile={onSelectFile}
+                onStageFile={onStageFile}
+                onUnstageFile={onUnstageFile}
+                onDiscardFile={onDiscardFile}
+                selectedPath={selectedPath}
+                gitStatusByPath={gitStatusByPath}
+                dirtyOnly={dirtyOnly}
+              />
+            )}
+          </>
         )}
       </div>
     </div>
