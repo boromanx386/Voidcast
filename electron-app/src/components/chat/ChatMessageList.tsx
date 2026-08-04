@@ -2,9 +2,7 @@ import { useMemo, useState } from 'react'
 import { ToolIndicator } from '@/components/chat/ChatChrome'
 import { getEmptyStateMessage } from '@/components/chat/chatEmptyState'
 import { ChatMessage } from '@/components/chat/ChatMessage'
-import { PlanBuildProgress } from '@/components/chat/PlanBuildProgress'
 import { useChatMessageRender } from '@/hooks/useChatMessageRender'
-import { findActiveBuildingPlan } from '@/lib/planArtifact'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
 type Props = {
@@ -53,11 +51,6 @@ export function ChatMessageList({ app }: Props) {
   const render = useChatMessageRender(app)
 
   const { listEndRef, chatMessagesRef, onChatScroll } = render
-
-  const activeBuildingPlan = useMemo(
-    () => findActiveBuildingPlan(messages, busy),
-    [messages, busy],
-  )
 
   return (
     <main
@@ -115,10 +108,6 @@ export function ChatMessageList({ app }: Props) {
             app={app}
           />
         ))}
-
-        {activeBuildingPlan && (
-          <PlanBuildProgress plan={activeBuildingPlan.plan} />
-        )}
 
         {/* Busy Indicator */}
         {busy && (

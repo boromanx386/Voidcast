@@ -3,6 +3,7 @@ import { CHAT_IMAGE_ACCEPT, imageDataUrl } from '@/lib/imageAttachment'
 import { chatFileAcceptList } from '@/lib/fileAttachment'
 import { isWebStandalone } from '@/lib/platform'
 import { getChatComposerPlaceholder } from '@/components/chat/chatEmptyState'
+import { BrainIcon } from '@/components/icons/BrainIcon'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 import type { SystemPromptPreset } from '@/types/chat'
 
@@ -29,6 +30,9 @@ type Props = {
     | 'toggleSttRecording'
     | 'activeSystemPromptPreset'
     | 'setSystemPromptPresetForActiveChat'
+    | 'longMemoryBusy'
+    | 'messages'
+    | 'extractLongMemoryNow'
   >
 }
 
@@ -54,6 +58,9 @@ export function ChatComposer({ app }: Props) {
     toggleSttRecording,
     activeSystemPromptPreset,
     setSystemPromptPresetForActiveChat,
+    longMemoryBusy,
+    messages,
+    extractLongMemoryNow,
   } = app
 
   const canSend = useMemo(
@@ -373,7 +380,7 @@ export function ChatComposer({ app }: Props) {
             {/* Per-chat system prompt preset — chip like pinned LLM models, opens upward */}
             <div
               ref={presetMenuRef}
-              className="relative shrink-0"
+              className="relative ml-1.5 shrink-0"
               title="System prompt preset — applies from the next message"
             >
               <button
@@ -427,6 +434,26 @@ export function ChatComposer({ app }: Props) {
                 </div>
               ) : null}
             </div>
+
+            <button
+              type="button"
+              disabled={busy || longMemoryBusy || messages.length === 0}
+              onClick={() => void extractLongMemoryNow()}
+              className="ml-1.5 inline-flex cursor-pointer items-center text-neon-cyan/80 transition-colors hover:text-neon-cyan disabled:cursor-not-allowed disabled:opacity-40"
+              title="Pick long-term memories from this chat"
+              aria-label={
+                longMemoryBusy ? 'Extracting long-term memories…' : 'Long memory picker'
+              }
+            >
+              {longMemoryBusy ? (
+                <span
+                  className="inline-block h-2 w-2 animate-spin rounded-full border-2 border-void-dim border-t-neon-cyan"
+                  aria-hidden
+                />
+              ) : (
+                <BrainIcon className="h-3 w-3" />
+              )}
+            </button>
 
             {busy ? (
               <button

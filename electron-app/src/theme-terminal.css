@@ -6,25 +6,27 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 html[data-ui-theme='terminal'] {
-  /* ── Full-amber monochrome palette ── */
-  --color-void-black: 0 0 0;
-  --color-void-dark: 5 5 5;
-  --color-void-mid: 10 10 8;
-  --color-void-muted: 35 30 20;
-  --color-void-dim: 90 78 55;
-  --color-void-text: 200 185 150;
-  --color-void-light: 220 210 180;
-  --color-void-white: 235 225 200;
+  /* ── Full-amber monochrome palette ──
+     Softened for comfort: warm dark-charcoal backdrop instead of pure
+     black, and dimmer amber tones so the phosphor doesn't scream. */
+  --color-void-black: 12 10 7;
+  --color-void-dark: 17 14 10;
+  --color-void-mid: 24 20 14;
+  --color-void-muted: 52 44 32;
+  --color-void-dim: 100 88 64;
+  --color-void-text: 170 158 132;
+  --color-void-light: 184 172 146;
+  --color-void-white: 198 187 162;
 
-  /* Every neon slot maps to a variant of amber/phosphor. */
-  --color-neon-cyan: 255 185 60;
-  --color-neon-magenta: 220 180 100;
-  --color-neon-green: 200 180 80;
-  --color-neon-yellow: 230 200 70;
-  --color-neon-red: 200 90 50;
-  --color-neon-purple: 190 150 80;
-  --color-neon-orange: 230 140 50;
-  --ui-accent-rgb: 255 185 60;
+  /* Every neon slot maps to a dimmed amber/phosphor tone. */
+  --color-neon-cyan: 214 160 72;
+  --color-neon-magenta: 186 156 104;
+  --color-neon-green: 172 156 92;
+  --color-neon-yellow: 194 172 90;
+  --color-neon-red: 160 88 56;
+  --color-neon-purple: 164 136 92;
+  --color-neon-orange: 188 128 62;
+  --ui-accent-rgb: 214 160 72;
 
   /* Everything is monospaced — no exceptions */
   --font-body: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
@@ -39,14 +41,14 @@ html[data-ui-theme='terminal'] {
 
 /* ═══ Global resets ═══ */
 html[data-ui-theme='terminal'] body {
-  background: #000 !important;
+  background: rgb(var(--color-void-black)) !important;
   color: rgb(var(--color-void-light)) !important;
   text-shadow: none !important;
   font-family: var(--font-mono) !important;
 }
 
 html[data-ui-theme='terminal'] ::selection {
-  background: rgba(255, 185, 60, 0.3);
+  background: rgba(214, 160, 72, 0.3);
   color: #000;
 }
 
@@ -55,7 +57,7 @@ html[data-ui-theme='terminal'] ::-webkit-scrollbar {
   height: 10px;
 }
 html[data-ui-theme='terminal'] ::-webkit-scrollbar-track {
-  background: #000;
+  background: rgb(var(--color-void-black));
 }
 html[data-ui-theme='terminal'] ::-webkit-scrollbar-thumb {
   background: rgb(var(--color-void-muted));
@@ -67,13 +69,13 @@ html[data-ui-theme='terminal'] ::-webkit-scrollbar-thumb:hover {
 
 /* ═══ App shell ═══ */
 html[data-ui-theme='terminal'] .voidcast-app {
-  background: #000;
+  background: rgb(var(--color-void-black));
 }
 
 html[data-ui-theme='terminal'] .voidcast-header,
 html[data-ui-theme='terminal'] .voidcast-input-area,
 html[data-ui-theme='terminal'] .voidcast-sidebar {
-  background: #000;
+  background: rgb(var(--color-void-black));
   border-color: rgb(var(--color-void-muted) / 0.6);
   backdrop-filter: none;
 }
@@ -163,7 +165,7 @@ html[data-ui-theme='terminal'] .message-assistant code {
 
 html[data-ui-theme='terminal'] .message-user pre,
 html[data-ui-theme='terminal'] .message-assistant pre {
-  background: rgba(255, 185, 60, 0.04);
+  background: rgba(214, 160, 72, 0.04);
   border: 1px solid rgb(var(--color-void-muted));
   border-radius: 0;
   padding: 8px 12px;
@@ -207,7 +209,7 @@ html[data-ui-theme='terminal'] details summary button {
 }
 
 html[data-ui-theme='terminal'] details summary button:hover {
-  background: rgba(255, 185, 60, 0.1);
+  background: rgba(214, 160, 72, 0.1);
 }
 
 html[data-ui-theme='terminal'] details .font-mono.text-void-dim {
@@ -217,7 +219,7 @@ html[data-ui-theme='terminal'] details .font-mono.text-void-dim {
 /* ═══ Plan artifact cards ═══ */
 html[data-ui-theme='terminal'] .plan-artifact-card,
 html[data-ui-theme='terminal'] .composer-plan-banner {
-  background: #000 !important;
+  background: rgb(var(--color-void-black)) !important;
   border: 1px solid rgb(var(--color-void-muted)) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -231,7 +233,7 @@ html[data-ui-theme='terminal'] .plan-artifact-card .cyber-btn {
 }
 
 html[data-ui-theme='terminal'] .plan-artifact-card .cyber-btn:hover {
-  background: rgba(255, 185, 60, 0.1);
+  background: rgba(214, 160, 72, 0.1);
   border-color: rgb(var(--color-neon-cyan));
 }
 
@@ -242,7 +244,7 @@ html[data-ui-theme='terminal'] .voidcast-input-area {
 }
 
 html[data-ui-theme='terminal'] .voidcast-textarea {
-  background: #000 !important;
+  background: rgb(var(--color-void-black)) !important;
   border: none !important;
   border-radius: 0 !important;
   color: rgb(var(--color-void-light)) !important;
@@ -287,7 +289,7 @@ html[data-ui-theme='terminal'] [class*="send-btn"]:not(.send-btn-tooltip) {
 
 html[data-ui-theme='terminal'] .send-btn:hover,
 html[data-ui-theme='terminal'] [class*="send-btn"]:hover {
-  background: rgba(255, 185, 60, 0.1) !important;
+  background: rgba(214, 160, 72, 0.1) !important;
   border-color: rgb(var(--color-neon-cyan)) !important;
 }
 
@@ -309,7 +311,7 @@ html[data-ui-theme='terminal'] .cyber-btn {
 }
 
 html[data-ui-theme='terminal'] .cyber-btn:hover {
-  background: rgba(255, 185, 60, 0.1);
+  background: rgba(214, 160, 72, 0.1);
   border-color: rgb(var(--color-neon-cyan));
   box-shadow: none;
 }
@@ -325,7 +327,7 @@ html[data-ui-theme='terminal'] .corner-br {
 
 html[data-ui-theme='terminal'] .cyber-input,
 html[data-ui-theme='terminal'] .form-select {
-  background: #000;
+  background: rgb(var(--color-void-black));
   color: rgb(var(--color-void-text));
   font-family: var(--font-mono);
 }
@@ -355,12 +357,12 @@ html[data-ui-theme='terminal'] .sidebar-entry {
 }
 
 html[data-ui-theme='terminal'] .sidebar-entry:hover {
-  background: rgba(255, 185, 60, 0.06);
+  background: rgba(214, 160, 72, 0.06);
 }
 
 html[data-ui-theme='terminal'] .sidebar-entry.active,
 html[data-ui-theme='terminal'] .sidebar-entry.selected {
-  background: rgba(255, 185, 60, 0.12);
+  background: rgba(214, 160, 72, 0.12);
   color: rgb(var(--color-neon-cyan));
 }
 
@@ -374,7 +376,7 @@ html[data-ui-theme='terminal'] .sidebar-new-btn {
 }
 
 html[data-ui-theme='terminal'] .sidebar-new-btn:hover {
-  background: rgba(255, 185, 60, 0.12);
+  background: rgba(214, 160, 72, 0.12);
   border-color: rgb(var(--color-neon-cyan));
 }
 
@@ -400,7 +402,7 @@ html[data-ui-theme='terminal'] .option-tab:hover {
 }
 
 html[data-ui-theme='terminal'] .option-panel {
-  background: #000;
+  background: rgb(var(--color-void-black));
   border: 1px solid rgb(var(--color-void-muted));
   border-radius: 0;
   box-shadow: none;
@@ -419,7 +421,7 @@ html[data-ui-theme='terminal'] .system-status {
 html[data-ui-theme='terminal'] .coding-panel,
 html[data-ui-theme='terminal'] .coding-output,
 html[data-ui-theme='terminal'] .coding-sidebar {
-  background: #000;
+  background: rgb(var(--color-void-black));
   border-color: rgb(var(--color-void-muted));
   border-radius: 0;
 }
@@ -428,8 +430,8 @@ html[data-ui-theme='terminal'] .panel-splitter {
   background: rgb(var(--color-void-muted) / 0.5);
 }
 
-.html[data-ui-theme='terminal'] .coding-terminal {
-  background: #000;
+html[data-ui-theme='terminal'] .coding-terminal {
+  background: rgb(var(--color-void-black));
   font-family: var(--font-mono);
 }
 
@@ -473,19 +475,19 @@ html[data-ui-theme='terminal'] .animate-message-in {
 
 /* ═══ Override common bg util classes ═══ */
 html[data-ui-theme='terminal'] .bg-void-mid\/70 {
-  background-color: rgba(10, 10, 8, 0.7) !important;
+  background-color: rgba(24, 20, 14, 0.7) !important;
 }
 html[data-ui-theme='terminal'] .bg-void-dark\/80 {
-  background-color: rgba(5, 5, 5, 0.8) !important;
+  background-color: rgba(17, 14, 10, 0.8) !important;
 }
 html[data-ui-theme='terminal'] .border-void-muted\/50 {
-  border-color: rgba(35, 30, 20, 0.5) !important;
+  border-color: rgba(52, 44, 32, 0.5) !important;
 }
 html[data-ui-theme='terminal'] .border-neon-cyan\/20 {
-  border-color: rgba(255, 185, 60, 0.2) !important;
+  border-color: rgba(214, 160, 72, 0.2) !important;
 }
 html[data-ui-theme='terminal'] .border-neon-cyan\/25 {
-  border-color: rgba(255, 185, 60, 0.25) !important;
+  border-color: rgba(214, 160, 72, 0.25) !important;
 }
 
 /* ═══ Chat empty state ═══ */

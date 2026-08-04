@@ -26,11 +26,11 @@ export type ResolvedContextLimit = {
 }
 
 const PROVIDER_DEFAULT_CONTEXT: Record<Exclude<LlmProvider, 'ollama'>, number> = {
-  openrouter: 128_000,
-  nvidia: 128_000,
+  openrouter: 256_000,
+  nvidia: 256_000,
   deepseek: 1_000_000,
-  openai: 128_000,
-  'opencode-go': 128_000,
+  openai: 256_000,
+  'opencode-go': 256_000,
 }
 
 /** Explicit overrides for models where heuristics would be wrong. */

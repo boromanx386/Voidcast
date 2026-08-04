@@ -119,6 +119,8 @@ export type UseChatAgentDeps = {
 
 export type OnSendOptions = {
   text?: string
+  /** Short user-bubble label shown instead of `text` (build prompt stays internal). */
+  displayText?: string
   history?: UiMessage[]
   skipAddUserMsg?: boolean
   /** Override settings.agentMode for this turn (Approve → Build uses 'agent'). */
@@ -482,7 +484,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         userMsg = {
           id: uid(),
           role: 'user',
-          content: text,
+          content: opts?.displayText ?? text,
           ...(imagesBase64.length > 0
             ? { images: imagesBase64, imageMimes, imageNames, imagePaths }
             : {}),
@@ -1027,6 +1029,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const buildText = formatPlanForBuildPrompt(approved)
       void onSend({
         text: buildText,
+        displayText: `Build approved plan: ${approved.title || 'plan'}`,
         forceAgentMode: 'agent',
         buildFromPlanMessageId: messageId,
       })

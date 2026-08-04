@@ -1,4 +1,3 @@
-import { BrainIcon } from '@/components/icons/BrainIcon'
 import { CodeIcon } from '@/components/icons/CodeIcon'
 import { WindowControls } from '@/components/WindowControls'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
@@ -31,9 +30,6 @@ export function ChatHeader({ app }: Props) {
     showCodingPanel,
     setShowCodingPanel,
     busy,
-    longMemoryBusy,
-    messages,
-    extractLongMemoryNow,
     canSaveSession,
     saveOrUpdateSession,
   } = app
@@ -70,26 +66,6 @@ export function ChatHeader({ app }: Props) {
             <CodeIcon className="h-4 w-4 text-current" />
           </button>
         )}
-
-        <button
-          type="button"
-          disabled={busy || longMemoryBusy || messages.length === 0}
-          onClick={() => void extractLongMemoryNow()}
-          className="cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0 disabled:opacity-50"
-          title="Pick long-term memories from this chat"
-          aria-label={
-            longMemoryBusy ? 'Extracting long-term memories…' : 'Long memory picker'
-          }
-        >
-          {longMemoryBusy ? (
-            <span
-              className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-void-dim border-t-neon-cyan"
-              aria-hidden
-            />
-          ) : (
-            <BrainIcon className="h-4 w-4 text-current" />
-          )}
-        </button>
 
         {canSaveSession && (
           <button
