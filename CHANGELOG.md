@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Terminal theme contrast softened**: replaced the pure-black background with a warm dark-charcoal backdrop and dimmed the amber/phosphor accents so the phosphor reads as a quiet glow instead of neon glare. Fixed the `coding-terminal` selector typo and stripped the UTF-8 BOM from the theme file.
+- **Matrix theme more black, less green**: background surfaces pulled toward near-black (`1 3 1` / `2 6 2`) and the digital-rain backdrop dropped from 0.42 to 0.18 opacity; message bubbles, header, input and sidebar borders dimmed, and the body green text-glow removed — green now accents rather than floods.
+- **Build prompt stays internal**: clicking **Build plan** on a plan card no longer dumps the full `formatPlanForBuildPrompt` (all steps + code) into the chat. The build prompt still goes to the model, but the visible user bubble is a short `Build approved plan: <title>` label.
+- **No duplicate plan todo list**: removed `PlanBuildProgress` (a second, redundant step list) — the plan artifact card in the message is the single live view of build steps.
+- **Long-memory picker moved to the composer**: the header brain icon is gone; the long-memory extractor now lives next to the system-prompt preset chip as a bare icon (with a busy spinner), smaller than the surrounding toolbar buttons.
+- **Coding panel stays collapsed on file reveal**: when the agent edits/reveals a file, the preview and file-tree toggles are no longer force-enabled — the panel only loads the file into preview state if the section is already open, and no longer reflows the layout (which used to scroll the app back to top).
+- **Higher default context for cloud providers**: OpenRouter, NVIDIA, OpenAI and OpenCode Go defaults raised from 128k to 256k tokens.
+
+### Fixed
+
+- **Thinking bubble follow button**: removed the pin emoji (`📌` / `📍`) from the follow toggle — clean text only.
+
 ## [2.8.0] — 2026-08-03
 
 ### Added

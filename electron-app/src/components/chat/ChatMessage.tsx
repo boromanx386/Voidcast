@@ -150,7 +150,7 @@ export function ChatMessage({
                               setThinkingPinned((p) => !p)
                             }}
                           >
-                            {thinkingPinned ? '📌 FOLLOW ON' : '📍 FOLLOW OFF'}
+                            {thinkingPinned ? 'FOLLOW ON' : 'FOLLOW OFF'}
                           </button>
                         ) : null}
                       </summary>

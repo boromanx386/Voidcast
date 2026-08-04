@@ -458,13 +458,8 @@ export function CodingPanel({
     const nonce = revealRequest.nonce
     let cancelled = false
 
-    if (!settings.coding.showFilePreview) {
-      onCodingUiChange({ showFilePreview: true })
-    }
-    if (!settings.coding.showFileTree) {
-      onCodingUiChange({ showFileTree: true })
-    }
-
+    // Do not force-enable the preview/tree toggles: respect the user's collapsed
+    // sections and avoid a layout reflow (which would scroll the app back to top).
     void (async () => {
       const parents = codingRevealParentDirs(path)
       for (const dirPath of parents) {
