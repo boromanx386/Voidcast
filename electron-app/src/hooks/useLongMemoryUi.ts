@@ -89,9 +89,11 @@ export function useLongMemoryUi({
       const memLlmProvider = useSub
         ? subProvider === 'ollama'
           ? 'ollama'
-          : subProvider === 'deepseek'
-            ? 'deepseek'
-            : 'openrouter'
+          : subProvider === 'openrouter'
+            ? 'openrouter'
+            : subProvider === 'deepseek'
+              ? 'deepseek'
+              : 'openai'
         : settings.llmProvider
       const candidates = await extractLongMemoryCandidates({
         provider: memLlmProvider,
@@ -110,6 +112,9 @@ export function useLongMemoryUi({
         openaiBaseUrl: settings.openaiBaseUrl,
         openaiApiKey: settings.openaiApiKey,
         openaiModel: settings.openaiModel,
+        opencodeGoBaseUrl: settings.opencodeGoBaseUrl,
+        opencodeGoApiKey: settings.opencodeGoApiKey,
+        opencodeGoModel: settings.opencodeGoModel,
         cloudModelOverride: useSub && subProvider !== 'ollama' ? subModel : undefined,
         modelOptions: {
           temperature: settings.llmTemperature,

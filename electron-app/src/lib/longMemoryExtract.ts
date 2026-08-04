@@ -23,6 +23,9 @@ type ExtractParams = {
   openaiBaseUrl?: string
   openaiApiKey?: string
   openaiModel?: string
+  opencodeGoBaseUrl?: string
+  opencodeGoApiKey?: string
+  opencodeGoModel?: string
   modelOptions?: OllamaModelOptions
   turns: Turn[]
   signal?: AbortSignal
