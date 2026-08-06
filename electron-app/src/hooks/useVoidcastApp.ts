@@ -12,6 +12,8 @@ import { useLongMemoryUi } from '@/hooks/useLongMemoryUi'
 import { useSttInput } from '@/hooks/useSttInput'
 import { useTtsPlayback } from '@/hooks/useTtsPlayback'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
+import type { CodingContextMemo } from '@/lib/codingContextMemo'
+import { runtimeKeyForSession } from '@/lib/sessionAgentStore'
 import type { ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
 import type { OptionsTab, Screen } from '@/types/voidcast'
 
@@ -81,11 +83,22 @@ export function useVoidcastApp() {
   })
 
   const setSessionDirtyRef = useRef<(dirty: boolean) => void>(() => {})
+  const claimSessionIdRef = useRef<() => string | null>(() => null)
+  const patchSessionCodingMemoRef = useRef<
+    (sessionId: string, action: React.SetStateAction<CodingContextMemo>) => void
+  >(() => {})
+
+  const [viewSessionId, setViewSessionId] = useState<string | null>(null)
+  const runtimeKey = runtimeKeyForSession(viewSessionId)
+  const runtimeKeyRef = useRef(runtimeKey)
+  runtimeKeyRef.current = runtimeKey
 
   const agent = useChatAgent({
     settings,
     setSettings,
     effectivePdfOutputDir,
+    runtimeKey,
+    runtimeKeyRef,
     hiddenContextSummary,
     setHiddenContextSummary,
     contextCompressedThroughIndex,
@@ -95,7 +108,6 @@ export function useVoidcastApp() {
     codingContextMemo: coding.codingContextMemo,
     codingContextMemoRef: coding.codingContextMemoRef,
     codingFileCacheRef: coding.codingFileCacheRef,
-    activeSessionId: activeSessionIdRef.current,
     systemPromptPresetRef: activeSystemPromptPresetRef,
     onContextCompressed: ({ summary, throughIndex, activeSessionId: sessionId }) => {
       if (!sessionId) return
@@ -113,6 +125,9 @@ export function useVoidcastApp() {
         scheduleSaveChatSessions({ sessions: updated, activeSessionId: sessionId })
         return updated
       })
+    },
+    patchSessionCodingMemo: (sessionId, action) => {
+      patchSessionCodingMemoRef.current(sessionId, action)
     },
     pendingImages: attachments.pendingImages,
     setPendingImages: attachments.setPendingImages,
@@ -132,6 +147,7 @@ export function useVoidcastApp() {
     revealCodingFile: coding.revealCodingFile,
     activeCodingProcesses: coding.activeCodingProcesses,
     onSessionDirty: () => setSessionDirtyRef.current(true),
+    claimSessionIdForDraft: () => claimSessionIdRef.current(),
   })
 
   setErrorRef.current = agent.setError
@@ -175,6 +191,13 @@ export function useVoidcastApp() {
   activeSessionIdRef.current = sessions.activeSessionId
   activeSystemPromptPresetRef.current = sessions.activeSystemPromptPreset
   setSessionDirtyRef.current = sessions.setSessionDirty
+  claimSessionIdRef.current = sessions.claimSessionIdForDraft
+  patchSessionCodingMemoRef.current = sessions.patchSessionCodingMemo
+
+  // Keep agent runtime key in sync with sidebar selection (session id or draft).
+  useEffect(() => {
+    setViewSessionId(sessions.activeSessionId)
+  }, [sessions.activeSessionId])
 
   const stt = useSttInput({
     settings,

@@ -16,7 +16,6 @@ import { compressConversationContext } from '@/lib/contextCompress'
 import {
   CONTEXT_COMPRESS_RATIO_RESET,
   estimateContextUsage,
-  type ContextUsageInfo,
 } from '@/lib/contextUsage'
 import { resolveContextLimit } from '@/lib/contextLimit'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
@@ -60,8 +59,14 @@ import {
   type AppSettings,
 } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
-import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import { toConversationTurns } from '@/lib/chatHints'
+import {
+  DRAFT_RUNTIME_KEY,
+  isRealSessionRuntimeKey,
+  sessionAgentStore,
+  useSessionAgentSlot,
+  type SessionAgentKeyHandle,
+} from '@/lib/sessionAgentStore'
 import type {
   AgentChatMode,
   FileAttachmentSnapshot,
@@ -76,6 +81,14 @@ export type UseChatAgentDeps = {
   setSettings: Dispatch<SetStateAction<AppSettings>>
   effectivePdfOutputDir: string
 
+  /**
+   * Runtime key for the visible chat: session id or DRAFT_RUNTIME_KEY.
+   * Agent runs bind to a mutable handle so draft → session rekey mid-run works.
+   */
+  runtimeKey: string
+  /** Latest runtime key (view) — used to gate coding-panel side effects while backgrounded. */
+  runtimeKeyRef: MutableRefObject<string>
+
   hiddenContextSummary: string
   setHiddenContextSummary: (summary: string) => void
   contextCompressedThroughIndex: number
@@ -85,7 +98,6 @@ export type UseChatAgentDeps = {
   codingContextMemo: CodingContextMemo
   codingContextMemoRef: MutableRefObject<CodingContextMemo>
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
-  activeSessionId: string | null
   /** Live per-chat preset — read at send time so the current session wins. */
   systemPromptPresetRef: MutableRefObject<SystemPromptPreset>
   onContextCompressed?: (params: {
@@ -93,6 +105,19 @@ export type UseChatAgentDeps = {
     throughIndex: number
     activeSessionId: string | null
   }) => void
+  /**
+   * Persist coding memo for a non-visible session (background agent).
+   * Visible session still uses setCodingContextMemo.
+   */
+  patchSessionCodingMemo?: (
+    sessionId: string,
+    action: SetStateAction<CodingContextMemo>,
+  ) => void
+  /**
+   * Auto-save: allocate a session id for the draft and rekey the runtime before
+   * the first message turns into a mid-run draft → id transition race.
+   */
+  claimSessionIdForDraft?: () => string | null
 
   pendingImages: PendingChatImage[]
   setPendingImages: Dispatch<SetStateAction<PendingChatImage[]>>
@@ -168,11 +193,21 @@ function attachmentsFromUserMessage(msg: UiMessage): {
   }
 }
 
+function sessionIdFromRuntimeKey(key: string): string | null {
+  return isRealSessionRuntimeKey(key) ? key : null
+}
+
+function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
+  return typeof action === 'function' ? (action as (p: T) => T)(prev) : action
+}
+
 export function useChatAgent(deps: UseChatAgentDeps) {
   const {
     settings,
     setSettings,
     effectivePdfOutputDir,
+    runtimeKey,
+    runtimeKeyRef,
     hiddenContextSummary,
     setHiddenContextSummary,
     contextCompressedThroughIndex,
@@ -182,9 +217,10 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     codingContextMemo,
     codingContextMemoRef,
     codingFileCacheRef,
-    activeSessionId,
     systemPromptPresetRef,
     onContextCompressed,
+    patchSessionCodingMemo,
+    claimSessionIdForDraft,
     pendingImages,
     setPendingImages,
     pendingFiles,
@@ -205,71 +241,121 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     onSessionDirty,
   } = deps
 
-  const [messages, setMessages] = useState<UiMessage[]>([])
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [toolPhase, setToolPhase] = useState<AgentToolUiPhase | null>(null)
-  const [contextUsageInfo, setContextUsageInfo] = useState<ContextUsageInfo | null>(null)
-  const [contextWarnDismissed, setContextWarnDismissed] = useState(false)
-  const [contextCompressBusy, setContextCompressBusy] = useState(false)
-  const contextOverflowLatchRef = useRef(false)
+  const slot = useSessionAgentSlot(runtimeKey)
 
-  const [subAgentPanelOpen, setSubAgentPanelOpen] = useState(false)
-  const [subAgentPanelBusy, setSubAgentPanelBusy] = useState(false)
-  const [subAgentPanelText, setSubAgentPanelText] = useState('')
-
-  const [toolResultBanner, setToolResultBanner] = useState<{ kind: 'pdf'; text: string } | null>(
-    null,
+  const setMessages = useCallback<Dispatch<SetStateAction<UiMessage[]>>>(
+    (action) => sessionAgentStore.setMessages(runtimeKey, action),
+    [runtimeKey],
+  )
+  const setBusy = useCallback(
+    (busy: boolean) => sessionAgentStore.update(runtimeKey, { busy }),
+    [runtimeKey],
+  )
+  const setError = useCallback<Dispatch<SetStateAction<string | null>>>(
+    (action) => {
+      const prev = sessionAgentStore.getSnapshot(runtimeKey).error
+      const error = resolveAction(prev, action)
+      sessionAgentStore.update(runtimeKey, { error })
+    },
+    [runtimeKey],
+  )
+  const setToolPhase = useCallback(
+    (toolPhase: AgentToolUiPhase | null) =>
+      sessionAgentStore.update(runtimeKey, { toolPhase }),
+    [runtimeKey],
+  )
+  const setContextUsageInfo = useCallback<
+    Dispatch<SetStateAction<(typeof slot)['contextUsageInfo']>>
+  >(
+    (action) => {
+      const prev = sessionAgentStore.getSnapshot(runtimeKey).contextUsageInfo
+      sessionAgentStore.update(runtimeKey, {
+        contextUsageInfo: resolveAction(prev, action),
+      })
+    },
+    [runtimeKey],
+  )
+  const setContextWarnDismissed = useCallback<Dispatch<SetStateAction<boolean>>>(
+    (action) => {
+      const prev = sessionAgentStore.getSnapshot(runtimeKey).contextWarnDismissed
+      sessionAgentStore.update(runtimeKey, {
+        contextWarnDismissed: resolveAction(prev, action),
+      })
+    },
+    [runtimeKey],
+  )
+  const setContextCompressBusy = useCallback(
+    (contextCompressBusy: boolean) =>
+      sessionAgentStore.update(runtimeKey, { contextCompressBusy }),
+    [runtimeKey],
+  )
+  const setToolResultBanner = useCallback<
+    Dispatch<SetStateAction<(typeof slot)['toolResultBanner']>>
+  >(
+    (action) => {
+      const prev = sessionAgentStore.getSnapshot(runtimeKey).toolResultBanner
+      sessionAgentStore.update(runtimeKey, {
+        toolResultBanner: resolveAction(prev, action),
+      })
+    },
+    [runtimeKey],
+  )
+  const setSubAgentPanelOpen = useCallback(
+    (subAgentPanelOpen: boolean) =>
+      sessionAgentStore.update(runtimeKey, { subAgentPanelOpen }),
+    [runtimeKey],
+  )
+  const setSubAgentPanelBusy = useCallback(
+    (subAgentPanelBusy: boolean) =>
+      sessionAgentStore.update(runtimeKey, { subAgentPanelBusy }),
+    [runtimeKey],
+  )
+  const setSubAgentPanelText = useCallback(
+    (subAgentPanelText: string) =>
+      sessionAgentStore.update(runtimeKey, { subAgentPanelText }),
+    [runtimeKey],
   )
 
-  const [assistantGeneratedImages, setAssistantGeneratedImages] = useState<
-    Record<string, string[]>
-  >({})
-  const [assistantSavedImagePaths, setAssistantSavedImagePaths] = useState<
-    Record<string, string[]>
-  >({})
-  const [assistantImageToolMeta, setAssistantImageToolMeta] = useState<
-    Record<string, Record<string, RunwareImageToolMeta>>
-  >({})
-  const [assistantImageMessageMeta, setAssistantImageMessageMeta] = useState<
-    Record<string, RunwareImageToolMeta>
-  >({})
-  const [assistantGeneratedAudios, setAssistantGeneratedAudios] = useState<
-    Record<string, string[]>
-  >({})
-  const [assistantSavedAudioPaths, setAssistantSavedAudioPaths] = useState<
-    Record<string, string[]>
-  >({})
-  const [assistantAudioToolMeta, setAssistantAudioToolMeta] = useState<
-    Record<string, Record<string, RunwareAudioToolMeta>>
-  >({})
-  const [assistantAudioMessageMeta, setAssistantAudioMessageMeta] = useState<
-    Record<string, RunwareAudioToolMeta>
-  >({})
+  const mediaView = sessionAgentStore.mediaSetters(runtimeKey)
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editInputValue, setEditInputValue] = useState('')
   const editingHistoryRef = useRef<UiMessage[] | null>(null)
 
+  // Compat refs for session switch path (overflow latch lives on the slot).
+  const contextOverflowLatchRef = useRef(false)
+  contextOverflowLatchRef.current = slot.contextOverflowLatch
   const abortRef = useRef<AbortController | null>(null)
+  abortRef.current = slot.abortController
   const activeChatRunIdRef = useRef(0)
+  activeChatRunIdRef.current = slot.runId
 
   const resetAssistantMediaState = useCallback(() => {
-    setAssistantGeneratedImages({})
-    setAssistantSavedImagePaths({})
-    setAssistantImageToolMeta({})
-    setAssistantImageMessageMeta({})
-    setAssistantGeneratedAudios({})
-    setAssistantSavedAudioPaths({})
-    setAssistantAudioToolMeta({})
-    setAssistantAudioMessageMeta({})
-  }, [])
+    sessionAgentStore.resetMedia(runtimeKey)
+  }, [runtimeKey])
 
   const resetContextUsage = useCallback(() => {
-    setContextUsageInfo(null)
-    setContextWarnDismissed(false)
-    contextOverflowLatchRef.current = false
-  }, [])
+    sessionAgentStore.update(runtimeKey, {
+      contextUsageInfo: null,
+      contextWarnDismissed: false,
+      contextOverflowLatch: false,
+    })
+  }, [runtimeKey])
+
+  const {
+    messages,
+    busy,
+    error,
+    toolPhase,
+    contextUsageInfo,
+    contextWarnDismissed,
+    contextCompressBusy,
+    subAgentPanelOpen,
+    subAgentPanelBusy,
+    subAgentPanelText,
+    toolResultBanner,
+    media,
+  } = slot
 
   const summarizeContextNow = useCallback(async () => {
     if (busy || contextCompressBusy) return
@@ -309,22 +395,25 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       onContextCompressed?.({
         summary: nextSummary,
         throughIndex,
-        activeSessionId,
+        activeSessionId: sessionIdFromRuntimeKey(runtimeKey),
       })
     } catch (e) {
-      contextOverflowLatchRef.current = false
+      sessionAgentStore.update(runtimeKey, { contextOverflowLatch: false })
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setContextCompressBusy(false)
     }
   }, [
-    activeSessionId,
     busy,
     contextCompressBusy,
     hiddenContextSummary,
     messages,
     onContextCompressed,
+    runtimeKey,
     setContextCompressedThroughIndex,
+    setContextCompressBusy,
+    setContextWarnDismissed,
+    setError,
     setHiddenContextSummary,
     settings,
   ])
@@ -332,22 +421,27 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   useEffect(() => {
     if (!contextUsageInfo) return
     if (contextUsageInfo.ratio < CONTEXT_COMPRESS_RATIO_RESET) {
-      contextOverflowLatchRef.current = false
+      // Only clear when set — a no-op write + emit freezes React (infinite loop).
+      if (slot.contextOverflowLatch) {
+        sessionAgentStore.update(runtimeKey, { contextOverflowLatch: false })
+      }
       return
     }
     if (!contextUsageInfo.shouldCompress) return
     if (!settings.contextAutoCompress) return
-    if (busy || contextCompressBusy || contextOverflowLatchRef.current) return
+    if (busy || contextCompressBusy || slot.contextOverflowLatch) return
     if (messages.length < 4) return
 
-    contextOverflowLatchRef.current = true
+    sessionAgentStore.update(runtimeKey, { contextOverflowLatch: true })
     void summarizeContextNow()
   }, [
     busy,
     contextCompressBusy,
     contextUsageInfo,
     messages.length,
+    runtimeKey,
     settings.contextAutoCompress,
+    slot.contextOverflowLatch,
     summarizeContextNow,
   ])
 
@@ -375,14 +469,89 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         setSubAgentPanelText(formatted || '[Sub-agent returned no digest.]')
       },
     }),
-    [],
+    [setSubAgentPanelBusy, setSubAgentPanelOpen, setSubAgentPanelText],
   )
 
   const onSend = useCallback(
     async (opts?: OnSendOptions) => {
+      // Prefer a real session id before the turn so stream/bind never races rekey.
+      const claimedId = claimSessionIdForDraft?.()
+      const startKey =
+        claimedId && claimedId.trim()
+          ? claimedId
+          : runtimeKey
+
+      const bind: SessionAgentKeyHandle = sessionAgentStore.createKeyHandle(startKey)
+      if (claimedId && runtimeKey === DRAFT_RUNTIME_KEY) {
+        // ensure handle points at rekeyed session
+        bind.key = claimedId
+      }
+      const keyOf = () => bind.key
+      const slotNow = () => sessionAgentStore.getSnapshot(keyOf())
+      const setMsgs: Dispatch<SetStateAction<UiMessage[]>> = (action) =>
+        sessionAgentStore.setMessages(keyOf(), action)
+      const setPhase = (toolPhase: AgentToolUiPhase | null) =>
+        sessionAgentStore.update(keyOf(), { toolPhase })
+      const setErr = (error: string | null) => sessionAgentStore.update(keyOf(), { error })
+      const setBanner: Dispatch<SetStateAction<(typeof slot)['toolResultBanner']>> = (
+        action,
+      ) => {
+        const prev = slotNow().toolResultBanner
+        sessionAgentStore.update(keyOf(), {
+          toolResultBanner: resolveAction(prev, action),
+        })
+      }
+      const setUsage: Dispatch<SetStateAction<(typeof slot)['contextUsageInfo']>> = (
+        action,
+      ) => {
+        const prev = slotNow().contextUsageInfo
+        sessionAgentStore.update(keyOf(), {
+          contextUsageInfo: resolveAction(prev, action),
+        })
+      }
+      const setWarnDismissed = (contextWarnDismissed: boolean) =>
+        sessionAgentStore.update(keyOf(), { contextWarnDismissed })
+      const mediaRun = sessionAgentStore.mediaSetters(bind)
+
+      const runSubAgentUi: SubAgentUiCallbacks = {
+        onStart: (imageCount) => {
+          sessionAgentStore.update(keyOf(), {
+            subAgentPanelOpen: true,
+            subAgentPanelBusy: true,
+            subAgentPanelText: `SUB_AGENT: analyzing ${imageCount} image(s)…`,
+          })
+        },
+        onProgress: (current, total) => {
+          sessionAgentStore.update(keyOf(), {
+            subAgentPanelText: `SUB_AGENT: image ${current}/${total}…`,
+          })
+        },
+        onDone: (formatted) => {
+          sessionAgentStore.update(keyOf(), {
+            subAgentPanelBusy: false,
+            subAgentPanelText: formatted || '[Sub-agent returned no descriptions.]',
+          })
+        },
+        onCodingStart: (label) => {
+          sessionAgentStore.update(keyOf(), {
+            subAgentPanelOpen: true,
+            subAgentPanelBusy: true,
+            subAgentPanelText: label,
+          })
+        },
+        onCodingDone: (formatted) => {
+          sessionAgentStore.update(keyOf(), {
+            subAgentPanelBusy: false,
+            subAgentPanelText: formatted || '[Sub-agent returned no digest.]',
+          })
+        },
+      }
+
+      const isViewingThisRun = () => keyOf() === runtimeKeyRef.current
+
       const isEdit = Boolean(opts?.skipAddUserMsg)
       const isPlanHandoff = Boolean(opts?.planHandoff)
-      const activeHistory = opts?.history ?? messages
+      const activeHistory = opts?.history ?? slotNow().messages
       const text = isEdit
         ? (opts?.text ?? (isPlanHandoff ? lastUserMessage(activeHistory)?.content ?? '' : '')).trim()
         : (opts?.text ?? input).trim()
@@ -396,8 +565,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           queuedFiles = recovered.queuedFiles
         }
       }
-      if ((!text && queued.length === 0 && queuedFiles.length === 0) || busy) return
-      setError(null)
+      if ((!text && queued.length === 0 && queuedFiles.length === 0) || slotNow().busy) {
+        sessionAgentStore.releaseKeyHandle(bind)
+        return
+      }
+      setErr(null)
       if (!isEdit) {
         if (!opts?.text) {
           setPendingImages([])
@@ -423,6 +595,22 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           ? settings
           : { ...settings, agentMode: turnAgentMode }
 
+      // Per-turn isolation so background runs do not share mutables with the active view.
+      const turnFileCacheRef = { current: emptyCodingFileCache() }
+      const turnMemoRef = { current: codingContextMemoRef.current }
+
+      const applyCodingMemo: Dispatch<SetStateAction<CodingContextMemo>> = (action) => {
+        turnMemoRef.current = resolveAction(turnMemoRef.current, action)
+        if (isViewingThisRun()) {
+          setCodingContextMemo(action)
+          return
+        }
+        const sid = sessionIdFromRuntimeKey(keyOf())
+        if (sid && patchSessionCodingMemo) {
+          patchSessionCodingMemo(sid, action)
+        }
+      }
+
       const turnContext = await buildAgentTurnContext({
         settings: turnSettings,
         systemPromptPreset: systemPromptPresetRef.current,
@@ -433,14 +621,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         hiddenContextSummary,
         contextCompressedThroughIndex,
         imageVisionCache,
-        codingContextMemo: codingContextMemoRef.current,
+        codingContextMemo: turnMemoRef.current,
         activeCodingProcesses,
         activeSessionUseLongMemory,
         buildWithResearch: (() => {
           const planMsgId = opts?.buildFromPlanMessageId
           if (!planMsgId) return false
           const plan =
-            messages.find((m) => m.id === planMsgId)?.plan ??
+            slotNow().messages.find((m) => m.id === planMsgId)?.plan ??
             activeHistory.find((m) => m.id === planMsgId)?.plan
           return planHasResearch(plan)
         })(),
@@ -512,11 +700,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       }
 
       const asstId = uid()
-      const runId = activeChatRunIdRef.current + 1
-      activeChatRunIdRef.current = runId
+      const { runId, controller: ac } = sessionAgentStore.beginRun(keyOf())
       const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
       if (isEdit) {
-        // Plan handoff: keep the pre-plan agent reply visible (UI only) ahead of the new plan assistant.
         const handoffDraft =
           isPlanHandoff && opts?.planHandoffUiDraft?.content?.trim()
             ? [
@@ -527,35 +713,33 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 },
               ]
             : []
-        setMessages(() => [...activeHistory, ...handoffDraft, asstMsg])
+        setMsgs(() => [...activeHistory, ...handoffDraft, asstMsg])
       } else {
-        setMessages((m) => [...m, userMsg!, asstMsg])
+        setMsgs((m) => [...m, userMsg!, asstMsg])
       }
       onSessionDirty()
-      setBusy(true)
-      setToolPhase(null)
-      setToolResultBanner(null)
 
       const useTools =
         anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive) ||
         settings.subAgent.enabled
 
-      const ac = new AbortController()
-      abortRef.current = ac
-      const isRunActive = () => activeChatRunIdRef.current === runId && !ac.signal.aborted
+      const isRunActive = () => sessionAgentStore.isRunActive(keyOf(), runId)
       let replyText = ''
       let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
       let escalatedToPlan = false
       let liveBuildPlan: PlanArtifact | undefined =
         opts?.buildFromPlanMessageId
-          ? messages.find((m) => m.id === opts.buildFromPlanMessageId)?.plan ??
+          ? slotNow().messages.find((m) => m.id === opts.buildFromPlanMessageId)?.plan ??
             activeHistory.find((m) => m.id === opts.buildFromPlanMessageId)?.plan
           : undefined
       const planResearchHarvest: PlanResearchHarvest = emptyPlanResearchHarvest()
       const harvestingPlanResearch = turnAgentMode === 'plan'
       let turnLogMutable = emptyCodingTurnLog()
-      // Fresh working-set for this turn (do not carry file contents across prompts).
-      codingFileCacheRef.current = emptyCodingFileCache()
+
+      // Keep shared file-cache ref in sync when this run is the visible chat (tools that read it outside params).
+      if (isViewingThisRun()) {
+        codingFileCacheRef.current = turnFileCacheRef.current
+      }
 
       try {
         if (useTools) {
@@ -614,9 +798,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             userImageMimes: toolImageCatalog.map((x) => x.mime),
             userImagePaths: toolImageCatalog.map((x) => x.path || ''),
             codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
-            codingRecentFiles: codingContextMemoRef.current.recentFiles,
-            codingFileCacheRef,
-            codingContextMemoRef,
+            codingRecentFiles: turnMemoRef.current.recentFiles,
+            codingFileCacheRef: turnFileCacheRef,
+            codingContextMemoRef: turnMemoRef,
             subAgent: settings.subAgent,
             ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
             openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,
@@ -628,10 +812,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             subAgentUi:
               (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
               settings.subAgent.showAnalysisWindow !== false
-                ? subAgentUi
+                ? runSubAgentUi
                 : undefined,
             onImageVisionCacheUpdate: (entries: ImageVisionCache) => {
-              setImageVisionCache((prev) => mergeImageVisionCache(prev, entries))
+              if (isViewingThisRun()) {
+                setImageVisionCache((prev) => mergeImageVisionCache(prev, entries))
+              }
             },
             onEscalateToPlan: () => {
               escalatedToPlan = true
@@ -641,24 +827,21 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
               ? (thinking: string) => {
                   if (!isRunActive()) return
-                  setMessages((prev) =>
+                  setMsgs((prev) =>
                     prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
                   )
                 }
               : undefined,
-            // Tool-loop: stream into the real message body. Ignore empty clears between
-            // rounds so intermediate text doesn't blink out while tools run — the next
-            // round's stream replaces content when new tokens arrive.
             onDelta: (full: string) => {
               if (!isRunActive()) return
               if (!full) return
-              setMessages((prev) =>
+              setMsgs((prev) =>
                 prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
               )
             },
             onToolPhase: (phase: AgentToolUiPhase | null) => {
               if (!isRunActive()) return
-              if (phase !== null) setToolPhase(phase)
+              if (phase !== null) setPhase(phase)
             },
             onToolResult: (payload: AgentToolResultPayload) => {
               if (!isRunActive()) return
@@ -676,33 +859,42 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 payload.args,
                 payload.result,
               )
+              const viewing = isViewingThisRun()
               applyAgentToolResult(
                 {
                   asstId,
                   settings,
                   setSettings,
-                  setToolPhase,
+                  setToolPhase: setPhase,
                   refreshReminders,
                   refreshLongMemories,
-                  setCodingContextMemo,
-                  codingFileCacheRef,
-                  setCodingTerminalFeed,
-                  setCodingFileTreeNonce,
-                  setCodingGitNonce,
-                  revealCodingFile,
-                  setToolResultBanner,
-                  setMessages,
-                  setAssistantGeneratedImages,
-                  setAssistantSavedImagePaths,
-                  setAssistantImageToolMeta,
-                  setAssistantImageMessageMeta,
-                  setAssistantGeneratedAudios,
-                  setAssistantSavedAudioPaths,
-                  setAssistantAudioToolMeta,
-                  setAssistantAudioMessageMeta,
+                  setCodingContextMemo: applyCodingMemo,
+                  codingFileCacheRef: turnFileCacheRef,
+                  setCodingTerminalFeed: viewing
+                    ? setCodingTerminalFeed
+                    : () => {
+                        /* background: skip terminal UI */
+                      },
+                  setCodingFileTreeNonce: viewing
+                    ? setCodingFileTreeNonce
+                    : () => {
+                        /* background */
+                      },
+                  setCodingGitNonce: viewing
+                    ? setCodingGitNonce
+                    : () => {
+                        /* background */
+                      },
+                  revealCodingFile: viewing ? revealCodingFile : () => {},
+                  setToolResultBanner: setBanner,
+                  setMessages: setMsgs,
+                  ...mediaRun,
                 },
                 payload,
               )
+              if (viewing) {
+                codingFileCacheRef.current = turnFileCacheRef.current
+              }
               if (
                 opts?.buildFromPlanMessageId &&
                 payload.name === 'update_plan_progress' &&
@@ -710,11 +902,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               ) {
                 const planMsgId = opts.buildFromPlanMessageId
                 const args = payload.args ?? {}
-                setMessages((prev) =>
+                setMsgs((prev) =>
                   prev.map((m) => {
                     if (m.id !== planMsgId || !m.plan) return m
-                    const { plan, error } = applyPlanProgressUpdate(m.plan, args)
-                    if (error) return m
+                    const { plan, error: planErr } = applyPlanProgressUpdate(m.plan, args)
+                    if (planErr) return m
                     liveBuildPlan = plan
                     return { ...m, plan }
                   }),
@@ -724,77 +916,82 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           }
           const cloudCfg = resolveCloudLlmChatConfig(settings)
           const out = cloudCfg
-              ? await runOpenRouterChatWithTools({
-                  baseUrl: cloudCfg.baseUrl,
-                  apiKey: cloudCfg.apiKey,
-                  model: cloudCfg.model,
-                  thinkLevel: cloudCfg.thinkLevel,
-                  providerOnly: cloudCfg.providerOnly,
-                  ...commonToolParams,
-                })
-              : await runOllamaChatWithTools({
-                  baseUrl: settings.ollamaBaseUrl,
-                  model: settings.ollamaModel,
-                  thinkLevel: settings.llmThinkLevel,
-                  ...commonToolParams,
-                })
+            ? await runOpenRouterChatWithTools({
+                baseUrl: cloudCfg.baseUrl,
+                apiKey: cloudCfg.apiKey,
+                model: cloudCfg.model,
+                thinkLevel: cloudCfg.thinkLevel,
+                providerOnly: cloudCfg.providerOnly,
+                ...commonToolParams,
+              })
+            : await runOllamaChatWithTools({
+                baseUrl: settings.ollamaBaseUrl,
+                model: settings.ollamaModel,
+                thinkLevel: settings.llmThinkLevel,
+                ...commonToolParams,
+              })
           replyText = out.content
           usage = out.usage
-          // Ensure final tool-loop reply is in content (covers cases with no stream tokens).
           if (out.content) {
-            setMessages((prev) =>
+            setMsgs((prev) =>
               prev.map((m) => (m.id === asstId ? { ...m, content: out.content } : m)),
             )
           }
         } else {
           const cloudCfg = resolveCloudLlmChatConfig(settings)
           const out = cloudCfg
-              ? await streamOpenRouterChat({
-                  baseUrl: cloudCfg.baseUrl,
-                  apiKey: cloudCfg.apiKey,
-                  model: cloudCfg.model,
-                  thinkLevel: cloudCfg.thinkLevel,
-                  providerOnly: cloudCfg.providerOnly,
-                  messages: ollamaMessagesToOpenRouter(history),
-                  modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-                  signal: ac.signal,
-                  onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
-                    ? (thinking) => {
-                        if (!isRunActive()) return
-                        setMessages((prev) =>
-                          prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                        )
-                      }
-                    : undefined,
-                  onDelta: (full) => {
-                    if (!isRunActive()) return
-                    setMessages((prev) =>
-                      prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
-                    )
-                  },
-                })
-              : await streamOllamaChat({
-                  baseUrl: settings.ollamaBaseUrl,
-                  model: settings.ollamaModel,
-                  messages: history,
-                  modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-                  signal: ac.signal,
-                  thinkLevel: settings.llmThinkLevel,
-                  onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
-                    ? (thinking) => {
-                        if (!isRunActive()) return
-                        setMessages((prev) =>
-                          prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                        )
-                      }
-                    : undefined,
-                  onDelta: (full) => {
-                    if (!isRunActive()) return
-                    setMessages((prev) =>
-                      prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
-                    )
-                  },
-                })
+            ? await streamOpenRouterChat({
+                baseUrl: cloudCfg.baseUrl,
+                apiKey: cloudCfg.apiKey,
+                model: cloudCfg.model,
+                thinkLevel: cloudCfg.thinkLevel,
+                providerOnly: cloudCfg.providerOnly,
+                messages: ollamaMessagesToOpenRouter(history),
+                modelOptions: {
+                  temperature: settings.llmTemperature,
+                  num_ctx: settings.llmNumCtx,
+                },
+                signal: ac.signal,
+                onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                  ? (thinking) => {
+                      if (!isRunActive()) return
+                      setMsgs((prev) =>
+                        prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                      )
+                    }
+                  : undefined,
+                onDelta: (full) => {
+                  if (!isRunActive()) return
+                  setMsgs((prev) =>
+                    prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
+                  )
+                },
+              })
+            : await streamOllamaChat({
+                baseUrl: settings.ollamaBaseUrl,
+                model: settings.ollamaModel,
+                messages: history,
+                modelOptions: {
+                  temperature: settings.llmTemperature,
+                  num_ctx: settings.llmNumCtx,
+                },
+                signal: ac.signal,
+                thinkLevel: settings.llmThinkLevel,
+                onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                  ? (thinking) => {
+                      if (!isRunActive()) return
+                      setMsgs((prev) =>
+                        prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
+                      )
+                    }
+                  : undefined,
+                onDelta: (full) => {
+                  if (!isRunActive()) return
+                  setMsgs((prev) =>
+                    prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
+                  )
+                },
+              })
           replyText = out.content
           usage = out.usage
         }
@@ -802,7 +999,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         if (!isRunActive()) {
           const planMsgId = opts?.buildFromPlanMessageId
           if (planMsgId) {
-            setMessages((prev) =>
+            setMsgs((prev) =>
               prev.map((m) =>
                 m.id === planMsgId && m.plan?.status === 'approved'
                   ? { ...m, plan: reopenPlanAsDraft(m.plan) }
@@ -819,9 +1016,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             ? attachResearchToPlan(extracted, planResearchHarvest)
             : null
           const stripped = stripPlanJsonFenceFromContent(replyText)
-          // Fence-only replies: show empty body (card has the structure), not raw JSON.
           const displayContent = stripped.trim() ? stripped : plan ? '' : replyText
-          setMessages((prev) =>
+          setMsgs((prev) =>
             prev.map((m) =>
               m.id === asstId
                 ? {
@@ -837,7 +1033,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
         if (opts?.buildFromPlanMessageId) {
           const planMsgId = opts.buildFromPlanMessageId
-          setMessages((prev) =>
+          setMsgs((prev) =>
             prev.map((m) =>
               m.id === planMsgId && m.plan
                 ? { ...m, plan: finalizePlanAfterBuild(m.plan) }
@@ -848,13 +1044,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
 
         const usageInfo = estimateContextUsage(usage, resolveContextLimit(settings))
-        setContextUsageInfo(usageInfo)
-        if (usageInfo?.shouldWarn && !settings.contextAutoCompress) setContextWarnDismissed(false)
+        setUsage(usageInfo)
+        if (usageInfo?.shouldWarn && !settings.contextAutoCompress) setWarnDismissed(false)
         if (retrievedLongMemory.length > 0) {
           void touchMemoryUsage(retrievedLongMemory.map((m) => m.id))
         }
 
-        // Persist a compact digest for the next prompt (paths alone are not enough after a big turn).
         if (settings.toolsEnabled.coding && turnLogMutable.events.length > 0) {
           const summary = buildCodingTurnSummary({
             userGoal: text,
@@ -862,7 +1057,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             assistantReply: replyText,
           })
           if (summary) {
-            setCodingContextMemo((prev) => ({
+            applyCodingMemo((prev) => ({
               ...prev,
               lastTurnSummary: summary,
             }))
@@ -872,7 +1067,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         const reopenBuildPlan = () => {
           const planMsgId = opts?.buildFromPlanMessageId
           if (!planMsgId) return
-          setMessages((prev) =>
+          setMsgs((prev) =>
             prev.map((m) =>
               m.id === planMsgId && m.plan?.status === 'approved'
                 ? { ...m, plan: reopenPlanAsDraft(m.plan) }
@@ -890,8 +1085,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
         reopenBuildPlan()
         const msg = e instanceof Error ? e.message : String(e)
-        setError(msg)
-        setMessages((prev) =>
+        setErr(msg)
+        setMsgs((prev) =>
           prev.map((m) =>
             m.id === asstId && !m.content.trim() ? { ...m, content: `(ERR: ${msg})` } : m,
           ),
@@ -900,22 +1095,20 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           void playNotificationSound('error', { volume: settings.notificationSoundVolume })
         }
       } finally {
-        if (activeChatRunIdRef.current === runId) {
-          setToolPhase(null)
-          setBusy(false)
-          abortRef.current = null
-        }
+        sessionAgentStore.endRun(keyOf(), runId)
       }
 
-      if (escalatedToPlan && activeChatRunIdRef.current === runId) {
+      // Same semantics as pre-store: runId still current and not aborted → finish/escalate.
+      const runStillOwnsSlot =
+        sessionAgentStore.getSnapshot(keyOf()).runId === runId && !ac.signal.aborted
+
+      if (escalatedToPlan && runStillOwnsSlot) {
         setSettings((s) => (s.agentMode === 'plan' ? s : { ...s, agentMode: 'plan' }))
         const handoffHistory = isEdit
           ? activeHistory.filter((m) => m.id !== asstId)
           : userMsg
             ? [...activeHistory, userMsg]
             : activeHistory
-        // Sync turn summary + digests into memo/ref before the Plan re-send so the
-        // handoff turn does not see a stale closure memo and re-explore from scratch.
         let handoffContext = ''
         let summary = ''
         if (settings.toolsEnabled.coding) {
@@ -925,21 +1118,20 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             assistantReply: replyText,
           })
           if (summary) {
-            setCodingContextMemo((prev) => ({
+            applyCodingMemo((prev) => ({
               ...prev,
               lastTurnSummary: summary,
             }))
           }
-          handoffContext = buildPlanHandoffContextHint(codingContextMemoRef.current, {
-            turnSummary: summary || codingContextMemoRef.current.lastTurnSummary,
+          handoffContext = buildPlanHandoffContextHint(turnMemoRef.current, {
+            turnSummary: summary || turnMemoRef.current.lastTurnSummary,
             toolLog: turnLogMutable,
           })
         }
-        // Rich UI draft: real reply if long enough, else exploration digests — skip empty stubs.
         const draftBody = buildPlanHandoffUiDraftContent({
           replyText,
-          turnSummary: summary || codingContextMemoRef.current.lastTurnSummary,
-          memo: codingContextMemoRef.current,
+          turnSummary: summary || turnMemoRef.current.lastTurnSummary,
+          memo: turnMemoRef.current,
           toolLog: turnLogMutable,
         })
         const planHandoffUiDraft = draftBody
@@ -951,6 +1143,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             }
           : undefined
         onSessionDirty()
+        sessionAgentStore.releaseKeyHandle(bind)
         void onSend({
           text,
           forceAgentMode: 'plan',
@@ -963,64 +1156,64 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         return
       }
 
-      if (replyText.trim()) {
+      sessionAgentStore.releaseKeyHandle(bind)
+
+      if (replyText.trim() && runStillOwnsSlot) {
         const willAutoSpeak = loadSettings().autoVoice && ttsOk !== false
         if (settings.notificationSoundsEnabled && !willAutoSpeak) {
           void playNotificationSound('reply', { volume: settings.notificationSoundVolume })
         }
-        if (willAutoSpeak) {
+        if (willAutoSpeak && isViewingThisRun()) {
           void onRead({ id: asstId, role: 'assistant', content: replyText })
         }
       }
     },
     [
+      activeCodingProcesses,
       activeSessionUseLongMemory,
-      busy,
       codingContextMemo,
       codingContextMemoRef,
-      activeCodingProcesses,
+      codingFileCacheRef,
+      claimSessionIdForDraft,
       contextCompressedThroughIndex,
       effectivePdfOutputDir,
       hiddenContextSummary,
       imageVisionCache,
       input,
-      messages,
       onRead,
       onSessionDirty,
+      patchSessionCodingMemo,
       pendingFiles,
       pendingImages,
       refreshLongMemories,
       refreshReminders,
+      revealCodingFile,
+      runtimeKey,
+      runtimeKeyRef,
       setCodingContextMemo,
       setCodingFileTreeNonce,
       setCodingGitNonce,
       setCodingTerminalFeed,
-      revealCodingFile,
       setImageVisionCache,
       setInput,
       setPendingFiles,
       setPendingImages,
       setSettings,
       settings,
-      subAgentUi,
+      systemPromptPresetRef,
       ttsOk,
     ],
   )
 
   const onStop = useCallback(() => {
-    activeChatRunIdRef.current += 1
-    abortRef.current?.abort()
-    abortRef.current = null
+    sessionAgentStore.stop(runtimeKey)
     void cancelActiveMcpCalls()
-    setToolPhase(null)
-    setBusy(false)
-    // Unlock any in-flight Approve & Build plan so the user can retry.
-    setMessages((prev) =>
+    sessionAgentStore.setMessages(runtimeKey, (prev) =>
       prev.map((m) =>
         m.plan?.status === 'approved' ? { ...m, plan: reopenPlanAsDraft(m.plan) } : m,
       ),
     )
-  }, [])
+  }, [runtimeKey])
 
   const startEdit = useCallback(
     (msg: UiMessage) => {
@@ -1049,7 +1242,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setEditInputValue('')
       void onSend({ text: trimmed, history: truncated, skipAddUserMsg: true })
     },
-    [editInputValue, messages, onSend],
+    [editInputValue, messages, onSend, setMessages],
   )
 
   const updateMessagePlan = useCallback(
@@ -1059,7 +1252,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       )
       onSessionDirty()
     },
-    [onSessionDirty],
+    [onSessionDirty, setMessages],
   )
 
   const approveAndBuildPlan = useCallback(
@@ -1079,7 +1272,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         buildFromPlanMessageId: messageId,
       })
     },
-    [busy, onSend, onSessionDirty, setSettings],
+    [busy, onSend, onSessionDirty, setMessages, setSettings],
   )
 
   const revisePlanWithCustomNote = useCallback(
@@ -1116,22 +1309,22 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     setSubAgentPanelBusy,
     subAgentPanelText,
     setSubAgentPanelText,
-    assistantGeneratedImages,
-    setAssistantGeneratedImages,
-    assistantSavedImagePaths,
-    setAssistantSavedImagePaths,
-    assistantImageToolMeta,
-    setAssistantImageToolMeta,
-    assistantImageMessageMeta,
-    setAssistantImageMessageMeta,
-    assistantGeneratedAudios,
-    setAssistantGeneratedAudios,
-    assistantSavedAudioPaths,
-    setAssistantSavedAudioPaths,
-    assistantAudioToolMeta,
-    setAssistantAudioToolMeta,
-    assistantAudioMessageMeta,
-    setAssistantAudioMessageMeta,
+    assistantGeneratedImages: media.assistantGeneratedImages,
+    setAssistantGeneratedImages: mediaView.setAssistantGeneratedImages,
+    assistantSavedImagePaths: media.assistantSavedImagePaths,
+    setAssistantSavedImagePaths: mediaView.setAssistantSavedImagePaths,
+    assistantImageToolMeta: media.assistantImageToolMeta,
+    setAssistantImageToolMeta: mediaView.setAssistantImageToolMeta,
+    assistantImageMessageMeta: media.assistantImageMessageMeta,
+    setAssistantImageMessageMeta: mediaView.setAssistantImageMessageMeta,
+    assistantGeneratedAudios: media.assistantGeneratedAudios,
+    setAssistantGeneratedAudios: mediaView.setAssistantGeneratedAudios,
+    assistantSavedAudioPaths: media.assistantSavedAudioPaths,
+    setAssistantSavedAudioPaths: mediaView.setAssistantSavedAudioPaths,
+    assistantAudioToolMeta: media.assistantAudioToolMeta,
+    setAssistantAudioToolMeta: mediaView.setAssistantAudioToolMeta,
+    assistantAudioMessageMeta: media.assistantAudioMessageMeta,
+    setAssistantAudioMessageMeta: mediaView.setAssistantAudioMessageMeta,
     toolResultBanner,
     setToolResultBanner,
     editingMessageId,
@@ -1154,5 +1347,10 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     revisePlanWithCustomNote,
     summarizeContextNow,
     subAgentUi,
+    setBusy,
+    runtimeKey,
   }
 }
+
+/** @deprecated use DRAFT_RUNTIME_KEY from sessionAgentStore */
+export { DRAFT_RUNTIME_KEY }

@@ -1,4 +1,11 @@
-import { useEffect, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from 'react'
 import { resolveContextCompressedThroughIndex } from '@/lib/chatMessages'
 import {
   deleteSessionById,
@@ -28,7 +35,16 @@ import {
 } from '@/lib/settings'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
+import {
+  DRAFT_RUNTIME_KEY,
+  runtimeKeyForSession,
+  sessionAgentStore,
+} from '@/lib/sessionAgentStore'
 import type { ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
+
+function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
+  return typeof action === 'function' ? (action as (p: T) => T)(prev) : action
+}
 
 export type ChatSessionsDeps = {
   settings: AppSettings
@@ -47,6 +63,7 @@ export type ChatSessionsDeps = {
     options?: { flushActiveSessionId?: string | null },
   ) => void
   resetCodingTerminal: () => void
+  /** Stop only the currently visible agent (used on delete of active / new draft reset). */
   abortActiveRuns: () => void
   cancelMessageEdit?: () => void
   setInput: Dispatch<SetStateAction<string>>
@@ -77,7 +94,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     resetAssistantMediaState,
     restoreCodingContextForSession,
     resetCodingTerminal,
-    abortActiveRuns,
+    abortActiveRuns: _abortActiveRuns,
     cancelMessageEdit,
     setInput,
     setPendingImages,
@@ -138,7 +155,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       const active = state.activeSessionId
         ? sessions.find((s) => s.id === state.activeSessionId)
         : null
-      setMessages(active?.messages ?? [])
+      const runtimeKey = runtimeKeyForSession(state.activeSessionId)
+      sessionAgentStore.hydrateMessages(runtimeKey, active?.messages ?? [])
       resetAssistantMediaState()
       setHiddenContextSummary(active?.hiddenContextSummary ?? '')
       setContextCompressedThroughIndex(
@@ -165,6 +183,30 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     }
   }, [])
 
+  // Background agent runs write messages into the store — mirror into sessions[].
+  useEffect(() => {
+    sessionAgentStore.setMessageSync((sessionId, nextMessages) => {
+      setSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === sessionId)
+        if (idx < 0) return prev
+        if (prev[idx].messages === nextMessages) return prev
+        const next = [...prev]
+        next[idx] = {
+          ...prev[idx],
+          messages: nextMessages,
+          updatedAt: Date.now(),
+          title:
+            prev[idx].title && prev[idx].title !== 'New chat'
+              ? prev[idx].title
+              : deriveSessionTitle(nextMessages) || prev[idx].title,
+        }
+        next.sort((a, b) => b.updatedAt - a.updatedAt)
+        return next
+      })
+    })
+    return () => sessionAgentStore.setMessageSync(null)
+  }, [])
+
   // Persist sessions (debounced IndexedDB write)
   useEffect(() => {
     if (!sessionsHydrated) return
@@ -173,6 +215,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
 
   // Auto-update sessions in state. When autoSaveChat is ON, auto-create new sessions too.
   // When OFF and no session ID, remains an unsaved draft until user clicks SAVE.
+  // Draft → id rekey is done up-front in claimSessionIdForDraft (agent onSend).
   useEffect(() => {
     if (!sessionsHydrated) return
     if (messages.length === 0) return
@@ -180,7 +223,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     // AutoSave OFF + no session ID → nothing to auto-update (manual save needed)
     if (!settings.autoSaveChat && !activeSessionId) return
 
-    // AutoSave ON + no session ID yet → auto-create the session on first message
+    // AutoSave ON + no session ID yet → auto-create + rekey draft runtime
     if (!activeSessionId && settings.autoSaveChat) {
       const newId = uid()
       const now = Date.now()
@@ -200,23 +243,43 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         codingProjectPath: projectPath || undefined,
         imageVisionCache: normalizeImageVisionCache(imageVisionCache),
       }
+      sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
       setSessions((prev) => [...prev, newSession].sort((a, b) => b.updatedAt - a.updatedAt))
       setActiveSessionId(newId)
       setSessionDirty(false)
       return
     }
 
-    // activeSessionId exists — update existing session
+    // activeSessionId exists — update existing session, or create shell if claimSessionId pre-allocated
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === activeSessionId)
-      if (idx < 0) return prev
-      const current = prev[idx]
       const nextHiddenContextSummary = hiddenContextSummary.trim() || undefined
       const nextCompressedThrough = nextHiddenContextSummary
         ? contextCompressedThroughIndex
         : undefined
       const projectPath = getCodingProjectPath(settings)
       const nextMemo = normalizeCodingContextMemo(codingContextMemo, projectPath)
+      const nextVisionCache = normalizeImageVisionCache(imageVisionCache)
+
+      if (idx < 0) {
+        const now = Date.now()
+        const created: ChatSession = {
+          id: activeSessionId!,
+          title: deriveSessionTitle(messages),
+          createdAt: now,
+          updatedAt: now,
+          messages,
+          systemPromptPreset: pendingNewSessionPreset,
+          hiddenContextSummary: nextHiddenContextSummary,
+          contextCompressedThroughIndex: nextCompressedThrough,
+          codingContextMemo: nextMemo,
+          codingProjectPath: projectPath || undefined,
+          imageVisionCache: nextVisionCache,
+        }
+        return [...prev, created].sort((a, b) => b.updatedAt - a.updatedAt)
+      }
+
+      const current = prev[idx]
       const sameMessagesRef = current.messages === messages
       const sameHiddenSummary =
         (current.hiddenContextSummary ?? '') === (nextHiddenContextSummary ?? '')
@@ -225,7 +288,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       const sameMemo =
         JSON.stringify(current.codingContextMemo ?? null) === JSON.stringify(nextMemo)
       const sameCodingPath = (current.codingProjectPath ?? '') === projectPath
-      const nextVisionCache = normalizeImageVisionCache(imageVisionCache)
       const sameVisionCache =
         JSON.stringify(current.imageVisionCache ?? null) === JSON.stringify(nextVisionCache)
       if (
@@ -243,6 +305,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         ...current,
         updatedAt: Date.now(),
         messages,
+        title: current.title || deriveSessionTitle(messages),
         hiddenContextSummary: nextHiddenContextSummary,
         contextCompressedThroughIndex: nextCompressedThrough,
         codingContextMemo: nextMemo,
@@ -272,12 +335,46 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const canSaveSession =
     settings.autoSaveChat ? false : messages.length > 0 && !busy && sessionDirty
 
+  /**
+   * Claim a real session id for the draft before the first agent turn (auto-save).
+   * Rekeys the runtime slot so mid-stream updates land on the session id.
+   */
+  const claimSessionIdForDraft = useCallback((): string | null => {
+    if (activeSessionId) return activeSessionId
+    if (!settings.autoSaveChat) return null
+    const newId = uid()
+    sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
+    setActiveSessionId(newId)
+    return newId
+  }, [activeSessionId, settings.autoSaveChat])
+
+  /** Apply coding memo patches for a background (non-visible) session. */
+  const patchSessionCodingMemo = useCallback(
+    (sessionId: string, action: SetStateAction<CodingContextMemo>) => {
+      setSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === sessionId)
+        if (idx < 0) return prev
+        const current = prev[idx]
+        const projectPath = sessionCodingProjectPath(current) || getCodingProjectPath(settings)
+        const prevMemo = resolveMemoForSession(current, projectPath)
+        const nextMemo = normalizeCodingContextMemo(resolveAction(prevMemo, action), projectPath)
+        const next = [...prev]
+        next[idx] = {
+          ...current,
+          codingContextMemo: nextMemo,
+          updatedAt: Date.now(),
+        }
+        return next
+      })
+    },
+    [settings],
+  )
+
   /** Reset the active view for a brand-new chat bound to `projectPath` ('' = General). */
   const resetForNewChat = (projectPath: string) => {
-    abortActiveRuns()
+    // Leave other sessions' agent runs running in the background.
     cancelMessageEdit?.()
-    setMessages([])
-    resetAssistantMediaState()
+    sessionAgentStore.resetDraft()
     setHiddenContextSummary('')
     setContextCompressedThroughIndex(0)
     contextOverflowLatchRef.current = false
@@ -308,17 +405,27 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const newChatForProject = (projectPath: string) => resetForNewChat(projectPath)
 
   const openSession = (session: ChatSession) => {
-    abortActiveRuns()
+    // Do NOT abort the previous session's agent — background multi-chat.
     cancelMessageEdit?.()
     const flushId =
       activeSessionId && activeSessionId !== session.id ? activeSessionId : null
     restoreCodingContextForSession(session, { flushActiveSessionId: flushId })
-    setMessages(session.messages)
-    resetAssistantMediaState()
+
+    const live = sessionAgentStore.get(session.id)
+    // Prefer live runtime messages when the agent is mid-run (or has fresher state).
+    if (live?.busy) {
+      // slot already owns messages
+    } else if (live) {
+      // Keep live slot if present (may be slightly ahead of persisted).
+    } else {
+      sessionAgentStore.hydrateMessages(session.id, session.messages)
+    }
+
+    const messagesForView = sessionAgentStore.getSnapshot(session.id).messages
     const through = resolveContextCompressedThroughIndex(
       session.hiddenContextSummary,
       session.contextCompressedThroughIndex,
-      session.messages.length,
+      messagesForView.length,
     )
     setHiddenContextSummary(session.hiddenContextSummary ?? '')
     setContextCompressedThroughIndex(through)
@@ -333,26 +440,29 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         return next
       })
     }
-    setContextUsageInfo(null)
-    setContextWarnDismissed(false)
+    if (!live?.busy) {
+      // Fresh session view: usage comes with the slot on next render; no write needed.
+    }
     setActiveSessionId(session.id)
     setSessionDirty(false)
-    setToolResultBanner(null)
     setPendingDeleteId(null)
     setRenamingSessionId(null)
     setRenameValue('')
     setPendingImages([])
+    setImageVisionCache(normalizeImageVisionCache(session.imageVisionCache))
   }
 
   const forkSession = (session: ChatSession) => {
     cancelMessageEdit?.()
     const now = Date.now()
+    const sourceMessages =
+      sessionAgentStore.get(session.id)?.messages ?? session.messages
     const forked: ChatSession = {
       id: uid(),
       title: `${session.title} (fork)`,
       createdAt: now,
       updatedAt: now,
-      messages: session.messages,
+      messages: sourceMessages,
       systemPromptPreset: session.systemPromptPreset,
       hiddenContextSummary: session.hiddenContextSummary,
       contextCompressedThroughIndex: session.contextCompressedThroughIndex,
@@ -362,10 +472,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     }
     const nextState = upsertSession({ sessions, activeSessionId }, forked)
     setSessions(nextState.sessions)
+    sessionAgentStore.hydrateMessages(forked.id, forked.messages)
     setActiveSessionId(forked.id)
     scheduleSaveChatSessions(nextState)
-    setMessages(forked.messages)
-    resetAssistantMediaState()
     setHiddenContextSummary(forked.hiddenContextSummary ?? '')
     setContextCompressedThroughIndex(
       resolveContextCompressedThroughIndex(
@@ -453,8 +562,12 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     if (messages.length === 0) return
     const now = Date.now()
     const existing = activeSessionId ? sessions.find((s) => s.id === activeSessionId) : null
+    const id = existing?.id ?? uid()
+    if (!activeSessionId) {
+      sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, id)
+    }
     const next: ChatSession = {
-      id: existing?.id ?? uid(),
+      id,
       title: existing?.title || deriveSessionTitle(messages),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -479,25 +592,29 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }
 
   const deleteSession = (sessionId: string) => {
+    // Stop that session's agent if running, without stopping others.
+    sessionAgentStore.discard(sessionId)
     const state = deleteSessionById({ sessions, activeSessionId }, sessionId)
     setSessions(state.sessions)
     setActiveSessionId(state.activeSessionId)
     if (state.activeSessionId) {
       const next = state.sessions.find((s) => s.id === state.activeSessionId)
-      setMessages(next?.messages ?? [])
-      resetAssistantMediaState()
-      setHiddenContextSummary(next?.hiddenContextSummary ?? '')
-      setContextCompressedThroughIndex(
-        resolveContextCompressedThroughIndex(
-          next?.hiddenContextSummary,
-          next?.contextCompressedThroughIndex,
-          next?.messages.length ?? 0,
-        ),
-      )
-      if (next) restoreCodingContextForSession(next)
+      if (next) {
+        if (!sessionAgentStore.get(next.id)?.busy) {
+          sessionAgentStore.hydrateMessages(next.id, next.messages)
+        }
+        setHiddenContextSummary(next.hiddenContextSummary ?? '')
+        setContextCompressedThroughIndex(
+          resolveContextCompressedThroughIndex(
+            next.hiddenContextSummary,
+            next.contextCompressedThroughIndex,
+            next.messages.length,
+          ),
+        )
+        restoreCodingContextForSession(next)
+      }
     } else {
-      setMessages([])
-      resetAssistantMediaState()
+      sessionAgentStore.resetDraft()
       setHiddenContextSummary('')
       setContextCompressedThroughIndex(0)
       contextOverflowLatchRef.current = false
@@ -575,5 +692,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setUseLongMemoryForActiveChat,
     activeSystemPromptPreset,
     setSystemPromptPresetForActiveChat,
+    claimSessionIdForDraft,
+    patchSessionCodingMemo,
   }
 }

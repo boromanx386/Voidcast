@@ -3,6 +3,8 @@ import type { ChatSession } from '@/types/chat'
 type SessionItemProps = {
   session: ChatSession
   isActive: boolean
+  /** Agent run in progress (including background). */
+  isBusy?: boolean
   isRenaming: boolean
   isPendingDelete: boolean
   renameValue: string
@@ -21,6 +23,7 @@ type SessionItemProps = {
 export function SessionItem({
   session,
   isActive,
+  isBusy = false,
   isRenaming,
   isPendingDelete,
   renameValue,
@@ -86,8 +89,21 @@ export function SessionItem({
       ) : (
         <>
           <button type="button" className="w-full text-left" onClick={onOpen}>
-            <div className="text-xs text-void-light truncate font-mono">{session.title}</div>
-            <div className="text-[10px] text-void-dim mt-0.5">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="min-w-0 flex-1 truncate font-mono text-xs text-void-light">
+                {session.title}
+              </div>
+              {isBusy && (
+                <span
+                  className="shrink-0 font-mono text-[9px] tracking-wide text-neon-green"
+                  title="Agent running"
+                  aria-label="Agent running"
+                >
+                  ● RUN
+                </span>
+              )}
+            </div>
+            <div className="mt-0.5 text-[10px] text-void-dim">
               {new Date(session.updatedAt).toLocaleDateString()}{' '}
               {new Date(session.updatedAt).toLocaleTimeString([], {
                 hour: '2-digit',
@@ -95,28 +111,28 @@ export function SessionItem({
               })}
             </div>
           </button>
-          <div className="flex gap-1 mt-1">
+          <div className="mt-1 flex gap-1">
             <button
               onClick={onFork}
-              className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-green border border-transparent hover:border-void-dim/30"
+              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-green"
             >
               FORK
             </button>
             <button
               onClick={onExport}
-              className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-cyan border border-transparent hover:border-void-dim/30"
+              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-cyan"
             >
               EXP
             </button>
             <button
               onClick={onStartRename}
-              className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-cyan border border-transparent hover:border-void-dim/30"
+              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-cyan"
             >
               REN
             </button>
             <button
               onClick={onStartDelete}
-              className="px-1.5 py-0.5 text-[10px] text-void-dim hover:text-neon-red border border-transparent hover:border-void-dim/30"
+              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-red"
             >
               DEL
             </button>
