@@ -397,29 +397,81 @@ export function buildCodingTurnSummary(params: {
   return lines.join('\n').slice(0, CODING_TURN_SUMMARY_MAX_CHARS)
 }
 
-export const CODING_PLAN_HANDOFF_MAX_CHARS = 4500
+export const CODING_PLAN_HANDOFF_MAX_CHARS = 6000
+const PLAN_TOOL_TRAIL_MAX = 20
+
+/** Compact one-line-per-event rendering of the agent round's raw tool log. */
+function formatCodingTurnLogTrail(log: CodingTurnLog | undefined): string {
+  if (!log || log.events.length === 0) return ''
+  const rows: string[] = []
+  for (const ev of log.events.slice(-PLAN_TOOL_TRAIL_MAX)) {
+    const d = ev.detail.trim()
+    if (!d) continue
+    switch (ev.kind) {
+      case 'search':
+        rows.push(`search: "${d}"`)
+        break
+      case 'symbols':
+        rows.push(`symbols: ${d}`)
+        break
+      case 'explore':
+        rows.push(`explore: ${d}`)
+        break
+      case 'git':
+        rows.push(`git: ${d}`)
+        break
+      case 'command':
+        rows.push(`command: ${d}`)
+        break
+      case 'check':
+        rows.push(`check: ${d}`)
+        break
+      case 'edit':
+        rows.push(`edited: ${d}`)
+        break
+      case 'write':
+        rows.push(`wrote: ${d}`)
+        break
+      case 'fail':
+        rows.push(`fail: ${d}`)
+        break
+      default:
+        rows.push(`${ev.kind}: ${d}`)
+    }
+  }
+  return rows.join('\n')
+}
 
 /**
  * Compact block injected into a Plan turn after enter_plan_mode so exploration
  * from the aborted agent turn is not discarded. Empty when nothing useful.
+ * `toolLog` is the raw agent-round CodingTurnLog — rendered as a concrete
+ * "already done, do not repeat" trail so the Plan turn does not re-explore.
  */
 export function buildPlanHandoffContextHint(
   memo: CodingContextMemo,
-  opts?: { turnSummary?: string },
+  opts?: { turnSummary?: string; toolLog?: CodingTurnLog },
 ): string {
   const summary = (opts?.turnSummary ?? memo.lastTurnSummary).trim()
   const digests = memo.recentFileDigests ?? []
   const files = memo.recentFiles ?? []
   const searches = memo.recentSearches ?? []
-  if (!summary && digests.length === 0 && files.length === 0 && searches.length === 0) {
+  const trail = formatCodingTurnLogTrail(opts?.toolLog)
+  if (!summary && digests.length === 0 && files.length === 0 && searches.length === 0 && !trail) {
     return ''
   }
 
   const lines: string[] = [
-    'Prior agent-mode exploration for this same user request — do NOT redo broad coding_explore, glob_files, full-tree list_directory, or whole-file re-reads. Draft the plan from this research; use targeted tools only for clear gaps.',
+    'HARD CONSTRAINT — Prior agent-mode exploration for this same user request is attached below.',
+    'Do NOT call coding_explore, broad glob_files, full-tree list_directory, or re-read whole files already listed in digests / tool trail / recent files.',
+    'Draft the plan immediately from this research. A single targeted find_symbols or range-read is allowed only if a concrete named gap blocks actionable steps.',
   ]
   if (summary) {
     lines.push('', summary)
+  }
+  if (trail) {
+    lines.push('', 'Agent-round tool trail (already done — do NOT repeat these calls):')
+    lines.push(trail)
   }
   if (digests.length > 0) {
     lines.push('', 'File digests:')
@@ -433,6 +485,74 @@ export function buildPlanHandoffContextHint(
     lines.push(`Recent searches: ${searches.join(' | ')}`)
   }
   return lines.join('\n').slice(0, CODING_PLAN_HANDOFF_MAX_CHARS)
+}
+
+/** Min free-text length to keep the agent reply as the handoff draft body (skip thin "entering plan" stubs). */
+export const PLAN_HANDOFF_UI_MIN_REPLY_CHARS = 80
+export const PLAN_HANDOFF_UI_MAX_CHARS = 2800
+
+/**
+ * User-visible draft body for enter_plan_mode handoff.
+ * Prefers a real agent reply; if the reply is a short stub, shows exploration digests
+ * instead. Returns null when there is nothing useful to show (avoid empty badges).
+ */
+export function buildPlanHandoffUiDraftContent(params: {
+  replyText?: string
+  turnSummary?: string
+  memo: CodingContextMemo
+  toolLog?: CodingTurnLog
+}): string | null {
+  const reply = (params.replyText ?? '').trim()
+  const summary = (params.turnSummary ?? params.memo.lastTurnSummary).trim()
+  const digests = params.memo.recentFileDigests ?? []
+  const files = params.memo.recentFiles ?? []
+  const trail = formatCodingTurnLogTrail(params.toolLog)
+  const hasResearch =
+    digests.length > 0 || files.length > 0 || Boolean(trail) || Boolean(summary)
+  const keepReply = reply.length >= PLAN_HANDOFF_UI_MIN_REPLY_CHARS
+
+  if (!keepReply && !hasResearch) return null
+
+  const lines: string[] = []
+
+  if (keepReply) {
+    lines.push(reply)
+  } else {
+    lines.push('Entering Plan mode with prior agent-mode research (do not re-explore from scratch).')
+  }
+
+  const paths =
+    digests.length > 0 ? digests.map((d) => d.path) : files.filter(Boolean)
+  if (paths.length > 0) {
+    lines.push('')
+    lines.push(
+      `Explored ${paths.length} file${paths.length === 1 ? '' : 's'} before Plan:`,
+    )
+    for (const p of paths.slice(0, 12)) {
+      const dig = digests.find((d) => d.path === p)
+      if (dig?.digest) {
+        const snippet =
+          dig.digest.length > 140 ? `${dig.digest.slice(0, 137)}…` : dig.digest
+        lines.push(`- \`${p}\` — ${snippet}`)
+      } else {
+        lines.push(`- \`${p}\``)
+      }
+    }
+  }
+
+  if (!keepReply && summary) {
+    lines.push('', summary)
+  } else if (!keepReply && trail) {
+    const toolLines = trail.split('\n').filter(Boolean).slice(0, 10)
+    if (toolLines.length) {
+      lines.push('', 'Tools already run:')
+      for (const t of toolLines) lines.push(`- ${t}`)
+    }
+  }
+
+  const out = lines.join('\n').trim()
+  if (!out) return null
+  return out.slice(0, PLAN_HANDOFF_UI_MAX_CHARS)
 }
 
 export function getCodingProjectPath(settings: Pick<AppSettings, 'coding' | 'codingProjectPath'>): string {

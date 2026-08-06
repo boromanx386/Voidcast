@@ -59,6 +59,11 @@ export type UiMessage = {
    * Shown above the main reply when non-empty.
    */
   thinking?: string
+  /**
+   * Assistant only: this reply was the agent-mode answer that triggered a plan-mode
+   * escalation. Kept on screen (not discarded) as context before the plan turn.
+   */
+  planHandoffDraft?: boolean
   /** Raw base64 for Ollama `images` (no data-URL prefix). User messages only. */
   images?: string[]
   /** Parallel MIME types for rendering (e.g. image/png). Not persisted (see chatSessionsStorage strip). */

@@ -226,7 +226,7 @@ export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string
   ]
   if (opts?.hasHandoff) {
     lines.push(
-      'A prior agent-mode exploration handoff is attached (digests / files / searches). Prefer that research over coding_explore, broad glob_files, and full-tree list_directory. Use a targeted read or find_symbols only when a concrete gap blocks a good plan.',
+      'HARD CONSTRAINT: A prior agent-mode exploration handoff is attached (digests / files / tool trail). Do NOT call coding_explore, broad glob_files, full-tree list_directory, or re-read whole files already covered by that handoff. Draft the json plan from the handoff first. Only a targeted find_symbols or one range-read is allowed when a concrete named gap blocks file-level steps.',
     )
   } else {
     lines.push(

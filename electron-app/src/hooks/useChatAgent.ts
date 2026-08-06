@@ -23,6 +23,7 @@ import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo
 import {
   buildCodingTurnSummary,
   buildPlanHandoffContextHint,
+  buildPlanHandoffUiDraftContent,
   emptyCodingFileCache,
   emptyCodingTurnLog,
   recordCodingToolInTurnLog,
@@ -131,6 +132,11 @@ export type OnSendOptions = {
   planHandoff?: boolean
   /** Prior agent-turn exploration text injected into the Plan turn system/tools hint. */
   planHandoffContext?: string
+  /**
+   * Agent-mode reply kept on screen when escalating to Plan.
+   * UI only — not included in the Plan turn's LLM history.
+   */
+  planHandoffUiDraft?: UiMessage
 }
 
 function lastUserMessage(history: UiMessage[]): UiMessage | undefined {
@@ -510,7 +516,18 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       activeChatRunIdRef.current = runId
       const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
       if (isEdit) {
-        setMessages(() => [...activeHistory, asstMsg])
+        // Plan handoff: keep the pre-plan agent reply visible (UI only) ahead of the new plan assistant.
+        const handoffDraft =
+          isPlanHandoff && opts?.planHandoffUiDraft?.content?.trim()
+            ? [
+                {
+                  ...opts.planHandoffUiDraft,
+                  content: opts.planHandoffUiDraft.content.trim(),
+                  planHandoffDraft: true as const,
+                },
+              ]
+            : []
+        setMessages(() => [...activeHistory, ...handoffDraft, asstMsg])
       } else {
         setMessages((m) => [...m, userMsg!, asstMsg])
       }
@@ -628,8 +645,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   )
                 }
               : undefined,
+            // Tool-loop: stream into the real message body. Ignore empty clears between
+            // rounds so intermediate text doesn't blink out while tools run — the next
+            // round's stream replaces content when new tokens arrive.
             onDelta: (full: string) => {
               if (!isRunActive()) return
+              if (!full) return
               setMessages((prev) =>
                 prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
               )
@@ -718,6 +739,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 })
           replyText = out.content
           usage = out.usage
+          // Ensure final tool-loop reply is in content (covers cases with no stream tokens).
+          if (out.content) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === asstId ? { ...m, content: out.content } : m)),
+            )
+          }
         } else {
           const cloudCfg = resolveCloudLlmChatConfig(settings)
           const out = cloudCfg
@@ -889,8 +916,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         // Sync turn summary + digests into memo/ref before the Plan re-send so the
         // handoff turn does not see a stale closure memo and re-explore from scratch.
         let handoffContext = ''
+        let summary = ''
         if (settings.toolsEnabled.coding) {
-          const summary = buildCodingTurnSummary({
+          summary = buildCodingTurnSummary({
             userGoal: text,
             log: turnLogMutable,
             assistantReply: replyText,
@@ -903,9 +931,24 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           }
           handoffContext = buildPlanHandoffContextHint(codingContextMemoRef.current, {
             turnSummary: summary || codingContextMemoRef.current.lastTurnSummary,
+            toolLog: turnLogMutable,
           })
         }
-        setMessages((prev) => prev.filter((m) => m.id !== asstId))
+        // Rich UI draft: real reply if long enough, else exploration digests — skip empty stubs.
+        const draftBody = buildPlanHandoffUiDraftContent({
+          replyText,
+          turnSummary: summary || codingContextMemoRef.current.lastTurnSummary,
+          memo: codingContextMemoRef.current,
+          toolLog: turnLogMutable,
+        })
+        const planHandoffUiDraft = draftBody
+          ? {
+              id: asstId,
+              role: 'assistant' as const,
+              content: draftBody,
+              planHandoffDraft: true,
+            }
+          : undefined
         onSessionDirty()
         void onSend({
           text,
@@ -914,6 +957,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           history: handoffHistory,
           planHandoff: true,
           planHandoffContext: handoffContext || undefined,
+          planHandoffUiDraft,
         })
         return
       }

@@ -133,6 +133,11 @@ export function ChatMessage({
                     }))
               return (
                 <>
+                  {m.planHandoffDraft ? (
+                    <div className="mb-2 rounded border border-dashed border-neon-cyan/30 bg-neon-cyan/5 px-3 py-1.5 text-[11px] font-mono text-neon-cyan/80">
+                      → Plan mode · kept as draft before plan
+                    </div>
+                  ) : null}
                   {m.thinking?.trim() ? (
                     <details
                       className="rounded border border-neon-cyan/25 bg-void-black/40"

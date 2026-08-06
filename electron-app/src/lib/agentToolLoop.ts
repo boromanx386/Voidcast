@@ -435,7 +435,9 @@ export async function runSharedToolLoop<
       })
       params.onToolPhase?.(null)
       params.onEscalateToPlan?.({ messages })
-      return { content: '', usage: lastUsage }
+      // Keep the pre-escalation draft instead of discarding it: the UI can show it
+      // as a "plan handoff" note rather than making the answer vanish.
+      return { content: lastAssistantText || content, usage: lastUsage }
     }
 
     for (const valid of validCalls) {
