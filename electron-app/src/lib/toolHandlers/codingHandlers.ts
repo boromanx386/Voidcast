@@ -18,6 +18,11 @@ import type { ToolHandlerFn, ToolHandlerRegistry } from "@/lib/toolExecTypes";
 import {
   ACTIVE_PROCESS_LAST_MAX_CHARS,
 } from "@/lib/codingActiveProcesses";
+import {
+  formatSoftDeniedReadResult,
+  normalizeCodingReadPath,
+  shouldSoftDenyFullRead,
+} from "@/lib/codingReadGuard";
 
 export const handleListDirectory: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.coding)
@@ -61,6 +66,26 @@ export const handleReadFile: ToolHandlerFn = async (args, ctx) => {
     typeof args.max_chars === "number" && Number.isFinite(args.max_chars)
       ? Math.floor(args.max_chars)
       : undefined;
+  const force = args.force === true;
+  const digests = ctx.codingContextMemoRef?.current.recentFileDigests ?? [];
+  const cachedPaths =
+    ctx.codingFileCacheRef?.current.entries.map((e) => e.path) ?? [];
+  if (
+    shouldSoftDenyFullRead({
+      path: relativePath,
+      startLine,
+      endLine,
+      force,
+      digests,
+      cachedPaths,
+    })
+  ) {
+    const norm = normalizeCodingReadPath(relativePath);
+    const dig =
+      digests.find((d) => normalizeCodingReadPath(d.path) === norm)?.digest ??
+      "";
+    return formatSoftDeniedReadResult(relativePath, dig);
+  }
   return (
     await invokeReadCodingFile(projectPath, relativePath, {
       startLine,

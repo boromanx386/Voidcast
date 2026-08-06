@@ -616,6 +616,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
             codingRecentFiles: codingContextMemoRef.current.recentFiles,
             codingFileCacheRef,
+            codingContextMemoRef,
             subAgent: settings.subAgent,
             ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
             openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,

@@ -145,17 +145,20 @@ export function applyAgentToolResult(
     // Update per-turn file cache first so digests can use post-edit content.
     const filePath = typeof args?.path === 'string' ? args.path.trim() : ''
     if (name === 'read_file' && filePath && !isCodingToolFailure('read_file', result)) {
-      const lines = result.split('\n')
-      const cleanLines: string[] = []
-      for (const l of lines) {
-        const m = l.match(/^\s*\d+\|\s?(.*)$/)
-        cleanLines.push(m ? m[1] : l)
+      // Soft-deny reminders are not real file bodies — skip working-set upsert.
+      if (!result.startsWith('[Already in context:')) {
+        const lines = result.split('\n')
+        const cleanLines: string[] = []
+        for (const l of lines) {
+          const m = l.match(/^\s*\d+\|\s?(.*)$/)
+          cleanLines.push(m ? m[1] : l)
+        }
+        codingFileCacheRef.current = upsertCodingFileCache(
+          codingFileCacheRef.current,
+          filePath,
+          cleanLines.join('\n'),
+        )
       }
-      codingFileCacheRef.current = upsertCodingFileCache(
-        codingFileCacheRef.current,
-        filePath,
-        cleanLines.join('\n'),
-      )
     } else if (name === 'write_file' && filePath && !isCodingToolFailure('write_file', result)) {
       const content = typeof args?.content === 'string' ? args.content : ''
       if (content) {
@@ -291,11 +294,13 @@ export function applyAgentToolResult(
       } else if (filePath) {
         // Cross-turn structural digests (session-scoped).
         if (name === 'read_file') {
-          next.recentFileDigests = upsertFileDigest(
-            next.recentFileDigests ?? [],
-            filePath,
-            digestReadFile(result),
-          )
+          if (!result.startsWith('[Already in context:')) {
+            next.recentFileDigests = upsertFileDigest(
+              next.recentFileDigests ?? [],
+              filePath,
+              digestReadFile(result),
+            )
+          }
         } else if (name === 'find_symbols') {
           next.recentFileDigests = upsertFileDigest(
             next.recentFileDigests ?? [],

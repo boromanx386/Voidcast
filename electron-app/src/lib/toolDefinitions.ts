@@ -472,7 +472,7 @@ const CODING_READ_FILE_TOOL: AgentToolDefinition = {
   function: {
     name: 'read_file',
     description:
-      'Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. For large or unfamiliar files, prefer find_symbols first, then read with start_line/end_line (whole-file reads above ~220k characters are rejected unless you use a range). Do not re-read a path you already have in context this turn unless you need exact text for edit_code. Lines are returned as N|text with 1-based line numbers.',
+      'Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. For large or unfamiliar files, prefer find_symbols first, then read with start_line/end_line (whole-file reads above ~220k characters are rejected unless you use a range). Whole-file re-reads of a path already in session digests or this turn\'s working set are soft-denied (returns a short digest reminder) — use start_line/end_line, or force:true only when you truly need the full file again. Lines are returned as N|text with 1-based line numbers.',
     parameters: {
       type: 'object',
       properties: {
@@ -492,6 +492,11 @@ const CODING_READ_FILE_TOOL: AgentToolDefinition = {
           type: 'number',
           description:
             'Optional cap on returned characters after line slicing (default unlimited within range).',
+        },
+        force: {
+          type: 'boolean',
+          description:
+            'If true, allow a whole-file re-read even when the path is already in digests/working-set cache. Prefer range-read instead whenever possible.',
         },
       },
       required: ['path'],

@@ -50,6 +50,7 @@ import {
   loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
 import { BUILD_WITH_RESEARCH_SYSTEM_HINT, buildPlanModeSystemHint } from '@/lib/planArtifact'
+import { formatPlanHandoffUserBlock } from '@/lib/codingReadGuard'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { ensureMcpToolsCached, type McpToolInfo } from '@/lib/mcpTools'
 import { isElectron } from '@/lib/platform'
@@ -132,7 +133,25 @@ export async function buildAgentTurnContext(
   const imageCatalogHint =
     toolImageCatalog.length > 0 ? buildImageCatalogHint(toolImageCatalog, queued.length) : ''
   const attachedFileHint = buildQueuedFilePathHint(queuedFiles)
-  const ollamaUserText = [text, attachedImageHint, imageCatalogHint, attachedFileHint]
+
+  const runtimeTimeHint = buildRuntimeTimeHint()
+  const codingProjectPath = (
+    settings.coding.projectPath ||
+    settings.codingProjectPath ||
+    ''
+  ).trim()
+  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
+  const planMode = agentMode === 'plan'
+  const handoffHint = planHandoffContext.trim()
+  const handoffUserBlock =
+    planMode && handoffHint ? formatPlanHandoffUserBlock(handoffHint) : ''
+  const ollamaUserText = [
+    text,
+    handoffUserBlock,
+    attachedImageHint,
+    imageCatalogHint,
+    attachedFileHint,
+  ]
     .filter((x) => x.trim().length > 0)
     .join('\n\n')
 
@@ -174,14 +193,6 @@ export async function buildAgentTurnContext(
     return acc
   }, [])
 
-  const runtimeTimeHint = buildRuntimeTimeHint()
-  const codingProjectPath = (
-    settings.coding.projectPath ||
-    settings.codingProjectPath ||
-    ''
-  ).trim()
-  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
-  const planMode = agentMode === 'plan'
   const discoveredSkills = settings.skillsEnabled
     ? await discoverAgentSkills({ projectPath: codingProjectPath || undefined })
     : []
@@ -205,7 +216,6 @@ export async function buildAgentTurnContext(
       ? await loadProjectAgentInstructions({ projectPath: codingProjectPath })
       : []
   const projectInstructionsHint = buildProjectInstructionsHint(projectInstructionFiles)
-  const handoffHint = planHandoffContext.trim()
   const planModeSystemHint = planMode
     ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint) })
     : ''

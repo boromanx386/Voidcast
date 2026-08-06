@@ -4,6 +4,7 @@ import type { ImageVisionCache } from "@/lib/imageVisionCache";
 import type { SubAgentConfig, ToolsEnabled } from "@/lib/settings";
 import type { SubAgentUiCallbacks } from "@/lib/subAgent";
 import type { AgentChatMode, PlanArtifact } from "@/types/chat";
+import type { CodingContextMemo, CodingFileCache } from "@/lib/codingContextMemo";
 
 /**
  * Shared execution context passed to every tool handler / executeToolCall.
@@ -21,6 +22,10 @@ export interface ExecCtx {
   codingProjectPath?: string;
   /** Recently touched files from coding session memo (boosts search ranking). */
   codingRecentFiles?: string[];
+  /** Session coding memo (digests for soft-deny full re-reads). Live ref. */
+  codingContextMemoRef?: { current: CodingContextMemo };
+  /** Per-turn working-set file cache (soft-deny full re-reads). Live ref. */
+  codingFileCacheRef?: { current: CodingFileCache };
   /** Latest user message text for override-policy checks. */
   userText?: string;
   /** When true, read_skill is allowed. */
