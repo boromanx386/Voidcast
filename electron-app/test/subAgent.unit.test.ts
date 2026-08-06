@@ -155,7 +155,6 @@ describe('describeImagesWithSubAgent vision cache', () => {
 
   const config = {
     enabled: true,
-    memoryEnabled: false,
     codingEnabled: false,
     model: 'llava:13b',
     provider: 'ollama' as const,

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { extractLongMemoryCandidates } from '@/lib/longMemoryExtract'
-import { detectSubAgentProvider } from '@/lib/subAgent'
 import {
   dedupeMemories,
   deleteMemory,
@@ -22,7 +21,6 @@ import {
 } from '@/lib/userDataSync'
 import { isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
-import { SUB_AGENT_DEFAULT_CONTEXT_TOKENS } from '@/lib/settings'
 import { toConversationTurns } from '@/lib/chatHints'
 import type { UiMessage } from '@/types/chat'
 import type { LongMemoryCandidate, LongMemoryItem } from '@/types/longMemory'
@@ -83,22 +81,10 @@ export function useLongMemoryUi({
     setLongMemoryBusy(true)
     setError(null)
     try {
-      const useSub = settings.subAgent.memoryEnabled
-      const subModel = settings.subAgent.model
-      const subProvider = detectSubAgentProvider(subModel, settings.subAgent.provider)
-      const memLlmProvider = useSub
-        ? subProvider === 'ollama'
-          ? 'ollama'
-          : subProvider === 'openrouter'
-            ? 'openrouter'
-            : subProvider === 'deepseek'
-              ? 'deepseek'
-              : 'openai'
-        : settings.llmProvider
       const candidates = await extractLongMemoryCandidates({
-        provider: memLlmProvider,
+        provider: settings.llmProvider,
         ollamaBaseUrl: settings.ollamaBaseUrl,
-        ollamaModel: useSub && subProvider === 'ollama' ? subModel : settings.ollamaModel,
+        ollamaModel: settings.ollamaModel,
         openrouterBaseUrl: settings.openrouterBaseUrl,
         openrouterApiKey: settings.openrouterApiKey,
         openrouterModel: settings.openrouterModel,
@@ -115,12 +101,9 @@ export function useLongMemoryUi({
         opencodeGoBaseUrl: settings.opencodeGoBaseUrl,
         opencodeGoApiKey: settings.opencodeGoApiKey,
         opencodeGoModel: settings.opencodeGoModel,
-        cloudModelOverride: useSub && subProvider !== 'ollama' ? subModel : undefined,
         modelOptions: {
           temperature: settings.llmTemperature,
-          num_ctx: useSub
-            ? (settings.subAgent.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS)
-            : settings.llmNumCtx,
+          num_ctx: settings.llmNumCtx,
         },
         turns,
       })
@@ -135,7 +118,7 @@ export function useLongMemoryUi({
     } finally {
       setLongMemoryBusy(false)
     }
-  }, [busy, longMemoryBusy, messages, settings.subAgent, settings.llmProvider, settings, setError])
+  }, [busy, longMemoryBusy, messages, settings, setError])
 
   const confirmSaveLongMemory = useCallback(async () => {
     if (!memoryCandidates.length) {

@@ -361,7 +361,7 @@ export function SubAgentOptionsPanel({
   modelsError,
 }: Props) {
   const sub = settings.subAgent
-  const visionActive = sub.enabled || sub.memoryEnabled
+  const visionActive = sub.enabled
   const codingActive = sub.codingEnabled
   const subActive = visionActive || codingActive
   const visionProvider = (sub.provider ?? 'ollama') as SubAgentProviderId
@@ -383,23 +383,6 @@ export function SubAgentOptionsPanel({
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
           When enabled, image_recall delegates vision analysis to the vision model below.
           The main agent receives text descriptions instead of raw image bytes.
-        </p>
-      </div>
-
-      {/* Long memory toggle */}
-      <div className="form-group">
-        <label className="form-label flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            className="cyber-checkbox"
-            checked={sub.memoryEnabled}
-            onChange={(e) => patchSubAgent(setSettings, { memoryEnabled: e.target.checked })}
-          />
-          <span className="text-neon-cyan">⬡ USE_FOR_LONG_MEMORY</span>
-        </label>
-        <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-          When enabled, Extract long memory (chat header) uses the vision model below
-          instead of the main LLM. Vision and memory can be toggled independently.
         </p>
       </div>
 

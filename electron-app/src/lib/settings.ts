@@ -992,8 +992,6 @@ export const SUB_AGENT_DEFAULT_CONTEXT_TOKENS = 65536
 export type SubAgentConfig = {
   /** When true, image_recall runs sub-agent instead of returning base64. */
   enabled: boolean
-  /** When true, long-memory extract uses the vision sub-agent model instead of the main LLM. */
-  memoryEnabled: boolean
   /**
    * When true, enables coding context management: deterministic trim of noisy
    * tool output, clearing of stale tool results from old rounds, and the
@@ -1550,7 +1548,6 @@ export const defaults: AppSettings = {
   notificationSoundVolume: 0.8,
   subAgent: {
     enabled: false,
-    memoryEnabled: false,
     codingEnabled: false,
     model: 'llava:13b',
     provider: 'ollama',
@@ -1893,12 +1890,6 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const raw = s.subAgent
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
   const enabled = raw.enabled === true
-  const memoryEnabled =
-    raw.memoryEnabled === true
-      ? true
-      : raw.memoryEnabled === false
-        ? false
-        : enabled
   const codingEnabled = raw.codingEnabled === true
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
   const rawProvider =
@@ -1958,7 +1949,6 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
     ...s,
     subAgent: {
       enabled,
-      memoryEnabled,
       codingEnabled,
       model,
       provider,
