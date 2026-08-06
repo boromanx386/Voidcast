@@ -14,6 +14,7 @@ import {
 import {
   appendCodingCommandEventToFeed,
   resetCodingTerminalFeedState,
+  type CodingCommandOutputEvent,
 } from '@/lib/codingCommandStream'
 import {
   applyOutputToActiveProcess,
@@ -36,9 +37,15 @@ import {
   type ImageVisionCache,
 } from '@/lib/imageVisionCache'
 import { isElectron } from '@/lib/platform'
+import { DRAFT_RUNTIME_KEY } from '@/lib/sessionAgentStore'
 import { loadSettings, type AppSettings } from '@/lib/settings'
 import type { ChatSession } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
+
+type OwnerFeed = {
+  lines: TerminalLine[]
+  seq: { n: number }
+}
 
 export type UseCodingSessionParams = {
   settings: AppSettings
@@ -46,6 +53,8 @@ export type UseCodingSessionParams = {
   imageVisionCache: ImageVisionCache
   setImageVisionCache: React.Dispatch<React.SetStateAction<ImageVisionCache>>
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>
+  /** Current chat runtime key — scopes terminal display to this owner. */
+  viewRuntimeKey?: string
 }
 
 export type UseCodingSessionResult = {
@@ -55,8 +64,13 @@ export type UseCodingSessionResult = {
   setCodingTerminalFeed: React.Dispatch<React.SetStateAction<TerminalLine[]>>
   /** Bumps on session/new-chat boundaries so CodingPanel clears local terminal lines. */
   codingTerminalEpoch: number
+  /** Clear this owner’s feed only; does not kill shells. */
   resetCodingTerminal: () => void
-  /** Foreground command currently streaming (for STOP). */
+  /** Switch displayed terminal without killing background agents’ shells. */
+  switchCodingTerminalOwner: (ownerKey: string) => void
+  /** Move feed when draft runtime rekeys to a session id mid-run. */
+  rekeyCodingTerminalOwner: (fromKey: string, toKey: string) => void
+  /** Foreground command currently streaming in the viewed chat (for STOP). */
   activeCodingRunId: string | null
   stopCodingCommand: () => Promise<void>
   /** Live mirror of main-process active coding shell processes (for CTX hint). */
@@ -83,6 +97,14 @@ export type UseCodingSessionResult = {
     options?: { flushActiveSessionId?: string | null },
   ) => void
   codingProjectPathForMemoRef: React.MutableRefObject<string>
+  viewRuntimeKey: string
+}
+
+function resolveActionLines(
+  prev: TerminalLine[],
+  action: React.SetStateAction<TerminalLine[]>,
+): TerminalLine[] {
+  return typeof action === 'function' ? action(prev) : action
 }
 
 export function useCodingSession({
@@ -91,9 +113,10 @@ export function useCodingSession({
   imageVisionCache,
   setImageVisionCache,
   setSessions,
+  viewRuntimeKey = DRAFT_RUNTIME_KEY,
 }: UseCodingSessionParams): UseCodingSessionResult {
   const [showCodingPanel, setShowCodingPanel] = useState(false)
-  const [codingTerminalFeed, setCodingTerminalFeed] = useState<TerminalLine[]>([])
+  const [codingTerminalFeed, setCodingTerminalFeedState] = useState<TerminalLine[]>([])
   const [codingTerminalEpoch, setCodingTerminalEpoch] = useState(0)
   const [activeCodingRunId, setActiveCodingRunId] = useState<string | null>(null)
   const [activeCodingProcesses, setActiveCodingProcesses] = useState<ActiveCodingProcess[]>([])
@@ -119,31 +142,112 @@ export function useCodingSession({
   const codingFileCacheRef = useRef(codingFileCache)
   codingFileCacheRef.current = codingFileCache
   const codingProjectPathForMemoRef = useRef(getCodingProjectPath(loadSettings()))
-  const streamSeqRef = useRef({ n: 0 })
+
+  const feedsByOwnerRef = useRef(new Map<string, OwnerFeed>())
+  /** draft → session after rekey so in-flight shell IPC still lands on the live feed. */
+  const ownerAliasRef = useRef(new Map<string, string>())
+  const viewKeyRef = useRef(viewRuntimeKey)
+  viewKeyRef.current = viewRuntimeKey
+
+  const resolveOwnerKey = useCallback((raw?: string): string => {
+    let key = (raw || '').trim() || DRAFT_RUNTIME_KEY
+    const seen = new Set<string>()
+    while (ownerAliasRef.current.has(key) && !seen.has(key)) {
+      seen.add(key)
+      key = ownerAliasRef.current.get(key)!
+    }
+    return key
+  }, [])
+
   const activeCodingRunIdRef = useRef<string | null>(null)
   activeCodingRunIdRef.current = activeCodingRunId
   const activeCodingProcessesRef = useRef(activeCodingProcesses)
   activeCodingProcessesRef.current = activeCodingProcesses
 
+  const ensureFeed = useCallback((ownerKey: string): OwnerFeed => {
+    const key = ownerKey.trim() || DRAFT_RUNTIME_KEY
+    let feed = feedsByOwnerRef.current.get(key)
+    if (!feed) {
+      feed = { lines: [], seq: { n: 0 } }
+      feedsByOwnerRef.current.set(key, feed)
+    }
+    return feed
+  }, [])
+
+  const setCodingTerminalFeed: React.Dispatch<React.SetStateAction<TerminalLine[]>> = useCallback(
+    (action) => {
+      const key = viewKeyRef.current
+      const feed = ensureFeed(key)
+      const next = resolveActionLines(feed.lines, action)
+      feed.lines = next
+      setCodingTerminalFeedState(next)
+    },
+    [ensureFeed],
+  )
+
+  const switchCodingTerminalOwner = useCallback(
+    (ownerKey: string) => {
+      const key = ownerKey.trim() || DRAFT_RUNTIME_KEY
+      viewKeyRef.current = key
+      const feed = ensureFeed(key)
+      setCodingTerminalFeedState(feed.lines)
+      // Rebind STOP to a foreground run owned by this view, if any.
+      const fg = activeCodingProcessesRef.current.find(
+        (p) => p.kind === 'foreground' && (p.ownerId || DRAFT_RUNTIME_KEY) === key,
+      )
+      setActiveCodingRunId(fg?.runId ?? null)
+      setCodingRevealRequest(null)
+      setCodingTerminalEpoch((n) => n + 1)
+    },
+    [ensureFeed],
+  )
+
+  const rekeyCodingTerminalOwner = useCallback(
+    (fromKey: string, toKey: string) => {
+      const from = fromKey.trim() || DRAFT_RUNTIME_KEY
+      const to = toKey.trim()
+      if (!to || from === to) return
+      ownerAliasRef.current.set(from, to)
+      const source = feedsByOwnerRef.current.get(from)
+      if (source) {
+        const dest = ensureFeed(to)
+        // Prefer non-empty source; merge conservatively if dest already has lines.
+        dest.lines = source.lines.length > 0 ? source.lines : dest.lines
+        dest.seq.n = Math.max(dest.seq.n, source.seq.n)
+        feedsByOwnerRef.current.delete(from)
+      }
+      if (viewKeyRef.current === from) {
+        viewKeyRef.current = to
+        setCodingTerminalFeedState(ensureFeed(to).lines)
+      }
+    },
+    [ensureFeed],
+  )
+
+  // Keep view-bound terminal in sync when router changes active chat.
+  useEffect(() => {
+    const key = viewRuntimeKey.trim() || DRAFT_RUNTIME_KEY
+    if (viewKeyRef.current === key) {
+      // Still refresh display in case feed was updated while we tracked the same key.
+      setCodingTerminalFeedState(ensureFeed(key).lines)
+      return
+    }
+    switchCodingTerminalOwner(key)
+  }, [viewRuntimeKey, ensureFeed, switchCodingTerminalOwner])
+
   const codingPanelAvailable = isElectron() && settings.toolsEnabled.coding
 
   const resetCodingTerminal = useCallback(() => {
-    // Only stop a confirmed foreground run. Unknown/bg ids stay alive.
-    const runId = activeCodingRunIdRef.current
-    if (runId) {
-      const proc = activeCodingProcessesRef.current.find((p) => p.runId === runId)
-      if (proc?.kind === 'foreground') {
-        void invokeKillCodingCommand(runId)
-      }
-    }
-    setCodingTerminalFeed(resetCodingTerminalFeedState(streamSeqRef.current))
+    const owner = viewKeyRef.current
+    // Do NOT kill shells here — concurrent agents may own background/fg processes on another chat.
+    // STOP is explicit via stopCodingCommand / agent stop_process.
+    const feed = ensureFeed(owner)
+    feed.lines = resetCodingTerminalFeedState(feed.seq)
+    setCodingTerminalFeedState(feed.lines)
     setCodingTerminalEpoch((n) => n + 1)
     setActiveCodingRunId(null)
     setCodingRevealRequest(null)
-    void invokeListActiveCodingProcesses().then((procs) => {
-      setActiveCodingProcesses(procs)
-    })
-  }, [])
+  }, [ensureFeed])
 
   const stopCodingCommand = useCallback(async () => {
     const runId = activeCodingRunIdRef.current
@@ -171,21 +275,41 @@ export function useCodingSession({
 
   useEffect(() => {
     if (!isElectron()) return
-    return subscribeCodingCommandOutput((event) => {
+    return subscribeCodingCommandOutput((event: CodingCommandOutputEvent) => {
+      const owner = resolveOwnerKey(event.ownerId)
+      const feed = ensureFeed(owner)
+      feed.lines = appendCodingCommandEventToFeed(feed.lines, event, feed.seq)
+
+      const viewing = owner === viewKeyRef.current
+      if (viewing) {
+        setCodingTerminalFeedState(feed.lines)
+      }
+
       if (event.done) {
-        setActiveCodingRunId((cur) => (cur === event.runId ? null : cur))
+        setActiveCodingRunId((cur) =>
+          viewing && cur === event.runId ? null : cur,
+        )
         setActiveCodingProcesses((prev) => removeActiveProcess(prev, event.runId))
-      } else {
+      } else if (viewing) {
         setActiveCodingRunId(event.runId)
         if (event.text) {
           setActiveCodingProcesses((prev) =>
-            applyOutputToActiveProcess(prev, event.runId, event.text!),
+            applyOutputToActiveProcess(prev, event.runId, event.text!, {
+              ownerId: owner,
+              projectPath: event.projectPath,
+            }),
           )
         }
+      } else if (event.text) {
+        setActiveCodingProcesses((prev) =>
+          applyOutputToActiveProcess(prev, event.runId, event.text!, {
+            ownerId: owner,
+            projectPath: event.projectPath,
+          }),
+        )
       }
-      setCodingTerminalFeed((prev) => appendCodingCommandEventToFeed(prev, event, streamSeqRef.current))
     })
-  }, [])
+  }, [ensureFeed, resolveOwnerKey])
 
   useEffect(() => {
     if (!isElectron()) return
@@ -195,7 +319,12 @@ export function useCodingSession({
     })
     const unsub = subscribeCodingProcessUpdate((event) => {
       if (event.action === 'upsert') {
-        setActiveCodingProcesses((prev) => upsertActiveProcess(prev, event.process))
+        const owner = resolveOwnerKey(event.process.ownerId)
+        const process = { ...event.process, ownerId: owner }
+        setActiveCodingProcesses((prev) => upsertActiveProcess(prev, process))
+        if (process.kind === 'foreground' && owner === viewKeyRef.current) {
+          setActiveCodingRunId(process.runId)
+        }
       } else {
         setActiveCodingProcesses((prev) => removeActiveProcess(prev, event.runId))
         setActiveCodingRunId((cur) => (cur === event.runId ? null : cur))
@@ -205,7 +334,7 @@ export function useCodingSession({
       cancelled = true
       unsub()
     }
-  }, [])
+  }, [resolveOwnerKey])
 
   useEffect(() => {
     const projectPath = getCodingProjectPath(settings)
@@ -261,7 +390,8 @@ export function useCodingSession({
         })
       }
 
-      resetCodingTerminal()
+      // Swap terminal view only — never kill shells belonging to other chats.
+      switchCodingTerminalOwner(session.id)
       syncCodingProjectPathToSettings(path)
       setCodingContextMemo(memo)
       setImageVisionCache(normalizeImageVisionCache(session.imageVisionCache))
@@ -273,7 +403,7 @@ export function useCodingSession({
       syncCodingProjectPathToSettings,
       setImageVisionCache,
       setSessions,
-      resetCodingTerminal,
+      switchCodingTerminalOwner,
     ],
   )
 
@@ -284,6 +414,8 @@ export function useCodingSession({
     setCodingTerminalFeed,
     codingTerminalEpoch,
     resetCodingTerminal,
+    switchCodingTerminalOwner,
+    rekeyCodingTerminalOwner,
     activeCodingRunId,
     stopCodingCommand,
     activeCodingProcesses,
@@ -304,5 +436,6 @@ export function useCodingSession({
     applyCodingProjectPath,
     restoreCodingContextForSession,
     codingProjectPathForMemoRef,
+    viewRuntimeKey,
   }
 }

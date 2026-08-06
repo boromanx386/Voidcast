@@ -9,6 +9,61 @@ export type ActiveCodingProcess = {
   kind: ActiveCodingProcessKind
   startedAt: number
   lastLines: string[]
+  /**
+   * Chat runtime key that started this process (session id or draft).
+   * Used so Stop/list/CTX can isolate concurrent multi-chat agents.
+   */
+  ownerId?: string
+  /** Absolute project root where the shell was spawned. */
+  projectPath?: string
+}
+
+/** Normalize paths for ownership compare (Windows-safe, no trailing slash). */
+export function normalizeCodingPathKey(path: string): string {
+  return path
+    .trim()
+    .toLowerCase()
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '')
+}
+
+/**
+ * Processes visible to an agent turn: same owner, and/or same project root.
+ * (Same folder must share the list so two chats do not start duplicate servers.)
+ * Untagged legacy processes remain visible until they exit.
+ */
+export function filterProcessesForAgent(
+  procs: ActiveCodingProcess[],
+  opts: { ownerId?: string; projectPath?: string },
+): ActiveCodingProcess[] {
+  const owner = (opts.ownerId || '').trim()
+  const path = normalizeCodingPathKey(opts.projectPath || '')
+  return procs.filter((p) => {
+    const pOwner = (p.ownerId || '').trim()
+    const pPath = normalizeCodingPathKey(p.projectPath || '')
+    if (!pOwner && !pPath) return true
+    if (path && pPath && path === pPath) return true
+    if (owner && pOwner && owner === pOwner) return true
+    return false
+  })
+}
+
+/**
+ * Whether this agent may stop a process: same owner, same project, or legacy untagged.
+ */
+export function canControlCodingProcess(
+  proc: Pick<ActiveCodingProcess, 'ownerId' | 'projectPath'> | undefined,
+  opts: { ownerId?: string; projectPath?: string },
+): boolean {
+  if (!proc) return false
+  const owner = (opts.ownerId || '').trim()
+  const path = normalizeCodingPathKey(opts.projectPath || '')
+  const pOwner = (proc.ownerId || '').trim()
+  const pPath = normalizeCodingPathKey(proc.projectPath || '')
+  if (!pOwner && !pPath) return true
+  if (owner && pOwner && owner === pOwner) return true
+  if (path && pPath && path === pPath) return true
+  return false
 }
 
 export const ACTIVE_PROCESS_MAX_LINES = 8
@@ -100,6 +155,7 @@ export function applyOutputToActiveProcess(
   list: ActiveCodingProcess[],
   runId: string,
   text: string,
+  meta?: { ownerId?: string; projectPath?: string },
 ): ActiveCodingProcess[] {
   if (!text) return list
   const idx = list.findIndex((p) => p.runId === runId)
@@ -112,6 +168,8 @@ export function applyOutputToActiveProcess(
       kind: 'foreground',
       startedAt: Date.now(),
       lastLines: mergeActiveProcessOutputLines([], text),
+      ownerId: meta?.ownerId,
+      projectPath: meta?.projectPath,
     })
   }
   const cur = list[idx]!

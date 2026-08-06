@@ -370,7 +370,7 @@ export async function invokeCheckCodingTypes(
 export async function invokeExecuteCodingCommand(
   projectPath: string,
   command: string,
-  options?: { timeoutSec?: number; runInBackground?: boolean },
+  options?: { timeoutSec?: number; runInBackground?: boolean; ownerId?: string },
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingExecuteCommand
   if (!fn) return missingBridgeResult('Execute command')
@@ -379,6 +379,7 @@ export async function invokeExecuteCodingCommand(
     command,
     timeoutSec: options?.timeoutSec,
     runInBackground: options?.runInBackground,
+    ownerId: options?.ownerId,
   })
   if (!res.ok) {
     const streamed = res.streamed === true

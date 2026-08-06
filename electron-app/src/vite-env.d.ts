@@ -434,6 +434,7 @@ interface VoidcastBridge {
     command: string
     timeoutSec?: number
     runInBackground?: boolean
+    ownerId?: string
   }) => Promise<
     | {
         ok: true
@@ -461,6 +462,8 @@ interface VoidcastBridge {
       kind: 'foreground' | 'background'
       startedAt: number
       lastLines: string[]
+      ownerId?: string
+      projectPath?: string
     }[]
   }>
 

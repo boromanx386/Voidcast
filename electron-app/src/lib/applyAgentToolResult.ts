@@ -51,6 +51,11 @@ export type AgentToolResultHandlerDeps = {
   setCodingContextMemo: Dispatch<SetStateAction<CodingContextMemo>>
   /** Mutable ref for the per-turn working-set file cache, updated on read/write/edit. */
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
+  /**
+   * Frozen coding root for this agent turn. Memo normalization uses this instead of
+   * live settings so a session switch mid-run cannot rebind digests to another folder.
+   */
+  codingProjectPath?: string
   setCodingTerminalFeed: Dispatch<SetStateAction<TerminalLine[]>>
   setCodingFileTreeNonce: Dispatch<SetStateAction<number>>
   setCodingGitNonce: Dispatch<SetStateAction<number>>
@@ -91,6 +96,7 @@ export function applyAgentToolResult(
     refreshLongMemories,
     setCodingContextMemo,
     codingFileCacheRef,
+    codingProjectPath: codingProjectPathFrozen,
     setCodingTerminalFeed,
     setCodingFileTreeNonce,
     setCodingGitNonce,
@@ -340,7 +346,10 @@ export function applyAgentToolResult(
         }
       }
 
-      return normalizeCodingContextMemo(next, getCodingProjectPath(settings))
+      return normalizeCodingContextMemo(
+        next,
+        (codingProjectPathFrozen || '').trim() || getCodingProjectPath(settings),
+      )
     })
   }
 

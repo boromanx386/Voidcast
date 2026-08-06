@@ -61,12 +61,25 @@ export function useVoidcastApp() {
 
   const setInput = useCallback((value: string) => setInputState(value), [])
 
+  const setSessionDirtyRef = useRef<(dirty: boolean) => void>(() => {})
+  const claimSessionIdRef = useRef<() => string | null>(() => null)
+  const patchSessionCodingMemoRef = useRef<
+    (sessionId: string, action: React.SetStateAction<CodingContextMemo>) => void
+  >(() => {})
+
+  // Must exist before coding + agent so terminal ownership tracks the viewed chat.
+  const [viewSessionId, setViewSessionId] = useState<string | null>(null)
+  const runtimeKey = runtimeKeyForSession(viewSessionId)
+  const runtimeKeyRef = useRef(runtimeKey)
+  runtimeKeyRef.current = runtimeKey
+
   const coding = useCodingSession({
     settings,
     setSettings,
     imageVisionCache,
     setImageVisionCache,
     setSessions: (action) => setSessionsRef.current(action),
+    viewRuntimeKey: runtimeKey,
   })
 
   const tts = useTtsPlayback({
@@ -81,17 +94,6 @@ export function useVoidcastApp() {
     editingMessageIdRef,
     setError: (error) => setErrorRef.current(error),
   })
-
-  const setSessionDirtyRef = useRef<(dirty: boolean) => void>(() => {})
-  const claimSessionIdRef = useRef<() => string | null>(() => null)
-  const patchSessionCodingMemoRef = useRef<
-    (sessionId: string, action: React.SetStateAction<CodingContextMemo>) => void
-  >(() => {})
-
-  const [viewSessionId, setViewSessionId] = useState<string | null>(null)
-  const runtimeKey = runtimeKeyForSession(viewSessionId)
-  const runtimeKeyRef = useRef(runtimeKey)
-  runtimeKeyRef.current = runtimeKey
 
   const agent = useChatAgent({
     settings,
@@ -168,6 +170,8 @@ export function useVoidcastApp() {
     resetAssistantMediaState: agent.resetAssistantMediaState,
     restoreCodingContextForSession: coding.restoreCodingContextForSession,
     resetCodingTerminal: coding.resetCodingTerminal,
+    switchCodingTerminalOwner: coding.switchCodingTerminalOwner,
+    rekeyCodingTerminalOwner: coding.rekeyCodingTerminalOwner,
     abortActiveRuns: () => {
       agent.onStop()
       abortTtsRef.current()

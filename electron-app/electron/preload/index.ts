@@ -265,6 +265,8 @@ contextBridge.exposeInMainWorld('voidcast', {
   onCodingCommandOutput: (
     callback: (event: {
       runId: string
+      ownerId?: string
+      projectPath?: string
       stream?: 'stdout' | 'stderr' | 'system'
       text?: string
       done?: boolean
@@ -277,6 +279,8 @@ contextBridge.exposeInMainWorld('voidcast', {
       _e: Electron.IpcRendererEvent,
       payload: {
         runId: string
+        ownerId?: string
+        projectPath?: string
         stream?: 'stdout' | 'stderr' | 'system'
         text?: string
         done?: boolean
@@ -300,6 +304,8 @@ contextBridge.exposeInMainWorld('voidcast', {
               kind: 'foreground' | 'background'
               startedAt: number
               lastLines: string[]
+              ownerId?: string
+              projectPath?: string
             }
           }
         | { action: 'remove'; runId: string },
@@ -317,6 +323,8 @@ contextBridge.exposeInMainWorld('voidcast', {
               kind: 'foreground' | 'background'
               startedAt: number
               lastLines: string[]
+              ownerId?: string
+              projectPath?: string
             }
           }
         | { action: 'remove'; runId: string },
@@ -422,6 +430,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     command: string
     timeoutSec?: number
     runInBackground?: boolean
+    ownerId?: string
   }) =>
     ipcRenderer.invoke('voidcast:coding-execute-command', payload) as Promise<
       | {
@@ -450,6 +459,8 @@ contextBridge.exposeInMainWorld('voidcast', {
         kind: 'foreground' | 'background'
         startedAt: number
         lastLines: string[]
+        ownerId?: string
+        projectPath?: string
       }[]
     }>,
   codingReadProcessOutput: (payload: { runId: string; offset?: number }) =>

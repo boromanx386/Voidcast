@@ -60,6 +60,11 @@ type Props = {
   /** Foreground coding command currently streaming. */
   commandRunning?: boolean
   onStopCommand?: () => void
+  /**
+   * Chat runtime key for multi-session isolation (shell ownership).
+   * Manual RUN attaches output to this owner.
+   */
+  codingOwnerId?: string
 }
 
 type PreviewMode = 'file' | 'diff' | 'image'
@@ -83,6 +88,7 @@ export function CodingPanel({
   revealRequest = null,
   commandRunning = false,
   onStopCommand,
+  codingOwnerId,
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
@@ -727,7 +733,9 @@ export function CodingPanel({
   const onRunCommand = useCallback(async () => {
     const trimmed = command.trim()
     if (!projectPath || !trimmed || commandRunning) return
-    const out = await invokeExecuteCodingCommand(projectPath, trimmed)
+    const out = await invokeExecuteCodingCommand(projectPath, trimmed, {
+      ownerId: (codingOwnerId || '').trim() || undefined,
+    })
     // Clear agent anti-dup flag; manual RUN does not go through applyAgentToolResult.
     consumeLastExecuteCommandStreamed()
     // Live IPC stream already mirrored `$ cmd` + chunks into agentShellFeed → terminalLines.
@@ -744,7 +752,7 @@ export function CodingPanel({
     setCommand('')
     void refreshFileTreeInPlace()
     setLocalGitBump((n) => n + 1)
-  }, [projectPath, command, commandRunning, pushTerminal, refreshFileTreeInPlace])
+  }, [projectPath, command, commandRunning, pushTerminal, refreshFileTreeInPlace, codingOwnerId])
 
   const visibleFileCount = useMemo(() => {
     let n = 0

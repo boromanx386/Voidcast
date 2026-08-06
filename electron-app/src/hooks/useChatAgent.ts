@@ -27,7 +27,10 @@ import {
   emptyCodingTurnLog,
   recordCodingToolInTurnLog,
 } from '@/lib/codingContextMemo'
-import type { ActiveCodingProcess } from '@/lib/codingActiveProcesses'
+import {
+  filterProcessesForAgent,
+  type ActiveCodingProcess,
+} from '@/lib/codingActiveProcesses'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
@@ -60,6 +63,7 @@ import {
 } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import { toConversationTurns } from '@/lib/chatHints'
+import { getCodingProjectPath } from '@/lib/codingContextMemo'
 import {
   DRAFT_RUNTIME_KEY,
   isRealSessionRuntimeKey,
@@ -598,14 +602,32 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             ? 'plan'
             : 'agent'
 
-      const turnSettings: AppSettings =
-        turnAgentMode === settings.agentMode
-          ? settings
-          : { ...settings, agentMode: turnAgentMode }
+      // Freeze coding root + agent mode for the whole turn so a session switch
+      // (which mutates global settings) cannot retarget live tool calls.
+      const turnCodingProjectPath = getCodingProjectPath(settings)
+      const turnSettings: AppSettings = {
+        ...settings,
+        agentMode: turnAgentMode,
+        codingProjectPath: turnCodingProjectPath,
+        coding: {
+          ...settings.coding,
+          projectPath: turnCodingProjectPath,
+        },
+      }
+
+      // Only touch global agentMode UI when this chat is (or will stay) visible.
+      const applyGlobalAgentMode = (mode: AgentChatMode) => {
+        if (!isViewingThisRun()) return
+        setSettings((s) => (s.agentMode === mode ? s : { ...s, agentMode: mode }))
+      }
 
       // Per-turn isolation so background runs do not share mutables with the active view.
       const turnFileCacheRef = { current: emptyCodingFileCache() }
       const turnMemoRef = { current: codingContextMemoRef.current }
+      // Snapshot vision cache at turn start for tools; live view updates apply only if viewing.
+      const turnVisionCacheRef = {
+        current: imageVisionCache as ImageVisionCache,
+      }
 
       const applyCodingMemo: Dispatch<SetStateAction<CodingContextMemo>> = (action) => {
         turnMemoRef.current = resolveAction(turnMemoRef.current, action)
@@ -619,6 +641,18 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
       }
 
+      if (
+        turnSettings.toolsEnabled.coding &&
+        turnCodingProjectPath
+      ) {
+        const conflict = sessionAgentStore.codingProjectConflict(keyOf(), turnCodingProjectPath)
+        if (conflict) {
+          setErr(conflict)
+          sessionAgentStore.releaseKeyHandle(bind)
+          return
+        }
+      }
+
       const turnContext = await buildAgentTurnContext({
         settings: turnSettings,
         systemPromptPreset: systemPromptPresetRef.current,
@@ -628,9 +662,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         queuedFiles,
         hiddenContextSummary,
         contextCompressedThroughIndex,
-        imageVisionCache,
+        imageVisionCache: turnVisionCacheRef.current,
         codingContextMemo: turnMemoRef.current,
-        activeCodingProcesses,
+        activeCodingProcesses: filterProcessesForAgent(activeCodingProcesses, {
+          ownerId: keyOf(),
+          projectPath: turnCodingProjectPath,
+        }),
         activeSessionUseLongMemory,
         buildWithResearch: (() => {
           const planMsgId = opts?.buildFromPlanMessageId
@@ -655,29 +692,29 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         mcpTools,
       } = turnContext
 
-      const openRouterImageProfile = getOpenRouterImageProfile(settings)
+      const openRouterImageProfile = getOpenRouterImageProfile(turnSettings)
       const imageGptQuality =
-        settings.imageProvider === 'openrouter'
+        turnSettings.imageProvider === 'openrouter'
           ? openRouterImageProfile.gptQuality
           : activeRunwareProfile.gptQuality
       const editGptQuality =
-        settings.imageProvider === 'openrouter'
+        turnSettings.imageProvider === 'openrouter'
           ? openRouterImageProfile.gptQuality
           : activeRunwareEditProfile.gptQuality
       const imageWidth =
-        settings.imageProvider === 'openrouter'
+        turnSettings.imageProvider === 'openrouter'
           ? openRouterImageProfile.width
           : activeRunwareProfile.width
       const imageHeight =
-        settings.imageProvider === 'openrouter'
+        turnSettings.imageProvider === 'openrouter'
           ? openRouterImageProfile.height
           : activeRunwareProfile.height
       const editWidth =
-        settings.imageProvider === 'openrouter'
+        turnSettings.imageProvider === 'openrouter'
           ? openRouterImageProfile.width
           : activeRunwareEditProfile.width
       const editHeight =
-        settings.imageProvider === 'openrouter'
+        turnSettings.imageProvider === 'openrouter'
           ? openRouterImageProfile.height
           : activeRunwareEditProfile.height
 
@@ -710,7 +747,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const asstId = uid()
       // Restart on same session: cancel that session's MCP, not other chats'.
       void cancelActiveMcpCalls(keyOf())
-      const { runId, controller: ac } = sessionAgentStore.beginRun(keyOf())
+      const { runId, controller: ac } = sessionAgentStore.beginRun(keyOf(), {
+        codingProjectPath: turnCodingProjectPath,
+      })
       const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
       if (isEdit) {
         const handoffDraft =
@@ -730,8 +769,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       onSessionDirty()
 
       const useTools =
-        anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive) ||
-        settings.subAgent.enabled
+        anyToolEnabled(turnSettings.toolsEnabled, skillsActive, mcpActive) ||
+        turnSettings.subAgent.enabled
 
       const isRunActive = () => sessionAgentStore.isRunActive(keyOf(), runId)
       let replyText = ''
@@ -751,30 +790,39 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         codingFileCacheRef.current = turnFileCacheRef.current
       }
 
+      const markBgDoneIfNeeded = () => {
+        if (!isViewingThisRun() && isRealSessionRuntimeKey(keyOf())) {
+          sessionAgentStore.markCompleteUnread(keyOf())
+        }
+      }
+
       try {
         if (useTools) {
           const commonToolParams = {
             initialMessages: history,
             rawUserText: text,
-            modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-            toolsEnabled: settings.toolsEnabled,
-            maxToolRounds: settings.agentMaxToolRounds,
+            modelOptions: {
+              temperature: turnSettings.llmTemperature,
+              num_ctx: turnSettings.llmNumCtx,
+            },
+            toolsEnabled: turnSettings.toolsEnabled,
+            maxToolRounds: turnSettings.agentMaxToolRounds,
             skillsEnabled: skillsActive,
             mcpEnabled: mcpActive,
             mcpTools,
-            mcpServerEnabled: settings.mcpServerEnabled,
-            mcpTrustedProjectPaths: settings.mcpTrustedProjectPaths,
+            mcpServerEnabled: turnSettings.mcpServerEnabled,
+            mcpTrustedProjectPaths: turnSettings.mcpTrustedProjectPaths,
             mcpOwnerId: keyOf(),
             agentMode: turnAgentMode,
             getActiveBuildPlan: () => liveBuildPlan,
-            ttsBaseUrl: settings.ttsBaseUrl,
+            ttsBaseUrl: turnSettings.ttsBaseUrl,
             pdfOutputDir: effectivePdfOutputDir,
             runware: {
-              apiBaseUrl: settings.runwareApiBaseUrl || 'https://api.runware.ai/v1',
-              apiKey: settings.runwareApiKey,
-              proxyBaseUrl: settings.ttsBaseUrl,
-              model: settings.runwareImageModel,
-              editModel: settings.runwareEditModel,
+              apiBaseUrl: turnSettings.runwareApiBaseUrl || 'https://api.runware.ai/v1',
+              apiKey: turnSettings.runwareApiKey,
+              proxyBaseUrl: turnSettings.ttsBaseUrl,
+              model: turnSettings.runwareImageModel,
+              editModel: turnSettings.runwareEditModel,
               width: imageWidth,
               height: imageHeight,
               steps: activeRunwareProfile.steps,
@@ -787,45 +835,49 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 cfgScale: activeRunwareEditProfile.cfgScale,
                 gptQuality: editGptQuality,
               },
-              negativePrompt: settings.runwareNegativePrompt,
-              imageProvider: settings.imageProvider,
+              negativePrompt: turnSettings.runwareNegativePrompt,
+              imageProvider: turnSettings.imageProvider,
               openrouter: {
-                apiKey: settings.openrouterApiKey,
-                baseUrl: settings.openrouterBaseUrl,
-                model: settings.openrouterImageModel,
+                apiKey: turnSettings.openrouterApiKey,
+                baseUrl: turnSettings.openrouterBaseUrl,
+                model: turnSettings.openrouterImageModel,
               },
               musicDefaults: {
-                model: settings.runwareMusicModel,
+                model: turnSettings.runwareMusicModel,
                 outputFormat: activeRunwareMusicProfile.outputFormat,
                 durationSec: activeRunwareMusicProfile.durationSec,
                 steps: activeRunwareMusicProfile.steps,
                 cfgScale: activeRunwareMusicProfile.cfgScale,
-                guidanceType: settings.runwareMusicGuidanceType,
-                vocalLanguage: settings.runwareMusicVocalLanguage,
+                guidanceType: turnSettings.runwareMusicGuidanceType,
+                vocalLanguage: turnSettings.runwareMusicVocalLanguage,
                 seed: activeRunwareMusicProfile.seed ?? undefined,
               },
             },
             userImages: toolImageCatalog.map((x) => x.base64),
             userImageMimes: toolImageCatalog.map((x) => x.mime),
             userImagePaths: toolImageCatalog.map((x) => x.path || ''),
-            codingProjectPath: settings.coding.projectPath || settings.codingProjectPath,
+            codingProjectPath: turnCodingProjectPath,
             codingRecentFiles: turnMemoRef.current.recentFiles,
             codingFileCacheRef: turnFileCacheRef,
             codingContextMemoRef: turnMemoRef,
-            subAgent: settings.subAgent,
-            ollamaBaseUrlForSubAgent: settings.ollamaBaseUrl,
-            openrouterBaseUrlForSubAgent: settings.openrouterBaseUrl,
-            openrouterApiKeyForSubAgent: settings.openrouterApiKey,
-            deepseekBaseUrlForSubAgent: settings.deepseekBaseUrl,
-            deepseekApiKeyForSubAgent: settings.deepseekApiKey,
-            openaiBaseUrlForSubAgent: settings.openaiBaseUrl,
-            openaiApiKeyForSubAgent: settings.openaiApiKey,
+            subAgent: turnSettings.subAgent,
+            ollamaBaseUrlForSubAgent: turnSettings.ollamaBaseUrl,
+            openrouterBaseUrlForSubAgent: turnSettings.openrouterBaseUrl,
+            openrouterApiKeyForSubAgent: turnSettings.openrouterApiKey,
+            deepseekBaseUrlForSubAgent: turnSettings.deepseekBaseUrl,
+            deepseekApiKeyForSubAgent: turnSettings.deepseekApiKey,
+            openaiBaseUrlForSubAgent: turnSettings.openaiBaseUrl,
+            openaiApiKeyForSubAgent: turnSettings.openaiApiKey,
             subAgentUi:
-              (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
-              settings.subAgent.showAnalysisWindow !== false
+              (turnSettings.subAgent.enabled || turnSettings.subAgent.codingEnabled) &&
+              turnSettings.subAgent.showAnalysisWindow !== false
                 ? runSubAgentUi
                 : undefined,
             onImageVisionCacheUpdate: (entries: ImageVisionCache) => {
+              turnVisionCacheRef.current = mergeImageVisionCache(
+                turnVisionCacheRef.current,
+                entries,
+              )
               if (isViewingThisRun()) {
                 setImageVisionCache((prev) => mergeImageVisionCache(prev, entries))
               }
@@ -833,9 +885,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             onEscalateToPlan: () => {
               escalatedToPlan = true
             },
-            imageVisionCache,
+            imageVisionCache: turnVisionCacheRef.current,
             signal: ac.signal,
-            onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+            onThinkingDelta: isThinkingUiEnabled(turnSettings.llmThinkLevel)
               ? (thinking: string) => {
                   if (!isRunActive()) return
                   setMsgs((prev) =>
@@ -874,13 +926,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               applyAgentToolResult(
                 {
                   asstId,
-                  settings,
+                  settings: turnSettings,
                   setSettings,
                   setToolPhase: setPhase,
                   refreshReminders,
                   refreshLongMemories,
                   setCodingContextMemo: applyCodingMemo,
                   codingFileCacheRef: turnFileCacheRef,
+                  codingProjectPath: turnCodingProjectPath,
                   setCodingTerminalFeed: viewing
                     ? setCodingTerminalFeed
                     : () => {
@@ -925,7 +978,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               }
             },
           }
-          const cloudCfg = resolveCloudLlmChatConfig(settings)
+          const cloudCfg = resolveCloudLlmChatConfig(turnSettings)
           const out = cloudCfg
             ? await runOpenRouterChatWithTools({
                 baseUrl: cloudCfg.baseUrl,
@@ -936,9 +989,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 ...commonToolParams,
               })
             : await runOllamaChatWithTools({
-                baseUrl: settings.ollamaBaseUrl,
-                model: settings.ollamaModel,
-                thinkLevel: settings.llmThinkLevel,
+                baseUrl: turnSettings.ollamaBaseUrl,
+                model: turnSettings.ollamaModel,
+                thinkLevel: turnSettings.llmThinkLevel,
                 ...commonToolParams,
               })
           replyText = out.content
@@ -949,7 +1002,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             )
           }
         } else {
-          const cloudCfg = resolveCloudLlmChatConfig(settings)
+          const cloudCfg = resolveCloudLlmChatConfig(turnSettings)
           const out = cloudCfg
             ? await streamOpenRouterChat({
                 baseUrl: cloudCfg.baseUrl,
@@ -959,11 +1012,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 providerOnly: cloudCfg.providerOnly,
                 messages: ollamaMessagesToOpenRouter(history),
                 modelOptions: {
-                  temperature: settings.llmTemperature,
-                  num_ctx: settings.llmNumCtx,
+                  temperature: turnSettings.llmTemperature,
+                  num_ctx: turnSettings.llmNumCtx,
                 },
                 signal: ac.signal,
-                onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                onThinkingDelta: isThinkingUiEnabled(turnSettings.llmThinkLevel)
                   ? (thinking) => {
                       if (!isRunActive()) return
                       setMsgs((prev) =>
@@ -979,16 +1032,16 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 },
               })
             : await streamOllamaChat({
-                baseUrl: settings.ollamaBaseUrl,
-                model: settings.ollamaModel,
+                baseUrl: turnSettings.ollamaBaseUrl,
+                model: turnSettings.ollamaModel,
                 messages: history,
                 modelOptions: {
-                  temperature: settings.llmTemperature,
-                  num_ctx: settings.llmNumCtx,
+                  temperature: turnSettings.llmTemperature,
+                  num_ctx: turnSettings.llmNumCtx,
                 },
                 signal: ac.signal,
-                thinkLevel: settings.llmThinkLevel,
-                onThinkingDelta: isThinkingUiEnabled(settings.llmThinkLevel)
+                thinkLevel: turnSettings.llmThinkLevel,
+                onThinkingDelta: isThinkingUiEnabled(turnSettings.llmThinkLevel)
                   ? (thinking) => {
                       if (!isRunActive()) return
                       setMsgs((prev) =>
@@ -1051,17 +1104,17 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 : m,
             ),
           )
-          setSettings((s) => (s.agentMode === 'agent' ? s : { ...s, agentMode: 'agent' }))
+          applyGlobalAgentMode('agent')
         }
 
-        const usageInfo = estimateContextUsage(usage, resolveContextLimit(settings))
+        const usageInfo = estimateContextUsage(usage, resolveContextLimit(turnSettings))
         setUsage(usageInfo)
-        if (usageInfo?.shouldWarn && !settings.contextAutoCompress) setWarnDismissed(false)
+        if (usageInfo?.shouldWarn && !turnSettings.contextAutoCompress) setWarnDismissed(false)
         if (retrievedLongMemory.length > 0) {
           void touchMemoryUsage(retrievedLongMemory.map((m) => m.id))
         }
 
-        if (settings.toolsEnabled.coding && turnLogMutable.events.length > 0) {
+        if (turnSettings.toolsEnabled.coding && turnLogMutable.events.length > 0) {
           const summary = buildCodingTurnSummary({
             userGoal: text,
             log: turnLogMutable,
@@ -1102,8 +1155,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             m.id === asstId && !m.content.trim() ? { ...m, content: `(ERR: ${msg})` } : m,
           ),
         )
-        if (settings.notificationSoundsEnabled) {
-          void playNotificationSound('error', { volume: settings.notificationSoundVolume })
+        if (turnSettings.notificationSoundsEnabled) {
+          void playNotificationSound('error', { volume: turnSettings.notificationSoundVolume })
         }
       } finally {
         sessionAgentStore.endRun(keyOf(), runId)
@@ -1114,7 +1167,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         sessionAgentStore.getSnapshot(keyOf()).runId === runId && !ac.signal.aborted
 
       if (escalatedToPlan && runStillOwnsSlot) {
-        setSettings((s) => (s.agentMode === 'plan' ? s : { ...s, agentMode: 'plan' }))
+        applyGlobalAgentMode('plan')
         const handoffHistory = isEdit
           ? activeHistory.filter((m) => m.id !== asstId)
           : userMsg
@@ -1122,7 +1175,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             : activeHistory
         let handoffContext = ''
         let summary = ''
-        if (settings.toolsEnabled.coding) {
+        if (turnSettings.toolsEnabled.coding) {
           summary = buildCodingTurnSummary({
             userGoal: text,
             log: turnLogMutable,
@@ -1169,19 +1222,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       sessionAgentStore.releaseKeyHandle(bind)
 
-      // Background finish → sidebar "done" ping until the user opens the session.
-      if (
-        runStillOwnsSlot &&
-        !isViewingThisRun() &&
-        isRealSessionRuntimeKey(keyOf())
-      ) {
-        sessionAgentStore.markCompleteUnread(keyOf())
+      // Background finish (success or error) → DONE badge until the user opens the chat.
+      if (runStillOwnsSlot) {
+        markBgDoneIfNeeded()
       }
 
       if (replyText.trim() && runStillOwnsSlot) {
         const willAutoSpeak = loadSettings().autoVoice && ttsOk !== false
-        if (settings.notificationSoundsEnabled && !willAutoSpeak) {
-          void playNotificationSound('reply', { volume: settings.notificationSoundVolume })
+        if (turnSettings.notificationSoundsEnabled && !willAutoSpeak) {
+          void playNotificationSound('reply', { volume: turnSettings.notificationSoundVolume })
         }
         if (willAutoSpeak && isViewingThisRun()) {
           void onRead({ id: asstId, role: 'assistant', content: replyText })

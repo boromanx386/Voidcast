@@ -17,6 +17,8 @@ import { runCodingExplore } from "@/lib/codingSubAgent";
 import type { ToolHandlerFn, ToolHandlerRegistry } from "@/lib/toolExecTypes";
 import {
   ACTIVE_PROCESS_LAST_MAX_CHARS,
+  canControlCodingProcess,
+  filterProcessesForAgent,
 } from "@/lib/codingActiveProcesses";
 import {
   formatSoftDeniedReadResult,
@@ -370,6 +372,7 @@ export const handleExecuteCommand: ToolHandlerFn = async (args, ctx) => {
     await invokeExecuteCodingCommand(projectPath, command, {
       timeoutSec,
       runInBackground,
+      ownerId: (ctx.mcpOwnerId || "").trim() || undefined,
     })
   ).text;
 };
@@ -377,7 +380,11 @@ export const handleExecuteCommand: ToolHandlerFn = async (args, ctx) => {
 export const handleListProcesses: ToolHandlerFn = async (_args, ctx) => {
   if (!ctx.toolsEnabled.coding)
     return "Error: list_processes tool is disabled in settings.";
-  const procs = await invokeListActiveCodingProcesses();
+  const all = await invokeListActiveCodingProcesses();
+  const procs = filterProcessesForAgent(all, {
+    ownerId: ctx.mcpOwnerId,
+    projectPath: ctx.codingProjectPath,
+  });
   if (procs.length === 0) return "No active coding processes.";
   const now = Date.now();
   return procs
@@ -404,6 +411,17 @@ export const handleStopProcess: ToolHandlerFn = async (args, ctx) => {
     return "Error: stop_process tool is disabled in settings.";
   const runId = typeof args.run_id === "string" ? args.run_id.trim() : "";
   if (!runId) return "Error: missing run_id parameter for stop_process.";
+  const all = await invokeListActiveCodingProcesses();
+  const target = all.find((p) => p.runId === runId);
+  if (!target) return `Error: no active process for runId ${runId}.`;
+  if (
+    !canControlCodingProcess(target, {
+      ownerId: ctx.mcpOwnerId,
+      projectPath: ctx.codingProjectPath,
+    })
+  ) {
+    return `Error: process ${runId} belongs to another chat/project. Stop is not allowed.`;
+  }
   const res = await invokeKillCodingCommand(runId);
   if (!res.ok) return `Error: ${res.error}`;
   return `Stopped process ${runId}.`;
@@ -414,6 +432,17 @@ export const handleReadProcessOutput: ToolHandlerFn = async (args, ctx) => {
     return "Error: read_process_output tool is disabled in settings.";
   const runId = typeof args.run_id === "string" ? args.run_id.trim() : "";
   if (!runId) return "Error: missing run_id parameter for read_process_output.";
+  const all = await invokeListActiveCodingProcesses();
+  const target = all.find((p) => p.runId === runId);
+  if (
+    target &&
+    !canControlCodingProcess(target, {
+      ownerId: ctx.mcpOwnerId,
+      projectPath: ctx.codingProjectPath,
+    })
+  ) {
+    return `Error: process ${runId} belongs to another chat/project.`;
+  }
   const offset =
     typeof args.offset === "number" && Number.isFinite(args.offset)
       ? Math.floor(args.offset)

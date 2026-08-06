@@ -3,6 +3,8 @@ import {
   applyOutputToActiveProcess,
   appendProcessOutputBuffer,
   buildActiveProcessesHint,
+  canControlCodingProcess,
+  filterProcessesForAgent,
   mergeActiveProcessOutputLines,
   removeActiveProcess,
   sliceProcessOutputBuffer,
@@ -71,6 +73,35 @@ describe('upsert / remove / applyOutput', () => {
     expect(list[0]!.command).toBe('npm run dev')
     expect(list[0]!.pid).toBe(42)
     expect(list[0]!.lastLines).toEqual(['boot', ''])
+  })
+})
+
+describe('filter / ownership', () => {
+  it('filters to same owner or same project', () => {
+    const list = [
+      proc({ runId: 'a', command: 'a', ownerId: 's1', projectPath: 'C:/foo' }),
+      proc({ runId: 'b', command: 'b', ownerId: 's2', projectPath: 'C:/bar' }),
+      proc({ runId: 'c', command: 'c', ownerId: 's3', projectPath: 'C:\\foo' }),
+      proc({ runId: 'd', command: 'd' }),
+    ]
+    const filtered = filterProcessesForAgent(list, { ownerId: 's1', projectPath: 'C:/foo' })
+    expect(filtered.map((p) => p.runId).sort()).toEqual(['a', 'c', 'd'])
+  })
+
+  it('canControl allows same project or owner, denies other folder', () => {
+    const other = proc({ runId: 'x', command: 'x', ownerId: 's2', projectPath: 'D:/x' })
+    expect(
+      canControlCodingProcess(other, { ownerId: 's1', projectPath: 'C:/foo' }),
+    ).toBe(false)
+    expect(
+      canControlCodingProcess(other, { ownerId: 's2', projectPath: 'C:/foo' }),
+    ).toBe(true)
+    expect(
+      canControlCodingProcess(
+        proc({ runId: 'y', command: 'y', ownerId: 's9', projectPath: 'C:/foo' }),
+        { ownerId: 's1', projectPath: 'C:/foo' },
+      ),
+    ).toBe(true)
   })
 })
 

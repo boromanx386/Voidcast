@@ -155,6 +155,8 @@ function toPublicProcess(entry: ActiveCodingProcessEntry): ActiveCodingProcess {
     kind: entry.kind,
     startedAt: entry.startedAt,
     lastLines: [...entry.lastLines],
+    ownerId: entry.ownerId,
+    projectPath: entry.projectPath,
   }
 }
 
@@ -192,8 +194,12 @@ function registerCodingProcess(
     pid: number
     command: string
     kind: ActiveCodingProcessKind
+    ownerId?: string
+    projectPath?: string
   },
 ): ActiveCodingProcessEntry {
+  const ownerId = (params.ownerId || '').trim() || undefined
+  const projectPath = (params.projectPath || '').trim() || undefined
   const entry: ActiveCodingProcessEntry = {
     runId: params.runId,
     pid: params.pid,
@@ -201,6 +207,8 @@ function registerCodingProcess(
     kind: params.kind,
     startedAt: Date.now(),
     lastLines: [],
+    ownerId,
+    projectPath,
     killed: false,
     outputBuffer: '',
     outputStartOffset: 0,
@@ -2712,7 +2720,16 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:coding-execute-command',
-  async (evt, payload: { projectPath?: string; command?: string; timeoutSec?: number; runInBackground?: boolean }) => {
+  async (
+    evt,
+    payload: {
+      projectPath?: string
+      command?: string
+      timeoutSec?: number
+      runInBackground?: boolean
+      ownerId?: string
+    },
+  ) => {
     const projectPath = String(payload?.projectPath ?? '').trim()
     const command = String(payload?.command ?? '').trim()
     if (!projectPath || !command) {
@@ -2723,6 +2740,7 @@ ipcMain.handle(
       ? Math.min(120_000, Math.max(3_000, Math.round(timeoutSecRaw * 1000)))
       : 20_000
     const runInBackground = payload?.runInBackground === true
+    const ownerId = String(payload?.ownerId ?? '').trim() || undefined
     const runId = randomUUID()
     type OkResult = {
       ok: true
@@ -2756,7 +2774,12 @@ ipcMain.handle(
         killed?: boolean
       }) => {
         try {
-          evt.sender.send('voidcast:coding-command-output', { runId, ...payloadOut })
+          evt.sender.send('voidcast:coding-command-output', {
+            runId,
+            ownerId,
+            projectPath,
+            ...payloadOut,
+          })
         } catch {
           // window may be gone
         }
@@ -2769,6 +2792,8 @@ ipcMain.handle(
         pid,
         command,
         kind,
+        ownerId,
+        projectPath,
       })
 
       if (runInBackground) {

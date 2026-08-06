@@ -202,6 +202,7 @@ export function ChatScreen({ app }: Props) {
                 app.setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
               }
               onUpdateProjectPath={app.applyCodingProjectPath}
+              codingOwnerId={app.viewRuntimeKey}
             />
             </>
           )}

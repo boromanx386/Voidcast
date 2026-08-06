@@ -7,6 +7,9 @@ export { ChunkThrottle }
 /** IPC payload for live `execute_command` / manual RUN output. */
 export type CodingCommandOutputEvent = {
   runId: string
+  /** Chat runtime that started this shell (for multi-session terminal isolation). */
+  ownerId?: string
+  projectPath?: string
   stream?: 'stdout' | 'stderr' | 'system'
   text?: string
   done?: boolean

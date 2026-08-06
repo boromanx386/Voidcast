@@ -70,6 +70,10 @@ export type ChatSessionsDeps = {
     options?: { flushActiveSessionId?: string | null },
   ) => void
   resetCodingTerminal: () => void
+  /** Switch terminal buffer without killing other chats' shells. */
+  switchCodingTerminalOwner?: (ownerKey: string) => void
+  /** Move terminal feed when draft rekeys to a session id. */
+  rekeyCodingTerminalOwner?: (fromKey: string, toKey: string) => void
   /** Stop only the currently visible agent (used on delete of active / new draft reset). */
   abortActiveRuns: () => void
   cancelMessageEdit?: () => void
@@ -106,6 +110,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     resetAssistantMediaState,
     restoreCodingContextForSession,
     resetCodingTerminal,
+    switchCodingTerminalOwner,
+    rekeyCodingTerminalOwner,
     abortActiveRuns: _abortActiveRuns,
     cancelMessageEdit,
     setInput,
@@ -268,6 +274,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       }
       sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
       rekeyComposerDraft(DRAFT_RUNTIME_KEY, newId)
+      rekeyCodingTerminalOwner?.(DRAFT_RUNTIME_KEY, newId)
       setSessions((prev) => [...prev, newSession].sort((a, b) => b.updatedAt - a.updatedAt))
       setActiveSessionId(newId)
       setSessionDirty(false)
@@ -388,9 +395,10 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     const newId = uid()
     sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
     rekeyComposerDraft(DRAFT_RUNTIME_KEY, newId)
+    rekeyCodingTerminalOwner?.(DRAFT_RUNTIME_KEY, newId)
     setActiveSessionId(newId)
     return newId
-  }, [activeSessionId, settings.autoSaveChat])
+  }, [activeSessionId, settings.autoSaveChat, rekeyCodingTerminalOwner])
 
   /** Apply coding memo patches for a background (non-visible) session. */
   const patchSessionCodingMemo = useCallback(
@@ -437,6 +445,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setPendingFiles([])
     setError(null)
     setToolResultBanner(null)
+    // Bind terminal to draft first so clear does not wipe another chat's feed.
+    switchCodingTerminalOwner?.(DRAFT_RUNTIME_KEY)
     resetCodingTerminal()
     const trimmed = projectPath.trim()
     // 1C: A new chat is General unless a folder is bound to it up front.
@@ -616,6 +626,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     if (!activeSessionId) {
       sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, id)
       rekeyComposerDraft(DRAFT_RUNTIME_KEY, id)
+      rekeyCodingTerminalOwner?.(DRAFT_RUNTIME_KEY, id)
     }
     const next: ChatSession = {
       id,
@@ -672,6 +683,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       setHiddenContextSummary('')
       setContextCompressedThroughIndex(0)
       contextOverflowLatchRef.current = false
+      switchCodingTerminalOwner?.(DRAFT_RUNTIME_KEY)
       resetCodingTerminal()
       codingProjectPathForMemoRef.current = ''
       setSettings((s) => mergeCodingProjectPathIntoSettings(s, ''))

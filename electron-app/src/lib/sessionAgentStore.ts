@@ -44,6 +44,11 @@ export type SessionAgentSlot = {
   subAgentPanelBusy: boolean
   subAgentPanelText: string
   media: SessionAgentMediaState
+  /**
+   * Frozen coding project path for the in-flight run (if any).
+   * Used to block concurrent coding on a different folder.
+   */
+  codingProjectPath?: string
   /** Ephemeral — not serialised. */
   abortController: AbortController | null
   runId: number
@@ -88,6 +93,7 @@ export function createEmptySessionAgentSlot(
     subAgentPanelBusy: false,
     subAgentPanelText: '',
     media: emptyMedia(),
+    codingProjectPath: undefined,
     abortController: null,
     runId: 0,
   }
@@ -127,6 +133,7 @@ function sessionAgentSlotShallowEqual(a: SessionAgentSlot, b: SessionAgentSlot):
     a.subAgentPanelText === b.subAgentPanelText &&
     a.abortController === b.abortController &&
     a.runId === b.runId &&
+    a.codingProjectPath === b.codingProjectPath &&
     sessionAgentMediaEqual(a.media, b.media)
   )
 }
@@ -358,14 +365,18 @@ class SessionAgentStore {
 
   /**
    * Begin a new agent run on this key: bump runId, attach controller, mark busy.
-   * Returns the run id and whether further updates should still apply.
+   * `codingProjectPath` is frozen for the life of the run (cross-session isolation).
    */
-  beginRun(key: string): { runId: number; controller: AbortController } {
+  beginRun(
+    key: string,
+    meta?: { codingProjectPath?: string },
+  ): { runId: number; controller: AbortController } {
     const k = this.canonicalKey(key)
     const prev = this.ensure(k)
     prev.abortController?.abort()
     const controller = new AbortController()
     const runId = prev.runId + 1
+    const codingPath = (meta?.codingProjectPath || '').trim() || undefined
     this.slots.set(k, {
       ...prev,
       busy: true,
@@ -374,6 +385,7 @@ class SessionAgentStore {
       toolResultBanner: null,
       abortController: controller,
       runId,
+      codingProjectPath: codingPath,
     })
     this.emit(k)
     return { runId, controller }
@@ -394,6 +406,7 @@ class SessionAgentStore {
       busy: false,
       toolPhase: null,
       abortController: null,
+      codingProjectPath: undefined,
     })
     this.emit(k)
   }
@@ -446,8 +459,32 @@ class SessionAgentStore {
       busy: false,
       toolPhase: null,
       abortController: null,
+      codingProjectPath: undefined,
     })
     this.emit(k)
+  }
+
+  /**
+   * If another busy run is coding against a different project, return an error message.
+   * Same path (or empty/general) is fine. `forKey` is excluded (restarting same chat).
+   */
+  codingProjectConflict(forKey: string, nextPath: string): string | null {
+    const mine = this.canonicalKey(forKey)
+    const next = nextPath.trim().toLowerCase().replace(/\\/g, '/')
+    if (!next) return null
+    for (const [key, slot] of this.slots) {
+      if (!slot.busy) continue
+      if (this.canonicalKey(key) === mine) continue
+      const other = (slot.codingProjectPath || '').trim().toLowerCase().replace(/\\/g, '/')
+      if (!other) continue
+      if (other !== next) {
+        return (
+          `Another chat is already coding in a different project (${slot.codingProjectPath}). ` +
+          `Stop that agent first, or run both against the same folder.`
+        )
+      }
+    }
+    return null
   }
 
   /** Hydrate messages (and reset media) when opening a session with no live slot. */
