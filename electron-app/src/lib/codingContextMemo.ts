@@ -735,6 +735,19 @@ export function buildCodingMemoHint(
   if (memo.lastTurnSummary.trim()) {
     lines.push('', memo.lastTurnSummary.trim(), '')
   }
+  // Covered paths = soft-deny list (same digests that gate whole-file re-reads).
+  // recentFiles only as fallback when digests empty.
+  const coveredPaths =
+    memo.recentFileDigests.length > 0
+      ? memo.recentFileDigests.map((d) => d.path)
+      : memo.recentFiles.filter(Boolean)
+  if (coveredPaths.length > 0) {
+    lines.push(
+      'Covered paths this session (whole-file re-read soft-denied unless force:true or start_line/end_line):',
+      ...coveredPaths.map((p) => `- ${p}`),
+      '',
+    )
+  }
   if (memo.recentFileDigests.length > 0) {
     lines.push(
       'Recent file digests (reuse; prefer find_symbols / range-read only if you need exact text for edit_code):',

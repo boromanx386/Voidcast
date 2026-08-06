@@ -77,11 +77,11 @@ export const CODING_CLEAR_MIN_CHARS = 2_000
 /** Default: keep last 4 rounds of clearable tools full (was 2 — caused thrashing). */
 export const CODING_CLEAR_KEEP_RECENT_ROUNDS = 4
 /** Keep read_file / find_symbols longer — these are the working set for edits. */
-export const CODING_CLEAR_KEEP_READ_ROUNDS = 8
+export const CODING_CLEAR_KEEP_READ_ROUNDS = 12
 /** Always pin the last N read_file results full regardless of round age. */
-export const CODING_PIN_RECENT_READS = 3
+export const CODING_PIN_RECENT_READS = 6
 /** Always pin the last N find_symbols outlines (cheap + high reuse). */
-export const CODING_PIN_RECENT_OUTLINES = 2
+export const CODING_PIN_RECENT_OUTLINES = 4
 
 export const CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL: Record<string, number> = {
   read_file: CODING_CLEAR_KEEP_READ_ROUNDS,

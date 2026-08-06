@@ -59,6 +59,38 @@ describe('buildCodingMemoHint digests', () => {
     expect(hint).toContain('foo(L1)')
   })
 
+  it('lists covered paths above digests with soft-deny wording', () => {
+    const memo = {
+      ...emptyCodingContextMemo('/proj'),
+      recentFileDigests: [
+        { path: 'src/a.ts', digest: 'digest-a' },
+        { path: 'src/b.ts', digest: 'digest-b' },
+      ],
+    }
+    const hint = buildCodingMemoHint(memo)
+    expect(hint).toContain(
+      'Covered paths this session (whole-file re-read soft-denied unless force:true or start_line/end_line):',
+    )
+    expect(hint).toContain('- src/a.ts')
+    expect(hint).toContain('- src/b.ts')
+    // Covered block appears before digest detail
+    const coveredIdx = hint.indexOf('Covered paths this session')
+    const digestsIdx = hint.indexOf('Recent file digests')
+    expect(coveredIdx).toBeGreaterThanOrEqual(0)
+    expect(digestsIdx).toBeGreaterThan(coveredIdx)
+  })
+
+  it('falls back to recentFiles for covered paths when digests empty', () => {
+    const memo = {
+      ...emptyCodingContextMemo('/proj'),
+      recentFiles: ['lib/x.ts', 'lib/y.ts'],
+    }
+    const hint = buildCodingMemoHint(memo)
+    expect(hint).toContain('Covered paths this session')
+    expect(hint).toContain('- lib/x.ts')
+    expect(hint).not.toContain('Recent file digests')
+  })
+
   it('normalizes recentFileDigests from session data', () => {
     const n = normalizeCodingContextMemo(
       {

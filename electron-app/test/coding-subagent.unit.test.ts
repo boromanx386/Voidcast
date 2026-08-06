@@ -3,6 +3,7 @@ import {
   CODING_CLEAR_KEEP_READ_ROUNDS,
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
   CODING_CLEAR_MIN_CHARS,
+  CODING_PIN_RECENT_OUTLINES,
   CODING_PIN_RECENT_READS,
   CODING_TRIM_HEAD_CHARS,
   CODING_TRIM_TAIL_CHARS,
@@ -131,23 +132,23 @@ describe('old tool result clearing helpers', () => {
       }),
     ).toBe(true)
 
-    // Oldest read_file: outside keep-read window and outside pin-of-3 → evict
+    // Only 4 reads < PIN_RECENT_READS — oldest read still pinned → keep
     expect(
       shouldEvictOldToolResult({
         rec: records[0]!,
-        currentRound: 10,
+        currentRound: 20,
         keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
         keepRecentRoundsByTool: { read_file: CODING_CLEAR_KEEP_READ_ROUNDS },
         pinRecentByTool: { read_file: CODING_PIN_RECENT_READS },
         allRecords: records,
       }),
-    ).toBe(true)
+    ).toBe(false)
 
-    // More recent read (round 2) still in pin-of-3 → keep
+    // Most recent read still in pin window → keep
     expect(
       shouldEvictOldToolResult({
         rec: records[3]!,
-        currentRound: 10,
+        currentRound: 20,
         keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
         keepRecentRoundsByTool: { read_file: CODING_CLEAR_KEEP_READ_ROUNDS },
         pinRecentByTool: { read_file: CODING_PIN_RECENT_READS },
@@ -161,10 +162,52 @@ describe('old tool result clearing helpers', () => {
         rec: { index: 9, round: 5, name: 'read_file' },
         currentRound: 10,
         keepRecentRounds: 4,
-        keepRecentRoundsByTool: { read_file: 8 },
+        keepRecentRoundsByTool: { read_file: CODING_CLEAR_KEEP_READ_ROUNDS },
         allRecords: [{ index: 9, round: 5, name: 'read_file' }],
       }),
     ).toBe(false)
+  })
+
+  it('pins up to CODING_PIN_RECENT_READS even when rounds are very old', () => {
+    // Six distinct reads, pin-of-6 → none of the six should evict at currentRound 50
+    const records = Array.from({ length: CODING_PIN_RECENT_READS }, (_, i) => ({
+      index: i + 1,
+      round: i,
+      name: 'read_file',
+    }))
+    // Oldest of the pinned six (still rank < PIN) — keep
+    expect(
+      shouldEvictOldToolResult({
+        rec: records[0]!,
+        currentRound: 50,
+        keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+        keepRecentRoundsByTool: { read_file: CODING_CLEAR_KEEP_READ_ROUNDS },
+        pinRecentByTool: { read_file: CODING_PIN_RECENT_READS },
+        allRecords: records,
+      }),
+    ).toBe(false)
+
+    // Seventh older read falls outside pin → evict
+    const withExtra = [
+      { index: 0, round: -1, name: 'read_file' },
+      ...records,
+    ]
+    expect(
+      shouldEvictOldToolResult({
+        rec: withExtra[0]!,
+        currentRound: 50,
+        keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+        keepRecentRoundsByTool: { read_file: CODING_CLEAR_KEEP_READ_ROUNDS },
+        pinRecentByTool: { read_file: CODING_PIN_RECENT_READS },
+        allRecords: withExtra,
+      }),
+    ).toBe(true)
+  })
+
+  it('exposes raised read pin/keep constants', () => {
+    expect(CODING_CLEAR_KEEP_READ_ROUNDS).toBe(12)
+    expect(CODING_PIN_RECENT_READS).toBe(6)
+    expect(CODING_PIN_RECENT_OUTLINES).toBe(4)
   })
 
   it('buildClearedToolDigest summarizes path lists and command output', () => {
