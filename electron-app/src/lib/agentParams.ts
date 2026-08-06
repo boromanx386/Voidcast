@@ -24,6 +24,8 @@ export interface ChatWithToolsCommonParams {
   mcpEnabled?: boolean
   mcpServerEnabled?: Record<string, boolean>
   mcpTrustedProjectPaths?: string[]
+  /** Chat runtime key for scoped MCP cancel / tool ownership. */
+  mcpOwnerId?: string
   agentMode?: AgentChatMode
   getActiveBuildPlan?: () => PlanArtifact | undefined
   maxToolRounds?: number
@@ -89,6 +91,7 @@ export function buildToolExecutorOptions(
     mcpTools: params.mcpTools,
     mcpServerEnabled: params.mcpServerEnabled,
     mcpTrustedProjectPaths: params.mcpTrustedProjectPaths,
+    mcpOwnerId: params.mcpOwnerId,
     agentMode: params.agentMode,
     getActiveBuildPlan: params.getActiveBuildPlan,
     subAgent: params.subAgent,

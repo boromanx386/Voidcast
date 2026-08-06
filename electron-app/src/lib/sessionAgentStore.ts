@@ -15,6 +15,9 @@ import type { UiMessage } from '@/types/chat'
 /** Runtime key for an unsaved draft chat (no ChatSession id yet). */
 export const DRAFT_RUNTIME_KEY = '__draft__'
 
+/** Soft cap on simultaneous agent runs (all chats). */
+export const MAX_CONCURRENT_AGENT_RUNS = 3
+
 export type SessionAgentMediaState = {
   assistantGeneratedImages: Record<string, string[]>
   assistantSavedImagePaths: Record<string, string[]>
@@ -395,6 +398,41 @@ class SessionAgentStore {
     this.emit(k)
   }
 
+  // ── Unread "run finished while you were away" flags ─────────────────────
+
+  private completeUnread = new Set<string>()
+  private unreadSnapshot: Record<string, boolean> = {}
+  private unreadSnapshotSerialized = ''
+
+  /** Mark a completed background run so the sidebar can flash until the user opens it. */
+  markCompleteUnread(key: string): void {
+    const k = this.canonicalKey(key)
+    if (!isRealSessionRuntimeKey(k)) return
+    if (this.completeUnread.has(k)) return
+    this.completeUnread.add(k)
+    this.emit(k)
+  }
+
+  clearCompleteUnread(key: string): void {
+    const k = this.canonicalKey(key)
+    if (!this.completeUnread.delete(k)) return
+    this.emit(k)
+  }
+
+  isCompleteUnread(key: string): boolean {
+    return this.completeUnread.has(this.canonicalKey(key))
+  }
+
+  unreadCompleteBySessionId(): Record<string, boolean> {
+    const out: Record<string, boolean> = {}
+    for (const id of this.completeUnread) out[id] = true
+    const serialized = JSON.stringify(out)
+    if (serialized === this.unreadSnapshotSerialized) return this.unreadSnapshot
+    this.unreadSnapshot = out
+    this.unreadSnapshotSerialized = serialized
+    return out
+  }
+
   /** Abort in-flight work for this key (Stop). Messages unchanged — caller may reopen plans. */
   stop(key: string): void {
     const k = this.canonicalKey(key)
@@ -475,8 +513,8 @@ class SessionAgentStore {
     for (const [from, to] of [...this.aliases.entries()]) {
       if (from === k || to === k || from === key) this.aliases.delete(from)
     }
-    // Keep empty slot for draft; delete real session slots after cleanup notify
     if (isRealSessionRuntimeKey(k)) {
+      this.completeUnread.delete(k)
       this.slots.delete(k)
     } else {
       this.slots.set(DRAFT_RUNTIME_KEY, createEmptySessionAgentSlot())
@@ -496,6 +534,25 @@ class SessionAgentStore {
 
   isBusy(key: string): boolean {
     return Boolean(this.slots.get(this.canonicalKey(key))?.busy)
+  }
+
+  /** Total agent runs currently busy (all sessions + draft). */
+  countBusyRuns(): number {
+    let n = 0
+    for (const slot of this.slots.values()) {
+      if (slot.busy) n += 1
+    }
+    return n
+  }
+
+  /**
+   * Whether a new run may start on `key` without exceeding the concurrency cap.
+   * If `key` is already busy, re-send is allowed (same slot replaces itself).
+   */
+  canStartRun(key: string, maxConcurrent: number): boolean {
+    const k = this.canonicalKey(key)
+    if (this.isBusy(k)) return true
+    return this.countBusyRuns() < maxConcurrent
   }
 
   listBusySessionIds(): string[] {
@@ -540,5 +597,14 @@ export function useBusySessionMap(): Record<string, boolean> {
     (onStoreChange) => sessionAgentStore.subscribeGlobal(onStoreChange),
     () => sessionAgentStore.busyBySessionId(),
     () => sessionAgentStore.busyBySessionId(),
+  )
+}
+
+/** Sessions whose background agent finished and the user has not opened yet. */
+export function useUnreadCompleteSessionMap(): Record<string, boolean> {
+  return useSyncExternalStore(
+    (onStoreChange) => sessionAgentStore.subscribeGlobal(onStoreChange),
+    () => sessionAgentStore.unreadCompleteBySessionId(),
+    () => sessionAgentStore.unreadCompleteBySessionId(),
   )
 }

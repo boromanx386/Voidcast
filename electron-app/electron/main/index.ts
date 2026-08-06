@@ -3446,6 +3446,7 @@ ipcMain.handle(
       projectPath?: string
       enabledServers?: Record<string, boolean>
       trustedProjectPaths?: string[]
+      ownerId?: string
     },
   ) => {
     try {
@@ -3484,7 +3485,10 @@ ipcMain.handle(
         payload?.args && typeof payload.args === 'object' && !Array.isArray(payload.args)
           ? payload.args
           : {}
-      const result = await mcpManager.callTool(serverId, toolName, args)
+      const ownerId = typeof payload?.ownerId === 'string' ? payload.ownerId.trim() : undefined
+      const result = await mcpManager.callTool(serverId, toolName, args, {
+        ownerId: ownerId || undefined,
+      })
       return { ok: true as const, result, qualifiedName: formatMcpToolName(serverId, toolName) }
     } catch (e) {
       return {
@@ -3616,8 +3620,10 @@ ipcMain.handle('voidcast:mcp-stop-all', async () => {
   return { ok: true as const }
 })
 
-ipcMain.handle('voidcast:mcp-cancel-active-calls', async () => {
-  mcpManager.cancelActiveCalls()
+ipcMain.handle('voidcast:mcp-cancel-active-calls', async (_evt, payload?: { ownerId?: string }) => {
+  mcpManager.cancelActiveCalls(
+    typeof payload?.ownerId === 'string' ? payload.ownerId : undefined,
+  )
   return { ok: true as const }
 })
 

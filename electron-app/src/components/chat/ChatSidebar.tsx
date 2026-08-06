@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
 import { SessionItem } from '@/components/chat/SessionItem'
 import { groupSessionsByProject } from '@/lib/sessionProjectGroups'
-import { useBusySessionMap } from '@/lib/sessionAgentStore'
+import {
+  useBusySessionMap,
+  useUnreadCompleteSessionMap,
+} from '@/lib/sessionAgentStore'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
 type Props = { app: VoidcastApp }
@@ -33,6 +36,7 @@ export function ChatSidebar({ app }: Props) {
 
   const projectGroups = useMemo(() => groupSessionsByProject(sessions), [sessions])
   const busyBySession = useBusySessionMap()
+  const unreadCompleteBySession = useUnreadCompleteSessionMap()
 
   if (sessionsSidebarCollapsed) return null
 
@@ -111,6 +115,9 @@ export function ChatSidebar({ app }: Props) {
                       session={s}
                       isActive={s.id === activeSessionId}
                       isBusy={Boolean(busyBySession[s.id])}
+                      isUnreadComplete={Boolean(
+                        unreadCompleteBySession[s.id] && !busyBySession[s.id],
+                      )}
                       isRenaming={renamingSessionId === s.id}
                       isPendingDelete={pendingDeleteId === s.id}
                       renameValue={renameValue}

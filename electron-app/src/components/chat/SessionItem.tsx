@@ -5,6 +5,8 @@ type SessionItemProps = {
   isActive: boolean
   /** Agent run in progress (including background). */
   isBusy?: boolean
+  /** Background run finished; session not opened since. */
+  isUnreadComplete?: boolean
   isRenaming: boolean
   isPendingDelete: boolean
   renameValue: string
@@ -24,6 +26,7 @@ export function SessionItem({
   session,
   isActive,
   isBusy = false,
+  isUnreadComplete = false,
   isRenaming,
   isPendingDelete,
   renameValue,
@@ -90,10 +93,21 @@ export function SessionItem({
         <>
           <button type="button" className="w-full text-left" onClick={onOpen}>
             <div className="flex min-w-0 items-center gap-1.5">
-              <div className="min-w-0 flex-1 truncate font-mono text-xs text-void-light">
+              {isUnreadComplete && (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-neon-cyan"
+                  title="Agent finished"
+                  aria-label="Agent finished"
+                />
+              )}
+              <div
+                className={`min-w-0 flex-1 truncate font-mono text-xs ${
+                  isUnreadComplete ? 'text-void-white' : 'text-void-light'
+                }`}
+              >
                 {session.title}
               </div>
-              {isBusy && (
+              {isBusy ? (
                 <span
                   className="shrink-0 font-mono text-[9px] tracking-wide text-neon-green"
                   title="Agent running"
@@ -101,7 +115,15 @@ export function SessionItem({
                 >
                   ● RUN
                 </span>
-              )}
+              ) : isUnreadComplete ? (
+                <span
+                  className="shrink-0 font-mono text-[9px] tracking-wide text-neon-cyan"
+                  title="Finished — open to dismiss"
+                  aria-label="Agent finished"
+                >
+                  DONE
+                </span>
+              ) : null}
             </div>
             <div className="mt-0.5 text-[10px] text-void-dim">
               {new Date(session.updatedAt).toLocaleDateString()}{' '}

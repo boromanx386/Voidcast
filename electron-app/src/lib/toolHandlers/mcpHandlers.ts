@@ -109,6 +109,7 @@ export const handleMcpCall: ToolHandlerFn = async (args, ctx) => {
       projectPath: ctx.codingProjectPath,
       enabledServers: ctx.mcpServerEnabled,
       trustedProjectPaths: ctx.mcpTrustedProjectPaths,
+      ownerId: ctx.mcpOwnerId,
     });
   } catch (e) {
     return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`;
@@ -129,6 +130,7 @@ export async function handleMcpLegacy(
       projectPath: ctx.codingProjectPath,
       enabledServers: ctx.mcpServerEnabled,
       trustedProjectPaths: ctx.mcpTrustedProjectPaths,
+      ownerId: ctx.mcpOwnerId,
     });
   } catch (e) {
     return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`;

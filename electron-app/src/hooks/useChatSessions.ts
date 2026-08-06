@@ -36,11 +36,18 @@ import {
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import {
+  clearComposerDraft,
+  loadComposerDraft,
+  rekeyComposerDraft,
+  stashComposerDraft,
+} from '@/lib/chatComposerDrafts'
+import {
   DRAFT_RUNTIME_KEY,
   runtimeKeyForSession,
   sessionAgentStore,
 } from '@/lib/sessionAgentStore'
-import type { ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
+import { cancelActiveMcpCalls } from '@/lib/mcpTools'
+import type { ChatSession, FileAttachmentSnapshot, SystemPromptPreset, UiMessage } from '@/types/chat'
 
 function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
   return typeof action === 'function' ? (action as (p: T) => T)(prev) : action
@@ -67,7 +74,12 @@ export type ChatSessionsDeps = {
   abortActiveRuns: () => void
   cancelMessageEdit?: () => void
   setInput: Dispatch<SetStateAction<string>>
+  /** Live composer values for stash/restore on session switch. */
+  input: string
+  pendingImages: PendingChatImage[]
   setPendingImages: Dispatch<SetStateAction<PendingChatImage[]>>
+  pendingFiles: FileAttachmentSnapshot[]
+  setPendingFiles: Dispatch<SetStateAction<FileAttachmentSnapshot[]>>
   setError: Dispatch<SetStateAction<string | null>>
   setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf'; text: string } | null>>
   setContextUsageInfo: Dispatch<SetStateAction<ContextUsageInfo | null>>
@@ -97,7 +109,11 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     abortActiveRuns: _abortActiveRuns,
     cancelMessageEdit,
     setInput,
+    input,
+    pendingImages,
     setPendingImages,
+    pendingFiles,
+    setPendingFiles,
     setError,
     setToolResultBanner,
     setContextUsageInfo,
@@ -184,23 +200,30 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }, [])
 
   // Background agent runs write messages into the store — mirror into sessions[].
+  // Do not bump updatedAt / re-sort on stream deltas (only length changes = new bubble).
   useEffect(() => {
     sessionAgentStore.setMessageSync((sessionId, nextMessages) => {
       setSessions((prev) => {
         const idx = prev.findIndex((s) => s.id === sessionId)
         if (idx < 0) return prev
         if (prev[idx].messages === nextMessages) return prev
+        const prevMsgs = prev[idx].messages
+        const lengthChanged = prevMsgs.length !== nextMessages.length
+        const nextTitle =
+          prev[idx].title && prev[idx].title !== 'New chat'
+            ? prev[idx].title
+            : deriveSessionTitle(nextMessages) || prev[idx].title
         const next = [...prev]
         next[idx] = {
           ...prev[idx],
           messages: nextMessages,
-          updatedAt: Date.now(),
-          title:
-            prev[idx].title && prev[idx].title !== 'New chat'
-              ? prev[idx].title
-              : deriveSessionTitle(nextMessages) || prev[idx].title,
+          title: nextTitle,
+          // Streaming tokens keep position; a new bubble may lift the session once.
+          updatedAt: lengthChanged ? Date.now() : prev[idx].updatedAt,
         }
-        next.sort((a, b) => b.updatedAt - a.updatedAt)
+        if (lengthChanged) {
+          next.sort((a, b) => b.updatedAt - a.updatedAt)
+        }
         return next
       })
     })
@@ -244,6 +267,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         imageVisionCache: normalizeImageVisionCache(imageVisionCache),
       }
       sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
+      rekeyComposerDraft(DRAFT_RUNTIME_KEY, newId)
       setSessions((prev) => [...prev, newSession].sort((a, b) => b.updatedAt - a.updatedAt))
       setActiveSessionId(newId)
       setSessionDirty(false)
@@ -300,10 +324,12 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       )
         return prev
 
+      // New chat bubbles may re-rank once; stream/content/memo updates keep list order stable.
+      const lengthChanged = current.messages.length !== messages.length
       const next = [...prev]
       next[idx] = {
         ...current,
-        updatedAt: Date.now(),
+        updatedAt: lengthChanged ? Date.now() : current.updatedAt,
         messages,
         title: current.title || deriveSessionTitle(messages),
         hiddenContextSummary: nextHiddenContextSummary,
@@ -312,7 +338,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         codingProjectPath: projectPath || undefined,
         imageVisionCache: nextVisionCache,
       }
-      next.sort((a, b) => b.updatedAt - a.updatedAt)
+      if (lengthChanged) {
+        next.sort((a, b) => b.updatedAt - a.updatedAt)
+      }
       return next
     })
     setSessionDirty(false)
@@ -335,6 +363,21 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const canSaveSession =
     settings.autoSaveChat ? false : messages.length > 0 && !busy && sessionDirty
 
+  const applyComposerDraft = (key: string) => {
+    const draft = loadComposerDraft(key)
+    setInput(draft.input)
+    setPendingImages(draft.pendingImages)
+    setPendingFiles(draft.pendingFiles)
+  }
+
+  const stashActiveComposer = () => {
+    stashComposerDraft(runtimeKeyForSession(activeSessionId), {
+      input,
+      pendingImages,
+      pendingFiles,
+    })
+  }
+
   /**
    * Claim a real session id for the draft before the first agent turn (auto-save).
    * Rekeys the runtime slot so mid-stream updates land on the session id.
@@ -344,6 +387,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     if (!settings.autoSaveChat) return null
     const newId = uid()
     sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
+    rekeyComposerDraft(DRAFT_RUNTIME_KEY, newId)
     setActiveSessionId(newId)
     return newId
   }, [activeSessionId, settings.autoSaveChat])
@@ -374,7 +418,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const resetForNewChat = (projectPath: string) => {
     // Leave other sessions' agent runs running in the background.
     cancelMessageEdit?.()
+    stashActiveComposer()
     sessionAgentStore.resetDraft()
+    clearComposerDraft(DRAFT_RUNTIME_KEY)
     setHiddenContextSummary('')
     setContextCompressedThroughIndex(0)
     contextOverflowLatchRef.current = false
@@ -388,6 +434,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setRenameValue('')
     setInput('')
     setPendingImages([])
+    setPendingFiles([])
     setError(null)
     setToolResultBanner(null)
     resetCodingTerminal()
@@ -407,6 +454,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const openSession = (session: ChatSession) => {
     // Do NOT abort the previous session's agent — background multi-chat.
     cancelMessageEdit?.()
+    stashActiveComposer()
     const flushId =
       activeSessionId && activeSessionId !== session.id ? activeSessionId : null
     restoreCodingContextForSession(session, { flushActiveSessionId: flushId })
@@ -448,12 +496,14 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setPendingDeleteId(null)
     setRenamingSessionId(null)
     setRenameValue('')
-    setPendingImages([])
+    applyComposerDraft(session.id)
     setImageVisionCache(normalizeImageVisionCache(session.imageVisionCache))
+    sessionAgentStore.clearCompleteUnread(session.id)
   }
 
   const forkSession = (session: ChatSession) => {
     cancelMessageEdit?.()
+    stashActiveComposer()
     const now = Date.now()
     const sourceMessages =
       sessionAgentStore.get(session.id)?.messages ?? session.messages
@@ -490,7 +540,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setPendingDeleteId(null)
     setRenamingSessionId(null)
     setRenameValue('')
-    setPendingImages([])
+    applyComposerDraft(forked.id)
     restoreCodingContextForSession(forked, {
       flushActiveSessionId:
         activeSessionId && activeSessionId !== forked.id ? activeSessionId : null,
@@ -565,6 +615,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     const id = existing?.id ?? uid()
     if (!activeSessionId) {
       sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, id)
+      rekeyComposerDraft(DRAFT_RUNTIME_KEY, id)
     }
     const next: ChatSession = {
       id,
@@ -594,6 +645,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const deleteSession = (sessionId: string) => {
     // Stop that session's agent if running, without stopping others.
     sessionAgentStore.discard(sessionId)
+    void cancelActiveMcpCalls(sessionId)
+    clearComposerDraft(sessionId)
     const state = deleteSessionById({ sessions, activeSessionId }, sessionId)
     setSessions(state.sessions)
     setActiveSessionId(state.activeSessionId)
@@ -612,6 +665,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
           ),
         )
         restoreCodingContextForSession(next)
+        applyComposerDraft(next.id)
       }
     } else {
       sessionAgentStore.resetDraft()
@@ -623,6 +677,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       setSettings((s) => mergeCodingProjectPathIntoSettings(s, ''))
       setCodingContextMemo(emptyCodingContextMemo(''))
       setImageVisionCache({})
+      applyComposerDraft(DRAFT_RUNTIME_KEY)
     }
     setContextUsageInfo(null)
     setContextWarnDismissed(false)

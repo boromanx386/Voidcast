@@ -682,13 +682,37 @@ export class McpManager {
   private lastProjectPath = ''
   private lastServerConfigs: Record<string, McpServerConfig> = {}
   private lastConnectionOpts: { allowProjectConfig?: boolean } = {}
-  private activeCallAbort: AbortController | null = null
+  /** In-flight tool calls keyed by owner (chat session / runtime key). */
+  private activeCallsByOwner = new Map<string, Set<AbortController>>()
   private pendingOAuth = new Map<string, PendingOAuthSession>()
 
   constructor() {
     mcpOAuthEvents.on('authorization_code', ({ serverId, code }) => {
       void this.completeOAuthConnect(serverId, code)
     })
+  }
+
+  private ownerKey(ownerId?: string): string {
+    const t = (ownerId || '').trim()
+    return t || '__global__'
+  }
+
+  private registerCall(ownerId: string | undefined, ac: AbortController): void {
+    const key = this.ownerKey(ownerId)
+    let set = this.activeCallsByOwner.get(key)
+    if (!set) {
+      set = new Set()
+      this.activeCallsByOwner.set(key, set)
+    }
+    set.add(ac)
+  }
+
+  private unregisterCall(ownerId: string | undefined, ac: AbortController): void {
+    const key = this.ownerKey(ownerId)
+    const set = this.activeCallsByOwner.get(key)
+    if (!set) return
+    set.delete(ac)
+    if (set.size === 0) this.activeCallsByOwner.delete(key)
   }
 
   getStatus(): McpServerStatus[] {
@@ -790,16 +814,31 @@ export class McpManager {
     return { ok: true, status: this.getStatus() }
   }
 
-  cancelActiveCalls(): void {
-    this.activeCallAbort?.abort()
-    this.activeCallAbort = null
+  /**
+   * Cancel in-flight MCP tool calls.
+   * @param ownerId When set, only cancel calls owned by that chat runtime.
+   *                When omitted, cancel every in-flight call (stop-all / shutdown).
+   */
+  cancelActiveCalls(ownerId?: string): void {
+    if (ownerId !== undefined && ownerId !== null && String(ownerId).trim()) {
+      const key = this.ownerKey(ownerId)
+      const set = this.activeCallsByOwner.get(key)
+      if (!set) return
+      for (const ac of set) ac.abort()
+      this.activeCallsByOwner.delete(key)
+      return
+    }
+    for (const set of this.activeCallsByOwner.values()) {
+      for (const ac of set) ac.abort()
+    }
+    this.activeCallsByOwner.clear()
   }
 
   async callTool(
     serverId: string,
     toolName: string,
     args: Record<string, unknown>,
-    opts?: { signal?: AbortSignal; timeoutMs?: number },
+    opts?: { signal?: AbortSignal; timeoutMs?: number; ownerId?: string },
   ): Promise<string> {
     const entry = this.servers.get(serverId)
     if (!entry) {
@@ -809,7 +848,7 @@ export class McpManager {
       return `Error: MCP server "${serverId}" failed to start: ${entry.error}`
     }
     const callAbort = new AbortController()
-    this.activeCallAbort = callAbort
+    this.registerCall(opts?.ownerId, callAbort)
     const signal = mergeAbortSignals([opts?.signal, callAbort.signal])
     const timeoutMs = opts?.timeoutMs ?? MCP_CALL_TIMEOUT_MS
     try {
@@ -832,9 +871,7 @@ export class McpManager {
       }
       return `Error: MCP tool "${formatMcpToolName(serverId, toolName)}" failed: ${formatError(e)}`
     } finally {
-      if (this.activeCallAbort === callAbort) {
-        this.activeCallAbort = null
-      }
+      this.unregisterCall(opts?.ownerId, callAbort)
     }
   }
 

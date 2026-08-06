@@ -107,6 +107,8 @@ contextBridge.exposeInMainWorld('voidcast', {
     projectPath?: string
     enabledServers?: Record<string, boolean>
     trustedProjectPaths?: string[]
+    /** Chat runtime key — cancel only cancels this owner's MCP calls. */
+    ownerId?: string
   }) =>
     ipcRenderer.invoke('voidcast:mcp-execute-tool', payload) as Promise<
       | { ok: true; result: string; qualifiedName?: string }
@@ -187,8 +189,8 @@ contextBridge.exposeInMainWorld('voidcast', {
     >,
   mcpStopAll: () =>
     ipcRenderer.invoke('voidcast:mcp-stop-all') as Promise<{ ok: true }>,
-  mcpCancelActiveCalls: () =>
-    ipcRenderer.invoke('voidcast:mcp-cancel-active-calls') as Promise<{ ok: true }>,
+  mcpCancelActiveCalls: (payload?: { ownerId?: string }) =>
+    ipcRenderer.invoke('voidcast:mcp-cancel-active-calls', payload) as Promise<{ ok: true }>,
   mcpProjectConfigPreview: (payload?: { projectPath?: string }) =>
     ipcRenderer.invoke('voidcast:mcp-project-config-preview', payload) as Promise<
       | {

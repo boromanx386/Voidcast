@@ -63,6 +63,7 @@ import { toConversationTurns } from '@/lib/chatHints'
 import {
   DRAFT_RUNTIME_KEY,
   isRealSessionRuntimeKey,
+  MAX_CONCURRENT_AGENT_RUNS,
   sessionAgentStore,
   useSessionAgentSlot,
   type SessionAgentKeyHandle,
@@ -569,6 +570,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         sessionAgentStore.releaseKeyHandle(bind)
         return
       }
+      if (!sessionAgentStore.canStartRun(keyOf(), MAX_CONCURRENT_AGENT_RUNS)) {
+        setErr(
+          `Already running ${MAX_CONCURRENT_AGENT_RUNS} agents. Wait for one to finish or stop another chat.`,
+        )
+        sessionAgentStore.releaseKeyHandle(bind)
+        return
+      }
       setErr(null)
       if (!isEdit) {
         if (!opts?.text) {
@@ -700,6 +708,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       }
 
       const asstId = uid()
+      // Restart on same session: cancel that session's MCP, not other chats'.
+      void cancelActiveMcpCalls(keyOf())
       const { runId, controller: ac } = sessionAgentStore.beginRun(keyOf())
       const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
       if (isEdit) {
@@ -754,6 +764,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             mcpTools,
             mcpServerEnabled: settings.mcpServerEnabled,
             mcpTrustedProjectPaths: settings.mcpTrustedProjectPaths,
+            mcpOwnerId: keyOf(),
             agentMode: turnAgentMode,
             getActiveBuildPlan: () => liveBuildPlan,
             ttsBaseUrl: settings.ttsBaseUrl,
@@ -1158,6 +1169,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       sessionAgentStore.releaseKeyHandle(bind)
 
+      // Background finish → sidebar "done" ping until the user opens the session.
+      if (
+        runStillOwnsSlot &&
+        !isViewingThisRun() &&
+        isRealSessionRuntimeKey(keyOf())
+      ) {
+        sessionAgentStore.markCompleteUnread(keyOf())
+      }
+
       if (replyText.trim() && runStillOwnsSlot) {
         const willAutoSpeak = loadSettings().autoVoice && ttsOk !== false
         if (settings.notificationSoundsEnabled && !willAutoSpeak) {
@@ -1206,8 +1226,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   )
 
   const onStop = useCallback(() => {
+    const owner = sessionAgentStore.canonicalKey(runtimeKey)
     sessionAgentStore.stop(runtimeKey)
-    void cancelActiveMcpCalls()
+    void cancelActiveMcpCalls(owner)
     sessionAgentStore.setMessages(runtimeKey, (prev) =>
       prev.map((m) =>
         m.plan?.status === 'approved' ? { ...m, plan: reopenPlanAsDraft(m.plan) } : m,

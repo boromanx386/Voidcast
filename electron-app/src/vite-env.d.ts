@@ -118,6 +118,8 @@ interface VoidcastBridge {
     projectPath?: string
     enabledServers?: Record<string, boolean>
     trustedProjectPaths?: string[]
+    /** Chat runtime key — cancel only cancels this owner's MCP calls. */
+    ownerId?: string
   }) => Promise<{ ok: true; result: string; qualifiedName?: string } | { ok: false; result: string }>
 
   mcpReadResult: (payload: {
@@ -200,7 +202,7 @@ interface VoidcastBridge {
 
   mcpStopAll: () => Promise<{ ok: true }>
 
-  mcpCancelActiveCalls: () => Promise<{ ok: true }>
+  mcpCancelActiveCalls: (payload?: { ownerId?: string }) => Promise<{ ok: true }>
 
   mcpProjectConfigPreview: (payload?: { projectPath?: string }) => Promise<
     | {

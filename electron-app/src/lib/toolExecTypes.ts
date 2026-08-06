@@ -37,6 +37,11 @@ export interface ExecCtx {
   /** Per-server enable map (missing id = enabled). */
   mcpServerEnabled?: Record<string, boolean>;
   mcpTrustedProjectPaths?: string[];
+  /**
+   * Chat runtime key owning this tool loop. MCP cancel is scoped to this id
+   * so Stop on chat A does not abort MCP tools for chat B.
+   */
+  mcpOwnerId?: string;
   /** Plan mode blocks mutating tools even if registered. */
   agentMode?: AgentChatMode;
   /** Live approved plan during Approve & Build (for update_plan_progress). */

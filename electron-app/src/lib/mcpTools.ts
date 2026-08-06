@@ -225,6 +225,11 @@ export type McpClientOpts = {
   projectPath?: string
   enabledServers?: Record<string, boolean>
   trustedProjectPaths?: string[]
+  /**
+   * Chat runtime key (session id or draft). When set, cancelActiveMcpCalls(ownerId)
+   * only aborts tools started under this owner.
+   */
+  ownerId?: string
 }
 
 function enabledCacheKey(
@@ -245,6 +250,7 @@ function mcpPayload(opts?: McpClientOpts) {
     projectPath: project || undefined,
     enabledServers: opts?.enabledServers,
     trustedProjectPaths: opts?.trustedProjectPaths,
+    ownerId: opts?.ownerId?.trim() || undefined,
   }
 }
 
@@ -366,9 +372,11 @@ export async function getMcpProjectConfigPreview(projectPath: string): Promise<{
   }
 }
 
-export async function cancelActiveMcpCalls(): Promise<void> {
+/** Cancel in-flight MCP tool calls; pass ownerId to scope to one chat runtime. */
+export async function cancelActiveMcpCalls(ownerId?: string): Promise<void> {
   if (!isElectron() || !window.voidcast?.mcpCancelActiveCalls) return
-  await window.voidcast.mcpCancelActiveCalls()
+  const id = ownerId?.trim()
+  await window.voidcast.mcpCancelActiveCalls(id ? { ownerId: id } : undefined)
 }
 
 export async function signInMcpOAuthServer(
