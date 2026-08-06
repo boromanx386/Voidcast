@@ -272,7 +272,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const canSaveSession =
     settings.autoSaveChat ? false : messages.length > 0 && !busy && sessionDirty
 
-  const newChat = () => {
+  /** Reset the active view for a brand-new chat bound to `projectPath` ('' = General). */
+  const resetForNewChat = (projectPath: string) => {
     abortActiveRuns()
     cancelMessageEdit?.()
     setMessages([])
@@ -293,12 +294,18 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setError(null)
     setToolResultBanner(null)
     resetCodingTerminal()
-    // 1C: New chat is always General until a folder is picked for this session.
-    codingProjectPathForMemoRef.current = ''
-    setSettings((s) => mergeCodingProjectPathIntoSettings(s, ''))
-    setCodingContextMemo(emptyCodingContextMemo(''))
+    const trimmed = projectPath.trim()
+    // 1C: A new chat is General unless a folder is bound to it up front.
+    codingProjectPathForMemoRef.current = trimmed
+    setSettings((s) => mergeCodingProjectPathIntoSettings(s, trimmed))
+    setCodingContextMemo(emptyCodingContextMemo(trimmed))
     setImageVisionCache({})
   }
+
+  const newChat = () => resetForNewChat('')
+
+  /** Start a fresh chat already bound to the given project folder. */
+  const newChatForProject = (projectPath: string) => resetForNewChat(projectPath)
 
   const openSession = (session: ChatSession) => {
     abortActiveRuns()
@@ -556,6 +563,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     activeSessionUseLongMemory,
     canSaveSession,
     newChat,
+    newChatForProject,
     openSession,
     forkSession,
     exportSessionToMarkdown,

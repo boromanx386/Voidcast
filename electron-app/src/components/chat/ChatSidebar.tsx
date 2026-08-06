@@ -11,6 +11,7 @@ export function ChatSidebar({ app }: Props) {
     appVersion,
     openOptions,
     newChat,
+    newChatForProject,
     sessions,
     activeSessionId,
     sidebarCollapsed,
@@ -70,19 +71,35 @@ export function ChatSidebar({ app }: Props) {
           const collapsed = sidebarCollapsed[group.key] !== true
           return (
             <div key={group.key} className={index > 0 ? 'mt-2' : undefined}>
-              <button
-                type="button"
-                onClick={() =>
-                  setSidebarCollapsed((p) => ({ ...p, [group.key]: !p[group.key] }))
-                }
-                className="flex w-full items-center justify-between px-4 py-2 text-xs font-mono text-void-dim hover:text-void-light"
-                title={group.path || 'General chat — no project folder'}
-              >
-                <span className="min-w-0 truncate">
-                  {group.label} ({group.sessions.length})
-                </span>
-                <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
-              </button>
+              <div className="group flex w-full items-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSidebarCollapsed((p) => ({ ...p, [group.key]: !p[group.key] }))
+                  }
+                  className="flex min-w-0 flex-1 items-center justify-between px-4 py-2 text-xs font-mono text-void-dim hover:text-void-light"
+                  title={group.path || 'General chat — no project folder'}
+                >
+                  <span className="min-w-0 truncate">
+                    {group.label} ({group.sessions.length})
+                  </span>
+                  <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
+                </button>
+                {group.path && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      newChatForProject(group.path)
+                    }}
+                    className="shrink-0 pr-3 text-xs font-mono text-void-dim opacity-0 transition-opacity hover:text-neon-green group-hover:opacity-100"
+                    title={`New chat for ${group.label}`}
+                    aria-label={`New chat for ${group.label}`}
+                  >
+                    +
+                  </button>
+                )}
+              </div>
 
               {!collapsed && (
                 <div className="space-y-0.5">
