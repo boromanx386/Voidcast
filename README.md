@@ -291,6 +291,8 @@ Other UX features:
 - **Reminder toasts** — native notification when a reminder is due (toggle in General)
 - **Chat keyboard shortcuts** — Ctrl+S save session, Ctrl+N new chat, Shift+Tab toggle Plan/Agent mode
 - **Chat sessions grouped by project folder** — General chats at top, project-specific groups below
+- **Start a chat for a project** — each project-folder group has a `+` button (revealed on hover) that starts a fresh chat already bound to that folder
+- **Type while the agent is working** — the composer stays active during a running turn; queued text shows a "Draft ready — agent is busy" status and sends once the turn finishes
 - **Custom Windows title bar** — cyber-btn header controls replace native caption buttons
 - **Coding process badge** — active foreground/background processes shown in the status bar
 
@@ -326,7 +328,7 @@ Use the PC’s **LAN IPv4** on home Wi‑Fi (`ipconfig` — e.g. `192.168.1.42`)
 
 > **Not Tailwind CSS** — that is the UI framework in the repo. For remote phone access, people usually mean **Tailscale** (or another VPN), not the CSS toolkit.
 
-> **Security:** the web UI is for **your** machines on a trusted network. Do not port-forward **8765** to the public internet without extra protection — there is no login on the LAN build. Prefer Tailscale (or similar) over raw exposure.
+> **Security:** the web UI is for **your** machines on a trusted network. Non-loopback clients (phones/tablets) authenticate with a **shared access token** that rides in the connection URL (`?t=…`) and is sent as an `x-voidcast-access-token` header on every request (stripped from the address bar after first load). The token travels over plain HTTP on your LAN — anyone already on the same network can sniff it (same trust boundary as before) — so still do **not** port-forward **8765** to the public internet without extra protection. Prefer Tailscale (or similar) over raw exposure. Set `VOIDCAST_LAN_ACCESS_TOKEN` (or `VOIDCAST_SECRETS_TOKEN`) to pin your own token instead of the random per-process one; loopback (the desktop app) is always allowed without a token.
 
 - **Web chat UI** — remote chat companion served from the bundled server on your PC (cloud LLM/tools via proxy; coding tools and skills discovery stay desktop-only).
 - **API keys on the phone** — the browser build does not embed secrets. Enable **LAN_WEB_ACCESS**, configure keys once on the **desktop** (**Options → General → CLOUD_API_KEYS**); the desktop pushes them to the host via **`POST /tools/cloud-secrets`** (only while the PC app is running). Turning the toggle off clears registered keys (`DELETE /tools/cloud-secrets`).
