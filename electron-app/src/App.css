@@ -199,6 +199,23 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply flex items-center gap-1.5;
 }
 
+.composer-draft-status {
+  @apply flex items-center gap-1.5;
+  @apply px-1 pt-0.5 font-mono text-[10px] text-neon-cyan/80;
+}
+
+.composer-draft-status__icon {
+  @apply h-3 w-3 shrink-0;
+}
+
+.composer-draft-status__text {
+  @apply leading-tight;
+}
+
+.composer-draft-status kbd {
+  @apply border border-void-muted/70 bg-void-black/80 px-1 py-px text-[9px] text-void-light;
+}
+
 .composer-toolbar-btn {
   @apply shrink-0 inline-flex items-center justify-center;
   @apply h-7 min-w-[1.75rem] px-1.5;

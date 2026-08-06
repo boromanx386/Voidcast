@@ -68,6 +68,14 @@ export function ChatComposer({ app }: Props) {
     [input, pendingImages.length, pendingFiles.length, busy],
   )
 
+  // True while the agent is busy and the user has typed (or attached) a next
+  // message that can't be sent yet — surfaced so a queued draft isn't mistaken
+  // for a stuck composer.
+  const hasPendingDraft = useMemo(
+    () => busy && (!!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0),
+    [busy, input, pendingImages.length, pendingFiles.length],
+  )
+
   const chatPlaceholder = useMemo(
     () => getChatComposerPlaceholder(settings.uiTheme, settings.agentMode),
     [settings.uiTheme, settings.agentMode],
@@ -212,7 +220,6 @@ export function ChatComposer({ app }: Props) {
             rows={2}
             placeholder={chatPlaceholder}
             value={input}
-            disabled={busy}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Tab' && e.shiftKey) {
@@ -482,6 +489,29 @@ export function ChatComposer({ app }: Props) {
               </button>
             )}
           </div>
+
+          {hasPendingDraft && (
+            <div
+              className="composer-draft-status"
+              role="status"
+              aria-live="polite"
+            >
+              <svg
+                className="composer-draft-status__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+              <span className="composer-draft-status__text">
+                Draft ready — agent is busy, press <kbd>Enter</kbd> to send when it finishes
+              </span>
+            </div>
+          )}
         </div>
 
         {(pendingImages.length > 0 || pendingFiles.length > 0) && (
