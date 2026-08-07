@@ -62,6 +62,16 @@ import {
   type AppSettings,
 } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
+import {
+  applyCodingDone,
+  applyCodingStart,
+  applyVisionDone,
+  applyVisionProgress,
+  applyVisionStart,
+  closeSubAgentPanel,
+  setSubAgentPanelCollapsed as setSubAgentPanelCollapsedState,
+  type SubAgentPanelState,
+} from '@/lib/subAgentPanelState'
 import { toConversationTurns } from '@/lib/chatHints'
 import { getCodingProjectPath } from '@/lib/codingContextMemo'
 import {
@@ -306,20 +316,29 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     },
     [runtimeKey],
   )
+  const patchSubAgentPanel = useCallback(
+    (reducer: (prev: SubAgentPanelState) => SubAgentPanelState) => {
+      sessionAgentStore.update(runtimeKey, (prev) => ({
+        ...prev,
+        subAgentPanel: reducer(prev.subAgentPanel),
+      }))
+    },
+    [runtimeKey],
+  )
   const setSubAgentPanelOpen = useCallback(
-    (subAgentPanelOpen: boolean) =>
-      sessionAgentStore.update(runtimeKey, { subAgentPanelOpen }),
-    [runtimeKey],
+    (open: boolean) => {
+      if (!open) {
+        patchSubAgentPanel((p) => closeSubAgentPanel(p))
+        return
+      }
+      patchSubAgentPanel((p) => ({ ...p, open: true }))
+    },
+    [patchSubAgentPanel],
   )
-  const setSubAgentPanelBusy = useCallback(
-    (subAgentPanelBusy: boolean) =>
-      sessionAgentStore.update(runtimeKey, { subAgentPanelBusy }),
-    [runtimeKey],
-  )
-  const setSubAgentPanelText = useCallback(
-    (subAgentPanelText: string) =>
-      sessionAgentStore.update(runtimeKey, { subAgentPanelText }),
-    [runtimeKey],
+  const setSubAgentPanelCollapsed = useCallback(
+    (collapsed: boolean) =>
+      patchSubAgentPanel((p) => setSubAgentPanelCollapsedState(p, collapsed)),
+    [patchSubAgentPanel],
   )
 
   const mediaView = sessionAgentStore.mediaSetters(runtimeKey)
@@ -356,9 +375,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     contextUsageInfo,
     contextWarnDismissed,
     contextCompressBusy,
-    subAgentPanelOpen,
-    subAgentPanelBusy,
-    subAgentPanelText,
+    subAgentPanel,
     toolResultBanner,
     media,
   } = slot
@@ -454,28 +471,22 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   const subAgentUi = useMemo<SubAgentUiCallbacks>(
     () => ({
       onStart: (imageCount) => {
-        setSubAgentPanelOpen(true)
-        setSubAgentPanelBusy(true)
-        setSubAgentPanelText(`SUB_AGENT: analyzing ${imageCount} image(s)…`)
+        patchSubAgentPanel((p) => applyVisionStart(p, imageCount))
       },
       onProgress: (current, total) => {
-        setSubAgentPanelText(`SUB_AGENT: image ${current}/${total}…`)
+        patchSubAgentPanel((p) => applyVisionProgress(p, current, total))
       },
       onDone: (formatted) => {
-        setSubAgentPanelBusy(false)
-        setSubAgentPanelText(formatted || '[Sub-agent returned no descriptions.]')
+        patchSubAgentPanel((p) => applyVisionDone(p, formatted))
       },
       onCodingStart: (label) => {
-        setSubAgentPanelOpen(true)
-        setSubAgentPanelBusy(true)
-        setSubAgentPanelText(label)
+        patchSubAgentPanel((p) => applyCodingStart(p, label))
       },
       onCodingDone: (formatted) => {
-        setSubAgentPanelBusy(false)
-        setSubAgentPanelText(formatted || '[Sub-agent returned no digest.]')
+        patchSubAgentPanel((p) => applyCodingDone(p, formatted))
       },
     }),
-    [setSubAgentPanelBusy, setSubAgentPanelOpen, setSubAgentPanelText],
+    [patchSubAgentPanel],
   )
 
   const onSend = useCallback(
@@ -519,37 +530,29 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         sessionAgentStore.update(keyOf(), { contextWarnDismissed })
       const mediaRun = sessionAgentStore.mediaSetters(bind)
 
+      const patchPanel = (
+        reducer: (prev: SubAgentPanelState) => SubAgentPanelState,
+      ) => {
+        sessionAgentStore.update(keyOf(), (prev) => ({
+          ...prev,
+          subAgentPanel: reducer(prev.subAgentPanel),
+        }))
+      }
       const runSubAgentUi: SubAgentUiCallbacks = {
         onStart: (imageCount) => {
-          sessionAgentStore.update(keyOf(), {
-            subAgentPanelOpen: true,
-            subAgentPanelBusy: true,
-            subAgentPanelText: `SUB_AGENT: analyzing ${imageCount} image(s)…`,
-          })
+          patchPanel((p) => applyVisionStart(p, imageCount))
         },
         onProgress: (current, total) => {
-          sessionAgentStore.update(keyOf(), {
-            subAgentPanelText: `SUB_AGENT: image ${current}/${total}…`,
-          })
+          patchPanel((p) => applyVisionProgress(p, current, total))
         },
         onDone: (formatted) => {
-          sessionAgentStore.update(keyOf(), {
-            subAgentPanelBusy: false,
-            subAgentPanelText: formatted || '[Sub-agent returned no descriptions.]',
-          })
+          patchPanel((p) => applyVisionDone(p, formatted))
         },
         onCodingStart: (label) => {
-          sessionAgentStore.update(keyOf(), {
-            subAgentPanelOpen: true,
-            subAgentPanelBusy: true,
-            subAgentPanelText: label,
-          })
+          patchPanel((p) => applyCodingStart(p, label))
         },
         onCodingDone: (formatted) => {
-          sessionAgentStore.update(keyOf(), {
-            subAgentPanelBusy: false,
-            subAgentPanelText: formatted || '[Sub-agent returned no digest.]',
-          })
+          patchPanel((p) => applyCodingDone(p, formatted))
         },
       }
 
@@ -1395,12 +1398,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     contextWarnDismissed,
     setContextWarnDismissed,
     contextCompressBusy,
-    subAgentPanelOpen,
+    subAgentPanel,
     setSubAgentPanelOpen,
-    subAgentPanelBusy,
-    setSubAgentPanelBusy,
-    subAgentPanelText,
-    setSubAgentPanelText,
+    setSubAgentPanelCollapsed,
     assistantGeneratedImages: media.assistantGeneratedImages,
     setAssistantGeneratedImages: mediaView.setAssistantGeneratedImages,
     assistantSavedImagePaths: media.assistantSavedImagePaths,

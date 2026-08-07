@@ -11,6 +11,10 @@ import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import type { UiMessage } from '@/types/chat'
+import {
+  emptySubAgentPanelState,
+  type SubAgentPanelState,
+} from '@/lib/subAgentPanelState'
 
 /** Runtime key for an unsaved draft chat (no ChatSession id yet). */
 export const DRAFT_RUNTIME_KEY = '__draft__'
@@ -40,9 +44,8 @@ export type SessionAgentSlot = {
   /** Prevents context-auto-compress from re-firing until usage drops. */
   contextOverflowLatch: boolean
   toolResultBanner: { kind: 'pdf'; text: string } | null
-  subAgentPanelOpen: boolean
-  subAgentPanelBusy: boolean
-  subAgentPanelText: string
+  /** Floating sub-agent analysis panel (vision / explore / workers). */
+  subAgentPanel: SubAgentPanelState
   media: SessionAgentMediaState
   /**
    * Frozen coding project path for the in-flight run (if any).
@@ -89,9 +92,7 @@ export function createEmptySessionAgentSlot(
     contextCompressBusy: false,
     contextOverflowLatch: false,
     toolResultBanner: null,
-    subAgentPanelOpen: false,
-    subAgentPanelBusy: false,
-    subAgentPanelText: '',
+    subAgentPanel: emptySubAgentPanelState(),
     media: emptyMedia(),
     codingProjectPath: undefined,
     abortController: null,
@@ -128,9 +129,7 @@ function sessionAgentSlotShallowEqual(a: SessionAgentSlot, b: SessionAgentSlot):
     a.contextCompressBusy === b.contextCompressBusy &&
     a.contextOverflowLatch === b.contextOverflowLatch &&
     a.toolResultBanner === b.toolResultBanner &&
-    a.subAgentPanelOpen === b.subAgentPanelOpen &&
-    a.subAgentPanelBusy === b.subAgentPanelBusy &&
-    a.subAgentPanelText === b.subAgentPanelText &&
+    a.subAgentPanel === b.subAgentPanel &&
     a.abortController === b.abortController &&
     a.runId === b.runId &&
     a.codingProjectPath === b.codingProjectPath &&

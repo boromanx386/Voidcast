@@ -581,11 +581,11 @@ export function SubAgentOptionsPanel({
                 patchSubAgent(setSettings, { showAnalysisWindow: e.target.checked })
               }
             />
-            <span className="text-neon-cyan">⬡ SHOW_ANALYSIS_WINDOW</span>
+            <span className="text-neon-cyan">⬡ SHOW_ANALYSIS_IN_CHAT</span>
           </label>
           <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-            Floating panel on the right while vision or coding sub-agent runs
-            (progress and digests). Off = same behavior, no on-screen panel.
+            Collapsible card in the chat stream while vision / explore / workers
+            run (progress and digests). Off = same behavior, no chat card.
           </p>
         </div>
       )}

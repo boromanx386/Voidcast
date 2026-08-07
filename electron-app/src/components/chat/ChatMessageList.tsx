@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ToolIndicator } from '@/components/chat/ChatChrome'
 import { getEmptyStateMessage } from '@/components/chat/chatEmptyState'
 import { ChatMessage } from '@/components/chat/ChatMessage'
+import { SubAgentPanel } from '@/components/chat/SubAgentPanel'
 import { useChatMessageRender } from '@/hooks/useChatMessageRender'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 import { normalizeAgentChatMode } from '@/types/chat'
@@ -35,6 +36,9 @@ type Props = {
     | 'ttsOk'
     | 'abortTts'
     | 'onRead'
+    | 'subAgentPanel'
+    | 'setSubAgentPanelOpen'
+    | 'setSubAgentPanelCollapsed'
   >
 }
 
@@ -109,6 +113,9 @@ export function ChatMessageList({ app }: Props) {
             app={app}
           />
         ))}
+
+        {/* Sub-agent activity (vision / explore / workers) — live + dismissible digest */}
+        <SubAgentPanel app={app} />
 
         {/* Busy Indicator */}
         {busy && (

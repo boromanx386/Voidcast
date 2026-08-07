@@ -15,7 +15,6 @@ import { ChatSystemStatus } from '@/components/chat/ChatSystemStatus'
 import { ChatToolResultBanner } from '@/components/chat/ChatToolResultBanner'
 import { ContextWarningBanner } from '@/components/chat/ContextWarningBanner'
 import { MemoryPreviewModal } from '@/components/chat/MemoryPreviewModal'
-import { SubAgentPanel } from '@/components/chat/SubAgentPanel'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 import { clampCodingPanelWidth, CODING_PANEL_WIDTH_MAX, CODING_PANEL_WIDTH_MIN } from '@/lib/settings'
 
@@ -154,7 +153,6 @@ export function ChatScreen({ app }: Props) {
             <ChatToolResultBanner app={app} />
             <ChatErrorBanner app={app} />
             <ContextWarningBanner app={app} />
-            <SubAgentPanel app={app} />
             <MemoryPreviewModal app={app} />
             <ChatComposer app={app} />
           </div>
