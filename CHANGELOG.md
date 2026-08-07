@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.8.2] — 2026-08-07
+
+### Added
+
+- **Soft-deny whole-file re-reads**: `read_file` now refuses a full re-read of a path already in the session digests or this turn's working-set cache, returning a compact digest reminder (with `force:true` / `start_line` / `end_line` guidance) instead of re-dumping the file. New `force` parameter escapes the guard. Soft-deny reminders are not re-added to the cache, so the working set stays stable.
+- **Plan handoff lands in the user message**: on `enter_plan_mode`, the prior agent-mode exploration is injected as a real user-lane block (not just a tools hint), so the Plan turn actually starts from that research.
+- **Richer plan handoff draft + tool trail**: when escalating to Plan mode, the pre-plan agent reply stays visible as a `→ Plan mode · kept as draft before plan` note (the real reply when substantial, otherwise the explored-file digests), and the Plan context now carries a compact one-line-per-event tool trail with **HARD CONSTRAINT** no-reexplore hints so Plan mode does not redo the research from scratch. Streamed content is no longer cleared between tool rounds.
+- **Covered-path memo block**: session covered paths (the soft-deny list) are surfaced in the coding memo above the digests, so the agent sees what is already in context; `read_file` / `find_symbols` results stay pinned longer in long tool loops (read pin 3 → 6, outlines 2 → 4, keep-read rounds 8 → 12).
+- **Per-project new-chat button**: project-folder groups in the sessions sidebar get a `+` button (revealed on hover) that starts a brand-new chat already bound to that folder.
+- **Type while the agent is busy**: the composer no longer disables input during a running turn; a `Draft ready — agent is busy, press Enter to send when it finishes` status (with pencil icon + `kbd` hint) shows when you've queued text or attachments that can't be sent yet.
+- **LAN access token for phone/web clients**: the LAN QR/URL now carries a shared access token (`?t=...`), sent as `x-voidcast-access-token` on every same-origin request and stripped from the address bar (session-persisted so refresh keeps working). Server-side CORS relaxed to wildcard origin with `allow_credentials=False`.
+
 ### Changed
 
 - **Terminal theme contrast softened**: replaced the pure-black background with a warm dark-charcoal backdrop and dimmed the amber/phosphor accents so the phosphor reads as a quiet glow instead of neon glare. Fixed the `coding-terminal` selector typo and stripped the UTF-8 BOM from the theme file.
@@ -13,10 +25,17 @@ All notable changes to this project will be documented in this file.
 - **Long-memory picker moved to the composer**: the header brain icon is gone; the long-memory extractor now lives next to the system-prompt preset chip as a bare icon (with a busy spinner), smaller than the surrounding toolbar buttons.
 - **Coding panel stays collapsed on file reveal**: when the agent edits/reveals a file, the preview and file-tree toggles are no longer force-enabled — the panel only loads the file into preview state if the section is already open, and no longer reflows the layout (which used to scroll the app back to top).
 - **Higher default context for cloud providers**: OpenRouter, NVIDIA, OpenAI and OpenCode Go defaults raised from 128k to 256k tokens.
+- **Sub-agent long-memory toggle removed**: `USE_FOR_LONG_MEMORY` dropped — long-memory extraction now always follows the main LLM (the sub-agent is vision / coding only). The `memoryEnabled` setting is stripped on load.
 
 ### Fixed
 
 - **Thinking bubble follow button**: removed the pin emoji (`📌` / `📍`) from the follow toggle — clean text only.
+- **Long-memory picker with OpenCode Go / OpenAI sub-provider**: when extraction ran through a sub-agent provider, `opencode-go` / `openai` now route to their own endpoints instead of falling back to OpenRouter.
+- **Coding file tree when no folder selected**: the tree now clears stale files/dirs and shows a clear bold **No folder selected** state instead of leftovers from the previous project.
+
+### Security
+
+- **Closed LAN auth and CORS holes for phone/web access**: every tools-server proxy / data / TTS route (`/tools/*`, `/api/*`, `/tts`) is now gated behind `require_lan_access` — loopback (the desktop) is always allowed, non-loopback callers must present the shared access token (`x-voidcast-access-token` or `Authorization: Bearer`). Removed the invalid `allow_credentials=True` + `["*"]` wildcard-CORS combination (`allow_credentials=False` now); a new `/tools/access-token` endpoint lets the desktop LAN panel fetch the token to embed in the phone URL.
 
 ## [2.8.0] — 2026-08-03
 
