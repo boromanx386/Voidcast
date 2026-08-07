@@ -107,6 +107,15 @@ export function SessionItem({
               >
                 {session.title}
               </div>
+              {session.unsaved ? (
+                <span
+                  className="shrink-0 font-mono text-[9px] tracking-wide text-void-dim"
+                  title="Not saved to disk — click Save in the chat header"
+                  aria-label="Unsaved"
+                >
+                  DRAFT
+                </span>
+              ) : null}
               {isBusy ? (
                 <span
                   className="shrink-0 font-mono text-[9px] tracking-wide text-neon-green"

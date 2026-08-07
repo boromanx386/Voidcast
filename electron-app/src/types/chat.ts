@@ -111,6 +111,11 @@ export type ChatSession = {
   codingProjectPath?: string
   /** Sub-agent vision descriptions keyed by image catalog key (path or base64 prefix). */
   imageVisionCache?: ImageVisionCache
+  /**
+   * Sticky multi-session id while auto-save is off: lives in memory/sidebar so you can
+   * return after switching chats; omitted from IndexedDB until the user hits Save.
+   */
+  unsaved?: boolean
 }
 
 export type ChatSessionsState = {

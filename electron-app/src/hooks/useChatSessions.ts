@@ -215,10 +215,13 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         if (prev[idx].messages === nextMessages) return prev
         const prevMsgs = prev[idx].messages
         const lengthChanged = prevMsgs.length !== nextMessages.length
-        const nextTitle =
-          prev[idx].title && prev[idx].title !== 'New chat'
-            ? prev[idx].title
-            : deriveSessionTitle(nextMessages) || prev[idx].title
+        const placeholderTitle =
+          !prev[idx].title ||
+          prev[idx].title === 'New chat' ||
+          prev[idx].title === 'Unsaved'
+        const nextTitle = placeholderTitle
+          ? deriveSessionTitle(nextMessages) || prev[idx].title
+          : prev[idx].title
         const next = [...prev]
         next[idx] = {
           ...prev[idx],
@@ -242,18 +245,16 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     scheduleSaveChatSessions({ sessions, activeSessionId })
   }, [sessions, activeSessionId, sessionsHydrated])
 
-  // Auto-update sessions in state. When autoSaveChat is ON, auto-create new sessions too.
-  // When OFF and no session ID, remains an unsaved draft until user clicks SAVE.
-  // Draft → id rekey is done up-front in claimSessionIdForDraft (agent onSend).
+  // Keep sessions[] in sync with the active chat. Sticky ids come from claimSessionIdForDraft
+  // (on Send) so background multi-chat always has a sidebar row; autoSave OFF uses unsaved:true
+  // (memory only until Save). AutoSave ON still creates if claim was skipped.
   useEffect(() => {
     if (!sessionsHydrated) return
     if (messages.length === 0) return
 
-    // AutoSave OFF + no session ID → nothing to auto-update (manual save needed)
-    if (!settings.autoSaveChat && !activeSessionId) return
-
-    // AutoSave ON + no session ID yet → auto-create + rekey draft runtime
-    if (!activeSessionId && settings.autoSaveChat) {
+    // No sticky id yet (true empty draft before first Send).
+    if (!activeSessionId) {
+      if (!settings.autoSaveChat) return
       const newId = uid()
       const now = Date.now()
       const projectPath = getCodingProjectPath(settings)
@@ -281,7 +282,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       return
     }
 
-    // activeSessionId exists — update existing session, or create shell if claimSessionId pre-allocated
+    // activeSessionId exists — update shell from claim, or create if missing
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === activeSessionId)
       const nextHiddenContextSummary = hiddenContextSummary.trim() || undefined
@@ -306,6 +307,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
           codingContextMemo: nextMemo,
           codingProjectPath: projectPath || undefined,
           imageVisionCache: nextVisionCache,
+          ...(!settings.autoSaveChat ? { unsaved: true } : {}),
         }
         return [...prev, created].sort((a, b) => b.updatedAt - a.updatedAt)
       }
@@ -333,24 +335,29 @@ export function useChatSessions(deps: ChatSessionsDeps) {
 
       // New chat bubbles may re-rank once; stream/content/memo updates keep list order stable.
       const lengthChanged = current.messages.length !== messages.length
+      const placeholderTitle =
+        !current.title || current.title === 'New chat' || current.title === 'Unsaved'
       const next = [...prev]
       next[idx] = {
         ...current,
         updatedAt: lengthChanged ? Date.now() : current.updatedAt,
         messages,
-        title: current.title || deriveSessionTitle(messages),
+        title: placeholderTitle ? deriveSessionTitle(messages) || current.title : current.title,
         hiddenContextSummary: nextHiddenContextSummary,
         contextCompressedThroughIndex: nextCompressedThrough,
         codingContextMemo: nextMemo,
         codingProjectPath: projectPath || undefined,
         imageVisionCache: nextVisionCache,
+        // Keep sticky unsaved bit until explicit Save.
+        ...(current.unsaved ? { unsaved: true } : {}),
       }
       if (lengthChanged) {
         next.sort((a, b) => b.updatedAt - a.updatedAt)
       }
       return next
     })
-    setSessionDirty(false)
+    // Auto-save chats stay clean after mirror. Sticky unsaved keep SAVE via `unsaved` flag.
+    if (settings.autoSaveChat) setSessionDirty(false)
   }, [
     messages,
     hiddenContextSummary,
@@ -367,8 +374,14 @@ export function useChatSessions(deps: ChatSessionsDeps) {
 
   const activeSessionUseLongMemory = settings.longMemoryDefaultEnabled
 
+  const activeUnsaved = Boolean(
+    activeSessionId && sessions.find((s) => s.id === activeSessionId)?.unsaved,
+  )
   const canSaveSession =
-    settings.autoSaveChat ? false : messages.length > 0 && !busy && sessionDirty
+    !settings.autoSaveChat &&
+    messages.length > 0 &&
+    !busy &&
+    (sessionDirty || activeUnsaved)
 
   const applyComposerDraft = (key: string) => {
     const draft = loadComposerDraft(key)
@@ -386,19 +399,48 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }
 
   /**
-   * Claim a real session id for the draft before the first agent turn (auto-save).
-   * Rekeys the runtime slot so mid-stream updates land on the session id.
+   * Claim a real session id for the draft before the first agent turn.
+   * Always assigns a sticky id (sidebar row) so multi-session works with auto-save off;
+   * those rows are marked `unsaved` and stay out of IndexedDB until Save.
    */
   const claimSessionIdForDraft = useCallback((): string | null => {
     if (activeSessionId) return activeSessionId
-    if (!settings.autoSaveChat) return null
     const newId = uid()
+    const now = Date.now()
+    const projectPath = getCodingProjectPath(settings)
+    const stickyUnsaved = !settings.autoSaveChat
     sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
     rekeyComposerDraft(DRAFT_RUNTIME_KEY, newId)
     rekeyCodingTerminalOwner?.(DRAFT_RUNTIME_KEY, newId)
+    setSessions((prev) => {
+      if (prev.some((s) => s.id === newId)) return prev
+      const shell: ChatSession = {
+        id: newId,
+        title: stickyUnsaved ? 'Unsaved' : 'New chat',
+        createdAt: now,
+        updatedAt: now,
+        messages: [],
+        systemPromptPreset: pendingNewSessionPreset,
+        codingContextMemo: normalizeCodingContextMemo(codingContextMemo, projectPath),
+        codingProjectPath: projectPath || undefined,
+        imageVisionCache: normalizeImageVisionCache(imageVisionCache),
+        ...(stickyUnsaved ? { unsaved: true as const } : {}),
+      }
+      return [...prev, shell].sort((a, b) => b.updatedAt - a.updatedAt)
+    })
     setActiveSessionId(newId)
+    if (stickyUnsaved) setSessionDirty(true)
     return newId
-  }, [activeSessionId, settings.autoSaveChat, rekeyCodingTerminalOwner])
+  }, [
+    activeSessionId,
+    settings.autoSaveChat,
+    settings.coding.projectPath,
+    settings.codingProjectPath,
+    rekeyCodingTerminalOwner,
+    pendingNewSessionPreset,
+    codingContextMemo,
+    imageVisionCache,
+  ])
 
   /** Apply coding memo patches for a background (non-visible) session. */
   const patchSessionCodingMemo = useCallback(
@@ -529,6 +571,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       codingContextMemo: session.codingContextMemo,
       codingProjectPath: session.codingProjectPath,
       imageVisionCache: session.imageVisionCache,
+      ...(session.unsaved ? { unsaved: true } : {}),
     }
     const nextState = upsertSession({ sessions, activeSessionId }, forked)
     setSessions(nextState.sessions)
@@ -545,7 +588,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     )
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
-    setSessionDirty(false)
+    setSessionDirty(Boolean(session.unsaved))
     setToolResultBanner(null)
     setPendingDeleteId(null)
     setRenamingSessionId(null)
@@ -645,6 +688,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       ),
       codingProjectPath: getCodingProjectPath(settings) || undefined,
       imageVisionCache: normalizeImageVisionCache(imageVisionCache),
+      // Explicit Save promotes sticky draft into durable storage.
     }
     const nextState = upsertSession({ sessions, activeSessionId }, next)
     setSessions(nextState.sessions)

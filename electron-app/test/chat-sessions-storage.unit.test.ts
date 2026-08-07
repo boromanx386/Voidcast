@@ -77,6 +77,22 @@ describe('chat sessions IndexedDB storage', () => {
     expect(loaded.sessions[1].title).toBe('Beta')
   })
 
+  it('omits sticky unsaved sessions from disk and clears active if only draft', async () => {
+    const durable = makeSession({ id: 'd', title: 'Durable', updatedAt: 300 })
+    const sticky = makeSession({
+      id: 'u',
+      title: 'Sticky',
+      updatedAt: 400,
+      unsaved: true,
+    })
+    await saveChatSessions({ sessions: [sticky, durable], activeSessionId: 'u' })
+
+    const loaded = await loadChatSessions()
+    expect(loaded.sessions.map((s) => s.id)).toEqual(['d'])
+    expect(loaded.activeSessionId).toBeNull()
+    expect(loaded.sessions[0]?.unsaved).toBeUndefined()
+  })
+
   it('migrates once from localStorage and keeps the legacy key', async () => {
     const legacy = {
       sessions: [

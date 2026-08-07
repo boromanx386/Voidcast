@@ -429,7 +429,9 @@ export function GeneralOptionsPanel({
               AUTO_SAVE_CHAT
             </span>
             <span className="mt-1 block text-xs text-void-dim">
-              Automatically save chat sessions as you go. Turn off to show a manual save button in the header.
+              Automatically save chat sessions as you go. When off, multi-session still creates
+              sticky DRAFT rows in the sidebar so you can return after switching; use Save in the
+              header to write them permanently.
             </span>
           </span>
         </label>

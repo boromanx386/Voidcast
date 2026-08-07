@@ -112,13 +112,22 @@ function normalizeState(raw: unknown): ChatSessionsState {
 }
 
 function stripStateForPersistence(state: ChatSessionsState): ChatSessionsState {
-  return {
-    ...state,
-    sessions: state.sessions.map((s) => ({
-      ...s,
-      messages: s.messages.map(stripImagesForPersistence),
-    })),
-  }
+  // Sticky unsaved sessions (auto-save off) stay in memory only until Save.
+  const sessions = state.sessions
+    .filter((s) => !s.unsaved)
+    .map((s) => {
+      const { unsaved: _drop, ...rest } = s
+      return {
+        ...rest,
+        messages: rest.messages.map(stripImagesForPersistence),
+      }
+    })
+  const activeSessionId =
+    typeof state.activeSessionId === 'string' &&
+    sessions.some((x) => x.id === state.activeSessionId)
+      ? state.activeSessionId
+      : null
+  return { sessions, activeSessionId }
 }
 
 function loadLegacyLocalStorage(): ChatSessionsState {
