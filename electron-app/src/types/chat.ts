@@ -1,7 +1,23 @@
 export type ChatRole = 'user' | 'assistant'
 
 /** Composer / turn mode: Agent implements; Plan explores read-only then proposes steps. */
-export type AgentChatMode = 'agent' | 'plan'
+export type AgentChatMode = 'agent' | 'plan' | 'team'
+
+/** Normalize stored/settings values; unknown → agent. */
+export function normalizeAgentChatMode(value: unknown): AgentChatMode {
+  if (value === 'plan') return 'plan'
+  if (value === 'team') return 'team'
+  return 'agent'
+}
+
+/** Plan mode is read-only; agent and team share mutating tools. */
+export function isPlanChatMode(mode: AgentChatMode | string | undefined | null): boolean {
+  return mode === 'plan'
+}
+
+export function isTeamChatMode(mode: AgentChatMode | string | undefined | null): boolean {
+  return mode === 'team'
+}
 
 export type SystemPromptPreset = 'default' | 'code' | 'creative' | 'teacher'
 
