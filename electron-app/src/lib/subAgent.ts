@@ -10,9 +10,15 @@
  * tool result is returned to the main agent loop.
  */
 
-import { normalizeBaseUrl, SUB_AGENT_DEFAULT_CONTEXT_TOKENS } from './settings'
+import { normalizeBaseUrl, SUB_AGENT_DEFAULT_CONTEXT_TOKENS, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from './settings'
 import type { SubAgentConfig } from './settings'
-import { deepseekApiBaseForRuntime, openaiApiBaseForRuntime, usesServerCloudProxy } from './platform'
+import {
+  deepseekApiBaseForRuntime,
+  nvidiaApiBaseForRuntime,
+  openaiApiBaseForRuntime,
+  opencodeGoApiBaseForRuntime,
+  usesServerCloudProxy,
+} from './platform'
 import {
   detectSubAgentProvider as detectSubAgentProviderId,
   type SubAgentProviderId,
@@ -48,6 +54,11 @@ export type SubAgentKeys = {
   deepseekApiKey: string
   openaiBaseUrl: string
   openaiApiKey: string
+  nvidiaBaseUrl: string
+  nvidiaApiKey: string
+  opencodeGoApiKey: string
+  /** Used for OpenCode Go local reverse-proxy base on desktop. */
+  ttsBaseUrl?: string
 }
 
 export type SubAgentImageInput = {
@@ -319,6 +330,118 @@ async function describeWithOpenAi(
   return (data2.choices?.[0]?.message?.content || '').trim()
 }
 
+// ── NVIDIA path (vision via Chat Completions) ────────────────────────────
+
+async function describeWithNvidia(
+  img: SubAgentImageInput,
+  model: string,
+  maxTokens: number,
+  nvidiaBaseUrl: string,
+  nvidiaApiKey: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const viaProxy = usesServerCloudProxy()
+  const baseUrl = viaProxy
+    ? nvidiaApiBaseForRuntime()
+    : normalizeBaseUrl(nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1')
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (!viaProxy && nvidiaApiKey.trim()) {
+    headers.Authorization = `Bearer ${nvidiaApiKey.trim()}`
+  }
+
+  const dataUri = toDataUri(img.base64, img.mime)
+
+  const body = {
+    model,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: dataUri } },
+        ],
+      },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.2,
+    stream: false,
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`NVIDIA sub-agent ${res.status}: ${errText || res.statusText}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  return (data.choices?.[0]?.message?.content || '').trim()
+}
+
+// ── OpenCode Go path (vision via Chat Completions, reverse-proxied) ───────
+
+async function describeWithOpenCodeGo(
+  img: SubAgentImageInput,
+  model: string,
+  maxTokens: number,
+  ttsBaseUrl: string | undefined,
+  opencodeGoApiKey: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const baseUrl = opencodeGoApiBaseForRuntime(undefined, ttsBaseUrl)
+  const dataUri = toDataUri(img.base64, img.mime)
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  // TTS reverse proxy uses Authorization when server-side key is not registered.
+  if (opencodeGoApiKey.trim()) {
+    headers.Authorization = `Bearer ${opencodeGoApiKey.trim()}`
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUri } },
+          ],
+        },
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.2,
+      stream: false,
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`OpenCode Go sub-agent ${res.status}: ${errText || res.statusText}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  return (data.choices?.[0]?.message?.content || '').trim()
+}
+
 // ── text-only chat (coding explore) ──────────────────────────────────────
 
 async function textWithOllama(
@@ -403,7 +526,7 @@ export async function callSubAgentChat(opts: {
   maxTokens?: number
 }): Promise<string> {
   const provider = detectSubAgentProviderId(opts.config.model, opts.config.provider)
-  const maxTokens = opts.maxTokens ?? opts.config.outputTokens ?? 1024
+  const maxTokens = opts.maxTokens ?? opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS
   const ctxTokens = opts.config.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS
   const messages = opts.messages.filter((m) => m.content.trim())
 
@@ -455,6 +578,35 @@ export async function callSubAgentChat(opts: {
       opts.signal,
     )
   }
+  if (provider === 'nvidia') {
+    const viaProxy = usesServerCloudProxy()
+    const baseUrl = viaProxy
+      ? nvidiaApiBaseForRuntime()
+      : normalizeBaseUrl(opts.keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1')
+    return textWithOpenAiCompatible(
+      'NVIDIA',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      viaProxy ? '' : opts.keys.nvidiaApiKey,
+      messages,
+      opts.signal,
+    )
+  }
+  if (provider === 'opencode-go') {
+    // Always reverse-proxied (no CORS). TTS accepts desktop Bearer when env/file
+    // key is empty; main LLM already does this — sub-agent must not drop the key.
+    const baseUrl = opencodeGoApiBaseForRuntime(undefined, opts.keys.ttsBaseUrl)
+    return textWithOpenAiCompatible(
+      'OpenCode Go',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      opts.keys.opencodeGoApiKey || '',
+      messages,
+      opts.signal,
+    )
+  }
   return textWithOllama(
     opts.config.model,
     maxTokens,
@@ -477,7 +629,7 @@ async function describeSingleImage(
 ): Promise<string> {
   const provider = detectSubAgentProviderId(config.model, config.provider)
   const prompt = buildPrompt(userQuery, focus)
-  const maxTokens = config.outputTokens ?? 1024
+  const maxTokens = config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS
 
   const ctxTokens = config.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS
 
@@ -500,6 +652,20 @@ async function describeSingleImage(
     return describeWithOpenAi(
       img, config.model, maxTokens,
       keys.openaiBaseUrl, keys.openaiApiKey,
+      prompt, signal,
+    )
+  }
+  if (provider === 'nvidia') {
+    return describeWithNvidia(
+      img, config.model, maxTokens,
+      keys.nvidiaBaseUrl, keys.nvidiaApiKey,
+      prompt, signal,
+    )
+  }
+  if (provider === 'opencode-go') {
+    return describeWithOpenCodeGo(
+      img, config.model, maxTokens,
+      keys.ttsBaseUrl, keys.opencodeGoApiKey,
       prompt, signal,
     )
   }

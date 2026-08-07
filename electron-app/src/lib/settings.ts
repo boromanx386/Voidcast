@@ -5,11 +5,15 @@ import {
   normalizeOpenCodeGoModelId,
   normalizeOpenRouterModelId,
   detectSubAgentProvider,
+  isSubAgentProviderId,
+  type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
 import { normalizePinnedModels } from '@/lib/pinnedModels'
 import type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
+import { normalizeAgentChatMode } from '@/types/chat'
 
 export type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
+export { normalizeAgentChatMode, isPlanChatMode, isTeamChatMode } from '@/types/chat'
 
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
@@ -985,8 +989,18 @@ export type RunwareMusicModelProfile = {
   seed: number | null
 }
 
-/** Default Ollama num_ctx for sub-agent calls (vision + long-memory extract). */
-export const SUB_AGENT_DEFAULT_CONTEXT_TOKENS = 65536
+/**
+ * Default Ollama num_ctx for sub-agent calls (vision + coding explore/workers).
+ * 16K is enough for image describe + nested digests without heavy VRAM.
+ * Not exposed in Options — only Ollama uses it; cloud ignores.
+ */
+export const SUB_AGENT_DEFAULT_CONTEXT_TOKENS = 16384
+
+/**
+ * Max generated tokens per sub-agent call (vision + coding).
+ * Not exposed in Options — coding explore/workers also cap further.
+ */
+export const SUB_AGENT_DEFAULT_OUTPUT_TOKENS = 2048
 
 /** Sub-agent config — delegates tasks (vision, coding explore, etc.) to separate models. */
 export type SubAgentConfig = {
@@ -1007,11 +1021,11 @@ export type SubAgentConfig = {
    * Explicit backend for vision `model`. Set when picking from the SUB options list.
    * When omitted, inferred via detectSubAgentProvider (needed for namespaced Ollama ids).
    */
-  provider?: 'ollama' | 'openrouter' | 'deepseek' | 'openai'
+  provider?: SubAgentProviderId
   /** Coding explore model id (text-capable). Migrates from `model` when missing. */
   codingModel: string
   /** Explicit backend for codingModel. */
-  codingProvider?: 'ollama' | 'openrouter' | 'deepseek' | 'openai'
+  codingProvider?: SubAgentProviderId
   /**
    * OpenRouter provider slug lock for the vision model (provider.only, no fallbacks).
    * Kept in sync with `openrouterProviderByModel[model]` when provider is openrouter.
@@ -1022,9 +1036,15 @@ export type SubAgentConfig = {
    * Kept in sync with `openrouterProviderByModel[codingModel]`.
    */
   codingOpenrouterProviderOnly?: string
-  /** Max generated tokens per sub-agent call (default 1024). Shared by vision/coding. */
+  /**
+   * Max generated tokens per sub-agent call. Internal default only (not in Options UI).
+   * Prefer reading via defaults / SUB_AGENT_DEFAULT_OUTPUT_TOKENS.
+   */
   outputTokens?: number
-  /** Context window size sent to Ollama as num_ctx (default 64K). Ignored by OpenRouter. */
+  /**
+   * Ollama num_ctx for sub-agent calls. Internal default only (not in Options UI).
+   * Cloud providers ignore this.
+   */
   contextTokens?: number
   /** When true, show the floating analysis panel during vision/coding sub-agent (default on). */
   showAnalysisWindow?: boolean
@@ -1555,7 +1575,7 @@ export const defaults: AppSettings = {
     codingProvider: 'ollama',
     openrouterProviderOnly: '',
     codingOpenrouterProviderOnly: '',
-    outputTokens: 4096,
+    outputTokens: SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
     contextTokens: SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
     showAnalysisWindow: true,
   },
@@ -1876,13 +1896,12 @@ function normalizeTts(s: AppSettings): AppSettings {
   }
 }
 
-function normalizeSubAgentModelId(
-  rawModel: string,
-  provider: 'ollama' | 'openrouter' | 'deepseek' | 'openai',
-): string {
+function normalizeSubAgentModelId(rawModel: string, provider: SubAgentProviderId): string {
   if (provider === 'ollama') return rawModel
   if (provider === 'deepseek') return normalizeDeepSeekModelId(rawModel)
   if (provider === 'openai') return normalizeOpenAiModelId(rawModel)
+  if (provider === 'nvidia') return normalizeNvidiaModelId(rawModel)
+  if (provider === 'opencode-go') return normalizeOpenCodeGoModelId(rawModel)
   return normalizeOpenRouterModelId(rawModel)
 }
 
@@ -1892,27 +1911,17 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const enabled = raw.enabled === true
   const codingEnabled = raw.codingEnabled === true
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
-  const rawProvider =
-    raw.provider === 'ollama' ||
-    raw.provider === 'openrouter' ||
-    raw.provider === 'deepseek' ||
-    raw.provider === 'openai'
-      ? raw.provider
-      : undefined
+  const rawProvider = isSubAgentProviderId(raw.provider) ? raw.provider : undefined
   const provider = detectSubAgentProvider(rawModel, rawProvider)
   const model = normalizeSubAgentModelId(rawModel, provider)
 
   const hasCodingModel = typeof raw.codingModel === 'string' && raw.codingModel.trim().length > 0
   const rawCodingModel = hasCodingModel ? raw.codingModel.trim() : model
-  const rawCodingProvider =
-    raw.codingProvider === 'ollama' ||
-    raw.codingProvider === 'openrouter' ||
-    raw.codingProvider === 'deepseek' ||
-    raw.codingProvider === 'openai'
-      ? raw.codingProvider
-      : hasCodingModel
-        ? undefined
-        : provider
+  const rawCodingProvider = isSubAgentProviderId(raw.codingProvider)
+    ? raw.codingProvider
+    : hasCodingModel
+      ? undefined
+      : provider
   const codingProvider = detectSubAgentProvider(rawCodingModel, rawCodingProvider)
   const codingModel = normalizeSubAgentModelId(rawCodingModel, codingProvider)
 
@@ -1932,18 +1941,10 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
         ? raw.codingOpenrouterProviderOnly.trim()
         : defaults.subAgent.codingOpenrouterProviderOnly ?? ''
 
-  // outputTokens — migrate old maxTokensPerImage key if present
-  const rawAny = raw as any
-  const outputTokens =
-    typeof raw.outputTokens === 'number' && Number.isFinite(raw.outputTokens)
-      ? Math.max(50, Math.min(4096, Math.round(raw.outputTokens)))
-      : typeof rawAny.maxTokensPerImage === 'number' && Number.isFinite(rawAny.maxTokensPerImage)
-        ? Math.max(50, Math.min(4096, Math.round(rawAny.maxTokensPerImage)))
-        : defaults.subAgent.outputTokens
-  const contextTokens =
-    typeof raw.contextTokens === 'number' && Number.isFinite(raw.contextTokens)
-      ? Math.max(512, Math.min(131072, Math.round(raw.contextTokens)))
-      : defaults.subAgent.contextTokens
+  // Token budgets are internal defaults only (not exposed in Options UI).
+  // Always pin so old saved tweaks cannot confuse runtime.
+  const outputTokens = defaults.subAgent.outputTokens
+  const contextTokens = defaults.subAgent.contextTokens
   const showAnalysisWindow = raw.showAnalysisWindow !== false
   return {
     ...s,
@@ -1976,7 +1977,7 @@ function normalizeUiTheme(s: AppSettings): AppSettings {
 }
 
 function normalizeAgentMode(s: AppSettings): AppSettings {
-  const agentMode: AgentChatMode = s.agentMode === 'plan' ? 'plan' : 'agent'
+  const agentMode: AgentChatMode = normalizeAgentChatMode(s.agentMode)
   return { ...s, agentMode }
 }
 

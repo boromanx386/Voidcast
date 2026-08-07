@@ -1,13 +1,22 @@
-import type { AppSettings, SubAgentConfig } from '@/lib/settings'
-import { SUB_AGENT_DEFAULT_CONTEXT_TOKENS, withSubAgentOpenRouterProvider } from '@/lib/settings'
+import type { AppSettings, SubAgentConfig, LlmProvider } from '@/lib/settings'
+import { withSubAgentOpenRouterProvider } from '@/lib/settings'
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
+  NVIDIA_LLM_PRESET_MODELS,
   OPENAI_LLM_PRESET_MODELS,
+  OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
+  type CloudLlmPreset,
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
-import { NumericSettingInput } from '@/components/options/NumericSettingInput'
-import type { Dispatch, SetStateAction } from 'react'
+import {
+  parsePinnedId,
+  pinnedIdLabel,
+  pinsForProvider,
+  toScopedPinnedId,
+  unwrapPinnedModelId,
+} from '@/lib/pinnedModels'
+import { useCallback, type Dispatch, type SetStateAction } from 'react'
 
 type Props = {
   settings: AppSettings
@@ -25,6 +34,85 @@ function patchSubAgent(
   patch: Partial<SubAgentConfig>,
 ) {
   setSettings((s) => ({ ...s, subAgent: { ...s.subAgent, ...patch } }))
+}
+
+function parseProvider(value: string): SubAgentProviderId {
+  if (value === 'openrouter') return 'openrouter'
+  if (value === 'deepseek') return 'deepseek'
+  if (value === 'openai') return 'openai'
+  if (value === 'nvidia') return 'nvidia'
+  if (value === 'opencode-go') return 'opencode-go'
+  return 'ollama'
+}
+
+/** LlmProvider and SubAgentProviderId share the same string union for pin scope. */
+function asLlmProvider(p: SubAgentProviderId): LlmProvider {
+  return p
+}
+
+function pinnedChips(
+  pinnedModels: string[],
+  presets: Array<{ id: string; label: string }>,
+  currentScopedId: string,
+  onToggle: (id: string) => void,
+) {
+  if (pinnedModels.length === 0) return null
+  return (
+    <div className="mb-3 flex flex-wrap gap-1.5">
+      {pinnedModels.map((id) => {
+        const modelId = parsePinnedId(id)?.modelId ?? id
+        const preset =
+          presets.find((p) => p.id === id) ||
+          presets.find((p) => p.id === modelId) ||
+          presets.find((p) => parsePinnedId(p.id)?.modelId === modelId)
+        const label = preset?.label ?? pinnedIdLabel(id)
+        const isCurrent = id === currentScopedId
+        return (
+          <span
+            key={id}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs transition-colors ${
+              isCurrent
+                ? 'border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan'
+                : 'border-void-muted/40 bg-void-muted/20 text-void-dim hover:border-void-dim'
+            }`}
+          >
+            <span className="max-w-[160px] truncate">{label}</span>
+            <button
+              type="button"
+              className="ml-0.5 leading-none text-void-dim transition-colors hover:text-neon-red"
+              title={`Unpin ${label}`}
+              onClick={() => onToggle(id)}
+            >
+              ×
+            </button>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function PinToggleButton({
+  pinned,
+  onToggle,
+}: {
+  pinned: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`shrink-0 rounded border px-2 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+        pinned
+          ? 'border-neon-cyan/50 bg-neon-cyan/10 text-neon-cyan'
+          : 'border-void-muted/40 text-void-dim hover:border-void-dim hover:text-void-text'
+      }`}
+      title={pinned ? 'Unpin this model' : 'Pin this model'}
+      onClick={onToggle}
+    >
+      {pinned ? 'PINNED' : 'PIN'}
+    </button>
+  )
 }
 
 function SubAgentEndpointPicker({
@@ -52,17 +140,41 @@ function SubAgentEndpointPicker({
   ollamaModels: string[]
   modelsError: string | null
 }) {
-  const presets =
+  const pinned = settings.pinnedModels ?? []
+  const llmProv = asLlmProvider(provider)
+
+  const presets: CloudLlmPreset[] | null =
     provider === 'openrouter'
       ? OPENROUTER_LLM_PRESET_MODELS
       : provider === 'deepseek'
         ? DEEPSEEK_LLM_PRESET_MODELS
         : provider === 'openai'
           ? OPENAI_LLM_PRESET_MODELS
-          : null
+          : provider === 'nvidia'
+            ? NVIDIA_LLM_PRESET_MODELS
+            : provider === 'opencode-go'
+              ? OPENCODE_GO_LLM_PRESET_MODELS
+              : null
+
   const ollamaInList = ollamaModels.includes(model)
   const presetInList = Boolean(presets?.some((m) => m.id === model))
   const inList = provider === 'ollama' ? ollamaInList : presetInList
+
+  const handleTogglePin = useCallback(
+    (pinnedId: string) => {
+      setSettings((prev) => {
+        const prevList = prev.pinnedModels ?? []
+        const alreadyPinned = prevList.includes(pinnedId)
+        return {
+          ...prev,
+          pinnedModels: alreadyPinned
+            ? prevList.filter((id) => id !== pinnedId)
+            : [...prevList, pinnedId],
+        }
+      })
+    },
+    [setSettings],
+  )
 
   const setProvider = (next: SubAgentProviderId) => {
     if (role === 'vision') patchSubAgent(setSettings, { provider: next })
@@ -74,24 +186,47 @@ function SubAgentEndpointPicker({
 
   const setModel = (next: string, nextProvider?: SubAgentProviderId) => {
     const resolvedProvider = nextProvider ?? provider
+    const clean = unwrapPinnedModelId(asLlmProvider(resolvedProvider), next)
     if (role === 'vision') {
       patchSubAgent(setSettings, {
-        model: next,
+        model: clean,
         ...(nextProvider ? { provider: nextProvider } : {}),
         ...(resolvedProvider === 'openrouter'
-          ? { openrouterProviderOnly: rememberedProvider(next.trim()) }
+          ? { openrouterProviderOnly: rememberedProvider(clean.trim()) }
           : {}),
       })
     } else {
       patchSubAgent(setSettings, {
-        codingModel: next,
+        codingModel: clean,
         ...(nextProvider ? { codingProvider: nextProvider } : {}),
         ...(resolvedProvider === 'openrouter'
-          ? { codingOpenrouterProviderOnly: rememberedProvider(next.trim()) }
+          ? { codingOpenrouterProviderOnly: rememberedProvider(clean.trim()) }
           : {}),
       })
     }
   }
+
+  const selectPreset = (v: string, nextProvider: SubAgentProviderId) => {
+    if (!v || v.startsWith('__custom__')) return
+    setModel(v, nextProvider)
+  }
+
+  const scopedPinId = model.trim()
+    ? toScopedPinnedId(llmProv, model)
+    : ''
+
+  const cloudManualPlaceholder =
+    provider === 'openrouter'
+      ? 'openrouter/free'
+      : provider === 'deepseek'
+        ? 'deepseek-v4-pro'
+        : provider === 'openai'
+          ? 'gpt-5.6-sol'
+          : provider === 'nvidia'
+            ? 'nvidia/nemotron-3-super-120b-a12b'
+            : provider === 'opencode-go'
+              ? 'deepseek-v4-pro'
+              : 'model id…'
 
   return (
     <div className="grid gap-4 rounded border border-void-border/60 p-3">
@@ -102,22 +237,14 @@ function SubAgentEndpointPicker({
         <select
           className="form-select"
           value={provider}
-          onChange={(e) =>
-            setProvider(
-              e.target.value === 'openrouter'
-                ? 'openrouter'
-                : e.target.value === 'deepseek'
-                  ? 'deepseek'
-                  : e.target.value === 'openai'
-                    ? 'openai'
-                    : 'ollama',
-            )
-          }
+          onChange={(e) => setProvider(parseProvider(e.target.value))}
         >
           <option value="ollama">Ollama (local)</option>
           <option value="openrouter">OpenRouter (cloud)</option>
+          <option value="nvidia">NVIDIA (cloud)</option>
           <option value="deepseek">DeepSeek (cloud)</option>
           <option value="openai">OpenAI (cloud)</option>
+          <option value="opencode-go">OpenCode Go (cloud)</option>
         </select>
       </div>
 
@@ -157,32 +284,43 @@ function SubAgentEndpointPicker({
             </div>
           )}
 
-          <select
-            className="form-select mb-3"
-            value={inList ? model : model ? `__custom__${model}` : ''}
-            disabled={modelsLoading}
-            onChange={(e) => {
-              const v = e.target.value
-              if (!v || v.startsWith('__custom__')) return
-              setModel(v, 'ollama')
-            }}
-          >
-            {modelsLoading && <option value="">Loading models...</option>}
-            {!modelsLoading && ollamaModels.length === 0 && (
-              <option value="">No models found</option>
-            )}
-            {ollamaModels.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-            {model && !inList && (
-              <option value={`__custom__${model}`}>{model} (manual)</option>
-            )}
-          </select>
+          {pinnedChips(
+            pinsForProvider(pinned, 'ollama'),
+            ollamaModels.map((name) => ({ id: name, label: name })),
+            scopedPinId,
+            handleTogglePin,
+          )}
+
+          <div className="flex items-center gap-2">
+            <select
+              className="form-select mb-0 flex-1"
+              value={inList ? model : model ? `__custom__${model}` : ''}
+              disabled={modelsLoading}
+              onChange={(e) => selectPreset(e.target.value, 'ollama')}
+            >
+              {modelsLoading && <option value="">Loading models...</option>}
+              {!modelsLoading && ollamaModels.length === 0 && (
+                <option value="">No models found</option>
+              )}
+              {ollamaModels.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              {model && !inList && (
+                <option value={`__custom__${model}`}>{model} (manual)</option>
+              )}
+            </select>
+            <PinToggleButton
+              pinned={Boolean(scopedPinId && pinned.includes(scopedPinId))}
+              onToggle={() => {
+                if (scopedPinId) handleTogglePin(scopedPinId)
+              }}
+            />
+          </div>
 
           <input
-            className="cyber-input"
+            className="cyber-input mt-2"
             placeholder="Enter model name manually..."
             value={inList ? '' : model}
             onChange={(e) => setModel(e.target.value, 'ollama')}
@@ -196,28 +334,38 @@ function SubAgentEndpointPicker({
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
             </label>
-            <select
-              className="form-select mb-3"
-              value={inList ? model : model ? `__custom__${model}` : ''}
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v || v.startsWith('__custom__')) return
-                setModel(v, 'openrouter')
-              }}
-            >
-              {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-              {model && !inList && (
-                <option value={`__custom__${model}`}>{model} (manual)</option>
-              )}
-            </select>
+            {pinnedChips(
+              pinsForProvider(pinned, 'openrouter'),
+              OPENROUTER_LLM_PRESET_MODELS,
+              scopedPinId,
+              handleTogglePin,
+            )}
+            <div className="flex items-center gap-2">
+              <select
+                className="form-select mb-0 flex-1"
+                value={inList ? model : model ? `__custom__${model}` : ''}
+                onChange={(e) => selectPreset(e.target.value, 'openrouter')}
+              >
+                {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+                {model && !inList && (
+                  <option value={`__custom__${model}`}>{model} (manual)</option>
+                )}
+              </select>
+              <PinToggleButton
+                pinned={Boolean(scopedPinId && pinned.includes(scopedPinId))}
+                onToggle={() => {
+                  if (scopedPinId) handleTogglePin(scopedPinId)
+                }}
+              />
+            </div>
             <input
-              className="cyber-input"
-              placeholder="Or type OpenRouter model id..."
-              value={inList ? '' : model}
+              className="cyber-input mt-2"
+              placeholder={cloudManualPlaceholder}
+              value={model}
               onChange={(e) => {
                 const nextModel = e.target.value
                 const key = nextModel.trim()
@@ -250,7 +398,8 @@ function SubAgentEndpointPicker({
               }}
             />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-              Uses Options → LLM OpenRouter base URL and API key.
+              Uses Options → LLM OpenRouter base URL and API key. Same curated presets as
+              the main model picker.
             </p>
           </div>
           <div className="form-group mb-0">
@@ -279,75 +428,61 @@ function SubAgentEndpointPicker({
         </>
       )}
 
-      {provider === 'deepseek' && (
-        <div className="form-group mb-0">
-          <label className="form-label">
-            <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
-          </label>
-          <select
-            className="form-select mb-3"
-            value={inList ? model : model ? `__custom__${model}` : ''}
-            onChange={(e) => {
-              const v = e.target.value
-              if (!v || v.startsWith('__custom__')) return
-              setModel(v, 'deepseek')
-            }}
-          >
-            {DEEPSEEK_LLM_PRESET_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-            {model && !inList && (
-              <option value={`__custom__${model}`}>{model} (manual)</option>
+      {(provider === 'deepseek' ||
+        provider === 'openai' ||
+        provider === 'nvidia' ||
+        provider === 'opencode-go') &&
+        presets && (
+          <div className="form-group mb-0">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
+            </label>
+            {pinnedChips(
+              pinsForProvider(pinned, llmProv),
+              presets,
+              scopedPinId,
+              handleTogglePin,
             )}
-          </select>
-          <input
-            className="cyber-input"
-            placeholder="Or type DeepSeek model id..."
-            value={inList ? '' : model}
-            onChange={(e) => setModel(e.target.value, 'deepseek')}
-          />
-          <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-            Uses Options → LLM DeepSeek base URL and API key.
-          </p>
-        </div>
-      )}
-
-      {provider === 'openai' && (
-        <div className="form-group mb-0">
-          <label className="form-label">
-            <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
-          </label>
-          <select
-            className="form-select mb-3"
-            value={inList ? model : model ? `__custom__${model}` : ''}
-            onChange={(e) => {
-              const v = e.target.value
-              if (!v || v.startsWith('__custom__')) return
-              setModel(v, 'openai')
-            }}
-          >
-            {OPENAI_LLM_PRESET_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-            {model && !inList && (
-              <option value={`__custom__${model}`}>{model} (manual)</option>
-            )}
-          </select>
-          <input
-            className="cyber-input"
-            placeholder="Or type OpenAI model id..."
-            value={inList ? '' : model}
-            onChange={(e) => setModel(e.target.value, 'openai')}
-          />
-          <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-            Uses Options → LLM OpenAI base URL and API key.
-          </p>
-        </div>
-      )}
+            <div className="flex items-center gap-2">
+              <select
+                className="form-select mb-0 flex-1"
+                value={inList ? model : model ? `__custom__${model}` : ''}
+                onChange={(e) => selectPreset(e.target.value, provider)}
+              >
+                {presets.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+                {model && !inList && (
+                  <option value={`__custom__${model}`}>{model} (manual)</option>
+                )}
+              </select>
+              <PinToggleButton
+                pinned={Boolean(scopedPinId && pinned.includes(scopedPinId))}
+                onToggle={() => {
+                  if (scopedPinId) handleTogglePin(scopedPinId)
+                }}
+              />
+            </div>
+            <input
+              className="cyber-input mt-2"
+              placeholder={cloudManualPlaceholder}
+              value={model}
+              onChange={(e) => setModel(e.target.value, provider)}
+            />
+            <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
+              {provider === 'deepseek' &&
+                'Uses Options → LLM DeepSeek base URL and API key.'}
+              {provider === 'openai' &&
+                'Uses Options → LLM OpenAI base URL and API key.'}
+              {provider === 'nvidia' &&
+                'Uses Options → LLM NVIDIA base URL and API key.'}
+              {provider === 'opencode-go' &&
+                'Uses Options → LLM OpenCode Go key (local reverse proxy).'}
+            </p>
+          </div>
+        )}
     </div>
   )
 }
@@ -363,7 +498,6 @@ export function SubAgentOptionsPanel({
   const sub = settings.subAgent
   const visionActive = sub.enabled
   const codingActive = sub.codingEnabled
-  const subActive = visionActive || codingActive
   const visionProvider = (sub.provider ?? 'ollama') as SubAgentProviderId
   const codingProvider = (sub.codingProvider ?? sub.provider ?? 'ollama') as SubAgentProviderId
 
@@ -414,9 +548,9 @@ export function SubAgentOptionsPanel({
           <span className="text-neon-cyan">⬡ ENABLE_CODING_SUB_AGENT</span>
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-          Coding context management: trim noisy tool output, clear stale tool results from
-          old rounds, and expose read-only coding_explore (runs on the coding model below —
-          prefer text-capable, not vision-only).
+          Coding context management, coding_explore, and Team-mode workers (run_coding_workers)
+          — all run on the coding model below (prefer text-capable, not vision-only). Same
+          provider list and pins as the main LLM picker.
         </p>
       </div>
 
@@ -453,43 +587,6 @@ export function SubAgentOptionsPanel({
             Floating panel on the right while vision or coding sub-agent runs
             (progress and digests). Off = same behavior, no on-screen panel.
           </p>
-        </div>
-      )}
-
-      {subActive && (
-        <div className="form-group">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">
-                <span className="text-neon-cyan mr-2">◈</span> CONTEXT_TOKENS
-                <span className="ml-3 font-mono text-neon-cyan">
-                  {sub.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS}
-                </span>
-              </label>
-              <NumericSettingInput
-                min={512}
-                max={131072}
-                value={sub.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS}
-                onCommit={(contextTokens) => patchSubAgent(setSettings, { contextTokens })}
-              />
-              <p className="text-xs text-void-dim mt-1">Ollama num_ctx (cloud providers ignore)</p>
-            </div>
-            <div>
-              <label className="form-label">
-                <span className="text-neon-cyan mr-2">◈</span> OUTPUT_TOKENS
-                <span className="ml-3 font-mono text-neon-cyan">
-                  {sub.outputTokens ?? 1024}
-                </span>
-              </label>
-              <NumericSettingInput
-                min={50}
-                max={4096}
-                value={sub.outputTokens ?? 1024}
-                onCommit={(outputTokens) => patchSubAgent(setSettings, { outputTokens })}
-              />
-              <p className="text-xs text-void-dim mt-1">Max generated tokens per call (shared)</p>
-            </div>
-          </div>
         </div>
       )}
     </div>

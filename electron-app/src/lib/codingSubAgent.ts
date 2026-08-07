@@ -9,7 +9,7 @@
  */
 
 import type { SubAgentConfig } from '@/lib/settings'
-import { subAgentConfigForRole } from '@/lib/settings'
+import { subAgentConfigForRole, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from '@/lib/settings'
 import {
   callSubAgentChat,
   type SubAgentKeys,
@@ -433,7 +433,10 @@ export async function runCodingExplore(opts: {
         config: codingConfig,
         keys: opts.keys,
         signal: opts.signal,
-        maxTokens: Math.min(opts.config.outputTokens ?? 1024, 2048),
+        maxTokens: Math.min(
+          opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+          SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+        ),
       })
       messages.push({ role: 'assistant', content: reply })
 
@@ -524,7 +527,10 @@ export async function runCodingExplore(opts: {
       config: codingConfig,
       keys: opts.keys,
       signal: opts.signal,
-      maxTokens: Math.min(opts.config.outputTokens ?? 1024, 2048),
+      maxTokens: Math.min(
+        opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+        SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+      ),
     })
     const action = parseCodingExploreAction(finalReply)
     const body =

@@ -133,6 +133,8 @@ describe('detectSubAgentProvider', () => {
   it('explicit provider overrides heuristic', () => {
     expect(detectSubAgentProvider('openai/gpt-4o', 'ollama')).toBe('ollama')
     expect(detectSubAgentProvider('llava:13b', 'openrouter')).toBe('openrouter')
+    expect(detectSubAgentProvider('nvidia/nemotron-3-super-120b-a12b', 'nvidia')).toBe('nvidia')
+    expect(detectSubAgentProvider('deepseek-v4-pro', 'opencode-go')).toBe('opencode-go')
   })
 })
 
@@ -151,6 +153,10 @@ describe('describeImagesWithSubAgent vision cache', () => {
     deepseekApiKey: '',
     openaiBaseUrl: 'https://api.openai.com/v1',
     openaiApiKey: '',
+    nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
+    nvidiaApiKey: '',
+    opencodeGoApiKey: '',
+    ttsBaseUrl: 'http://127.0.0.1:8765',
   }
 
   const config = {

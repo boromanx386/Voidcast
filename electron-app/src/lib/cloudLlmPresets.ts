@@ -189,7 +189,26 @@ const OPENROUTER_ROUTE_VARIANTS = new Set([
   'extended',
 ])
 
-export type SubAgentProviderId = 'ollama' | 'openrouter' | 'deepseek' | 'openai'
+export type SubAgentProviderId =
+  | 'ollama'
+  | 'openrouter'
+  | 'deepseek'
+  | 'openai'
+  | 'nvidia'
+  | 'opencode-go'
+
+const SUB_AGENT_PROVIDERS: ReadonlySet<SubAgentProviderId> = new Set([
+  'ollama',
+  'openrouter',
+  'deepseek',
+  'openai',
+  'nvidia',
+  'opencode-go',
+])
+
+export function isSubAgentProviderId(value: string | null | undefined): value is SubAgentProviderId {
+  return typeof value === 'string' && SUB_AGENT_PROVIDERS.has(value as SubAgentProviderId)
+}
 
 /**
  * Resolve which backend a sub-agent model id should hit.
@@ -202,12 +221,7 @@ export function detectSubAgentProvider(
   model: string,
   explicit?: SubAgentProviderId | null,
 ): SubAgentProviderId {
-  if (
-    explicit === 'ollama' ||
-    explicit === 'openrouter' ||
-    explicit === 'deepseek' ||
-    explicit === 'openai'
-  ) {
+  if (isSubAgentProviderId(explicit)) {
     return explicit
   }
   if (!model) return 'ollama'
@@ -228,6 +242,6 @@ export function detectSubAgentProvider(
     return 'ollama'
   }
 
-  // Slash without colon → OpenRouter-style org/model
+  // Slash without colon → OpenRouter-style org/model (also covers many NVIDIA routes)
   return 'openrouter'
 }

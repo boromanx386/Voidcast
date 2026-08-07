@@ -87,35 +87,10 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent.model).toBe(defaults.subAgent.model)
   })
 
-  // --- outputTokens ---
-  test('outputTokens: valid value → kept', () => {
+  // --- token budgets (internal defaults; not Options UI) ---
+  test('outputTokens: always pins to built-in default', () => {
     const s = normalizeSubAgent(makeSubAgent({ outputTokens: 512 }))
-    expect(s.subAgent.outputTokens).toBe(512)
-  })
-
-  test('outputTokens: below minimum → clamped to 50', () => {
-    const s = normalizeSubAgent(makeSubAgent({ outputTokens: 10 }))
-    expect(s.subAgent.outputTokens).toBe(50)
-  })
-
-  test('outputTokens: above maximum → clamped to 4096', () => {
-    const s = normalizeSubAgent(makeSubAgent({ outputTokens: 99999 }))
-    expect(s.subAgent.outputTokens).toBe(4096)
-  })
-
-  test('outputTokens: at minimum boundary (50) → 50', () => {
-    const s = normalizeSubAgent(makeSubAgent({ outputTokens: 50 }))
-    expect(s.subAgent.outputTokens).toBe(50)
-  })
-
-  test('outputTokens: at maximum boundary (4096) → 4096', () => {
-    const s = normalizeSubAgent(makeSubAgent({ outputTokens: 4096 }))
-    expect(s.subAgent.outputTokens).toBe(4096)
-  })
-
-  test('outputTokens: float → rounded', () => {
-    const s = normalizeSubAgent(makeSubAgent({ outputTokens: 512.7 }))
-    expect(s.subAgent.outputTokens).toBe(513)
+    expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
   })
 
   test('outputTokens: missing → default', () => {
@@ -123,68 +98,19 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
   })
 
-  test('outputTokens: NaN → default', () => {
-    const s = normalizeSubAgent(makeSubAgent({ outputTokens: NaN }))
-    expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
-  })
-
-  test('outputTokens: Infinity → default', () => {
-    const s = normalizeSubAgent(makeSubAgent({ outputTokens: Infinity }))
-    expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
-  })
-
-  // --- migration: old maxTokensPerImage → outputTokens ---
-  test('migrates old maxTokensPerImage to outputTokens', () => {
+  test('outputTokens: ignores legacy maxTokensPerImage', () => {
     const s = normalizeSubAgent(makeSubAgent({ maxTokensPerImage: 500 } as any))
-    expect(s.subAgent.outputTokens).toBe(500)
+    expect(s.subAgent.outputTokens).toBe(defaults.subAgent.outputTokens)
   })
 
-  test('migrates maxTokensPerImage with clamping', () => {
-    const s = normalizeSubAgent(makeSubAgent({ maxTokensPerImage: 5 } as any))
-    expect(s.subAgent.outputTokens).toBe(50)
-  })
-
-  test('outputTokens wins over maxTokensPerImage when both present', () => {
-    const s = normalizeSubAgent(makeSubAgent({
-      outputTokens: 2048,
-      maxTokensPerImage: 500,
-    } as any))
-    expect(s.subAgent.outputTokens).toBe(2048)
-  })
-
-  // --- contextTokens ---
-  test('contextTokens: valid value → kept', () => {
-    const s = normalizeSubAgent(makeSubAgent({ contextTokens: 16384 }))
+  test('contextTokens: always pins to built-in default (16K)', () => {
+    const s = normalizeSubAgent(makeSubAgent({ contextTokens: 65536 }))
+    expect(s.subAgent.contextTokens).toBe(defaults.subAgent.contextTokens)
     expect(s.subAgent.contextTokens).toBe(16384)
-  })
-
-  test('contextTokens: below minimum → clamped to 512', () => {
-    const s = normalizeSubAgent(makeSubAgent({ contextTokens: 100 }))
-    expect(s.subAgent.contextTokens).toBe(512)
-  })
-
-  test('contextTokens: above maximum → clamped to 131072', () => {
-    const s = normalizeSubAgent(makeSubAgent({ contextTokens: 999999 }))
-    expect(s.subAgent.contextTokens).toBe(131072)
-  })
-
-  test('contextTokens: at minimum (512) → 512', () => {
-    const s = normalizeSubAgent(makeSubAgent({ contextTokens: 512 }))
-    expect(s.subAgent.contextTokens).toBe(512)
-  })
-
-  test('contextTokens: at maximum (131072) → 131072', () => {
-    const s = normalizeSubAgent(makeSubAgent({ contextTokens: 131072 }))
-    expect(s.subAgent.contextTokens).toBe(131072)
   })
 
   test('contextTokens: missing → default', () => {
     const s = normalizeSubAgent(makeSubAgent({ enabled: true }))
-    expect(s.subAgent.contextTokens).toBe(defaults.subAgent.contextTokens)
-  })
-
-  test('contextTokens: NaN → default', () => {
-    const s = normalizeSubAgent(makeSubAgent({ contextTokens: NaN }))
     expect(s.subAgent.contextTokens).toBe(defaults.subAgent.contextTokens)
   })
 
@@ -226,7 +152,7 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent.showAnalysisWindow).toBe(true)
   })
 
-  test('full config: all fields preserved (in range)', () => {
+  test('full config: endpoint fields preserved; token budgets stay defaults', () => {
     const s = normalizeSubAgent(makeSubAgent({
       enabled: true,
       codingEnabled: true,
@@ -234,7 +160,7 @@ describe('normalizeSubAgent', () => {
       provider: 'openrouter',
       codingModel: 'deepseek-v4-flash',
       codingProvider: 'deepseek',
-      outputTokens: 2048,
+      outputTokens: 9999,
       contextTokens: 32768,
       showAnalysisWindow: false,
     }))
@@ -247,8 +173,8 @@ describe('normalizeSubAgent', () => {
       codingProvider: 'deepseek',
       openrouterProviderOnly: '',
       codingOpenrouterProviderOnly: '',
-      outputTokens: 2048,
-      contextTokens: 32768,
+      outputTokens: defaults.subAgent.outputTokens,
+      contextTokens: defaults.subAgent.contextTokens,
       showAnalysisWindow: false,
     })
   })

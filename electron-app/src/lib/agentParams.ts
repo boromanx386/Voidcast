@@ -59,6 +59,10 @@ export interface ChatWithToolsCommonParams {
   deepseekApiKeyForSubAgent?: string
   openaiBaseUrlForSubAgent?: string
   openaiApiKeyForSubAgent?: string
+  nvidiaBaseUrlForSubAgent?: string
+  nvidiaApiKeyForSubAgent?: string
+  opencodeGoApiKeyForSubAgent?: string
+  ttsBaseUrlForSubAgent?: string
   thinkLevel?: LlmThinkLevel
   subAgentUi?: SubAgentUiCallbacks
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
@@ -74,7 +78,7 @@ export function buildToolExecutorOptions(
   params: ChatWithToolsCommonParams,
 ): Omit<ExecCtx, 'toolsEnabled'> {
   return {
-    ttsBaseUrl: params.ttsBaseUrl,
+    ttsBaseUrl: params.ttsBaseUrlForSubAgent ?? params.ttsBaseUrl,
     signal: params.signal,
     pdfOutputDir: params.pdfOutputDir,
     runware: params.runware,
@@ -102,6 +106,9 @@ export function buildToolExecutorOptions(
     deepseekApiKey: params.deepseekApiKeyForSubAgent,
     openaiBaseUrl: params.openaiBaseUrlForSubAgent,
     openaiApiKey: params.openaiApiKeyForSubAgent,
+    nvidiaBaseUrl: params.nvidiaBaseUrlForSubAgent,
+    nvidiaApiKey: params.nvidiaApiKeyForSubAgent,
+    opencodeGoApiKey: params.opencodeGoApiKeyForSubAgent,
     subAgentUi: params.subAgentUi,
     onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
     imageVisionCache: params.imageVisionCache,
