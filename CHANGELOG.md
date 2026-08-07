@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.8.2] — 2026-08-07
+
 ### Added
 
 - **Soft-deny whole-file re-reads**: `read_file` now refuses a full re-read of a path already in the session digests or this turn's working-set cache, returning a compact digest reminder (with `force:true` / `start_line` / `end_line` guidance) instead of re-dumping the file. New `force` parameter escapes the guard. Soft-deny reminders are not re-added to the cache, so the working set stays stable.
