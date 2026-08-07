@@ -44,6 +44,11 @@ export interface ExecCtx {
   mcpOwnerId?: string;
   /** Plan mode blocks mutating tools even if registered. */
   agentMode?: AgentChatMode;
+  /**
+   * Nest depth of coding workers / explore nested runs (0 = main loop).
+   * Workers set this ≥ 1 so run_coding_workers cannot recurse.
+   */
+  codingWorkerDepth?: number;
   /** Live approved plan during Approve & Build (for update_plan_progress). */
   getActiveBuildPlan?: () => PlanArtifact | undefined;
   /** Sub-agent config for image_recall delegation. */
@@ -56,6 +61,9 @@ export interface ExecCtx {
   deepseekApiKey?: string;
   openaiBaseUrl?: string;
   openaiApiKey?: string;
+  nvidiaBaseUrl?: string;
+  nvidiaApiKey?: string;
+  opencodeGoApiKey?: string;
   /** UI hooks while sub-agent describes images (header-style panel in App). */
   subAgentUi?: SubAgentUiCallbacks;
   /** Persist sub-agent descriptions onto the session (for later history context). */

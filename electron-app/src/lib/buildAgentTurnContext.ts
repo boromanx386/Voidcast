@@ -43,13 +43,19 @@ import {
   type RunwareModelProfile,
   type RunwareMusicModelProfile,
 } from '@/lib/settings'
+import { normalizeAgentChatMode } from '@/types/chat'
 import {
   buildProjectInstructionsHint,
   buildSkillsCatalogHint,
   discoverAgentSkills,
   loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
-import { BUILD_WITH_RESEARCH_SYSTEM_HINT, buildPlanModeSystemHint } from '@/lib/planArtifact'
+import {
+  BUILD_WITH_RESEARCH_SYSTEM_HINT,
+  BUILD_WITH_TEAM_WORKERS_SYSTEM_HINT,
+  BUILD_TEAM_WORKERS_SYSTEM_HINT,
+  buildPlanModeSystemHint,
+} from '@/lib/planArtifact'
 import { formatPlanHandoffUserBlock } from '@/lib/codingReadGuard'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { ensureMcpToolsCached, type McpToolInfo } from '@/lib/mcpTools'
@@ -80,6 +86,10 @@ export type BuildAgentTurnContextParams = {
    * enter_plan_mode handoff: prior agent-turn exploration to reuse in Plan mode.
    */
   planHandoffContext?: string
+  /**
+   * True when this turn is Approve & Build (even without research) — Team build hints.
+   */
+  buildFromPlan?: boolean
 }
 
 export type BuildAgentTurnContextResult = {
@@ -118,6 +128,7 @@ export async function buildAgentTurnContext(
     systemPromptPreset,
     buildWithResearch = false,
     planHandoffContext = '',
+    buildFromPlan = false,
   } = params
 
   const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
@@ -140,8 +151,9 @@ export async function buildAgentTurnContext(
     settings.codingProjectPath ||
     ''
   ).trim()
-  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
+  const agentMode = normalizeAgentChatMode(settings.agentMode)
   const planMode = agentMode === 'plan'
+  const teamMode = agentMode === 'team'
   const handoffHint = planHandoffContext.trim()
   const handoffUserBlock =
     planMode && handoffHint ? formatPlanHandoffUserBlock(handoffHint) : ''
@@ -219,12 +231,24 @@ export async function buildAgentTurnContext(
   const planModeSystemHint = planMode
     ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint) })
     : ''
-  const buildResearchSystemHint =
-    !planMode && buildWithResearch ? BUILD_WITH_RESEARCH_SYSTEM_HINT : ''
   const toolsHintParts: string[] = []
   if (handoffHint && planMode) toolsHintParts.push(handoffHint)
-  if (buildResearchSystemHint) toolsHintParts.push(buildResearchSystemHint)
+  // Approve & Build (Plan → implement)
+  if (!planMode && buildFromPlan && teamMode && settings.subAgent?.codingEnabled) {
+    toolsHintParts.push(
+      buildWithResearch
+        ? BUILD_WITH_TEAM_WORKERS_SYSTEM_HINT
+        : BUILD_TEAM_WORKERS_SYSTEM_HINT,
+    )
+  } else if (!planMode && buildWithResearch) {
+    toolsHintParts.push(BUILD_WITH_RESEARCH_SYSTEM_HINT)
+  }
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
+  if (teamMode && useTools && settings.subAgent?.codingEnabled) {
+    toolsHintParts.push(
+      'TEAM DEFAULT: multi-file / multi-area work → call run_coding_workers early (≤2 path-disjoint tasks). You orchestrate; workers implement. Skip enter_plan_mode.',
+    )
+  }
   if (mcpActive) {
     const servers = [...new Set(mcpTools.map((t) => t.serverId))].sort()
     toolsHintParts.push(
@@ -281,7 +305,10 @@ export async function buildAgentTurnContext(
       )
     } else {
       toolsHintParts.push(
-        buildToolsCodingHint(codingProjectPath, { codingSubAgentEnabled: codingSub }),
+        buildToolsCodingHint(codingProjectPath, {
+          codingSubAgentEnabled: codingSub,
+          teamMode,
+        }),
       )
       toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
       toolsHintParts.push(
@@ -316,9 +343,21 @@ export async function buildAgentTurnContext(
       'For delete_reminder and update_reminder, pass search_text to find the reminder by its text.',
     ].join('\n')
     toolsHintParts.push(remindersHint)
-    if (settings.toolsEnabled.enterPlan) {
+    if (settings.toolsEnabled.enterPlan && !teamMode) {
       toolsHintParts.push(
         'You have an enter_plan_mode tool. Call it when a task is complex, risky, or has meaningful tradeoffs — before making any changes — or whenever the user explicitly asks for a plan. It hands control to Plan mode, which explores read-only and presents an editable plan card for approval before anything is implemented.',
+      )
+    }
+    if (teamMode) {
+      toolsHintParts.push(
+        [
+          'Team mode stays active for the whole turn — do not switch to Plan.',
+          'enter_plan_mode is unavailable.',
+          settings.subAgent?.codingEnabled
+            ? 'Non-trivial coding: run_coding_workers is the default path (≤2 path-disjoint tasks + path_prefix). After digests: verify, then one user answer. Direct tools only for tiny single-file work or glue.'
+            : 'Coding sub-agent is off — enable Options → SUB → ENABLE_CODING_SUB_AGENT so Team can run parallel workers (otherwise Team has no point).',
+          'If the user only wanted a plan card, tell them to use Plan mode in the composer.',
+        ].join(' '),
       )
     }
   } else if (useTools && planMode) {

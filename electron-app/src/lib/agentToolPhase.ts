@@ -93,6 +93,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'coding_shell'
     case 'coding_explore':
       return 'coding_explore'
+    case 'run_coding_workers':
+      return 'coding_explore'
     case 'update_settings':
       return 'settings'
     case 'add_reminder':

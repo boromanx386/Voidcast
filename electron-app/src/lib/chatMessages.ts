@@ -73,11 +73,20 @@ export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolut
 /** When coding tools are enabled — same MUST-call discipline as image/music hints. */
 export function buildToolsCodingHint(
   projectPath: string,
-  opts?: { codingSubAgentEnabled?: boolean },
+  opts?: { codingSubAgentEnabled?: boolean; teamMode?: boolean },
 ): string {
   const path = projectPath.trim() || '(not set)'
-  const exploreLine = opts?.codingSubAgentEnabled
-    ? '- coding_explore — delegate read-only codebase mapping to the coding sub-agent (digest of paths/findings before you edit).\n'
+  const subOn = Boolean(opts?.codingSubAgentEnabled)
+  const teamMode = Boolean(opts?.teamMode)
+  const exploreLine = subOn
+    ? teamMode
+      ? '- coding_explore — optional read-only map (compact digest). In Team mode, use sparingly before workers — do not replace run_coding_workers.\n'
+      : '- coding_explore — optional read-only codebase map (digest) on the coding sub-agent.\n'
+    : ''
+  const workersLine = subOn
+    ? teamMode
+      ? '- run_coding_workers — PRIMARY for multi-file / multi-area / multi-step builds: spawn 1–2 parallel workers with path-disjoint goals + path_prefix. Call early (after a light map if needed), not after grinding many edit_code calls yourself.\n'
+      : '- run_coding_workers — optional: spawn 1–2 parallel workers (coding sub-agent) for path-disjoint multi-area work. Use when helpful; otherwise implement yourself with edit_code/write_file.\n'
     : ''
   return `You have local coding tools scoped to the configured project folder. CRITICAL: When the user asks to read, list, search, write, edit, refactor, fix, run, build, test, install, or inspect git state in the project, you MUST call the matching coding tool on THIS turn BEFORE any final answer. Do NOT paste code blocks, diffs, terminal output, or "done/fixed/saved" claims unless that tool already returned real output in this turn.
 
@@ -93,11 +102,25 @@ Tool choice (call the right one first):
 - git_restore — undo a bad edit on one tracked path (worktree from index; to_head=true resets to HEAD). Never commits.
 - git_stash — checkpoint without commit (list / push / pop). Use push before risky multi-file work.
 - check_types — TypeScript (tsc), Python (ruff/pyright), Go (go vet), or Rust (cargo check); auto-detects from path_prefix / .ts|.py|.go|.rs paths and project markers.
-${exploreLine}
+${exploreLine}${workersLine}
 Never claim a file was read, changed, created, or that a command ran unless the corresponding tool succeeded in this turn. Before edit_code, ensure you have the exact snippet (from an in-context read_file this turn, or one targeted range-read). Prefer find_symbols to locate lines first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
 If Active coding processes lists a server/dev command still running, do not start a duplicate; reuse or stop_process(runId) first.
-
-Coding project path: ${path}`
+${
+  teamMode && subOn
+    ? `
+TEAM MODE (orchestrator protocol — this is why Team exists):
+1. You coordinate; workers implement. Stay in Team — never escalate to Plan.
+2. DEFAULT for non-trivial coding (multi-file, multi-folder, multi-step, large feature/refactor): partition into ≤2 path-disjoint tasks (each with path_prefix when possible) and call run_coding_workers ON THIS TURN early. Do not implement the whole surface yourself with sequential edit_code/write_file.
+3. Workers return digests — then you verify (git_diff / check_types / targeted read), fix glue yourself if needed, and answer the user once.
+4. Direct edit_code / write_file yourself ONLY for: single-file / tiny hotfixes, or small glue after workers. A short in-chat checklist is fine; Plan cards are a separate composer mode the user chooses.
+`
+    : subOn
+      ? `
+AGENT MODE workers (optional): run_coding_workers is available when coding sub-agent is enabled. Use it for independent multi-area parallel work if it helps; otherwise implement yourself. Not required for small single-file tasks.
+`
+      : ''
+}
+Coding project root: ${path}`
 }
 
 /** When any tools are enabled — reduces false claims about tool execution.

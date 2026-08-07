@@ -262,12 +262,20 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply text-neon-purple border-neon-purple/35 hover:border-neon-purple/55 hover:bg-neon-purple/5;
 }
 
+.composer-mode-trigger--team {
+  @apply text-neon-green border-neon-green/35 hover:border-neon-green/55 hover:bg-neon-green/5;
+}
+
 .composer-mode-trigger[aria-expanded='true'] {
   @apply border-neon-cyan/60 bg-neon-cyan/10;
 }
 
 .composer-mode-trigger--plan[aria-expanded='true'] {
   @apply border-neon-purple/60 bg-neon-purple/10;
+}
+
+.composer-mode-trigger--team[aria-expanded='true'] {
+  @apply border-neon-green/60 bg-neon-green/10;
 }
 
 .composer-mode-dropdown {
@@ -301,6 +309,10 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .composer-mode-option--plan.composer-mode-option--active {
   @apply bg-neon-purple/10 text-neon-purple;
+}
+
+.composer-mode-option--team.composer-mode-option--active {
+  @apply bg-neon-green/10 text-neon-green;
 }
 
 .composer-preset-trigger {
@@ -352,6 +364,18 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 .composer-plan-banner__text {
+  @apply text-void-dim leading-snug;
+}
+
+.composer-team-banner {
+  @apply mb-2 rounded border border-neon-green/35 bg-neon-green/10 px-3 py-2 text-xs leading-relaxed text-void-text;
+}
+
+.composer-team-banner__title {
+  @apply mb-0.5 block text-[11px] font-semibold text-neon-green;
+}
+
+.composer-team-banner__text {
   @apply text-void-dim leading-snug;
 }
 

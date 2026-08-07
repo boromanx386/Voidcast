@@ -192,6 +192,18 @@ describe('formatPlanForBuildPrompt', () => {
     expect(prompt).toContain('Searches: BUILD_WITH_RESEARCH')
     expect(prompt).toContain('Edit buildAgentTurnContext for the hint.')
   })
+
+  test('teamWorkers adds run_coding_workers guidance', () => {
+    const plan = extractPlanArtifactFromReply(`\`\`\`json plan
+{
+  "title":"Ship",
+  "steps":["Edit a","Edit b"]
+}
+\`\`\``)!
+    const prompt = formatPlanForBuildPrompt(plan, { teamWorkers: true })
+    expect(prompt).toContain('run_coding_workers')
+    expect(prompt).toContain('path-disjoint')
+  })
 })
 
 describe('formatPlanForRevisePrompt', () => {

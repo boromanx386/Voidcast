@@ -79,6 +79,7 @@ import type {
   SystemPromptPreset,
   UiMessage,
 } from '@/types/chat'
+import { normalizeAgentChatMode } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
 
 export type UseChatAgentDeps = {
@@ -154,7 +155,7 @@ export type OnSendOptions = {
   displayText?: string
   history?: UiMessage[]
   skipAddUserMsg?: boolean
-  /** Override settings.agentMode for this turn (Approve → Build uses 'agent'). */
+  /** Override settings.agentMode for this turn (Approve → Build: Agent, or Team if already selected). */
   forceAgentMode?: AgentChatMode
   /** After a successful build turn, mark this plan message as built. */
   buildFromPlanMessageId?: string
@@ -596,11 +597,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const imagePaths = queued.map((q) => (q.path || '').trim())
 
       const turnAgentMode: AgentChatMode =
-        opts?.forceAgentMode === 'plan' || opts?.forceAgentMode === 'agent'
+        opts?.forceAgentMode === 'plan' ||
+        opts?.forceAgentMode === 'agent' ||
+        opts?.forceAgentMode === 'team'
           ? opts.forceAgentMode
-          : settings.agentMode === 'plan'
-            ? 'plan'
-            : 'agent'
+          : normalizeAgentChatMode(settings.agentMode)
 
       // Freeze coding root + agent mode for the whole turn so a session switch
       // (which mutates global settings) cannot retarget live tool calls.
@@ -669,6 +670,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           projectPath: turnCodingProjectPath,
         }),
         activeSessionUseLongMemory,
+        buildFromPlan: Boolean(opts?.buildFromPlanMessageId),
         buildWithResearch: (() => {
           const planMsgId = opts?.buildFromPlanMessageId
           if (!planMsgId) return false
@@ -868,6 +870,10 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             deepseekApiKeyForSubAgent: turnSettings.deepseekApiKey,
             openaiBaseUrlForSubAgent: turnSettings.openaiBaseUrl,
             openaiApiKeyForSubAgent: turnSettings.openaiApiKey,
+            nvidiaBaseUrlForSubAgent: turnSettings.nvidiaBaseUrl,
+            nvidiaApiKeyForSubAgent: turnSettings.nvidiaApiKey,
+            opencodeGoApiKeyForSubAgent: turnSettings.opencodeGoApiKey,
+            ttsBaseUrlForSubAgent: turnSettings.ttsBaseUrl,
             subAgentUi:
               (turnSettings.subAgent.enabled || turnSettings.subAgent.codingEnabled) &&
               turnSettings.subAgent.showAnalysisWindow !== false
@@ -1333,16 +1339,32 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         prev.map((m) => (m.id === messageId ? { ...m, plan: approved } : m)),
       )
       onSessionDirty()
-      setSettings((s) => ({ ...s, agentMode: 'agent' }))
-      const buildText = formatPlanForBuildPrompt(approved)
+      // Respect composer mode: Team stays Team (workers available). Plan alone → Agent for writes.
+      const composerMode = normalizeAgentChatMode(settings.agentMode)
+      const buildMode: AgentChatMode = composerMode === 'team' ? 'team' : 'agent'
+      const teamWorkers =
+        buildMode === 'team' &&
+        Boolean(settings.toolsEnabled.coding) &&
+        Boolean(settings.subAgent?.codingEnabled)
+      setSettings((s) => (s.agentMode === buildMode ? s : { ...s, agentMode: buildMode }))
+      const buildText = formatPlanForBuildPrompt(approved, { teamWorkers })
       void onSend({
         text: buildText,
         displayText: `Build approved plan: ${approved.title || 'plan'}`,
-        forceAgentMode: 'agent',
+        forceAgentMode: buildMode,
         buildFromPlanMessageId: messageId,
       })
     },
-    [busy, onSend, onSessionDirty, setMessages, setSettings],
+    [
+      busy,
+      onSend,
+      onSessionDirty,
+      setMessages,
+      setSettings,
+      settings.agentMode,
+      settings.subAgent?.codingEnabled,
+      settings.toolsEnabled.coding,
+    ],
   )
 
   const revisePlanWithCustomNote = useCallback(

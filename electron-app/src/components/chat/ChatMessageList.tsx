@@ -4,6 +4,7 @@ import { getEmptyStateMessage } from '@/components/chat/chatEmptyState'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { useChatMessageRender } from '@/hooks/useChatMessageRender'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
+import { normalizeAgentChatMode } from '@/types/chat'
 
 type Props = {
   app: Pick<
@@ -40,7 +41,7 @@ type Props = {
 export function ChatMessageList({ app }: Props) {
   const { settings, messages, busy, toolPhase } = app
   const [emptyStateSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
-  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
+  const agentMode = normalizeAgentChatMode(settings.agentMode)
   const uiDystopian = settings.uiTheme === 'dystopian'
 
   const emptyStateMessage = useMemo(

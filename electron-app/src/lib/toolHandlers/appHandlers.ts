@@ -28,7 +28,14 @@ import {
 } from "@/lib/toolHandlers/helpers";
 import type { ToolHandlerFn, ToolHandlerRegistry } from "@/lib/toolExecTypes";
 
-export const handleEnterPlanMode: ToolHandlerFn = async (args, ctx) => {
+export const handleEnterPlanMode: ToolHandlerFn = async (_args, ctx) => {
+  if (ctx.agentMode === "team") {
+    return (
+      "Error: Team mode does not escalate to Plan. Stay in Team: use " +
+      "run_coding_workers (parallel coding workers) and implement. " +
+      "If the user wants a Plan card, they must switch the composer to Plan themselves."
+    );
+  }
   return "Switching to Plan mode.";
 };
 

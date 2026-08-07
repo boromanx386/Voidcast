@@ -5,7 +5,8 @@ import { isWebStandalone } from '@/lib/platform'
 import { getChatComposerPlaceholder } from '@/components/chat/chatEmptyState'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
-import type { SystemPromptPreset } from '@/types/chat'
+import type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
+import { normalizeAgentChatMode } from '@/types/chat'
 
 type Props = {
   app: Pick<
@@ -83,7 +84,7 @@ export function ChatComposer({ app }: Props) {
     [settings.uiTheme, settings.agentMode],
   )
 
-  const agentMode = settings.agentMode === 'plan' ? 'plan' : 'agent'
+  const agentMode = normalizeAgentChatMode(settings.agentMode)
   const [modeMenuOpen, setModeMenuOpen] = useState(false)
   const modeMenuRef = useRef<HTMLDivElement>(null)
 
@@ -136,15 +137,32 @@ export function ChatComposer({ app }: Props) {
     setPresetMenuOpen(false)
   }
 
-  const setAgentMode = (mode: 'agent' | 'plan') => {
+  const setAgentMode = (mode: AgentChatMode) => {
     setSettings((s) => ({ ...s, agentMode: mode }))
     setModeMenuOpen(false)
   }
 
+  const MODE_CYCLE: AgentChatMode[] = ['agent', 'team', 'plan']
   const toggleAgentMode = () => {
     if (busy) return
-    setAgentMode(agentMode === 'plan' ? 'agent' : 'plan')
+    const i = MODE_CYCLE.indexOf(agentMode)
+    setAgentMode(MODE_CYCLE[(i + 1) % MODE_CYCLE.length]!)
   }
+
+  const modeLabel =
+    agentMode === 'plan' ? 'Plan' : agentMode === 'team' ? 'Team' : 'Agent'
+  const modeTitle =
+    agentMode === 'plan'
+      ? 'Plan mode (read-only) — Shift+Tab to cycle'
+      : agentMode === 'team'
+        ? 'Team mode — up to 2 coding workers — Shift+Tab to cycle'
+        : 'Agent mode — Shift+Tab to cycle'
+  const modeTriggerClass =
+    agentMode === 'plan'
+      ? 'composer-mode-trigger--plan'
+      : agentMode === 'team'
+        ? 'composer-mode-trigger--team'
+        : 'composer-mode-trigger--agent'
 
   return (
     <footer className="voidcast-input-area">
@@ -217,6 +235,16 @@ export function ChatComposer({ app }: Props) {
               </p>
             </div>
           )}
+          {agentMode === 'team' && (
+            <div className="composer-team-banner" role="status">
+              <span className="composer-team-banner__title">Team mode</span>
+              <p className="composer-team-banner__text">
+                Prefer parallel coding workers (up to 2) via run_coding_workers. Agent mode can
+                also call workers as an option; Team pushes them as the default for multi-area work.
+                Requires Options → SUB → coding sub-agent.
+              </p>
+            </div>
+          )}
           <textarea
             className="voidcast-textarea"
             rows={2}
@@ -260,20 +288,12 @@ export function ChatComposer({ app }: Props) {
                 disabled={busy}
                 aria-haspopup="menu"
                 aria-expanded={modeMenuOpen}
-                aria-label={`Mode: ${agentMode === 'plan' ? 'Plan' : 'Agent'}`}
-                title={
-                  agentMode === 'plan'
-                    ? 'Plan mode (read-only) — Shift+Tab to switch'
-                    : 'Agent mode — Shift+Tab to switch'
-                }
+                aria-label={`Mode: ${modeLabel}`}
+                title={modeTitle}
                 onClick={() => setModeMenuOpen((open) => !open)}
-                className={`composer-mode-trigger ${
-                  agentMode === 'plan'
-                    ? 'composer-mode-trigger--plan'
-                    : 'composer-mode-trigger--agent'
-                }`}
+                className={`composer-mode-trigger ${modeTriggerClass}`}
               >
-                <span aria-hidden>{agentMode === 'plan' ? 'Plan' : 'Agent'}</span>
+                <span aria-hidden>{modeLabel}</span>
                 <svg
                   className={`h-2 w-2 opacity-60 transition-transform ${
                     modeMenuOpen ? 'rotate-180' : ''
@@ -302,6 +322,20 @@ export function ChatComposer({ app }: Props) {
                       {agentMode === 'agent' ? '●' : '○'}
                     </span>
                     <span>Agent</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={agentMode === 'team'}
+                    className={`composer-mode-option composer-mode-option--team${
+                      agentMode === 'team' ? ' composer-mode-option--active' : ''
+                    }`}
+                    onClick={() => setAgentMode('team')}
+                  >
+                    <span className="w-3 text-center" aria-hidden>
+                      {agentMode === 'team' ? '●' : '○'}
+                    </span>
+                    <span>Team</span>
                   </button>
                   <button
                     type="button"

@@ -219,6 +219,20 @@ export const BUILD_WITH_RESEARCH_SYSTEM_HINT = [
   'Use write_file / edit_code / execute_command for real implementation work, and call update_plan_progress as you finish steps.',
 ].join(' ')
 
+/** Team build: plan research already done — parallel workers for multi-area steps. */
+export const BUILD_WITH_TEAM_WORKERS_SYSTEM_HINT = [
+  'This is an Approve & Build turn in Team mode.',
+  'Research is already attached — skip broad re-explore.',
+  'If unfinished steps touch different folders/areas: call run_coding_workers with ≤2 path-disjoint tasks (path_prefix), then verify and update_plan_progress.',
+  'Do not grind the entire plan as a long sequential edit_code loop yourself unless steps are tiny/single-file.',
+].join(' ')
+
+/** System hint when Approve & Build has no research but is Team. */
+export const BUILD_TEAM_WORKERS_SYSTEM_HINT = [
+  'This is an Approve & Build turn in Team mode.',
+  'Partition unfinished multi-area steps into ≤2 path-disjoint run_coding_workers tasks early, then verify and update_plan_progress.',
+].join(' ')
+
 /** System hint appended in Plan mode — explore read-only, end with JSON plan fence. */
 export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string {
   const lines = [
@@ -239,6 +253,7 @@ export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string
     'Offer approaches only when there are real tradeoffs (e.g. speed vs safety vs scope). Prefer 2 distinct options; add a 3rd only if it is meaningfully different — never pad with filler. Optionally add a 4th (D) only when warranted.',
     'Steps must be concrete: name the files/modules to touch and what to change in each (not vague "update the module" / "wire it up").',
     'Always include a compact "research" object with keyFiles (paths you explored), findings (architecture + exact edit points), and searches so Approve & Build can reuse them. Base findings on coding_explore / read_file / search_files / handoff digests — do not invent them from the user prompt alone. Keep findings under ~2500 characters.',
+    'Prefer steps that name distinct file areas (so Approve & Build / Team can run parallel workers by path_prefix). Avoid “do everything” mega-steps.',
     'End your reply with a fenced JSON block tagged `json plan`. Preferred shapes:',
     '',
     'Flat plan (most tasks):',
@@ -479,11 +494,20 @@ export function stripPlanJsonFenceFromContent(text: string): string {
     .trimEnd()
 }
 
-export function formatPlanForBuildPrompt(plan: PlanArtifact): string {
+export function formatPlanForBuildPrompt(
+  plan: PlanArtifact,
+  opts?: { teamWorkers?: boolean },
+): string {
   const hasResearch = planHasResearch(plan)
+  const teamWorkers = Boolean(opts?.teamWorkers)
   const lines = [
     'Build the approved plan. Implement it with the available tools. Do not ask for another plan unless blocked.',
     'When you finish a step, call update_plan_progress with that step_id (or 1-based step_index) before moving on. The UI only checks steps when you call this tool — file edits alone do not advance the checklist.',
+    ...(teamWorkers
+      ? [
+          'Team workers are available: if remaining steps span multiple folders/areas, split into ≤2 path-disjoint tasks and call run_coding_workers early (each task needs path_prefix when possible). After workers return, verify, mark steps with update_plan_progress, and only patch leftovers yourself.',
+        ]
+      : []),
     ...(hasResearch
       ? [
           'Plan-mode research (including file digests) is attached below. Prefer it over re-exploring — skip broad coding_explore / glob_files / full-tree list_directory unless research is empty. Range-read only when you need an exact snippet for edit_code that is not already in the digests.',

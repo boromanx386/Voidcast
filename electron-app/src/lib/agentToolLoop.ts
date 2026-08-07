@@ -434,6 +434,12 @@ export async function runSharedToolLoop<
         args: parseArgs(shared.argsRaw),
       })
       params.onToolPhase?.(null)
+      // Refuse (e.g. Team mode) must not flip the composer into Plan.
+      const refused = /^\s*error\s*:/i.test(result.trim())
+      if (refused) {
+        hasExecutedToolInTurn = true
+        continue
+      }
       params.onEscalateToPlan?.({ messages })
       // Keep the pre-escalation draft instead of discarding it: the UI can show it
       // as a "plan handoff" note rather than making the answer vanish.

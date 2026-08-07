@@ -82,7 +82,7 @@ export { EMPTY_STATE_VARIANTS }
 export function getEmptyStateMessage(
   theme: string,
   seed: number,
-  agentMode: 'agent' | 'plan' = 'agent',
+  agentMode: 'agent' | 'plan' | 'team' = 'agent',
 ): string {
   if (agentMode === 'plan') {
     const variants =
@@ -98,6 +98,9 @@ export function getEmptyStateMessage(
                 ? PLAN_EMPTY_STATE_VARIANTS.obsidian
                 : PLAN_EMPTY_STATE_VARIANTS.minimal
     return variants[seed % variants.length]
+  }
+  if (agentMode === 'team') {
+    return 'Team mode — split large coding work across up to 2 workers.'
   }
   const variants =
     theme === 'dystopian'
@@ -116,10 +119,13 @@ export function getEmptyStateMessage(
 
 export function getChatComposerPlaceholder(
   theme: string,
-  agentMode: 'agent' | 'plan' = 'agent',
+  agentMode: 'agent' | 'plan' | 'team' = 'agent',
 ): string {
   if (agentMode === 'plan') {
     return 'Describe what to plan…'
+  }
+  if (agentMode === 'team') {
+    return 'Team goal — multi-area coding with parallel workers…'
   }
   if (theme in CHAT_COMPOSER_PLACEHOLDER) {
     return CHAT_COMPOSER_PLACEHOLDER[theme as UiTheme]

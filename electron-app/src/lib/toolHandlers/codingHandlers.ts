@@ -14,6 +14,10 @@ import {
   invokeWriteCodingFile,
 } from "@/lib/codingTools";
 import { runCodingExplore } from "@/lib/codingSubAgent";
+import {
+  parseCodingWorkerTasks,
+  runCodingWorkers,
+} from "@/lib/codingWorkers";
 import type { ToolHandlerFn, ToolHandlerRegistry } from "@/lib/toolExecTypes";
 import {
   ACTIVE_PROCESS_LAST_MAX_CHARS,
@@ -482,6 +486,10 @@ export const handleCodingExplore: ToolHandlerFn = async (args, ctx) => {
       deepseekApiKey: ctx.deepseekApiKey || "",
       openaiBaseUrl: ctx.openaiBaseUrl || "https://api.openai.com/v1",
       openaiApiKey: ctx.openaiApiKey || "",
+      nvidiaBaseUrl: ctx.nvidiaBaseUrl || "https://integrate.api.nvidia.com/v1",
+      nvidiaApiKey: ctx.nvidiaApiKey || "",
+      opencodeGoApiKey: ctx.opencodeGoApiKey || "",
+      ttsBaseUrl: ctx.ttsBaseUrl,
     },
     signal: ctx.signal,
     ui: ctx.subAgentUi,
@@ -493,6 +501,62 @@ export const handleCodingExplore: ToolHandlerFn = async (args, ctx) => {
         ...rest,
         // Nested explore must stay read-only even if main agent is not in plan mode.
         agentMode: "plan",
+        codingWorkerDepth: (ctx.codingWorkerDepth ?? 0) + 1,
+      });
+    },
+  });
+};
+
+export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
+  if ((ctx.codingWorkerDepth ?? 0) > 0) {
+    return "Error: run_coding_workers cannot be nested inside a coding worker.";
+  }
+  if (ctx.agentMode === "plan") {
+    return "Error: run_coding_workers is not available in Plan mode (read-only).";
+  }
+  if (ctx.agentMode !== "agent" && ctx.agentMode !== "team") {
+    return "Error: run_coding_workers requires Agent or Team mode.";
+  }
+  if (!ctx.toolsEnabled.coding)
+    return "Error: coding tools are disabled in settings.";
+  if (!ctx.subAgent?.codingEnabled) {
+    return "Error: coding sub-agent is disabled (Options → SUB → ENABLE_CODING_SUB_AGENT).";
+  }
+  const projectPath = (ctx.codingProjectPath || "").trim();
+  if (!projectPath)
+    return "Error: coding project folder is not set in settings.";
+
+  const parsed = parseCodingWorkerTasks(args);
+  if (!parsed.ok) return parsed.error;
+
+  return runCodingWorkers({
+    tasks: parsed.tasks,
+    recentFiles: ctx.codingRecentFiles,
+    config: ctx.subAgent,
+    keys: {
+      ollamaBaseUrl: ctx.ollamaBaseUrl || "http://localhost:11434",
+      openrouterBaseUrl:
+        ctx.openrouterBaseUrl || "https://openrouter.ai/api/v1",
+      openrouterApiKey: ctx.openrouterApiKey || "",
+      deepseekBaseUrl: ctx.deepseekBaseUrl || "https://api.deepseek.com",
+      deepseekApiKey: ctx.deepseekApiKey || "",
+      openaiBaseUrl: ctx.openaiBaseUrl || "https://api.openai.com/v1",
+      openaiApiKey: ctx.openaiApiKey || "",
+      nvidiaBaseUrl: ctx.nvidiaBaseUrl || "https://integrate.api.nvidia.com/v1",
+      nvidiaApiKey: ctx.nvidiaApiKey || "",
+      opencodeGoApiKey: ctx.opencodeGoApiKey || "",
+      ttsBaseUrl: ctx.ttsBaseUrl,
+    },
+    signal: ctx.signal,
+    ui: ctx.subAgentUi,
+    executeTool: async (toolName, toolArgs) => {
+      const { executeToolCall } = await import("@/lib/agentToolExecutor");
+      const { toolsEnabled, ...rest } = ctx;
+      return executeToolCall(toolName, toolArgs, toolsEnabled, {
+        ...rest,
+        // Workers run as agent (writable), not plan, at depth ≥ 1.
+        agentMode: "agent",
+        codingWorkerDepth: (ctx.codingWorkerDepth ?? 0) + 1,
       });
     },
   });
@@ -518,4 +582,5 @@ export const codingHandlersRegistry: ToolHandlerRegistry = {
   ["stop_process"]: handleStopProcess,
   ["read_process_output"]: handleReadProcessOutput,
   ["coding_explore"]: handleCodingExplore,
+  ["run_coding_workers"]: handleRunCodingWorkers,
 };

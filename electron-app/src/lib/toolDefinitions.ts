@@ -25,6 +25,7 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'delete_reminder',
   'update_reminder',
   'update_plan_progress',
+  'run_coding_workers',
   MCP_CALL_NAME,
 ])
 
@@ -38,7 +39,10 @@ export type AgentToolParameterSchema = {
   type: string
   description?: string
   enum?: readonly string[]
-  items?: { type: string; minimum?: number }
+  items?: AgentToolParameterSchema
+  properties?: Record<string, AgentToolParameterSchema>
+  required?: string[]
+  minimum?: number
 }
 
 /** Shared OpenAI-style function tool definition (Ollama / OpenRouter / future providers). */
@@ -931,6 +935,48 @@ const CODING_EXPLORE_TOOL: AgentToolDefinition = {
   },
 }
 
+const CODING_RUN_WORKERS_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'run_coding_workers',
+    description:
+      'Spawn 1–2 parallel coding workers on the coding sub-agent model. ' +
+      'Optional in Agent mode; preferred in Team mode for multi-file / multi-area work. ' +
+      'Partition by folder (path_prefix), call once, then synthesize digests. ' +
+      'Workers may read and write within scope. Prefer this over many sequential edit_code/write_file ' +
+      'calls when areas are independent. Do not nest.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tasks: {
+          type: 'array',
+          description: '1–2 worker tasks run in parallel (path-disjoint when possible).',
+          items: {
+            type: 'object',
+            properties: {
+              goal: {
+                type: 'string',
+                description: 'What this worker should implement or change (concrete files/behavior).',
+              },
+              path_prefix: {
+                type: 'string',
+                description:
+                  'Project-relative folder or file scope for writes (strongly preferred so workers do not collide).',
+              },
+              max_rounds: {
+                type: 'number',
+                description: 'Max nested tool rounds per worker (default 50, max 50).',
+              },
+            },
+            required: ['goal'],
+          },
+        },
+      },
+      required: ['tasks'],
+    },
+  },
+}
+
 const ADD_REMINDER_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1227,6 +1273,7 @@ export function buildToolsList(
   opts?: { agentMode?: AgentChatMode; mcpTools?: McpToolInfo[]; subAgentCodingEnabled?: boolean },
 ): AgentToolDefinition[] {
   const planMode = opts?.agentMode === 'plan'
+  const teamMode = opts?.agentMode === 'team'
   const out: AgentToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
@@ -1264,10 +1311,16 @@ export function buildToolsList(
       out.push(CODING_EXECUTE_COMMAND_TOOL)
       out.push(CODING_STOP_PROCESS_TOOL)
     }
-    if (opts?.subAgentCodingEnabled) out.push(CODING_EXPLORE_TOOL)
+    if (opts?.subAgentCodingEnabled) {
+      out.push(CODING_EXPLORE_TOOL)
+      // Workers: opt-in tool in Agent + expected path in Team. Never in Plan (read-only).
+      if (!planMode) out.push(CODING_RUN_WORKERS_TOOL)
+    }
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)
-  if (enabled.enterPlan && !planMode) out.push(ENTER_PLAN_MODE_TOOL)
+  // Team mode owns multi-area dispatch (run_coding_workers). Escalating to Plan
+  // strips workers and confuses the user who already chose Team.
+  if (enabled.enterPlan && !planMode && !teamMode) out.push(ENTER_PLAN_MODE_TOOL)
   if (!planMode) out.push(UPDATE_PLAN_PROGRESS_TOOL)
   if (!planMode) out.push(UPDATE_SETTINGS_TOOL)
   if (!planMode) out.push(ADD_REMINDER_TOOL)

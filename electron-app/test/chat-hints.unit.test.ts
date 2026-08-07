@@ -165,4 +165,26 @@ describe('buildToolsCodingHint', () => {
     expect(hint).toContain('edit_code')
     expect(hint).toContain('execute_command')
   })
+
+  test('team mode forbids plan escalate and prefers workers', () => {
+    const hint = buildToolsCodingHint('Q:/coding/vst', {
+      codingSubAgentEnabled: true,
+      teamMode: true,
+    })
+    expect(hint).toContain('run_coding_workers')
+    expect(hint).toContain('orchestrator protocol')
+    expect(hint).toContain('TEAM MODE')
+    expect(hint).toContain('DEFAULT for non-trivial coding')
+  })
+
+  test('agent mode exposes workers as optional', () => {
+    const hint = buildToolsCodingHint('Q:/coding/vst', {
+      codingSubAgentEnabled: true,
+      teamMode: false,
+    })
+    expect(hint).toContain('run_coding_workers')
+    expect(hint).toContain('optional')
+    expect(hint).toContain('AGENT MODE workers')
+    expect(hint).not.toContain('PRIMARY for multi-file')
+  })
 })

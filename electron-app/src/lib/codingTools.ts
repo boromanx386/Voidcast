@@ -14,6 +14,7 @@ import {
   type CodingCommandOutputEvent,
 } from '@/lib/codingCommandStream'
 
+// Central helper: bridge absence is reported as a failed result, not a thrown exception.
 function missingBridgeResult(action: string): CodingToolResult {
   return { ok: false, text: `${action} is available only in Electron desktop.` }
 }
