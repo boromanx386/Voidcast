@@ -22,6 +22,7 @@ type Props = {
     | 'chatAttachmentInputRef'
     | 'onPickChatAttachments'
     | 'openChatAttachmentPicker'
+    | 'processChatAttachmentFiles'
     | 'removePendingImage'
     | 'removePendingFile'
     | 'isRecording'
@@ -50,6 +51,7 @@ export function ChatComposer({ app }: Props) {
     chatAttachmentInputRef,
     onPickChatAttachments,
     openChatAttachmentPicker,
+    processChatAttachmentFiles,
     removePendingImage,
     removePendingFile,
     isRecording,
@@ -231,6 +233,23 @@ export function ChatComposer({ app }: Props) {
                 e.preventDefault()
                 void onSend()
               }
+            }}
+            onPaste={(e) => {
+              // Ctrl+V: paste a screenshot/copied image from the clipboard as a
+              // pending attachment — same path as drag & drop and the picker.
+              const items = e.clipboardData?.items
+              if (!items || items.length === 0) return
+              const pastedImages: File[] = []
+              for (let i = 0; i < items.length; i++) {
+                const item = items[i]
+                if (item.kind === 'file' && item.type?.startsWith('image/')) {
+                  const f = item.getAsFile()
+                  if (f) pastedImages.push(f)
+                }
+              }
+              if (pastedImages.length === 0) return
+              e.preventDefault()
+              void processChatAttachmentFiles(pastedImages)
             }}
           />
 
