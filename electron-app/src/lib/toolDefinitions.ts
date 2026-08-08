@@ -965,7 +965,7 @@ const CODING_RUN_WORKERS_TOOL: AgentToolDefinition = {
               },
               max_rounds: {
                 type: 'number',
-                description: 'Max nested tool rounds per worker (default 50, max 50).',
+                description: 'Max nested tool rounds per worker (default 100, max 100).',
               },
             },
             required: ['goal'],

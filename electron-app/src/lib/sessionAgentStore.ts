@@ -44,7 +44,7 @@ export type SessionAgentSlot = {
   /** Prevents context-auto-compress from re-firing until usage drops. */
   contextOverflowLatch: boolean
   toolResultBanner: { kind: 'pdf'; text: string } | null
-  /** Floating sub-agent analysis panel (vision / explore / workers). */
+  /** Floating sub-agent analysis panel (legacy ephemeral slot; live UI anchors on messages). */
   subAgentPanel: SubAgentPanelState
   media: SessionAgentMediaState
   /**

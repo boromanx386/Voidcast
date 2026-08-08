@@ -69,6 +69,7 @@ import {
   applyVisionProgress,
   applyVisionStart,
   closeSubAgentPanel,
+  emptySubAgentPanelState,
   setSubAgentPanelCollapsed as setSubAgentPanelCollapsedState,
   type SubAgentPanelState,
 } from '@/lib/subAgentPanelState'
@@ -340,6 +341,23 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       patchSubAgentPanel((p) => setSubAgentPanelCollapsedState(p, collapsed)),
     [patchSubAgentPanel],
   )
+  const setMessageSubAgentActivity = useCallback(
+    (messageId: string, activity: SubAgentPanelState | null) => {
+      sessionAgentStore.update(runtimeKey, (prev) => ({
+        ...prev,
+        messages: prev.messages.map((m) => {
+          if (m.id !== messageId) return m
+          if (!activity) {
+            const { subAgentActivity: _drop, ...rest } = m
+            return rest
+          }
+          return { ...m, subAgentActivity: activity }
+        }),
+      }))
+      onSessionDirty()
+    },
+    [onSessionDirty, runtimeKey],
+  )
 
   const mediaView = sessionAgentStore.mediaSetters(runtimeKey)
 
@@ -533,10 +551,19 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const patchPanel = (
         reducer: (prev: SubAgentPanelState) => SubAgentPanelState,
       ) => {
-        sessionAgentStore.update(keyOf(), (prev) => ({
-          ...prev,
-          subAgentPanel: reducer(prev.subAgentPanel),
-        }))
+        sessionAgentStore.update(keyOf(), (prev) => {
+          const nextPanel = reducer(prev.subAgentPanel)
+          return {
+            ...prev,
+            subAgentPanel: nextPanel,
+            // Anchor activity to this turn's assistant message so it stays in
+            // timeline order when later user prompts appear below.
+            messages: prev.messages.map((m) =>
+              m.id === asstId ? { ...m, subAgentActivity: nextPanel } : m,
+            ),
+          }
+        })
+        if (isViewingThisRun()) onSessionDirty()
       }
       const runSubAgentUi: SubAgentUiCallbacks = {
         onStart: (imageCount) => {
@@ -755,6 +782,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const { runId, controller: ac } = sessionAgentStore.beginRun(keyOf(), {
         codingProjectPath: turnCodingProjectPath,
       })
+      // New turn: clear ephemeral live panel (anchored cards stay on prior messages).
+      sessionAgentStore.update(keyOf(), (prev) => ({
+        ...prev,
+        subAgentPanel: emptySubAgentPanelState(),
+      }))
       const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
       if (isEdit) {
         const handoffDraft =
@@ -1401,6 +1433,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     subAgentPanel,
     setSubAgentPanelOpen,
     setSubAgentPanelCollapsed,
+    setMessageSubAgentActivity,
     assistantGeneratedImages: media.assistantGeneratedImages,
     setAssistantGeneratedImages: mediaView.setAssistantGeneratedImages,
     assistantSavedImagePaths: media.assistantSavedImagePaths,

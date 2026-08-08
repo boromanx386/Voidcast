@@ -338,3 +338,67 @@ export function formatSubAgentTime(at: number): string {
     return ''
   }
 }
+
+/** Persistable snapshot: drop transient open=false, cap events. */
+export function normalizeSubAgentActivity(raw: unknown): SubAgentPanelState | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const o = raw as Partial<SubAgentPanelState>
+  if (o.open === false) return undefined
+  const kind =
+    o.kind === 'vision' || o.kind === 'explore' || o.kind === 'workers' || o.kind === 'idle'
+      ? o.kind
+      : 'idle'
+  const events = Array.isArray(o.events)
+    ? o.events
+        .filter((e) => e && typeof e === 'object' && typeof (e as SubAgentPanelEvent).text === 'string')
+        .slice(-MAX_EVENTS)
+        .map((e) => {
+          const ev = e as SubAgentPanelEvent
+          return {
+            id: typeof ev.id === 'string' ? ev.id : nextEventId(),
+            at: typeof ev.at === 'number' ? ev.at : Date.now(),
+            text: String(ev.text).slice(0, 500),
+            level:
+              ev.level === 'ok' || ev.level === 'warn' || ev.level === 'err' || ev.level === 'info'
+                ? ev.level
+                : 'info',
+            ...(typeof ev.workerId === 'string' ? { workerId: ev.workerId } : {}),
+          }
+        })
+    : []
+  const workers = Array.isArray(o.workers)
+    ? o.workers
+        .filter((w) => w && typeof w === 'object' && typeof (w as SubAgentWorkerSlot).id === 'string')
+        .slice(0, 4)
+        .map((w) => {
+          const slot = w as SubAgentWorkerSlot
+          return {
+            id: slot.id,
+            label: typeof slot.label === 'string' ? slot.label.slice(0, 40) : slot.id,
+            status:
+              slot.status === 'done' || slot.status === 'error' || slot.status === 'running'
+                ? slot.status
+                : 'done',
+            ...(typeof slot.progress === 'string'
+              ? { progress: slot.progress.slice(0, 40) }
+              : {}),
+            ...(typeof slot.lastLine === 'string'
+              ? { lastLine: slot.lastLine.slice(0, 160) }
+              : {}),
+          }
+        })
+    : []
+  const text =
+    typeof o.text === 'string' ? o.text.slice(0, 12_000) : ''
+  return {
+    open: true,
+    busy: false,
+    collapsed: o.collapsed !== false,
+    kind,
+    title: typeof o.title === 'string' ? o.title.slice(0, 40) : 'SUB_AGENT',
+    progress: typeof o.progress === 'string' ? o.progress.slice(0, 80) : '',
+    text,
+    events,
+    workers,
+  }
+}

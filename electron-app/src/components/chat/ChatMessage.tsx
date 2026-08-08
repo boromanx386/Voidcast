@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { PlanArtifactCard } from '@/components/chat/PlanArtifactCard'
+import { SubAgentActivityCard } from '@/components/chat/SubAgentPanel'
 import { dedupeNonEmpty } from '@/lib/chatHints'
 import { imageDataUrl } from '@/lib/imageAttachment'
 import {
@@ -42,6 +43,7 @@ type Props = {
     | 'ttsOk'
     | 'abortTts'
     | 'onRead'
+    | 'setMessageSubAgentActivity'
   >
 }
 
@@ -75,6 +77,7 @@ export function ChatMessage({
     ttsOk,
     abortTts,
     onRead,
+    setMessageSubAgentActivity,
   } = app
   const {
     thinkingScrollRef,
@@ -166,6 +169,21 @@ export function ChatMessage({
                         {m.thinking}
                       </div>
                     </details>
+                  ) : null}
+                  {m.subAgentActivity?.open &&
+                  (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
+                  settings.subAgent.showAnalysisWindow !== false ? (
+                    <SubAgentActivityCard
+                      embedded
+                      panel={m.subAgentActivity}
+                      onCollapse={(collapsed) =>
+                        setMessageSubAgentActivity(m.id, {
+                          ...m.subAgentActivity!,
+                          collapsed,
+                        })
+                      }
+                      onDismiss={() => setMessageSubAgentActivity(m.id, null)}
+                    />
                   ) : null}
                   <ChatMarkdown content={markdownContent} />
                   {m.plan ? (

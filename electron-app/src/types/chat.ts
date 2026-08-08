@@ -96,10 +96,17 @@ export type UiMessage = {
   generatedImagePaths?: string[]
   /** Assistant only: structured plan from Plan mode (editable until approved/built). */
   plan?: PlanArtifact
+  /**
+   * Assistant only: collapsible sub-agent activity card for this turn
+   * (vision / explore / coding workers). Anchored to the reply so it stays
+   * in timeline order after later user prompts.
+   */
+  subAgentActivity?: SubAgentPanelState
 }
 
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
+import type { SubAgentPanelState } from '@/lib/subAgentPanelState'
 
 export type ChatSessionMessage = UiMessage
 

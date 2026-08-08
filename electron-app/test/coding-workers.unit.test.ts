@@ -86,9 +86,9 @@ describe('path scope + locks', () => {
 describe('worker round budget helpers', () => {
   it('defaults and clamps max rounds', () => {
     expect(clampWorkerMaxRounds(undefined)).toBe(CODING_WORKER_DEFAULT_ROUNDS)
-    expect(CODING_WORKER_DEFAULT_ROUNDS).toBe(50)
-    expect(CODING_WORKER_MAX_ROUNDS).toBe(50)
-    expect(clampWorkerMaxRounds(99)).toBe(CODING_WORKER_MAX_ROUNDS)
+    expect(CODING_WORKER_DEFAULT_ROUNDS).toBe(100)
+    expect(CODING_WORKER_MAX_ROUNDS).toBe(100)
+    expect(clampWorkerMaxRounds(150)).toBe(CODING_WORKER_MAX_ROUNDS)
     expect(clampWorkerMaxRounds(1)).toBe(1)
   })
 

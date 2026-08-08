@@ -7,6 +7,7 @@ import {
 } from '@/lib/chatSessionsIndexedDb'
 import { normalizeImageVisionCache } from '@/lib/imageVisionCache'
 import { normalizePlanArtifact } from '@/lib/planArtifact'
+import { normalizeSubAgentActivity } from '@/lib/subAgentPanelState'
 import { normalizeSystemPromptPreset } from '@/lib/settings'
 import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
 
@@ -66,17 +67,29 @@ function isSessionLike(v: unknown): v is ChatSession {
 }
 
 function normalizeMessage(msg: UiMessage): UiMessage {
-  if (!msg.plan) return msg
-  const plan = normalizePlanArtifact(msg.plan)
-  if (!plan) {
-    const { plan: _drop, ...rest } = msg
-    return rest
+  let next = msg
+  if (msg.plan) {
+    const plan = normalizePlanArtifact(msg.plan)
+    if (!plan) {
+      const { plan: _drop, ...rest } = msg
+      next = rest
+    } else if (plan.status === 'approved') {
+      // Interrupted Approve & Build must not stay locked after reload.
+      next = { ...msg, plan: { ...plan, status: 'draft' } }
+    } else {
+      next = { ...msg, plan }
+    }
   }
-  // Interrupted Approve & Build must not stay locked after reload.
-  if (plan.status === 'approved') {
-    return { ...msg, plan: { ...plan, status: 'draft' } }
+  if (next.subAgentActivity) {
+    const activity = normalizeSubAgentActivity(next.subAgentActivity)
+    if (!activity) {
+      const { subAgentActivity: _drop, ...rest } = next
+      next = rest
+    } else {
+      next = { ...next, subAgentActivity: activity }
+    }
   }
-  return { ...msg, plan }
+  return next
 }
 
 function normalizeSession(raw: ChatSession): ChatSession {

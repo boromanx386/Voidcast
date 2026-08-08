@@ -17,8 +17,8 @@ import {
 
 export const CODING_WORKER_MAX_TASKS = 2
 /** Default tool rounds before forced digest. */
-export const CODING_WORKER_DEFAULT_ROUNDS = 50
-export const CODING_WORKER_MAX_ROUNDS = 50
+export const CODING_WORKER_DEFAULT_ROUNDS = 100
+export const CODING_WORKER_MAX_ROUNDS = 100
 export const CODING_WORKER_READ_BUDGET = 64_000
 
 /** Explore tools + mutation tools (no nested team/explore recursion). */
