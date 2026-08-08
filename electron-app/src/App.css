@@ -271,7 +271,7 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 .composer-mode-trigger--ask {
-  @apply text-neon-green border-neon-green/35 hover:border-neon-green/55 hover:bg-neon-green/5;
+  @apply text-neon-yellow border-neon-yellow/35 hover:border-neon-yellow/55 hover:bg-neon-yellow/5;
 }
 
 .composer-mode-trigger[aria-expanded='true'] {
@@ -287,7 +287,7 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 .composer-mode-trigger--ask[aria-expanded='true'] {
-  @apply border-neon-green/60 bg-neon-green/10;
+  @apply border-neon-yellow/60 bg-neon-yellow/10;
 }
 
 .composer-mode-dropdown {
@@ -328,7 +328,7 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 .composer-mode-option--ask.composer-mode-option--active {
-  @apply bg-neon-green/10 text-neon-green;
+  @apply bg-neon-yellow/10 text-neon-yellow;
 }
 
 .composer-preset-trigger {
@@ -392,11 +392,11 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 .composer-ask-banner {
-  @apply mb-2 rounded border border-neon-green/35 bg-neon-green/10 px-3 py-2 text-xs leading-relaxed text-void-text;
+  @apply mb-2 rounded border border-neon-yellow/35 bg-neon-yellow/10 px-3 py-2 text-xs leading-relaxed text-void-text;
 }
 
 .composer-ask-banner__title {
-  @apply mb-0.5 block text-[11px] font-semibold text-neon-green;
+  @apply mb-0.5 block text-[11px] font-semibold text-neon-yellow;
 }
 
 .composer-team-banner__text {

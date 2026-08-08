@@ -23,7 +23,10 @@ Agent invokes search, Reddit, YouTube, weather, image generation and edit, music
 Change themes, toggle voice, or update settings directly via natural commands in the conversation.
 
 **Work with your code**  
-The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. It also remembers your coding context across sessions — recent files, directories, searches, git operations, command results, and tool failures are persisted per-project and restored when you reopen a repo. Switch the composer to **Plan** mode to explore read-only, revise with **Something else…** if needed, then **Approve & Build** to implement with live step progress.
+The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. Coding context (recent files, directories, searches, git ops, command results, tool failures) is stored per project and restored when you reopen a repo. Composer modes cover full implement (**Agent**), read-only Q&A (**Ask**), structured plan then **Approve & Build** (**Plan**), and multi-file orchestration with coding workers (**Team**). Details under [Chat modes](#chat-modes) and [Multi-chat & Team](docs/multi-chat-and-team.md).
+
+**Several chats at once**  
+Start work in one session, open another, keep both running (up to **3** concurrent agent turns). Each chat keeps its own messages, project, and tool loop — Stop cancels only the active session. See [Multi-chat & Team](docs/multi-chat-and-team.md).
 
 **Facts & memory**  
 Facts, reminders, and preferences persist across sessions — stored locally in IndexedDB. 
@@ -136,12 +139,22 @@ Example remote OAuth entry:
 }
 ```
 
-### Plan mode
+### Chat modes
 
-In the chat composer, switch **AGENT | PLAN**:
+Composer chip (or `Shift+Tab`) cycles **Agent → Ask → Plan → Team**:
 
-- **Plan** — read-only tools only (list/read/search/git inspect). The agent proposes a structured plan card with editable steps and, when useful, competing approaches. Prefer a single flat plan; A/B (rarely C/D) only for real tradeoffs. Pick an approach, edit steps, or use **Something else…** / **Revise plan** for your own idea — then **Approve & Build**. A banner above the composer reminds you that edits are blocked until approval; Plan mode has its own empty-state copy.
-- **Approve & Build** — flips to Agent mode, implements the plan, and shows live progress (sticky panel). Research and context gathered in Plan mode carry into the build phase. The agent marks steps done via `update_plan_progress` (not guessed from file edits). Stop or errors reopen the plan for **Retry Build**; completion marks **Built** only after at least one step was checked off.
+| Mode | Role |
+|------|------|
+| **Agent** | Full tools — implement in the main loop (code, media, options, MCP, terminal as enabled). |
+| **Ask** | Read-only Q&A: explore and explain; no writes, no workers, no plan tools. |
+| **Plan** | Read-only research + plan card (editable steps; optional A/B approaches). No edits until approval. |
+| **Team** | Like Agent, plus `run_coding_workers` (up to **2** parallel coding tasks under optional path scopes). Parent waits for workers; no nested workers. |
+
+- **Approve & Build** (from Plan) — implements with **Team** if Team is selected in the composer, otherwise **Agent**. Live step progress via `update_plan_progress`. Stop/errors allow **Retry Build**; **Built** only after at least one step is checked off.
+- Plan tools `enter_plan_mode` / `update_plan_progress` are available in Agent / Plan / Team (not Ask).
+- MCP writes and mutating coding tools stay blocked in Plan and Ask.
+
+Full walkthrough: [docs/multi-chat-and-team.md](docs/multi-chat-and-team.md).
 
 <p align="center">
   <img src="demos/voidcast-options-skills-9x16.png" width="700" alt="Skills tab"/>
@@ -169,6 +182,7 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `execute_command` (with timeout + `run_in_background` flag for dev servers/watchers)
 - `list_processes`, `stop_process`, `read_process_output` — explicit process control (list active processes by runId, kill by runId, poll stdout/stderr with offset paging)
 - `coding_explore` — read-only codebase exploration via sub-agent
+- `run_coding_workers` — **Team** mode only: up to two parallel workers for multi-area edits (see [Multi-chat & Team](docs/multi-chat-and-team.md))
 
 Hardened tools: `edit_code` requires exact `find_text` match — if it doesn't match, returns the actual file snippet and `closest_matches` (no model-invented fuzzy diffs). `write_file` writes atomically via temp+rename, with auto-closing newline and range support for large files. Clear-result digests replace multi-thousand-char dumps from `git_diff`, `search_files`, and `list_directory`.
 
@@ -289,7 +303,7 @@ Other UX features:
 - **Thinking blocks** — collapsible reasoning; for Ollama, choose **off / low / medium / high / on** in LLM options
 - **Chat sounds** — optional local audio files for reply done and errors (**Options → General**)
 - **Reminder toasts** — native notification when a reminder is due (toggle in General)
-- **Chat keyboard shortcuts** — Ctrl+S save session, Ctrl+N new chat, Shift+Tab toggle Plan/Agent mode
+- **Chat keyboard shortcuts** — Ctrl+S save session, Ctrl+N new chat, Shift+Tab cycle Agent → Ask → Plan → Team
 - **Chat sessions grouped by project folder** — General chats at top, project-specific groups below
 - **Start a chat for a project** — each project-folder group has a `+` button (revealed on hover) that starts a fresh chat already bound to that folder
 - **Type while the agent is working** — the composer stays active during a running turn; type a correction and press Enter to **Steer** (abort + redirect mid-turn), or wait for the turn to finish

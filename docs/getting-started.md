@@ -52,7 +52,7 @@ Cloud API keys are kept in renderer `localStorage`; on LAN web clients `saveSett
 
 All settings live in `electron-app/src/lib/settings.ts`:
 
-- **Storage**: renderer `localStorage` under the key **`voidcast-settings-v1`** (`STORAGE_KEY`). A legacy key `omnivoice-chat-settings-v1` is read once to migrate.
+- **Storage**: renderer `localStorage` under the key **`voidcast-settings-v1`** (`STORAGE_KEY`).
 - **Load**: `loadSettings()` reads `localStorage`, merges over `defaults`, runs `normalizeAll` (llm, subAgent, tts, tools, pdf dir, ui theme, agent mode, runware, notification sounds, lan web access), then `sanitizeDesktopServiceUrls` and `applyWebRuntimeOverrides`.
 - **Save**: `saveSettings(s)` writes `JSON.stringify` to `localStorage` (stripping cloud secrets on LAN web clients).
 - **Defaults**: `export const defaults: AppSettings` (settings.ts). See [settings-reference.md](settings-reference.md) for every key.

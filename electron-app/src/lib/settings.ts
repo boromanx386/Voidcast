@@ -1386,8 +1386,6 @@ import {
 } from '@/lib/platform'
 
 const STORAGE_KEY = 'voidcast-settings-v1'
-/** Previous key; read once to migrate */
-const LEGACY_STORAGE_KEY = 'omnivoice-chat-settings-v1'
 const AGENT_HIDDEN_SETTINGS_FIELDS = [
   'openrouterApiKey',
   'nvidiaApiKey',
@@ -2375,17 +2373,12 @@ function ollamaUrlShouldUseDesktopProxy(url: string): boolean {
 export function loadSettings(): AppSettings {
   let merged: AppSettings
   try {
-    const rawNew = localStorage.getItem(STORAGE_KEY)
-    const rawLegacy = localStorage.getItem(LEGACY_STORAGE_KEY)
-    const raw = rawNew ?? rawLegacy
+    const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
       merged = { ...defaults }
     } else {
       const parsed = JSON.parse(raw) as Partial<AppSettings>
       merged = normalizeAll({ ...defaults, ...parsed })
-      if (!rawNew && rawLegacy) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
-      }
     }
   } catch {
     merged = { ...defaults }
