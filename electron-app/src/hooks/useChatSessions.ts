@@ -381,7 +381,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     !settings.autoSaveChat &&
     messages.length > 0 &&
     !busy &&
-    (sessionDirty || activeUnsaved)
+    activeUnsaved
 
   const applyComposerDraft = (key: string) => {
     const draft = loadComposerDraft(key)

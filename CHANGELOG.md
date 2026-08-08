@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Coding worker round budget raised (and documented) to **100** rounds.
+- **Save icon only while unsaved** (auto-save off): the SAVE affordance now shows only for sessions that are genuinely still drafts (`unsaved` flag), not whenever any new message arrives. Saving a chat once removes the flag, and from then on the session auto-persists — the save icon no longer reappears for already-saved chats.
 
 ## [2.8.2] — 2026-08-07
 
