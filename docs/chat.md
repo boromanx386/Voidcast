@@ -35,8 +35,9 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
 - Multiline textarea with send/stop, image & file chips, STT record, mode and preset menus. Send enabled with non-empty input or pending attachments and not busy; "pending draft" shown while busy.
 - **Agent mode toggle**: cycles `Agent → Team → Plan` (`MODE_CYCLE = ['agent','team','plan']`, also `Shift+Tab`). `AgentChatMode = 'agent' | 'plan' | 'team'` in `electron-app/src/types/chat.ts`; normalized by `normalizeAgentChatMode`.
   - **Agent** — full tool implementation; coding workers optional if SUB coding is on.
-  - **Plan** — read-only; banner "Plan mode … Approve & build on the plan card"; produces editable `PlanArtifact` (`PlanArtifactCard.tsx`); Approve & Build starts **Agent** (or **Team** if composer is already Team).
-  - **Team** — prefers **`run_coding_workers`** (≤2 parallel workers); requires Options → SUB → coding sub-agent. No `enter_plan_mode` in Team.
+  - **Ask** — read-only Q&A (web/research/coding read/explore); no Plan card, no `enter_plan_mode`, no mutations/workers.
+  - **Plan** — read-only; plan artifact + Approve & Build → **Agent** (or **Team** if composer already Team).
+  - **Team** — prefers **`run_coding_workers`** (≤2 parallel); requires coding SUB. No `enter_plan_mode`.
 - **System prompt preset** menu (`default|code|creative|teacher`, `SYSTEM_PROMPT_PRESETS` in settings.ts).
 - **Long-memory** extract button (`extractLongMemoryNow`, `longMemoryBusy`).
 - Placeholder from theme/mode (`getChatComposerPlaceholder`).
@@ -68,10 +69,11 @@ Full table: [multi-chat-and-team.md](multi-chat-and-team.md) and [options/subage
 | Mode | Intent |
 | --- | --- |
 | **Agent** | Full tools; workers optional if coding SUB on |
-| **Team** | Orchestrate multi-area work; prefer `run_coding_workers` early; no `enter_plan_mode` |
-| **Plan** | Read-only explore + plan card; no workers; **Approve & Build** → Agent or Team per composer |
+| **Ask** | Read-only Q&A; no plan artifact; no workers / mutations |
+| **Team** | Orchestrate multi-area; prefer `run_coding_workers`; no `enter_plan_mode` |
+| **Plan** | Read-only + plan card; no workers; **Approve & Build** → Agent or Team per composer |
 
-Composer cycles Agent → Team → Plan (`Shift+Tab` or mode chip).
+Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 
 ## Long-Term Memory (MemoryPreviewModal.tsx)
 

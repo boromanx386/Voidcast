@@ -145,7 +145,7 @@ export function ChatComposer({ app }: Props) {
     setModeMenuOpen(false)
   }
 
-  const MODE_CYCLE: AgentChatMode[] = ['agent', 'team', 'plan']
+  const MODE_CYCLE: AgentChatMode[] = ['agent', 'ask', 'plan', 'team']
   const toggleAgentMode = () => {
     if (busy) return
     const i = MODE_CYCLE.indexOf(agentMode)
@@ -153,19 +153,29 @@ export function ChatComposer({ app }: Props) {
   }
 
   const modeLabel =
-    agentMode === 'plan' ? 'Plan' : agentMode === 'team' ? 'Team' : 'Agent'
+    agentMode === 'plan'
+      ? 'Plan'
+      : agentMode === 'ask'
+        ? 'Ask'
+        : agentMode === 'team'
+          ? 'Team'
+          : 'Agent'
   const modeTitle =
     agentMode === 'plan'
       ? 'Plan mode (read-only) — Shift+Tab to cycle'
-      : agentMode === 'team'
-        ? 'Team mode — up to 2 coding workers — Shift+Tab to cycle'
-        : 'Agent mode — Shift+Tab to cycle'
+      : agentMode === 'ask'
+        ? 'Ask mode (read-only, no plan) — Shift+Tab to cycle'
+        : agentMode === 'team'
+          ? 'Team mode — up to 2 coding workers — Shift+Tab to cycle'
+          : 'Agent mode — Shift+Tab to cycle'
   const modeTriggerClass =
     agentMode === 'plan'
       ? 'composer-mode-trigger--plan'
-      : agentMode === 'team'
-        ? 'composer-mode-trigger--team'
-        : 'composer-mode-trigger--agent'
+      : agentMode === 'ask'
+        ? 'composer-mode-trigger--ask'
+        : agentMode === 'team'
+          ? 'composer-mode-trigger--team'
+          : 'composer-mode-trigger--agent'
 
   return (
     <footer className="voidcast-input-area">
@@ -235,6 +245,15 @@ export function ChatComposer({ app }: Props) {
               <p className="composer-plan-banner__text">
                 Read-only exploration — no file writes until you press{' '}
                 <span className="text-void-light">Approve &amp; build</span> on the plan card.
+              </p>
+            </div>
+          )}
+          {agentMode === 'ask' && (
+            <div className="composer-ask-banner" role="status">
+              <span className="composer-ask-banner__title">Ask mode</span>
+              <p className="composer-ask-banner__text">
+                Read-only Q&amp;A — answers your question without changing anything. For actual
+                edits, switch to Agent, Team, or Plan mode.
               </p>
             </div>
           )}
@@ -329,6 +348,20 @@ export function ChatComposer({ app }: Props) {
                       {agentMode === 'agent' ? '●' : '○'}
                     </span>
                     <span>Agent</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={agentMode === 'ask'}
+                    className={`composer-mode-option composer-mode-option--ask${
+                      agentMode === 'ask' ? ' composer-mode-option--active' : ''
+                    }`}
+                    onClick={() => setAgentMode('ask')}
+                  >
+                    <span className="w-3 text-center" aria-hidden>
+                      {agentMode === 'ask' ? '●' : '○'}
+                    </span>
+                    <span>Ask</span>
                   </button>
                   <button
                     type="button"

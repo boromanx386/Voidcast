@@ -292,6 +292,18 @@ export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string
   return lines.join('\n')
 }
 
+/** System hint appended in Ask mode — read-only Q&A, no plan artifact. */
+export function buildAskModeSystemHint(): string {
+  return (
+    'You are in ASK mode (read-only Q&A). Use available read-only and web/research tools to answer the user’s question accurately, ' +
+    'but do NOT implement changes, write or edit files, run shell commands, generate media, mutate settings/reminders, ' +
+    'call MCP mutating tools, or dispatch coding workers. ' +
+    'Do not produce a plan JSON fence or a Plan artifact — just answer the question directly. ' +
+    'enter_plan_mode is not available in Ask mode; if the user wants a structured plan card, tell them to switch the composer to Plan. ' +
+    'If they want actual code/file changes, suggest Agent or Team mode.'
+  )
+}
+
 /** @deprecated Prefer buildPlanModeSystemHint() — kept for callers/tests that import the constant. */
 export const PLAN_MODE_SYSTEM_HINT = buildPlanModeSystemHint()
 

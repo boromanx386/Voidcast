@@ -511,8 +511,8 @@ export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
   if ((ctx.codingWorkerDepth ?? 0) > 0) {
     return "Error: run_coding_workers cannot be nested inside a coding worker.";
   }
-  if (ctx.agentMode === "plan") {
-    return "Error: run_coding_workers is not available in Plan mode (read-only).";
+  if (ctx.agentMode === "plan" || ctx.agentMode === "ask") {
+    return "Error: run_coding_workers is not available in Plan or Ask mode (read-only).";
   }
   if (ctx.agentMode !== "agent" && ctx.agentMode !== "team") {
     return "Error: run_coding_workers requires Agent or Team mode.";

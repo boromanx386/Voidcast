@@ -3,6 +3,7 @@ import {
   advancePlanStepsOnProgress,
   applyPlanProgressUpdate,
   attachResearchToPlan,
+  buildAskModeSystemHint,
   emptyPlanResearchHarvest,
   extractPlanArtifactFromReply,
   finalizePlanAfterBuild,
@@ -434,5 +435,15 @@ describe('plan research harvest + merge', () => {
       'Error: File not found',
     )
     expect(planResearchFromHarvest(harvest)).toBeUndefined()
+  })
+})
+
+describe('buildAskModeSystemHint', () => {
+  test('forbids plan fence and points user at composer modes', () => {
+    const h = buildAskModeSystemHint()
+    expect(h).toMatch(/ASK mode/i)
+    expect(h).toMatch(/Plan artifact|plan JSON|no plan/i)
+    expect(h).toMatch(/Agent|Team/)
+    expect(h).not.toMatch(/Approve & Build/)
   })
 })

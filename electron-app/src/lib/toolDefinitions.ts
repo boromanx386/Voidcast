@@ -1,5 +1,6 @@
 import { AGENT_EDITABLE_SETTINGS_FIELDS, type ToolsEnabled } from '@/lib/settings'
 import type { AgentChatMode } from '@/types/chat'
+import { isReadOnlyAgentMode } from '@/types/chat'
 import {
   MCP_CALL_NAME,
   MCP_GET_TOOL_NAME,
@@ -8,7 +9,7 @@ import {
   type McpToolInfo,
 } from '@/lib/mcpTools'
 
-/** Tools that mutate the system / filesystem / media — blocked in Plan mode. */
+/** Tools that mutate the system / filesystem / media — blocked in Plan and Ask (read-only) modes. */
 export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'write_file',
   'edit_code',
@@ -1274,24 +1275,28 @@ export function buildToolsList(
 ): AgentToolDefinition[] {
   const planMode = opts?.agentMode === 'plan'
   const teamMode = opts?.agentMode === 'team'
+  const askMode = opts?.agentMode === 'ask'
+  // Ask and Plan are both read-only: same mutating-tool filter.
+  // Plan additionally drives the plan artifact (planMode below).
+  const readOnlyMode = isReadOnlyAgentMode(opts?.agentMode)
   const out: AgentToolDefinition[] = []
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
   if (enabled.reddit) out.push(REDDIT_FEED_TOOL)
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
-  if (enabled.pdf && !planMode) out.push(SAVE_PDF_TOOL)
+  if (enabled.pdf && !readOnlyMode) out.push(SAVE_PDF_TOOL)
   // Vision recall is independent of Runware generate/edit.
   out.push(IMAGE_RECALL_TOOL)
-  if (enabled.runwareImage && !planMode) {
+  if (enabled.runwareImage && !readOnlyMode) {
     out.push(GENERATE_IMAGE_TOOL)
     out.push(EDIT_IMAGE_RUNWARE_TOOL)
   }
-  if (enabled.runwareMusic && !planMode) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
+  if (enabled.runwareMusic && !readOnlyMode) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
   if (enabled.coding) {
     out.push(CODING_LIST_DIRECTORY_TOOL)
     out.push(CODING_READ_FILE_TOOL)
-    if (!planMode) {
+    if (!readOnlyMode) {
       out.push(CODING_WRITE_FILE_TOOL)
       out.push(CODING_EDIT_CODE_TOOL)
     }
@@ -1305,7 +1310,7 @@ export function buildToolsList(
     out.push(CODING_CHECK_TYPES_TOOL)
     out.push(CODING_LIST_PROCESSES_TOOL)
     out.push(CODING_READ_PROCESS_OUTPUT_TOOL)
-    if (!planMode) {
+    if (!readOnlyMode) {
       out.push(CODING_GIT_RESTORE_TOOL)
       out.push(CODING_GIT_STASH_TOOL)
       out.push(CODING_EXECUTE_COMMAND_TOOL)
@@ -1313,19 +1318,19 @@ export function buildToolsList(
     }
     if (opts?.subAgentCodingEnabled) {
       out.push(CODING_EXPLORE_TOOL)
-      // Workers: opt-in tool in Agent + expected path in Team. Never in Plan (read-only).
-      if (!planMode) out.push(CODING_RUN_WORKERS_TOOL)
+      // Workers: Agent + Team only. Never in Plan/Ask (read-only).
+      if (!readOnlyMode) out.push(CODING_RUN_WORKERS_TOOL)
     }
   }
   if (skillsEnabled) out.push(READ_SKILL_TOOL)
-  // Team mode owns multi-area dispatch (run_coding_workers). Escalating to Plan
-  // strips workers and confuses the user who already chose Team.
-  if (enabled.enterPlan && !planMode && !teamMode) out.push(ENTER_PLAN_MODE_TOOL)
-  if (!planMode) out.push(UPDATE_PLAN_PROGRESS_TOOL)
-  if (!planMode) out.push(UPDATE_SETTINGS_TOOL)
-  if (!planMode) out.push(ADD_REMINDER_TOOL)
+  // enter_plan_mode: Agent only — not Team (orchestrates workers), not Ask (pure Q&A), not Plan.
+  if (enabled.enterPlan && !planMode && !teamMode && !askMode) out.push(ENTER_PLAN_MODE_TOOL)
+  // Plan progress only useful after Approve & Build (mutating modes).
+  if (!readOnlyMode) out.push(UPDATE_PLAN_PROGRESS_TOOL)
+  if (!readOnlyMode) out.push(UPDATE_SETTINGS_TOOL)
+  if (!readOnlyMode) out.push(ADD_REMINDER_TOOL)
   out.push(LIST_REMINDERS_TOOL)
-  if (!planMode) {
+  if (!readOnlyMode) {
     out.push(DELETE_REMINDER_TOOL)
     out.push(UPDATE_REMINDER_TOOL)
   }
@@ -1334,7 +1339,7 @@ export function buildToolsList(
     out.push(MCP_LIST_TOOLS_TOOL)
     out.push(MCP_GET_TOOL_TOOL)
     out.push(MCP_READ_RESULT_TOOL)
-    if (!planMode) out.push(MCP_CALL_TOOL)
+    if (!readOnlyMode) out.push(MCP_CALL_TOOL)
   }
   return out
 }

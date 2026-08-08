@@ -43,7 +43,7 @@ import {
   type RunwareModelProfile,
   type RunwareMusicModelProfile,
 } from '@/lib/settings'
-import { normalizeAgentChatMode } from '@/types/chat'
+import { normalizeAgentChatMode, isReadOnlyAgentMode } from '@/types/chat'
 import {
   buildProjectInstructionsHint,
   buildSkillsCatalogHint,
@@ -54,6 +54,7 @@ import {
   BUILD_WITH_RESEARCH_SYSTEM_HINT,
   BUILD_WITH_TEAM_WORKERS_SYSTEM_HINT,
   BUILD_TEAM_WORKERS_SYSTEM_HINT,
+  buildAskModeSystemHint,
   buildPlanModeSystemHint,
 } from '@/lib/planArtifact'
 import { formatPlanHandoffUserBlock } from '@/lib/codingReadGuard'
@@ -153,7 +154,10 @@ export async function buildAgentTurnContext(
   ).trim()
   const agentMode = normalizeAgentChatMode(settings.agentMode)
   const planMode = agentMode === 'plan'
+  const askMode = agentMode === 'ask'
   const teamMode = agentMode === 'team'
+  const readOnlyMode = isReadOnlyAgentMode(agentMode)
+  const modeLabel = planMode ? 'Plan' : askMode ? 'Ask' : null
   const handoffHint = planHandoffContext.trim()
   const handoffUserBlock =
     planMode && handoffHint ? formatPlanHandoffUserBlock(handoffHint) : ''
@@ -231,16 +235,17 @@ export async function buildAgentTurnContext(
   const planModeSystemHint = planMode
     ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint) })
     : ''
+  const askModeSystemHint = askMode ? buildAskModeSystemHint() : ''
   const toolsHintParts: string[] = []
   if (handoffHint && planMode) toolsHintParts.push(handoffHint)
-  // Approve & Build (Plan → implement)
-  if (!planMode && buildFromPlan && teamMode && settings.subAgent?.codingEnabled) {
+  // Approve & Build (Plan → implement) — never applies to Ask.
+  if (!readOnlyMode && buildFromPlan && teamMode && settings.subAgent?.codingEnabled) {
     toolsHintParts.push(
       buildWithResearch
         ? BUILD_WITH_TEAM_WORKERS_SYSTEM_HINT
         : BUILD_TEAM_WORKERS_SYSTEM_HINT,
     )
-  } else if (!planMode && buildWithResearch) {
+  } else if (!readOnlyMode && buildWithResearch) {
     toolsHintParts.push(BUILD_WITH_RESEARCH_SYSTEM_HINT)
   }
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
@@ -251,53 +256,56 @@ export async function buildAgentTurnContext(
   }
   if (mcpActive) {
     const servers = [...new Set(mcpTools.map((t) => t.serverId))].sort()
-    toolsHintParts.push(
-      [
-        'MCP progressive discovery (keep context small):',
-        '1) mcp_list_tools with a focused query → short catalog only (no schemas).',
-        '2) mcp_get_tool with ONE qualified name → that tool\'s schema only.',
-        '3) mcp_call with name + arguments.',
-        '4) If mcp_call returns <persisted-output>, use mcp_read_result on that path (or narrower MCP filters) — never invent missing data from the preview alone.',
-        'Never load schemas for many tools at once.',
-        servers.length
-          ? `Connected MCP servers: ${servers.join(', ')} (${mcpTools.length} tools discoverable).`
-          : '',
-      ]
-        .filter(Boolean)
-        .join(' '),
-    )
+    const mcpLines = [
+      'MCP progressive discovery (keep context small):',
+      '1) mcp_list_tools with a focused query → short catalog only (no schemas).',
+      '2) mcp_get_tool with ONE qualified name → that tool\'s schema only.',
+      readOnlyMode
+        ? `3) mcp_call is disabled in ${modeLabel} mode (read-only). Use list/get + non-MCP research tools only.`
+        : '3) mcp_call with name + arguments.',
+      readOnlyMode
+        ? ''
+        : '4) If mcp_call returns <persisted-output>, use mcp_read_result on that path (or narrower MCP filters) — never invent missing data from the preview alone.',
+      'Never load schemas for many tools at once.',
+      servers.length
+        ? `Connected MCP servers: ${servers.join(', ')} (${mcpTools.length} tools discoverable).`
+        : '',
+    ]
+    toolsHintParts.push(mcpLines.filter(Boolean).join(' '))
   }
   if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
   if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
   if (settings.toolsEnabled.reddit) toolsHintParts.push(TOOLS_REDDIT_HINT)
   if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
   if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
-  if (settings.toolsEnabled.pdf && !planMode) toolsHintParts.push(TOOLS_PDF_HINT)
+  if (settings.toolsEnabled.pdf && !readOnlyMode) toolsHintParts.push(TOOLS_PDF_HINT)
   if (useTools) {
     if (settings.toolsEnabled.runwareImage) {
-      if (planMode) {
+      if (readOnlyMode) {
         toolsHintParts.push(
-          'image_recall is available in Plan mode for inspecting existing session/project images (read-only). Image generation/edit tools are disabled until Approve & Build.',
+          `image_recall is available in ${modeLabel} mode for inspecting existing session/project images (read-only). Image generation/edit tools are disabled.`,
         )
       } else {
         toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
       }
-    } else if (planMode) {
+    } else if (readOnlyMode) {
       toolsHintParts.push(
-        'image_recall is available in Plan mode for inspecting existing session/project images (read-only).',
+        `image_recall is available in ${modeLabel} mode for inspecting existing session/project images (read-only).`,
       )
     } else {
       toolsHintParts.push(TOOLS_IMAGE_RECALL_HINT)
     }
   }
-  if (settings.toolsEnabled.runwareMusic && !planMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
+  if (settings.toolsEnabled.runwareMusic && !readOnlyMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
   if (settings.toolsEnabled.coding) {
     const codingSub = Boolean(settings.subAgent?.codingEnabled)
-    if (planMode) {
+    if (readOnlyMode) {
       toolsHintParts.push(
         [
-          `Coding tools are READ-ONLY in Plan mode: list_directory, read_file, search_files, glob_files, find_symbols, git_status, git_diff, git_log, git_show, check_types, list_processes, read_process_output${codingSub ? ', coding_explore' : ''}.`,
-          'write_file, edit_code, execute_command, stop_process, git_restore, and git_stash are disabled until the user Approves & Builds.',
+          `Coding tools are READ-ONLY in ${modeLabel} mode: list_directory, read_file, search_files, glob_files, find_symbols, git_status, git_diff, git_log, git_show, check_types, list_processes, read_process_output${codingSub ? ', coding_explore' : ''}.`,
+          planMode
+            ? 'write_file, edit_code, execute_command, stop_process, git_restore, git_stash, and run_coding_workers are disabled until the user Approves & Builds.'
+            : 'write_file, edit_code, execute_command, stop_process, git_restore, git_stash, and run_coding_workers are disabled in Ask mode. For changes, the user should switch to Agent, Team, or Plan.',
           codingProjectPath
             ? `Coding project root: ${codingProjectPath}`
             : 'No coding project path is set yet (Options → Tools).',
@@ -319,7 +327,7 @@ export async function buildAgentTurnContext(
     const activeHint = buildActiveProcessesHint(activeCodingProcesses)
     if (activeHint) toolsHintParts.push(activeHint)
   }
-  if (useTools && !planMode) {
+  if (useTools && !readOnlyMode) {
     const visible = getAgentVisibleSettings(settings)
     const settingsHint = [
       'You have an update_settings tool for app configuration.',
@@ -360,9 +368,9 @@ export async function buildAgentTurnContext(
         ].join(' '),
       )
     }
-  } else if (useTools && planMode) {
+  } else if (useTools && readOnlyMode) {
     toolsHintParts.push(
-      'Reminder tools: only list_reminders is available in Plan mode (read-only).',
+      `Reminder tools: only list_reminders is available in ${modeLabel} mode (read-only).`,
     )
   }
 
@@ -385,6 +393,7 @@ export async function buildAgentTurnContext(
     systemPrompt: getSystemPromptForPreset(systemPromptPreset, settings),
     projectInstructionsHint: projectInstructionsHint || undefined,
     planModeSystemHint: planModeSystemHint || undefined,
+    askModeSystemHint: askModeSystemHint || undefined,
     skillsSystemHint: skillsSystemHint || undefined,
     runtimeSystemHint: runtimeTimeHint,
     hiddenContextSummary: hiddenContextSummary.trim() || undefined,

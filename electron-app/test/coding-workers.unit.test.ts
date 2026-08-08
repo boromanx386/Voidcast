@@ -138,5 +138,20 @@ describe('buildToolsList team mode', () => {
     expect(plan).not.toContain('run_coding_workers')
     expect(plan).not.toContain('write_file')
     expect(plan).not.toContain('enter_plan_mode')
+
+    const ask = buildToolsList(baseTools, false, {
+      agentMode: 'ask',
+      subAgentCodingEnabled: true,
+    }).map((t) => t.function.name)
+    expect(ask).toContain('read_file')
+    expect(ask).toContain('coding_explore')
+    expect(ask).toContain('list_reminders')
+    expect(ask).not.toContain('run_coding_workers')
+    expect(ask).not.toContain('write_file')
+    expect(ask).not.toContain('execute_command')
+    expect(ask).not.toContain('enter_plan_mode')
+    expect(ask).not.toContain('update_settings')
+    expect(ask).not.toContain('update_plan_progress')
+    expect(ask).not.toContain('generate_image')
   })
 })

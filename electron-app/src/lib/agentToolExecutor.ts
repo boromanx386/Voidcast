@@ -19,8 +19,12 @@ export async function executeToolCall(
     typeof argsJson === "string"
       ? parseToolArguments(argsJson)
       : ((argsJson as Record<string, unknown>) ?? {});
-  if (ctx.agentMode === "plan" && isPlanModeBlockedTool(name)) {
-    return `Error: tool "${name}" is blocked in Plan mode (read-only). Propose a plan instead; the user can Approve & Build to implement.`;
+  if ((ctx.agentMode === "plan" || ctx.agentMode === "ask") && isPlanModeBlockedTool(name)) {
+    return `Error: tool "${name}" is blocked in ${ctx.agentMode === "ask" ? "Ask" : "Plan"} mode (read-only). ${
+      ctx.agentMode === "ask"
+        ? "Ask is read-only: answer the question without mutating anything."
+        : "Propose a plan instead; the user can Approve & Build to implement."
+    }`;
   }
   const fullCtx: ExecCtx = { ...ctx, toolsEnabled };
   const handler = toolHandlerRegistry[name];

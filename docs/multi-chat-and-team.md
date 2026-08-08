@@ -26,16 +26,17 @@ Related: clipboard image paste, type-while-busy + steer mid-turn (see [CHANGELOG
 
 ## Agent / Team / Plan
 
-Composer mode cycles **Agent → Team → Plan** (chip or `Shift+Tab`).
+Composer mode cycles **Agent → Ask → Plan → Team** (chip or `Shift+Tab`).
 
 | Mode | Use for | Workers (`run_coding_workers`) | Explore (`coding_explore`) |
 | --- | --- | --- | --- |
 | **Agent** | Implement yourself; tools full | Optional if coding SUB is on | Yes (coding SUB) |
-| **Team** | Multi-file / multi-area build: main **orchestrates**, workers implement | Preferred / default path | Light map only; do not replace workers |
+| **Ask** | Read-only Q&A (no plan card, no edits) | **No** | Yes (map only) |
+| **Team** | Multi-file / multi-area: main **orchestrates**, workers implement | Preferred / default path | Light map only; do not replace workers |
 | **Plan** | Read-only research + plan card | **No** | Read-only map |
-| **Approve & Build** | After Plan | Follows composer: **Team** if you already selected Team, else **Agent** |
+| **Approve & Build** | After Plan | Follows composer: **Team** if Team selected, else **Agent** |
 
-Team does **not** offer `enter_plan_mode` (no fleeing to Plan mid-team work).
+Team and **Ask** do **not** offer `enter_plan_mode` (use Plan in the composer for a plan card). Ask is pure Q&A — switch to Agent/Team for edits.
 
 **Team setup**
 

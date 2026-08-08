@@ -639,6 +639,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       const turnAgentMode: AgentChatMode =
         opts?.forceAgentMode === 'plan' ||
+        opts?.forceAgentMode === 'ask' ||
         opts?.forceAgentMode === 'agent' ||
         opts?.forceAgentMode === 'team'
           ? opts.forceAgentMode

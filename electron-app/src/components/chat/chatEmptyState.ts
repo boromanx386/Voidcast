@@ -82,8 +82,11 @@ export { EMPTY_STATE_VARIANTS }
 export function getEmptyStateMessage(
   theme: string,
   seed: number,
-  agentMode: 'agent' | 'plan' | 'team' = 'agent',
+  agentMode: 'agent' | 'ask' | 'plan' | 'team' = 'agent',
 ): string {
+  if (agentMode === 'ask') {
+    return 'Ask mode — ask anything, read-only. Nothing will be changed.'
+  }
   if (agentMode === 'plan') {
     const variants =
       theme === 'dystopian'
@@ -119,8 +122,11 @@ export function getEmptyStateMessage(
 
 export function getChatComposerPlaceholder(
   theme: string,
-  agentMode: 'agent' | 'plan' | 'team' = 'agent',
+  agentMode: 'agent' | 'ask' | 'plan' | 'team' = 'agent',
 ): string {
+  if (agentMode === 'ask') {
+    return 'Ask anything — read-only, nothing changes…'
+  }
   if (agentMode === 'plan') {
     return 'Describe what to plan…'
   }

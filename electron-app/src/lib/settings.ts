@@ -13,7 +13,12 @@ import type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
 
 export type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
-export { normalizeAgentChatMode, isPlanChatMode, isTeamChatMode } from '@/types/chat'
+export {
+  normalizeAgentChatMode,
+  isPlanChatMode,
+  isReadOnlyAgentMode,
+  isTeamChatMode,
+} from '@/types/chat'
 
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'

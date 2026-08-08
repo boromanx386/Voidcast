@@ -1,18 +1,24 @@
 export type ChatRole = 'user' | 'assistant'
 
-/** Composer / turn mode: Agent implements; Plan explores read-only then proposes steps. */
-export type AgentChatMode = 'agent' | 'plan' | 'team'
+/** Composer / turn mode: Agent implements; Ask answers read-only (no plan); Plan explores read-only then proposes steps; Team parallel workers. */
+export type AgentChatMode = 'agent' | 'ask' | 'plan' | 'team'
 
 /** Normalize stored/settings values; unknown → agent. */
 export function normalizeAgentChatMode(value: unknown): AgentChatMode {
+  if (value === 'ask') return 'ask'
   if (value === 'plan') return 'plan'
   if (value === 'team') return 'team'
   return 'agent'
 }
 
-/** Plan mode is read-only; agent and team share mutating tools. */
+/** Plan mode produces a plan artifact; only plan does. */
 export function isPlanChatMode(mode: AgentChatMode | string | undefined | null): boolean {
   return mode === 'plan'
+}
+
+/** Read-only modes (Ask and Plan) share the mutating-tool filter; agent and team share mutating tools. */
+export function isReadOnlyAgentMode(mode: AgentChatMode | string | undefined | null): boolean {
+  return mode === 'ask' || mode === 'plan'
 }
 
 export function isTeamChatMode(mode: AgentChatMode | string | undefined | null): boolean {

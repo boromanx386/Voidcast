@@ -174,6 +174,8 @@ export function buildOllamaMessages(
     projectInstructionsHint?: string
     /** Plan mode instructions (read-only + JSON plan fence) */
     planModeSystemHint?: string
+    /** Ask mode instructions (read-only Q&A, no plan artifact) */
+    askModeSystemHint?: string
     /** Merged after user system prompt when tools are on */
     toolsSystemHint?: string
     /** Runtime context (e.g. local time/date/timezone) */
@@ -195,6 +197,7 @@ export function buildOllamaMessages(
   const skillsHint = opts.skillsSystemHint?.trim()
   const projectInstructionsHint = opts.projectInstructionsHint?.trim()
   const planModeHint = opts.planModeSystemHint?.trim()
+  const askModeHint = opts.askModeSystemHint?.trim()
   const hint = opts.toolsSystemHint?.trim()
   const runtimeHint = opts.runtimeSystemHint?.trim()
   const base = opts.systemPrompt.trim()
@@ -210,6 +213,7 @@ export function buildOllamaMessages(
     base,
     projectInstructionsHint,
     planModeHint,
+    askModeHint,
     skillsHint,
     runtimeHint,
     hint,
