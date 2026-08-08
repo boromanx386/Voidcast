@@ -2,6 +2,8 @@
 
 The coding panel is a standalone workspace beside the chat for editing real project files: file tree, file preview, inline text editing, and a terminal — plus git status colors and git actions. Everything here is grounded in `electron-app/src/components/CodingPanel.tsx`, `electron-app/src/components/coding/FileTree.tsx`, `FilePreview.tsx`, `FilePreviewEdit.tsx`, `TerminalView.tsx`, and `electron-app/src/hooks/useCodingSession.ts`.
 
+**Also see:** how **multi-chat** and **Team workers** edit code — [multi-chat-and-team.md](multi-chat-and-team.md).
+
 ## Enabling
 
 - The panel is available when the desktop runtime can access local files (`app.codingPanelAvailable`); web-standalone cannot.

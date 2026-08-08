@@ -17,14 +17,26 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 - **New chat** `newChat()` (Ctrl+N); new chat for a project: `newChatForProject()`.
 - **Open** `openSession(id)`, **Fork** `forkSession(id)`, **Export to markdown** `exportSessionToMarkdown(id)`, **Delete** `deleteSession(id)` (pending-confirm via `pendingDeleteId`), **Rename** inline (`startRenameSession`/`commitRenameSession`/`cancelRenameSession`).
 - `sessionsSidebarCollapsed` hides it (auto on ≤640px).
+- **Multi-chat:** more than one session can have a busy agent at the same time (see [multi-chat-and-team.md](multi-chat-and-team.md)).
+
+## Multi-chat (concurrent agent runs)
+
+Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
+
+- Runtime: `sessionAgentStore` — one slot per session (or draft key), holds messages, busy, abort, media, sub-agent activity writes.
+- **Cap: 3** concurrent runs (`MAX_CONCURRENT_AGENT_RUNS`). Extra start → error until another finishes or Stop.
+- Coding isolation: frozen project path, shell owner by runtime key, terminal feed per chat; same-project double-run can be refused.
+- Switch sessions freely while A runs; B can send. Background finish may mark DONE-style unread until opened.
+- Draft auto-save can rekey `__draft__` → real session id mid-run.
+- Composer can take a draft while busy; **steer** mid-turn aborts and resends with correction (separate from Stop).
 
 ## Composer (ChatComposer.tsx)
 
 - Multiline textarea with send/stop, image & file chips, STT record, mode and preset menus. Send enabled with non-empty input or pending attachments and not busy; "pending draft" shown while busy.
 - **Agent mode toggle**: cycles `Agent → Team → Plan` (`MODE_CYCLE = ['agent','team','plan']`, also `Shift+Tab`). `AgentChatMode = 'agent' | 'plan' | 'team'` in `electron-app/src/types/chat.ts`; normalized by `normalizeAgentChatMode`.
-  - **Agent** — full tool implementation.
-  - **Plan** — read-only; banner "Plan mode … Approve & build on the plan card"; produces editable `PlanArtifact` (`PlanArtifactCard.tsx`) with steps, optional A/B/C approaches, research; Approve & Build starts build.
-  - **Team** — prefers up to 2 parallel coding workers (`run_coding_workers`); requires Options → SUB → coding sub-agent.
+  - **Agent** — full tool implementation; coding workers optional if SUB coding is on.
+  - **Plan** — read-only; banner "Plan mode … Approve & build on the plan card"; produces editable `PlanArtifact` (`PlanArtifactCard.tsx`); Approve & Build starts **Agent** (or **Team** if composer is already Team).
+  - **Team** — prefers **`run_coding_workers`** (≤2 parallel workers); requires Options → SUB → coding sub-agent. No `enter_plan_mode` in Team.
 - **System prompt preset** menu (`default|code|creative|teacher`, `SYSTEM_PROMPT_PRESETS` in settings.ts).
 - **Long-memory** extract button (`extractLongMemoryNow`, `longMemoryBusy`).
 - Placeholder from theme/mode (`getChatComposerPlaceholder`).
@@ -35,26 +47,21 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 - Assistant content is **markdown** via `ChatMarkdown` (`components/ChatMarkdown.tsx`); user content auto-links.
 - Editing re-sends with attachments (`useChatAttachments`).
 
-## Sessions and multi-run runtime
-
-- Sessions are session-keyed in `sessionAgentStore` so more than one chat can run an agent at once (soft concurrent cap).
-- Draft (`__draft__`) chats can rekey to a real session id mid-run when first saved.
-- Coding tools isolate by **project path**, shell **owner** (`runtimeKey`), and terminal feed so two chats on different projects do not stomp each other.
-- Background finish can show a DONE-style unread affordance on the sidebar until you open the chat.
-
 ## File Drag-Drop Attachments (ChatDragOverlay.tsx, useChatAttachments)
 
 - Drag shows overlay "DROP FILES TO ATTACH"; images (PNG/JPEG/WebP…) and files (TXT/MD/PDF/DOCX/CSV/JSON/code).
 - Clipboard paste can also queue images as pending attachments.
 - `onChatDrop` reads files into `FileAttachmentSnapshot` (name, path, mime, size, ext, content) → `pendingImages`/`pendingFiles`; picker via `openChatAttachmentPicker`.
 
-## Sub-agent activity (SubAgentPanel.tsx)
+## Sub-agent activity and workers (SubAgentPanel.tsx)
 
-- With `subAgent.enabled` and/or `codingEnabled`, vision / explore / workers use separate models and keys (vision vs coding roles — see [options/subagent.md](options/subagent.md)).
-- Activity is a **collapsible card on the assistant message** for the turn (not a floating window). Toggle: Options → SUB → **SHOW_ANALYSIS_IN_CHAT** (`showAnalysisWindow`).
-- Live progress + digests; auto-collapses when done; survives session reload when the chat is saved.
-- **Vision** → image describe. **Explore** → read-only `coding_explore`. **Workers** → `run_coding_workers` (see [coding.md](coding.md)).
-- Main tool loop **awaits** worker/explore completion (no parallel main tools while they run).
+Full table: [multi-chat-and-team.md](multi-chat-and-team.md) and [options/subagent.md](options/subagent.md).
+
+- With `subAgent.enabled` and/or `codingEnabled`, vision / explore / workers use separate models (vision vs coding roles).
+- Activity is a **collapsible card on the assistant message** for the turn (not a floating window). Options → SUB → **SHOW_ANALYSIS_IN_CHAT**.
+- Live progress + digests; auto-collapses when done; **persists with the session** when saved (reload keeps the card on that message).
+- **Vision** → image describe. **Explore** → read-only `coding_explore`. **Workers** → `run_coding_workers` (1–2 parallel; main awaits).
+- Main does **not** call other tools while a worker batch is in flight.
 
 ## Agent / Team / Plan (modes)
 
@@ -62,7 +69,7 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 | --- | --- |
 | **Agent** | Full tools; workers optional if coding SUB on |
 | **Team** | Orchestrate multi-area work; prefer `run_coding_workers` early; no `enter_plan_mode` |
-| **Plan** | Read-only explore + plan card; no workers; **Approve & Build** starts Agent (or Team if composer is Team) |
+| **Plan** | Read-only explore + plan card; no workers; **Approve & Build** → Agent or Team per composer |
 
 Composer cycles Agent → Team → Plan (`Shift+Tab` or mode chip).
 

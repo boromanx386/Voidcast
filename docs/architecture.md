@@ -74,7 +74,7 @@ Specialized state hooks live in `src/hooks/`:
 
 ### Session agent runtime
 
-`src/lib/sessionAgentStore.ts` holds per-chat (and draft) **agent slots**: messages, busy, tool phase, media meta, abort controller, coding project freeze, and ephemeral `subAgentPanel` live state. UI messages can persist `subAgentActivity` for the analysis card across reloads (`chatSessionsStorage` + `normalizeSubAgentActivity`).
+`src/lib/sessionAgentStore.ts` holds per-chat (and draft) **agent slots**: messages, busy, tool phase, media meta, abort controller, coding project freeze, and ephemeral `subAgentPanel` live state. Product write-up: [multi-chat-and-team.md](multi-chat-and-team.md). UI messages can persist `subAgentActivity` for the analysis card across reloads (`chatSessionsStorage` + `normalizeSubAgentActivity`). Concurrent runs are capped (`MAX_CONCURRENT_AGENT_RUNS = 3`).
 
 ---
 

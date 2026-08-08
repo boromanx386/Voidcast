@@ -6,7 +6,19 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Multi-chat concurrent agents**: run agents in several sessions at once (soft cap **3**). Each chat has an isolated runtime slot (`sessionAgentStore`): messages, abort, tool phase, media. Switch sessions while others keep working; busy/unread sidebar indicators; background finish can show a DONE-style affordance. Coding tools isolate by **project path**, shell owner, and terminal feed; draft→session rekey mid-run. Extra starts past the cap are refused until a run finishes or you Stop.
+- **Team mode + coding workers**: composer cycles **Agent → Team → Plan**. Team prefers early **`run_coding_workers`** (up to **2** parallel workers on the coding sub-agent model). Agent may call workers when helpful; Plan has no workers. Team drops `enter_plan_mode`. Approve & Build follows the composer (**Team** if selected, else **Agent**).
+- **`run_coding_workers` tool**: 1–2 path-oriented tasks, optional `path_prefix` (hard write/edit scope), file locks between workers, default/max **100** tool rounds per worker, force digest if the model never ends with `done`. Main **awaits** the batch (workers parallel with each other only). No nesting.
+- **Coding explore / sub providers**: `coding_explore` read-only nested map; SUB panel providers aligned with main (OpenRouter / NVIDIA / DeepSeek / OpenAI / OpenCode Go + Ollama), openrouter locks, pins; internal CTX/OUTPUT defaults (16k / 2k). OpenCode Go workers use the real API key.
+- **In-chat sub-agent analysis card**: VISION / EXPLORE / WORKERS progress on the **assistant message** (collapsible, dismissible); persists with the session when saved. Options → SUB → **SHOW_ANALYSIS_IN_CHAT** (replaces floating panel).
 - **Steer mid-turn**: while the agent is working, type a correction and press **Enter** (or the compass Steer button) to abort the live turn and immediately start a new one with a course-correction frame for the model. Plain stop still only cancels. Steered user bubbles show a `STEER` badge.
+- **Sticky unsaved drafts** (auto-save off): drafts stay in the sidebar so you can leave and return without losing them until you Save.
+- **Clipboard paste images** as pending chat attachments.
+- **Product docs**: [docs/multi-chat-and-team.md](docs/multi-chat-and-team.md) plus updates across chat / coding / SUB / architecture.
+
+### Changed
+
+- Coding worker round budget raised (and documented) to **100** rounds.
 
 ## [2.8.2] — 2026-08-07
 

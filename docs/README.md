@@ -2,23 +2,33 @@
 
 Voidcast is an Electron desktop AI chat + coding assistant (with a web/LAN client variant). It combines a multi-provider LLM chat with agent tool use, long-term memory, TTS/STT voice, image/music generation, and a standalone coding panel for real project work.
 
-In chat, the assistant ("Void") can act as a plain model, a Plan-mode explorer, an Agent with full tools, or a Team mode that spawns up to 2 parallel coding workers. The coding panel gives direct file-tree, file-preview/edit, and terminal access beside the chat.
+**Highlights**
+
+- **Multi-chat** — up to 3 agent runs at once across sessions; switch chats while another is still working  
+- **Team mode** — main orchestrates; up to **2 parallel coding workers** (`run_coding_workers`) for multi-file edits  
+- **Agent / Plan** — full tools, or read-only plan + Approve & Build  
+- **Coding panel** — file tree, preview/edit, terminal next to chat  
+
+See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + workers end to end.
 
 ## Docs Index
 
 - [**README.md**](README.md) — this index
 - [**getting-started.md**](getting-started.md) — install/launch, first chat, choosing a provider, API keys, where settings are stored
-- [**chat.md**](chat.md) — the chat screen end to end: composer, modes, model switcher, sessions, message rendering, attachments, sub-agents, memory, context warnings, tool banners, voice
-- [**coding.md**](coding.md) — the coding panel: enabling, project path, file tree, preview/edit, terminal, splitters, how the agent edits files
-- [**settings-reference.md**](settings-reference.md) — full field-by-field settings reference (every `AppSettings` + `CodingSettings` key, type, default, bounds)
-- [**architecture.md**](architecture.md) — developer-oriented overview: screens, components, hooks, multi-session agent store, settings pipeline, agent loop, workers/sub-agents, types
+- [**multi-chat-and-team.md**](multi-chat-and-team.md) — concurrent chats, Agent/Team/Plan, coding workers, analysis card
+- [**chat.md**](chat.md) — the chat screen: composer, sessions, messages, attachments, sub-agents, memory, context, voice
+- [**coding.md**](coding.md) — coding panel + how the agent (and workers) edit files
+- [**settings-reference.md**](settings-reference.md) — full field-by-field settings reference
+- [**architecture.md**](architecture.md) — screens, hooks, `sessionAgentStore`, agent loop, workers, types
 
 ## Quick Start
 
 1. Install the desktop app (Electron). On first launch you land on the chat screen.
 2. Open **Options** and pick an LLM provider: local **Ollama** (no account) or a cloud provider (**OpenRouter, NVIDIA, DeepSeek, OpenAI, OpenCode Go**) — see [getting-started.md](getting-started.md).
-3. Type your first message in the composer. Switch between **Agent / Team / Plan** modes with the mode button (or `Shift+Tab`).
-4. Enable the **Coding panel** (header button or Options → Tools → coding) and set a project path to start editing real files — see [coding.md](coding.md).
+3. Type your first message. Switch **Agent / Team / Plan** with the mode button (or `Shift+Tab`).
+4. **Multi-chat:** start work in one session, open another session, send there — both can run (see [multi-chat-and-team.md](multi-chat-and-team.md)).
+5. **Team workers:** Options → SUB → enable coding sub-agent; set a project path; Team mode; multi-area task.
+6. Enable the **Coding panel** and set a project path for the tree/terminal — see [coding.md](coding.md).
 
 ## Web-Standalone vs Desktop (Electron)
 

@@ -2,6 +2,8 @@
 
 > Grounded in `electron-app/src/components/options/SubAgentOptionsPanel.tsx`, `SubAgentConfig` in `electron-app/src/lib/settings.ts`, runtime in `subAgent.ts` / `codingSubAgent.ts` / `codingWorkers.ts`, and UI in `SubAgentPanel.tsx` + `subAgentPanelState.ts`.
 
+**Also see product overview:** [multi-chat-and-team.md](../multi-chat-and-team.md) (multi-chat + Team + workers in one place).
+
 ## What a sub-agent is
 
 A **separate model (and provider)** the main chat agent can call for side work, so the main model stays on orchestration / final answer. Two independent roles:
