@@ -163,6 +163,11 @@ html[data-ui-theme='blood-moon'] .message-assistant pre {
   background: rgba(0, 0, 0, 0.2);
 }
 
+/* Agent bubble bold: neutral warm-ivory (no accent color) */
+html[data-ui-theme='blood-moon'] .message-assistant strong {
+  color: #ececec;
+}
+
 html[data-ui-theme='blood-moon'] .option-tab.active {
   background: rgba(220, 40, 60, 0.1);
   border-color: rgba(220, 40, 60, 0.35);

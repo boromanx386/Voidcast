@@ -424,3 +424,26 @@ html[data-ui-theme='minimal'] .plan-artifact-card__approve:hover:not(:disabled) 
 html[data-ui-theme='minimal'] .chat-empty-state--plan {
   border-color: rgba(99, 102, 241, 0.22) !important;
 }
+
+/* Minimal zinc: agent bubble fully neutral — no accent purple in content text */
+html[data-ui-theme='minimal'] .message-assistant strong {
+  color: #ececf2;
+}
+html[data-ui-theme='minimal'] .message-assistant h1 {
+  color: #f4f4f6;
+}
+html[data-ui-theme='minimal'] .message-assistant li > span:first-child {
+  color: #9d9da8;
+}
+html[data-ui-theme='minimal'] .message-assistant a {
+  color: #d6d6de;
+  text-decoration-color: rgba(214, 214, 222, 0.4);
+}
+html[data-ui-theme='minimal'] .message-assistant a:hover {
+  color: #ffffff;
+  text-decoration-color: rgba(255, 255, 255, 0.55);
+}
+html[data-ui-theme='minimal'] .message-assistant blockquote {
+  border-color: rgba(125, 125, 135, 0.35);
+  background: transparent;
+}

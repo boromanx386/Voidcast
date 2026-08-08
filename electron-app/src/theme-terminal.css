@@ -509,3 +509,8 @@ html[data-ui-theme='terminal'] .file-preview {
   border-radius: 0;
   background: transparent;
 }
+
+/* Terminal: bold neutral (no accent amber) — ONLY bold is overridden here */
+html[data-ui-theme='terminal'] .message-assistant strong {
+  color: #c9bea3;
+}

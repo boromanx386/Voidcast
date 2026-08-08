@@ -227,6 +227,11 @@ html[data-ui-theme='matrix'] .option-tab {
   z-index: 1;
 }
 
+/* Matrix: agent-bubble bold in a softer, gentler green (not the bright phosphor) */
+html[data-ui-theme='matrix'] .message-assistant strong {
+  color: rgb(0 190 90);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .matrix-rain {
     display: none !important;
