@@ -11,7 +11,6 @@ const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: Terminal
             ? 'coding-terminal-system'
             : 'text-void-light'
       }
-      style={{ contentVisibility: 'auto' as const }}
     >
       {line.text}
     </div>

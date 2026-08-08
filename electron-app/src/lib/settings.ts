@@ -1131,6 +1131,8 @@ export type CodingSettings = {
   panelWidthPx: number
   /** File tree section height in px (FILES ↔ preview/terminal split). */
   fileTreeHeightPx: number
+  /** Terminal section height in px (preview/commit ↔ terminal split). */
+  terminalHeightPx: number
 }
 
 /** Default / clamp bounds for the chat ↔ coding panel splitter. */
@@ -1151,6 +1153,21 @@ export function clampCodingPanelWidth(px: number, containerWidth?: number): numb
   const max = Math.min(CODING_PANEL_WIDTH_MAX, maxByContainer)
   if (!Number.isFinite(px)) return CODING_PANEL_WIDTH_DEFAULT
   return Math.min(max, Math.max(CODING_PANEL_WIDTH_MIN, Math.round(px)))
+}
+
+/** Default / clamp bounds for preview/commit ↔ terminal vertical split inside coding panel. */
+export const CODING_TERMINAL_HEIGHT_DEFAULT = 200
+export const CODING_TERMINAL_HEIGHT_MIN = 80
+export const CODING_TERMINAL_HEIGHT_MAX = 480
+
+export function clampCodingTerminalHeight(px: number, containerHeight?: number): number {
+  const maxByContainer =
+    typeof containerHeight === 'number' && Number.isFinite(containerHeight)
+      ? Math.max(CODING_TERMINAL_HEIGHT_MIN, Math.floor(containerHeight * 0.7))
+      : CODING_TERMINAL_HEIGHT_MAX
+  const max = Math.min(CODING_TERMINAL_HEIGHT_MAX, maxByContainer)
+  if (!Number.isFinite(px)) return CODING_TERMINAL_HEIGHT_DEFAULT
+  return Math.min(max, Math.max(CODING_TERMINAL_HEIGHT_MIN, Math.round(px)))
 }
 
 export function clampCodingFileTreeHeight(px: number, containerHeight?: number): number {
@@ -1498,6 +1515,7 @@ export const defaults: AppSettings = {
     showTerminal: true,
     panelWidthPx: CODING_PANEL_WIDTH_DEFAULT,
     fileTreeHeightPx: CODING_FILE_TREE_HEIGHT_DEFAULT,
+    terminalHeightPx: CODING_TERMINAL_HEIGHT_DEFAULT,
   },
   codingProjectPath: '',
   pdfOutputDir: '',
@@ -1629,6 +1647,11 @@ function normalizeTools(s: AppSettings): AppSettings {
       ? s.coding.fileTreeHeightPx
       : defaults.coding.fileTreeHeightPx,
   )
+  const terminalHeightPx = clampCodingTerminalHeight(
+    typeof s.coding?.terminalHeightPx === 'number'
+      ? s.coding.terminalHeightPx
+      : defaults.coding.terminalHeightPx,
+  )
   let st = showFileTree
   let sp = showFilePreview
   let sm = showTerminal
@@ -1678,6 +1701,7 @@ function normalizeTools(s: AppSettings): AppSettings {
       showTerminal: sm,
       panelWidthPx,
       fileTreeHeightPx,
+      terminalHeightPx,
     },
     codingProjectPath,
   }

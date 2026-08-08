@@ -15,8 +15,11 @@ import { expandTextToTerminalLines, MAX_TERMINAL_ROWS } from '@/lib/terminalChun
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import {
   clampCodingFileTreeHeight,
+  clampCodingTerminalHeight,
   CODING_FILE_TREE_HEIGHT_MAX,
   CODING_FILE_TREE_HEIGHT_MIN,
+  CODING_TERMINAL_HEIGHT_MAX,
+  CODING_TERMINAL_HEIGHT_MIN,
   type AppSettings,
   type CodingSettings,
 } from '@/lib/settings'
@@ -37,7 +40,12 @@ import type { CodingFileNode, TerminalLine } from '@/types/coding'
 type CodingUiVisibilityPatch = Partial<
   Pick<
     CodingSettings,
-    'showFileTree' | 'showFilePreview' | 'showTerminal' | 'panelWidthPx' | 'fileTreeHeightPx'
+    | 'showFileTree'
+    | 'showFilePreview'
+    | 'showTerminal'
+    | 'panelWidthPx'
+    | 'fileTreeHeightPx'
+    | 'terminalHeightPx'
   >
 >
 
@@ -108,7 +116,11 @@ export function CodingPanel({
   const [fileTreeHeight, setFileTreeHeight] = useState(() =>
     clampCodingFileTreeHeight(settings.coding.fileTreeHeightPx),
   )
+  const [terminalHeight, setTerminalHeight] = useState(() =>
+    clampCodingTerminalHeight(settings.coding.terminalHeightPx),
+  )
   const [isTreeResizing, setIsTreeResizing] = useState(false)
+  const [isTerminalResizing, setIsTerminalResizing] = useState(false)
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
   const [command, setCommand] = useState('')
   /** Oldest → newest; used for ↑ / ↓ in command input (bash-style). */
@@ -154,6 +166,7 @@ export function CodingPanel({
   const projectPath = settings.coding.projectPath || settings.codingProjectPath
   const { showFileTree, showFilePreview, showTerminal } = settings.coding
   const savedFileTreeHeight = settings.coding.fileTreeHeightPx
+  const savedTerminalHeight = settings.coding.terminalHeightPx
 
   useEffect(() => {
     if (!isTreeResizing) {
@@ -161,11 +174,26 @@ export function CodingPanel({
     }
   }, [savedFileTreeHeight, isTreeResizing])
 
+  useEffect(() => {
+    if (!isTerminalResizing) {
+      setTerminalHeight(clampCodingTerminalHeight(savedTerminalHeight))
+    }
+  }, [savedTerminalHeight, isTerminalResizing])
+
   const persistFileTreeHeight = useCallback(
     (px: number) => {
       const next = clampCodingFileTreeHeight(px, bodySplitRef.current?.clientHeight)
       setFileTreeHeight(next)
       onCodingUiChange({ fileTreeHeightPx: next })
+    },
+    [onCodingUiChange],
+  )
+
+  const persistTerminalHeight = useCallback(
+    (px: number) => {
+      const next = clampCodingTerminalHeight(px, bodySplitRef.current?.clientHeight)
+      setTerminalHeight(next)
+      onCodingUiChange({ terminalHeightPx: next })
     },
     [onCodingUiChange],
   )
@@ -207,6 +235,45 @@ export function CodingPanel({
       handle.addEventListener('pointercancel', onUp)
     },
     [fileTreeHeight, persistFileTreeHeight],
+  )
+
+  const onTerminalResizePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      const handle = e.currentTarget
+      handle.setPointerCapture(e.pointerId)
+      setIsTerminalResizing(true)
+      const prevCursor = document.body.style.cursor
+      const prevUserSelect = document.body.style.userSelect
+      document.body.style.cursor = 'row-resize'
+      document.body.style.userSelect = 'none'
+      const startY = e.clientY
+      const startHeight = terminalHeight
+
+      const onMove = (ev: PointerEvent) => {
+        const next = clampCodingTerminalHeight(
+          startHeight - (ev.clientY - startY),
+          bodySplitRef.current?.clientHeight,
+        )
+        setTerminalHeight(next)
+      }
+
+      const onUp = (ev: PointerEvent) => {
+        handle.removeEventListener('pointermove', onMove)
+        handle.removeEventListener('pointerup', onUp)
+        handle.removeEventListener('pointercancel', onUp)
+        handle.releasePointerCapture(ev.pointerId)
+        document.body.style.cursor = prevCursor
+        document.body.style.userSelect = prevUserSelect
+        setIsTerminalResizing(false)
+        persistTerminalHeight(startHeight - (ev.clientY - startY))
+      }
+
+      handle.addEventListener('pointermove', onMove)
+      handle.addEventListener('pointerup', onUp)
+      handle.addEventListener('pointercancel', onUp)
+    },
+    [terminalHeight, persistTerminalHeight],
   )
 
   const toggleSection = useCallback(
@@ -834,12 +901,15 @@ export function CodingPanel({
       </div>
       <div
         ref={bodySplitRef}
-        className={`flex min-h-0 flex-1 flex-col overflow-hidden${isTreeResizing ? ' select-none' : ''}`}
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden${
+          isTreeResizing || isTerminalResizing ? ' select-none' : ''
+        }`}
       >
         {(() => {
           const showLower = showFilePreview || showTerminal
           const showCommitBar = dirtyCount > 0
           const treeSplitActive = showFileTree && showLower
+          const termSplitActive = showTerminal && (showFilePreview || showCommitBar)
           return (
             <>
               {showFileTree && (
@@ -911,6 +981,7 @@ export function CodingPanel({
                     showLower || !showFileTree ? 'flex-1' : 'shrink-0'
                   }`}
                 >
+                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
                   {showFilePreview && (
                     <FilePreview
                       filePath={selectedPath}
@@ -1038,13 +1109,49 @@ export function CodingPanel({
                       )}
                     </div>
                   )}
+                  </div>
+                  {termSplitActive && (
+                    <div
+                      role="separator"
+                      aria-orientation="horizontal"
+                      aria-label="Resize terminal"
+                      aria-valuenow={terminalHeight}
+                      aria-valuemin={CODING_TERMINAL_HEIGHT_MIN}
+                      aria-valuemax={CODING_TERMINAL_HEIGHT_MAX}
+                      tabIndex={0}
+                      onPointerDown={onTerminalResizePointerDown}
+                      onKeyDown={(e) => {
+                        const step = e.shiftKey ? 32 : 16
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault()
+                          persistTerminalHeight(terminalHeight + step)
+                        } else if (e.key === 'ArrowDown') {
+                          e.preventDefault()
+                          persistTerminalHeight(terminalHeight - step)
+                        } else if (e.key === 'Home') {
+                          e.preventDefault()
+                          persistTerminalHeight(CODING_TERMINAL_HEIGHT_MIN)
+                        } else if (e.key === 'End') {
+                          e.preventDefault()
+                          persistTerminalHeight(CODING_TERMINAL_HEIGHT_MAX)
+                        }
+                      }}
+                      className="panel-splitter panel-splitter--horizontal"
+                    >
+                    </div>
+                  )}
                   {showTerminal && (
-                    <TerminalView
-                      lines={terminalLines}
-                      onClear={() => setTerminalLines([])}
-                      running={commandRunning}
-                      onStop={onStopCommand}
-                    />
+                    <div
+                      className={`flex min-h-0 flex-col overflow-hidden ${termSplitActive ? 'shrink-0' : 'flex-1'}`}
+                      style={termSplitActive ? { height: terminalHeight } : undefined}
+                    >
+                      <TerminalView
+                        lines={terminalLines}
+                        onClear={() => setTerminalLines([])}
+                        running={commandRunning}
+                        onStop={onStopCommand}
+                      />
+                    </div>
                   )}
                 </div>
               )}
