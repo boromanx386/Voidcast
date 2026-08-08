@@ -65,12 +65,16 @@ Specialized state hooks live in `src/hooks/`:
 
 - `useVoidcastApp` — top-level app wiring (screen switching, options, reminders).
 - `useAppSettings` — loads/normalizes/saves settings and exposes an update function.
-- `useChatSessions` — chat session list, active session, CRUD (new / rename / delete / fork / export).
-- `useChatAgent` — runs the agent loop for the active session.
+- `useChatSessions` — chat session list, active session, CRUD (new / rename / delete / fork / export); sticky unsaved drafts when auto-save is off.
+- `useChatAgent` — runs the agent loop for the **visible** runtime key; binds mid-run rekey draft → session.
 - `useLongMemoryUi` — long-term memory management UI state.
 - `useSttInput` — speech-to-text input (OpenRouter Whisper).
 - `useTtsPlayback` — text-to-speech playback + auto-voice.
-- `useCodingSession` — the coding panel session state.
+- `useCodingSession` — the coding panel session state (owner-aware shell feed).
+
+### Session agent runtime
+
+`src/lib/sessionAgentStore.ts` holds per-chat (and draft) **agent slots**: messages, busy, tool phase, media meta, abort controller, coding project freeze, and ephemeral `subAgentPanel` live state. UI messages can persist `subAgentActivity` for the analysis card across reloads (`chatSessionsStorage` + `normalizeSubAgentActivity`).
 
 ---
 
@@ -78,13 +82,13 @@ Specialized state hooks live in `src/hooks/`:
 
 `src/lib/settings.ts` is the single source of truth for settings.
 
-- **Model types:** `AppSettings` (~193 fields) and `CodingSettings`, plus provider enums (`LlmProvider`, `TtsProvider`, `SttProvider`, `ImageProvider`), `VoiceMode`, `LlmThinkLevel`, `AgentChatMode`, `UiTheme`, `ToolsEnabled`, `SubAgentConfig`, and the image/music profile types.
+- **Model types:** `AppSettings` and `CodingSettings`, plus provider enums (`LlmProvider`, `TtsProvider`, `SttProvider`, `ImageProvider`), `VoiceMode`, `LlmThinkLevel`, `AgentChatMode` (`agent` | `plan` | `team`), `UiTheme`, `ToolsEnabled`, `SubAgentConfig`, and the image/music profile types.
 - **Storage:** settings persist in `localStorage` under `voidcast-settings-v1`.
 - **Pipeline:** `loadSettings()` reads + normalizes (migrating legacy shapes, applying clamps), `saveSettings()` writes back, and normalizer functions produce a complete well-typed settings object. Clamp helpers enforce bounds (e.g. `clampCodingPanelWidth`, `clampCodingFileTreeHeight`).
 - **Agent editability:** `AGENT_EDITABLE_SETTINGS_FIELDS` lists which settings the agent may change; API-key fields are excluded.
-- **Cross-cutting constants:** coding splitter defaults/bounds, OpenRouter TTS/image model defaults, Runware configured image/music models, sub-agent token defaults.
+- **Cross-cutting constants:** coding splitter defaults/bounds, OpenRouter TTS/image model defaults, Runware configured image/music models, sub-agent token defaults (16K/ctx, 2K out).
 
-`src/types/` holds the shared domain types: `voidcast.ts` (Screen), `chat.ts` (AgentChatMode, SystemPromptPreset, messages), `coding.ts`, and `longMemory.ts`.
+`src/types/` holds the shared domain types: `voidcast.ts` (Screen), `chat.ts` (AgentChatMode, SystemPromptPreset, `UiMessage` including `plan` and `subAgentActivity`), `coding.ts`, and `longMemory.ts`.
 
 ---
 
@@ -92,20 +96,20 @@ Specialized state hooks live in `src/hooks/`:
 
 The assistant (agent) loop lives in `src/lib/`:
 
-- **`agentToolLoop`** — the round-based loop. Each assistant turn may run multiple tool-call rounds, bounded by `agentMaxToolRounds` (clamped 5–120).
+- **`agentToolLoop`** — the round-based loop. Each assistant turn may run multiple tool-call rounds, bounded by `agentMaxToolRounds` (clamped 5–120). Tools within a round run **sequentially** (await each result).
 - **`agentSkills`** — the Agent Skills catalog + `read_skill` tool (gated by `skillsEnabled`).
 - **`agentParams`** — provider/model resolution and inference parameters for a request.
-- **`buildAgentTurnContext`** — assembles the context for one agent turn (system prompt, provider selection, model routing).
-- **`toolHandlers/`** — concrete tool implementations, including `appHandlers.ts` (settings/config tools, including image/music profile handling).
-- Tool definitions are registered per the `toolsEnabled` flags in `ToolsEnabled`.
+- **`buildAgentTurnContext`** — assembles the context for one agent turn (system prompt, mode hints for Agent/Team/Plan, workers guidance).
+- **`toolHandlers/`** — concrete tool implementations, including coding explore/workers in `codingHandlers.ts`.
+- Tool definitions are registered per the `toolsEnabled` flags in `ToolsEnabled` and chat mode (e.g. Team does not register `enter_plan_mode`; workers only when coding SUB is on and not Plan).
 
 ### MCP
 
-MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gated by `mcpEnabled` and per-server `mcpServerEnabled` flags. Project `.mcp.json` files are only trusted after approval in Options → Tools (`mcpTrustedProjectPaths`).
+MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gated by `mcpEnabled` and per-server `mcpServerEnabled` flags. Project `.mcp.json` files are only trusted after approval in Options → Tools (`mcpTrustedProjectPaths`). Concurrent chats cancel MCP only for their own runtime key.
 
 ### Sub-agent
 
-`SubAgentConfig` (in `settings.ts`) delegates vision and coding-explore tasks to a separate model. `subAgentConfigForRole(sub, 'vision' | 'coding')` projects the right model/provider fields for each role. `image_recall` runs the sub-agent when `subAgent.enabled` is true.
+`SubAgentConfig` (in `settings.ts`) configures vision and coding roles. `subAgentConfigForRole(sub, 'vision' | 'coding')` projects fields. Coding path: `codingSubAgent.ts` (explore + trims) and `codingWorkers.ts` (parallel mutable workers). Analysis UI state: `subAgentPanelState.ts`. See [options/subagent.md](options/subagent.md).
 
 ---
 

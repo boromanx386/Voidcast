@@ -11,7 +11,7 @@ In chat, the assistant ("Void") can act as a plain model, a Plan-mode explorer, 
 - [**chat.md**](chat.md) — the chat screen end to end: composer, modes, model switcher, sessions, message rendering, attachments, sub-agents, memory, context warnings, tool banners, voice
 - [**coding.md**](coding.md) — the coding panel: enabling, project path, file tree, preview/edit, terminal, splitters, how the agent edits files
 - [**settings-reference.md**](settings-reference.md) — full field-by-field settings reference (every `AppSettings` + `CodingSettings` key, type, default, bounds)
-- [**architecture.md**](architecture.md) — developer-oriented overview: screens, components, hooks, settings pipeline, agent loop, types
+- [**architecture.md**](architecture.md) — developer-oriented overview: screens, components, hooks, multi-session agent store, settings pipeline, agent loop, workers/sub-agents, types
 
 ## Quick Start
 

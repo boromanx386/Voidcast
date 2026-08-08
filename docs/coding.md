@@ -66,7 +66,18 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 ## How the Agent Applies File Edits
 
 - The agent's coding tools live in `electron-app/src/lib/codingTools.ts` (IPC to the Electron main process) and are wired into the tool loop via `toolHandlers`, `toolDefinitions`, `applyAgentToolResult`.
-- Tools: list directory, read file, write file (full rewrite), apply code edits (search/replace blocks), terminal command execution, git status/stage/discard, and `coding_explore` (read-only exploration on the coding sub-agent model when `subAgent.codingEnabled`).
+- Tools: list directory, read file, write file (full rewrite), apply code edits (search/replace blocks), terminal command execution, git status/stage/discard, and (when coding SUB is on):
+  - **`coding_explore`** — read-only nested sub-agent (map repo → compact digest).
+  - **`run_coding_workers`** — 1–2 parallel coding workers on the **coding** sub model (`codingWorkers.ts`).
 - After a file mutation the session bumps `codingFileTreeNonce` / `codingGitNonce`; the open panel refreshes tree + git colors, and `codingRevealParentDirs` expands parents + opens the changed file in preview.
-- Multi-area work can use `run_coding_workers` (up to 2 parallel workers) in Team mode; workers cap their own filesystem scope to the project root and report diffs back.
 - Manual edits via the UI write through the same `invokeWriteCodingFile` path, keeping preview, tree, and git status in sync.
+
+### Parallel coding workers (`run_coding_workers`)
+
+- Available in **Agent** (optional) and **Team** (preferred); not in Plan.
+- Requires Options → SUB → **ENABLE_CODING_SUB_AGENT**, coding tools on, and a project path.
+- Up to **2** tasks per call; each has `goal`, optional **`path_prefix`**, optional `max_rounds` (default/max **100**).
+- **Two workers run in parallel** with each other; the **main** agent is **blocked** until the batch returns digests (one tool step).
+- **Writes/edits** are rejected outside `path_prefix` when it is set (file or directory). **Reads** may span the whole project (read budget). **File locks** reduce two workers writing the same path.
+- Workers cannot nest another `run_coding_workers` or `coding_explore`.
+- See [options/subagent.md](options/subagent.md) for explore vs workers and analysis UI.

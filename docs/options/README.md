@@ -8,7 +8,7 @@ This is the reference documentation for the **Settings** screen in the desktop/w
 4. [TTS](tts.md) — text-to-speech & speech-to-text (labeled **TTS/STT** in desktop builds).
 5. [Tools](tools.md) — agent tool enable flags, max tool rounds, MCP servers, coding project path, PDF output directory.
 6. [Skills](skills.md) — Agent Skills discovery from `~/.agents`, `~/.claude`, `~/.cursor/skills`.
-7. [Sub-Agent](subagent.md) — separate model for delegating vision/coding-style tasks (shown as the **SUB** tab).
+7. [Sub-Agent](subagent.md) — vision + coding explore/workers, analysis in chat (shown as the **SUB** tab).
 
 ## Auto-save
 

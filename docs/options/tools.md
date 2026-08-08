@@ -25,7 +25,7 @@ Each flag has a toggle in the panel (`ToolToggle`). If a tool is disabled, the a
 
 Type: `number`, default `50`, clamped to `AGENT_MAX_TOOL_ROUNDS_MIN = 5` .. `AGENT_MAX_TOOL_ROUNDS_MAX = 120` (`clampAgentMaxToolRounds`).
 
-Max agent↔tool loop rounds per assistant turn; each round may include tool calls. A soft wrap-up warning fires near the end and a hard wrap-up occurs after exhaustion.
+Max agent↔tool loop rounds per assistant turn (main agent only). Nested **workers** have a separate round budget (default/max **100**); **explore** uses a lower cap (default **8** / max **12**). A soft wrap-up warning fires near the main limit and a hard wrap-up after exhaustion.
 
 ## MCP servers
 
@@ -50,8 +50,10 @@ Where the `save_pdf` tool writes files **without showing a save dialog**. Empty 
 ## Tools the agent registers
 
 The agent registers tools from the enabled set above (`webSearch`, `weather`, `scrape`, `pdf`, `youtube`, `reddit`, `runwareImage`, `runwareMusic`, `coding`, `enterPlan`) plus:
+
 - MCP tools from enabled servers (when `mcpEnabled`).
 - The `read_skill` tool and skills catalog when `skillsEnabled` (see [Skills](skills.md)).
-- The sub-agent delegation tool when the sub-agent is enabled (see [Sub-Agent](subagent.md)).
+- When coding tools + coding sub-agent are on: **`coding_explore`** (read-only nested map) and **`run_coding_workers`** (1–2 parallel mutable workers) in Agent/Team — not Plan. See [Sub-Agent](subagent.md) and [coding.md](../coding.md).
+- Vision sub-agent paths when `subAgent.enabled` (image describe / `image_recall`).
 
-Tool definitions live in `electron-app/src/lib/toolDefinitions.ts`; registration follows `toolsEnabled`, `mcpEnabled`, `skillsEnabled`, and the sub-agent config.
+Registration also depends on **chat mode** (e.g. Team omits `enter_plan_mode`). Definitions: `electron-app/src/lib/toolDefinitions.ts`.

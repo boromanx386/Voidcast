@@ -213,7 +213,7 @@ type ToolsEnabled = {
 | `subAgent.codingOpenrouterProviderOnly` | `string` | OpenRouter provider slug lock for the coding model. |
 | `subAgent.outputTokens` | `number` | Max generated tokens per sub-agent call (internal default 2048; not in Options UI). |
 | `subAgent.contextTokens` | `number` | Ollama num_ctx for sub-agent calls (internal default 16384; cloud ignores). |
-| `subAgent.showAnalysisWindow` | `boolean` | Show the floating analysis panel during vision/coding sub-agent (default on). |
+| `subAgent.showAnalysisWindow` | `boolean` | Show in-chat sub-agent analysis card (vision/explore/workers); default on. |
 
 ---
 

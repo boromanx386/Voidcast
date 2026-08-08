@@ -31,20 +31,40 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 
 ## Message Rendering (ChatMessageList.tsx, ChatMessage.tsx)
 
-- Renders `UiMessage`: user/assistant roles; assistant `thinking` (Ollama `thinking`/OpenRouter `reasoning`) above reply; images (`images[]`, `imageMimes[]`, names/paths); `fileAttachments` chips; generated image URLs/paths; embedded `plan` artifacts.
+- Renders `UiMessage`: user/assistant roles; assistant `thinking` (Ollama `thinking`/OpenRouter `reasoning`) above reply; images (`images[]`, `imageMimes[]`, names/paths); `fileAttachments` chips; generated image URLs/paths; embedded `plan` artifacts; optional **`subAgentActivity`** card (vision / explore / workers) on that turn’s assistant message.
 - Assistant content is **markdown** via `ChatMarkdown` (`components/ChatMarkdown.tsx`); user content auto-links.
 - Editing re-sends with attachments (`useChatAttachments`).
+
+## Sessions and multi-run runtime
+
+- Sessions are session-keyed in `sessionAgentStore` so more than one chat can run an agent at once (soft concurrent cap).
+- Draft (`__draft__`) chats can rekey to a real session id mid-run when first saved.
+- Coding tools isolate by **project path**, shell **owner** (`runtimeKey`), and terminal feed so two chats on different projects do not stomp each other.
+- Background finish can show a DONE-style unread affordance on the sidebar until you open the chat.
 
 ## File Drag-Drop Attachments (ChatDragOverlay.tsx, useChatAttachments)
 
 - Drag shows overlay "DROP FILES TO ATTACH"; images (PNG/JPEG/WebP…) and files (TXT/MD/PDF/DOCX/CSV/JSON/code).
+- Clipboard paste can also queue images as pending attachments.
 - `onChatDrop` reads files into `FileAttachmentSnapshot` (name, path, mime, size, ext, content) → `pendingImages`/`pendingFiles`; picker via `openChatAttachmentPicker`.
 
-## Sub-Agent Delegation (SubAgentPanel.tsx)
+## Sub-agent activity (SubAgentPanel.tsx)
 
-- With `subAgent.enabled` (or `codingEnabled`), vision/explore/worker tasks run on a separate model (e.g. `llava:13b`, `gpt-4o`, `codingModel`).
-- Floating panel logs `VISION ▲ / EXPLORE ▲ / WORKERS ▲ / SUB_AGENT ▲` with WORKING/DONE, levels (ok/warn/err), worker slots; collapsible; `showAnalysisWindow` controls visibility.
-- Vision → `describeImages`; exploration → read-only `coding_explore`.
+- With `subAgent.enabled` and/or `codingEnabled`, vision / explore / workers use separate models and keys (vision vs coding roles — see [options/subagent.md](options/subagent.md)).
+- Activity is a **collapsible card on the assistant message** for the turn (not a floating window). Toggle: Options → SUB → **SHOW_ANALYSIS_IN_CHAT** (`showAnalysisWindow`).
+- Live progress + digests; auto-collapses when done; survives session reload when the chat is saved.
+- **Vision** → image describe. **Explore** → read-only `coding_explore`. **Workers** → `run_coding_workers` (see [coding.md](coding.md)).
+- Main tool loop **awaits** worker/explore completion (no parallel main tools while they run).
+
+## Agent / Team / Plan (modes)
+
+| Mode | Intent |
+| --- | --- |
+| **Agent** | Full tools; workers optional if coding SUB on |
+| **Team** | Orchestrate multi-area work; prefer `run_coding_workers` early; no `enter_plan_mode` |
+| **Plan** | Read-only explore + plan card; no workers; **Approve & Build** starts Agent (or Team if composer is Team) |
+
+Composer cycles Agent → Team → Plan (`Shift+Tab` or mode chip).
 
 ## Long-Term Memory (MemoryPreviewModal.tsx)
 

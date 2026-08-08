@@ -11,7 +11,7 @@ Voidcast is an **Electron desktop app**. Install the packaged build for your pla
 
 1. Type a message in the composer at the bottom of the chat screen and press **Send** (or `Ctrl+Enter`).
 2. The assistant reply renders as markdown in the message list. TTS auto-voice and STT input are available when enabled (see [chat.md](chat.md) and the TTS options tab).
-3. Use the mode button in the composer to switch **Agent / Team / Plan** (cycle with `Shift+Tab`).
+3. Use the mode button in the composer to switch **Agent / Team / Plan** (cycle with `Shift+Tab`). For multi-file work, use **Team** with Options → SUB → enable coding sub-agent and set a coding project path.
 4. New chat: **Ctrl+N** or the **New chat** button in the sidebar.
 
 ## Picking a Provider
