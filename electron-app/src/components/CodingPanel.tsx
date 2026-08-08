@@ -280,7 +280,7 @@ export function CodingPanel({
       setExpandedDirs(new Set())
       return
     }
-    const listed = await invokeListCodingDirectory(projectPath)
+    const listed = await invokeListCodingDirectory(projectPath, '', { includeIgnored: true })
     if (listed.ok) {
       setFiles(filterCodingTreeEntries(listed.entries))
       setChildrenByDir({})
@@ -291,7 +291,7 @@ export function CodingPanel({
   /** Re-list root and any expanded folders; keeps expand state, drops cache for collapsed dirs. */
   const refreshFileTreeInPlace = useCallback(async () => {
     if (!projectPath) return
-    const root = await invokeListCodingDirectory(projectPath)
+    const root = await invokeListCodingDirectory(projectPath, '', { includeIgnored: true })
     if (!root.ok) {
       pushTerminal('stderr', root.error)
       return
@@ -305,7 +305,7 @@ export function CodingPanel({
     }
     const pairs = await Promise.all(
       expanded.map(async (dirPath) => {
-        const r = await invokeListCodingDirectory(projectPath, dirPath)
+        const r = await invokeListCodingDirectory(projectPath, dirPath, { includeIgnored: true })
         return [dirPath, r.ok ? filterCodingTreeEntries(r.entries) : null] as const
       }),
     )
@@ -335,7 +335,7 @@ export function CodingPanel({
       if (!childrenByDir[dirPath]) {
         setLoadingDirs((p) => new Set(p).add(dirPath))
         try {
-          const r = await invokeListCodingDirectory(projectPath, dirPath)
+          const r = await invokeListCodingDirectory(projectPath, dirPath, { includeIgnored: true })
           if (!r.ok) {
             pushTerminal('stderr', r.error)
             return
@@ -479,7 +479,7 @@ export function CodingPanel({
       for (const dirPath of parents) {
         if (cancelled) return
         if (expandedDirsRef.current.has(dirPath)) continue
-        const r = await invokeListCodingDirectory(projectPath, dirPath)
+        const r = await invokeListCodingDirectory(projectPath, dirPath, { includeIgnored: true })
         if (cancelled) return
         if (r.ok) {
           setChildrenByDir((c) => ({ ...c, [dirPath]: filterCodingTreeEntries(r.entries) }))
@@ -864,6 +864,13 @@ export function CodingPanel({
                       onStageFile={(path) => void onStageFile(path)}
                       onUnstageFile={(path) => void onUnstageFile(path)}
                       onDiscardFile={(path) => void onDiscardFile(path)}
+                      onOpenExternal={(path) => {
+                        if (!projectPath) return
+                        const abs = `${projectPath.replace(/\\/g, '/')}/${path}`
+                        void window.voidcast?.openPath(abs).then((r) => {
+                          if (r && !r.ok) pushTerminal('stderr', r.text)
+                        })
+                      }}
                     />
                   </div>
                   {treeSplitActive && (

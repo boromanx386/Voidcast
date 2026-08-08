@@ -3,6 +3,8 @@ export type CodingFileNode = {
   path: string
   type: 'file' | 'directory'
   size?: number
+  /** True for heavy / generated dirs (node_modules, dist, …) — shown dimmed in the tree. */
+  ignored?: boolean
 }
 
 export type TerminalLine = {

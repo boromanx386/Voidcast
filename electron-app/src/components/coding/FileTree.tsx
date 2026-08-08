@@ -26,6 +26,8 @@ export type FileTreeProps = {
   onStageFile?: (path: string) => void
   onUnstageFile?: (path: string) => void
   onDiscardFile?: (path: string) => void
+  /** Open a file in the OS default app (e.g. double-click an image or sound). */
+  onOpenExternal?: (path: string) => void
 }
 
 function filterDirtyEntries(
@@ -50,6 +52,7 @@ function TreeRows({
   onStageFile,
   onUnstageFile,
   onDiscardFile,
+  onOpenExternal,
   selectedPath,
   gitStatusByPath,
   dirtyOnly,
@@ -72,9 +75,11 @@ function TreeRows({
               style={{ paddingLeft: pad }}
               onClick={() => void onToggleDirectory(node.path)}
               className={`w-full rounded py-1 text-left text-xs font-mono hover:bg-void-mid/40 ${
-                byPath && dirHasGitChanges(node.path, byPath)
-                  ? 'coding-dir-dirty'
-                  : 'text-void-light'
+                node.ignored
+                  ? 'text-void-dim/70 opacity-70'
+                  : byPath && dirHasGitChanges(node.path, byPath)
+                    ? 'coding-dir-dirty'
+                    : 'text-void-light'
               }`}
             >
               <span className="inline-block w-4 tabular-nums text-void-dim">
@@ -110,6 +115,7 @@ function TreeRows({
                   onStageFile={onStageFile}
                   onUnstageFile={onUnstageFile}
                   onDiscardFile={onDiscardFile}
+                  onOpenExternal={onOpenExternal}
                   selectedPath={selectedPath}
                   gitStatusByPath={gitStatusByPath}
                   dirtyOnly={dirtyOnly}
@@ -139,12 +145,15 @@ function TreeRows({
                   title={status ? `${node.path} (${letter})` : node.path}
                   style={{ paddingLeft: pad }}
                   onClick={() => onSelectFile(node.path)}
+                  onDoubleClick={() => onOpenExternal?.(node.path)}
                   className={`min-w-0 flex-1 py-1 text-left text-xs font-mono break-all ${
                     selected
                       ? 'coding-accent-text'
-                      : letter
-                        ? colorClass
-                        : 'text-void-light'
+                      : node.ignored
+                        ? 'text-void-dim/70 opacity-70'
+                        : letter
+                          ? colorClass
+                          : 'text-void-light'
                   }`}
                 >
                   <span
@@ -226,6 +235,7 @@ export function FileTree({
   onStageFile,
   onUnstageFile,
   onDiscardFile,
+  onOpenExternal,
 }: FileTreeProps) {
   const dirtyCount = gitStatusByPath?.size ?? 0
   const visibleRoot =
@@ -288,6 +298,7 @@ export function FileTree({
                 onStageFile={onStageFile}
                 onUnstageFile={onUnstageFile}
                 onDiscardFile={onDiscardFile}
+                onOpenExternal={onOpenExternal}
                 selectedPath={selectedPath}
                 gitStatusByPath={gitStatusByPath}
                 dirtyOnly={dirtyOnly}
