@@ -292,7 +292,7 @@ Other UX features:
 - **Chat keyboard shortcuts** — Ctrl+S save session, Ctrl+N new chat, Shift+Tab toggle Plan/Agent mode
 - **Chat sessions grouped by project folder** — General chats at top, project-specific groups below
 - **Start a chat for a project** — each project-folder group has a `+` button (revealed on hover) that starts a fresh chat already bound to that folder
-- **Type while the agent is working** — the composer stays active during a running turn; queued text shows a "Draft ready — agent is busy" status and sends once the turn finishes
+- **Type while the agent is working** — the composer stays active during a running turn; type a correction and press Enter to **Steer** (abort + redirect mid-turn), or wait for the turn to finish
 - **Custom Windows title bar** — cyber-btn header controls replace native caption buttons
 - **Coding process badge** — active foreground/background processes shown in the status bar
 

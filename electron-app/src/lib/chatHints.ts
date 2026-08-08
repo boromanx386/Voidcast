@@ -214,3 +214,17 @@ export function buildQueuedFilePathHint(queued: FileAttachmentSnapshot[]): strin
     'Use these paths as primary source and snapshot content when present.',
   ].join('\n')
 }
+
+/**
+ * Prefix injected into the model-facing user text when the user steers mid-turn.
+ * Visible bubble keeps the raw user text (see `displayText` / `steered` on UiMessage).
+ */
+export function buildSteerCourseCorrectionText(userText: string): string {
+  const body = userText.trim()
+  const header = [
+    '[Steer — mid-turn course correction]',
+    'The previous assistant turn was interrupted before completion.',
+    'Treat the message below as a hard redirect: drop conflicting intent from the incomplete prior turn, keep any useful progress already done.',
+  ].join('\n')
+  return body ? `${header}\n\n${body}` : header
+}

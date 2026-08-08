@@ -6,6 +6,7 @@ import {
   buildQueuedFilePathHint,
   buildQueuedImagePathHint,
   buildRuntimeTimeHint,
+  buildSteerCourseCorrectionText,
   deriveSessionTitle,
   sanitizeForTts,
   shouldUseVisionForText,
@@ -186,5 +187,20 @@ describe('buildToolsCodingHint', () => {
     expect(hint).toContain('optional')
     expect(hint).toContain('AGENT MODE workers')
     expect(hint).not.toContain('PRIMARY for multi-file')
+  })
+})
+
+describe('buildSteerCourseCorrectionText', () => {
+  test('wraps user text with hard redirect framing', () => {
+    const out = buildSteerCourseCorrectionText('  do the other file  ')
+    expect(out).toContain('[Steer — mid-turn course correction]')
+    expect(out).toContain('hard redirect')
+    expect(out).toContain('do the other file')
+  })
+
+  test('still returns header when body is empty', () => {
+    const out = buildSteerCourseCorrectionText('   ')
+    expect(out).toContain('[Steer — mid-turn course correction]')
+    expect(out).not.toMatch(/\n\n$/)
   })
 })

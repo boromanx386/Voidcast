@@ -101,6 +101,14 @@ export function ChatMessage({
           <span className={`message-role ${m.role === 'user' ? 'text-neon-purple' : 'text-neon-cyan'}`}>
             {m.role === 'user' ? 'USER' : 'Void Agent'}
           </span>
+          {m.role === 'user' && m.steered ? (
+            <span
+              className="ml-2 rounded border border-neon-yellow/40 bg-neon-yellow/10 px-1.5 py-px text-[9px] font-mono text-neon-yellow/90"
+              title="This message steered a running agent turn"
+            >
+              STEER
+            </span>
+          ) : null}
         </div>
         
         {/* Content */}

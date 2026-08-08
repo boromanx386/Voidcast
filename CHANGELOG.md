@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Steer mid-turn**: while the agent is working, type a correction and press **Enter** (or the compass Steer button) to abort the live turn and immediately start a new one with a course-correction frame for the model. Plain stop still only cancels. Steered user bubbles show a `STEER` badge.
+
 ## [2.8.2] — 2026-08-07
 
 ### Added
@@ -13,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - **Richer plan handoff draft + tool trail**: when escalating to Plan mode, the pre-plan agent reply stays visible as a `→ Plan mode · kept as draft before plan` note (the real reply when substantial, otherwise the explored-file digests), and the Plan context now carries a compact one-line-per-event tool trail with **HARD CONSTRAINT** no-reexplore hints so Plan mode does not redo the research from scratch. Streamed content is no longer cleared between tool rounds.
 - **Covered-path memo block**: session covered paths (the soft-deny list) are surfaced in the coding memo above the digests, so the agent sees what is already in context; `read_file` / `find_symbols` results stay pinned longer in long tool loops (read pin 3 → 6, outlines 2 → 4, keep-read rounds 8 → 12).
 - **Per-project new-chat button**: project-folder groups in the sessions sidebar get a `+` button (revealed on hover) that starts a brand-new chat already bound to that folder.
-- **Type while the agent is busy**: the composer no longer disables input during a running turn; a `Draft ready — agent is busy, press Enter to send when it finishes` status (with pencil icon + `kbd` hint) shows when you've queued text or attachments that can't be sent yet.
+- **Type while the agent is busy**: the composer no longer disables input during a running turn; a draft status shows when you've queued text or attachments while the agent runs (see also **Steer mid-turn**).
 - **LAN access token for phone/web clients**: the LAN QR/URL now carries a shared access token (`?t=...`), sent as `x-voidcast-access-token` on every same-origin request and stripped from the address bar (session-persisted so refresh keeps working). Server-side CORS relaxed to wildcard origin with `allow_credentials=False`.
 
 ### Changed

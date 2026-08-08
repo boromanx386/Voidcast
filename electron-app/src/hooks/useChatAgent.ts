@@ -73,7 +73,7 @@ import {
   setSubAgentPanelCollapsed as setSubAgentPanelCollapsedState,
   type SubAgentPanelState,
 } from '@/lib/subAgentPanelState'
-import { toConversationTurns } from '@/lib/chatHints'
+import { buildSteerCourseCorrectionText, toConversationTurns } from '@/lib/chatHints'
 import { getCodingProjectPath } from '@/lib/codingContextMemo'
 import {
   DRAFT_RUNTIME_KEY,
@@ -179,6 +179,11 @@ export type OnSendOptions = {
    * UI only — not included in the Plan turn's LLM history.
    */
   planHandoffUiDraft?: UiMessage
+  /**
+   * Mid-turn course correction: model gets a steer prefix; bubble stays plain user text.
+   * Caller must abort the active run first (`onSteer` / `onStop`) so `busy` is clear.
+   */
+  steer?: boolean
 }
 
 function lastUserMessage(history: UiMessage[]): UiMessage | undefined {
@@ -587,10 +592,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       const isEdit = Boolean(opts?.skipAddUserMsg)
       const isPlanHandoff = Boolean(opts?.planHandoff)
+      const isSteer = Boolean(opts?.steer) && !isEdit
       const activeHistory = opts?.history ?? slotNow().messages
-      const text = isEdit
+      const plainText = isEdit
         ? (opts?.text ?? (isPlanHandoff ? lastUserMessage(activeHistory)?.content ?? '' : '')).trim()
         : (opts?.text ?? input).trim()
+      // Model-facing text (steer wraps a course-correction header around the user body).
+      const text = isSteer ? buildSteerCourseCorrectionText(plainText) : plainText
       let queued = isEdit || (opts?.text && !isPlanHandoff) ? [] : pendingImages
       let queuedFiles = isEdit || (opts?.text && !isPlanHandoff) ? [] : pendingFiles
       if (isPlanHandoff && isEdit) {
@@ -601,7 +609,10 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           queuedFiles = recovered.queuedFiles
         }
       }
-      if ((!text && queued.length === 0 && queuedFiles.length === 0) || slotNow().busy) {
+      if (
+        (!plainText && queued.length === 0 && queuedFiles.length === 0) ||
+        slotNow().busy
+      ) {
         sessionAgentStore.releaseKeyHandle(bind)
         return
       }
@@ -755,7 +766,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         userMsg = {
           id: uid(),
           role: 'user',
-          content: opts?.displayText ?? text,
+          // Bubble shows the plain user text; steer header stays model-only.
+          content: opts?.displayText ?? (isSteer ? plainText : text),
+          ...(isSteer ? { steered: true as const } : {}),
           ...(imagesBase64.length > 0
             ? { images: imagesBase64, imageMimes, imageNames, imagePaths }
             : {}),
@@ -1326,6 +1339,26 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     )
   }, [runtimeKey])
 
+  /**
+   * Abort the live turn (if any) and immediately send a course-correction message.
+   * Use when thinking/tools go the wrong way — steers without waiting for the turn to finish.
+   */
+  const onSteer = useCallback(() => {
+    const hasPayload =
+      !!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0
+    if (!hasPayload) return
+    if (busy) {
+      onStop()
+      // Stop clears busy synchronously; start the steered turn after any
+      // abort handlers scheduled in this tick have a chance to unwind.
+      queueMicrotask(() => {
+        void onSend({ steer: true })
+      })
+      return
+    }
+    void onSend()
+  }, [busy, input, onSend, onStop, pendingFiles.length, pendingImages.length])
+
   const startEdit = useCallback(
     (msg: UiMessage) => {
       if (busy) return
@@ -1464,6 +1497,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     resetContextUsage,
     onSend,
     onStop,
+    onSteer,
     startEdit,
     cancelEdit,
     commitEdit,

@@ -18,6 +18,7 @@ type Props = {
     | 'busy'
     | 'onSend'
     | 'onStop'
+    | 'onSteer'
     | 'pendingImages'
     | 'pendingFiles'
     | 'chatAttachmentInputRef'
@@ -47,6 +48,7 @@ export function ChatComposer({ app }: Props) {
     busy,
     onSend,
     onStop,
+    onSteer,
     pendingImages,
     pendingFiles,
     chatAttachmentInputRef,
@@ -72,12 +74,13 @@ export function ChatComposer({ app }: Props) {
   )
 
   // True while the agent is busy and the user has typed (or attached) a next
-  // message that can't be sent yet — surfaced so a queued draft isn't mistaken
-  // for a stuck composer.
+  // message — can steer now, or remains a draft if they wait for the turn to end.
   const hasPendingDraft = useMemo(
     () => busy && (!!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0),
     [busy, input, pendingImages.length, pendingFiles.length],
   )
+
+  const canSteer = hasPendingDraft
 
   const chatPlaceholder = useMemo(
     () => getChatComposerPlaceholder(settings.uiTheme, settings.agentMode),
@@ -259,6 +262,10 @@ export function ChatComposer({ app }: Props) {
               }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
+                if (busy) {
+                  if (canSteer) void onSteer()
+                  return
+                }
                 void onSend()
               }
             }}
@@ -516,17 +523,40 @@ export function ChatComposer({ app }: Props) {
             </button>
 
             {busy ? (
-              <button
-                type="button"
-                onClick={onStop}
-                className="composer-send-btn composer-send-btn--stop"
-                title="Stop generation"
-                aria-label="Stop generation"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <rect x="6" y="6" width="12" height="12" rx="1" />
-                </svg>
-              </button>
+              <div className="composer-send-group">
+                {canSteer ? (
+                  <button
+                    type="button"
+                    onClick={() => void onSteer()}
+                    className="composer-send-btn composer-send-btn--steer"
+                    title="Steer — stop and redirect the agent with this message"
+                    aria-label="Steer agent"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2v4" />
+                      <path d="M12 18v4" />
+                      <path d="M4.93 4.93l2.83 2.83" />
+                      <path d="M16.24 16.24l2.83 2.83" />
+                      <path d="M2 12h4" />
+                      <path d="M18 12h4" />
+                      <path d="M4.93 19.07l2.83-2.83" />
+                      <path d="M16.24 7.76l2.83-2.83" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="composer-send-btn composer-send-btn--stop"
+                  title="Stop generation"
+                  aria-label="Stop generation"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  </svg>
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
@@ -545,7 +575,7 @@ export function ChatComposer({ app }: Props) {
 
           {hasPendingDraft && (
             <div
-              className="composer-draft-status"
+              className="composer-draft-status composer-draft-status--steer"
               role="status"
               aria-live="polite"
             >
@@ -557,11 +587,18 @@ export function ChatComposer({ app }: Props) {
                 strokeWidth="2"
                 aria-hidden
               >
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                <path d="M12 2v4" />
+                <path d="M12 18v4" />
+                <path d="M4.93 4.93l2.83 2.83" />
+                <path d="M16.24 16.24l2.83 2.83" />
+                <path d="M2 12h4" />
+                <path d="M18 12h4" />
+                <path d="M4.93 19.07l2.83-2.83" />
+                <path d="M16.24 7.76l2.83-2.83" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
               <span className="composer-draft-status__text">
-                Draft ready — agent is busy, press <kbd>Enter</kbd> to send when it finishes
+                Steer ready — press <kbd>Enter</kbd> to redirect the agent now
               </span>
             </div>
           )}

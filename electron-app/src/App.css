@@ -204,6 +204,10 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply px-1 pt-0.5 font-mono text-[10px] text-neon-cyan/80;
 }
 
+.composer-draft-status--steer {
+  @apply text-neon-yellow/85;
+}
+
 .composer-draft-status__icon {
   @apply h-3 w-3 shrink-0;
 }
@@ -459,6 +463,14 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   );
 }
 
+.composer-send-group {
+  @apply ml-auto flex shrink-0 items-center gap-1.5;
+}
+
+.composer-send-group .composer-send-btn {
+  @apply ml-0;
+}
+
 .composer-send-btn:hover:not(:disabled) {
   @apply bg-neon-cyan/20 border-neon-cyan;
   box-shadow: 0 0 12px rgb(var(--color-neon-cyan) / 0.35);
@@ -471,6 +483,15 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 .composer-send-btn--stop:hover {
   @apply bg-neon-red/15 border-neon-red;
   box-shadow: 0 0 12px rgb(var(--color-neon-red) / 0.3);
+}
+
+.composer-send-btn--steer {
+  @apply border-neon-yellow/50 text-neon-yellow;
+}
+
+.composer-send-btn--steer:hover {
+  @apply bg-neon-yellow/15 border-neon-yellow;
+  box-shadow: 0 0 12px rgb(var(--color-neon-yellow) / 0.3);
 }
 
 .composer-send-btn svg {

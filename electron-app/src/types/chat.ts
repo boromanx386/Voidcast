@@ -76,6 +76,10 @@ export type UiMessage = {
    */
   thinking?: string
   /**
+   * User only: this message aborted a running agent turn to redirect it (steer).
+   */
+  steered?: boolean
+  /**
    * Assistant only: this reply was the agent-mode answer that triggered a plan-mode
    * escalation. Kept on screen (not discarded) as context before the plan turn.
    */
