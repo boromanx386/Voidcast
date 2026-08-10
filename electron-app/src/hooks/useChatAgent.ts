@@ -696,6 +696,21 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
       }
 
+      // Reserve the run slot BEFORE the first await so the concurrency cap
+      // check (canStartRun above) and slot occupation are atomic. Without this,
+      // two concurrent onSend calls from different chats could both pass the
+      // cap check, then both beginRun, exceeding MAX_CONCURRENT_AGENT_RUNS.
+      // Restart on same session: cancel that session's MCP, not other chats'.
+      void cancelActiveMcpCalls(keyOf())
+      const { runId, controller: ac } = sessionAgentStore.beginRun(keyOf(), {
+        codingProjectPath: turnCodingProjectPath,
+      })
+      // New turn: clear ephemeral live panel (anchored cards stay on prior messages).
+      sessionAgentStore.update(keyOf(), (prev) => ({
+        ...prev,
+        subAgentPanel: emptySubAgentPanelState(),
+      }))
+
       const turnContext = await buildAgentTurnContext({
         settings: turnSettings,
         systemPromptPreset: systemPromptPresetRef.current,
@@ -791,16 +806,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       }
 
       const asstId = uid()
-      // Restart on same session: cancel that session's MCP, not other chats'.
-      void cancelActiveMcpCalls(keyOf())
-      const { runId, controller: ac } = sessionAgentStore.beginRun(keyOf(), {
-        codingProjectPath: turnCodingProjectPath,
-      })
-      // New turn: clear ephemeral live panel (anchored cards stay on prior messages).
-      sessionAgentStore.update(keyOf(), (prev) => ({
-        ...prev,
-        subAgentPanel: emptySubAgentPanelState(),
-      }))
       const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
       if (isEdit) {
         const handoffDraft =
@@ -839,12 +844,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       // Keep shared file-cache ref in sync when this run is the visible chat (tools that read it outside params).
       if (isViewingThisRun()) {
         codingFileCacheRef.current = turnFileCacheRef.current
-      }
-
-      const markBgDoneIfNeeded = () => {
-        if (!isViewingThisRun() && isRealSessionRuntimeKey(keyOf())) {
-          sessionAgentStore.markCompleteUnread(keyOf())
-        }
       }
 
       try {
@@ -1215,6 +1214,18 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
       } finally {
         sessionAgentStore.endRun(keyOf(), runId)
+        // Release exactly once for every exit path (normal, escalate, abort,
+        // error, early return). Previously leaked on early returns inside try.
+        sessionAgentStore.releaseKeyHandle(bind)
+        // Background finish (success OR error) → DONE badge until the user opens
+        // the chat. Abort is excluded (user intentionally stopped). Previously
+        // only the success path marked unread, so failed background runs had
+        // no badge.
+        const ownsSlotAfterEnd =
+          sessionAgentStore.getSnapshot(keyOf()).runId === runId && !ac.signal.aborted
+        if (ownsSlotAfterEnd && !isViewingThisRun() && isRealSessionRuntimeKey(keyOf())) {
+          sessionAgentStore.markCompleteUnread(keyOf())
+        }
       }
 
       // Same semantics as pre-store: runId still current and not aborted → finish/escalate.
@@ -1262,7 +1273,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             }
           : undefined
         onSessionDirty()
-        sessionAgentStore.releaseKeyHandle(bind)
         void onSend({
           text,
           forceAgentMode: 'plan',
@@ -1275,13 +1285,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         return
       }
 
-      sessionAgentStore.releaseKeyHandle(bind)
-
-      // Background finish (success or error) → DONE badge until the user opens the chat.
-      if (runStillOwnsSlot) {
-        markBgDoneIfNeeded()
-      }
-
+      // Background finish badge is now handled in `finally` so error/abort paths
+      // are covered uniformly. `runStillOwnsSlot` is still used below to gate
+      // post-turn side effects (sound, auto-speak) to the owning run.
       if (replyText.trim() && runStillOwnsSlot) {
         const willAutoSpeak = loadSettings().autoVoice && ttsOk !== false
         if (turnSettings.notificationSoundsEnabled && !willAutoSpeak) {
