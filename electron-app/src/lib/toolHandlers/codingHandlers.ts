@@ -559,6 +559,9 @@ export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
         codingWorkerDepth: (ctx.codingWorkerDepth ?? 0) + 1,
       });
     },
+    codingContextMemoRef: ctx.codingContextMemoRef,
+    codingFileCacheRef: ctx.codingFileCacheRef,
+    codingProjectPath: ctx.codingProjectPath,
   });
 };
 

@@ -106,6 +106,126 @@ describe('worker round budget helpers', () => {
   })
 })
 
+describe('applyWorkerMutationsToMemo', () => {
+  // Lazy import to avoid pulling react types at module load in the test setup.
+  async function load() {
+    return await import('../src/lib/codingWorkers')
+  }
+
+  it('records write_file into recentFiles, fileCache, and recentFileDigests', async () => {
+    const { applyWorkerMutationsToMemo } = await load()
+    const { emptyCodingContextMemo, emptyCodingFileCache } = await import(
+      '../src/lib/codingContextMemo'
+    )
+    const memo = { current: emptyCodingContextMemo('proj') }
+    const fileCache = { current: emptyCodingFileCache() }
+    applyWorkerMutationsToMemo({
+      memoRef: memo,
+      fileCacheRef: fileCache,
+      codingProjectPath: 'proj',
+      mutations: [
+        {
+          tool: 'write_file',
+          path: 'src/a.ts',
+          args: { path: 'src/a.ts', content: 'export const x = 1\n' },
+          result: 'Saved src/a.ts',
+        },
+      ],
+    })
+    expect(memo.current.recentFiles).toContain('src/a.ts (written)')
+    expect(fileCache.current.entries.find((e) => e.path === 'src/a.ts')).toBeTruthy()
+    expect(memo.current.recentFileDigests.find((d) => d.path === 'src/a.ts')).toBeTruthy()
+  })
+
+  it('invalidates cache + digest for edit_code (worker does not know final content)', async () => {
+    const { applyWorkerMutationsToMemo } = await load()
+    const {
+      emptyCodingContextMemo,
+      emptyCodingFileCache,
+      upsertCodingFileCache,
+      upsertFileDigest,
+    } = await import('../src/lib/codingContextMemo')
+    const fileCache = { current: upsertCodingFileCache(emptyCodingFileCache(), 'src/b.ts', 'old') }
+    const memo = {
+      current: {
+        ...emptyCodingContextMemo('proj'),
+        recentFileDigests: upsertFileDigest([], 'src/b.ts', 'old digest'),
+      },
+    }
+    applyWorkerMutationsToMemo({
+      memoRef: memo,
+      fileCacheRef: fileCache,
+      codingProjectPath: 'proj',
+      mutations: [
+        {
+          tool: 'edit_code',
+          path: 'src/b.ts',
+          args: { path: 'src/b.ts', find_text: 'old', replace_text: 'new' },
+          result: 'Edited src/b.ts',
+        },
+      ],
+    })
+    expect(fileCache.current.entries.find((e) => e.path === 'src/b.ts')).toBeFalsy()
+    expect(memo.current.recentFileDigests.find((d) => d.path === 'src/b.ts')).toBeFalsy()
+    expect(memo.current.recentFiles.some((f) => f.startsWith('src/b.ts'))).toBe(true)
+  })
+
+  it('skips failed mutations (result starts with Error:)', async () => {
+    const { applyWorkerMutationsToMemo } = await load()
+    const { emptyCodingContextMemo, emptyCodingFileCache } = await import(
+      '../src/lib/codingContextMemo'
+    )
+    const memo = { current: emptyCodingContextMemo('proj') }
+    const fileCache = { current: emptyCodingFileCache() }
+    applyWorkerMutationsToMemo({
+      memoRef: memo,
+      fileCacheRef: fileCache,
+      codingProjectPath: 'proj',
+      mutations: [
+        {
+          tool: 'write_file',
+          path: 'src/c.ts',
+          args: { path: 'src/c.ts', content: 'x' },
+          result: 'Error: write failed',
+        },
+      ],
+    })
+    expect(memo.current.recentFiles.length).toBe(0)
+    expect(fileCache.current.entries.length).toBe(0)
+  })
+
+  it('applies multiple mutations serially without losing entries (no race)', async () => {
+    const { applyWorkerMutationsToMemo } = await load()
+    const { emptyCodingContextMemo, emptyCodingFileCache } = await import(
+      '../src/lib/codingContextMemo'
+    )
+    const memo = { current: emptyCodingContextMemo('proj') }
+    const fileCache = { current: emptyCodingFileCache() }
+    applyWorkerMutationsToMemo({
+      memoRef: memo,
+      fileCacheRef: fileCache,
+      codingProjectPath: 'proj',
+      mutations: [
+        {
+          tool: 'write_file',
+          path: 'src/a.ts',
+          args: { path: 'src/a.ts', content: 'a' },
+          result: 'Saved src/a.ts',
+        },
+        {
+          tool: 'write_file',
+          path: 'src/b.ts',
+          args: { path: 'src/b.ts', content: 'b' },
+          result: 'Saved src/b.ts',
+        },
+      ],
+    })
+    expect(memo.current.recentFiles).toContain('src/a.ts (written)')
+    expect(memo.current.recentFiles).toContain('src/b.ts (written)')
+    expect(fileCache.current.entries.length).toBe(2)
+  })
+})
+
 describe('buildToolsList team mode', () => {
   it('registers run_coding_workers in agent and team when coding sub is on (not plan)', () => {
     const team = buildToolsList(baseTools, false, {

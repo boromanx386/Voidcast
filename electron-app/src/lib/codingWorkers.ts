@@ -3,6 +3,7 @@
  * Invoked by main chat LLM via run_coding_workers (max 2 concurrent tasks).
  */
 
+import type { MutableRefObject } from 'react'
 import type { SubAgentConfig } from '@/lib/settings'
 import { subAgentConfigForRole, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from '@/lib/settings'
 import {
@@ -14,6 +15,19 @@ import {
   CODING_EXPLORE_ALLOWED_TOOLS,
   parseCodingExploreAction,
 } from '@/lib/codingSubAgent'
+import {
+  invalidateCodingFileCache,
+  isCodingToolFailure,
+  normalizeCodingContextMemo,
+  pushRecentUnique,
+  removeFileDigest,
+  upsertCodingFileCache,
+  upsertFileDigest,
+  type CodingContextMemo,
+  type CodingFileCache,
+} from '@/lib/codingContextMemo'
+import { digestReadFile } from '@/lib/codingSubAgent'
+import { formatEditedFileMemoEntry } from '@/lib/codingEol'
 
 export const CODING_WORKER_MAX_TASKS = 2
 /** Default tool rounds before forced digest. */
@@ -180,6 +194,80 @@ export function synthesizeWorkerDigest(opts: {
   return lines.join('\n').slice(0, 2500)
 }
 
+/**
+ * A successful write_file/edit_code performed by a worker. Collected per-worker
+ * and applied SERIALLY to the parent memo after Promise.all settles, so two
+ * parallel workers cannot race on the shared codingContextMemoRef / file cache.
+ */
+export type WorkerMutation = {
+  tool: 'write_file' | 'edit_code'
+  path: string
+  args: Record<string, unknown>
+  result: string
+}
+
+export type WorkerRunResult = {
+  digest: string
+  mutations: WorkerMutation[]
+}
+
+/**
+ * Apply a batch of worker mutations to the parent coding memo + file cache.
+ * Pure (no I/O): reads/writes the refs the caller passes. Idempotent for the
+ * same path (LRU front). Mirrors the write_file/edit_code branches of
+ * applyAgentToolResult but stripped of UI side effects (terminal, reveal, etc.).
+ */
+export function applyWorkerMutationsToMemo(opts: {
+  memoRef: MutableRefObject<CodingContextMemo>
+  fileCacheRef: MutableRefObject<CodingFileCache>
+  mutations: WorkerMutation[]
+  codingProjectPath: string
+}): void {
+  if (opts.mutations.length === 0) return
+  let memo = opts.memoRef.current
+  let fileCache = opts.fileCacheRef.current
+  for (const m of opts.mutations) {
+    if (isCodingToolFailure(m.tool, m.result)) continue
+    const filePath = m.path
+    if (!filePath) continue
+
+    if (m.tool === 'write_file') {
+      const content = typeof m.args.content === 'string' ? m.args.content : ''
+      if (content) {
+        fileCache = upsertCodingFileCache(fileCache, filePath, content)
+        memo = {
+          ...memo,
+          recentFileDigests: upsertFileDigest(
+            memo.recentFileDigests ?? [],
+            filePath,
+            digestReadFile(content),
+          ),
+        }
+      }
+      memo = {
+        ...memo,
+        recentFiles: pushRecentUnique(memo.recentFiles, `${filePath} (written)`),
+      }
+    } else {
+      // edit_code: worker does not know the final file content, so invalidate
+      // the cache + digest for this path — next read_file will be full (not
+      // soft-denied) and re-populate both.
+      fileCache = invalidateCodingFileCache(fileCache, filePath)
+      memo = {
+        ...memo,
+        recentFileDigests: removeFileDigest(memo.recentFileDigests ?? [], filePath),
+        recentFiles: pushRecentUnique(
+          memo.recentFiles,
+          formatEditedFileMemoEntry(filePath, m.result),
+        ),
+      }
+    }
+  }
+  memo = normalizeCodingContextMemo(memo, opts.codingProjectPath)
+  opts.memoRef.current = memo
+  opts.fileCacheRef.current = fileCache
+}
+
 function workerSystemPrompt(pathPrefix: string | undefined, recentFiles: string[]): string {
   const tools = [...CODING_WORKER_ALLOWED_TOOLS].join(', ')
   const prefixLine = pathPrefix
@@ -223,9 +311,9 @@ type WorkerRunOpts = {
   executeTool: (name: string, args: Record<string, unknown>) => Promise<string>
 }
 
-async function runOneCodingWorker(opts: WorkerRunOpts): Promise<string> {
+async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult> {
   const goal = opts.goal.trim()
-  if (!goal) return `${opts.workerLabel}: Error: missing goal.`
+  if (!goal) return { digest: `${opts.workerLabel}: Error: missing goal.`, mutations: [] }
 
   const codingConfig = subAgentConfigForRole(opts.config, 'coding')
   const maxRounds = clampWorkerMaxRounds(opts.maxRounds)
@@ -235,6 +323,7 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<string> {
   const notes: string[] = []
   const toolTrail: string[] = []
   const mutatedPaths: string[] = []
+  const mutations: WorkerMutation[] = []
   let mutationSuccesses = 0
 
   opts.ui?.onCodingStart?.(`${opts.workerLabel} · 0/${maxRounds}`)
@@ -247,10 +336,10 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<string> {
     },
   ]
 
-  const finishWith = (body: string) => {
+  const finishWith = (body: string): WorkerRunResult => {
     const digest = `${opts.workerLabel}:\n${body}`
     opts.ui?.onCodingDone?.(digest)
-    return digest
+    return { digest, mutations }
   }
 
   try {
@@ -395,7 +484,15 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<string> {
       const looksOk = !/^\s*error\s*:/i.test(result)
       if (CODING_WORKER_MUTATION_TOOLS.has(tool) && looksOk) {
         const rel = pathFromWorkerToolArgs(tool, execArgs)
-        if (rel) mutatedPaths.push(rel)
+        if (rel) {
+          mutatedPaths.push(rel)
+          mutations.push({
+            tool: tool as 'write_file' | 'edit_code',
+            path: rel,
+            args: execArgs,
+            result,
+          })
+        }
         mutationSuccesses += 1
       }
 
@@ -465,6 +562,16 @@ export type RunCodingWorkersOpts = {
   signal?: AbortSignal
   ui?: SubAgentUiCallbacks
   executeTool: (name: string, args: Record<string, unknown>) => Promise<string>
+  /**
+   * Parent turn memo ref. When provided, worker write/edit mutations are
+   * applied SERIALLY after Promise.all settles (no race with sibling workers)
+   * so subsequent turns see accurate recentFiles / recentFileDigests / file
+   * cache for worker edits. Without this, worker edits are invisible to the
+   * parent memo and the next read_file can be soft-denied due to stale digest.
+   */
+  codingContextMemoRef?: MutableRefObject<CodingContextMemo>
+  codingFileCacheRef?: MutableRefObject<CodingFileCache>
+  codingProjectPath?: string
 }
 
 /**
@@ -480,7 +587,7 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
     n === 1 ? 'WORKER 1 · starting' : `WORKERS 1–${n} · starting in parallel`,
   )
 
-  const settled = await Promise.all(
+  const settled: WorkerRunResult[] = await Promise.all(
     tasks.map((task, i) => {
       const workerId = `worker-${i + 1}`
       const workerLabel = `WORKER ${i + 1}`
@@ -497,16 +604,32 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
         ui: opts.ui,
         fileLocks,
         executeTool: opts.executeTool,
-      }).catch((e) => {
+      }).catch((e): WorkerRunResult => {
         const msg = e instanceof Error ? e.message : String(e)
-        return `${workerLabel}: Error: ${msg}`
+        return { digest: `${workerLabel}: Error: ${msg}`, mutations: [] }
       })
     }),
   )
 
+  // Apply all worker mutations to the parent memo SERIALLY (after Promise.all)
+  // so parallel workers cannot race on the shared codingContextMemoRef / file
+  // cache. Without this, two workers editing in parallel could lost-update
+  // the memo (last write wins) and leave recentFileDigests inconsistent.
+  if (opts.codingContextMemoRef && opts.codingFileCacheRef) {
+    const allMutations = settled.flatMap((s) => s.mutations)
+    if (allMutations.length > 0) {
+      applyWorkerMutationsToMemo({
+        memoRef: opts.codingContextMemoRef,
+        fileCacheRef: opts.codingFileCacheRef,
+        mutations: allMutations,
+        codingProjectPath: (opts.codingProjectPath || '').trim(),
+      })
+    }
+  }
+
   const report = [
     `Coding workers finished (${settled.length}):`,
-    ...settled.map((s) => `---\n${s}`),
+    ...settled.map((s) => `---\n${s.digest}`),
   ].join('\n')
   opts.ui?.onCodingDone?.(report.length > 4000 ? `${report.slice(0, 4000)}…` : report)
   return report
