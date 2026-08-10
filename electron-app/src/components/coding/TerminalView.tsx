@@ -30,6 +30,12 @@ export function TerminalView({ lines, onClear, running = false, onStop }: Props)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
 
+  const pinBottom = useCallback(() => {
+    const el = scrollRef.current
+    if (!el || !stickToBottomRef.current) return
+    el.scrollTop = el.scrollHeight
+  }, [])
+
   const onScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
@@ -37,17 +43,31 @@ export function TerminalView({ lines, onClear, running = false, onStop }: Props)
     stickToBottomRef.current = gap < 48
   }, [])
 
+  // Follow new output while pinned to the bottom.
+  useEffect(() => {
+    const id = requestAnimationFrame(pinBottom)
+    return () => cancelAnimationFrame(id)
+  }, [lines, pinBottom])
+
+  // When the pane is resized (shrink/grow), re-pin if we were following —
+  // otherwise the last lines sit clipped under the viewport with no way to
+  // reach them (or look like scroll is broken if overflow wasn't constrained).
   useEffect(() => {
     const el = scrollRef.current
-    if (!el || !stickToBottomRef.current) return
-    const id = requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      if (!stickToBottomRef.current) return
+      requestAnimationFrame(pinBottom)
     })
-    return () => cancelAnimationFrame(id)
-  }, [lines])
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [pinBottom])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded border border-void-muted/30 bg-void-black/50 p-2">
+    // h-full + min-h-0: parent must bound height; without this the body grows
+    // with every line and the outer overflow clips — scroll never appears and
+    // latest output sits “below” the pane.
+    <div className="flex h-full min-h-0 flex-col rounded border border-void-muted/30 bg-void-black/50 p-2">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <div className="coding-label--terminal text-xs font-mono">TERMINAL</div>
@@ -86,7 +106,7 @@ export function TerminalView({ lines, onClear, running = false, onStop }: Props)
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 space-y-1 overflow-auto font-mono text-xs"
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden font-mono text-xs"
       >
         {lines.length === 0 && <div className="text-void-dim">No terminal output yet.</div>}
         {lines.map((line) => (

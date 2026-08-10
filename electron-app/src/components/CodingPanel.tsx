@@ -1158,7 +1158,8 @@ export function CodingPanel({
                       style={bottomFills ? undefined : { height: terminalHeight }}
                     >
                       {showCommitBar ? commitPanel : null}
-                      <div className="min-h-0 flex-1 overflow-hidden">
+                      {/* Bound height so TerminalView can scroll inside (not grow past pane). */}
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         <TerminalView
                           lines={terminalLines}
                           onClear={() => setTerminalLines([])}
