@@ -16,11 +16,19 @@ All notable changes to this project will be documented in this file.
 - **Sticky unsaved drafts** (auto-save off): drafts stay in the sidebar so you can leave and return without losing them until you Save.
 - **Clipboard paste images** as pending chat attachments.
 - **Product docs**: [docs/multi-chat-and-team.md](docs/multi-chat-and-team.md) plus updates across chat / coding / SUB / architecture.
+- **Resizable preview ↔ terminal split** in the coding panel: a draggable horizontal divider between file preview and the terminal (only when both are visible; commit bar sits inside the terminal stack when dirty). Persisted height (`terminalHeightPx`, default 200px, clamped 80–480) with pointer-drag + keyboard support (↑/↓ 16px step, Shift 32px, Home/End for min/max). Terminal-only (or terminal + commit, no preview) fills remaining space with no divider; commit-only uses natural height.
+- **Terminal auto-scroll**: streamed output follows to the bottom while you're at the end, but does not yank the scroll position if you've scrolled up to read older output.
 
 ### Changed
 
 - Coding worker round budget raised (and documented) to **100** rounds.
 - **Save icon only while unsaved** (auto-save off): the SAVE affordance now shows only for sessions that are genuinely still drafts (`unsaved` flag), not whenever any new message arrives. Saving a chat once removes the flag, and from then on the session auto-persists — the save icon no longer reappears for already-saved chats.
+- **Ignored/generated dirs shown dimmed** instead of hidden: heavy folders (node_modules, dist, …) stay visible in the coding file tree, rendered dimmed, and a double-click opens the path in the OS app.
+- **Agent bubble bold de-accented per theme**: bold formatting in the assistant bubble no longer uses the theme accent on **Minimal zinc** (full-neutral bubble — h1, bullets, links and blockquotes also neutral), **Blood Moon** (neutral ivory bold), and **Terminal** (only bold neutralized, amber accents kept for the rest). **Matrix** bold switched from harsh phosphor green to a softer green.
+
+### Fixed
+
+- **Terminal resize snap-back + bottom pane sizing**: releasing the preview ↔ terminal drag used to reset height — an effect re-applied stale `terminalHeightPx` as soon as the resize flag cleared, before settings persisted. Drag direction follows the bottom-anchored pane (drag up grows the terminal). Splitter and fixed height apply only with preview + terminal; commit-only stays natural; terminal without preview fills.
 
 ## [2.8.2] — 2026-08-07
 

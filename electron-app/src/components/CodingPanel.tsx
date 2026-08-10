@@ -120,7 +120,7 @@ export function CodingPanel({
     clampCodingTerminalHeight(settings.coding.terminalHeightPx),
   )
   const [isTreeResizing, setIsTreeResizing] = useState(false)
-  const [isTerminalResizing, setIsTerminalResizing] = useState(false)
+  const [isBottomResizing, setIsBottomResizing] = useState(false)
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
   const [command, setCommand] = useState('')
   /** Oldest → newest; used for ↑ / ↓ in command input (bash-style). */
@@ -175,25 +175,14 @@ export function CodingPanel({
   }, [savedFileTreeHeight, isTreeResizing])
 
   useEffect(() => {
-    if (!isTerminalResizing) {
-      setTerminalHeight(clampCodingTerminalHeight(savedTerminalHeight))
-    }
-  }, [savedTerminalHeight, isTerminalResizing])
+    setTerminalHeight(clampCodingTerminalHeight(savedTerminalHeight))
+  }, [savedTerminalHeight])
 
   const persistFileTreeHeight = useCallback(
     (px: number) => {
       const next = clampCodingFileTreeHeight(px, bodySplitRef.current?.clientHeight)
       setFileTreeHeight(next)
       onCodingUiChange({ fileTreeHeightPx: next })
-    },
-    [onCodingUiChange],
-  )
-
-  const persistTerminalHeight = useCallback(
-    (px: number) => {
-      const next = clampCodingTerminalHeight(px, bodySplitRef.current?.clientHeight)
-      setTerminalHeight(next)
-      onCodingUiChange({ terminalHeightPx: next })
     },
     [onCodingUiChange],
   )
@@ -237,12 +226,21 @@ export function CodingPanel({
     [fileTreeHeight, persistFileTreeHeight],
   )
 
-  const onTerminalResizePointerDown = useCallback(
+  const persistBottomHeight = useCallback(
+    (px: number) => {
+      const next = clampCodingTerminalHeight(px, bodySplitRef.current?.clientHeight)
+      setTerminalHeight(next)
+      onCodingUiChange({ terminalHeightPx: next })
+    },
+    [onCodingUiChange],
+  )
+
+  const onBottomResizePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault()
       const handle = e.currentTarget
       handle.setPointerCapture(e.pointerId)
-      setIsTerminalResizing(true)
+      setIsBottomResizing(true)
       const prevCursor = document.body.style.cursor
       const prevUserSelect = document.body.style.userSelect
       document.body.style.cursor = 'row-resize'
@@ -259,21 +257,26 @@ export function CodingPanel({
       }
 
       const onUp = (ev: PointerEvent) => {
+        handle.releasePointerCapture(ev.pointerId)
         handle.removeEventListener('pointermove', onMove)
         handle.removeEventListener('pointerup', onUp)
         handle.removeEventListener('pointercancel', onUp)
-        handle.releasePointerCapture(ev.pointerId)
         document.body.style.cursor = prevCursor
         document.body.style.userSelect = prevUserSelect
-        setIsTerminalResizing(false)
-        persistTerminalHeight(startHeight - (ev.clientY - startY))
+        setIsBottomResizing(false)
+        const next = clampCodingTerminalHeight(
+          startHeight - (ev.clientY - startY),
+          bodySplitRef.current?.clientHeight,
+        )
+        setTerminalHeight(next)
+        onCodingUiChange({ terminalHeightPx: next })
       }
 
       handle.addEventListener('pointermove', onMove)
       handle.addEventListener('pointerup', onUp)
       handle.addEventListener('pointercancel', onUp)
     },
-    [terminalHeight, persistTerminalHeight],
+    [terminalHeight, onCodingUiChange],
   )
 
   const toggleSection = useCallback(
@@ -902,14 +905,107 @@ export function CodingPanel({
       <div
         ref={bodySplitRef}
         className={`flex min-h-0 flex-1 flex-col overflow-hidden${
-          isTreeResizing || isTerminalResizing ? ' select-none' : ''
+          isTreeResizing || isBottomResizing ? ' select-none' : ''
         }`}
       >
         {(() => {
           const showLower = showFilePreview || showTerminal
           const showCommitBar = dirtyCount > 0
           const treeSplitActive = showFileTree && showLower
-          const termSplitActive = showTerminal && (showFilePreview || showCommitBar)
+          // Resize handle + fixed bottom height only when preview sits above terminal.
+          const bottomSplitActive = showFilePreview && showTerminal
+          // No preview: terminal (and optional commit) fill remaining space.
+          const bottomFills = showTerminal && !showFilePreview
+
+          const commitPanel = showCommitBar ? (
+            <div className="shrink-0">
+              {!commitOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setCommitOpen(true)}
+                  className="coding-commit-bar flex w-full items-center justify-between gap-2 rounded border px-2 py-1 text-left transition-colors"
+                  title="Expand commit panel"
+                >
+                  <span className="coding-commit-accent-text font-mono text-[10px] uppercase tracking-wide">
+                    Commit
+                  </span>
+                  <span className="truncate font-mono text-[10px] text-void-dim">
+                    {stagedCount > 0
+                      ? `${stagedCount} staged · ${dirtyCount} dirty`
+                      : `${dirtyCount} dirty`}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] text-void-dim" aria-hidden>
+                    ▸
+                  </span>
+                </button>
+              ) : (
+                <div className="flex flex-col gap-1 rounded border border-void-muted/40 bg-void-black/25 p-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="coding-commit-accent-text font-mono text-[10px] uppercase tracking-wide">
+                      Commit
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCommitOpen(false)}
+                      className="rounded px-1 py-0.5 font-mono text-[10px] text-void-dim hover:bg-void-mid/40 hover:text-void-light"
+                      title="Collapse commit panel"
+                      aria-label="Collapse commit panel"
+                    >
+                      ▾
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        void onCommit(stagedCount > 0 ? false : true)
+                      }
+                    }}
+                    placeholder={
+                      stagedCount > 0
+                        ? `Message (${stagedCount} staged)`
+                        : `Message · commit all (${dirtyCount})`
+                    }
+                    title="Commit message"
+                    disabled={commitBusy}
+                    className="cyber-input w-full px-2 py-1 text-[11px]"
+                  />
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      className="cyber-btn px-2 py-0.5 text-[10px] disabled:opacity-40"
+                      disabled={commitBusy || !commitMessage.trim() || stagedCount === 0}
+                      title="Commit only staged files"
+                      onClick={() => void onCommit(false)}
+                    >
+                      Commit
+                    </button>
+                    <button
+                      type="button"
+                      className="cyber-btn px-2 py-0.5 text-[10px] disabled:opacity-40"
+                      disabled={commitBusy || !commitMessage.trim() || dirtyCount === 0}
+                      title="Stage all changes and commit (like VS Code Commit All)"
+                      onClick={() => void onCommit(true)}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className="coding-btn coding-btn--discard coding-btn--wide"
+                      disabled={commitBusy || dirtyCount === 0}
+                      title="Discard all local changes (restore + clean)"
+                      onClick={() => void onDiscardAll()}
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null
+
           return (
             <>
               {showFileTree && (
@@ -981,176 +1077,95 @@ export function CodingPanel({
                     showLower || !showFileTree ? 'flex-1' : 'shrink-0'
                   }`}
                 >
-                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
                   {showFilePreview && (
-                    <FilePreview
-                      filePath={selectedPath}
-                      content={previewContent}
-                      mode={previewMode}
-                      imageSrc={previewImageSrc}
-                      diffStaged={previewDiffStaged}
-                      editing={editing}
-                      editDraft={editDraft}
-                      editBusy={editBusy}
-                      editSessionKey={editSessionKey}
-                      canEdit={Boolean(
-                        projectPath &&
-                          selectedPath &&
-                          !isCodingPreviewImage(selectedPath) &&
-                          !editing,
-                      )}
-                      onStartEdit={() => void onStartEdit()}
-                      onEditDraftChange={setEditDraft}
-                      onSaveEdit={() => void onSaveEdit()}
-                      onCancelEdit={() => void onCancelEdit()}
-                      canStage={Boolean(
-                        selectedGit && (selectedGit.unstaged || selectedGit.untracked),
-                      )}
-                      canUnstage={Boolean(selectedGit?.staged)}
-                      canDiscard={Boolean(
-                        selectedGit && selectedGit.unstaged && !selectedGit.untracked,
-                      )}
-                      onStage={
-                        selectedPath ? () => void onStageFile(selectedPath) : undefined
-                      }
-                      onUnstage={
-                        selectedPath ? () => void onUnstageFile(selectedPath) : undefined
-                      }
-                      onDiscard={
-                        selectedPath ? () => void onDiscardFile(selectedPath) : undefined
-                      }
-                    />
-                  )}
-                  {showCommitBar && (
-                    <div className="shrink-0">
-                      {!commitOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => setCommitOpen(true)}
-                          className="coding-commit-bar flex w-full items-center justify-between gap-2 rounded border px-2 py-1 text-left transition-colors"
-                          title="Expand commit panel"
-                        >
-                          <span className="coding-commit-accent-text font-mono text-[10px] uppercase tracking-wide">
-                            Commit
-                          </span>
-                          <span className="truncate font-mono text-[10px] text-void-dim">
-                            {stagedCount > 0
-                              ? `${stagedCount} staged · ${dirtyCount} dirty`
-                              : `${dirtyCount} dirty`}
-                          </span>
-                          <span className="shrink-0 font-mono text-[10px] text-void-dim" aria-hidden>
-                            ▸
-                          </span>
-                        </button>
-                      ) : (
-                        <div className="flex flex-col gap-1 rounded border border-void-muted/40 bg-void-black/25 p-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="coding-commit-accent-text font-mono text-[10px] uppercase tracking-wide">
-                              Commit
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setCommitOpen(false)}
-                              className="rounded px-1 py-0.5 font-mono text-[10px] text-void-dim hover:bg-void-mid/40 hover:text-void-light"
-                              title="Collapse commit panel"
-                              aria-label="Collapse commit panel"
-                            >
-                              ▾
-                            </button>
-                          </div>
-                          <input
-                            type="text"
-                            value={commitMessage}
-                            onChange={(e) => setCommitMessage(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                void onCommit(stagedCount > 0 ? false : true)
-                              }
-                            }}
-                            placeholder={
-                              stagedCount > 0
-                                ? `Message (${stagedCount} staged)`
-                                : `Message · commit all (${dirtyCount})`
-                            }
-                            title="Commit message"
-                            disabled={commitBusy}
-                            className="cyber-input w-full px-2 py-1 text-[11px]"
-                          />
-                          <div className="flex flex-wrap gap-1">
-                            <button
-                              type="button"
-                              className="cyber-btn px-2 py-0.5 text-[10px] disabled:opacity-40"
-                              disabled={commitBusy || !commitMessage.trim() || stagedCount === 0}
-                              title="Commit only staged files"
-                              onClick={() => void onCommit(false)}
-                            >
-                              Commit
-                            </button>
-                            <button
-                              type="button"
-                              className="cyber-btn px-2 py-0.5 text-[10px] disabled:opacity-40"
-                              disabled={commitBusy || !commitMessage.trim() || dirtyCount === 0}
-                              title="Stage all changes and commit (like VS Code Commit All)"
-                              onClick={() => void onCommit(true)}
-                            >
-                              All
-                            </button>
-                            <button
-                              type="button"
-                              className="coding-btn coding-btn--discard coding-btn--wide"
-                              disabled={commitBusy || dirtyCount === 0}
-                              title="Discard all local changes (restore + clean)"
-                              onClick={() => void onDiscardAll()}
-                            >
-                              Discard
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <FilePreview
+                        filePath={selectedPath}
+                        content={previewContent}
+                        mode={previewMode}
+                        imageSrc={previewImageSrc}
+                        diffStaged={previewDiffStaged}
+                        editing={editing}
+                        editDraft={editDraft}
+                        editBusy={editBusy}
+                        editSessionKey={editSessionKey}
+                        canEdit={Boolean(
+                          projectPath &&
+                            selectedPath &&
+                            !isCodingPreviewImage(selectedPath) &&
+                            !editing,
+                        )}
+                        onStartEdit={() => void onStartEdit()}
+                        onEditDraftChange={setEditDraft}
+                        onSaveEdit={() => void onSaveEdit()}
+                        onCancelEdit={() => void onCancelEdit()}
+                        canStage={Boolean(
+                          selectedGit && (selectedGit.unstaged || selectedGit.untracked),
+                        )}
+                        canUnstage={Boolean(selectedGit?.staged)}
+                        canDiscard={Boolean(
+                          selectedGit && selectedGit.unstaged && !selectedGit.untracked,
+                        )}
+                        onStage={
+                          selectedPath ? () => void onStageFile(selectedPath) : undefined
+                        }
+                        onUnstage={
+                          selectedPath ? () => void onUnstageFile(selectedPath) : undefined
+                        }
+                        onDiscard={
+                          selectedPath ? () => void onDiscardFile(selectedPath) : undefined
+                        }
+                      />
                     </div>
                   )}
-                  </div>
-                  {termSplitActive && (
+                  {bottomSplitActive && (
                     <div
                       role="separator"
                       aria-orientation="horizontal"
-                      aria-label="Resize terminal"
+                      aria-label="Resize preview / terminal"
                       aria-valuenow={terminalHeight}
                       aria-valuemin={CODING_TERMINAL_HEIGHT_MIN}
                       aria-valuemax={CODING_TERMINAL_HEIGHT_MAX}
                       tabIndex={0}
-                      onPointerDown={onTerminalResizePointerDown}
+                      onPointerDown={onBottomResizePointerDown}
                       onKeyDown={(e) => {
                         const step = e.shiftKey ? 32 : 16
                         if (e.key === 'ArrowUp') {
                           e.preventDefault()
-                          persistTerminalHeight(terminalHeight + step)
+                          persistBottomHeight(terminalHeight + step)
                         } else if (e.key === 'ArrowDown') {
                           e.preventDefault()
-                          persistTerminalHeight(terminalHeight - step)
+                          persistBottomHeight(terminalHeight - step)
                         } else if (e.key === 'Home') {
                           e.preventDefault()
-                          persistTerminalHeight(CODING_TERMINAL_HEIGHT_MIN)
+                          persistBottomHeight(CODING_TERMINAL_HEIGHT_MIN)
                         } else if (e.key === 'End') {
                           e.preventDefault()
-                          persistTerminalHeight(CODING_TERMINAL_HEIGHT_MAX)
+                          persistBottomHeight(CODING_TERMINAL_HEIGHT_MAX)
                         }
                       }}
                       className="panel-splitter panel-splitter--horizontal"
                     >
                     </div>
                   )}
+                  {/* Commit alone (terminal off): natural height — no dead 200px zone. */}
+                  {showCommitBar && !showTerminal ? commitPanel : null}
                   {showTerminal && (
                     <div
-                      className={`flex min-h-0 flex-col overflow-hidden ${termSplitActive ? 'shrink-0' : 'flex-1'}`}
-                      style={termSplitActive ? { height: terminalHeight } : undefined}
+                      className={`flex min-h-0 flex-col gap-3 overflow-hidden ${
+                        bottomFills ? 'flex-1' : 'shrink-0'
+                      }`}
+                      style={bottomFills ? undefined : { height: terminalHeight }}
                     >
-                      <TerminalView
-                        lines={terminalLines}
-                        onClear={() => setTerminalLines([])}
-                        running={commandRunning}
-                        onStop={onStopCommand}
-                      />
+                      {showCommitBar ? commitPanel : null}
+                      <div className="min-h-0 flex-1 overflow-hidden">
+                        <TerminalView
+                          lines={terminalLines}
+                          onClear={() => setTerminalLines([])}
+                          running={commandRunning}
+                          onStop={onStopCommand}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
