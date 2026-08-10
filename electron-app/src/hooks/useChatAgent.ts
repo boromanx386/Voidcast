@@ -696,6 +696,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
       }
 
+      const codingConcurrencyAdvisory =
+        turnSettings.toolsEnabled.coding && turnCodingProjectPath
+          ? sessionAgentStore.codingSameProjectBusyAdvisory(keyOf(), turnCodingProjectPath) ?? ''
+          : ''
+
       // Reserve the run slot BEFORE the first await so the concurrency cap
       // check (canStartRun above) and slot occupation are atomic. Without this,
       // two concurrent onSend calls from different chats could both pass the
@@ -737,6 +742,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           return planHasResearch(plan)
         })(),
         planHandoffContext: opts?.planHandoffContext,
+        codingConcurrencyAdvisory,
       })
 
       const {

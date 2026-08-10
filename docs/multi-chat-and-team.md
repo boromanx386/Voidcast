@@ -13,7 +13,8 @@ You can open different sessions in the sidebar and **run agents in more than one
 | Isolation | Each session has its own messages, abort controller, tool phase, media state (`sessionAgentStore`) |
 | Cap | Up to **3** concurrent agent runs (`MAX_CONCURRENT_AGENT_RUNS`). Starting a 4th fails with an error until one finishes or you Stop |
 | Project / shell | Coding tools freeze **project path**, shell owner, and terminal feed per chat so two chats do not share one shell by accident |
-| Same project | Two chats on the **same** project path may conflict; the store can refuse a second live coding run on that path |
+| Different projects | Only **one live coding project** across chats: starting a run in project B while another chat is busy in project A **fails** until that agent stops |
+| Same project | **Allowed** — multiple chats may code the same folder at once. Use disjoint files; `run_coding_workers` file locks apply **within one batch only**, not across chats. The agent gets a context hint when a peer is busy on the same path |
 | Switching | Leave a busy chat; sidebar shows busy/unread. When a **background** run finishes, the session can show a DONE-style affordance until you open it |
 | Draft → save | An unsaved draft run can rekey to a real session id mid-turn when the chat is first saved |
 | Stop | Stop only cancels the **active** chat’s agent. Other chats keep running |
@@ -56,7 +57,7 @@ Team and **Ask** do **not** offer `enter_plan_mode` (use Plan in the composer fo
 | Rounds | Default and max **100** tool rounds per worker (ceiling, not a fixed always-use-all budget) |
 | Tools | Read stack + **write_file**, **edit_code**, **execute_command** (no nested workers/explore) |
 | `path_prefix` | Optional. When set: **writes/edits must stay under** that file/folder. **Reads** can still use the whole project (char budget). Soft scoping injects for search/list when missing |
-| Locks | Two workers writing the same path: file lock error for the second |
+| Locks | Two workers writing the same path in **one** `run_coding_workers` call: file lock error for the second. Locks do **not** span chats or batches; shell redirects (`>`) that target a locked path are rejected |
 | Main while workers run | Main is **blocked** on that tool call until both digests return (by design — not fire-and-forget) |
 | Multiple batches | Main can call `run_coding_workers` again later in the same turn after digests |
 

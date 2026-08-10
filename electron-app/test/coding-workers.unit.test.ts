@@ -11,6 +11,8 @@ import {
   parseCodingWorkerTasks,
   pathFromWorkerToolArgs,
   releaseWorkerFileLocks,
+  shellRedirectConflictsWithLock,
+  shellRedirectTargets,
   synthesizeWorkerDigest,
 } from '../src/lib/codingWorkers'
 import { buildToolsList } from '../src/lib/toolDefinitions'
@@ -223,6 +225,17 @@ describe('applyWorkerMutationsToMemo', () => {
     expect(memo.current.recentFiles).toContain('src/a.ts (written)')
     expect(memo.current.recentFiles).toContain('src/b.ts (written)')
     expect(fileCache.current.entries.length).toBe(2)
+  })
+})
+
+describe('shell redirect lock guard', () => {
+  it('detects redirect targets and conflicts with another worker lock', () => {
+    const batch = createWorkerFileLock()
+    expect(shellRedirectTargets('npm test > out.log')).toEqual(['out.log'])
+    acquireWorkerFileLock(batch, 'worker-1', 'src/a.ts')
+    const err = shellRedirectConflictsWithLock('echo x > src/a.ts', batch, 'worker-2')
+    expect(err).toMatch(/conflicts with worker-1/)
+    expect(shellRedirectConflictsWithLock('echo x > src/a.ts', batch, 'worker-1')).toBeNull()
   })
 })
 

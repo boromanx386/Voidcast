@@ -126,6 +126,37 @@ export function releaseWorkerFileLocks(batch: CodingWorkerFileLock, workerId: st
   batch.owned.delete(workerId)
 }
 
+/** Shell redirect targets from execute_command (best-effort; does not parse all shells). */
+export function shellRedirectTargets(command: string): string[] {
+  const targets: string[] = []
+  const re = /(?:^|[\s;&|])(?:\d*>>?)\s*([^\s&|;'"`]+)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(command)) !== null) {
+    const raw = (m[1] || '').trim()
+    if (!raw) continue
+    if (raw === '/dev/null' || raw === 'nul') continue
+    targets.push(raw)
+  }
+  return targets
+}
+
+/** True when a shell redirect would write to a path locked by another worker. */
+export function shellRedirectConflictsWithLock(
+  command: string,
+  fileLocks: CodingWorkerFileLock,
+  workerId: string,
+): string | null {
+  for (const target of shellRedirectTargets(command)) {
+    const key = normalizeWorkerPathKey(target)
+    if (!key) continue
+    const owner = fileLocks.locked.get(key)
+    if (owner && owner !== workerId) {
+      return `Error: shell redirect to "${target}" conflicts with ${owner}'s file lock.`
+    }
+  }
+  return null
+}
+
 export function parseCodingWorkerTasks(
   args: Record<string, unknown>,
 ): { ok: true; tasks: CodingWorkerTask[] } | { ok: false; error: string } {
@@ -280,6 +311,7 @@ function workerSystemPrompt(pathPrefix: string | undefined, recentFiles: string[
   return `You are a coding worker sub-agent. Complete YOUR assigned goal only (do not reassign work).
 Allowed tools only: ${tools}.
 You MAY write_file, edit_code, and execute_command. Do NOT call run_coding_workers or coding_explore.
+Do NOT use shell redirects (>, >>) to write files another worker may be editing — file locks apply to write_file/edit_code only.
 
 Each turn reply with ONE JSON object only (no prose outside JSON):
 - Tool call: {"tool":"<name>","args":{...}}
@@ -474,6 +506,15 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
         const lockErr = acquireWorkerFileLock(opts.fileLocks, opts.workerId, rel)
         if (lockErr) {
           messages.push({ role: 'user', content: lockErr })
+          continue
+        }
+      }
+
+      if (tool === 'execute_command') {
+        const cmd = typeof execArgs.command === 'string' ? execArgs.command : ''
+        const redirectErr = shellRedirectConflictsWithLock(cmd, opts.fileLocks, opts.workerId)
+        if (redirectErr) {
+          messages.push({ role: 'user', content: redirectErr })
           continue
         }
       }

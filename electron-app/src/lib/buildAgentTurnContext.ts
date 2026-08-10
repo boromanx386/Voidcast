@@ -91,6 +91,8 @@ export type BuildAgentTurnContextParams = {
    * True when this turn is Approve & Build (even without research) — Team build hints.
    */
   buildFromPlan?: boolean
+  /** Non-blocking multi-chat same-project warning (from sessionAgentStore). */
+  codingConcurrencyAdvisory?: string
 }
 
 export type BuildAgentTurnContextResult = {
@@ -130,6 +132,7 @@ export async function buildAgentTurnContext(
     buildWithResearch = false,
     planHandoffContext = '',
     buildFromPlan = false,
+    codingConcurrencyAdvisory = '',
   } = params
 
   const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
@@ -324,6 +327,9 @@ export async function buildAgentTurnContext(
       )
     }
     toolsHintParts.push(buildCodingMemoHint(codingContextMemo, { buildWithResearch }))
+    if (codingConcurrencyAdvisory.trim()) {
+      toolsHintParts.push(codingConcurrencyAdvisory.trim())
+    }
     const activeHint = buildActiveProcessesHint(activeCodingProcesses)
     if (activeHint) toolsHintParts.push(activeHint)
   }

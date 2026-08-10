@@ -7,6 +7,7 @@
  */
 import type { Dispatch, SetStateAction } from 'react'
 import { useSyncExternalStore } from 'react'
+import { normalizeCodingPathKey } from '@/lib/codingActiveProcesses'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
@@ -52,10 +53,18 @@ export type SessionAgentSlot = {
    * Used to block concurrent coding on a different folder.
    */
   codingProjectPath?: string
+  /**
+   * After Stop, tools may still unwind briefly. Same-path advisory uses this
+   * grace window so a second chat is warned about a just-stopped peer.
+   */
+  codingStopGraceUntil?: number
   /** Ephemeral — not serialised. */
   abortController: AbortController | null
   runId: number
 }
+
+/** How long after Stop a slot still counts for same-project advisory (ms). */
+export const CODING_STOP_GRACE_MS = 3000
 
 export type SessionAgentKeyHandle = {
   /** Mutable: store.rekey updates this. */
@@ -95,6 +104,7 @@ export function createEmptySessionAgentSlot(
     subAgentPanel: emptySubAgentPanelState(),
     media: emptyMedia(),
     codingProjectPath: undefined,
+    codingStopGraceUntil: undefined,
     abortController: null,
     runId: 0,
   }
@@ -133,6 +143,7 @@ function sessionAgentSlotShallowEqual(a: SessionAgentSlot, b: SessionAgentSlot):
     a.abortController === b.abortController &&
     a.runId === b.runId &&
     a.codingProjectPath === b.codingProjectPath &&
+    a.codingStopGraceUntil === b.codingStopGraceUntil &&
     sessionAgentMediaEqual(a.media, b.media)
   )
 }
@@ -385,6 +396,7 @@ class SessionAgentStore {
       abortController: controller,
       runId,
       codingProjectPath: codingPath,
+      codingStopGraceUntil: undefined,
     })
     this.emit(k)
     return { runId, controller }
@@ -406,6 +418,7 @@ class SessionAgentStore {
       toolPhase: null,
       abortController: null,
       codingProjectPath: undefined,
+      codingStopGraceUntil: undefined,
     })
     this.emit(k)
   }
@@ -452,29 +465,31 @@ class SessionAgentStore {
     if (!prev) return
     const runId = prev.runId + 1
     prev.abortController?.abort()
+    const graceUntil = prev.codingProjectPath ? Date.now() + CODING_STOP_GRACE_MS : undefined
     this.slots.set(k, {
       ...prev,
       runId,
       busy: false,
       toolPhase: null,
       abortController: null,
-      codingProjectPath: undefined,
+      codingStopGraceUntil: graceUntil,
     })
     this.emit(k)
   }
 
   /**
    * If another busy run is coding against a different project, return an error message.
-   * Same path (or empty/general) is fine. `forKey` is excluded (restarting same chat).
+   * Same path is allowed (multi-chat on one repo); use codingSameProjectBusyAdvisory
+   * for a non-blocking warning. `forKey` is excluded (restarting same chat).
    */
   codingProjectConflict(forKey: string, nextPath: string): string | null {
     const mine = this.canonicalKey(forKey)
-    const next = nextPath.trim().toLowerCase().replace(/\\/g, '/')
+    const next = normalizeCodingPathKey(nextPath)
     if (!next) return null
     for (const [key, slot] of this.slots) {
       if (!slot.busy) continue
       if (this.canonicalKey(key) === mine) continue
-      const other = (slot.codingProjectPath || '').trim().toLowerCase().replace(/\\/g, '/')
+      const other = normalizeCodingPathKey(slot.codingProjectPath || '')
       if (!other) continue
       if (other !== next) {
         return (
@@ -484,6 +499,32 @@ class SessionAgentStore {
       }
     }
     return null
+  }
+
+  /**
+   * Non-blocking hint when another chat is (or very recently was) coding the same
+   * project folder. Injected into the agent context — does not prevent the run.
+   */
+  codingSameProjectBusyAdvisory(forKey: string, nextPath: string): string | null {
+    const mine = this.canonicalKey(forKey)
+    const next = normalizeCodingPathKey(nextPath)
+    if (!next) return null
+    const now = Date.now()
+    let peers = 0
+    for (const [key, slot] of this.slots) {
+      if (this.canonicalKey(key) === mine) continue
+      const other = normalizeCodingPathKey(slot.codingProjectPath || '')
+      if (!other || other !== next) continue
+      const inGrace = (slot.codingStopGraceUntil ?? 0) > now
+      if (!slot.busy && !inGrace) continue
+      peers += 1
+    }
+    if (peers === 0) return null
+    return (
+      `Another chat is also using this coding project (${nextPath}). ` +
+      `Coordinate disjoint files; run_coding_workers file locks apply only within one batch, not across chats. ` +
+      `Prefer git_status / git_diff before overlapping edits.`
+    )
   }
 
   /** Hydrate messages (and reset media) when opening a session with no live slot. */
