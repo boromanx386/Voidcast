@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.8.4] — 2026-08-13
+
 ### Added
 
 - **Multi-chat concurrent agents**: run agents in several sessions at once (soft cap **3**). Each chat has an isolated runtime slot (`sessionAgentStore`): messages, abort, tool phase, media. Switch sessions while others keep working; busy/unread sidebar indicators; background finish can show a DONE-style affordance. Coding tools isolate by **project path**, shell owner, and terminal feed; draft→session rekey mid-run. Extra starts past the cap are refused until a run finishes or you Stop.
@@ -28,6 +30,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Coding file preview stays scrollable in the split pane**: with a preview ↔ terminal split, the file preview keeps its own independent scroll area instead of losing it when the terminal pane is shown.
+- **Coding terminal stays scrollable when the pane is shrunk**: shrinking the terminal no longer clips streamed output — the terminal keeps its scrollback and only follows the end when you're already at the bottom.
+- **Multi-chat agent run slot leaks + concurrency race**: fixed runtime-slot leaks and a race where concurrent multi-chat runs could step on each other's tool phase / abort state.
+- **Multi-chat project concurrency + worker shell locks**: clarified and enforced per-project concurrency and shell-owner locking so parallel multi-chat or worker runs on the same project path no longer corrupt each other's terminal feed or edits.
+- **Worker edits update the parent coding memo (no race)**: a `run_coding_workers` batch now patches the parent session's coding memo after a successful worker `edit_code` instead of racing on stale digests.
 - **Terminal resize snap-back + bottom pane sizing**: releasing the preview ↔ terminal drag used to reset height — an effect re-applied stale `terminalHeightPx` as soon as the resize flag cleared, before settings persisted. Drag direction follows the bottom-anchored pane (drag up grows the terminal). Splitter and fixed height apply only with preview + terminal; commit-only stays natural; terminal without preview fills.
 
 ## [2.8.2] — 2026-08-07
@@ -51,6 +58,7 @@ All notable changes to this project will be documented in this file.
 - **Long-memory picker moved to the composer**: the header brain icon is gone; the long-memory extractor now lives next to the system-prompt preset chip as a bare icon (with a busy spinner), smaller than the surrounding toolbar buttons.
 - **Coding panel stays collapsed on file reveal**: when the agent edits/reveals a file, the preview and file-tree toggles are no longer force-enabled — the panel only loads the file into preview state if the section is already open, and no longer reflows the layout (which used to scroll the app back to top).
 - **Higher default context for cloud providers**: OpenRouter, NVIDIA, OpenAI and OpenCode Go defaults raised from 128k to 256k tokens.
+- **OpenRouter LLM presets refreshed**: added Opus 5, Qwen3.8 Max, Muse Spark 1.2, Ling 3.0 Flash, Nemotron Nano, Cohere North Mini Code; dropped outdated models.
 - **Sub-agent long-memory toggle removed**: `USE_FOR_LONG_MEMORY` dropped — long-memory extraction now always follows the main LLM (the sub-agent is vision / coding only). The `memoryEnabled` setting is stripped on load.
 
 ### Fixed
