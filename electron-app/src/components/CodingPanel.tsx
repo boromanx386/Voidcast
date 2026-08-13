@@ -1078,7 +1078,8 @@ export function CodingPanel({
                   }`}
                 >
                   {showFilePreview && (
-                    <div className="min-h-0 flex-1 overflow-hidden">
+                    // Bound height so FilePreview scrolls inside (same flex trap as terminal).
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                       <FilePreview
                         filePath={selectedPath}
                         content={previewContent}

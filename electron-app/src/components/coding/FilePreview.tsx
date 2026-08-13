@@ -141,7 +141,7 @@ export function FilePreview({
   const showMdToggle = isMarkdown
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded border border-void-muted/30 bg-void-black/30 p-2">
+    <div className="flex h-full min-h-0 flex-col rounded border border-void-muted/30 bg-void-black/30 p-2">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <div className={`min-w-0 truncate text-xs font-mono ${labelClass}`} title={label}>
           {label}
