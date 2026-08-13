@@ -3,17 +3,17 @@ OmniVoice TTS HTTP API for the Electron chat app.
 
 Run:  python -m uvicorn main:app --host 0.0.0.0 --port 8765 --app-dir tts-server
 
-Hugging Face cache (zašto "Fetching N files" ponovo):
-  - Prvi put skida ~13 fajlova. Posle bi trebalo da koristi keš.
-  - Svako pokretanje može da kratko kontaktira Hub (metadata), ne mora da skida GB.
-  - Na Windows bez symlinkova (npr. Q:) keš radi u "degraded" modu — može više mesta
-    ili čudno ponašanje; preporuka: `HF_HOME` na NTFS disk sa dev mode symlinkovima,
-    ili `HF_HUB_DISABLE_SYMLINKS_WARNING=1` samo da utiša upozorenje.
-  - Kad je jednom sve u kešu: `OMNIVOICE_LOCAL_ONLY=1` — samo lokalni fajlovi, bez
-    download skidanja (kao `HF_HUB_OFFLINE=1` za model, ali za ovaj load).
-  - Brže rate limit: `HF_TOKEN` (ili `HUGGING_FACE_HUB_TOKEN`).
+Hugging Face cache (why "Fetching N files" reappears):
+  - The first run downloads ~13 files. Afterwards it should use the cache.
+  - Every start may briefly contact the Hub (metadata), it does not have to download GBs.
+  - On Windows without symlinks (e.g. Q:) the cache runs in "degraded" mode — it can use
+    more space or behave oddly; recommendation: `HF_HOME` on an NTFS drive with dev-mode
+    symlinks, or `HF_HUB_DISABLE_SYMLINKS_WARNING=1` just to silence the warning.
+  - Once everything is cached: `OMNIVOICE_LOCAL_ONLY=1` — local files only, no
+    downloads (like `HF_HUB_OFFLINE=1` for the model, but for this load).
+  - Faster rate limit: `HF_TOKEN` (or `HUGGING_FACE_HUB_TOKEN`).
 
-Server se podigne odmah; model se učitava u pozadini (ne blokira uvicorn).
+The server starts immediately; the model loads in the background (does not block uvicorn).
 """
 
 from __future__ import annotations
@@ -121,11 +121,11 @@ def _web_index_file() -> Path | None:
     return None
 
 
-# Tiho: symlink na nekim NTFS/mount putevima nije podržan (npr. Q:)
+# Quietly: symlinks are not supported on some NTFS/mount paths (e.g. Q:)
 if os.environ.get("HF_HUB_DISABLE_SYMLINKS_WARNING") is None:
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
-# Brži fallback na keš kad HF Hub ne odgovara brzo (default: 10s → 3s)
+# Faster fallback to the cache when HF Hub responds slowly (default: 10s → 3s)
 if os.environ.get("HF_HUB_ETAG_TIMEOUT") is None:
     os.environ["HF_HUB_ETAG_TIMEOUT"] = "3"
 
@@ -255,11 +255,11 @@ class TtsRequest(BaseModel):
     )
     ref_audio_base64: str | None = Field(
         default=None,
-        description="Voice clone: referentni audio kao base64 (pouzdanije od multipart u Electronu).",
+        description="Voice clone: reference audio as base64 (more reliable than multipart in Electron).",
     )
     ref_text: str | None = Field(
         default=None,
-        description="Transkript referentnog snimka; opciono (Whisper u modelu ako prazno).",
+        description="Transcript of the reference clip; optional (Whisper in the model if empty).",
     )
 
 
@@ -1083,7 +1083,7 @@ async def opencode_go_proxy(request: Request, full_path: str):
 
 @app.post("/tts", dependencies=[Depends(require_lan_access)])
 async def tts(req: TtsRequest):
-    """JSON: auto / design, ili voice clone preko ref_audio_base64 + opciono ref_text."""
+    """JSON: auto / design, or voice clone via ref_audio_base64 + optional ref_text."""
     if not TTS_ENABLED:
         raise HTTPException(
             status_code=503,

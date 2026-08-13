@@ -193,6 +193,7 @@ Hardened tools: `edit_code` requires exact `find_text` match — if it doesn't m
 The coding panel surfaces git state visually and lets you commit without leaving the app:
 
 - **Status colors** — file tree shows dirty files letter-coded: `M` yellow (modified), `A` green (added), `D` red (deleted), `?` gray (untracked), `R` magenta (renamed). Directory names turn yellow when they contain changes.
+- **Ignored dirs shown dimmed** — heavy folders (`node_modules`, `dist`, …) stay visible in the tree but dimmed; double-click opens them in the OS file manager.
 - **Stage / unstage / discard** — inline buttons on each dirty file row (`+` / `−` / `↶`), plus the same actions in the file preview header.
 - **Diff preview** — clicking a dirty file opens a unified diff with line numbers, `@@` hunk headers, and `+` green / `-` red highlighting. Staged vs unstaged diff auto-selects based on status. Long lines scroll horizontally (no wrap).
 - **Commit bar** — collapsible panel below the tree when changes exist: expand for message + **COMMIT** (staged only), **COMMIT ALL** (stage all + commit like VS Code), and **DISCARD ALL** (restore + clean). Collapsed by default.
@@ -206,10 +207,11 @@ The coding panel surfaces git state visually and lets you commit without leaving
 
 ### Resizable layout
 
-The coding panel uses a two-level split:
+The coding panel uses a three-level split:
 
 - **Chat ↔ coding panel** — a draggable vertical divider between the chat and the coding panel. Width persists across app restarts (`panelWidthPx`, default 416px, range 280–1200). The panel stays collapsed when the agent edits files (no auto-expand on every write). Keyboard: ←/→ to resize, Home/End for extremes.
 - **File tree ↔ preview/terminal** — a draggable horizontal divider inside the coding panel between the file tree and the lower sections (preview, commit bar, terminal). Height persists (`fileTreeHeightPx`, default 220px, range 100–480). Keyboard: ↑/↓ to resize, Home/End for extremes.
+- **Preview ↔ terminal** — a draggable horizontal divider between the file preview and the terminal, shown only when both are visible. Height persists (`terminalHeightPx`, default 200px, range 80–480). Terminal-only layouts fill the remaining space; commit-only uses natural height. Keyboard: ↑/↓ (16px step, `Shift` 32px), Home/End for extremes.
 
 ### Project instructions & local skills
 

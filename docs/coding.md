@@ -24,6 +24,7 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 - The FILES header shows the active **git branch** label; files with git changes get status colors (from `parseGitStatusText` / `buildGitStatusByPath`), and the tree supports **dirty-only** filtering, staging/unstaging, and discard actions.
 - Selecting a file (`onSelectFile`) opens it in the preview.
 - The tree refreshes when `fileTreeRevision` increments (agent mutations on disk) and when directory changes are observed (`invokeCodingWatchProject`).
+- Ignored/generated folders (`node_modules`, `dist`, …) are shown **dimmed** instead of hidden; a **double-click** opens the path in the OS file manager (`openPath`/shell).
 
 ## File Preview
 
@@ -64,6 +65,16 @@ The coding panel is a standalone workspace beside the chat for editing real proj
   - `CODING_FILE_TREE_HEIGHT_MIN = 100`
   - `CODING_FILE_TREE_HEIGHT_MAX = 480`
 - `clampCodingFileTreeHeight(px, containerHeight?)` caps to 70% of the container height.
+
+## Preview ⇄ Terminal Split (height)
+
+- A draggable horizontal divider between the file preview and the terminal, shown only when **both** are visible (preview + terminal). It calls `CodingUiVisibilityPatch.terminalHeightPx`.
+- When the terminal is visible without the preview (or with terminal + commit but no preview), it fills the remaining space with no divider; commit-only uses natural height.
+- Clamp constants in `electron-app/src/lib/settings.ts`:
+  - `CODING_TERMINAL_HEIGHT_DEFAULT = 200`
+  - `CODING_TERMINAL_HEIGHT_MIN = 80`
+  - `CODING_TERMINAL_HEIGHT_MAX = 480`
+- Drag direction follows the bottom-anchored pane (drag up grows the terminal). Keyboard: ↑/↓ 16px step, `Shift` 32px, `Home` = max, `End` = min.
 
 ## How the Agent Applies File Edits
 

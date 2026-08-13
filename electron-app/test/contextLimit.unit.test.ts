@@ -95,7 +95,7 @@ describe('resolveContextLimit', () => {
         openrouterModel: 'vendor/unknown-model-9000',
       }),
     )
-    expect(limit.maxTokens).toBe(128_000)
+    expect(limit.maxTokens).toBe(256_000)
     expect(limit.source).toBe('provider_default')
   })
 })
