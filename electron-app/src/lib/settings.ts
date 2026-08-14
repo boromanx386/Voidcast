@@ -143,6 +143,7 @@ export const OPENROUTER_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> 
   { id: 'x-ai/grok-voice-tts-1.0', label: 'xAI Grok Voice TTS' },
   { id: 'microsoft/mai-voice-2', label: 'Microsoft MAI-Voice-2' },
   { id: 'canopylabs/orpheus-3b-0.1-ft', label: 'Canopy Orpheus 3B' },
+  { id: 'deepgram/flux-tts:free', label: 'Deepgram Flux TTS (free)' },
 ]
 
 export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
@@ -180,6 +181,15 @@ export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> =
     'de-DE-Klaus:MAI-Voice-2',
   ],
   'canopylabs/orpheus-3b-0.1-ft': ['tara', 'leah', 'jess', 'leo', 'dan'],
+  'deepgram/flux-tts:free': [
+    'flux-haley-en',
+    'flux-heather-en',
+    'flux-priya-en',
+    'flux-jack-en',
+    'flux-bruce-en',
+    'flux-rufus-en',
+    'flux-drew-en',
+  ],
 }
 
 export function openRouterTtsVoicesForModel(model: string): readonly string[] {
