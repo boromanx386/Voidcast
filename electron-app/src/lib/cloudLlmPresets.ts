@@ -5,7 +5,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'openrouter/free', label: 'Auto Free Router' },
   { id: 'openrouter/fusion', label: 'OpenRouter Fusion (multi-model)' },
   { id: 'openrouter/auto-beta', label: 'OpenRouter Auto (Beta)' },
-  { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding · value)' },
+  { id: 'deepseek/deepseek-v4-pro-0813', label: 'DeepSeek V4 Pro 0813 (1M ctx)' },
   { id: 'deepseek/deepseek-v4-flash-0731', label: 'DeepSeek V4 Flash 0731 (fast · cheap)' },
   { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (latest)' },
   { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5 (flagship)' },
@@ -28,11 +28,12 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'qwen/qwen3.8-max', label: 'Qwen3.8 Max (flagship · coding)' },
   { id: 'inclusionai/ling-3.0-flash', label: 'Ling 3.0 Flash (ultra-cheap MoE)' },
   { id: 'z-ai/glm-5.2', label: 'GLM 5.2 (reasoning · coding)' },
+  { id: 'z-ai/glm-5.3', label: 'GLM 5.3 (reasoning · coding)' },
   { id: 'tencent/hy3', label: 'Tencent Hy3 (reasoning · agentic)' },
   { id: 'tencent/hy3-preview', label: 'Tencent Hy3 Preview (agentic · 256K)' },
   { id: 'poolside/laguna-s-2.1', label: 'Poolside Laguna S 2.1' },
   { id: 'poolside/laguna-s-2.1:free', label: 'Poolside Laguna S 2.1 (Free)' },
-  { id: 'nvidia/nemotron-3.5-lightning', label: 'Nemotron 3.5 Lightning (1M ctx · cheap)' },
+  { id: 'nvidia/nemotron-3.5-lightning', label: 'Nemotron 3.5 Lightning (262K ctx · cheap)' },
   { id: 'nvidia/nemotron-3.5-lightning:free', label: 'Nemotron 3.5 Lightning (Free)' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron 3 Ultra (Free)' },
   { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (Free)' },
@@ -91,6 +92,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
   { id: 'mimo-v2.5', label: 'MiMo V2.5' },
   { id: 'grok-4.5', label: 'Grok 4.5' },
+  { id: 'muse-spark-1.2-contributor', label: 'Muse Spark 1.2 Contributor (cheap)' },
   { id: 'hy3', label: 'Hy3' },
 ]
 
@@ -99,7 +101,6 @@ const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
   'moonshotai/kimi-k2.6:free': 'moonshotai/kimi-k2.6',
   'baidu/cobuddy:free': 'openrouter/free',
   'z-ai/glm-4.7': 'z-ai/glm-4.7-flash',
-  'inclusionai/ring-2.6-1t': 'deepseek/deepseek-v4-pro',
   'nvidia/nemotron-3-super-120b-a12b': 'nvidia/nemotron-3-super-120b-a12b:free',
 }
 
@@ -180,6 +181,7 @@ const OPENCODE_GO_MODEL_ALIASES: Record<string, string> = {
   'z-ai/glm-5.1': 'glm-5.1',
   'x-ai/grok-4.5': 'grok-4.5',
   'tencent/hy3': 'hy3',
+  'meta/muse-spark-1.2-contributor': 'muse-spark-1.2-contributor',
 }
 
 export function normalizeOpenCodeGoModelId(model: string): string {
