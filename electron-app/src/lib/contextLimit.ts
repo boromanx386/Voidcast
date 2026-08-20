@@ -84,7 +84,6 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'glm-5.1': 202_752,
   'mimo-v2.5': 1_000_000,
   'mimo-v2.5-pro': 1_048_576,
-  'muse-spark-1.2-contributor': 1_048_576,
   'grok-4.5': 500_000,
   hy3: 262_144,
 }

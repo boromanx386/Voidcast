@@ -78,7 +78,8 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
 
 /**
  * OpenCode Go models on OpenAI-compatible `/v1/chat/completions`
- * (https://opencode.ai/docs/go/). Anthropic `/messages` models (MiniMax, Qwen) omitted.
+ * (https://opencode.ai/docs/go/). Anthropic `/messages` models (MiniMax, Qwen) and
+ * `/responses` models (Muse Spark 1.2 Contributor) omitted.
  */
 export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
@@ -92,7 +93,6 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
   { id: 'mimo-v2.5', label: 'MiMo V2.5' },
   { id: 'grok-4.5', label: 'Grok 4.5' },
-  { id: 'muse-spark-1.2-contributor', label: 'Muse Spark 1.2 Contributor (cheap)' },
   { id: 'hy3', label: 'Hy3' },
 ]
 
@@ -181,7 +181,6 @@ const OPENCODE_GO_MODEL_ALIASES: Record<string, string> = {
   'z-ai/glm-5.1': 'glm-5.1',
   'x-ai/grok-4.5': 'grok-4.5',
   'tencent/hy3': 'hy3',
-  'meta/muse-spark-1.2-contributor': 'muse-spark-1.2-contributor',
 }
 
 export function normalizeOpenCodeGoModelId(model: string): string {
