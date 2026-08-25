@@ -129,6 +129,11 @@ function isDeepSeekApi(baseUrl: string): boolean {
   return root.includes('api.deepseek.com') || root.includes('/api/deepseek')
 }
 
+function isCrofAiApi(baseUrl: string): boolean {
+  const root = normalizeBaseUrl(baseUrl)
+  return root.includes('crof.ai') || root.includes('/api/crofai')
+}
+
 function isOpenCodeGoApi(baseUrl: string): boolean {
   const root = normalizeBaseUrl(baseUrl)
   return root.includes('opencode.ai/zen/go') || root.includes('/api/opencode-go')
@@ -217,6 +222,7 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
 
 function apiLabelForBaseUrl(baseUrl: string): string {
   if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
+  if (isCrofAiApi(baseUrl)) return 'CrofAI'
   if (baseUrl.includes('api.openai.com') || baseUrl.includes('/api/openai')) return 'OpenAI'
   if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia')) return 'NVIDIA'
   if (isOpenCodeGoApi(baseUrl)) return 'OpenCode Go'
@@ -232,6 +238,21 @@ function applyDeepSeekThinkingBody(
     return
   }
   body.thinking = { type: 'enabled' }
+  const effort = thinkLevel === 'on' ? 'medium' : thinkLevel
+  if (effort === 'low' || effort === 'medium' || effort === 'high') {
+    body.reasoning_effort = effort
+  }
+}
+
+/** CrofAI: reasoning_effort low|medium|high|none (https://crof.ai/docs). */
+function applyCrofAiThinkingBody(
+  body: Record<string, unknown>,
+  thinkLevel: LlmThinkLevel | undefined,
+): void {
+  if (!thinkLevel || thinkLevel === 'off') {
+    body.reasoning_effort = 'none'
+    return
+  }
   const effort = thinkLevel === 'on' ? 'medium' : thinkLevel
   if (effort === 'low' || effort === 'medium' || effort === 'high') {
     body.reasoning_effort = effort
@@ -397,25 +418,29 @@ export async function streamOpenRouterChat(
   const models = [options.model]
   const apiLabel = apiLabelForBaseUrl(root)
   const isOpenCodeGo = isOpenCodeGoApi(root)
+  const isCrofAi = isCrofAiApi(root)
   const cloudProvider =
     apiLabel === 'DeepSeek'
       ? 'deepseek'
-      : apiLabel === 'OpenAI'
-        ? 'openai'
-        : apiLabel === 'NVIDIA'
-          ? 'nvidia'
-          : apiLabel === 'OpenCode Go'
-            ? 'opencode-go'
-            : 'openrouter'
+      : apiLabel === 'CrofAI'
+        ? 'crofai'
+        : apiLabel === 'OpenAI'
+          ? 'openai'
+          : apiLabel === 'NVIDIA'
+            ? 'nvidia'
+            : apiLabel === 'OpenCode Go'
+              ? 'opencode-go'
+              : 'openrouter'
   assertCloudLlmApiKey(cloudProvider, options.apiKey)
   let res: Response | null = null
   let lastErr = ''
 
   for (const model of models) {
     for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
-      const messages = isOpenCodeGo
-        ? sanitizeMessagesForOpenCodeGo(options.messages)
-        : options.messages
+      const messages =
+        isOpenCodeGo || isCrofAi
+          ? sanitizeMessagesForOpenCodeGo(options.messages)
+          : options.messages
       const body: Record<string, unknown> = {
         model,
         messages,
@@ -426,6 +451,9 @@ export async function streamOpenRouterChat(
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
       if (isDeepSeekApi(root)) applyDeepSeekThinkingBody(body, options.thinkLevel)
+      if (isCrofAi && options.thinkLevel !== undefined) {
+        applyCrofAiThinkingBody(body, options.thinkLevel)
+      }
       // OpenCode Go: honor THINKING_LEVEL without forcing disable when unset.
       if (isOpenCodeGo && options.thinkLevel !== undefined) {
         applyDeepSeekThinkingBody(body, options.thinkLevel)

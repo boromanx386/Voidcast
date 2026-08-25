@@ -64,6 +64,8 @@ export interface ExecCtx {
   nvidiaBaseUrl?: string;
   nvidiaApiKey?: string;
   opencodeGoApiKey?: string;
+  crofaiBaseUrl?: string;
+  crofaiApiKey?: string;
   /** UI hooks while sub-agent describes images (header-style panel in App). */
   subAgentUi?: SubAgentUiCallbacks;
   /** Persist sub-agent descriptions onto the session (for later history context). */

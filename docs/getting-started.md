@@ -28,6 +28,7 @@ Open **Options** (gear icon in the header) → **LLM** tab. `llmProvider` is one
 | `deepseek` | DeepSeek API, default `https://api.deepseek.com`, model `deepseek-v4-pro` | DeepSeek API key |
 | `openai` | Native OpenAI Chat Completions, default `https://api.openai.com/v1`, model `gpt-5.6-sol` | OpenAI API key |
 | `opencode-go` | OpenCode Go (OpenAI-compatible), default `https://opencode.ai/zen/go/v1`, model `deepseek-v4-pro` | OpenCode Go API key |
+| `crofai` | CrofAI (OpenAI-compatible), default `https://crof.ai/v1`, model `deepseek-v4-pro` | CrofAI API key |
 
 Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.ts`. The **chat system status** area lists the active provider and model; the model switcher popup (`ModelSwitcherPopup.tsx`) shows provider presets, Ollama model fetch, and pinned models (`pinnedModels`, stored as ids like `openrouter:openai/gpt-5.6-terra`).
 
@@ -38,6 +39,7 @@ Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.t
 - **DeepSeek**: https://platform.deepseek.com/api_keys — `deepseekApiKey`.
 - **OpenAI**: https://platform.openai.com/api-keys — `openaiApiKey`.
 - **OpenCode Go**: https://opencode.ai — `opencodeGoApiKey`.
+- **CrofAI**: https://crof.ai — `crofaiApiKey`.
 
 Cloud API keys are kept in renderer `localStorage`; on LAN web clients `saveSettings` strips them (`stripCloudSecrets`).
 

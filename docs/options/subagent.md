@@ -13,7 +13,7 @@ A **separate model (and provider)** the main chat agent can call for side work, 
 | **Vision** | `provider` + `model` | Image describe / `image_recall` when `enabled` |
 | **Coding** | `codingProvider` + `codingModel` | `coding_explore` and `run_coding_workers` when `codingEnabled` |
 
-Coding runs use the same providers as the main LLM tab (Ollama, OpenRouter, NVIDIA, DeepSeek, OpenAI, OpenCode Go), including provider locks for OpenRouter and the main LLM’s cloud API keys (including **OpenCode Go**).
+Coding runs use the same providers as the main LLM tab (Ollama, OpenRouter, NVIDIA, DeepSeek, OpenAI, OpenCode Go, CrofAI), including provider locks for OpenRouter and the main LLM’s cloud API keys (including **OpenCode Go** and **CrofAI**).
 
 Sub chat calls hardcode **temperature 0.2** and disable **thinking** where the API supports it. They do **not** inherit the main composer’s think level or temp.
 

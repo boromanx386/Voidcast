@@ -1,4 +1,5 @@
 import {
+  normalizeCrofAiModelId,
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
   normalizeOpenAiModelId,
@@ -978,7 +979,7 @@ export function buildRunwareTtsSettingsPayload(
 
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
-export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'
+export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go' | 'crofai'
 
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
@@ -1220,6 +1221,10 @@ export type AppSettings = {
   opencodeGoBaseUrl: string
   opencodeGoApiKey: string
   opencodeGoModel: string
+  /** CrofAI (https://crof.ai/v1) — OpenAI-compatible chat models. */
+  crofaiBaseUrl: string
+  crofaiApiKey: string
+  crofaiModel: string
   /** Default OpenRouter TTS model id. */
   openrouterTtsModel: string
   /** Optional OpenRouter TTS voice id/preset. */
@@ -1401,6 +1406,7 @@ export const AGENT_EDITABLE_SETTINGS_FIELDS = [
 export type AgentEditableSettingsField = (typeof AGENT_EDITABLE_SETTINGS_FIELDS)[number]
 
 import {
+  crofaiApiBaseForRuntime,
   deepseekApiBaseForRuntime,
   defaultOllamaBaseUrlForRuntime,
   defaultTtsBaseUrlForRuntime,
@@ -1419,6 +1425,7 @@ const AGENT_HIDDEN_SETTINGS_FIELDS = [
   'deepseekApiKey',
   'openaiApiKey',
   'opencodeGoApiKey',
+  'crofaiApiKey',
   'runwareApiKey',
 ] as const
 
@@ -1473,6 +1480,9 @@ export const defaults: AppSettings = {
   opencodeGoBaseUrl: 'https://opencode.ai/zen/go/v1',
   opencodeGoApiKey: '',
   opencodeGoModel: 'deepseek-v4-pro',
+  crofaiBaseUrl: 'https://crof.ai/v1',
+  crofaiApiKey: '',
+  crofaiModel: 'deepseek-v4-pro',
   openrouterTtsModel: OPENROUTER_TTS_MODEL_DEFAULT,
   openrouterTtsVoice: '',
   llmTemperature: 0.8,
@@ -1776,7 +1786,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
             ? 'openai'
             : providerRaw === 'opencode-go'
               ? 'opencode-go'
-              : 'ollama'
+              : providerRaw === 'crofai'
+                ? 'crofai'
+                : 'ollama'
   const t = Number(s.llmTemperature)
   const ctx = Number(s.llmNumCtx)
   const openrouterBaseUrl =
@@ -1845,6 +1857,17 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? s.opencodeGoModel.trim()
       : defaults.opencodeGoModel,
   )
+  const crofaiBaseUrl =
+    typeof s.crofaiBaseUrl === 'string' && s.crofaiBaseUrl.trim()
+      ? s.crofaiBaseUrl.trim()
+      : defaults.crofaiBaseUrl
+  const crofaiApiKey =
+    typeof s.crofaiApiKey === 'string' ? s.crofaiApiKey.trim() : ''
+  const crofaiModel = normalizeCrofAiModelId(
+    typeof s.crofaiModel === 'string' && s.crofaiModel.trim()
+      ? s.crofaiModel.trim()
+      : defaults.crofaiModel,
+  )
   return {
     ...s,
     llmProvider,
@@ -1866,6 +1889,9 @@ function normalizeLlm(s: AppSettings): AppSettings {
     opencodeGoBaseUrl,
     opencodeGoApiKey,
     opencodeGoModel,
+    crofaiBaseUrl,
+    crofaiApiKey,
+    crofaiModel,
     llmTemperature: Number.isFinite(t) ? clamp(t, 0, 2) : defaults.llmTemperature,
     llmNumCtx: Number.isFinite(ctx)
       ? clamp(Math.round(ctx), 512, 262144)
@@ -1939,6 +1965,7 @@ function normalizeSubAgentModelId(rawModel: string, provider: SubAgentProviderId
   if (provider === 'openai') return normalizeOpenAiModelId(rawModel)
   if (provider === 'nvidia') return normalizeNvidiaModelId(rawModel)
   if (provider === 'opencode-go') return normalizeOpenCodeGoModelId(rawModel)
+  if (provider === 'crofai') return normalizeCrofAiModelId(rawModel)
   return normalizeOpenRouterModelId(rawModel)
 }
 
@@ -2307,6 +2334,7 @@ function stripCloudSecrets(s: AppSettings): AppSettings {
     deepseekApiKey: '',
     openaiApiKey: '',
     opencodeGoApiKey: '',
+    crofaiApiKey: '',
   }
 }
 
@@ -2360,6 +2388,9 @@ function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
   ) {
     assign({ opencodeGoBaseUrl: defaults.opencodeGoBaseUrl })
   }
+  if (isViteDevServerUrl(next.crofaiBaseUrl) || next.crofaiBaseUrl.includes('/api/crofai')) {
+    assign({ crofaiBaseUrl: defaults.crofaiBaseUrl })
+  }
 
   return next
 }
@@ -2380,6 +2411,7 @@ function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
       deepseekBaseUrl: deepseekApiBaseForRuntime(),
       openaiBaseUrl: openaiApiBaseForRuntime(),
       opencodeGoBaseUrl: opencodeGoApiBaseForRuntime(),
+      crofaiBaseUrl: crofaiApiBaseForRuntime(),
       voiceMode: 'design',
       sttProvider: 'none',
     })

@@ -13,6 +13,7 @@
 import { normalizeBaseUrl, SUB_AGENT_DEFAULT_CONTEXT_TOKENS, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from './settings'
 import type { SubAgentConfig } from './settings'
 import {
+  crofaiApiBaseForRuntime,
   deepseekApiBaseForRuntime,
   nvidiaApiBaseForRuntime,
   openaiApiBaseForRuntime,
@@ -57,6 +58,8 @@ export type SubAgentKeys = {
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   opencodeGoApiKey: string
+  crofaiBaseUrl: string
+  crofaiApiKey: string
   /** Used for OpenCode Go local reverse-proxy base on desktop. */
   ttsBaseUrl?: string
 }
@@ -328,6 +331,66 @@ async function describeWithOpenAi(
     choices?: Array<{ message?: { content?: string } }>
   }
   return (data2.choices?.[0]?.message?.content || '').trim()
+}
+
+// ── CrofAI path (vision via Chat Completions; model-dependent) ───────────
+
+async function describeWithCrofAi(
+  img: SubAgentImageInput,
+  model: string,
+  maxTokens: number,
+  crofaiBaseUrl: string,
+  crofaiApiKey: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const viaProxy = usesServerCloudProxy()
+  const baseUrl = viaProxy
+    ? crofaiApiBaseForRuntime()
+    : normalizeBaseUrl(crofaiBaseUrl || 'https://crof.ai/v1')
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (!viaProxy && crofaiApiKey.trim()) {
+    headers.Authorization = `Bearer ${crofaiApiKey.trim()}`
+  }
+
+  const dataUri = toDataUri(img.base64, img.mime)
+
+  const body = {
+    model,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: dataUri } },
+        ],
+      },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.2,
+    stream: false,
+    reasoning_effort: 'none',
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`CrofAI sub-agent ${res.status}: ${errText || res.statusText}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  return (data.choices?.[0]?.message?.content || '').trim()
 }
 
 // ── NVIDIA path (vision via Chat Completions) ────────────────────────────
@@ -607,6 +670,22 @@ export async function callSubAgentChat(opts: {
       opts.signal,
     )
   }
+  if (provider === 'crofai') {
+    const viaProxy = usesServerCloudProxy()
+    const baseUrl = viaProxy
+      ? crofaiApiBaseForRuntime()
+      : normalizeBaseUrl(opts.keys.crofaiBaseUrl || 'https://crof.ai/v1')
+    return textWithOpenAiCompatible(
+      'CrofAI',
+      opts.config.model,
+      maxTokens,
+      baseUrl,
+      viaProxy ? '' : opts.keys.crofaiApiKey,
+      messages,
+      opts.signal,
+      { reasoning_effort: 'none' },
+    )
+  }
   return textWithOllama(
     opts.config.model,
     maxTokens,
@@ -666,6 +745,13 @@ async function describeSingleImage(
     return describeWithOpenCodeGo(
       img, config.model, maxTokens,
       keys.ttsBaseUrl, keys.opencodeGoApiKey,
+      prompt, signal,
+    )
+  }
+  if (provider === 'crofai') {
+    return describeWithCrofAi(
+      img, config.model, maxTokens,
+      keys.crofaiBaseUrl, keys.crofaiApiKey,
       prompt, signal,
     )
   }

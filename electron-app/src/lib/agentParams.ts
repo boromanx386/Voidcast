@@ -62,6 +62,8 @@ export interface ChatWithToolsCommonParams {
   nvidiaBaseUrlForSubAgent?: string
   nvidiaApiKeyForSubAgent?: string
   opencodeGoApiKeyForSubAgent?: string
+  crofaiBaseUrlForSubAgent?: string
+  crofaiApiKeyForSubAgent?: string
   ttsBaseUrlForSubAgent?: string
   thinkLevel?: LlmThinkLevel
   subAgentUi?: SubAgentUiCallbacks
@@ -109,6 +111,8 @@ export function buildToolExecutorOptions(
     nvidiaBaseUrl: params.nvidiaBaseUrlForSubAgent,
     nvidiaApiKey: params.nvidiaApiKeyForSubAgent,
     opencodeGoApiKey: params.opencodeGoApiKeyForSubAgent,
+    crofaiBaseUrl: params.crofaiBaseUrlForSubAgent,
+    crofaiApiKey: params.crofaiApiKeyForSubAgent,
     subAgentUi: params.subAgentUi,
     onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
     imageVisionCache: params.imageVisionCache,

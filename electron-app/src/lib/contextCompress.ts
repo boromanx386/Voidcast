@@ -32,6 +32,12 @@ export async function compressConversationContext(params: {
   openaiBaseUrl?: string
   openaiApiKey?: string
   openaiModel?: string
+  opencodeGoBaseUrl?: string
+  opencodeGoApiKey?: string
+  opencodeGoModel?: string
+  crofaiBaseUrl?: string
+  crofaiApiKey?: string
+  crofaiModel?: string
   turns: ContextTurn[]
   existingSummary?: string
   modelOptions?: OllamaModelOptions

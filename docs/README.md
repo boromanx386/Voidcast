@@ -24,7 +24,7 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 ## Quick Start
 
 1. Install the desktop app (Electron). On first launch you land on the chat screen.
-2. Open **Options** and pick an LLM provider: local **Ollama** (no account) or a cloud provider (**OpenRouter, NVIDIA, DeepSeek, OpenAI, OpenCode Go**) — see [getting-started.md](getting-started.md).
+2. Open **Options** and pick an LLM provider: local **Ollama** (no account) or a cloud provider (**OpenRouter, NVIDIA, DeepSeek, OpenAI, OpenCode Go, CrofAI**) — see [getting-started.md](getting-started.md).
 3. Type your first message. Cycle **Agent → Ask → Plan → Team** with the mode chip (or `Shift+Tab`).
 4. **Multi-chat:** start work in one session, open another session, send there — both can run (see [multi-chat-and-team.md](multi-chat-and-team.md)).
 5. **Team workers:** Options → SUB → enable coding sub-agent; set a project path; Team mode; multi-area task.

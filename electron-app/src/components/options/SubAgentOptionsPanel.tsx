@@ -1,6 +1,7 @@
 import type { AppSettings, SubAgentConfig, LlmProvider } from '@/lib/settings'
 import { withSubAgentOpenRouterProvider } from '@/lib/settings'
 import {
+  CROFAI_LLM_PRESET_MODELS,
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
   OPENAI_LLM_PRESET_MODELS,
@@ -42,6 +43,7 @@ function parseProvider(value: string): SubAgentProviderId {
   if (value === 'openai') return 'openai'
   if (value === 'nvidia') return 'nvidia'
   if (value === 'opencode-go') return 'opencode-go'
+  if (value === 'crofai') return 'crofai'
   return 'ollama'
 }
 
@@ -154,7 +156,9 @@ function SubAgentEndpointPicker({
             ? NVIDIA_LLM_PRESET_MODELS
             : provider === 'opencode-go'
               ? OPENCODE_GO_LLM_PRESET_MODELS
-              : null
+              : provider === 'crofai'
+                ? CROFAI_LLM_PRESET_MODELS
+                : null
 
   const ollamaInList = ollamaModels.includes(model)
   const presetInList = Boolean(presets?.some((m) => m.id === model))
@@ -226,7 +230,9 @@ function SubAgentEndpointPicker({
             ? 'nvidia/nemotron-3-super-120b-a12b'
             : provider === 'opencode-go'
               ? 'deepseek-v4-pro'
-              : 'model id…'
+              : provider === 'crofai'
+                ? 'deepseek-v4-pro'
+                : 'model id…'
 
   return (
     <div className="grid gap-4 rounded border border-void-border/60 p-3">
@@ -245,6 +251,7 @@ function SubAgentEndpointPicker({
           <option value="deepseek">DeepSeek (cloud)</option>
           <option value="openai">OpenAI (cloud)</option>
           <option value="opencode-go">OpenCode Go (cloud)</option>
+          <option value="crofai">CrofAI (cloud)</option>
         </select>
       </div>
 
@@ -431,7 +438,8 @@ function SubAgentEndpointPicker({
       {(provider === 'deepseek' ||
         provider === 'openai' ||
         provider === 'nvidia' ||
-        provider === 'opencode-go') &&
+        provider === 'opencode-go' ||
+        provider === 'crofai') &&
         presets && (
           <div className="form-group mb-0">
             <label className="form-label">
@@ -480,6 +488,8 @@ function SubAgentEndpointPicker({
                 'Uses Options → LLM NVIDIA base URL and API key.'}
               {provider === 'opencode-go' &&
                 'Uses Options → LLM OpenCode Go key (local reverse proxy).'}
+              {provider === 'crofai' &&
+                'Uses Options → LLM CrofAI base URL and API key.'}
             </p>
           </div>
         )}

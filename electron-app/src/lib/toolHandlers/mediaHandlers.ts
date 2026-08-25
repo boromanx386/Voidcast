@@ -221,6 +221,8 @@ export const handleImageRecall: ToolHandlerFn = async (args, ctx) => {
         nvidiaBaseUrl: ctx.nvidiaBaseUrl || "https://integrate.api.nvidia.com/v1",
         nvidiaApiKey: ctx.nvidiaApiKey || "",
         opencodeGoApiKey: ctx.opencodeGoApiKey || "",
+        crofaiBaseUrl: ctx.crofaiBaseUrl || "https://crof.ai/v1",
+        crofaiApiKey: ctx.crofaiApiKey || "",
         ttsBaseUrl: ctx.ttsBaseUrl,
       },
       ctx.userText,

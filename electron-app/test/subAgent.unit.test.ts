@@ -156,6 +156,8 @@ describe('describeImagesWithSubAgent vision cache', () => {
     nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
     nvidiaApiKey: '',
     opencodeGoApiKey: '',
+    crofaiBaseUrl: 'https://crof.ai/v1',
+    crofaiApiKey: '',
     ttsBaseUrl: 'http://127.0.0.1:8765',
   }
 

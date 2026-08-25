@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { AppSettings, LlmProvider } from '@/lib/settings'
 import {
+  CROFAI_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
   DEEPSEEK_LLM_PRESET_MODELS,
   OPENAI_LLM_PRESET_MODELS,
@@ -28,6 +29,7 @@ const PROVIDER_LABELS: Record<LlmProvider, string> = {
   deepseek: 'DeepSeek',
   openai: 'OpenAI',
   'opencode-go': 'OpenCode Go',
+  crofai: 'CrofAI',
 }
 
 function providerLabel(provider: LlmProvider): string {
@@ -121,6 +123,13 @@ export default function ModelSwitcherPopup({
         id: toScopedPinnedId('opencode-go', p.id),
         label: p.label,
         provider: 'opencode-go',
+      })
+    }
+    for (const p of CROFAI_LLM_PRESET_MODELS) {
+      map.push({
+        id: toScopedPinnedId('crofai', p.id),
+        label: p.label,
+        provider: 'crofai',
       })
     }
     for (const p of ollamaModels) map.push(p)

@@ -21,7 +21,7 @@ Grouped by the Settings tab they belong to.
 
 ### Cloud API keys (General → Cloud API Keys)
 
-These six providers store their API keys/URLs here (keys are local to this device):
+These providers store their API keys/URLs here (keys are local to this device):
 
 | Key | Provider |
 | --- | --- |
@@ -30,6 +30,7 @@ These six providers store their API keys/URLs here (keys are local to this devic
 | `deepseekApiKey` / `deepseekBaseUrl` | DeepSeek |
 | `nvidiaApiKey` / `nvidiaBaseUrl` | NVIDIA |
 | `opencodeGoApiKey` / `opencodeGoBaseUrl` | OpenCode Go |
+| `crofaiApiKey` / `crofaiBaseUrl` | CrofAI |
 | `runwareApiKey` | Runware (image/music generation) |
 
 > API keys are sensitive and stored locally. The agent's editable settings exclude API key fields.
@@ -40,7 +41,7 @@ These six providers store their API keys/URLs here (keys are local to this devic
 
 | Key | Type | What it controls |
 | --- | --- | --- |
-| `llmProvider` | `LlmProvider` | Active backend: `'ollama' \| 'openrouter' \| 'nvidia' \| 'deepseek' \| 'openai' \| 'opencodego'`. |
+| `llmProvider` | `LlmProvider` | Active backend: `'ollama' \| 'openrouter' \| 'nvidia' \| 'deepseek' \| 'openai' \| 'opencode-go' \| 'crofai'`. |
 | `llmTemperature` | `number` | Sampling temperature passed to the model (higher = more random). |
 | `llmNumCtx` | `number` | Context window size in tokens (`options.num_ctx` for Ollama). |
 | `contextAutoCompress` | `boolean` | Auto-run context compression when prompt usage reaches ~90% of `llmNumCtx`. |
@@ -59,6 +60,7 @@ These six providers store their API keys/URLs here (keys are local to this devic
 | DeepSeek | `deepseekBaseUrl`, `deepseekModel` |
 | OpenAI (native) | `openaiBaseUrl` (`https://api.openai.com/v1`), `openaiModel` |
 | OpenCode Go | `opencodeGoBaseUrl` (`https://opencode.ai/zen/go/v1`), `opencodeGoModel` |
+| CrofAI | `crofaiBaseUrl` (`https://crof.ai/v1`), `crofaiModel` |
 
 ---
 

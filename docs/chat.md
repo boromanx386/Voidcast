@@ -8,8 +8,8 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 
 ## Model Switcher (ChatSystemStatus.tsx, ModelSwitcherPopup.tsx)
 
-- `ChatSystemStatus` shows the active provider (Ollama / OpenRouter / NVIDIA / DeepSeek / OpenAI / OpenCode Go), model, and context-limit source.
-- Clicking opens `ModelSwitcherPopup` with provider presets (`OPENROUTER_LLM_PRESET_MODELS`, `DEEPSEEK_LLM_PRESET_MODELS`, `OPENAI_LLM_PRESET_MODELS`, `NVIDIA_LLM_PRESET_MODELS`, `OPENCODE_GO_LLM_PRESET_MODELS` from `electron-app/src/lib/cloudLlmPresets.ts`), live Ollama models, and pinned models (`pinnedModels`, ids like `openrouter:openai/gpt-5.6-terra`). Selection updates `llmProvider` + model fields via `applyModelSwitcherSelection`.
+- `ChatSystemStatus` shows the active provider (Ollama / OpenRouter / NVIDIA / DeepSeek / OpenAI / OpenCode Go / CrofAI), model, and context-limit source.
+- Clicking opens `ModelSwitcherPopup` with provider presets (`OPENROUTER_LLM_PRESET_MODELS`, `DEEPSEEK_LLM_PRESET_MODELS`, `OPENAI_LLM_PRESET_MODELS`, `NVIDIA_LLM_PRESET_MODELS`, `OPENCODE_GO_LLM_PRESET_MODELS`, `CROFAI_LLM_PRESET_MODELS` from `electron-app/src/lib/cloudLlmPresets.ts`), live Ollama models, and pinned models (`pinnedModels`, ids like `openrouter:openai/gpt-5.6-terra`). Selection updates `llmProvider` + model fields via `applyModelSwitcherSelection`.
 
 ## Sessions Sidebar (ChatSidebar.tsx, SessionItem.tsx)
 

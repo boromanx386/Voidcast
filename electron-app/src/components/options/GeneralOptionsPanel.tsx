@@ -48,6 +48,7 @@ type CloudKeyProviderId =
   | 'deepseek'
   | 'openai'
   | 'opencode-go'
+  | 'crofai'
 
 type CloudKeyProvider = {
   id: CloudKeyProviderId
@@ -60,6 +61,7 @@ type CloudKeyProvider = {
     | 'deepseekApiKey'
     | 'openaiApiKey'
     | 'opencodeGoApiKey'
+    | 'crofaiApiKey'
   >
   placeholder: string
   href: string
@@ -106,6 +108,14 @@ const CLOUD_KEY_PROVIDERS: CloudKeyProvider[] = [
     placeholder: 'sk-...',
     href: 'https://opencode.ai/auth',
     linkLabel: 'Get OpenCode Go API key',
+  },
+  {
+    id: 'crofai',
+    label: 'CrofAI',
+    field: 'crofaiApiKey',
+    placeholder: 'api-key...',
+    href: 'https://crof.ai/',
+    linkLabel: 'Get CrofAI API key',
   },
   {
     id: 'runware',

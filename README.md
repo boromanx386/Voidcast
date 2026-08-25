@@ -2,7 +2,7 @@
 
 ![Voidcast](logo.jpg)
 
-**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, DeepSeek (direct API), **OpenAI** (Chat Completions), or **OpenCode Go**, and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, DeepSeek (direct API), **OpenAI** (Chat Completions), **OpenCode Go**, or **CrofAI**, and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
 *Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
@@ -83,7 +83,7 @@ Available tools:
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 - **MCP Servers (desktop)** — connect external MCP tools from `~/.voidcast/mcp.json` (see below)
 
-The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, **DeepSeek** (direct API — no OpenRouter free-tier routing), **OpenAI** (Chat Completions), and **OpenCode Go** (OpenAI-compatible; desktop chat goes through the local tools/TTS proxy so CORS is not an issue). All providers share the same tool catalog and executor. `reasoning_effort` is forced to `none` for OpenAI whenever tools are active, and stream usage is requested so the CTX meter shows real token counts.
+The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, **DeepSeek** (direct API — no OpenRouter free-tier routing), **OpenAI** (Chat Completions), **OpenCode Go** (OpenAI-compatible; desktop chat goes through the local tools/TTS proxy so CORS is not an issue), and **CrofAI** (OpenAI-compatible at [`crof.ai/v1`](https://crof.ai/docs)). All providers share the same tool catalog and executor. `reasoning_effort` is forced to `none` for OpenAI whenever tools are active, and stream usage is requested so the CTX meter shows real token counts.
 
 
 
@@ -238,6 +238,7 @@ Voidcast does not charge anything. It connects to free tiers of providers you ca
 | **DeepSeek** | Direct API — V4 Pro / Flash; billed from your DeepSeek balance |
 | **OpenAI** | Official Chat Completions API — GPT, o-series (free trial credit) |
 | **OpenCode Go** | OpenAI-compatible chat models via [OpenCode Go](https://opencode.ai/docs/go) |
+| **CrofAI** | OpenAI-compatible chat models via [CrofAI](https://crof.ai/docs) |
 | **Ollama** | Open-source models (Qwen, Gemma, GLM, Mistral...) |
 | **NVIDIA NIM** | Enterprise-grade inference for open models |
 | **Runware** | Image generation, image edit, and AI music (pay-per-use, typically pennies) |
@@ -247,7 +248,7 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 
 **Multimodal pricing:** OpenRouter Whisper (STT), TTS, and image models bill per request or token at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 
-**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go, Runware, or Ollama from your PC (OpenCode Go via the local tools proxy). With **LAN_WEB_ACCESS** enabled, keys are registered on the local tools host for phone proxying — not baked into the phone browser build.
+**Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go, CrofAI, Runware, or Ollama from your PC (OpenCode Go via the local tools proxy). With **LAN_WEB_ACCESS** enabled, keys are registered on the local tools host for phone proxying — not baked into the phone browser build.
 
 ---
 
@@ -258,7 +259,7 @@ Local and small-context models hit a wall after long chats. When prompt usage ne
 <p align="center">
   <img src="demos/voidcast-options-llm-openrouter-9x16.png" width="700" alt="LLM options panel"/>
 </p>
-<p align="center"><em>Options → LLM: pick a provider (Ollama, OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go), set context compression, and thinking level.</em></p>
+<p align="center"><em>Options → LLM: pick a provider (Ollama, OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go, CrofAI), set context compression, and thinking level.</em></p>
 
 ---
 
@@ -296,7 +297,7 @@ Eight built-in themes: **Minimal** (default), **Dystopian**, **Matrix** (classic
 
 Other UX features:
 - **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens). Project folder groups default collapsed. Session history is stored in **IndexedDB** (migrated automatically from older `localStorage` data on first launch).
-- **Pinned model switcher** — status-bar popup to jump between pinned models; pins are scoped per provider so the same slug on OpenRouter vs NVIDIA / DeepSeek / OpenAI / OpenCode Go does not collide.
+- **Pinned model switcher** — status-bar popup to jump between pinned models; pins are scoped per provider so the same slug on OpenRouter vs NVIDIA / DeepSeek / OpenAI / OpenCode Go / CrofAI does not collide.
 - **Per-chat system prompt presets** — composer chip with **default / code / creative / teacher** personas (dropup styled like the pinned-model chips); the choice is stored per chat session.
 - **Drag-and-drop** — drop images and supported files (TXT, MD, PDF, DOCX, CSV, JSON, code) onto the chat (same limits as the file picker); PDF/DOCX text is extracted on desktop
 - **Edit any message inline** — history regenerates from that point

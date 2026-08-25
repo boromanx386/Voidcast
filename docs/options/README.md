@@ -26,7 +26,7 @@ Agent-editable fields are listed in `AGENT_EDITABLE_SETTINGS_FIELDS` in `electro
 - `autoVoice` (auto text-to-speech)
 - `runwareResolution`, `runwareWidth`, `runwareHeight`, `runwareImageModel`, `runwareEditModel` (image generation)
 
-Agent-hidden fields are listed in `AGENT_HIDDEN_SETTINGS_FIELDS` — currently all cloud API keys (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `openaiApiKey`, `opencodeGoApiKey`, `runwareApiKey`).
+Agent-hidden fields are listed in `AGENT_HIDDEN_SETTINGS_FIELDS` — currently all cloud API keys (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `openaiApiKey`, `opencodeGoApiKey`, `crofaiApiKey`, `runwareApiKey`).
 
 Everything else is configurable only from this Settings screen (or via the local settings store) and is not exposed to the agent.
 

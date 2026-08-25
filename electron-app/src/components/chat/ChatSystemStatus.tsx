@@ -22,6 +22,8 @@ function providerShortLabel(settings: AppSettings): string {
       return 'OpenAI'
     case 'opencode-go':
       return 'OpenCode Go'
+    case 'crofai':
+      return 'CrofAI'
     default:
       return settings.llmProvider
   }

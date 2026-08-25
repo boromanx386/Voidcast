@@ -80,3 +80,9 @@ export function opencodeGoApiBaseForRuntime(_desktopUrl?: string, ttsBaseUrl?: s
   const tts = (ttsBaseUrl || defaultTtsBaseUrlForRuntime()).trim().replace(/\/+$/, '')
   return `${tts}/api/opencode-go/v1`
 }
+
+export function crofaiApiBaseForRuntime(desktopUrl?: string): string {
+  if (isLanWebClient()) return `${window.location.origin}/api/crofai/v1`
+  const u = (desktopUrl || '').trim()
+  return u || 'https://crof.ai/v1'
+}

@@ -12,6 +12,7 @@ function baseSettings(overrides: Record<string, unknown> = {}) {
     openaiModel: 'gpt-5.6-sol',
     nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
     opencodeGoModel: 'deepseek-v4-pro',
+    crofaiModel: 'deepseek-v4-pro',
     ...overrides,
   }
 }
@@ -85,6 +86,20 @@ describe('resolveContextLimit', () => {
     expect(limit.source).toBe('preset')
     expect(activeLlmModelId(baseSettings({ llmProvider: 'openai', openaiModel: 'openai/gpt-5.6-sol' }))).toBe(
       'gpt-5.6-sol',
+    )
+  })
+
+  test('crofai deepseek-v4-pro uses 1M override', () => {
+    const limit = resolveContextLimit(
+      baseSettings({
+        llmProvider: 'crofai',
+        crofaiModel: 'deepseek-v4-pro',
+      }),
+    )
+    expect(limit.maxTokens).toBe(1_000_000)
+    expect(limit.source).toBe('preset')
+    expect(activeLlmModelId(baseSettings({ llmProvider: 'crofai', crofaiModel: 'deepseek-v4-pro' }))).toBe(
+      'deepseek-v4-pro',
     )
   })
 

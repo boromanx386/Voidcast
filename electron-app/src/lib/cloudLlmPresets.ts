@@ -107,6 +107,30 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'hy3', label: 'Hy3' },
 ]
 
+/** Curated CrofAI chat models (https://crof.ai/v1/models). */
+export const CROFAI_LLM_PRESET_MODELS: CloudLlmPreset[] = [
+  { id: 'deepseek-v4-pro-0813', label: 'DeepSeek V4 Pro 0813 (1M)' },
+  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
+  { id: 'deepseek-v4-flash-0731', label: 'DeepSeek V4 Flash 0731 (fast)' },
+  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (fast)' },
+  { id: 'deepseek-v3.2', label: 'DeepSeek V3.2' },
+  { id: 'kimi-k3', label: 'Kimi K3' },
+  { id: 'kimi-k3-eco', label: 'Kimi K3 Eco' },
+  { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code' },
+  { id: 'kimi-k2.6', label: 'Kimi K2.6' },
+  { id: 'glm-5.2', label: 'GLM 5.2' },
+  { id: 'glm-5.1', label: 'GLM 5.1' },
+  { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
+  { id: 'gemma-4-31b-it', label: 'Gemma 4 31B IT' },
+  { id: 'qwen3.8-27b', label: 'Qwen3.8 27B' },
+  { id: 'qwen3.6-27b', label: 'Qwen3.6 27B' },
+  { id: 'qwen3.5-397b-a17b', label: 'Qwen3.5 397B' },
+  { id: 'qwen3.5-9b', label: 'Qwen3.5 9B' },
+  { id: 'greg-2-ultra', label: 'Greg 2 Ultra' },
+  { id: 'greg-2-super', label: 'Greg 2 Super' },
+  { id: 'greg-1-mini', label: 'Greg 1 Mini' },
+]
+
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
   'minimax/minimax-m2.5:free': 'minimax/minimax-m2.5',
   'moonshotai/kimi-k2.6:free': 'moonshotai/kimi-k2.6',
@@ -203,6 +227,26 @@ export function normalizeOpenCodeGoModelId(model: string): string {
   return OPENCODE_GO_MODEL_ALIASES[trimmed] ?? trimmed
 }
 
+const CROFAI_MODEL_ALIASES: Record<string, string> = {
+  'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
+  'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
+  'deepseek/deepseek-v4-pro-0813': 'deepseek-v4-pro-0813',
+  'deepseek/deepseek-v4-flash-0731': 'deepseek-v4-flash-0731',
+  'moonshotai/kimi-k3': 'kimi-k3',
+  'moonshotai/kimi-k2.7-code': 'kimi-k2.7-code',
+  'moonshotai/kimi-k2.6': 'kimi-k2.6',
+  'z-ai/glm-5.2': 'glm-5.2',
+  'z-ai/glm-5.1': 'glm-5.1',
+  'google/gemma-4-31b-it': 'gemma-4-31b-it',
+  'qwen/qwen3.5-397b-a17b': 'qwen3.5-397b-a17b',
+}
+
+export function normalizeCrofAiModelId(model: string): string {
+  const trimmed = model.trim()
+  if (!trimmed) return CROFAI_LLM_PRESET_MODELS[0]?.id ?? 'deepseek-v4-pro'
+  return CROFAI_MODEL_ALIASES[trimmed] ?? trimmed
+}
+
 /** OpenRouter route suffixes after `provider/model:` (not Ollama tags). */
 const OPENROUTER_ROUTE_VARIANTS = new Set([
   'free',
@@ -219,6 +263,7 @@ export type SubAgentProviderId =
   | 'openai'
   | 'nvidia'
   | 'opencode-go'
+  | 'crofai'
 
 const SUB_AGENT_PROVIDERS: ReadonlySet<SubAgentProviderId> = new Set([
   'ollama',
@@ -227,6 +272,7 @@ const SUB_AGENT_PROVIDERS: ReadonlySet<SubAgentProviderId> = new Set([
   'openai',
   'nvidia',
   'opencode-go',
+  'crofai',
 ])
 
 export function isSubAgentProviderId(value: string | null | undefined): value is SubAgentProviderId {

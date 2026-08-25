@@ -1,9 +1,11 @@
 import {
+  CROFAI_LLM_PRESET_MODELS,
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
   OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
+  normalizeCrofAiModelId,
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
   normalizeOpenAiModelId,
@@ -31,6 +33,7 @@ const PROVIDER_DEFAULT_CONTEXT: Record<Exclude<LlmProvider, 'ollama'>, number> =
   deepseek: 1_000_000,
   openai: 256_000,
   'opencode-go': 256_000,
+  crofai: 256_000,
 }
 
 /** Explicit overrides for models where heuristics would be wrong. */
@@ -64,8 +67,11 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'deepseek/deepseek-v4-flash-vision-exp': 1_048_576,
   'stealth/ox-alpha': 1_048_576,
   'deepseek-v4-pro': 1_000_000,
+  'deepseek-v4-pro-0813': 1_000_000,
   'deepseek-v4-flash': 1_000_000,
+  'deepseek-v4-flash-0731': 1_000_000,
   'deepseek-v4-flash-vision-exp': 1_000_000,
+  'deepseek-v3.2': 163_840,
   'ox-alpha-free': 1_000_000,
   'longcat-2.0': 1_000_000,
   'z-ai/glm-5.2': 1_048_576,
@@ -73,6 +79,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'moonshotai/kimi-k2.7-code': 262_144,
   'google/gemma-4-31b-it': 131_072,
   'google/gemma-4-31b-it:free': 262_144,
+  'gemma-4-31b-it': 262_144,
   'nvidia/nemotron-3.5-lightning': 262_144,
   'nvidia/nemotron-3.5-lightning:free': 1_000_000,
   'nvidia/nemotron-3-super-120b-a12b:free': 262_144,
@@ -84,6 +91,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'kimi-k2.7-code': 262_144,
   'kimi-k2.6': 262_144,
   'kimi-k3': 1_048_576,
+  'kimi-k3-eco': 1_000_000,
   'glm-5.3': 1_000_000,
   'glm-5.2': 1_000_000,
   'glm-5.1': 202_752,
@@ -91,6 +99,14 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'mimo-v2.5-pro': 1_048_576,
   'grok-4.5': 500_000,
   hy3: 262_144,
+  'qwen3.8-27b': 262_144,
+  'qwen3.6-27b': 262_144,
+  'qwen3.5-397b-a17b': 262_144,
+  'qwen3.5-9b': 262_144,
+  'greg-2-ultra': 229_376,
+  'greg-2-super': 229_376,
+  'greg-1-mini': 229_376,
+  'greg-rp': 229_376,
 }
 
 function buildPresetLookup(
@@ -110,6 +126,7 @@ const DEEPSEEK_PRESET_CONTEXT = buildPresetLookup(DEEPSEEK_LLM_PRESET_MODELS)
 const OPENAI_PRESET_CONTEXT = buildPresetLookup(OPENAI_LLM_PRESET_MODELS)
 const NVIDIA_PRESET_CONTEXT = buildPresetLookup(NVIDIA_LLM_PRESET_MODELS)
 const OPENCODE_GO_PRESET_CONTEXT = buildPresetLookup(OPENCODE_GO_LLM_PRESET_MODELS)
+const CROFAI_PRESET_CONTEXT = buildPresetLookup(CROFAI_LLM_PRESET_MODELS)
 
 export function activeLlmModelId(
   settings: Pick<
@@ -121,6 +138,7 @@ export function activeLlmModelId(
     | 'openaiModel'
     | 'nvidiaModel'
     | 'opencodeGoModel'
+    | 'crofaiModel'
   >,
 ): string {
   switch (settings.llmProvider) {
@@ -134,6 +152,8 @@ export function activeLlmModelId(
       return normalizeNvidiaModelId(settings.nvidiaModel)
     case 'opencode-go':
       return normalizeOpenCodeGoModelId(settings.opencodeGoModel)
+    case 'crofai':
+      return normalizeCrofAiModelId(settings.crofaiModel)
     default:
       return settings.ollamaModel.trim()
   }
@@ -171,6 +191,7 @@ function inferCloudContextTokens(modelId: string): number | undefined {
   if (key.includes('mistral')) return 128_000
   if (key.includes('step')) return 128_000
   if (key.includes('hy3')) return 262_144
+  if (key.includes('greg')) return 229_376
 
   return undefined
 }
@@ -185,6 +206,7 @@ function lookupPresetContext(
     openai: OPENAI_PRESET_CONTEXT,
     nvidia: NVIDIA_PRESET_CONTEXT,
     'opencode-go': OPENCODE_GO_PRESET_CONTEXT,
+    crofai: CROFAI_PRESET_CONTEXT,
   }
   return maps[provider].get(modelId)
 }
@@ -200,6 +222,7 @@ export function resolveContextLimit(
     | 'openaiModel'
     | 'nvidiaModel'
     | 'opencodeGoModel'
+    | 'crofaiModel'
   >,
 ): ResolvedContextLimit {
   const provider = settings.llmProvider

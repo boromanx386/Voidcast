@@ -1,4 +1,5 @@
 ﻿import {
+  CROFAI_LLM_PRESET_MODELS,
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
   OPENAI_LLM_PRESET_MODELS,
@@ -14,6 +15,7 @@ const SCOPED_PROVIDERS: LlmProvider[] = [
   'deepseek',
   'openai',
   'nvidia',
+  'crofai',
   'ollama',
 ]
 
@@ -81,6 +83,8 @@ export function currentPinnedModelId(settings: AppSettings): string {
       return toScopedPinnedId('openai', settings.openaiModel)
     case 'opencode-go':
       return toScopedPinnedId('opencode-go', settings.opencodeGoModel)
+    case 'crofai':
+      return toScopedPinnedId('crofai', settings.crofaiModel)
     default:
       return toScopedPinnedId('openrouter', settings.openrouterModel)
   }
@@ -139,6 +143,9 @@ function migrateLegacyPin(id: string): string | null {
   if (OPENCODE_GO_LLM_PRESET_MODELS.some((p) => p.id === id)) {
     return toScopedPinnedId('opencode-go', id)
   }
+  if (CROFAI_LLM_PRESET_MODELS.some((p) => p.id === id)) {
+    return toScopedPinnedId('crofai', id)
+  }
 
   return toScopedPinnedId('openrouter', id)
 }
@@ -171,6 +178,9 @@ export function applyModelSwitcherSelection(
   }
   if (provider === 'openai') {
     return { ...settings, llmProvider: 'openai', openaiModel: model }
+  }
+  if (provider === 'crofai') {
+    return { ...settings, llmProvider: 'crofai', crofaiModel: model }
   }
   return { ...settings, llmProvider: 'opencode-go', opencodeGoModel: model }
 }

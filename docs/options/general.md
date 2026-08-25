@@ -23,6 +23,7 @@ Pick a provider chip to edit its key. A filled green dot means a key is already 
 | DeepSeek | `deepseekApiKey` | `sk-...` — https://platform.deepseek.com/api_keys |
 | NVIDIA | `nvidiaApiKey` | `nvapi-...` — https://build.nvidia.com/ |
 | OpenCode Go | `opencodeGoApiKey` | `sk-...` — https://opencode.ai/auth |
+| CrofAI | `crofaiApiKey` | API key — https://crof.ai/ |
 | Runware | `runwareApiKey` | `rw_...` — https://runware.ai/ |
 
 These keys are in `AGENT_HIDDEN_SETTINGS_FIELDS` in `settings.ts` — the agent never sees them.

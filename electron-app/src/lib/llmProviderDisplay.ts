@@ -12,6 +12,8 @@ export function llmModelLabel(settings: AppSettings): string {
       return settings.openaiModel
     case 'opencode-go':
       return settings.opencodeGoModel
+    case 'crofai':
+      return settings.crofaiModel
     default:
       return settings.openrouterModel
   }

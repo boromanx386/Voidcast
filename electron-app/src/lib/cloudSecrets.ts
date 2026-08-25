@@ -8,6 +8,7 @@ export type CloudSecretsPayload = {
   deepseekApiKey: string
   openaiApiKey: string
   opencodeGoApiKey: string
+  crofaiApiKey: string
 }
 
 /** Push API keys from desktop to the local TTS server for LAN web proxy (not full settings sync). */

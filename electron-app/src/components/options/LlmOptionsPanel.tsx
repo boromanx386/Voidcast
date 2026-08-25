@@ -1,6 +1,6 @@
 import type { AppSettings } from '@/lib/settings'
 import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
-import { DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENAI_LLM_PRESET_MODELS, OPENCODE_GO_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
+import { CROFAI_LLM_PRESET_MODELS, DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET_MODELS, OPENAI_LLM_PRESET_MODELS, OPENCODE_GO_LLM_PRESET_MODELS, OPENROUTER_LLM_PRESET_MODELS } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import { pinnedIdLabel, pinsForProvider, toScopedPinnedId } from '@/lib/pinnedModels'
@@ -132,7 +132,9 @@ export function LlmOptionsPanel({
                         ? 'openai'
                         : e.target.value === 'opencode-go'
                           ? 'opencode-go'
-                          : 'ollama',
+                          : e.target.value === 'crofai'
+                            ? 'crofai'
+                            : 'ollama',
             }))
           }
         >
@@ -142,6 +144,7 @@ export function LlmOptionsPanel({
           <option value="deepseek">DeepSeek (cloud)</option>
           <option value="openai">OpenAI (cloud)</option>
           <option value="opencode-go">OpenCode Go (cloud)</option>
+          <option value="crofai">CrofAI (cloud)</option>
         </select>
       </div>
 
@@ -721,6 +724,89 @@ export function LlmOptionsPanel({
         </>
       )}
 
+      {settings.llmProvider === 'crofai' && (
+        <>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-purple mr-2">◇</span> CROFAI_BASE_URL
+            </label>
+            <input
+              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+              readOnly={isWebStandalone()}
+              value={settings.crofaiBaseUrl}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, crofaiBaseUrl: e.target.value }))
+              }
+              placeholder="https://crof.ai/v1"
+            />
+            {isWebStandalone() && (
+              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+                Proxied through the local server at{' '}
+                <code className="text-neon-purple">/api/crofai/*</code> using keys from the desktop
+                app.
+              </p>
+            )}
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> CROFAI_MODEL
+            </label>
+            {pinnedChips(
+              pinsForProvider(pinned, 'crofai'),
+              CROFAI_LLM_PRESET_MODELS.map((m) => ({
+                id: toScopedPinnedId('crofai', m.id),
+                label: m.label,
+              })),
+              toScopedPinnedId('crofai', settings.crofaiModel),
+              handleTogglePin,
+            )}
+            <div className="flex items-center gap-2">
+            <select
+              className="form-select flex-1"
+              value={
+                CROFAI_LLM_PRESET_MODELS.some((m) => m.id === settings.crofaiModel)
+                  ? settings.crofaiModel
+                  : settings.crofaiModel
+                    ? `__custom__${settings.crofaiModel}`
+                    : ''
+              }
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v || v.startsWith('__custom__')) return
+                setSettings((s) => ({ ...s, crofaiModel: v }))
+              }}
+            >
+              {CROFAI_LLM_PRESET_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              {settings.crofaiModel &&
+                !CROFAI_LLM_PRESET_MODELS.some((m) => m.id === settings.crofaiModel) && (
+                  <option value={`__custom__${settings.crofaiModel}`}>
+                    {settings.crofaiModel} (manual)
+                  </option>
+                )}
+            </select>
+            <PinToggleButton
+              pinned={pinned.includes(toScopedPinnedId('crofai', settings.crofaiModel))}
+              onToggle={() =>
+                handleTogglePin(toScopedPinnedId('crofai', settings.crofaiModel))
+              }
+            />
+            </div>
+            <input
+              className="cyber-input mt-2"
+              value={settings.crofaiModel}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, crofaiModel: e.target.value }))
+              }
+              placeholder="deepseek-v4-pro"
+            />
+          </div>
+        </>
+      )}
+
       {/* Temperature */}
       <div className="form-group">
         <label className="form-label">
@@ -857,7 +943,9 @@ export function LlmOptionsPanel({
                   ? 'OPENAI_NOTES'
                   : settings.llmProvider === 'opencode-go'
                     ? 'OPENCODE_GO_NOTES'
-                    : 'RECOMMENDED_MODELS'}
+                    : settings.llmProvider === 'crofai'
+                      ? 'CROFAI_NOTES'
+                      : 'RECOMMENDED_MODELS'}
         </p>
         {settings.llmProvider === 'ollama' && <ul className="text-xs font-mono text-void-dim space-y-1">
           <li className="flex items-center gap-2">
@@ -977,6 +1065,35 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
               MiniMax / Qwen on Go use Anthropic Messages — not supported yet
+            </li>
+          </ul>
+        )}
+        {settings.llmProvider === 'crofai' && (
+          <ul className="text-xs font-mono text-void-dim space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              OpenAI-compatible API at{' '}
+              <code className="text-void-light/90">https://crof.ai/v1</code>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              API key in General options; docs at{' '}
+              <a
+                href="https://crof.ai/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-neon-cyan underline decoration-neon-cyan/35"
+              >
+                crof.ai/docs
+              </a>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              THINKING_LEVEL maps to CrofAI <code className="text-void-light/90">reasoning_effort</code>
+            </li>
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              Tool calling and vision depend on the selected model
             </li>
           </ul>
         )}
