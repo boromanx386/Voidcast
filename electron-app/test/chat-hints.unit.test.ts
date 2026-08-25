@@ -83,6 +83,16 @@ describe('buildImageCatalogHint', () => {
     expect(hint).toContain('/tmp/a.png')
     expect(hint).toContain('THIS message are index 1')
   })
+
+  test('without pending attach, tells model catalog images are not newly attached', () => {
+    const catalog: PendingChatImage[] = [
+      { base64: 'abc', mime: 'image/png', path: '/tmp/old.png', kind: 'attachment' },
+    ]
+    const hint = buildImageCatalogHint(catalog, 0)
+    expect(hint).toContain('No image is attached to THIS message')
+    expect(hint).toContain('Do not describe or treat catalog images as newly attached')
+    expect(hint).toContain('/tmp/old.png')
+  })
 })
 
 describe('buildQueuedImagePathHint', () => {

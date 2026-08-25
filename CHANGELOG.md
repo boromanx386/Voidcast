@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **OpenRouter presets**: [Ox Alpha](https://openrouter.ai/stealth/ox-alpha) (`stealth/ox-alpha`, free · 1M · multimodal) and DeepSeek V4 Flash Vision Exp (`deepseek/deepseek-v4-flash-vision-exp`).
+- **OpenCode Go presets**: `deepseek-v4-flash-vision-exp`, `ox-alpha-free`, and `longcat-2.0` (all `/v1/chat/completions`).
+
+### Fixed
+
+- **Stale chat images no longer auto-injected into later turns**: keyword matches like “analyze / describe / inspect” no longer re-attach the newest session image as if the user just uploaded it. Vision bytes go only with images attached on the current message; older images stay in the catalog for explicit `image_recall`.
+
 ## [2.8.4] — 2026-08-13
 
 ### Added

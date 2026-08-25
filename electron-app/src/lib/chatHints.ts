@@ -102,7 +102,11 @@ export function buildImageCatalogHint(
   const currentAttachLead =
     pendingCount > 0
       ? `Images attached in THIS message are index 1${pendingCount > 1 ? `–${pendingCount}` : ''} — describe those, not older generated images unless the user explicitly asks about an older one.`
-      : 'Index 1 = most recent image in the session (including generated).'
+      : [
+          'No image is attached to THIS message.',
+          'Index 1 = most recent image earlier in the session (including generated).',
+          'Do not describe or treat catalog images as newly attached unless the user explicitly asks about them — then call image_recall (or edit_image_runware) with the index/path.',
+        ].join(' ')
   return [
     'Session image catalog for image_recall / edit_image_runware:',
     currentAttachLead,

@@ -22,7 +22,6 @@ import {
   buildQueuedFilePathHint,
   buildQueuedImagePathHint,
   buildRuntimeTimeHint,
-  shouldUseVisionForText,
 } from '@/lib/chatHints'
 import { buildToolImageCatalog, type PendingChatImage } from '@/lib/chatImageCatalog'
 import { buildCodingMemoHint, type CodingContextMemo } from '@/lib/codingContextMemo'
@@ -137,12 +136,13 @@ export async function buildAgentTurnContext(
 
   const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
   const hasCurrentAttach = queued.length > 0
-  const useVisionForCurrentMessage =
-    !settings.subAgent.enabled && (hasCurrentAttach || shouldUseVisionForText(text))
+  // Only send vision bytes for images attached on THIS turn. Historical session
+  // images stay in the catalog for image_recall — never re-inject the newest
+  // catalog image just because the user text matched a vision keyword (that
+  // made old screenshots look "newly attached" many turns later).
+  const useVisionForCurrentMessage = !settings.subAgent.enabled && hasCurrentAttach
   const visionImagesForCurrentMessage = useVisionForCurrentMessage
-    ? hasCurrentAttach
-      ? queued.map((q) => q.base64)
-      : toolImageCatalog.slice(0, 1).map((x) => x.base64)
+    ? queued.map((q) => q.base64)
     : []
   const attachedImageHint = buildQueuedImagePathHint(queued)
   const imageCatalogHint =

@@ -7,6 +7,11 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'openrouter/auto-beta', label: 'OpenRouter Auto (Beta)' },
   { id: 'deepseek/deepseek-v4-pro-0813', label: 'DeepSeek V4 Pro 0813 (1M ctx)' },
   { id: 'deepseek/deepseek-v4-flash-0731', label: 'DeepSeek V4 Flash 0731 (fast · cheap)' },
+  {
+    id: 'deepseek/deepseek-v4-flash-vision-exp',
+    label: 'DeepSeek V4 Flash Vision Exp (multimodal)',
+  },
+  { id: 'stealth/ox-alpha', label: 'Ox Alpha (free · coding · agentic · 1M)' },
   { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (latest)' },
   { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5 (flagship)' },
   { id: 'anthropic/claude-fable-5', label: 'Claude Fable 5 (long-horizon coding)' },
@@ -84,6 +89,12 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
 export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
   { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (fast)' },
+  {
+    id: 'deepseek-v4-flash-vision-exp',
+    label: 'DeepSeek V4 Flash Vision Exp (multimodal)',
+  },
+  { id: 'ox-alpha-free', label: 'Ox Alpha Free (coding · agentic · 1M)' },
+  { id: 'longcat-2.0', label: 'LongCat 2.0 (1M ctx)' },
   { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code' },
   { id: 'kimi-k2.6', label: 'Kimi K2.6' },
   { id: 'kimi-k3', label: 'Kimi K3' },
@@ -173,6 +184,9 @@ export function normalizeNvidiaModelId(model: string): string {
 const OPENCODE_GO_MODEL_ALIASES: Record<string, string> = {
   'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
   'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
+  'deepseek/deepseek-v4-flash-vision-exp': 'deepseek-v4-flash-vision-exp',
+  'stealth/ox-alpha': 'ox-alpha-free',
+  'meituan/longcat-2.0': 'longcat-2.0',
   'moonshotai/kimi-k2.7-code': 'kimi-k2.7-code',
   'moonshotai/kimi-k2.6': 'kimi-k2.6',
   'moonshotai/kimi-k3': 'kimi-k3',
