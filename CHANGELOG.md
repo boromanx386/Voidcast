@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Footer CTX popup**: click the CTX meter for auto-compress (90%) toggle + **COMPRESS NOW** anytime — useful on large-context models before you hit the limit.
+
 ## [2.8.6] — 2026-08-25
 
 ### Added

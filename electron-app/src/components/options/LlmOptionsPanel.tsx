@@ -904,7 +904,10 @@ export function LlmOptionsPanel({
           AUTO_COMPRESS at 90% context usage
         </label>
         <p className="text-xs text-void-dim mt-1">
-          Summarizes older turns into hidden memory; chat UI stays full. Manual COMPRESS still works when off.
+          Summarizes older turns into hidden memory; chat UI stays full. Also toggled from the
+          footer <span className="text-void-light/90">CTX</span> popup, which has{' '}
+          <span className="text-void-light/90">COMPRESS NOW</span> for early shrink on large-context
+          models.
         </p>
       </div>
 

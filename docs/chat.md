@@ -79,11 +79,11 @@ Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 
 - Candidates `LongMemoryCandidate` (kind preference/project/fact/constraint/task, text, tags, importance, confidence) shown for confirmation; `confirmSaveLongMemory` saves, `longMemoryBusy` shows progress. `longMemoryDefaultEnabled` toggles auto-retrieval in new chats. Types in `electron-app/src/types/longMemory.ts`; logic in `useLongMemoryUi`.
 
-## Context / Compression Warning (ContextWarningBanner.tsx)
+## Context / Compression
 
-- Shows `CTX_USAGE % (promptTokens/maxTokens)` when `contextUsageInfo.shouldWarn`, `contextAutoCompress` off, not dismissed.
-- Dismiss (`setContextWarnDismissed`) or compress now (`summarizeContextNow`, `contextCompressBusy`).
-- Auto-compress near 90% of `llmNumCtx` stores `hiddenContextSummary` (never rendered) + `contextCompressedThroughIndex`.
+- **Footer CTX popup** (`ChatSystemStatus.tsx`): click the CTX meter for auto-compress toggle (`contextAutoCompress` at ~90%) and **COMPRESS NOW** (`summarizeContextNow`) anytime — useful on 1M-ctx models when you want to shrink early. Disabled while the agent is busy or a compress is already running.
+- **Warning banner** (`ContextWarningBanner.tsx`): shows `CTX_USAGE %` when `shouldWarn`, `contextAutoCompress` off, not dismissed — COMPRESS / IGNORE.
+- Auto-compress near 90% of the model context limit stores `hiddenContextSummary` (never rendered) + `contextCompressedThroughIndex`.
 
 ## Tool-Result & Error Banners
 

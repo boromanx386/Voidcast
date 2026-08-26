@@ -54,7 +54,7 @@ The active provider determines which provider-specific group of fields is shown 
 
 - `llmTemperature` (`number`, default `0.8`) — sent as `options.temperature` to Ollama.
 - `llmNumCtx` (`number`, default `100_000`) — Ollama `options.num_ctx`, the context window size in tokens.
-- `contextAutoCompress` (`boolean`, default `true`) — auto-run context compression when prompt usage reaches ~90% of `num_ctx`.
+- `contextAutoCompress` (`boolean`, default `true`) — auto-run context compression when prompt usage reaches ~90% of the model context limit. Also toggled from the chat footer **CTX** popup; **COMPRESS NOW** there works anytime regardless of this setting.
 - `longMemoryDefaultEnabled` (`boolean`, default `true`) — default for new chats: whether to include long-term memory retrieval.
 
 ## Think level (`llmThinkLevel`)
