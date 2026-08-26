@@ -69,17 +69,17 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b', label: 'Nemotron 3 Ultra 550B' },
   { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { id: 'deepseek-ai/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
   { id: 'z-ai/glm-5.2', label: 'GLM 5.2' },
   { id: 'minimaxai/minimax-m2.7', label: 'MiniMax M2.7' },
   { id: 'minimaxai/minimax-m3', label: 'MiniMax M3' },
   { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
-  { id: 'qwen/qwen3.5-397b-a17b', label: 'Qwen 3.5 397B' },
-  { id: 'qwen/qwen3-next-80b-a3b-instruct', label: 'Qwen3 Next 80B' },
-  { id: 'mistralai/mistral-medium-3.5-128b', label: 'Mistral Medium 3.5 128B' },
   { id: 'stepfun-ai/step-3.7-flash', label: 'Step 3.7 Flash' },
   { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B IT' },
   { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
+  { id: 'deepseek-ai/deepseek-v4-flash-0731', label: 'Deepseek V4 Flash 0731' },
+  { id: 'meta/muse-glimmer-30b', label: 'Muse Glimmer 30b' },
+  { id: 'moonshotai/kimi-k3', label: 'Kimi K3' },
+  { id: 'poolside/laguna-xs-2.1', label: 'Laguna Xs 2 1' },
 ]
 
 /**
