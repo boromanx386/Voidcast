@@ -11,7 +11,6 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
     id: 'deepseek/deepseek-v4-flash-vision-exp',
     label: 'DeepSeek V4 Flash Vision Exp (multimodal)',
   },
-  { id: 'stealth/ox-alpha', label: 'Ox Alpha (free · coding · agentic · 1M)' },
   { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (latest)' },
   { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5 (flagship)' },
   { id: 'anthropic/claude-fable-5', label: 'Claude Fable 5 (long-horizon coding)' },
@@ -45,6 +44,8 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', label: 'Nemotron 3 Nano Omni 30B (Free)' },
   { id: 'cohere/north-mini-code:free', label: 'Cohere North Mini Code (Free)' },
   { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B IT (Free)' },
+  { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
+  { id: 'liquid/lfm-2.5-2.6b:free', label: 'Lfm 2 5 2 6b (66K ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -105,6 +106,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'mimo-v2.5', label: 'MiMo V2.5' },
   { id: 'grok-4.5', label: 'Grok 4.5' },
   { id: 'hy3', label: 'Hy3' },
+  { id: 'glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
 ]
 
 /** Curated CrofAI chat models (https://crof.ai/v1/models). */

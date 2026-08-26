@@ -10,7 +10,9 @@
  *   [-] REMOVED  — curated model is no longer offered upstream
  *   [~] CONTEXT  — app context override differs from the live value
  *
- * Nothing is written to the app — this only reports, you decide.
+ * Without --apply this only reports, you decide. With --apply it enters an
+ * interactive mode: you pick which NEW models to add, REMOVED models to drop,
+ * and CONTEXT overrides to update, and it edits the two source files for you.
  *
  * Usage:
  *   node scripts/check-models.mjs                # both providers, filtered
@@ -18,15 +20,18 @@
  *   node scripts/check-models.mjs --opencode     # OpenCode Go only
  *   node scripts/check-models.mjs --days 14      # new-model recency window in days (default 30)
  *   node scripts/check-models.mjs --all          # also list ALL new OpenRouter models (unfiltered)
+ *   node scripts/check-models.mjs --apply        # interactive: pick changes, writes the .ts files
  *
  * Sources (both public, no API key):
  *   OpenRouter  GET https://openrouter.ai/api/v1/models
  *   OpenCode Go GET https://models.dev/api.json  (provider key: "opencode-go")
  */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createInterface } from 'node:readline/promises'
+import { stdin as input, stdout as output } from 'node:process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
@@ -46,6 +51,7 @@ const SYNTHETIC_OPENROUTER_IDS = new Set([
 const ALL_FLAG = process.argv.includes('--all')
 const OPENROUTER_ONLY = process.argv.includes('--openrouter')
 const OPENCODE_ONLY = process.argv.includes('--opencode')
+const APPLY_FLAG = process.argv.includes('--apply')
 
 const DAYS = (() => {
   const i = process.argv.indexOf('--days')
@@ -85,16 +91,63 @@ function extractContextOverrides(source) {
   return out
 }
 
-// ---- helpers -------------------------------------------------------------
+// ---- source editing (used only in --apply mode) --------------------------
 
-async function fetchJson(url) {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(30_000),
-    headers: { 'user-agent': 'voidcast-check-models' },
-  })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
-  return res.json()
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
+
+/** Insert `{ id, label }` before the closing `]` of a specific preset array. */
+function addPresetToArray(source, constName, id, label) {
+  if (extractPresetIds(source, constName).includes(id)) return source
+  const re = new RegExp(`(export const ${constName}[^=]*=\\s*\\[)([\\s\\S]*?)(\\])`)
+  const m = source.match(re)
+  if (!m) return source
+  const entry = `  { id: '${id}', label: '${label}' },\n`
+  const insertAt = m.index + m[1].length + m[2].length
+  return source.slice(0, insertAt) + entry + source.slice(insertAt)
+}
+
+/** Remove the `{ id, label }` entry for a model from a specific preset array. */
+function removePresetFromArray(source, constName, id) {
+  const re = new RegExp(`(export const ${constName}[^=]*=\\s*\\[)([\\s\\S]*?)(\\])`)
+  const m = source.match(re)
+  if (!m) return source
+  const body = m[2]
+  const entryRe = new RegExp(`\\{\\s*id: '${escapeRe(id)}'[^}]*\\},\\s*\\n?`)
+  const newBody = body.replace(entryRe, '')
+  return source.slice(0, m.index + m[1].length) + newBody + source.slice(m.index + m[1].length + m[2].length)
+}
+
+/** Insert `'id': value,` before the closing `}` of MODEL_CONTEXT_OVERRIDES. */
+function addContextOverride(source, id, value) {
+  const re = /(MODEL_CONTEXT_OVERRIDES[^=]*=\s*\{)([\s\S]*?)(\})/
+  const m = source.match(re)
+  if (!m) return source
+  const entry = `  '${id}': ${value},\n`
+  const insertAt = m.index + m[1].length + m[2].length
+  return source.slice(0, insertAt) + entry + source.slice(insertAt)
+}
+
+/** Remove a single `'id': value,` line from MODEL_CONTEXT_OVERRIDES. */
+function removeContextOverride(source, id) {
+  const re = new RegExp(`\\s*'${escapeRe(id)}':\\s*[\\d_]+,\\n?`)
+  return source.replace(re, '')
+}
+
+/** Rewrite the numeric value of an existing context override. */
+function updateContextOverride(source, id, value) {
+  const re = new RegExp(`('${escapeRe(id)}':\\s*)[\\d_]+`)
+  return source.replace(re, `$1${value}`)
+}
+
+/** Add or update a context override (no duplicate keys). */
+function upsertContextOverride(source, id, value) {
+  const exists = new RegExp(`'${escapeRe(id)}':\\s*[\\d_]+`).test(source)
+  return exists ? updateContextOverride(source, id, value) : addContextOverride(source, id, value)
+}
+
+// ---- label / formatting helpers ------------------------------------------
 
 function fmtNum(n) {
   return n == null ? '?' : Number(n).toLocaleString('en-US')
@@ -109,6 +162,56 @@ function money(v) {
   return '$' + n.toFixed(2) + '/M'
 }
 
+function fmtCtx(n) {
+  if (n == null) return ''
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M ctx'
+  if (n >= 1_000) return Math.round(n / 1_000) + 'K ctx'
+  return String(n) + ' ctx'
+}
+
+/** Derive a human label from a model id (e.g. `z-ai/glm-5.3` -> `GLM 5.3`). */
+function makeLabel(id, ctx) {
+  let name = id
+  name = name.replace(/:(free|nitro|batch|floor|extended|exacto)$/i, '')
+  const slash = name.indexOf('/')
+  if (slash > 0) name = name.slice(slash + 1)
+  let label = name
+    .split(/[-_.]/)
+    .filter(Boolean)
+    .map((p) => p[0].toUpperCase() + p.slice(1))
+    .join(' ')
+  label = label
+    .replace(/\bGpt\b/g, 'GPT')
+    .replace(/\bGrok\b/g, 'Grok')
+    .replace(/\bGlm\b/g, 'GLM')
+    .replace(/\bQwen\b/g, 'Qwen')
+    .replace(/\bKimi\b/g, 'Kimi')
+    .replace(/\bNemotron\b/g, 'Nemotron')
+  if (ctx) label += ` (${fmtCtx(ctx)})`
+  return label
+}
+
+function parseSelection(ans) {
+  const t = ans.trim().toLowerCase()
+  if (!t || t === 'n' || t === 'no' || t === 'none' || t === '0') return []
+  if (t === 'a' || t === 'all' || t === 'y' || t === 'yes') return 'all'
+  return t
+    .split(/[,\s]+/)
+    .map((n) => Number(n))
+    .filter((n) => Number.isInteger(n) && n > 0)
+}
+
+// ---- helpers -------------------------------------------------------------
+
+async function fetchJson(url) {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { 'user-agent': 'voidcast-check-models' },
+  })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
+  return res.json()
+}
+
 // ---- per-provider checks --------------------------------------------------
 
 async function checkOpenRouter(curated, overrides) {
@@ -120,14 +223,16 @@ async function checkOpenRouter(curated, overrides) {
   } catch (e) {
     console.log(`  fetch failed: ${e.message}`)
     console.log('')
-    return
+    return null
   }
 
   const live = new Map(models.map((m) => [m.id, m]))
   const curatedSet = new Set(curated)
+  const result = { provider: 'openrouter', newModels: [], removed: [], ctx: [] }
 
   // REMOVED
   const removed = curated.filter((id) => !SYNTHETIC_OPENROUTER_IDS.has(id) && !live.has(id))
+  result.removed = removed
   if (removed.length) {
     console.log(`  REMOVED (${removed.length}) — in app, gone from OpenRouter:`)
     for (const id of removed) console.log(`    [-] ${id}`)
@@ -143,6 +248,7 @@ async function checkOpenRouter(curated, overrides) {
       ctx.push([id, ov, m.context_length])
     }
   }
+  result.ctx = ctx
   if (ctx.length) {
     console.log(`  CONTEXT mismatch (${ctx.length}) — app override -> live:`)
     for (const [id, ov, lv] of ctx) console.log(`    [~] ${id}: ${fmtNum(ov)} -> ${fmtNum(lv)}`)
@@ -157,6 +263,7 @@ async function checkOpenRouter(curated, overrides) {
     )
   }
   fresh.sort((a, b) => a.id.localeCompare(b.id))
+  result.newModels = fresh.map((m) => ({ id: m.id, ctx: m.context_length }))
   if (fresh.length) {
     console.log(`  NEW (${fresh.length}${ALL_FLAG ? ' — all, unfiltered' : ` — last ${DAYS}d`}):`)
     for (const m of fresh) {
@@ -171,6 +278,7 @@ async function checkOpenRouter(curated, overrides) {
     console.log('  no changes (curated list is up to date).')
   }
   console.log('')
+  return result
 }
 
 async function checkOpenCodeGo(curated, overrides) {
@@ -182,13 +290,15 @@ async function checkOpenCodeGo(curated, overrides) {
   } catch (e) {
     console.log(`  fetch failed: ${e.message}`)
     console.log('')
-    return
+    return null
   }
 
   const curatedSet = new Set(curated)
+  const result = { provider: 'opencode-go', newModels: [], removed: [], ctx: [] }
 
   // REMOVED
   const removed = curated.filter((id) => !(id in models))
+  result.removed = removed
   if (removed.length) {
     console.log(`  REMOVED (${removed.length}) — in app, gone from OpenCode Go:`)
     for (const id of removed) console.log(`    [-] ${id}`)
@@ -203,6 +313,7 @@ async function checkOpenCodeGo(curated, overrides) {
     const lv = m.limit?.context
     if (ov != null && lv != null && ov !== lv) ctx.push([id, ov, lv])
   }
+  result.ctx = ctx
   if (ctx.length) {
     console.log(`  CONTEXT mismatch (${ctx.length}) — app override -> live:`)
     for (const [id, ov, lv] of ctx) console.log(`    [~] ${id}: ${fmtNum(ov)} -> ${fmtNum(lv)}`)
@@ -212,6 +323,7 @@ async function checkOpenCodeGo(curated, overrides) {
   const fresh = Object.keys(models)
     .filter((id) => !curatedSet.has(id))
     .sort()
+  result.newModels = fresh.map((id) => ({ id, ctx: models[id].limit?.context }))
   if (fresh.length) {
     console.log(`  NEW (${fresh.length}):`)
     for (const id of fresh) {
@@ -222,10 +334,86 @@ async function checkOpenCodeGo(curated, overrides) {
   }
 
   if (!removed.length && !ctx.length && !fresh.length) {
-    console.log('  no changes (curated list is up to date).')
+    console.log('  (no changes — curated list is up to date).')
   }
   console.log('  note: MiniMax/Qwen may use /messages, gpt-5.6-luna /responses — verify endpoint before adding.')
   console.log('')
+  return result
+}
+
+// ---- interactive apply ------------------------------------------------------
+
+async function interactiveApply(or, oc, presetsSource, contextSource) {
+  const state = { presets: presetsSource, context: contextSource, added: 0, removed: 0, changed: 0 }
+
+  const groups = []
+  if (or?.newModels.length)
+    groups.push({ title: 'ADD — OpenRouter', items: or.newModels, kind: 'add', preset: 'OPENROUTER_LLM_PRESET_MODELS' })
+  if (oc?.newModels.length)
+    groups.push({ title: 'ADD — OpenCode Go', items: oc.newModels, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
+  if (or?.removed.length)
+    groups.push({ title: 'REMOVE — OpenRouter', items: or.removed.map((id) => ({ id })), kind: 'remove', preset: 'OPENROUTER_LLM_PRESET_MODELS' })
+  if (oc?.removed.length)
+    groups.push({ title: 'REMOVE — OpenCode Go', items: oc.removed.map((id) => ({ id })), kind: 'remove', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
+  if (or?.ctx.length)
+    groups.push({ title: 'UPDATE CONTEXT — OpenRouter', items: or.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
+  if (oc?.ctx.length)
+    groups.push({ title: 'UPDATE CONTEXT — OpenCode Go', items: oc.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
+
+  if (!groups.length) {
+    console.log('Nothing to apply — no changes detected.')
+    return
+  }
+
+  const rl = createInterface({ input, output })
+
+  for (const g of groups) {
+    console.log(`\n=== ${g.title} ===`)
+    g.items.forEach((it, i) => {
+      if (g.kind === 'ctx') console.log(`  [${i + 1}] ${it.id}  ${fmtNum(it.ov)} -> ${fmtNum(it.lv)}`)
+      else console.log(`  [${i + 1}] ${it.id}${it.ctx ? '  (' + fmtCtx(it.ctx) + ')' : ''}`)
+    })
+    const verb = g.kind === 'add' ? 'ADD' : g.kind === 'remove' ? 'REMOVE' : 'UPDATE'
+    const ans = await rl.question(`  ${verb} which? (numbers, 'a' = all, Enter = none): `)
+    const sel = parseSelection(ans)
+    const targets = sel === 'all' ? g.items.map((_, i) => i) : sel.map((n) => n - 1).filter((i) => i >= 0 && i < g.items.length)
+    for (const i of targets) applyOne(g, i, state)
+  }
+
+  rl.close()
+
+  if (state.added || state.removed || state.changed) {
+    writeFileSync(PRESETS_PATH, state.presets)
+    writeFileSync(CONTEXT_PATH, state.context)
+    console.log('\nApplied. Wrote:')
+    if (state.added) console.log(`  + ${state.added} preset(s) added (with context override)`)
+    if (state.removed) console.log(`  - ${state.removed} preset(s) removed`)
+    if (state.changed) console.log(`  ~ ${state.changed} context override(s) updated`)
+    console.log('Review before committing:')
+    console.log('  git diff electron-app/src/lib/cloudLlmPresets.ts electron-app/src/lib/contextLimit.ts')
+  } else {
+    console.log('\nNo changes applied.')
+  }
+}
+
+function applyOne(g, index, state) {
+  const it = g.items[index]
+  if (g.kind === 'add') {
+    const label = makeLabel(it.id, it.ctx)
+    state.presets = addPresetToArray(state.presets, g.preset, it.id, label)
+    if (it.ctx != null) state.context = upsertContextOverride(state.context, it.id, it.ctx)
+    state.added++
+    console.log(`    + added ${it.id}  (${label})`)
+  } else if (g.kind === 'remove') {
+    state.presets = removePresetFromArray(state.presets, g.preset, it.id)
+    state.context = removeContextOverride(state.context, it.id)
+    state.removed++
+    console.log(`    - removed ${it.id}`)
+  } else if (g.kind === 'ctx') {
+    state.context = updateContextOverride(state.context, it.id, it.lv)
+    state.changed++
+    console.log(`    ~ ${it.id}: ${fmtNum(it.ov)} -> ${fmtNum(it.lv)}`)
+  }
 }
 
 // ---- main ----------------------------------------------------------------
@@ -242,10 +430,15 @@ async function main() {
   console.log(`  curated: OpenRouter ${curatedOpenRouter.length} · OpenCode Go ${curatedOpenCode.length}`)
   console.log('')
 
-  if (!OPENCODE_ONLY) await checkOpenRouter(curatedOpenRouter, overrides)
-  if (!OPENROUTER_ONLY) await checkOpenCodeGo(curatedOpenCode, overrides)
+  const or = !OPENCODE_ONLY ? await checkOpenRouter(curatedOpenRouter, overrides) : null
+  const oc = !OPENROUTER_ONLY ? await checkOpenCodeGo(curatedOpenCode, overrides) : null
 
-  console.log('To add a model, edit electron-app/src/lib/cloudLlmPresets.ts (+ aliases/context in contextLimit.ts).')
+  if (APPLY_FLAG) {
+    await interactiveApply(or, oc, presetsSource, contextSource)
+  } else {
+    console.log('To add a model, edit electron-app/src/lib/cloudLlmPresets.ts (+ aliases/context in contextLimit.ts).')
+    console.log('Or run: node scripts/check-models.mjs --apply   (pick changes interactively, edits the source files)')
+  }
 }
 
 main().catch((e) => {
