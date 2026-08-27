@@ -46,6 +46,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B IT (Free)' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
   { id: 'liquid/lfm-2.5-2.6b:free', label: 'Lfm 2 5 2 6b (66K ctx)' },
+  { id: 'qwen/qwen3.8-flash', label: 'Qwen3 8 Flash (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -68,9 +69,6 @@ export const OPENAI_LLM_PRESET_MODELS: CloudLlmPreset[] = [
 export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b', label: 'Nemotron 3 Ultra 550B' },
-  { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { id: 'z-ai/glm-5.2', label: 'GLM 5.2' },
-  { id: 'minimaxai/minimax-m2.7', label: 'MiniMax M2.7' },
   { id: 'minimaxai/minimax-m3', label: 'MiniMax M3' },
   { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
   { id: 'stepfun-ai/step-3.7-flash', label: 'Step 3.7 Flash' },
@@ -131,6 +129,7 @@ export const CROFAI_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'greg-2-ultra', label: 'Greg 2 Ultra' },
   { id: 'greg-2-super', label: 'Greg 2 Super' },
   { id: 'greg-1-mini', label: 'Greg 1 Mini' },
+  { id: 'glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
 ]
 
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {

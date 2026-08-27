@@ -73,7 +73,6 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'deepseek-v3.2': 163_840,
   'ox-alpha-free': 1_000_000,
   'longcat-2.0': 1_000_000,
-  'z-ai/glm-5.2': 1_048_576,
   'z-ai/glm-5.3': 1_048_576,
   'moonshotai/kimi-k2.7-code': 262_144,
   'google/gemma-4-31b-it': 131_072,
@@ -106,9 +105,10 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'greg-2-super': 229_376,
   'greg-1-mini': 229_376,
   'greg-rp': 229_376,
-  'z-ai/glm-5.3-flash': 1048576,
+  'z-ai/glm-5.3-flash': 1310720,
   'liquid/lfm-2.5-2.6b:free': 65536,
   'glm-5.3-flash': 1000000,
+  'qwen/qwen3.8-flash': 1000000,
 }
 
 function buildPresetLookup(
