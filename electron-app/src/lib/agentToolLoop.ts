@@ -2,6 +2,7 @@ import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import {
   CODING_ACTION_TOOLS,
+  isParallelSafeAgentTool,
   shouldGuardFalseCodingClaims,
   shouldGuardFalseImageClaims,
   shouldGuardFalseMusicClaims,
@@ -32,6 +33,8 @@ export type SharedToolCall = {
 export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   initialMessages: TMessage[]
   maxToolRounds: number
+  /** Maximum number of adjacent read-only tool calls executed concurrently. */
+  maxParallelToolCalls?: number
   maxRequiredToolReprompts: number
   mustCallTool: boolean
   signal?: AbortSignal
@@ -193,6 +196,9 @@ export async function runSharedToolLoop<
   let hasExecutedImageToolInTurn = false
   let hasExecutedMusicToolInTurn = false
   let hasExecutedCodingToolInTurn = false
+  const maxParallelToolCalls = Number.isFinite(params.maxParallelToolCalls)
+    ? Math.max(1, Math.floor(params.maxParallelToolCalls!))
+    : 4
   const maxFalseImageClaimReprompts = params.maxFalseImageClaimReprompts ?? 2
   const maxFalseMusicClaimReprompts = params.maxFalseMusicClaimReprompts ?? 2
   const maxFalseCodingClaimReprompts = params.maxFalseCodingClaimReprompts ?? 2
@@ -284,12 +290,27 @@ export async function runSharedToolLoop<
       .filter((x) => Boolean(x.name))
       .map((x) => ({ shared: x, provider: x.raw as TProviderToolCall }))
 
+    const executeToolCallSafely = async (
+      name: string,
+      argsRaw: string | Record<string, unknown> | undefined,
+    ): Promise<string> => {
+      try {
+        return await params.executeToolCall(name, argsRaw)
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw error
+        }
+        const message = error instanceof Error ? error.message : String(error)
+        return `Error: ${message}`
+      }
+    }
+
     const runSyntheticTool = async (
       name: string,
       argsRaw: string | Record<string, unknown> | undefined,
       callFactory: () => TProviderToolCall,
     ) => {
-      const result = await params.executeToolCall(name, argsRaw)
+      const result = await executeToolCallSafely(name, argsRaw)
       const syntheticCall = callFactory()
       params.appendAssistantWithToolCalls({
         messages,
@@ -420,7 +441,7 @@ export async function runSharedToolLoop<
       const call = planEscalation.provider
       const phase = params.toolPhaseForName?.('enter_plan_mode') ?? null
       params.onToolPhase?.(phase)
-      const result = await params.executeToolCall('enter_plan_mode', shared.argsRaw)
+      const result = await executeToolCallSafely('enter_plan_mode', shared.argsRaw)
       params.appendToolResult({
         messages,
         call,
@@ -446,12 +467,18 @@ export async function runSharedToolLoop<
       return { content: lastAssistantText || content, usage: lastUsage }
     }
 
-    for (const valid of validCalls) {
+    const executeToolCallForLoop = async (valid: (typeof validCalls)[number]) => {
+      const phase = params.toolPhaseForName?.(valid.shared.name) ?? null
+      params.onToolPhase?.(phase)
+      return executeToolCallSafely(valid.shared.name, valid.shared.argsRaw)
+    }
+
+    const commitToolResult = async (
+      valid: (typeof validCalls)[number],
+      result: string,
+    ) => {
       const shared = valid.shared
       const call = valid.provider
-      const phase = params.toolPhaseForName?.(shared.name) ?? null
-      params.onToolPhase?.(phase)
-      const result = await params.executeToolCall(shared.name, shared.argsRaw)
       let resultForLlm = sanitizeImageToolResultForLlm(shared.name, result)
       if (params.trimToolResultForLlm) {
         resultForLlm = params.trimToolResultForLlm(shared.name, resultForLlm)
@@ -490,6 +517,33 @@ export async function runSharedToolLoop<
         })
         if (recalled.length) runtimeRecalledImages.push(...recalled)
       }
+    }
+
+    // Execute adjacent read-only calls concurrently, but commit all results in
+    // provider order. Any serial tool acts as a barrier for the surrounding batch.
+    for (let index = 0; index < validCalls.length; ) {
+      const current = validCalls[index]!
+      if (!isParallelSafeAgentTool(current.shared.name)) {
+        const result = await executeToolCallForLoop(current)
+        await commitToolResult(current, result)
+        index += 1
+        continue
+      }
+
+      const batch = [] as Array<(typeof validCalls)[number]>
+      while (
+        index + batch.length < validCalls.length &&
+        batch.length < maxParallelToolCalls &&
+        isParallelSafeAgentTool(validCalls[index + batch.length]!.shared.name)
+      ) {
+        batch.push(validCalls[index + batch.length]!)
+      }
+
+      const results = await Promise.all(batch.map((valid) => executeToolCallForLoop(valid)))
+      for (let batchIndex = 0; batchIndex < batch.length; batchIndex++) {
+        await commitToolResult(batch[batchIndex]!, results[batchIndex]!)
+      }
+      index += batch.length
     }
 
     if (runtimeRecalledImages.length > 0 && params.appendRuntimeRecalledImages) {

@@ -189,6 +189,33 @@ export const CODING_ACTION_TOOLS = new Set([
   'git_stash',
 ])
 
+/**
+ * Tools whose calls are read-only and can safely run concurrently within one
+ * provider tool round. Unknown tools stay serial so newly added integrations
+ * do not accidentally gain parallel side effects.
+ */
+export const PARALLEL_SAFE_AGENT_TOOLS: ReadonlySet<string> = new Set([
+  'web_search',
+  'get_weather',
+  'scrape_url',
+  'reddit_feed',
+  'search_youtube',
+  'list_directory',
+  'read_file',
+  'search_files',
+  'glob_files',
+  'find_symbols',
+  'list_processes',
+  'read_process_output',
+  'list_reminders',
+  'read_skill',
+  'mcp_read_result',
+])
+
+export function isParallelSafeAgentTool(name: string): boolean {
+  return PARALLEL_SAFE_AGENT_TOOLS.has(name)
+}
+
 /** User asked for a concrete coding action (change/run), not just a question. */
 const CODING_ACTION_REQUEST_RE =
   /\b(fix|change|edit|update|modify|refactor|rename|implement|create|write|save|remove|delete|run|execute|build|install|apply|patch|add\s+(?:a|the|an|new|to)\b|popravi|ispravi|izmeni|promeni|sredi|dodaj|napravi|kreiraj|napiši|sačuvaj|obriši|ukloni|pokreni|izvrši|implementiraj|refaktoriši|uradi)/i
