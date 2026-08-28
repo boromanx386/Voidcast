@@ -47,6 +47,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
   { id: 'liquid/lfm-2.5-2.6b:free', label: 'Lfm 2 5 2 6b (66K ctx)' },
   { id: 'qwen/qwen3.8-flash', label: 'Qwen3 8 Flash (1M ctx)' },
+  { id: 'tencent/hy4-preview', label: 'Hy4 Preview (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -71,13 +72,13 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-ultra-550b-a55b', label: 'Nemotron 3 Ultra 550B' },
   { id: 'minimaxai/minimax-m3', label: 'MiniMax M3' },
   { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
-  { id: 'stepfun-ai/step-3.7-flash', label: 'Step 3.7 Flash' },
   { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B IT' },
   { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
   { id: 'deepseek-ai/deepseek-v4-flash-0731', label: 'Deepseek V4 Flash 0731' },
   { id: 'meta/muse-glimmer-30b', label: 'Muse Glimmer 30b' },
   { id: 'moonshotai/kimi-k3', label: 'Kimi K3' },
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna Xs 2 1' },
+  { id: 'deepseek-ai/deepseek-v4-pro-0813', label: 'Deepseek V4 Pro 0813' },
 ]
 
 /**
@@ -105,6 +106,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'grok-4.5', label: 'Grok 4.5' },
   { id: 'hy3', label: 'Hy3' },
   { id: 'glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
+  { id: 'hy4-preview', label: 'Hy4 Preview (1M ctx)' },
 ]
 
 /** Curated CrofAI chat models (https://crof.ai/v1/models). */
