@@ -32,6 +32,13 @@ export type AgentToolUiPhase =
   | 'mcp'
   | 'other'
 
+/** One currently executing tool, used when a round contains parallel calls. */
+export type AgentToolActivity = {
+  id: string
+  name: string
+  phase: AgentToolUiPhase | null
+}
+
 export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
   if (
     name.startsWith('mcp__') ||

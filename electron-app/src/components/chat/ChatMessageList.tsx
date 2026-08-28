@@ -13,6 +13,7 @@ type Props = {
     | 'messages'
     | 'busy'
     | 'toolPhase'
+    | 'toolActivities'
     | 'setError'
     | 'assistantGeneratedImages'
     | 'assistantSavedImagePaths'
@@ -40,7 +41,7 @@ type Props = {
 }
 
 export function ChatMessageList({ app }: Props) {
-  const { settings, messages, busy, toolPhase } = app
+  const { settings, messages, busy, toolPhase, toolActivities } = app
   const [emptyStateSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
   const agentMode = normalizeAgentChatMode(settings.agentMode)
   const uiDystopian = settings.uiTheme === 'dystopian'
@@ -120,7 +121,9 @@ export function ChatMessageList({ app }: Props) {
               <span />
             </div>
             <span className="text-void-text text-sm font-mono">
-              {toolPhase ? (
+              {toolActivities.length > 0 ? (
+                <ToolIndicator phase={toolPhase} activities={toolActivities} />
+              ) : toolPhase ? (
                 <ToolIndicator phase={toolPhase} />
               ) : (
                 'PROCESSING...'

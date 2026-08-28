@@ -8,7 +8,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useSyncExternalStore } from 'react'
 import { normalizeCodingPathKey } from '@/lib/codingActiveProcesses'
-import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
+import type { AgentToolActivity, AgentToolUiPhase } from '@/lib/agentToolPhase'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import type { UiMessage } from '@/types/chat'
@@ -39,6 +39,7 @@ export type SessionAgentSlot = {
   busy: boolean
   error: string | null
   toolPhase: AgentToolUiPhase | null
+  toolActivities: AgentToolActivity[]
   contextUsageInfo: ContextUsageInfo | null
   contextWarnDismissed: boolean
   contextCompressBusy: boolean
@@ -96,6 +97,7 @@ export function createEmptySessionAgentSlot(
     busy: false,
     error: null,
     toolPhase: null,
+    toolActivities: [],
     contextUsageInfo: null,
     contextWarnDismissed: false,
     contextCompressBusy: false,
@@ -134,6 +136,7 @@ function sessionAgentSlotShallowEqual(a: SessionAgentSlot, b: SessionAgentSlot):
     a.busy === b.busy &&
     a.error === b.error &&
     a.toolPhase === b.toolPhase &&
+    a.toolActivities === b.toolActivities &&
     a.contextUsageInfo === b.contextUsageInfo &&
     a.contextWarnDismissed === b.contextWarnDismissed &&
     a.contextCompressBusy === b.contextCompressBusy &&
@@ -392,6 +395,7 @@ class SessionAgentStore {
       busy: true,
       error: null,
       toolPhase: null,
+      toolActivities: [],
       toolResultBanner: null,
       abortController: controller,
       runId,
@@ -416,6 +420,7 @@ class SessionAgentStore {
       ...prev,
       busy: false,
       toolPhase: null,
+      toolActivities: [],
       abortController: null,
       codingProjectPath: undefined,
       codingStopGraceUntil: undefined,
@@ -471,6 +476,7 @@ class SessionAgentStore {
       runId,
       busy: false,
       toolPhase: null,
+      toolActivities: [],
       abortController: null,
       codingStopGraceUntil: graceUntil,
     })
@@ -541,6 +547,7 @@ class SessionAgentStore {
       media: emptyMedia(),
       error: null,
       toolPhase: null,
+      toolActivities: [],
       toolResultBanner: null,
       contextUsageInfo: null,
       contextWarnDismissed: false,

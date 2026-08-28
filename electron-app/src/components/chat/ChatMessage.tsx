@@ -178,6 +178,20 @@ export function ChatMessage({
                       </div>
                     </details>
                   ) : null}
+                  {m.agentProgress?.map((progress) => (
+                    <details
+                      key={`${m.id}-agent-progress-${progress.round}`}
+                      className="rounded border border-neon-purple/25 bg-neon-purple/5"
+                    >
+                      <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-neon-purple/90 hover:text-neon-purple flex items-center gap-2">
+                        <span>AGENT ROUND {progress.round + 1}</span>
+                        <span className="text-[10px] opacity-60">BEFORE TOOLS</span>
+                      </summary>
+                      <div className="border-t border-void-muted/30 px-3 py-2 text-sm">
+                        <ChatMarkdown content={progress.content} />
+                      </div>
+                    </details>
+                  ))}
                   {m.subAgentActivity?.open &&
                   (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
                   settings.subAgent.showAnalysisWindow !== false ? (

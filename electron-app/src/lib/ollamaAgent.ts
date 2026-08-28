@@ -496,6 +496,9 @@ export async function runOllamaChatWithTools(
         ? params.onThinkingDelta
         : undefined,
     onToolPhase: params.onToolPhase,
+    onIntermediateResponse: params.onIntermediateResponse,
+    onToolStart: params.onToolStart,
+    onToolFinish: params.onToolFinish,
     toolPhaseForName: (name) => toolPhaseForAgentTool(name),
     onToolResult: params.onToolResult,
     onEscalateToPlan: params.onEscalateToPlan,

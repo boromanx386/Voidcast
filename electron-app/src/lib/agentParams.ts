@@ -34,6 +34,9 @@ export interface ChatWithToolsCommonParams {
   onDelta: (fullText: string) => void
   onThinkingDelta?: (fullThinking: string) => void
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
+  onIntermediateResponse?: (ctx: { round: number; content: string }) => void
+  onToolStart?: (ctx: { id: string; name: string; phase: AgentToolUiPhase | null }) => void
+  onToolFinish?: (ctx: { id: string; name: string; phase: AgentToolUiPhase | null }) => void
   pdfOutputDir?: string
   onToolResult?: (payload: {
     name: string

@@ -3,6 +3,12 @@ import { runSharedToolLoop } from '../src/lib/agentToolLoop'
 
 type Message = { role: string; content: string }
 type ProviderCall = { id: string; name: string; args: Record<string, unknown> }
+type LoopHooks = {
+  firstContent?: string
+  onIntermediateResponse?: (ctx: { round: number; content: string }) => void
+  onToolStart?: (ctx: { id: string; name: string }) => void
+  onToolFinish?: (ctx: { id: string; name: string }) => void
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -10,6 +16,7 @@ async function runToolRound(
   toolCalls: ProviderCall[],
   executeToolCall: (name: string, argsRaw: Record<string, unknown>) => Promise<string>,
   maxParallelToolCalls = 4,
+  hooks: LoopHooks = {},
 ) {
   let streamCount = 0
   const messages: Message[] = []
@@ -23,7 +30,7 @@ async function runToolRound(
     mustCallTool: false,
     streamRound: async () => {
       if (streamCount++ === 0) {
-        return { content: '', thinking: '', toolCalls }
+        return { content: hooks.firstContent ?? '', thinking: '', toolCalls }
       }
       return { content: 'done', thinking: '', toolCalls: [] }
     },
@@ -39,6 +46,9 @@ async function runToolRound(
     appendToolRequiredReprompt: () => {},
     executeToolCall: (name, argsRaw) => executeToolCall(name, argsRaw as Record<string, unknown>),
     onDelta: () => {},
+    onIntermediateResponse: hooks.onIntermediateResponse,
+    onToolStart: hooks.onToolStart,
+    onToolFinish: hooks.onToolFinish,
   })
   return { ...loopResult, committedResults }
 }
@@ -94,6 +104,31 @@ describe('runSharedToolLoop parallel tool execution', () => {
 
     expect(maxActive).toBe(1)
     expect(startOrder).toEqual(['read_file:a', 'write_file:b', 'read_file:c'])
+  })
+
+  it('reports intermediate drafts and the lifecycle of each parallel tool', async () => {
+    const progress: Array<{ round: number; content: string }> = []
+    const starts: string[] = []
+    const finishes: string[] = []
+
+    await runToolRound(
+      [
+        { id: 'a', name: 'read_file', args: { id: 'a' } },
+        { id: 'b', name: 'read_file', args: { id: 'b' } },
+      ],
+      async (_name, args) => String(args.id),
+      2,
+      {
+        firstContent: 'I will inspect both files first.',
+        onIntermediateResponse: (ctx) => progress.push(ctx),
+        onToolStart: ({ id, name }) => starts.push(`${name}:${id}`),
+        onToolFinish: ({ id, name }) => finishes.push(`${name}:${id}`),
+      },
+    )
+
+    expect(progress).toEqual([{ round: 0, content: 'I will inspect both files first.' }])
+    expect(starts).toEqual(['read_file:round-0-tool-0', 'read_file:round-0-tool-1'])
+    expect(new Set(finishes)).toEqual(new Set(starts))
   })
 
   it('converts a serial tool exception into a tool error', async () => {

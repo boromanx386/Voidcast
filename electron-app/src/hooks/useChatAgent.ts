@@ -395,6 +395,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     busy,
     error,
     toolPhase,
+    toolActivities,
     contextUsageInfo,
     contextWarnDismissed,
     contextCompressBusy,
@@ -974,6 +975,48 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               if (!isRunActive()) return
               if (phase !== null) setPhase(phase)
             },
+            onIntermediateResponse: ({ round, content }: { round: number; content: string }) => {
+              if (!isRunActive() || !content.trim()) return
+              setMsgs((prev) =>
+                prev.map((m) =>
+                  m.id === asstId
+                    ? {
+                        ...m,
+                        content: '',
+                        agentProgress: [
+                          ...(m.agentProgress ?? []),
+                          { round, content: content.trim() },
+                        ],
+                      }
+                    : m,
+                ),
+              )
+            },
+            onToolStart: ({ id, name, phase }: {
+              id: string
+              name: string
+              phase: AgentToolUiPhase | null
+            }) => {
+              if (!isRunActive()) return
+              const activityId = `${runId}:${id}`
+              sessionAgentStore.update(keyOf(), (prev) => ({
+                ...prev,
+                toolActivities: [
+                  ...prev.toolActivities.filter((activity) => activity.id !== activityId),
+                  { id: activityId, name, phase },
+                ],
+              }))
+            },
+            onToolFinish: ({ id }: { id: string }) => {
+              const activityId = `${runId}:${id}`
+              sessionAgentStore.update(keyOf(), (prev) => {
+                const toolActivities = prev.toolActivities.filter(
+                  (activity) => activity.id !== activityId,
+                )
+                if (toolActivities.length === prev.toolActivities.length) return prev
+                return { ...prev, toolActivities }
+              })
+            },
             onToolResult: (payload: AgentToolResultPayload) => {
               if (!isRunActive()) return
               if (harvestingPlanResearch) {
@@ -1479,6 +1522,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     error,
     setError,
     toolPhase,
+    toolActivities,
     contextUsageInfo,
     setContextUsageInfo,
     contextWarnDismissed,

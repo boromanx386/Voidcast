@@ -72,6 +72,12 @@ export type FileAttachmentSnapshot = {
   truncated?: boolean
 }
 
+/** Assistant-only progress captured before a tool round replaces the draft reply. */
+export type AgentProgressBlock = {
+  round: number
+  content: string
+}
+
 export type UiMessage = {
   id: string
   role: ChatRole
@@ -81,6 +87,8 @@ export type UiMessage = {
    * Shown above the main reply when non-empty.
    */
   thinking?: string
+  /** Assistant only: intermediate drafts produced before a subsequent tool round. */
+  agentProgress?: AgentProgressBlock[]
   /**
    * User only: this message aborted a running agent turn to redirect it (steer).
    */

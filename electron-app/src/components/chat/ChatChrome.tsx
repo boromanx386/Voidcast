@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
+import type { AgentToolActivity, AgentToolUiPhase } from '@/lib/agentToolPhase'
 
 export function CrtOverlay() {
   return <div className="crt-overlay" aria-hidden="true" />
@@ -155,7 +155,36 @@ const TOOL_PHASE_UI: Record<
   other: { icon: '◈', label: 'TOOL', className: 'other' },
 }
 
-export function ToolIndicator({ phase }: { phase: AgentToolUiPhase | null }) {
+export function ToolIndicator({
+  phase,
+  activities,
+}: {
+  phase: AgentToolUiPhase | null
+  activities?: AgentToolActivity[]
+}) {
+  if (activities?.length) {
+    return (
+      <div className="space-y-1" aria-live="polite" aria-label="Active tool calls">
+        {activities.length > 1 ? (
+          <div className="text-[10px] font-mono text-void-dim">
+            PARALLEL_TOOLS · {activities.length} ACTIVE
+          </div>
+        ) : null}
+        {activities.map((activity) => {
+          const tool = TOOL_PHASE_UI[activity.phase || 'other']
+          return (
+            <div key={activity.id} className={`tool-indicator ${tool.className}`}>
+              <span className="opacity-70">{tool.icon}</span>
+              <span>{tool.label}</span>
+              <span className="ml-2 text-[10px] opacity-60">{activity.name}</span>
+              <span className="ml-2 animate-pulse">_</span>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   if (!phase) return null
 
   const tool = TOOL_PHASE_UI[phase]

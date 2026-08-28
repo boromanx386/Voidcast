@@ -136,6 +136,11 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   onThinkingDelta?: (fullThinking: string) => void
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
   toolPhaseForName?: (name: string) => AgentToolUiPhase | null
+  /** Captures a streamed draft before the next tool round replaces it. */
+  onIntermediateResponse?: (ctx: { round: number; content: string }) => void
+  /** Lifecycle callbacks for rendering multiple concurrent tool calls. */
+  onToolStart?: (ctx: { id: string; name: string; phase: AgentToolUiPhase | null }) => void
+  onToolFinish?: (ctx: { id: string; name: string; phase: AgentToolUiPhase | null }) => void
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   /** Called at the start of each tool round; returns a user message to inject (e.g. working-set cache). Empty string = skip. */
   injectWorkingSet?: (unclearedPaths: string[]) => string
@@ -166,6 +171,16 @@ function abortedError(): Error {
 /** Clear streamed reply text only; thinking stays accumulated across tool rounds. */
 function clearStreamedAssistantContent(params: { onDelta: (fullText: string) => void }) {
   params.onDelta('')
+}
+
+function preserveIntermediateResponse<TMessage>(
+  params: Pick<SharedToolLoopParams<TMessage, unknown>, 'onIntermediateResponse'>,
+  round: number,
+  content: string,
+): void {
+  const trimmed = content.trim()
+  if (!trimmed) return
+  params.onIntermediateResponse?.({ round, content: trimmed })
 }
 
 function appendThinkingRound(
@@ -305,12 +320,31 @@ export async function runSharedToolLoop<
       }
     }
 
+    const executeToolCallWithActivity = async (
+      name: string,
+      argsRaw: string | Record<string, unknown> | undefined,
+      id: string,
+    ) => {
+      const phase = params.toolPhaseForName?.(name) ?? null
+      params.onToolPhase?.(phase)
+      params.onToolStart?.({ id, name, phase })
+      try {
+        return await executeToolCallSafely(name, argsRaw)
+      } finally {
+        params.onToolFinish?.({ id, name, phase })
+      }
+    }
+
     const runSyntheticTool = async (
       name: string,
       argsRaw: string | Record<string, unknown> | undefined,
       callFactory: () => TProviderToolCall,
     ) => {
-      const result = await executeToolCallSafely(name, argsRaw)
+      const result = await executeToolCallWithActivity(
+        name,
+        argsRaw,
+        `round-${round}-synthetic-${name}`,
+      )
       const syntheticCall = callFactory()
       params.appendAssistantWithToolCalls({
         messages,
@@ -340,6 +374,7 @@ export async function runSharedToolLoop<
         runSyntheticTool,
       })
       if (handled) {
+        preserveIntermediateResponse(params, round, lastAssistantText || content)
         lastAssistantText = ''
         persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
         clearStreamedAssistantContent(params)
@@ -362,6 +397,7 @@ export async function runSharedToolLoop<
           toolCalls: [],
         })
         params.appendFalseImageClaimReprompt(messages)
+        preserveIntermediateResponse(params, round, assistantText)
         lastAssistantText = ''
         persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
         clearStreamedAssistantContent(params)
@@ -383,6 +419,7 @@ export async function runSharedToolLoop<
           toolCalls: [],
         })
         params.appendFalseMusicClaimReprompt(messages)
+        preserveIntermediateResponse(params, round, assistantText)
         lastAssistantText = ''
         persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
         clearStreamedAssistantContent(params)
@@ -404,6 +441,7 @@ export async function runSharedToolLoop<
           toolCalls: [],
         })
         params.appendFalseCodingClaimReprompt(messages)
+        preserveIntermediateResponse(params, round, assistantText)
         lastAssistantText = ''
         persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
         clearStreamedAssistantContent(params)
@@ -417,6 +455,7 @@ export async function runSharedToolLoop<
       ) {
         requiredToolRepromptCount += 1
         params.appendToolRequiredReprompt(messages)
+        preserveIntermediateResponse(params, round, assistantText)
         lastAssistantText = ''
         persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
         clearStreamedAssistantContent(params)
@@ -441,7 +480,11 @@ export async function runSharedToolLoop<
       const call = planEscalation.provider
       const phase = params.toolPhaseForName?.('enter_plan_mode') ?? null
       params.onToolPhase?.(phase)
-      const result = await executeToolCallSafely('enter_plan_mode', shared.argsRaw)
+      const result = await executeToolCallWithActivity(
+        'enter_plan_mode',
+        shared.argsRaw,
+        `round-${round}-plan`,
+      )
       params.appendToolResult({
         messages,
         call,
@@ -467,10 +510,17 @@ export async function runSharedToolLoop<
       return { content: lastAssistantText || content, usage: lastUsage }
     }
 
-    const executeToolCallForLoop = async (valid: (typeof validCalls)[number]) => {
-      const phase = params.toolPhaseForName?.(valid.shared.name) ?? null
-      params.onToolPhase?.(phase)
-      return executeToolCallSafely(valid.shared.name, valid.shared.argsRaw)
+    preserveIntermediateResponse(params, round, content ?? lastAssistantText)
+
+    const executeToolCallForLoop = async (
+      valid: (typeof validCalls)[number],
+      index: number,
+    ) => {
+      return executeToolCallWithActivity(
+        valid.shared.name,
+        valid.shared.argsRaw,
+        `round-${round}-tool-${index}`,
+      )
     }
 
     const commitToolResult = async (
@@ -524,7 +574,7 @@ export async function runSharedToolLoop<
     for (let index = 0; index < validCalls.length; ) {
       const current = validCalls[index]!
       if (!isParallelSafeAgentTool(current.shared.name)) {
-        const result = await executeToolCallForLoop(current)
+        const result = await executeToolCallForLoop(current, index)
         await commitToolResult(current, result)
         index += 1
         continue
@@ -539,7 +589,11 @@ export async function runSharedToolLoop<
         batch.push(validCalls[index + batch.length]!)
       }
 
-      const results = await Promise.all(batch.map((valid) => executeToolCallForLoop(valid)))
+      const results = await Promise.all(
+        batch.map((valid, batchIndex) =>
+          executeToolCallForLoop(valid, index + batchIndex),
+        ),
+      )
       for (let batchIndex = 0; batchIndex < batch.length; batchIndex++) {
         await commitToolResult(batch[batchIndex]!, results[batchIndex]!)
       }
