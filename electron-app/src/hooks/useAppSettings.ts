@@ -26,7 +26,7 @@ export function useAppSettings() {
   /** PDF folder on the PC running the tools server (from desktop push; used on LAN web). */
   const [hostPdfOutputDir, setHostPdfOutputDir] = useState('')
   const effectivePdfOutputDir = resolvePdfOutputDir(settings.pdfOutputDir, hostPdfOutputDir)
-  const [appVersion, setAppVersion] = useState('2.8.4')
+  const [appVersion, setAppVersion] = useState('2.8.8')
 
   useEffect(() => {
     saveSettings(settings)

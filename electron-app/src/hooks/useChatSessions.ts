@@ -23,6 +23,7 @@ import {
   type CodingContextMemo,
 } from '@/lib/codingContextMemo'
 import { deriveSessionTitle } from '@/lib/chatHints'
+import { invokePickCodingDirectory } from '@/lib/codingTools'
 import { uid } from '@/lib/chatUid'
 import {
   normalizeImageVisionCache,
@@ -500,6 +501,12 @@ export function useChatSessions(deps: ChatSessionsDeps) {
 
   const newChat = () => resetForNewChat('')
 
+  /** Open the folder picker, then start a fresh chat bound to the selected folder. */
+  const newChatWithPickedFolder = async () => {
+    const result = await invokePickCodingDirectory()
+    if (result.ok) resetForNewChat(result.path)
+  }
+
   /** Start a fresh chat already bound to the given project folder. */
   const newChatForProject = (projectPath: string) => resetForNewChat(projectPath)
 
@@ -791,6 +798,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     activeSessionUseLongMemory,
     canSaveSession,
     newChat,
+    newChatWithPickedFolder,
     newChatForProject,
     openSession,
     forkSession,

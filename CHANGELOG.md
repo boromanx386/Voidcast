@@ -4,11 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.8.8] — 2026-08-28
+
 ### Added
 
 - **Footer CTX popup**: click the CTX meter for auto-compress (90%) toggle + **COMPRESS NOW** anytime — useful on large-context models before you hit the limit.
 - **Parallel tool rounds and live progress**: adjacent read-only tool calls run concurrently (up to 4), while serial/mutating tools remain barriers; the chat shows active tool names and preserves intermediate assistant drafts in collapsible round blocks.
 - **OpenRouter provider listing**: Options → LLM can list all providers serving the selected OpenRouter model, including context, pricing, and uptime; clicking a provider applies the per-model routing lock.
+- **Folder shortcut for new chats**: the folder button beside **New chat** opens the project folder picker and starts the new chat bound to the selected folder.
 
 ### Changed
 

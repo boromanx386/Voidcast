@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { SessionItem } from '@/components/chat/SessionItem'
+import { FolderIcon } from '@/components/icons/FolderIcon'
 import { groupSessionsByProject } from '@/lib/sessionProjectGroups'
 import {
   useBusySessionMap,
@@ -15,6 +16,7 @@ export function ChatSidebar({ app }: Props) {
     appVersion,
     openOptions,
     newChat,
+    newChatWithPickedFolder,
     newChatForProject,
     sessions,
     activeSessionId,
@@ -55,17 +57,26 @@ export function ChatSidebar({ app }: Props) {
         </button>
       </div>
 
-      <div className="shrink-0 border-b border-void-muted/30 px-2 py-2">
+      <div className="flex shrink-0 items-center gap-1 border-b border-void-muted/30 px-2 py-2">
         <button
           type="button"
           onClick={newChat}
-          className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-void-light transition-colors hover:bg-void-mid/50 hover:text-void-white"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded px-3 py-2 text-left text-sm text-void-light transition-colors hover:bg-void-mid/50 hover:text-void-white"
           title="New chat (Ctrl+N). Starts General until you pick a folder in Coding panel."
         >
           <span className="text-neon-green" aria-hidden>
             +
           </span>
           <span>New chat</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void newChatWithPickedFolder()}
+          className="shrink-0 rounded px-2 py-2 text-void-dim transition-colors hover:bg-void-mid/50 hover:text-neon-green"
+          title="New chat in a project folder"
+          aria-label="New chat in a project folder"
+        >
+          <FolderIcon className="h-4 w-4" />
         </button>
       </div>
 
@@ -86,8 +97,13 @@ export function ChatSidebar({ app }: Props) {
                   className="flex min-w-0 flex-1 items-center justify-between px-4 py-2 text-xs font-mono text-void-dim hover:text-void-light"
                   title={group.path || 'General chat — no project folder'}
                 >
-                  <span className="min-w-0 truncate">
-                    {group.label} ({group.sessions.length})
+                  <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    {group.path ? (
+                      <FolderIcon className="h-3.5 w-3.5 shrink-0" />
+                    ) : null}
+                    <span className="truncate">
+                      {group.label} ({group.sessions.length})
+                    </span>
                   </span>
                   <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
                 </button>
