@@ -19,6 +19,9 @@ https://github.com/user-attachments/assets/e7700e45-ca2c-40a0-b3d0-ffbdd3cf1c1c
 **Browse and create without leaving chat**  
 Agent invokes search, Reddit, YouTube, weather, image generation and edit, music generation, PDF — results appear inline.
 
+**See what the agent is doing**
+Adjacent read-only tool calls can run in parallel (up to four), while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts available in collapsible round blocks.
+
 **Control the app from chat**  
 Change themes, toggle voice, or update settings directly via natural commands in the conversation.
 

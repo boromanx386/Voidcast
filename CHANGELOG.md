@@ -7,6 +7,12 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Footer CTX popup**: click the CTX meter for auto-compress (90%) toggle + **COMPRESS NOW** anytime — useful on large-context models before you hit the limit.
+- **Parallel tool rounds and live progress**: adjacent read-only tool calls run concurrently (up to 4), while serial/mutating tools remain barriers; the chat shows active tool names and preserves intermediate assistant drafts in collapsible round blocks.
+- **OpenRouter provider listing**: Options → LLM can list all providers serving the selected OpenRouter model, including context, pricing, and uptime; clicking a provider applies the per-model routing lock.
+
+### Changed
+
+- **Cloud model catalogs refreshed**: OpenRouter, NVIDIA, OpenCode Go, and CrofAI presets and context-window metadata were updated against current provider catalogs. The model checker now supports all four catalogs and an interactive `--apply` workflow.
 
 ## [2.8.6] — 2026-08-25
 

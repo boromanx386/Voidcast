@@ -22,6 +22,7 @@ The active provider determines which provider-specific group of fields is shown 
 - **Provider-only lock** — `openrouterProviderOnly` (string, e.g. `'openai'`). When set, OpenRouter requests use `provider.only` and never fall back to other providers. Kept in sync with `openrouterProviderByModel[openrouterModel]`.
 - **Per-model provider mapping** — `openrouterProviderByModel` (`Record<string, string>`). Maps each OpenRouter model id to a provider slug lock. If a model has a lock, requests for that model go only to that provider; otherwise OpenRouter default routing is used. Editing the lock for the current model updates `openrouterProviderOnly` too.
 - **Pinned models** — `pinnedModels` (`string[]`). Provider-specific ids like `'openrouter:anthropic/claude-sonnet-5'` or `'openrouter:openai/gpt-5.6-sol'`. Pinned models appear as quick-select chips in the panel (and in the chat model picker); toggle a pin on/off per candidate model.
+- **Provider listing** — **LIST ALL** queries OpenRouter for every provider serving the selected model and shows provider name, context length, input/output price, and recent uptime. Click a row to apply that provider as the current model's `OPENROUTER_PROVIDER` lock. Desktop requests go directly to OpenRouter; LAN web requests use the local proxy.
 
 ### NVIDIA
 - `nvidiaBaseUrl` — default `https://integrate.api.nvidia.com/v1`

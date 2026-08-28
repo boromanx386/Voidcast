@@ -10,7 +10,7 @@ You can open different sessions in the sidebar and **run agents in more than one
 
 | Behavior | Detail |
 | --- | --- |
-| Isolation | Each session has its own messages, abort controller, tool phase, media state (`sessionAgentStore`) |
+| Isolation | Each session has its own messages, abort controller, tool phase, active tool activities, and media state (`sessionAgentStore`) |
 | Cap | Up to **3** concurrent agent runs (`MAX_CONCURRENT_AGENT_RUNS`). Starting a 4th fails with an error until one finishes or you Stop |
 | Project / shell | Coding tools freeze **project path**, shell owner, and terminal feed per chat so two chats do not share one shell by accident |
 | Different projects | Only **one live coding project** across chats: starting a run in project B while another chat is busy in project A **fails** until that agent stops |

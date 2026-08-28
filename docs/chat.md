@@ -44,9 +44,11 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
 
 ## Message Rendering (ChatMessageList.tsx, ChatMessage.tsx)
 
-- Renders `UiMessage`: user/assistant roles; assistant `thinking` (Ollama `thinking`/OpenRouter `reasoning`) above reply; images (`images[]`, `imageMimes[]`, names/paths); `fileAttachments` chips; generated image URLs/paths; embedded `plan` artifacts; optional **`subAgentActivity`** card (vision / explore / workers) on that turn’s assistant message.
+- Renders `UiMessage`: user/assistant roles; assistant `thinking` (Ollama `thinking`/OpenRouter `reasoning`) above reply; collapsible intermediate `agentProgress` round drafts; images (`images[]`, `imageMimes[]`, names/paths); `fileAttachments` chips; generated image URLs/paths; embedded `plan` artifacts; optional **`subAgentActivity`** card (vision / explore / workers) on that turn’s assistant message.
 - Assistant content is **markdown** via `ChatMarkdown` (`components/ChatMarkdown.tsx`); user content auto-links.
 - Editing re-sends with attachments (`useChatAttachments`).
+
+While tools are running, the busy indicator shows each active tool by name. Adjacent read-only calls can appear together when the shared agent loop executes them in parallel; serial and mutating calls remain ordered.
 
 ## File Drag-Drop Attachments (ChatDragOverlay.tsx, useChatAttachments)
 

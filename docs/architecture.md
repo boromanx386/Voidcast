@@ -74,7 +74,7 @@ Specialized state hooks live in `src/hooks/`:
 
 ### Session agent runtime
 
-`src/lib/sessionAgentStore.ts` holds per-chat (and draft) **agent slots**: messages, busy, tool phase, media meta, abort controller, coding project freeze, and ephemeral `subAgentPanel` live state. Product write-up: [multi-chat-and-team.md](multi-chat-and-team.md). UI messages can persist `subAgentActivity` for the analysis card across reloads (`chatSessionsStorage` + `normalizeSubAgentActivity`). Concurrent runs are capped (`MAX_CONCURRENT_AGENT_RUNS = 3`).
+`src/lib/sessionAgentStore.ts` holds per-chat (and draft) **agent slots**: messages, busy, tool phase, active tool activities, media meta, abort controller, coding project freeze, and ephemeral `subAgentPanel` live state. Product write-up: [multi-chat-and-team.md](multi-chat-and-team.md). UI messages can persist `subAgentActivity` and intermediate `agentProgress` blocks for the analysis card / tool-round drafts across reloads (`chatSessionsStorage` + `normalizeSubAgentActivity`). Concurrent runs are capped (`MAX_CONCURRENT_AGENT_RUNS = 3`).
 
 ---
 
@@ -88,7 +88,7 @@ Specialized state hooks live in `src/hooks/`:
 - **Agent editability:** `AGENT_EDITABLE_SETTINGS_FIELDS` lists which settings the agent may change; API-key fields are excluded.
 - **Cross-cutting constants:** coding splitter defaults/bounds, OpenRouter TTS/image model defaults, Runware configured image/music models, sub-agent token defaults (16K/ctx, 2K out).
 
-`src/types/` holds the shared domain types: `voidcast.ts` (Screen), `chat.ts` (AgentChatMode, SystemPromptPreset, `UiMessage` including `plan` and `subAgentActivity`), `coding.ts`, and `longMemory.ts`.
+`src/types/` holds the shared domain types: `voidcast.ts` (Screen), `chat.ts` (AgentChatMode, SystemPromptPreset, `UiMessage` including `plan`, `subAgentActivity`, and `agentProgress`), `coding.ts`, and `longMemory.ts`.
 
 ---
 
@@ -96,7 +96,7 @@ Specialized state hooks live in `src/hooks/`:
 
 The assistant (agent) loop lives in `src/lib/`:
 
-- **`agentToolLoop`** — the round-based loop. Each assistant turn may run multiple tool-call rounds, bounded by `agentMaxToolRounds` (clamped 5–120). Tools within a round run **sequentially** (await each result).
+- **`agentToolLoop`** — the round-based loop. Each assistant turn may run multiple tool-call rounds, bounded by `agentMaxToolRounds` (clamped 5–120). Adjacent allowlisted read-only tools run concurrently (up to 4 by default) and commit results in provider order; serial or mutating tools form barriers. Intermediate assistant drafts are preserved before a tool round replaces the stream, and tool lifecycle callbacks drive the live activity strip.
 - **`agentSkills`** — the Agent Skills catalog + `read_skill` tool (gated by `skillsEnabled`).
 - **`agentParams`** — provider/model resolution and inference parameters for a request.
 - **`buildAgentTurnContext`** — assembles the context for one agent turn (system prompt, mode hints for Agent/Team/Plan, workers guidance).
