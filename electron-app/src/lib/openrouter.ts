@@ -1,6 +1,6 @@
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
-import { isElectron, usesServerCloudProxy } from './platform'
+import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from './platform'
 import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
 
@@ -63,6 +63,84 @@ export function openRouterProviderRoutingBody(
   const slug = (providerOnly || '').trim()
   if (!slug) return undefined
   return { only: [slug], allow_fallbacks: false }
+}
+
+// ── Model endpoints (providers) ─────────────────────────────────────────
+
+export type OpenRouterModelEndpoint = {
+  /** Provider slug, e.g. "anthropic", "openai", "deepinfra". */
+  tag: string
+  provider_name: string
+  name: string
+  context_length: number
+  max_completion_tokens?: number
+  pricing?: {
+    prompt?: string
+    completion?: string
+    request?: string
+    image?: string
+  }
+  uptime_last_30m?: number
+  status?: number
+  quantization?: string
+}
+
+export type OpenRouterModelEndpointsResult = {
+  id: string
+  name: string
+  endpoints: OpenRouterModelEndpoint[]
+}
+
+/**
+ * GET /api/v1/models/{author}/{slug}/endpoints — list every provider that
+ * serves the model. Works from the desktop app (direct) and from the LAN
+ * web client (through the TTS-server OpenRouter proxy, key stays server-side).
+ */
+export async function fetchOpenRouterModelEndpoints(options: {
+  model: string
+  baseUrl?: string
+  apiKey?: string
+  signal?: AbortSignal
+}): Promise<OpenRouterModelEndpointsResult> {
+  const model = (options.model || '').trim()
+  if (!model) throw new Error('No OpenRouter model selected')
+  const [author, ...rest] = model.split('/')
+  const slug = rest.join('/')
+  if (!author || !slug) throw new Error(`Invalid model id: ${model}`)
+
+  const viaProxy = usesServerCloudProxy()
+  const baseUrl = viaProxy
+    ? openRouterApiBaseForRuntime(options.baseUrl)
+    : normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1')
+
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  }
+  if (!viaProxy && (options.apiKey || '').trim()) {
+    headers.Authorization = `Bearer ${(options.apiKey || '').trim()}`
+  }
+
+  const url = `${baseUrl.replace(/\/+$/, '')}/models/${encodeURIComponent(author)}/${encodeURIComponent(slug)}/endpoints`
+  const res = await fetch(url, { method: 'GET', headers, signal: options.signal })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`OpenRouter endpoints ${res.status}: ${errText || res.statusText}`)
+  }
+
+  const json = (await res.json()) as {
+    data?: {
+      id?: string
+      name?: string
+      endpoints?: OpenRouterModelEndpoint[]
+    }
+  }
+  const data = json.data ?? {}
+  return {
+    id: data.id || model,
+    name: data.name || model,
+    endpoints: Array.isArray(data.endpoints) ? data.endpoints : [],
+  }
 }
 
 function compactOpenRouterOptions(

@@ -4,7 +4,11 @@ import { CROFAI_LLM_PRESET_MODELS, DEEPSEEK_LLM_PRESET_MODELS, NVIDIA_LLM_PRESET
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import { pinnedIdLabel, pinsForProvider, toScopedPinnedId } from '@/lib/pinnedModels'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
+import {
+  fetchOpenRouterModelEndpoints,
+  type OpenRouterModelEndpoint,
+} from '@/lib/openrouter'
 import type { Dispatch, SetStateAction } from 'react'
 import type { CloudLlmPreset } from '@/lib/cloudLlmPresets'
 
@@ -107,6 +111,33 @@ export function LlmOptionsPanel({
     },
     [setSettings],
   )
+
+  const [orEndpoints, setOrEndpoints] = useState<OpenRouterModelEndpoint[] | null>(null)
+  const [orEndpointsLoading, setOrEndpointsLoading] = useState(false)
+  const [orEndpointsError, setOrEndpointsError] = useState<string | null>(null)
+
+  const handleListOpenRouterEndpoints = useCallback(async () => {
+    const model = (settings.openrouterModel || '').trim()
+    if (!model) {
+      setOrEndpointsError('No OpenRouter model selected')
+      return
+    }
+    setOrEndpointsLoading(true)
+    setOrEndpointsError(null)
+    setOrEndpoints(null)
+    try {
+      const result = await fetchOpenRouterModelEndpoints({
+        model,
+        baseUrl: settings.openrouterBaseUrl,
+        apiKey: settings.openrouterApiKey,
+      })
+      setOrEndpoints(result.endpoints)
+    } catch (err) {
+      setOrEndpointsError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setOrEndpointsLoading(false)
+    }
+  }, [settings.openrouterModel, settings.openrouterBaseUrl, settings.openrouterApiKey])
 
   return (
     <div className="grid gap-5 text-sm">
@@ -374,21 +405,111 @@ export function LlmOptionsPanel({
             <label className="form-label">
               <span className="text-neon-yellow mr-2">⊘</span> OPENROUTER_PROVIDER (optional)
             </label>
-            <input
-              className="cyber-input"
-              value={settings.openrouterProviderOnly}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, ...withOpenRouterProviderOnly(s, e.target.value) }))
-              }
-              placeholder="anthropic"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                className="cyber-input flex-1"
+                value={settings.openrouterProviderOnly}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, ...withOpenRouterProviderOnly(s, e.target.value) }))
+                }
+                placeholder="anthropic"
+              />
+              <button
+                type="button"
+                className="cyber-btn shrink-0 text-xs py-1.5"
+                disabled={orEndpointsLoading}
+                onClick={() => void handleListOpenRouterEndpoints()}
+                title="List all OpenRouter providers serving the selected model"
+              >
+                {orEndpointsLoading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="cyber-spinner w-3 h-3" />
+                    LISTING
+                  </span>
+                ) : (
+                  'LIST ALL'
+                )}
+              </button>
+            </div>
+            {orEndpointsError && (
+              <p className="text-xs text-neon-red mt-1 font-mono leading-relaxed">
+                ⚠ {orEndpointsError}
+              </p>
+            )}
+            {orEndpoints && orEndpoints.length === 0 && (
+              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+                No providers found for this model.
+              </p>
+            )}
+            {orEndpoints && orEndpoints.length > 0 && (
+              <div className="mt-2 max-h-56 overflow-y-auto rounded border border-void-muted/40 bg-void-muted/10">
+                <table className="w-full text-left font-mono text-xs">
+                  <thead className="sticky top-0 bg-void-bg/95 text-void-dim">
+                    <tr>
+                      <th className="px-2 py-1.5 font-semibold">PROVIDER</th>
+                      <th className="px-2 py-1.5 font-semibold">CTX</th>
+                      <th className="px-2 py-1.5 font-semibold">IN/OUT ($/M)</th>
+                      <th className="px-2 py-1.5 font-semibold">UPTIME</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orEndpoints.map((ep) => {
+                      const inPrice = ep.pricing?.prompt
+                        ? `${(Number(ep.pricing.prompt) * 1e6).toFixed(2)}`
+                        : '—'
+                      const outPrice = ep.pricing?.completion
+                        ? `${(Number(ep.pricing.completion) * 1e6).toFixed(2)}`
+                        : '—'
+                      const ctx = ep.context_length
+                        ? `${(ep.context_length / 1024).toFixed(0)}K`
+                        : '—'
+                      const uptime =
+                        typeof ep.uptime_last_30m === 'number'
+                          ? `${ep.uptime_last_30m.toFixed(1)}%`
+                          : '—'
+                      const isCurrent =
+                        (settings.openrouterProviderOnly || '').trim() === ep.tag
+                      return (
+                        <tr
+                          key={ep.tag}
+                          className={`cursor-pointer border-t border-void-muted/20 transition-colors hover:bg-neon-cyan/10 ${
+                            isCurrent ? 'bg-neon-cyan/10 text-neon-cyan' : ''
+                          }`}
+                          onClick={() =>
+                            setSettings((s) => ({
+                              ...s,
+                              ...withOpenRouterProviderOnly(s, ep.tag),
+                            }))
+                          }
+                          title={`Set provider to ${ep.tag}`}
+                        >
+                          <td
+                            className={`px-2 py-1.5 ${
+                              isCurrent ? 'text-neon-cyan' : 'text-void-light'
+                            }`}
+                          >
+                            {ep.provider_name || ep.tag}
+                            {isCurrent && <span className="ml-1 text-neon-cyan">◉</span>}
+                          </td>
+                          <td className="px-2 py-1.5 text-void-dim">{ctx}</td>
+                          <td className="px-2 py-1.5 text-void-dim">
+                            {inPrice} / {outPrice}
+                          </td>
+                          <td className="px-2 py-1.5 text-void-dim">{uptime}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
               Force routing to one OpenRouter provider slug for the selected model (e.g.{' '}
               <code className="text-void-light/90">anthropic</code>,{' '}
               <code className="text-void-light/90">openai</code>,{' '}
               <code className="text-void-light/90">deepinfra</code>). Remembered per model —
               switching models restores that model's provider. Leave empty for default load
-              balancing. No fallbacks when set.
+              balancing. No fallbacks when set. Click a row to set it as the provider.
             </p>
           </div>
         </>
