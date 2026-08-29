@@ -89,10 +89,13 @@ export function ChatSystemStatus({ app }: Props) {
     }
   }, [showCtxPopup])
 
+  const contextUsageNote = contextUsageInfo?.estimated
+    ? ' · estimated after compression; exact on next request'
+    : ' · click for compress'
   const barTitle = contextUsageInfo
     ? contextUsageInfo.limitSource
-      ? `Context: ${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens · limit from ${contextLimitSourceLabel(contextUsageInfo.limitSource)}${contextUsageInfo.modelId ? ` · ${contextUsageInfo.modelId}` : ''} · click for compress`
-      : `Context window usage: ${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens · click for compress`
+      ? `Context: ${contextUsageInfo.estimated ? '~' : ''}${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens · limit from ${contextLimitSourceLabel(contextUsageInfo.limitSource)}${contextUsageInfo.modelId ? ` · ${contextUsageInfo.modelId}` : ''}${contextUsageNote}`
+      : `Context window usage: ${contextUsageInfo.estimated ? '~' : ''}${contextUsageInfo.promptTokens} / ${contextUsageInfo.maxTokens} prompt tokens${contextUsageNote}`
     : 'Context usage · click for compress options'
 
   return (
@@ -149,6 +152,7 @@ export function ChatSystemStatus({ app }: Props) {
             <>
               <span className="text-[11px] tabular-nums leading-tight text-void-dim">
                 <span className="text-void-dim/60">CTX </span>
+                {contextUsageInfo.estimated ? '~' : ''}
                 <span className="text-void-text">{contextUsageInfo.promptTokens}</span>
                 <span className="text-void-dim/50">/</span>
                 <span>{contextUsageInfo.maxTokens}</span>
@@ -161,7 +165,7 @@ export function ChatSystemStatus({ app }: Props) {
               </span>
               <span className="text-[10px] tabular-nums leading-tight text-void-dim/70">
                 <span className="text-void-dim/50">OUT </span>
-                <span>{contextUsageInfo.outputTokens}</span>
+                <span>{contextUsageInfo.estimated ? '—' : contextUsageInfo.outputTokens}</span>
               </span>
               <div className="h-1 w-full max-w-[14rem] overflow-hidden rounded-sm bg-void-muted/70">
                 <div
@@ -196,16 +200,20 @@ export function ChatSystemStatus({ app }: Props) {
               <div className="mb-3 space-y-0.5 text-[11px] font-mono tabular-nums text-void-dim">
                 <div>
                   <span className="text-void-dim/60">Prompt </span>
+                  {contextUsageInfo.estimated ? '~' : ''}
                   <span className="text-void-text">{contextUsageInfo.promptTokens}</span>
                   <span className="text-void-dim/50"> / </span>
                   <span>{contextUsageInfo.maxTokens}</span>
                   <span className="ml-1 text-void-dim/70">
                     ({Math.round(contextUsageInfo.ratio * 100)}%)
                   </span>
+                  {contextUsageInfo.estimated ? (
+                    <span className="ml-1 text-neon-yellow/80">(estimated)</span>
+                  ) : null}
                 </div>
                 <div>
                   <span className="text-void-dim/60">Output </span>
-                  <span>{contextUsageInfo.outputTokens}</span>
+                  <span>{contextUsageInfo.estimated ? '—' : contextUsageInfo.outputTokens}</span>
                 </div>
                 {contextUsageInfo.limitSource ? (
                   <div className="truncate text-[10px] text-void-dim/55">

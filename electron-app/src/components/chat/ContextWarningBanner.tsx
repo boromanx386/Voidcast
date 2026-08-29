@@ -33,7 +33,8 @@ export function ContextWarningBanner({ app }: Props) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm font-mono text-neon-yellow">
               <span className="opacity-70">CONTEXT_WARNING:</span>
-              {' '}CTX_USAGE {Math.round(contextUsageInfo.ratio * 100)}%
+              {' '}CTX_USAGE {contextUsageInfo.estimated ? '~' : ''}
+              {Math.round(contextUsageInfo.ratio * 100)}%
               ({contextUsageInfo.promptTokens}/{contextUsageInfo.maxTokens})
             </div>
             <div className="flex items-center gap-2">
@@ -68,7 +69,8 @@ export function ContextWarningBanner({ app }: Props) {
         <div className="border-t border-neon-cyan/25 bg-neon-cyan/5 px-4 py-2 mx-4 my-2 rounded">
           <div className="text-sm font-mono text-neon-cyan">
             <span className="opacity-70">CONTEXT:</span>
-            {' '}CTX {Math.round(contextUsageInfo.ratio * 100)}%
+            {' '}CTX {contextUsageInfo.estimated ? '~' : ''}
+            {Math.round(contextUsageInfo.ratio * 100)}%
             {contextCompressBusy ? ' · auto-compressing…' : ' · auto-compress when idle'}
           </div>
         </div>
