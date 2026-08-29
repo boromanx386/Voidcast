@@ -3,6 +3,7 @@ import {
   extractMarkdownImageUrls,
   extractRunwareAudioUrls,
   extractRunwareImageUrls,
+  extractAudioPaths,
   extractSavedAudioPaths,
   extractSavedImagePaths,
   parseRunwareAudioToolMeta,
@@ -33,6 +34,19 @@ describe('extractRunwareAudioUrls', () => {
   test('extracts audio_url lines', () => {
     expect(extractRunwareAudioUrls('audio_url: https://cdn.example.com/song.mp3')).toEqual([
       'https://cdn.example.com/song.mp3',
+    ])
+  })
+})
+
+describe('extractAudioPaths', () => {
+  test('extracts audio_path and Saved audio lines', () => {
+    const text = [
+      'audio_path: C:\\out\\voice.mp3',
+      'Saved audio: D:\\proj\\public\\a.wav',
+    ].join('\n')
+    expect(extractAudioPaths(text)).toEqual([
+      'C:\\out\\voice.mp3',
+      'D:\\proj\\public\\a.wav',
     ])
   })
 })

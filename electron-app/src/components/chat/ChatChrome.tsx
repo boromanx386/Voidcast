@@ -135,6 +135,7 @@ const TOOL_PHASE_UI: Record<
   image: { icon: '◌', label: 'IMAGE_GEN', className: 'image' },
   vision: { icon: '◎', label: 'IMAGE_RECALL', className: 'vision' },
   music: { icon: '♫', label: 'MUSIC_GEN', className: 'music' },
+  tts: { icon: '◈', label: 'TTS_GEN', className: 'tts' },
   coding_list: { icon: '⊢', label: 'CODING_FILES', className: 'coding' },
   coding_read: { icon: '◊', label: 'CODING_READ', className: 'coding' },
   coding_write: { icon: '▹', label: 'CODING_WRITE', className: 'coding' },

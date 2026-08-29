@@ -1,6 +1,7 @@
 const RUNWARE_IMAGE_URL_LINE_RE =
   /^\s*image_url:\s*((?:https?:\/\/|data:image\/[a-zA-Z0-9.+-]+;base64,)\S+)\s*$/gim
 const RUNWARE_AUDIO_URL_LINE_RE = /^\s*audio_url:\s*(https?:\/\/\S+)\s*$/gim
+const AUDIO_PATH_LINE_RE = /^\s*audio_path:\s*(.+)\s*$/gim
 const MARKDOWN_IMAGE_URL_RE = /!\[[^\]]*?\]\((https?:\/\/[^)\s]+)\)/gim
 const SAVED_IMAGE_PATH_RE = /^\s*Saved image:\s*(.+)\s*$/gim
 const SAVED_AUDIO_PATH_RE = /^\s*Saved audio:\s*(.+)\s*$/gim
@@ -32,6 +33,8 @@ export type RunwareAudioToolMeta = {
   taskUuid?: string
   audioUuid?: string
   elapsedMs?: number
+  /** generate_tts provider id */
+  provider?: string
 }
 
 export function extractRunwareImageUrls(text: string): string[] {
@@ -63,10 +66,29 @@ export function extractRunwareAudioUrls(text: string): string[] {
   return Array.from(new Set(out))
 }
 
+export function extractAudioPaths(text: string): string[] {
+  const out: string[] = []
+  if (!text.trim()) return out
+  AUDIO_PATH_LINE_RE.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = AUDIO_PATH_LINE_RE.exec(text)) !== null) {
+    const p = (match[1] || '').trim()
+    if (p) out.push(p)
+  }
+  // Also accept "Saved audio: ..." lines from save helpers.
+  for (const p of extractSavedAudioPaths(text)) out.push(p)
+  return Array.from(new Set(out))
+}
+
 export function stripRunwareAudioUrlLines(text: string): string {
   if (!text.trim()) return text
   RUNWARE_AUDIO_URL_LINE_RE.lastIndex = 0
-  return text.replace(RUNWARE_AUDIO_URL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+  AUDIO_PATH_LINE_RE.lastIndex = 0
+  return text
+    .replace(RUNWARE_AUDIO_URL_LINE_RE, '')
+    .replace(AUDIO_PATH_LINE_RE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 export function stripGeneratedAudioLinkArtifacts(text: string, urls: string[]): string {
@@ -181,6 +203,7 @@ export function parseRunwareAudioToolMeta(text: string): RunwareAudioToolMeta | 
     if (!value) continue
     if (key === 'model') out.model = value
     else if (key === 'prompt') out.prompt = value
+    else if (key === 'provider') out.provider = value
     else if (key === 'output_format') out.outputFormat = value
     else if (key === 'duration_sec') {
       const n = Number(value)

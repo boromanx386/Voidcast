@@ -85,6 +85,7 @@ export function ChatMessage({
     setThinkingPinned,
     assistantRenderCache,
     localImagePreviews,
+    localAudioUrls,
     downloadImage,
     openLocalImage,
     desktopRuntime,
@@ -178,9 +179,10 @@ export function ChatMessage({
                       </div>
                     </details>
                   ) : null}
-                  {m.agentProgress?.map((progress) => (
+                  {m.agentProgress?.map((progress, i) => (
                     <details
                       key={`${m.id}-agent-progress-${progress.round}`}
+                      open={i === (m.agentProgress?.length ?? 0) - 1}
                       className="rounded border border-neon-purple/25 bg-neon-purple/5"
                     >
                       <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-neon-purple/90 hover:text-neon-purple flex items-center gap-2">
@@ -329,57 +331,104 @@ export function ChatMessage({
               )
             })()}
             {(() => {
-              // Only URLs confirmed by a real generate_music_runware tool result.
+              const cached = assistantRenderCache[m.id]
+              // Trusted remote URLs (music) + local saved paths (TTS / auto-saved music).
               const inlineAudioUrls = dedupeNonEmpty([
-                ...(assistantGeneratedAudios[m.id] || []),
+                ...(cached?.inlineAudioUrls || assistantGeneratedAudios[m.id] || []),
               ])
-              return inlineAudioUrls.length > 0 ? (
-                <div className="space-y-2">
-                  {inlineAudioUrls.map((url, i) => {
-                    const savedPath = assistantSavedAudioPaths[m.id]?.[i]
+              const localAudioPaths = dedupeNonEmpty([
+                ...(cached?.localAudioPaths || []),
+                ...(m.generatedAudioPaths || []),
+                ...(assistantSavedAudioPaths[m.id] || []),
+              ])
+              type AudioItem =
+                | { kind: 'url'; key: string; url: string; savedPath?: string }
+                | { kind: 'path'; key: string; path: string; playUrl?: string }
+              const items: AudioItem[] = []
+              const seenPaths = new Set<string>()
+              for (let i = 0; i < inlineAudioUrls.length; i++) {
+                const url = inlineAudioUrls[i]
+                const savedPath = assistantSavedAudioPaths[m.id]?.[i]
+                if (savedPath) seenPaths.add(savedPath)
+                items.push({ kind: 'url', key: `${m.id}-audio-url-${i}`, url, savedPath })
+              }
+              for (let i = 0; i < localAudioPaths.length; i++) {
+                const path = localAudioPaths[i]
+                if (seenPaths.has(path)) continue
+                seenPaths.add(path)
+                items.push({
+                  kind: 'path',
+                  key: `${m.id}-audio-path-${i}`,
+                  path,
+                  playUrl: localAudioUrls[path],
+                })
+              }
+              return items.length > 0 ? (
+                <div className="space-y-1.5">
+                  {items.map((item, i) => {
+                    const savedPath = item.kind === 'url' ? item.savedPath : item.path
+                    const playSrc =
+                      item.kind === 'url' ? item.url : item.playUrl || ''
+                    const metaKey =
+                      item.kind === 'url' ? item.url : item.path
                     return (
                       <div
-                        key={`${m.id}-runware-audio-${i}`}
-                        className="rounded border border-void-muted/40 p-2 bg-void-black/30"
+                        key={item.key}
+                        className="rounded border border-void-muted/35 bg-void-black/25 px-2 py-1.5"
                       >
-                        <div className="mb-2 text-[11px] font-mono text-neon-cyan/80">
-                          GENERATED_AUDIO_{i + 1}
-                          {savedPath ? ' (local)' : ' (url)'}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {savedPath && (
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="shrink-0 text-[10px] font-mono text-neon-cyan/75">
+                            AUDIO_{i + 1}
+                            {savedPath ? ' · local' : ''}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            {playSrc ? (
+                              <audio
+                                controls
+                                preload="metadata"
+                                src={playSrc}
+                                className="chat-audio-player"
+                              />
+                            ) : savedPath ? (
+                              <span className="text-[10px] font-mono text-void-dim">
+                                Loading…
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-void-dim">
+                                No playable source
+                              </span>
+                            )}
+                          </div>
+                          {savedPath ? (
                             <button
                               type="button"
                               onClick={() => void openLocalImage(savedPath)}
-                              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                              title={savedPath}
+                              className="shrink-0 inline-flex items-center px-2 py-0.5 text-[10px] font-mono
                                 border border-neon-green/30 text-neon-green
                                 hover:bg-neon-green/10 hover:border-neon-green/50
                                 transition-all"
                             >
-                              ▶ OPEN_LOCAL
+                              OPEN
                             </button>
-                          )}
-                          {!savedPath && (
-                            <span className="text-xs font-mono text-void-dim">
-                              Enable auto-save to open local file.
-                            </span>
-                          )}
+                          ) : null}
                         </div>
-                        {(assistantAudioToolMeta[m.id]?.[url] ||
+                        {(assistantAudioToolMeta[m.id]?.[metaKey] ||
                           assistantAudioMessageMeta[m.id] ||
                           parseRunwareAudioToolMeta(m.content)) ? (
-                          <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
-                            <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
-                              AUDIO_INFO
+                          <details className="border-t border-void-muted/25 pt-1">
+                            <summary className="cursor-pointer px-0.5 text-[10px] font-mono text-neon-cyan/70 hover:text-neon-cyan">
+                              INFO
                             </summary>
-                            <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                            <div className="px-0.5 pb-0.5 pt-1 text-[10px] font-mono text-void-dim whitespace-pre-wrap break-all">
                               {(() => {
                                 const meta =
-                                  assistantAudioToolMeta[m.id]?.[url]
+                                  assistantAudioToolMeta[m.id]?.[metaKey]
                                   || assistantAudioMessageMeta[m.id]
                                   || parseRunwareAudioToolMeta(m.content)
                                 if (!meta) return ''
                                 const lines: string[] = []
+                                if (meta.provider) lines.push(`provider: ${meta.provider}`)
                                 if (meta.model) lines.push(`model: ${meta.model}`)
                                 if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
                                 if (meta.outputFormat) lines.push(`output_format: ${meta.outputFormat}`)
@@ -393,6 +442,7 @@ export function ChatMessage({
                                 if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
                                 if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
                                 if (meta.audioUuid) lines.push(`audio_uuid: ${meta.audioUuid}`)
+                                if (savedPath) lines.push(`path: ${savedPath}`)
                                 return lines.join('\n')
                               })()}
                             </div>

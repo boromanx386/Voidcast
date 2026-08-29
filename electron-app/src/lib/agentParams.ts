@@ -1,4 +1,4 @@
-import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel } from '@/lib/settings'
+import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel, TtsProvider, VoiceMode } from '@/lib/settings'
 import type { McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { RunwareImageConfig } from '@/lib/runware'
@@ -6,8 +6,9 @@ import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { OllamaApiMessage, OllamaModelOptions } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
-import type { ExecCtx } from '@/lib/toolExecTypes'
+import type { AgentTtsConfig, ExecCtx } from '@/lib/toolExecTypes'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
+import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
 
 /**
  * Fields shared by both Ollama and OpenRouter chat-with-tools param types.
@@ -44,6 +45,8 @@ export interface ChatWithToolsCommonParams {
     args?: Record<string, unknown>
   }) => void
   runware?: RunwareImageConfig
+  /** Frozen TTS config for generate_tts. */
+  tts?: AgentTtsConfig
   userImages?: string[]
   userImageMimes?: string[]
   userImagePaths?: string[]
@@ -74,6 +77,8 @@ export interface ChatWithToolsCommonParams {
   imageVisionCache?: ImageVisionCache
 }
 
+export type { AgentTtsConfig, TtsProvider, VoiceMode, StoredVoiceAnchor }
+
 /**
  * Builds the `Omit<ExecCtx, 'toolsEnabled'>` object from shared params.
  * Used by both ollamaAgent and openrouterAgent to avoid duplicating
@@ -87,6 +92,7 @@ export function buildToolExecutorOptions(
     signal: params.signal,
     pdfOutputDir: params.pdfOutputDir,
     runware: params.runware,
+    tts: params.tts,
     userImages: params.userImages,
     userImageMimes: params.userImageMimes,
     userImagePaths: params.userImagePaths,

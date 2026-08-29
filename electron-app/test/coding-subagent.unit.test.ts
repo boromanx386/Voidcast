@@ -19,7 +19,7 @@ import {
   shouldTrimCodingResult,
   trimNoisyCodingResult,
 } from '../src/lib/codingSubAgent'
-import { buildToolsList } from '../src/lib/toolDefinitions'
+import { buildToolsList, isPlanModeBlockedTool } from '../src/lib/toolDefinitions'
 
 describe('shouldTrimCodingResult', () => {
   it('returns false when coding context management disabled', () => {
@@ -306,6 +306,7 @@ describe('buildToolsList coding_explore', () => {
     pdf: false,
     runwareImage: false,
     runwareMusic: false,
+    tts: false,
     coding: true,
     enterPlan: false,
   }
@@ -357,6 +358,7 @@ describe('buildToolsList image_recall vs runware', () => {
     pdf: false,
     runwareImage: false,
     runwareMusic: false,
+    tts: false,
     coding: false,
     enterPlan: false,
   }
@@ -382,5 +384,34 @@ describe('buildToolsList image_recall vs runware', () => {
     expect(tools.some((t) => t.function.name === 'image_recall')).toBe(true)
     expect(tools.some((t) => t.function.name === 'generate_image')).toBe(false)
     expect(tools.some((t) => t.function.name === 'edit_image_runware')).toBe(false)
+  })
+})
+
+describe('buildToolsList generate_tts', () => {
+  const base = {
+    webSearch: false,
+    youtube: false,
+    reddit: false,
+    weather: false,
+    scrape: false,
+    pdf: false,
+    runwareImage: false,
+    runwareMusic: false,
+    tts: true,
+    coding: false,
+    enterPlan: false,
+  }
+
+  it('exposes generate_tts when enabled', () => {
+    const tools = buildToolsList(base as never, false)
+    expect(tools.some((t) => t.function.name === 'generate_tts')).toBe(true)
+  })
+
+  it('blocks generate_tts in plan and ask modes', () => {
+    for (const agentMode of ['plan', 'ask'] as const) {
+      const tools = buildToolsList(base as never, false, { agentMode })
+      expect(tools.some((t) => t.function.name === 'generate_tts')).toBe(false)
+      expect(isPlanModeBlockedTool('generate_tts')).toBe(true)
+    }
   })
 })

@@ -1,10 +1,40 @@
 import type { McpToolInfo } from "@/lib/mcpTools";
 import type { RunwareImageConfig } from "@/lib/runware";
 import type { ImageVisionCache } from "@/lib/imageVisionCache";
-import type { SubAgentConfig, ToolsEnabled } from "@/lib/settings";
+import type {
+  SubAgentConfig,
+  ToolsEnabled,
+  TtsProvider,
+  VoiceMode,
+} from "@/lib/settings";
 import type { SubAgentUiCallbacks } from "@/lib/subAgent";
 import type { AgentChatMode, PlanArtifact } from "@/types/chat";
 import type { CodingContextMemo, CodingFileCache } from "@/lib/codingContextMemo";
+import type { StoredVoiceAnchor } from "@/lib/voiceAnchorStorage";
+
+/** Frozen TTS settings for generate_tts (turn snapshot). */
+export type AgentTtsConfig = {
+  ttsBaseUrl: string;
+  ttsProvider: TtsProvider;
+  openrouterApiKey?: string;
+  openrouterTtsModel?: string;
+  openrouterTtsVoice?: string;
+  runwareApiBaseUrl?: string;
+  runwareApiKey?: string;
+  runwareTtsModel?: string;
+  runwareXaiVoice?: string;
+  runwareXaiLanguage?: string;
+  runwarePositivePrompt?: string;
+  runwareTtsSpeed?: number;
+  voiceMode: VoiceMode;
+  voiceInstruct?: string;
+  ttsSpeed?: number;
+  ttsNumStep?: number;
+  ttsDurationSec?: number | null;
+  cloneRef?: { blob: Blob; fileName?: string } | null;
+  cloneRefText?: string | null;
+  voiceAnchor?: StoredVoiceAnchor | null;
+};
 
 /**
  * Shared execution context passed to every tool handler / executeToolCall.
@@ -15,6 +45,8 @@ export interface ExecCtx {
   /** Required for save_pdf when the tool is enabled. */
   pdfOutputDir?: string;
   runware?: RunwareImageConfig;
+  /** Active TTS provider snapshot for generate_tts. */
+  tts?: AgentTtsConfig;
   userImages?: string[];
   userImageMimes?: string[];
   userImagePaths?: string[];

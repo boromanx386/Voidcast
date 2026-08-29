@@ -80,7 +80,7 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   guardFalseImageClaimsUserText?: string
   appendFalseImageClaimReprompt?: (messages: TMessage[]) => void
   maxFalseImageClaimReprompts?: number
-  /** When true, reprompt if the model claims music/audio without calling generate_music_runware. */
+  /** When true, reprompt if the model claims music/audio/TTS without calling generate_music_runware or generate_tts. */
   guardFalseMusicClaims?: boolean
   guardFalseMusicClaimsUserText?: string
   appendFalseMusicClaimReprompt?: (messages: TMessage[]) => void
@@ -548,7 +548,7 @@ export async function runSharedToolLoop<
       if (shared.name === 'generate_image' || shared.name === 'edit_image_runware') {
         hasExecutedImageToolInTurn = true
       }
-      if (shared.name === 'generate_music_runware') {
+      if (shared.name === 'generate_music_runware' || shared.name === 'generate_tts') {
         hasExecutedMusicToolInTurn = true
       }
       if (CODING_ACTION_TOOLS.has(shared.name)) {

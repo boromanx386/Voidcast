@@ -893,7 +893,26 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 .tool-indicator.image { @apply text-neon-magenta border-neon-magenta/30; }
 .tool-indicator.vision { @apply text-sky-400 border-sky-400/35; }
 .tool-indicator.music { @apply text-neon-green border-neon-green/30; }
+.tool-indicator.tts { @apply text-neon-cyan border-neon-cyan/30; }
 .tool-indicator.coding { @apply text-neon-cyan border-neon-cyan/30; }
+
+/* Compact chat audio (music URL + local TTS) — sits in one row with OPEN */
+.chat-audio-player {
+  display: block;
+  width: 100%;
+  max-width: 18rem;
+  height: 28px;
+  margin: 0;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+.chat-audio-player::-webkit-media-controls-panel {
+  background: rgb(var(--color-void-mid) / 0.95);
+}
+.chat-audio-player::-webkit-media-controls-enclosure {
+  max-height: 28px;
+  border-radius: 4px;
+}
 .tool-indicator.settings { @apply text-neon-yellow border-neon-yellow/30; }
 .tool-indicator.reminder { @apply text-neon-orange border-neon-orange/30; }
 .tool-indicator.reddit { @apply text-orange-400 border-orange-400/35; }

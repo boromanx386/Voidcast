@@ -27,6 +27,7 @@ const baseTools: ToolsEnabled = {
   pdf: false,
   runwareImage: false,
   runwareMusic: false,
+  tts: false,
   coding: true,
   enterPlan: true,
 }

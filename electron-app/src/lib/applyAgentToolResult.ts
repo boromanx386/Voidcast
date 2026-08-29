@@ -30,6 +30,7 @@ import { scheduleUserDataSync } from '@/lib/userDataSync'
 import {
   extractRunwareAudioUrls,
   extractRunwareImageUrls,
+  extractAudioPaths,
   extractSavedAudioPaths,
   extractSavedImagePaths,
   parseRunwareAudioToolMeta,
@@ -521,8 +522,8 @@ export function applyAgentToolResult(
       })()
     }
   }
-  if (name === 'generate_music_runware') {
-    const urls = extractRunwareAudioUrls(result)
+  if (name === 'generate_music_runware' || name === 'generate_tts') {
+    const urls = name === 'generate_music_runware' ? extractRunwareAudioUrls(result) : []
     const meta = parseRunwareAudioToolMeta(result)
     if (meta) {
       setAssistantAudioMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
@@ -542,7 +543,46 @@ export function applyAgentToolResult(
         })
       }
     }
-    if (urls.length > 0 && settings.runwareAutoSaveMusic && settings.runwareMusicOutputDir.trim()) {
+
+    const attachSavedAudioPaths = (savedPaths: string[]) => {
+      if (savedPaths.length === 0) return
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== asstId) return m
+          return {
+            ...m,
+            generatedAudioPaths: dedupeNonEmpty([
+              ...(m.generatedAudioPaths || []),
+              ...savedPaths,
+            ]),
+          }
+        }),
+      )
+      setAssistantSavedAudioPaths((prev) => {
+        const cur = prev[asstId] || []
+        const next = Array.from(new Set([...cur, ...savedPaths]))
+        return { ...prev, [asstId]: next }
+      })
+      if (meta) {
+        setAssistantAudioToolMeta((prev) => {
+          const cur = prev[asstId] || {}
+          const next = { ...cur }
+          for (const p of savedPaths) next[p] = meta
+          return { ...prev, [asstId]: next }
+        })
+      }
+    }
+
+    // generate_tts returns audio_path immediately; music may auto-save async.
+    const immediatePaths = extractAudioPaths(result)
+    attachSavedAudioPaths(immediatePaths)
+
+    if (
+      name === 'generate_music_runware' &&
+      urls.length > 0 &&
+      settings.runwareAutoSaveMusic &&
+      settings.runwareMusicOutputDir.trim()
+    ) {
       void (async () => {
         const saved: string[] = []
         for (const u of urls) {
@@ -554,15 +594,13 @@ export function applyAgentToolResult(
         }
         if (saved.length > 0) {
           const savedPaths = extractSavedAudioPaths(saved.join('\n'))
-          if (savedPaths.length > 0) {
-            setAssistantSavedAudioPaths((prev) => {
-              const cur = prev[asstId] || []
-              const next = Array.from(new Set([...cur, ...savedPaths]))
-              return { ...prev, [asstId]: next }
-            })
-          }
+          attachSavedAudioPaths(savedPaths)
         }
       })()
+    }
+
+    if (name === 'generate_tts' && immediatePaths.length > 0) {
+      setCodingFileTreeNonce((n) => n + 1)
     }
   }
 }

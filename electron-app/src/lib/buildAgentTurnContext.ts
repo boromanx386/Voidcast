@@ -8,6 +8,7 @@ import {
   TOOLS_IMAGE_RECALL_HINT,
   TOOLS_RUNWARE_IMAGE_HINT,
   TOOLS_RUNWARE_MUSIC_HINT,
+  TOOLS_TTS_HINT,
   TOOLS_SCRAPE_HINT,
   TOOLS_TRUTH_HINT,
   TOOLS_WEATHER_HINT,
@@ -300,6 +301,7 @@ export async function buildAgentTurnContext(
     }
   }
   if (settings.toolsEnabled.runwareMusic && !readOnlyMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
+  if (settings.toolsEnabled.tts && !readOnlyMode) toolsHintParts.push(TOOLS_TTS_HINT)
   if (settings.toolsEnabled.coding) {
     const codingSub = Boolean(settings.subAgent?.codingEnabled)
     if (readOnlyMode) {

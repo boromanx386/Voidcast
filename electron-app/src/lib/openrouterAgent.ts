@@ -195,7 +195,7 @@ export async function runOpenRouterChatWithTools(
         content: FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
       })
     },
-    guardFalseMusicClaims: params.toolsEnabled.runwareMusic,
+    guardFalseMusicClaims: params.toolsEnabled.runwareMusic || params.toolsEnabled.tts,
     guardFalseMusicClaimsUserText: rawUserText,
     maxFalseMusicClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     appendFalseMusicClaimReprompt: (messages) => {

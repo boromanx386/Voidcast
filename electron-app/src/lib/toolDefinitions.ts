@@ -21,6 +21,7 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'generate_image',
   'edit_image_runware',
   'generate_music_runware',
+  'generate_tts',
   'update_settings',
   'add_reminder',
   'delete_reminder',
@@ -418,6 +419,40 @@ const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
         },
       },
       required: ['prompt'],
+    },
+  },
+}
+
+const GENERATE_TTS_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'generate_tts',
+    description:
+      'MANDATORY: Synthesize speech audio with the user\'s active TTS provider (Local OmniVoice, Runware TTS, or OpenRouter TTS) and save a real audio file. CRITICAL: When the user asks to create/make/generate a voiceover, narration, TTS clip, spoken audio asset, or to save speech into the project, you MUST call this tool BEFORE responding with any text. Do NOT claim a voiceover/file was created without calling this tool first. Pass the exact text to speak. To place the file inside the coding project, pass output_path as a project-relative path (e.g. public/audio/intro.mp3). Absolute paths and .. traversal are rejected. If output_path is omitted, the app saves into its generated-audio folder. Voice/provider settings come from Options → TTS — never pass API keys. After success, give a short caption only; do NOT paste audio_path lines or fake links in chat (the app shows the player).',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'Exact text to synthesize as speech.',
+        },
+        output_path: {
+          type: 'string',
+          description:
+            'Optional project-relative destination (e.g. public/audio/intro.mp3). Requires coding project path. Must stay inside the project root.',
+        },
+        filename: {
+          type: 'string',
+          description:
+            'Optional file base name when output_path is omitted (extension inferred from audio format).',
+        },
+        voice_instruct: {
+          type: 'string',
+          description:
+            'Optional style/voice instruction when the active provider supports it (local design instruct or Runware positive prompt).',
+        },
+      },
+      required: ['text'],
     },
   },
 }
@@ -1293,6 +1328,7 @@ export function buildToolsList(
     out.push(EDIT_IMAGE_RUNWARE_TOOL)
   }
   if (enabled.runwareMusic && !readOnlyMode) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
+  if (enabled.tts && !readOnlyMode) out.push(GENERATE_TTS_TOOL)
   if (enabled.coding) {
     out.push(CODING_LIST_DIRECTORY_TOOL)
     out.push(CODING_READ_FILE_TOOL)
@@ -1358,6 +1394,7 @@ export function anyToolEnabled(
     enabled.pdf ||
     enabled.runwareImage ||
     enabled.runwareMusic ||
+    enabled.tts ||
     enabled.coding ||
     enabled.enterPlan ||
     skillsEnabled ||

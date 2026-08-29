@@ -139,6 +139,8 @@ export function useVoidcastApp() {
     setInput,
     onRead: (msg) => onReadRef.current(msg),
     ttsOk: tts.ttsOk,
+    ttsCloneRef: tts.cloneRef,
+    ttsVoiceAnchor: tts.voiceAnchor,
     refreshReminders: () => refreshRemindersRef.current(),
     refreshLongMemories: () => refreshLongMemoriesRef.current(),
     activeSessionUseLongMemory: settings.longMemoryDefaultEnabled,

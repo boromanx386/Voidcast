@@ -62,6 +62,9 @@ export const TOOLS_IMAGE_RECALL_HINT = `You have image_recall for vision-style a
 /** When Runware music tool is enabled */
 export const TOOLS_RUNWARE_MUSIC_HINT = `You have a Runware music tool named generate_music_runware. Use it when the user asks to create music, song, beat, soundtrack, jingle, or vocals from text. The model variant and audio engine settings (steps, CFG scale, output format, seed, guidance type) are configured by the user in Runware Music Options — never pass them as tool arguments. Pass only content-shaping fields: prompt (always), and optional lyrics, duration_sec (only if the user named a specific length), bpm, key_scale, vocal_language, negative_prompt. Never claim you created music, a song, or audio unless a generate_music_runware tool call actually succeeded in this turn. After tool output, provide a short caption only (title/mood) — the app shows the audio player; do NOT paste audio_url lines or fake http(s) links in chat. If you retry after a failed attempt, do not apologize or explain the retry to the user — just deliver the result.`
 
+/** When TTS generate tool is enabled */
+export const TOOLS_TTS_HINT = `You have a generate_tts tool that synthesizes speech with the user's active TTS provider and writes a real audio file. Use it when the user asks for a voiceover, narration, TTS clip, spoken audio asset, or to save speech into the coding project. Pass text (required). To place the file in the project, pass output_path as a project-relative path such as public/audio/intro.mp3 — absolute paths and .. are rejected. Optional filename applies when output_path is omitted. Optional voice_instruct only for style when the provider supports it. Never claim a voiceover/narration/file was created unless generate_tts succeeded in this turn. After success, short caption only — do NOT paste audio_path lines or fake links (the app shows the player). This is separate from the chat SPEAK button (playback-only).`
+
 /**
  * When coding tools are enabled: chat UI persists absolute paths for images.
  * User attachments: parallel `imagePaths` next to each attachment when picked from disk.
@@ -126,7 +129,7 @@ Coding project root: ${path}`
 /** When any tools are enabled — reduces false claims about tool execution.
  *  Kept short and placed FIRST in the tools hint block so it stays in the
  *  high-attention region of the system prompt across long sessions. */
-export const TOOLS_TRUTH_HINT = `Tool-call truth (highest priority): never claim you generated an image, saved a file, ran a command, searched the web, edited code, exported a PDF, or produced music unless you actually invoked the matching tool on THIS turn and received its tool result. If you only have illustrative or sample content, state explicitly that it is an example — do not imply a real file, URL, or output exists.`
+export const TOOLS_TRUTH_HINT = `Tool-call truth (highest priority): never claim you generated an image, saved a file, ran a command, searched the web, edited code, exported a PDF, produced music, or created a voiceover/TTS audio file unless you actually invoked the matching tool on THIS turn and received its tool result. If you only have illustrative or sample content, state explicitly that it is an example — do not imply a real file, URL, or output exists.`
 export const ATTACHMENT_TRUTH_HINT = `If the chat context already includes attached file snapshots or quoted file text, analyze that provided content directly. Do not say you cannot access local files/tools unless no snapshot/content was provided.`
 
 /** @deprecated use TOOLS_WEB_SEARCH_HINT */

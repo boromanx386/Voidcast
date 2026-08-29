@@ -29,6 +29,7 @@ type Props = Pick<
   | 'assistantGeneratedImages'
   | 'assistantSavedImagePaths'
   | 'assistantGeneratedAudios'
+  | 'assistantSavedAudioPaths'
 >
 
 export function useChatMessageRender(app: Props) {
@@ -39,6 +40,7 @@ export function useChatMessageRender(app: Props) {
     assistantGeneratedImages,
     assistantSavedImagePaths,
     assistantGeneratedAudios,
+    assistantSavedAudioPaths,
   } = app
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const chatMessagesRef = useRef<HTMLElement | null>(null)
@@ -46,7 +48,10 @@ export function useChatMessageRender(app: Props) {
   const thinkingScrollRef = useRef<HTMLDivElement | null>(null)
   const [thinkingPinned, setThinkingPinned] = useState(true)
   const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, LocalImagePreview>>({})
+  const [localAudioUrls, setLocalAudioUrls] = useState<Record<string, string>>({})
   const localPreviewLoadingRef = useRef<Set<string>>(new Set())
+  const localAudioLoadingRef = useRef<Set<string>>(new Set())
+  const localAudioUrlsRef = useRef<Record<string, string>>({})
 
   const desktopRuntime = isElectron()
 
@@ -80,11 +85,11 @@ export function useChatMessageRender(app: Props) {
   const openLocalImage = useCallback(async (filePath: string) => {
     try {
       const vc = window.voidcast?.openPath
-      if (!vc) throw new Error('Open image is available only in Electron app.')
+      if (!vc) throw new Error('Open file is available only in Electron app.')
       const r: unknown = await vc(filePath)
       if (typeof r === 'string') return
       const obj = r as { ok?: boolean; text?: string }
-      if (obj.ok === false) throw new Error(obj.text || 'Failed to open image.')
+      if (obj.ok === false) throw new Error(obj.text || 'Failed to open file.')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -101,6 +106,8 @@ export function useChatMessageRender(app: Props) {
         markdownContent: string
         inlineImageUrls: string[]
         localImagePaths: string[]
+        localAudioPaths: string[]
+        inlineAudioUrls: string[]
       }
     > = {}
     for (const m of messages) {
@@ -130,7 +137,19 @@ export function useChatMessageRender(app: Props) {
             ...(assistantSavedImagePaths[m.id] || []),
           ])
         : []
-      out[m.id] = { markdownContent, inlineImageUrls, localImagePaths }
+      const localAudioPaths = desktopRuntime
+        ? dedupeNonEmpty([
+            ...(m.generatedAudioPaths || []),
+            ...(assistantSavedAudioPaths[m.id] || []),
+          ])
+        : []
+      out[m.id] = {
+        markdownContent,
+        inlineImageUrls,
+        localImagePaths,
+        localAudioPaths,
+        inlineAudioUrls: trustedAudioUrls,
+      }
     }
     return out
   }, [
@@ -138,6 +157,7 @@ export function useChatMessageRender(app: Props) {
     assistantGeneratedImages,
     assistantGeneratedAudios,
     assistantSavedImagePaths,
+    assistantSavedAudioPaths,
     desktopRuntime,
   ])
 
@@ -148,6 +168,12 @@ export function useChatMessageRender(app: Props) {
     for (const msg of messages) {
       if (msg.role !== 'assistant' || !msg.generatedImagePaths?.length) continue
       for (const p of msg.generatedImagePaths) {
+        const path = (p || '').trim()
+        if (path) candidates.add(path)
+      }
+    }
+    for (const paths of Object.values(assistantSavedImagePaths)) {
+      for (const p of paths || []) {
         const path = (p || '').trim()
         if (path) candidates.add(path)
       }
@@ -170,7 +196,53 @@ export function useChatMessageRender(app: Props) {
           localPreviewLoadingRef.current.delete(p)
         })
     }
-  }, [desktopRuntime, localImagePreviews, messages])
+  }, [assistantSavedImagePaths, desktopRuntime, localImagePreviews, messages])
+
+  useEffect(() => {
+    const readAudioFile = window.voidcast?.readAudioFile
+    if (!desktopRuntime || !readAudioFile) return
+    const candidates = new Set<string>()
+    for (const msg of messages) {
+      if (msg.role !== 'assistant') continue
+      for (const p of msg.generatedAudioPaths || []) {
+        const path = (p || '').trim()
+        if (path) candidates.add(path)
+      }
+    }
+    for (const paths of Object.values(assistantSavedAudioPaths)) {
+      for (const p of paths || []) {
+        const path = (p || '').trim()
+        if (path) candidates.add(path)
+      }
+    }
+    for (const p of candidates) {
+      if (localAudioUrlsRef.current[p] || localAudioLoadingRef.current.has(p)) continue
+      localAudioLoadingRef.current.add(p)
+      void readAudioFile({ path: p })
+        .then((res) => {
+          if (!res.ok || !res.file?.base64?.trim()) return
+          const binary = atob(res.file.base64.replace(/\s+/g, ''))
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          const blob = new Blob([bytes], { type: res.file.mime || 'audio/mpeg' })
+          const url = URL.createObjectURL(blob)
+          localAudioUrlsRef.current[p] = url
+          setLocalAudioUrls((prev) => ({ ...prev, [p]: url }))
+        })
+        .finally(() => {
+          localAudioLoadingRef.current.delete(p)
+        })
+    }
+  }, [assistantSavedAudioPaths, desktopRuntime, messages])
+
+  useEffect(() => {
+    return () => {
+      for (const url of Object.values(localAudioUrlsRef.current)) {
+        URL.revokeObjectURL(url)
+      }
+      localAudioUrlsRef.current = {}
+    }
+  }, [])
 
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -197,6 +269,7 @@ export function useChatMessageRender(app: Props) {
     setThinkingPinned,
     assistantRenderCache,
     localImagePreviews,
+    localAudioUrls,
     downloadImage,
     openLocalImage,
     desktopRuntime,

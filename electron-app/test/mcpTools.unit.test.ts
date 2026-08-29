@@ -89,6 +89,7 @@ describe('mcp progressive disclosure (3 layers)', () => {
         pdf: false,
         runwareImage: false,
         runwareMusic: false,
+        tts: false,
         coding: false,
         enterPlan: false,
       },

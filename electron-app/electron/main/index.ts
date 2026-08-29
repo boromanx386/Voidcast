@@ -48,6 +48,12 @@ import {
   shouldSkipCodingProjectDir,
 } from '../../src/lib/codingProjectSkip'
 import {
+  extensionFromAudioMime,
+  isPathInsideRoot,
+  sanitizeAudioBaseName,
+  validateProjectRelativeAudioPath,
+} from '../../src/lib/generatedAssetPath'
+import {
   CODING_SEARCH_CONTEXT_LINES,
   CODING_SEARCH_INTERNAL_MAX,
   CODING_SEARCH_LINE_TEXT_MAX,
@@ -1106,6 +1112,132 @@ ipcMain.handle(
       return { ok: true, text: `Saved audio: ${outPath}` }
     } catch (e) {
       return { ok: false, text: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:save-audio-bytes',
+  async (
+    _evt,
+    payload: {
+      bytes?: ArrayBuffer | Uint8Array | number[]
+      mime?: string
+      filename?: string
+      /** App/generated folder when not writing into a coding project. */
+      outputDir?: string
+      /** Coding project root — required when relativePath is set. */
+      projectPath?: string
+      /** Project-relative destination (validated). */
+      relativePath?: string
+    },
+  ) => {
+    try {
+      const rawBytes = payload?.bytes
+      let bytes: Buffer
+      if (rawBytes instanceof ArrayBuffer) {
+        bytes = Buffer.from(rawBytes)
+      } else if (ArrayBuffer.isView(rawBytes)) {
+        bytes = Buffer.from(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength)
+      } else if (Array.isArray(rawBytes)) {
+        bytes = Buffer.from(rawBytes)
+      } else {
+        return { ok: false, text: 'Missing audio bytes' }
+      }
+      if (!bytes.length) return { ok: false, text: 'Empty audio payload' }
+
+      const mime = String(payload?.mime ?? '').trim() || 'audio/mpeg'
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      const relativePath = String(payload?.relativePath ?? '').trim()
+      const outputDirRaw = String(payload?.outputDir ?? '').trim()
+      const filenameHint = String(payload?.filename ?? '').trim()
+
+      let outPath: string
+      let relativeOut = ''
+
+      if (relativePath) {
+        if (!projectPath) {
+          return { ok: false, text: 'projectPath is required when relativePath is set' }
+        }
+        const validated = validateProjectRelativeAudioPath(relativePath, { mime })
+        if (!validated.ok) return { ok: false, text: validated.error }
+        const root = path.resolve(projectPath)
+        try {
+          const rootStat = await stat(root)
+          if (!rootStat.isDirectory()) {
+            return { ok: false, text: 'Coding project path is not a directory.' }
+          }
+        } catch {
+          return { ok: false, text: 'Coding project path does not exist.' }
+        }
+        const absCandidate = path.resolve(root, validated.relativePath)
+        if (!isPathInsideRoot(root, absCandidate)) {
+          return { ok: false, text: 'Path escapes project root.' }
+        }
+        await mkdir(path.dirname(absCandidate), { recursive: true })
+        const parent = path.dirname(absCandidate)
+        if (!isPathInsideRoot(root, parent) && path.resolve(parent) !== root) {
+          return { ok: false, text: 'Path escapes project root after mkdir.' }
+        }
+        const base = path.basename(absCandidate, path.extname(absCandidate))
+        const ext = path.extname(absCandidate) || validated.ext
+        outPath = await nextAvailablePath(parent, base, ext)
+        if (!isPathInsideRoot(root, outPath)) {
+          return { ok: false, text: 'Resolved output path escapes project root.' }
+        }
+        relativeOut = path.relative(root, outPath).split(path.sep).join('/')
+      } else {
+        const outputDir =
+          outputDirRaw || path.join(app.getPath('userData'), 'generated-audio')
+        await mkdir(outputDir, { recursive: true })
+        const ext = extensionFromAudioMime(mime)
+        const base = sanitizeAudioBaseName(
+          filenameHint || `voidcast-tts-${new Date().toISOString().replace(/[:.]/g, '-')}`,
+        )
+        outPath = await nextAvailablePath(outputDir, base, ext)
+      }
+
+      await writeFile(outPath, bytes)
+      const text = relativeOut
+        ? `Saved audio: ${outPath}\naudio_rel_path: ${relativeOut}`
+        : `Saved audio: ${outPath}`
+      return { ok: true, text, path: outPath, relativePath: relativeOut || undefined }
+    } catch (e) {
+      return { ok: false, text: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:read-audio-file',
+  async (_evt, payload: { path?: string }) => {
+    try {
+      const filePath = String(payload?.path ?? '').trim()
+      if (!filePath) return { ok: false, error: 'Missing path' }
+      const abs = path.resolve(filePath)
+      const bytes = await readFile(abs)
+      const ext = path.extname(abs).toLowerCase()
+      const mime =
+        ext === '.wav'
+          ? 'audio/wav'
+          : ext === '.flac'
+            ? 'audio/flac'
+            : ext === '.ogg'
+              ? 'audio/ogg'
+              : ext === '.m4a'
+                ? 'audio/mp4'
+                : 'audio/mpeg'
+      return {
+        ok: true,
+        file: {
+          base64: bytes.toString('base64'),
+          mime,
+          name: path.basename(abs),
+          path: abs,
+        },
+      }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   },
 )

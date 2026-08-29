@@ -16,6 +16,7 @@ import { compressConversationContext } from '@/lib/contextCompress'
 import {
   CONTEXT_COMPRESS_RATIO_RESET,
   estimateContextUsage,
+  estimateContextUsageAfterCompression,
 } from '@/lib/contextUsage'
 import { resolveContextLimit } from '@/lib/contextLimit'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
@@ -74,6 +75,7 @@ import {
   type SubAgentPanelState,
 } from '@/lib/subAgentPanelState'
 import { buildSteerCourseCorrectionText, toConversationTurns } from '@/lib/chatHints'
+import { sliceUiHistoryForContext } from '@/lib/chatMessages'
 import { getCodingProjectPath } from '@/lib/codingContextMemo'
 import {
   DRAFT_RUNTIME_KEY,
@@ -145,6 +147,10 @@ export type UseChatAgentDeps = {
 
   onRead: (msg: UiMessage) => Promise<void>
   ttsOk: boolean | null
+  /** Live clone reference for local TTS (generate_tts). */
+  ttsCloneRef?: { blob: Blob; fileName: string } | null
+  /** Live voice anchor for local TTS design mode. */
+  ttsVoiceAnchor?: import('@/lib/voiceAnchorStorage').StoredVoiceAnchor | null
 
   refreshReminders: () => void | Promise<void>
   refreshLongMemories: () => void | Promise<void>
@@ -251,6 +257,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     setInput,
     onRead,
     ttsOk,
+    ttsCloneRef,
+    ttsVoiceAnchor,
     refreshReminders,
     refreshLongMemories,
     activeSessionUseLongMemory,
@@ -408,6 +416,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     if (busy || contextCompressBusy) return
     const turns = toConversationTurns(messages)
     if (turns.length === 0) return
+    const previousTurns = toConversationTurns(
+      sliceUiHistoryForContext(
+        messages,
+        hiddenContextSummary,
+        contextCompressedThroughIndex,
+      ),
+    )
 
     setContextCompressBusy(true)
     setError(null)
@@ -445,6 +460,17 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setHiddenContextSummary(nextSummary)
       setContextCompressedThroughIndex(throughIndex)
       setContextWarnDismissed(true)
+      // Prevent auto-compress from immediately re-entering while the
+      // post-compression usage is still only an estimate.
+      sessionAgentStore.update(runtimeKey, { contextOverflowLatch: true })
+      const estimatedUsage = estimateContextUsageAfterCompression(
+        contextUsageInfo,
+        previousTurns,
+        hiddenContextSummary,
+        nextSummary,
+        resolveContextLimit(settings),
+      )
+      if (estimatedUsage) setContextUsageInfo(estimatedUsage)
       onContextCompressed?.({
         summary: nextSummary,
         throughIndex,
@@ -459,12 +485,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   }, [
     busy,
     contextCompressBusy,
+    contextCompressedThroughIndex,
+    contextUsageInfo,
     hiddenContextSummary,
     messages,
     onContextCompressed,
     runtimeKey,
     setContextCompressedThroughIndex,
     setContextCompressBusy,
+    setContextUsageInfo,
     setContextWarnDismissed,
     setError,
     setHiddenContextSummary,
@@ -880,6 +909,28 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             getActiveBuildPlan: () => liveBuildPlan,
             ttsBaseUrl: turnSettings.ttsBaseUrl,
             pdfOutputDir: effectivePdfOutputDir,
+            tts: {
+              ttsBaseUrl: turnSettings.ttsBaseUrl,
+              ttsProvider: turnSettings.ttsProvider,
+              openrouterApiKey: turnSettings.openrouterApiKey,
+              openrouterTtsModel: turnSettings.openrouterTtsModel,
+              openrouterTtsVoice: turnSettings.openrouterTtsVoice,
+              runwareApiBaseUrl: turnSettings.runwareApiBaseUrl,
+              runwareApiKey: turnSettings.runwareApiKey,
+              runwareTtsModel: turnSettings.runwareTtsModel,
+              runwareXaiVoice: turnSettings.runwareXaiVoice,
+              runwareXaiLanguage: turnSettings.runwareXaiLanguage,
+              runwarePositivePrompt: turnSettings.runwareXaiPositivePrompt || undefined,
+              runwareTtsSpeed: turnSettings.runwareTtsSpeed,
+              voiceMode: turnSettings.voiceMode,
+              voiceInstruct: turnSettings.voiceInstruct || undefined,
+              ttsSpeed: turnSettings.ttsSpeed,
+              ttsNumStep: turnSettings.ttsNumStep,
+              ttsDurationSec: turnSettings.ttsDurationSec,
+              cloneRef: ttsCloneRef ?? null,
+              cloneRefText: turnSettings.cloneRefText || null,
+              voiceAnchor: ttsVoiceAnchor ?? null,
+            },
             runware: {
               apiBaseUrl: turnSettings.runwareApiBaseUrl || 'https://api.runware.ai/v1',
               apiKey: turnSettings.runwareApiKey,
@@ -1388,7 +1439,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setSettings,
       settings,
       systemPromptPresetRef,
+      ttsCloneRef,
       ttsOk,
+      ttsVoiceAnchor,
     ],
   )
 

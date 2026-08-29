@@ -1123,6 +1123,8 @@ export type ToolsEnabled = {
   runwareImage: boolean
   /** Generate music/audio via Runware ACE-Step model */
   runwareMusic: boolean
+  /** Generate speech audio via the active TTS provider and optionally save into the coding project */
+  tts: boolean
   /** Local coding tools (file read/write/search + terminal command execution) */
   coding: boolean
   /** Agent can switch the conversation into Plan mode (read-only plan flow). */
@@ -1518,6 +1520,7 @@ export const defaults: AppSettings = {
     reddit: true,
     runwareImage: true,
     runwareMusic: true,
+    tts: true,
     coding: true,
     enterPlan: true,
   },
@@ -1701,6 +1704,7 @@ function normalizeTools(s: AppSettings): AppSettings {
         typeof te?.runwareMusic === 'boolean'
           ? te.runwareMusic
           : defaults.toolsEnabled.runwareMusic,
+      tts: typeof te?.tts === 'boolean' ? te.tts : defaults.toolsEnabled.tts,
       coding: codingEnabled,
       enterPlan:
         typeof te?.enterPlan === 'boolean' ? te.enterPlan : defaults.toolsEnabled.enterPlan,

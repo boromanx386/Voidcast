@@ -17,6 +17,16 @@ contextBridge.exposeInMainWorld('voidcast', {
     outputDir: string
     filename?: string
   }) => ipcRenderer.invoke('voidcast:save-audio-from-url', payload),
+  saveAudioBytes: (payload: {
+    bytes: ArrayBuffer
+    mime?: string
+    filename?: string
+    outputDir?: string
+    projectPath?: string
+    relativePath?: string
+  }) => ipcRenderer.invoke('voidcast:save-audio-bytes', payload),
+  readAudioFile: (payload: { path: string }) =>
+    ipcRenderer.invoke('voidcast:read-audio-file', payload),
   runwareProxy: (payload: {
     api_base_url: string
     api_key: string

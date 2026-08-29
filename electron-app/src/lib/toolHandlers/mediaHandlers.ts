@@ -23,6 +23,16 @@ import {
   type ImageRecallToolResult,
 } from "@/lib/toolHandlers/helpers";
 import type { ToolHandlerFn, ToolHandlerRegistry } from "@/lib/toolExecTypes";
+import { synthesizeSpeech } from "@/lib/tts";
+import { invokeSaveAudioBytes } from "@/lib/saveAudio";
+import {
+  extensionFromAudioMime,
+  validateProjectRelativeAudioPath,
+} from "@/lib/generatedAssetPath";
+import { isElectron, isWebStandalone } from "@/lib/platform";
+import { sanitizeForTts } from "@/lib/chatHints";
+
+const MAX_TTS_TOOL_CHARS = 8_000;
 
 export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.runwareImage) {
@@ -352,9 +362,152 @@ export const handleGenerateMusicRunware: ToolHandlerFn = async (args, ctx) => {
   }
 };
 
+export const handleGenerateTts: ToolHandlerFn = async (args, ctx) => {
+  if (!ctx.toolsEnabled.tts) {
+    return "Error: generate_tts tool is disabled in settings.";
+  }
+  if (!isElectron()) {
+    return "Error: generate_tts is only available in the desktop app (Electron).";
+  }
+  const tts = ctx.tts;
+  if (!tts) {
+    return "Error: TTS settings are missing for this turn.";
+  }
+  const rawText =
+    typeof args.text === "string"
+      ? args.text
+      : typeof args.prompt === "string"
+        ? args.prompt
+        : "";
+  const spoken = sanitizeForTts(rawText).trim();
+  if (!spoken) return "Error: missing text parameter for generate_tts.";
+  if (spoken.length > MAX_TTS_TOOL_CHARS) {
+    return `Error: text is too long for generate_tts (max ${MAX_TTS_TOOL_CHARS} characters).`;
+  }
+
+  const outputPathRaw =
+    typeof args.output_path === "string"
+      ? args.output_path.trim()
+      : typeof args.outputPath === "string"
+        ? args.outputPath.trim()
+        : "";
+  const filenameRaw =
+    typeof args.filename === "string"
+      ? args.filename.trim()
+      : typeof args.file_name === "string"
+        ? args.file_name.trim()
+        : "";
+  const voiceInstructOverride =
+    typeof args.voice_instruct === "string"
+      ? args.voice_instruct.trim()
+      : typeof args.voiceInstruct === "string"
+        ? args.voiceInstruct.trim()
+        : "";
+
+  let relativePath: string | undefined;
+  if (outputPathRaw) {
+    const projectPath = (ctx.codingProjectPath || "").trim();
+    if (!projectPath) {
+      return "Error: output_path requires a coding project folder (Options → Tools).";
+    }
+    const validated = validateProjectRelativeAudioPath(outputPathRaw);
+    if (!validated.ok) return `Error: ${validated.error}`;
+    relativePath = validated.relativePath;
+  }
+
+  const voiceMode =
+    tts.ttsProvider === "local"
+      ? isWebStandalone()
+        ? "design"
+        : tts.voiceMode
+      : "design";
+  if (
+    voiceMode === "clone" &&
+    (!tts.cloneRef?.blob || tts.cloneRef.blob.size === 0)
+  ) {
+    return "Error: VOICE_CLONE is selected but no reference audio is loaded (Options → TTS/STT).";
+  }
+
+  const instruct =
+    voiceInstructOverride ||
+    (voiceMode === "design" ? tts.voiceInstruct : undefined) ||
+    undefined;
+  const positivePrompt =
+    voiceInstructOverride || tts.runwarePositivePrompt || undefined;
+
+  const started = Date.now();
+  try {
+    const blob = await synthesizeSpeech({
+      ttsBaseUrl: tts.ttsBaseUrl,
+      ttsProvider: tts.ttsProvider,
+      openrouterApiKey: tts.openrouterApiKey,
+      openrouterTtsModel: tts.openrouterTtsModel,
+      openrouterTtsVoice: tts.openrouterTtsVoice,
+      runwareApiBaseUrl: tts.runwareApiBaseUrl,
+      runwareApiKey: tts.runwareApiKey,
+      runwareTtsModel: tts.runwareTtsModel,
+      runwareXaiVoice: tts.runwareXaiVoice,
+      runwareXaiLanguage: tts.runwareXaiLanguage,
+      runwarePositivePrompt: positivePrompt,
+      runwareTtsSpeed: tts.runwareTtsSpeed,
+      text: spoken,
+      voiceMode,
+      instruct,
+      speed: tts.ttsSpeed,
+      numStep: tts.ttsNumStep,
+      durationSec: tts.ttsDurationSec ?? null,
+      cloneRef: isWebStandalone() ? null : tts.cloneRef ?? null,
+      cloneRefText: isWebStandalone() ? null : tts.cloneRefText ?? null,
+      voiceAnchor: tts.voiceAnchor ?? null,
+      signal: ctx.signal,
+    });
+    if (!blob || blob.size === 0) {
+      return "Error: TTS returned empty audio.";
+    }
+    const mime = blob.type || "audio/mpeg";
+    const bytes = await blob.arrayBuffer();
+    const projectPath = (ctx.codingProjectPath || "").trim();
+    const saved = await invokeSaveAudioBytes({
+      bytes,
+      mime,
+      filename: filenameRaw || undefined,
+      ...(relativePath
+        ? { projectPath, relativePath }
+        : {}),
+    });
+    if (!saved.ok || !saved.path) {
+      return `Error: failed to save TTS audio. ${saved.text || ""}`.trim();
+    }
+    const elapsedMs = Date.now() - started;
+    const model =
+      tts.ttsProvider === "openrouter-tts"
+        ? tts.openrouterTtsModel || ""
+        : tts.ttsProvider === "runware-xai"
+          ? tts.runwareTtsModel || ""
+          : "local-omnivoice";
+    const compact = spoken.replace(/\s+/g, " ").trim();
+    const promptPreview =
+      compact.length > 240 ? `${compact.slice(0, 240)}…` : compact;
+    const lines = [
+      "TTS audio generated successfully.",
+      `audio_path: ${saved.path}`,
+      `provider: ${tts.ttsProvider}`,
+      `output_format: ${extensionFromAudioMime(mime).replace(".", "").toUpperCase()}`,
+    ];
+    if (saved.relativePath) lines.push(`audio_rel_path: ${saved.relativePath}`);
+    if (model) lines.push(`model: ${model}`);
+    if (promptPreview) lines.push(`prompt: ${promptPreview}`);
+    lines.push(`elapsed_ms: ${Math.max(0, Math.round(elapsedMs))}`);
+    return lines.join("\n");
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+};
+
 export const mediaHandlersRegistry: ToolHandlerRegistry = {
   ["generate_image"]: handleGenerateImage,
   ["edit_image_runware"]: handleEditImageRunware,
   ["image_recall"]: handleImageRecall,
   ["generate_music_runware"]: handleGenerateMusicRunware,
+  ["generate_tts"]: handleGenerateTts,
 };

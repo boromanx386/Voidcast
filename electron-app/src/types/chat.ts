@@ -112,6 +112,8 @@ export type UiMessage = {
   generatedImageUrls?: string[]
   /** Assistant-generated local image file paths (desktop source-of-truth). */
   generatedImagePaths?: string[]
+  /** Assistant-generated local audio file paths (TTS / saved music). */
+  generatedAudioPaths?: string[]
   /** Assistant only: structured plan from Plan mode (editable until approved/built). */
   plan?: PlanArtifact
   /**

@@ -30,7 +30,27 @@ interface VoidcastBridge {
     audioUrl: string
     outputDir: string
     filename?: string
-  }) => Promise<{ ok: true; path: string } | { ok: false; error?: string }>
+  }) => Promise<{ ok: true; text: string } | { ok: false; text?: string; error?: string }>
+
+  saveAudioBytes: (payload: {
+    bytes: ArrayBuffer
+    mime?: string
+    filename?: string
+    outputDir?: string
+    projectPath?: string
+    relativePath?: string
+  }) => Promise<
+    | { ok: true; text: string; path: string; relativePath?: string }
+    | { ok: false; text?: string; error?: string }
+  >
+
+  readAudioFile: (payload: { path: string }) => Promise<
+    | {
+        ok: true
+        file: { base64: string; mime: string; name: string; path: string }
+      }
+    | { ok: false; error?: string }
+  >
 
   runwareProxy: (payload: {
     api_base_url: string

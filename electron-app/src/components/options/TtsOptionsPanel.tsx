@@ -889,6 +889,28 @@ export function TtsOptionsPanel({
         </span>
       </label>
 
+      <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
+        <input
+          type="checkbox"
+          className="mt-1 h-4 w-4 accent-neon-cyan"
+          checked={settings.toolsEnabled.tts}
+          onChange={(e) =>
+            setSettings((s) => ({
+              ...s,
+              toolsEnabled: { ...s.toolsEnabled, tts: e.target.checked },
+            }))
+          }
+        />
+        <span>
+          <span className="font-mono text-sm text-neon-cyan">ENABLE_TTS_TOOL</span>
+          <span className="mt-1 block text-xs text-void-dim">
+            Lets the agent call{' '}
+            <code className="text-neon-cyan">generate_tts</code> to synthesize speech
+            and save an audio file (optionally into the coding project).
+          </span>
+        </span>
+      </label>
+
         {/* Chunk Size */}
         <div className="form-group">
           <label className="form-label">
