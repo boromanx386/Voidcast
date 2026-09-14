@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { runSharedToolLoop } from '../src/lib/agentToolLoop'
+import {
+  TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY,
+} from '../src/lib/agentToolUtils'
 
 type Message = { role: string; content: string }
 type ProviderCall = { id: string; name: string; args: Record<string, unknown> }
@@ -203,5 +206,47 @@ describe('runSharedToolLoop parallel tool execution', () => {
       'read_file:c',
     ])
     expect(result.content).toBe('done')
+  })
+
+  it('rejects budget wrap-up prose when guardRepoActionTruth and no repo mutations', async () => {
+    let streamCount = 0
+    const result = await runSharedToolLoop<
+      { role: string; content: string },
+      { id: string; name: string; args: Record<string, unknown> }
+    >({
+      initialMessages: [],
+      maxToolRounds: 1,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      guardRepoActionTruth: true,
+      streamRound: async () => {
+        if (streamCount++ === 0) {
+          return {
+            content: '',
+            thinking: '',
+            toolCalls: [{ id: 'a', name: 'read_file', args: {} }],
+          }
+        }
+        return {
+          content: 'All files committed and tests pass.',
+          thinking: '',
+          toolCalls: [],
+        }
+      },
+      toSharedToolCalls: (calls) =>
+        calls.map((c) => ({ name: c.name, argsRaw: c.args, raw: c })),
+      appendAssistantWithToolCalls: ({ messages, content }) => {
+        messages.push({ role: 'assistant', content })
+      },
+      appendToolResult: ({ messages, name, result: r }) => {
+        messages.push({ role: 'tool', content: `${name}:${r}` })
+      },
+      appendToolRequiredReprompt: () => {},
+      appendToolBudgetExhaustedReprompt: () => {},
+      executeToolCall: async () => '1| hello',
+      onDelta: () => {},
+    })
+
+    expect(result.content).toBe(TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY)
   })
 })

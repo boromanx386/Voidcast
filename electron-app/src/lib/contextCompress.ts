@@ -40,6 +40,8 @@ export async function compressConversationContext(params: {
   crofaiModel?: string
   turns: ContextTurn[]
   existingSummary?: string
+  /** Tool-derived coding state (not assistant chat claims). */
+  verifiedCodingState?: string
   modelOptions?: OllamaModelOptions
   signal?: AbortSignal
 }): Promise<string> {
@@ -47,16 +49,27 @@ export async function compressConversationContext(params: {
   if (!transcript.trim()) return params.existingSummary?.trim() ?? ''
 
   const system =
-    'You are compressing conversation context for an assistant memory buffer. Produce a concise, factual summary for future turns. Keep critical user preferences, constraints, unresolved tasks, concrete facts, and recent decisions. Use short bullet lines. Do not include meta commentary.'
-  const userPrompt = [
+    'You are compressing conversation context for an assistant memory buffer. Produce a concise, factual summary for future turns. Keep critical user preferences, constraints, unresolved tasks, concrete facts, and recent decisions. Use short bullet lines. Do not include meta commentary. Assistant claims that files were edited, commands ran, or git commits happened are NOT evidence unless corroborated in verified coding state below.'
+  const verified = params.verifiedCodingState?.trim()
+  const userParts = [
     'Existing memory summary (may be empty):',
     params.existingSummary?.trim() || '(none)',
+  ]
+  if (verified) {
+    userParts.push(
+      '',
+      'Verified coding state from tool logs (trust over assistant prose):',
+      verified,
+    )
+  }
+  userParts.push(
     '',
     'Conversation transcript to compress:',
     transcript,
     '',
     'Return only the updated compressed memory.',
-  ].join('\n')
+  )
+  const userPrompt = userParts.join('\n')
   const messages: OllamaApiMessage[] = [
     { role: 'system', content: system },
     { role: 'user', content: userPrompt },

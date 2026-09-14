@@ -61,6 +61,38 @@ describe('buildCodingTurnSummary', () => {
     ).toBe('')
   })
 
+  it('omits agent note when only read-only tool events', () => {
+    let log = emptyCodingTurnLog()
+    log = recordCodingToolInTurnLog(log, 'search_files', { query: 'auth' }, 'src/auth.ts')
+    log = recordCodingToolInTurnLog(log, 'git_status', {}, 'On branch main')
+    const summary = buildCodingTurnSummary({
+      userGoal: 'what does this file do',
+      log,
+      assistantReply: 'I read the file and it looks fine.',
+    })
+    expect(summary).toContain('No repo changes this turn')
+    expect(summary).not.toContain('Agent note:')
+    expect(summary).not.toContain('do not redo completed edits')
+  })
+
+  it('includes commands line for git commit shell', () => {
+    let log = emptyCodingTurnLog()
+    log = recordCodingToolInTurnLog(
+      log,
+      'execute_command',
+      { command: 'git commit -m "wip"' },
+      '$ git commit -m "wip"\n[main 1] wip',
+    )
+    const summary = buildCodingTurnSummary({
+      userGoal: 'commit',
+      log,
+      assistantReply: 'Committed.',
+    })
+    expect(summary).toContain('Commands:')
+    expect(summary).toContain('git commit')
+    expect(summary).toContain('Agent note:')
+  })
+
   it('builds a compact digest with goal, changes, failures, and agent note', () => {
     let log = emptyCodingTurnLog()
     log = recordCodingToolInTurnLog(

@@ -122,6 +122,20 @@ export type UiMessage = {
    * in timeline order after later user prompts.
    */
   subAgentActivity?: SubAgentPanelState
+  /**
+   * Assistant only: tool-log evidence for Agent/Team coding turns (files, shell, git).
+   * Language-neutral; derived from CodingTurnLog, not assistant prose.
+   */
+  codingTurnEvidence?: {
+    filesChanged: number
+    filePaths?: string[]
+    commandsRun: number
+    commandSummaries?: string[]
+    gitMutations: number
+    gitSummaries?: string[]
+    hadRepoAction: boolean
+    hadAnyToolEvents: boolean
+  }
 }
 
 import type { CodingContextMemo } from '@/lib/codingContextMemo'

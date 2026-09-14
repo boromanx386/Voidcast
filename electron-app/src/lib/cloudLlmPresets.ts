@@ -132,6 +132,7 @@ export const CROFAI_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'greg-2-super', label: 'Greg 2 Super' },
   { id: 'greg-1-mini', label: 'Greg 1 Mini' },
   { id: 'glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
+  { id: 'glm-5.3', label: 'GLM 5 3 (1M ctx)' },
 ]
 
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {

@@ -30,6 +30,7 @@ import {
   FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
   FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
   getLastUserText,
+  isImplementAgentMode,
   parseToolArguments,
   TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE,
   TOOL_BUDGET_WARNING_REPROMPT_MESSAGE,
@@ -80,6 +81,8 @@ export async function runOpenRouterChatWithTools(
 
   const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
   const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
+  const implementCoding =
+    params.toolsEnabled.coding && isImplementAgentMode(params.agentMode)
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
     initialMessages,
@@ -204,7 +207,8 @@ export async function runOpenRouterChatWithTools(
         content: FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
       })
     },
-    guardFalseCodingClaims: params.toolsEnabled.coding && params.agentMode !== 'plan',
+    guardFalseCodingClaims:
+      params.toolsEnabled.coding && !isImplementAgentMode(params.agentMode),
     guardFalseCodingClaimsUserText: rawUserText,
     maxFalseCodingClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     appendFalseCodingClaimReprompt: (messages) => {
@@ -213,6 +217,7 @@ export async function runOpenRouterChatWithTools(
         content: FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
       })
     },
+    guardRepoActionTruth: implementCoding,
     appendRuntimeRecalledImages: (messages, recalled) => {
       messages.push({
         role: 'user',

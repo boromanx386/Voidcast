@@ -12,7 +12,30 @@ import {
 } from '@/lib/runwareMessageMeta'
 import type { ChatMessageRenderContext } from '@/hooks/useChatMessageRender'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
+import {
+  emptyCodingTurnEvidence,
+  formatCodingTurnEvidenceLabel,
+} from '@/lib/codingContextMemo'
 import type { UiMessage } from '@/types/chat'
+
+function codingTurnEvidenceLabel(
+  ev: NonNullable<UiMessage['codingTurnEvidence']>,
+): string {
+  return formatCodingTurnEvidenceLabel({
+    ...emptyCodingTurnEvidence(),
+    filesChanged: ev.filesChanged,
+    filePaths: ev.filePaths ?? [],
+    commandsRun: ev.commandsRun,
+    commandSummaries: ev.commandSummaries ?? [],
+    gitMutations: ev.gitMutations,
+    gitSummaries: ev.gitSummaries ?? [],
+    hadAnyToolEvents: ev.hadAnyToolEvents,
+    hadFileMutation: ev.filesChanged > 0,
+    hadCommand: ev.commandsRun > 0,
+    hadGitMutation: ev.gitMutations > 0,
+    hadRepoAction: ev.hadRepoAction,
+  })
+}
 
 type Props = {
   message: UiMessage
@@ -210,6 +233,14 @@ export function ChatMessage({
                     />
                   ) : null}
                   <ChatMarkdown content={markdownContent} />
+                  {m.codingTurnEvidence ? (
+                    <p
+                      className="mt-2 border-t border-void-muted/20 pt-2 text-[11px] font-mono text-void-dim"
+                      title="Derived from tool calls this turn, not assistant text"
+                    >
+                      Tools: {codingTurnEvidenceLabel(m.codingTurnEvidence)}
+                    </p>
+                  ) : null}
                   {m.plan ? (
                     <PlanArtifactCard
                       messageId={m.id}

@@ -3,10 +3,12 @@ import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import {
   CODING_ACTION_TOOLS,
   isParallelSafeAgentTool,
+  isSuccessfulRepoActionTool,
   shouldGuardFalseCodingClaims,
   shouldGuardFalseImageClaims,
   shouldGuardFalseMusicClaims,
   TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY,
+  TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY,
 } from '@/lib/agentToolUtils'
 import { shouldEvictOldToolResult } from '@/lib/codingSubAgent'
 import { sanitizeImageToolResultForLlm } from '@/lib/openrouterImage'
@@ -90,6 +92,11 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   guardFalseCodingClaimsUserText?: string
   appendFalseCodingClaimReprompt?: (messages: TMessage[]) => void
   maxFalseCodingClaimReprompts?: number
+  /**
+   * When true (Agent/Team + coding), budget wrap-up must not present model prose as
+   * repo work unless a successful file/shell/git mutation occurred this turn.
+   */
+  guardRepoActionTruth?: boolean
   appendRuntimeRecalledImages?: (
     messages: TMessage[],
     recalled: Array<{ base64: string; mime: string }>,
@@ -211,6 +218,7 @@ export async function runSharedToolLoop<
   let hasExecutedImageToolInTurn = false
   let hasExecutedMusicToolInTurn = false
   let hasExecutedCodingToolInTurn = false
+  let hasExecutedRepoActionInTurn = false
   const maxParallelToolCalls = Number.isFinite(params.maxParallelToolCalls)
     ? Math.max(1, Math.floor(params.maxParallelToolCalls!))
     : 4
@@ -554,6 +562,9 @@ export async function runSharedToolLoop<
       if (CODING_ACTION_TOOLS.has(shared.name)) {
         hasExecutedCodingToolInTurn = true
       }
+      if (isSuccessfulRepoActionTool(shared.name, result)) {
+        hasExecutedRepoActionInTurn = true
+      }
       params.onToolResult?.({
         name: shared.name,
         result,
@@ -633,9 +644,14 @@ export async function runSharedToolLoop<
     })
     lastUsage = wrap.usage ?? lastUsage
     const text = (wrap.content || lastAssistantText || '').trim()
+    const rejectWrapAsRepoTruth =
+      params.guardRepoActionTruth && !hasExecutedRepoActionInTurn && Boolean(text)
     // Ignore further tool calls — budget is done; force a user-visible close.
-    if (text) {
+    if (text && !rejectWrapAsRepoTruth) {
       lastAssistantText = text
+      params.onDelta(lastAssistantText)
+    } else if (rejectWrapAsRepoTruth) {
+      lastAssistantText = TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY
       params.onDelta(lastAssistantText)
     } else {
       lastAssistantText = TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY

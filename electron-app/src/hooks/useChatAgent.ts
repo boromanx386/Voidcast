@@ -27,7 +27,9 @@ import {
   emptyCodingFileCache,
   emptyCodingTurnLog,
   recordCodingToolInTurnLog,
+  summarizeCodingTurnEvidence,
 } from '@/lib/codingContextMemo'
+import { isImplementAgentMode } from '@/lib/agentToolUtils'
 import {
   filterProcessesForAgent,
   type ActiveCodingProcess,
@@ -452,6 +454,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         crofaiModel: settings.crofaiModel,
         turns,
         existingSummary: hiddenContextSummary,
+        verifiedCodingState: codingContextMemo.lastTurnSummary,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
       })
       const nextSummary = compressed.trim()
@@ -489,6 +492,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     contextUsageInfo,
     hiddenContextSummary,
     messages,
+    codingContextMemo,
     onContextCompressed,
     runtimeKey,
     setContextCompressedThroughIndex,
@@ -1288,6 +1292,33 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               lastTurnSummary: summary,
             }))
           }
+        }
+
+        if (turnSettings.toolsEnabled.coding && isImplementAgentMode(turnAgentMode)) {
+          const evidence = summarizeCodingTurnEvidence(turnLogMutable)
+          setMsgs((prev) =>
+            prev.map((m) =>
+              m.id === asstId
+                ? {
+                    ...m,
+                    codingTurnEvidence: {
+                      filesChanged: evidence.filesChanged,
+                      filePaths: evidence.filePaths.length ? evidence.filePaths : undefined,
+                      commandsRun: evidence.commandsRun,
+                      commandSummaries: evidence.commandSummaries.length
+                        ? evidence.commandSummaries
+                        : undefined,
+                      gitMutations: evidence.gitMutations,
+                      gitSummaries: evidence.gitSummaries.length
+                        ? evidence.gitSummaries
+                        : undefined,
+                      hadRepoAction: evidence.hadRepoAction,
+                      hadAnyToolEvents: evidence.hadAnyToolEvents,
+                    },
+                  }
+                : m,
+            ),
+          )
         }
       } catch (e) {
         const reopenBuildPlan = () => {

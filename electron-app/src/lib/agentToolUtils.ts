@@ -1,3 +1,5 @@
+import type { AgentChatMode } from '@/types/chat'
+import { isTeamChatMode } from '@/types/chat'
 import type { ToolsEnabled } from '@/lib/settings'
 
 const HTTP_URL_RE = /(https?:\/\/[^\s)]+)(?=[\s)]|$)/i
@@ -179,15 +181,63 @@ export function shouldGuardFalseMusicClaims(
   return assistantClaimsMusicWithoutTool(assistantText)
 }
 
-/** Coding tools whose execution proves an action claim ("edited/saved/ran") is real. */
-export const CODING_ACTION_TOOLS = new Set([
+/** File mutations on disk (includes parallel workers). */
+export const CODING_FILE_MUTATION_TOOLS = new Set([
   'write_file',
   'edit_code',
-  'execute_command',
-  'stop_process',
-  'git_restore',
-  'git_stash',
+  'run_coding_workers',
 ])
+
+/** Shell tools that can change repo state (commit, build, etc.). */
+export const CODING_SHELL_TOOLS = new Set(['execute_command', 'stop_process'])
+
+/** Git tools that mutate worktree/stash (not read-only git_status/diff). */
+export const CODING_GIT_MUTATION_TOOLS = new Set(['git_restore', 'git_stash'])
+
+/** Union used for loop repo-action tracking and legacy false-claim sets. */
+export const CODING_REPO_ACTION_TOOLS = new Set([
+  ...CODING_FILE_MUTATION_TOOLS,
+  ...CODING_SHELL_TOOLS,
+  ...CODING_GIT_MUTATION_TOOLS,
+])
+
+/** Coding tools whose execution proves an action claim ("edited/saved/ran") is real. */
+export const CODING_ACTION_TOOLS = CODING_REPO_ACTION_TOOLS
+
+/** Agent or Team — modes that may mutate the coding project. */
+export function isImplementAgentMode(mode: AgentChatMode | string | undefined | null): boolean {
+  if (mode === 'agent') return true
+  return isTeamChatMode(mode)
+}
+
+/** Successful execute_command results start with the echoed shell line. */
+export function isSuccessfulExecuteCommandResult(result: string): boolean {
+  return result.trim().startsWith('$ ')
+}
+
+/** Whether a completed tool call counts as a repo mutation for truth UI / wrap-up. */
+export function isSuccessfulRepoActionTool(name: string, result: string): boolean {
+  if (CODING_FILE_MUTATION_TOOLS.has(name)) {
+    return !result.trim().startsWith('Error:')
+  }
+  if (name === 'execute_command') {
+    return isSuccessfulExecuteCommandResult(result)
+  }
+  if (name === 'stop_process') {
+    return result.trim().startsWith('Stopped process ')
+  }
+  if (name === 'git_restore') {
+    return /^restored\b/i.test(result.trim())
+  }
+  if (name === 'git_stash') {
+    const r = result.trim()
+    if (r.startsWith('Error:')) return false
+    if (/^Invalid stash ref/i.test(r)) return false
+    if (/failed \(exit/i.test(r)) return false
+    return true
+  }
+  return false
+}
 
 /**
  * Tools whose calls are read-only and can safely run concurrently within one
@@ -312,3 +362,7 @@ export const TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE = [
 
 export const TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY =
   'Stopped: tool-call budget reached this turn before a final answer. Tell me to continue and I will pick up from here.'
+
+/** When wrap-up would let the model claim repo work without tool evidence. */
+export const TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY =
+  'Stopped: tool-call budget reached. No files, shell commands, or git mutations succeeded this turn — tell me to continue if more work is needed.'

@@ -189,6 +189,7 @@ const CODING_TURN_LOG_MAX_EVENTS = 40
 export type CodingTurnEventKind =
   | 'edit'
   | 'write'
+  | 'workers'
   | 'command'
   | 'search'
   | 'git'
@@ -196,6 +197,86 @@ export type CodingTurnEventKind =
   | 'explore'
   | 'symbols'
   | 'fail'
+
+export type CodingTurnEvidence = {
+  filesChanged: number
+  filePaths: string[]
+  commandsRun: number
+  commandSummaries: string[]
+  gitMutations: number
+  gitSummaries: string[]
+  hadAnyToolEvents: boolean
+  hadFileMutation: boolean
+  hadCommand: boolean
+  hadGitMutation: boolean
+  hadRepoAction: boolean
+}
+
+const EVIDENCE_MAX_PATHS = 8
+const EVIDENCE_MAX_COMMANDS = 3
+const EVIDENCE_MAX_GIT = 3
+
+/** Git log lines that mutate repo state (not status/diff/log/show). */
+export function isGitMutationDetail(detail: string): boolean {
+  const d = detail.trim().toLowerCase()
+  if (!d) return false
+  if (d.startsWith('git_restore')) return true
+  if (d.startsWith('git_stash push')) return true
+  if (d === 'git_stash pop') return true
+  return false
+}
+
+export function emptyCodingTurnEvidence(): CodingTurnEvidence {
+  return {
+    filesChanged: 0,
+    filePaths: [],
+    commandsRun: 0,
+    commandSummaries: [],
+    gitMutations: 0,
+    gitSummaries: [],
+    hadAnyToolEvents: false,
+    hadFileMutation: false,
+    hadCommand: false,
+    hadGitMutation: false,
+    hadRepoAction: false,
+  }
+}
+
+/** Language-neutral digest from turn tool events only (no assistant chat text). */
+export function summarizeCodingTurnEvidence(log: CodingTurnLog): CodingTurnEvidence {
+  const events = log.events
+  if (events.length === 0) return emptyCodingTurnEvidence()
+
+  const filePaths = uniqueDetails(events, 'edit', EVIDENCE_MAX_PATHS)
+    .concat(uniqueDetails(events, 'write', EVIDENCE_MAX_PATHS))
+    .concat(uniqueDetails(events, 'workers', EVIDENCE_MAX_PATHS))
+  const uniqueFilePaths = [...new Set(filePaths)].slice(0, EVIDENCE_MAX_PATHS)
+
+  const commandSummaries = uniqueDetails(events, 'command', EVIDENCE_MAX_COMMANDS)
+  const gitSummaries = events
+    .filter((e) => e.kind === 'git' && isGitMutationDetail(e.detail))
+    .map((e) => e.detail)
+    .filter((d, i, arr) => arr.indexOf(d) === i)
+    .slice(0, EVIDENCE_MAX_GIT)
+
+  const hadFileMutation = uniqueFilePaths.length > 0
+  const hadCommand = commandSummaries.length > 0
+  const hadGitMutation = gitSummaries.length > 0
+
+  return {
+    filesChanged: uniqueFilePaths.length,
+    filePaths: uniqueFilePaths,
+    commandsRun: commandSummaries.length,
+    commandSummaries,
+    gitMutations: gitSummaries.length,
+    gitSummaries,
+    hadAnyToolEvents: true,
+    hadFileMutation,
+    hadCommand,
+    hadGitMutation,
+    hadRepoAction: hadFileMutation || hadCommand || hadGitMutation,
+  }
+}
 
 export type CodingTurnEvent = {
   kind: CodingTurnEventKind
@@ -313,6 +394,13 @@ export function recordCodingToolInTurnLog(
       const goal = typeof args?.goal === 'string' ? args.goal.trim() : ''
       return goal ? pushTurnEvent(log, 'explore', goal.slice(0, 160)) : log
     }
+    case 'run_coding_workers': {
+      const tasks = args?.tasks
+      const count = Array.isArray(tasks) ? tasks.length : 0
+      const label = count > 0 ? `workers (${count} task${count === 1 ? '' : 's'})` : 'workers'
+      const first = result.trim().split(/\r?\n/)[0] || label
+      return pushTurnEvent(log, 'workers', first.slice(0, 220))
+    }
     default:
       return log
   }
@@ -341,18 +429,31 @@ export function buildCodingTurnSummary(params: {
   const { log } = params
   if (log.events.length === 0) return ''
 
+  const evidence = summarizeCodingTurnEvidence(log)
   const edits = uniqueDetails(log.events, 'edit', 10)
   const writes = uniqueDetails(log.events, 'write', 8)
+  const workers = uniqueDetails(log.events, 'workers', 4)
   const commands = uniqueDetails(log.events, 'command', 6)
   const checks = uniqueDetails(log.events, 'check', 3)
   const fails = uniqueDetails(log.events, 'fail', 6)
   const searches = uniqueDetails(log.events, 'search', 4)
   const explores = uniqueDetails(log.events, 'explore', 2)
   const symbols = uniqueDetails(log.events, 'symbols', 4)
+  const gitMutations = log.events
+    .filter((e) => e.kind === 'git' && isGitMutationDetail(e.detail))
+    .map((e) => e.detail)
+    .filter((d, i, arr) => arr.indexOf(d) === i)
+    .slice(0, 6)
 
-  // Skip summary if the turn was only searches/explores with no mutations — still useful though.
   const hasSignal =
-    edits.length + writes.length + commands.length + checks.length + fails.length > 0
+    edits.length +
+      writes.length +
+      workers.length +
+      commands.length +
+      checks.length +
+      fails.length +
+      gitMutations.length >
+    0
   if (!hasSignal && searches.length === 0 && explores.length === 0 && symbols.length === 0) {
     return ''
   }
@@ -361,14 +462,19 @@ export function buildCodingTurnSummary(params: {
   const lines: string[] = ['Last coding turn:']
   if (goal) lines.push(`Goal: ${goal}`)
 
-  if (edits.length || writes.length) {
+  if (edits.length || writes.length || workers.length) {
     lines.push('Changed:')
     for (const e of edits) lines.push(`- edited ${e}`)
     for (const w of writes) lines.push(`- wrote ${w}`)
+    for (const w of workers) lines.push(`- workers ${w}`)
   }
   if (commands.length) {
     lines.push('Commands:')
     for (const c of commands) lines.push(`- ${c}`)
+  }
+  if (gitMutations.length) {
+    lines.push('Git:')
+    for (const g of gitMutations) lines.push(`- ${g}`)
   }
   if (checks.length) {
     lines.push('Checks:')
@@ -385,16 +491,41 @@ export function buildCodingTurnSummary(params: {
     for (const f of fails) lines.push(`- ${f}`)
   }
 
+  if (!evidence.hadRepoAction) {
+    lines.push('No repo changes this turn (read-only).')
+  }
+
   const reply = (params.assistantReply ?? '').trim().replace(/\s+/g, ' ')
-  if (reply) {
-    // Prefer the end of the reply — that's where "what's left" usually lives.
-    const note =
-      reply.length <= 320 ? reply : `…${reply.slice(-300)}`
+  if (reply && evidence.hadRepoAction) {
+    const note = reply.length <= 320 ? reply : `…${reply.slice(-300)}`
     lines.push(`Agent note: ${note}`)
   }
 
-  lines.push('Continue from this state; do not redo completed edits unless asked.')
+  if (evidence.hadRepoAction) {
+    lines.push('Continue from this state; do not redo completed edits unless asked.')
+  }
   return lines.join('\n').slice(0, CODING_TURN_SUMMARY_MAX_CHARS)
+}
+
+/** User-visible one-line summary for coding turn evidence badge. */
+export function formatCodingTurnEvidenceLabel(evidence: CodingTurnEvidence): string {
+  if (!evidence.hadAnyToolEvents) {
+    return 'No coding tools were called this turn.'
+  }
+  if (!evidence.hadRepoAction) {
+    return 'Read-only this turn — 0 file changes, 0 commands, 0 git actions.'
+  }
+  const parts: string[] = []
+  parts.push(`${evidence.filesChanged} file(s)`)
+  parts.push(`${evidence.commandsRun} command(s)`)
+  parts.push(`${evidence.gitMutations} git action(s)`)
+  let line = parts.join(' · ')
+  const cmd = evidence.commandSummaries[0]
+  if (cmd) {
+    const short = cmd.length > 72 ? `${cmd.slice(0, 69)}…` : cmd
+    line += ` — ${short}`
+  }
+  return line
 }
 
 export const CODING_PLAN_HANDOFF_MAX_CHARS = 6000
