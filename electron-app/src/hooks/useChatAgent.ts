@@ -449,9 +449,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         opencodeGoBaseUrl: settings.opencodeGoBaseUrl,
         opencodeGoApiKey: settings.opencodeGoApiKey,
         opencodeGoModel: settings.opencodeGoModel,
-        crofaiBaseUrl: settings.crofaiBaseUrl,
-        crofaiApiKey: settings.crofaiApiKey,
-        crofaiModel: settings.crofaiModel,
         turns,
         existingSummary: hiddenContextSummary,
         verifiedCodingState: codingContextMemo.lastTurnSummary,
@@ -989,8 +986,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             nvidiaBaseUrlForSubAgent: turnSettings.nvidiaBaseUrl,
             nvidiaApiKeyForSubAgent: turnSettings.nvidiaApiKey,
             opencodeGoApiKeyForSubAgent: turnSettings.opencodeGoApiKey,
-            crofaiBaseUrlForSubAgent: turnSettings.crofaiBaseUrl,
-            crofaiApiKeyForSubAgent: turnSettings.crofaiApiKey,
             ttsBaseUrlForSubAgent: turnSettings.ttsBaseUrl,
             subAgentUi:
               (turnSettings.subAgent.enabled || turnSettings.subAgent.codingEnabled) &&

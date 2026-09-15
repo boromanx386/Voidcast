@@ -26,9 +26,6 @@ type ExtractParams = {
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
-  crofaiBaseUrl?: string
-  crofaiApiKey?: string
-  crofaiModel?: string
   modelOptions?: OllamaModelOptions
   turns: Turn[]
   signal?: AbortSignal

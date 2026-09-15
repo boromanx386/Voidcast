@@ -4,7 +4,7 @@
 
 ## Provider selector (`llmProvider`)
 
-Type: `LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go' | 'crofai'`
+Type: `LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'`
 Default: `'ollama'`
 
 The active provider determines which provider-specific group of fields is shown and used for chat completion requests.
@@ -44,12 +44,6 @@ The active provider determines which provider-specific group of fields is shown 
 - `opencodeGoApiKey` — local key
 - `opencodeGoModel` — default `'deepseek-v4-pro'`
 
-### CrofAI
-- `crofaiBaseUrl` — default `https://crof.ai/v1` (OpenAI-compatible; see [crof.ai/docs](https://crof.ai/docs))
-- `crofaiApiKey` — local key
-- `crofaiModel` — default `'deepseek-v4-pro'`
-- THINKING_LEVEL maps to CrofAI `reasoning_effort` (`low` / `medium` / `high` / `none`)
-- LAN web clients proxy via TTS `/api/crofai/*`
 
 ## Generation/context defaults
 

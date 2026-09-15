@@ -19,7 +19,6 @@
  *   node scripts/check-models.mjs --openrouter   # OpenRouter only
  *   node scripts/check-models.mjs --opencode     # OpenCode Go only
  *   node scripts/check-models.mjs --nvidia       # NVIDIA only
- *   node scripts/check-models.mjs --crofai       # CrofAI only
  *   node scripts/check-models.mjs --days 14      # new-model recency window in days (default 30)
  *   node scripts/check-models.mjs --all          # also include all new OpenRouter models (unfiltered)
  *   node scripts/check-models.mjs --apply        # interactive: pick changes, writes the .ts files
@@ -28,7 +27,6 @@
  *   OpenRouter  GET https://openrouter.ai/api/v1/models
  *   OpenCode Go GET https://models.dev/api.json  (provider key: "opencode-go")
  *   NVIDIA      GET https://integrate.api.nvidia.com/v1/models
- *   CrofAI      GET https://crof.ai/v1/models
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -45,7 +43,7 @@ const CONTEXT_PATH = join(ROOT, 'electron-app', 'src', 'lib', 'contextLimit.ts')
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/models'
 const MODELSDEV_URL = 'https://models.dev/api.json'
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/models'
-const CROFAI_URL = 'https://crof.ai/v1/models'
+
 
 // App-internal routing ids that never appear in the OpenRouter catalog.
 const SYNTHETIC_OPENROUTER_IDS = new Set([
@@ -58,7 +56,6 @@ const ALL_FLAG = process.argv.includes('--all')
 const OPENROUTER_ONLY = process.argv.includes('--openrouter')
 const OPENCODE_ONLY = process.argv.includes('--opencode')
 const NVIDIA_ONLY = process.argv.includes('--nvidia')
-const CROFAI_ONLY = process.argv.includes('--crofai')
 const APPLY_FLAG = process.argv.includes('--apply')
 
 const DAYS = (() => {
@@ -349,7 +346,6 @@ async function checkOpenCodeGo(curated, overrides) {
   return result
 }
 
-/** Generic OpenAI-compatible `/v1/models` catalog check (NVIDIA, CrofAI). */
 // Non-chat / non-LLM families on NVIDIA's catalog that are not useful as chat
 // presets (embeddings, vision encoders, safety guards, reward/rerank, TTS/ASR,
 // image gen, etc.). Kept in a set for fast lookup.
@@ -439,7 +435,7 @@ async function checkOpenAICompat({ title, url, preset, curated, overrides, filte
 
 // ---- interactive apply ------------------------------------------------------
 
-async function interactiveApply(or, oc, nv, cf, presetsSource, contextSource) {
+async function interactiveApply(or, oc, nv, presetsSource, contextSource) {
   const state = { presets: presetsSource, context: contextSource, added: 0, removed: 0, changed: 0 }
 
   const groups = []
@@ -449,24 +445,18 @@ async function interactiveApply(or, oc, nv, cf, presetsSource, contextSource) {
     groups.push({ title: 'ADD — OpenCode Go', items: oc.newModels, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
   if (nv?.newModels.length)
     groups.push({ title: 'ADD — NVIDIA', items: nv.newModels, kind: 'add', preset: 'NVIDIA_LLM_PRESET_MODELS' })
-  if (cf?.newModels.length)
-    groups.push({ title: 'ADD — CrofAI', items: cf.newModels, kind: 'add', preset: 'CROFAI_LLM_PRESET_MODELS' })
   if (or?.removed.length)
     groups.push({ title: 'REMOVE — OpenRouter', items: or.removed.map((id) => ({ id })), kind: 'remove', preset: 'OPENROUTER_LLM_PRESET_MODELS' })
   if (oc?.removed.length)
     groups.push({ title: 'REMOVE — OpenCode Go', items: oc.removed.map((id) => ({ id })), kind: 'remove', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
   if (nv?.removed.length)
     groups.push({ title: 'REMOVE — NVIDIA', items: nv.removed.map((id) => ({ id })), kind: 'remove', preset: 'NVIDIA_LLM_PRESET_MODELS' })
-  if (cf?.removed.length)
-    groups.push({ title: 'REMOVE — CrofAI', items: cf.removed.map((id) => ({ id })), kind: 'remove', preset: 'CROFAI_LLM_PRESET_MODELS' })
   if (or?.ctx.length)
     groups.push({ title: 'UPDATE CONTEXT — OpenRouter', items: or.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
   if (oc?.ctx.length)
     groups.push({ title: 'UPDATE CONTEXT — OpenCode Go', items: oc.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
   if (nv?.ctx.length)
     groups.push({ title: 'UPDATE CONTEXT — NVIDIA', items: nv.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
-  if (cf?.ctx.length)
-    groups.push({ title: 'UPDATE CONTEXT — CrofAI', items: cf.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
 
   if (!groups.length) {
     console.log('Nothing to apply — no changes detected.')
@@ -533,20 +523,17 @@ async function main() {
   const curatedOpenRouter = extractPresetIds(presetsSource, 'OPENROUTER_LLM_PRESET_MODELS')
   const curatedOpenCode = extractPresetIds(presetsSource, 'OPENCODE_GO_LLM_PRESET_MODELS')
   const curatedNvidia = extractPresetIds(presetsSource, 'NVIDIA_LLM_PRESET_MODELS')
-  const curatedCrofAi = extractPresetIds(presetsSource, 'CROFAI_LLM_PRESET_MODELS')
   const overrides = extractContextOverrides(contextSource)
 
   console.log('Voidcast — cloud model preset checker')
-  console.log(`  curated: OpenRouter ${curatedOpenRouter.length} · OpenCode Go ${curatedOpenCode.length} · NVIDIA ${curatedNvidia.length} · CrofAI ${curatedCrofAi.length}`)
   console.log('')
 
-  const or = !OPENCODE_ONLY && !NVIDIA_ONLY && !CROFAI_ONLY ? await checkOpenRouter(curatedOpenRouter, overrides) : null
-  const oc = !OPENROUTER_ONLY && !NVIDIA_ONLY && !CROFAI_ONLY ? await checkOpenCodeGo(curatedOpenCode, overrides) : null
-  const nv = !OPENROUTER_ONLY && !OPENCODE_ONLY && !CROFAI_ONLY ? await checkOpenAICompat({ title: 'NVIDIA', url: NVIDIA_URL, preset: 'NVIDIA_LLM_PRESET_MODELS', curated: curatedNvidia, overrides, filter: isNvidiaChatModel }) : null
-  const cf = !OPENROUTER_ONLY && !OPENCODE_ONLY && !NVIDIA_ONLY ? await checkOpenAICompat({ title: 'CrofAI', url: CROFAI_URL, preset: 'CROFAI_LLM_PRESET_MODELS', curated: curatedCrofAi, overrides }) : null
+  const or = !OPENCODE_ONLY && !NVIDIA_ONLY ? await checkOpenRouter(curatedOpenRouter, overrides) : null
+  const oc = !OPENROUTER_ONLY && !NVIDIA_ONLY ? await checkOpenCodeGo(curatedOpenCode, overrides) : null
+  const nv = !OPENROUTER_ONLY && !OPENCODE_ONLY ? await checkOpenAICompat({ title: 'NVIDIA', url: NVIDIA_URL, preset: 'NVIDIA_LLM_PRESET_MODELS', curated: curatedNvidia, overrides, filter: isNvidiaChatModel }) : null
 
   if (APPLY_FLAG) {
-    await interactiveApply(or, oc, nv, cf, presetsSource, contextSource)
+    await interactiveApply(or, oc, nv, presetsSource, contextSource)
   } else {
     console.log('To add a model, edit electron-app/src/lib/cloudLlmPresets.ts (+ aliases/context in contextLimit.ts).')
     console.log('Or run: node scripts/check-models.mjs --apply   (pick changes interactively, edits the source files)')

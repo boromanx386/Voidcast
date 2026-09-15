@@ -18,6 +18,22 @@ function makeSubAgent(raw: any): AppSettings {
   return makeSettings({ subAgent: raw })
 }
 
+describe('legacy provider settings', () => {
+  test('removes retired CrofAI fields during normalization', () => {
+    const legacy = {
+      ...makeSettings(),
+      crofaiBaseUrl: 'https://crof.ai/v1',
+      crofaiApiKey: 'legacy-secret',
+      crofaiModel: 'deepseek-v4-pro',
+    } as any
+
+    const normalized = normalizeSettingsCandidate(legacy) as any
+    expect(normalized.crofaiBaseUrl).toBeUndefined()
+    expect(normalized.crofaiApiKey).toBeUndefined()
+    expect(normalized.crofaiModel).toBeUndefined()
+  })
+})
+
 describe('normalizeSubAgent', () => {
   // --- missing / invalid input ---
   test('missing subAgent → returns defaults', () => {

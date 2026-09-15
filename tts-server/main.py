@@ -54,7 +54,6 @@ from youtube_tools import (
 from cloud_secrets import (
     client_may_register,
     clear_registered_secrets,
-    get_crofai_key,
     get_deepseek_key,
     get_lan_access_token,
     get_nvidia_key,
@@ -111,7 +110,6 @@ OPENAI_UPSTREAM = os.environ.get(
 OPENCODE_GO_UPSTREAM = os.environ.get(
     "OPENCODE_GO_BASE_URL", "https://opencode.ai/zen/go"
 ).rstrip("/")
-CROFAI_UPSTREAM = os.environ.get("CROFAI_BASE_URL", "https://crof.ai").rstrip("/")
 
 
 def _web_index_file() -> Path | None:
@@ -229,7 +227,6 @@ class CloudSecretsRequest(BaseModel):
     deepseekApiKey: str = Field(default="", max_length=2048)
     openaiApiKey: str = Field(default="", max_length=2048)
     opencodeGoApiKey: str = Field(default="", max_length=2048)
-    crofaiApiKey: str = Field(default="", max_length=2048)
 
 
 class HostToolConfigRequest(BaseModel):
@@ -770,7 +767,6 @@ async def tools_cloud_secrets_status():
         "deepseek": bool(get_deepseek_key()),
         "openai": bool(get_openai_key()),
         "opencode_go": bool(get_opencode_go_key()),
-        "crofai": bool(get_crofai_key()),
     }
 
 
@@ -1083,22 +1079,6 @@ async def opencode_go_proxy(request: Request, full_path: str):
             ),
         )
     return await _reverse_proxy(request, OPENCODE_GO_UPSTREAM, full_path, bearer_key=key)
-
-
-@app.api_route(
-    "/api/crofai/{full_path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    dependencies=[Depends(require_lan_access)],
-)
-async def crofai_proxy(request: Request, full_path: str):
-    """Proxy CrofAI API for LAN web clients."""
-    key = get_crofai_key()
-    if not key:
-        raise HTTPException(
-            status_code=503,
-            detail="CrofAI API key not configured (desktop General or CROFAI_API_KEY env)",
-        )
-    return await _reverse_proxy(request, CROFAI_UPSTREAM, full_path, bearer_key=key)
 
 
 @app.post("/tts", dependencies=[Depends(require_lan_access)])

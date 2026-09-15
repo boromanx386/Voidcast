@@ -13,8 +13,6 @@ export function cloudLlmProviderLabel(provider: LlmProvider): string {
       return 'OpenAI'
     case 'opencode-go':
       return 'OpenCode Go'
-    case 'crofai':
-      return 'CrofAI'
     default:
       return 'Cloud LLM'
   }
@@ -36,8 +34,7 @@ export function isOpenAiCompatibleCloudLlmProvider(provider: LlmProvider): boole
     provider === 'nvidia' ||
     provider === 'deepseek' ||
     provider === 'openai' ||
-    provider === 'opencode-go' ||
-    provider === 'crofai'
+    provider === 'opencode-go'
   )
 }
 
@@ -67,9 +64,6 @@ export type CloudLlmSettingsSlice = {
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
-  crofaiBaseUrl?: string
-  crofaiApiKey?: string
-  crofaiModel?: string
   /** Used to reach local TTS reverse proxy for OpenCode Go (no CORS on upstream). */
   ttsBaseUrl?: string
   llmThinkLevel?: LlmThinkLevel
@@ -114,13 +108,6 @@ export function resolveCloudLlmChatConfig(
         // Keep thinking on by default (DeepSeek/Kimi via Go); respect user think level.
         thinkLevel: settings.llmThinkLevel,
       }
-    case 'crofai':
-      return {
-        baseUrl: settings.crofaiBaseUrl || '',
-        apiKey: settings.crofaiApiKey || '',
-        model: settings.crofaiModel || '',
-        thinkLevel: settings.llmThinkLevel,
-      }
     default:
       return null
   }
@@ -163,13 +150,6 @@ export function resolveCloudLlmChatConfigForProvider(
         baseUrl: opencodeGoApiBaseForRuntime(settings.opencodeGoBaseUrl, settings.ttsBaseUrl),
         apiKey: settings.opencodeGoApiKey || '',
         model: modelOverride || settings.opencodeGoModel || '',
-        thinkLevel: settings.llmThinkLevel,
-      }
-    case 'crofai':
-      return {
-        baseUrl: settings.crofaiBaseUrl || '',
-        apiKey: settings.crofaiApiKey || '',
-        model: modelOverride || settings.crofaiModel || '',
         thinkLevel: settings.llmThinkLevel,
       }
     default:

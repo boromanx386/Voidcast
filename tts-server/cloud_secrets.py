@@ -41,7 +41,6 @@ def _merged() -> dict[str, str]:
         "deepseek": _env_key("DEEPSEEK_API_KEY"),
         "openai": _env_key("OPENAI_API_KEY"),
         "opencode_go": _env_key("OPENCODE_GO_API_KEY"),
-        "crofai": _env_key("CROFAI_API_KEY"),
     }
     for k, v in _registered.items():
         if v:
@@ -58,7 +57,6 @@ def register_secrets(payload: dict[str, Any]) -> None:
         "deepseekApiKey": "deepseek",
         "openaiApiKey": "openai",
         "opencodeGoApiKey": "opencode_go",
-        "crofaiApiKey": "crofai",
     }
     for field, slot in mapping.items():
         raw = payload.get(field)
@@ -95,8 +93,6 @@ def get_opencode_go_key() -> str:
     return _merged().get("opencode_go", "")
 
 
-def get_crofai_key() -> str:
-    return _merged().get("crofai", "")
 
 
 def client_may_register(client_host: str | None, token_header: str | None) -> bool:

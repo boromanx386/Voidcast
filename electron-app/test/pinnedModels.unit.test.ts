@@ -25,7 +25,6 @@ describe('pinnedModels helpers', () => {
     expect(toScopedPinnedId('opencode-go', 'deepseek-v4-pro')).toBe(
       'opencode-go:deepseek-v4-pro',
     )
-    expect(toScopedPinnedId('crofai', 'deepseek-v4-pro')).toBe('crofai:deepseek-v4-pro')
     expect(parsePinnedId('deepseek:deepseek-v4-pro')).toEqual({
       provider: 'deepseek',
       modelId: 'deepseek-v4-pro',
@@ -34,10 +33,10 @@ describe('pinnedModels helpers', () => {
       provider: 'opencode-go',
       modelId: 'deepseek-v4-pro',
     })
-    expect(parsePinnedId('crofai:deepseek-v4-pro')).toEqual({
-      provider: 'crofai',
-      modelId: 'deepseek-v4-pro',
-    })
+  })
+
+  test('retired CrofAI pins are dropped during migration', () => {
+    expect(normalizePinnedModels(['crofai:deepseek-v4-pro'])).toEqual([])
   })
 
   test('openai pins use bare model ids', () => {
@@ -140,9 +139,6 @@ describe('pinnedModels helpers', () => {
     expect(og.llmProvider).toBe('opencode-go')
     expect(og.opencodeGoModel).toBe('deepseek-v4-pro')
 
-    const crof = applyModelSwitcherSelection(base, 'crofai', 'crofai:kimi-k2.6')
-    expect(crof.llmProvider).toBe('crofai')
-    expect(crof.crofaiModel).toBe('kimi-k2.6')
 
     const nv = applyModelSwitcherSelection(base, 'nvidia', 'nvidia:z-ai/glm-5.2')
     expect(nv.llmProvider).toBe('nvidia')

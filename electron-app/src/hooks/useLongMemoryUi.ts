@@ -101,9 +101,6 @@ export function useLongMemoryUi({
         opencodeGoBaseUrl: settings.opencodeGoBaseUrl,
         opencodeGoApiKey: settings.opencodeGoApiKey,
         opencodeGoModel: settings.opencodeGoModel,
-        crofaiBaseUrl: settings.crofaiBaseUrl,
-        crofaiApiKey: settings.crofaiApiKey,
-        crofaiModel: settings.crofaiModel,
         modelOptions: {
           temperature: settings.llmTemperature,
           num_ctx: settings.llmNumCtx,

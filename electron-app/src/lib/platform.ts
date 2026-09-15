@@ -8,7 +8,6 @@ export function isElectron(): boolean {
   if (window.voidcast) return true
   return navigator.userAgent.toLowerCase().includes('electron')
 }
-
 /** Set at build time in `vite.config.web.ts` — authoritative for the LAN/phone bundle. */
 export function isWebBuild(): boolean {
   return import.meta.env.VITE_BUILD_TARGET === 'web'
@@ -79,10 +78,4 @@ export function opencodeGoApiBaseForRuntime(_desktopUrl?: string, ttsBaseUrl?: s
   if (isLanWebClient()) return `${window.location.origin}/api/opencode-go/v1`
   const tts = (ttsBaseUrl || defaultTtsBaseUrlForRuntime()).trim().replace(/\/+$/, '')
   return `${tts}/api/opencode-go/v1`
-}
-
-export function crofaiApiBaseForRuntime(desktopUrl?: string): string {
-  if (isLanWebClient()) return `${window.location.origin}/api/crofai/v1`
-  const u = (desktopUrl || '').trim()
-  return u || 'https://crof.ai/v1'
 }

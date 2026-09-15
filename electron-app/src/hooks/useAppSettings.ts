@@ -101,7 +101,6 @@ export function useAppSettings() {
         deepseekApiKey: settings.deepseekApiKey,
         openaiApiKey: settings.openaiApiKey,
         opencodeGoApiKey: settings.opencodeGoApiKey,
-        crofaiApiKey: settings.crofaiApiKey,
       }).catch(() => {
         // Best-effort; web client shows 503 if keys were not registered.
       })
@@ -120,7 +119,6 @@ export function useAppSettings() {
     settings.deepseekApiKey,
     settings.openaiApiKey,
     settings.opencodeGoApiKey,
-    settings.crofaiApiKey,
   ])
 
   useEffect(() => {

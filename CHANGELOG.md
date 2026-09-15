@@ -15,13 +15,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **Cloud model catalogs refreshed**: OpenRouter, NVIDIA, OpenCode Go, and CrofAI presets and context-window metadata were updated against current provider catalogs. The model checker now supports all four catalogs and an interactive `--apply` workflow.
+- **Cloud model catalogs refreshed**: OpenRouter, NVIDIA, and OpenCode Go presets and context-window metadata were updated against current provider catalogs. The model checker supports all three catalogs and an interactive `--apply` workflow.
 
 ## [2.8.6] — 2026-08-25
 
 ### Added
 
-- **CrofAI LLM provider**: OpenAI-compatible chat at [`https://crof.ai/v1`](https://crof.ai/docs) — presets from `/v1/models`, API key in General, THINKING_LEVEL → `reasoning_effort`, sub-agents / pins / CTX meter, LAN proxy via TTS `/api/crofai/*`.
 - **OpenRouter presets**: [Ox Alpha](https://openrouter.ai/stealth/ox-alpha) (`stealth/ox-alpha`, free · 1M · multimodal) and DeepSeek V4 Flash Vision Exp (`deepseek/deepseek-v4-flash-vision-exp`).
 - **OpenCode Go presets**: `deepseek-v4-flash-vision-exp`, `ox-alpha-free`, and `longcat-2.0` (all `/v1/chat/completions`).
 

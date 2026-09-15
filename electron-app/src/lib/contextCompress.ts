@@ -35,9 +35,6 @@ export async function compressConversationContext(params: {
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
-  crofaiBaseUrl?: string
-  crofaiApiKey?: string
-  crofaiModel?: string
   turns: ContextTurn[]
   existingSummary?: string
   /** Tool-derived coding state (not assistant chat claims). */

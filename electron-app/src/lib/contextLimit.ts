@@ -1,11 +1,9 @@
 import {
-  CROFAI_LLM_PRESET_MODELS,
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
   OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
-  normalizeCrofAiModelId,
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
   normalizeOpenAiModelId,
@@ -33,7 +31,6 @@ const PROVIDER_DEFAULT_CONTEXT: Record<Exclude<LlmProvider, 'ollama'>, number> =
   deepseek: 1_000_000,
   openai: 256_000,
   'opencode-go': 256_000,
-  crofai: 256_000,
 }
 
 /** Explicit overrides for models where heuristics would be wrong. */
@@ -130,7 +127,6 @@ const DEEPSEEK_PRESET_CONTEXT = buildPresetLookup(DEEPSEEK_LLM_PRESET_MODELS)
 const OPENAI_PRESET_CONTEXT = buildPresetLookup(OPENAI_LLM_PRESET_MODELS)
 const NVIDIA_PRESET_CONTEXT = buildPresetLookup(NVIDIA_LLM_PRESET_MODELS)
 const OPENCODE_GO_PRESET_CONTEXT = buildPresetLookup(OPENCODE_GO_LLM_PRESET_MODELS)
-const CROFAI_PRESET_CONTEXT = buildPresetLookup(CROFAI_LLM_PRESET_MODELS)
 
 export function activeLlmModelId(
   settings: Pick<
@@ -142,7 +138,6 @@ export function activeLlmModelId(
     | 'openaiModel'
     | 'nvidiaModel'
     | 'opencodeGoModel'
-    | 'crofaiModel'
   >,
 ): string {
   switch (settings.llmProvider) {
@@ -156,8 +151,6 @@ export function activeLlmModelId(
       return normalizeNvidiaModelId(settings.nvidiaModel)
     case 'opencode-go':
       return normalizeOpenCodeGoModelId(settings.opencodeGoModel)
-    case 'crofai':
-      return normalizeCrofAiModelId(settings.crofaiModel)
     default:
       return settings.ollamaModel.trim()
   }
@@ -210,7 +203,6 @@ function lookupPresetContext(
     openai: OPENAI_PRESET_CONTEXT,
     nvidia: NVIDIA_PRESET_CONTEXT,
     'opencode-go': OPENCODE_GO_PRESET_CONTEXT,
-    crofai: CROFAI_PRESET_CONTEXT,
   }
   return maps[provider].get(modelId)
 }
@@ -226,7 +218,6 @@ export function resolveContextLimit(
     | 'openaiModel'
     | 'nvidiaModel'
     | 'opencodeGoModel'
-    | 'crofaiModel'
   >,
 ): ResolvedContextLimit {
   const provider = settings.llmProvider
