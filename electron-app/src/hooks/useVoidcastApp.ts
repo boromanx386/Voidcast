@@ -174,6 +174,7 @@ export function useVoidcastApp() {
     resetCodingTerminal: coding.resetCodingTerminal,
     switchCodingTerminalOwner: coding.switchCodingTerminalOwner,
     rekeyCodingTerminalOwner: coding.rekeyCodingTerminalOwner,
+    setViewSessionId,
     abortActiveRuns: () => {
       agent.onStop()
       abortTtsRef.current()

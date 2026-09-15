@@ -75,6 +75,8 @@ export type ChatSessionsDeps = {
   switchCodingTerminalOwner?: (ownerKey: string) => void
   /** Move terminal feed when draft rekeys to a session id. */
   rekeyCodingTerminalOwner?: (fromKey: string, toKey: string) => void
+  /** Keep the agent runtime on the same session during the state transition. */
+  setViewSessionId: Dispatch<SetStateAction<string | null>>
   /** Stop only the currently visible agent (used on delete of active / new draft reset). */
   abortActiveRuns: () => void
   cancelMessageEdit?: () => void
@@ -113,6 +115,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     resetCodingTerminal,
     switchCodingTerminalOwner,
     rekeyCodingTerminalOwner,
+    setViewSessionId,
     abortActiveRuns: _abortActiveRuns,
     cancelMessageEdit,
     setInput,
@@ -145,6 +148,16 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const [pendingNewSessionPreset, setPendingNewSessionPreset] =
     useState<SystemPromptPreset>('default')
 
+  // `useChatAgent` is created before this hook, so the parent normally mirrors
+  // activeSessionId to its runtime key in an effect. That effect is one render
+  // late during chat switches; update both pieces of state together for paths
+  // that change the active session so auto-save cannot observe the previous
+  // session's messages as a new draft.
+  const setActiveSession = (sessionId: string | null) => {
+    setActiveSessionId(sessionId)
+    setViewSessionId(sessionId)
+  }
+
   // Load sessions from IndexedDB (one-time localStorage migration on first run)
   useEffect(() => {
     let cancelled = false
@@ -174,7 +187,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       if (sessionsMigrated) {
         scheduleSaveChatSessions({ sessions, activeSessionId: state.activeSessionId })
       }
-      setActiveSessionId(state.activeSessionId)
+      setActiveSession(state.activeSessionId)
       const active = state.activeSessionId
         ? sessions.find((s) => s.id === state.activeSessionId)
         : null
@@ -278,7 +291,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       rekeyComposerDraft(DRAFT_RUNTIME_KEY, newId)
       rekeyCodingTerminalOwner?.(DRAFT_RUNTIME_KEY, newId)
       setSessions((prev) => [...prev, newSession].sort((a, b) => b.updatedAt - a.updatedAt))
-      setActiveSessionId(newId)
+      setActiveSession(newId)
       setSessionDirty(false)
       return
     }
@@ -429,7 +442,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       }
       return [...prev, shell].sort((a, b) => b.updatedAt - a.updatedAt)
     })
-    setActiveSessionId(newId)
+    setActiveSession(newId)
     if (stickyUnsaved) setSessionDirty(true)
     return newId
   }, [
@@ -477,7 +490,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     contextOverflowLatchRef.current = false
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
-    setActiveSessionId(null)
+    setActiveSession(null)
     setPendingNewSessionPreset('default')
     setSessionDirty(false)
     setPendingDeleteId(null)
@@ -550,7 +563,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     if (!live?.busy) {
       // Fresh session view: usage comes with the slot on next render; no write needed.
     }
-    setActiveSessionId(session.id)
+    setActiveSession(session.id)
     setSessionDirty(false)
     setPendingDeleteId(null)
     setRenamingSessionId(null)
@@ -583,7 +596,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     const nextState = upsertSession({ sessions, activeSessionId }, forked)
     setSessions(nextState.sessions)
     sessionAgentStore.hydrateMessages(forked.id, forked.messages)
-    setActiveSessionId(forked.id)
+    setActiveSession(forked.id)
     scheduleSaveChatSessions(nextState)
     setHiddenContextSummary(forked.hiddenContextSummary ?? '')
     setContextCompressedThroughIndex(
@@ -699,7 +712,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     }
     const nextState = upsertSession({ sessions, activeSessionId }, next)
     setSessions(nextState.sessions)
-    setActiveSessionId(nextState.activeSessionId)
+    setActiveSession(nextState.activeSessionId)
     scheduleSaveChatSessions(nextState)
     setSessionDirty(false)
   }
@@ -711,7 +724,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     clearComposerDraft(sessionId)
     const state = deleteSessionById({ sessions, activeSessionId }, sessionId)
     setSessions(state.sessions)
-    setActiveSessionId(state.activeSessionId)
+    setActiveSession(state.activeSessionId)
     if (state.activeSessionId) {
       const next = state.sessions.find((s) => s.id === state.activeSessionId)
       if (next) {
