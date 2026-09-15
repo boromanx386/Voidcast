@@ -994,17 +994,28 @@ const CODING_RUN_WORKERS_TOOL: AgentToolDefinition = {
                 type: 'string',
                 description: 'What this worker should implement or change (concrete files/behavior).',
               },
+              success_criteria: {
+                type: 'string',
+                description:
+                  'Concrete finish condition for this worker: what must be true after the change and what should be verified.',
+              },
+              focus_paths: {
+                type: 'array',
+                description:
+                  'Optional project-relative files or folders to inspect first; keep this list narrow and within path_prefix.',
+                items: { type: 'string' },
+              },
               path_prefix: {
                 type: 'string',
                 description:
-                  'Project-relative folder or file scope for writes (strongly preferred so workers do not collide).',
+                  'Project-relative folder or file scope for writes. Required for each task when two workers run in parallel; scopes must not overlap.',
               },
               max_rounds: {
                 type: 'number',
                 description: 'Max nested tool rounds per worker (default 100, max 100).',
               },
             },
-            required: ['goal'],
+            required: ['goal', 'success_criteria'],
           },
         },
       },

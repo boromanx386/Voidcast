@@ -114,7 +114,7 @@ ${
 TEAM MODE (orchestrator protocol — this is why Team exists):
 1. You coordinate; workers implement. Stay in Team — never escalate to Plan.
 2. DEFAULT for non-trivial coding (multi-file, multi-folder, multi-step, large feature/refactor): partition into ≤2 path-disjoint tasks (each with path_prefix when possible) and call run_coding_workers ON THIS TURN early. Do not implement the whole surface yourself with sequential edit_code/write_file.
-3. Workers return digests — then you verify (git_diff / check_types / targeted read), fix glue yourself if needed, and answer the user once.
+3. Workers return digests and the runtime automatically appends git_status, git_diff, and check_types verification — review those results, fix glue yourself if needed, and answer the user once.
 4. Direct edit_code / write_file yourself ONLY for: single-file / tiny hotfixes, or small glue after workers. A short in-chat checklist is fine; Plan cards are a separate composer mode the user chooses.
 `
     : subOn

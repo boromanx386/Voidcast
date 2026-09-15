@@ -370,7 +370,7 @@ export async function buildAgentTurnContext(
           'Team mode stays active for the whole turn — do not switch to Plan.',
           'enter_plan_mode is unavailable.',
           settings.subAgent?.codingEnabled
-            ? 'Non-trivial coding: run_coding_workers is the default path (≤2 path-disjoint tasks + path_prefix). After digests: verify, then one user answer. Direct tools only for tiny single-file work or glue.'
+            ? 'Non-trivial coding: run_coding_workers is the default path (≤2 path-disjoint tasks + path_prefix). The runtime appends git_status, git_diff, and check_types verification after workers; review it, fix glue if needed, then answer once. Direct tools only for tiny single-file work or glue.'
             : 'Coding sub-agent is off — enable Options → SUB → ENABLE_CODING_SUB_AGENT so Team can run parallel workers (otherwise Team has no point).',
           'If the user only wanted a plan card, tell them to use Plan mode in the composer.',
         ].join(' '),

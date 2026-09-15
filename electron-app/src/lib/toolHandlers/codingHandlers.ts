@@ -529,8 +529,25 @@ export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
   const parsed = parseCodingWorkerTasks(args);
   if (!parsed.ok) return parsed.error;
 
-  return runCodingWorkers({
+  const executeCodingTool = async (toolName: string, toolArgs: Record<string, unknown>) => {
+    const { executeToolCall } = await import("@/lib/agentToolExecutor");
+    const { toolsEnabled, ...rest } = ctx;
+    return executeToolCall(toolName, toolArgs, toolsEnabled, {
+      ...rest,
+      // Verification is still part of the same parent coding turn, but must
+      // not be able to recurse into another worker batch.
+      agentMode: "agent",
+      codingWorkerDepth: (ctx.codingWorkerDepth ?? 0) + 1,
+    });
+  };
+
+  const workerReport = await runCodingWorkers({
     tasks: parsed.tasks,
+    context: {
+      userText: ctx.userText,
+      memo: ctx.codingContextMemoRef?.current,
+      activePlan: ctx.getActiveBuildPlan?.(),
+    },
     recentFiles: ctx.codingRecentFiles,
     config: ctx.subAgent,
     keys: {
@@ -549,20 +566,33 @@ export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
     },
     signal: ctx.signal,
     ui: ctx.subAgentUi,
-    executeTool: async (toolName, toolArgs) => {
-      const { executeToolCall } = await import("@/lib/agentToolExecutor");
-      const { toolsEnabled, ...rest } = ctx;
-      return executeToolCall(toolName, toolArgs, toolsEnabled, {
-        ...rest,
-        // Workers run as agent (writable), not plan, at depth ≥ 1.
-        agentMode: "agent",
-        codingWorkerDepth: (ctx.codingWorkerDepth ?? 0) + 1,
-      });
-    },
+    executeTool: executeCodingTool,
     codingContextMemoRef: ctx.codingContextMemoRef,
     codingFileCacheRef: ctx.codingFileCacheRef,
     codingProjectPath: ctx.codingProjectPath,
   });
+
+  const verification: string[] = [];
+  try {
+    const status = await executeCodingTool("git_status", {});
+    verification.push(`git_status:\n${status}`);
+  } catch (error) {
+    verification.push(`git_status: Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    const diff = await executeCodingTool("git_diff", {});
+    verification.push(`git_diff:\n${diff}`);
+  } catch (error) {
+    verification.push(`git_diff: Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    const check = await executeCodingTool("check_types", {});
+    verification.push(`check_types:\n${check}`);
+  } catch (error) {
+    verification.push(`check_types: Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  return `${workerReport}\n\nAutomatic post-worker verification:\n${verification.join("\n\n")}`;
 };
 
 export const codingHandlersRegistry: ToolHandlerRegistry = {

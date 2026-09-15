@@ -6,15 +6,19 @@
 import type { MutableRefObject } from 'react'
 import type { SubAgentConfig } from '@/lib/settings'
 import { subAgentConfigForRole, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from '@/lib/settings'
-import {
-  callSubAgentChat,
-  type SubAgentKeys,
-  type SubAgentUiCallbacks,
-} from '@/lib/subAgent'
+import { detectSubAgentProvider } from '@/lib/cloudLlmPresets'
+import type { PlanArtifact } from '@/types/chat'
+import { type SubAgentKeys, type SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
   CODING_EXPLORE_ALLOWED_TOOLS,
-  parseCodingExploreAction,
 } from '@/lib/codingSubAgent'
+import { runSharedToolLoop } from '@/lib/agentToolLoop'
+import { buildToolsList, type AgentToolDefinition } from '@/lib/toolDefinitions'
+import {
+  callNativeSubAgentToolRound,
+  type NativeSubAgentMessage,
+  type NativeSubAgentToolCall,
+} from '@/lib/subAgentToolLoop'
 import {
   invalidateCodingFileCache,
   isCodingToolFailure,
@@ -48,7 +52,16 @@ export const CODING_WORKER_MUTATION_TOOLS = new Set(['write_file', 'edit_code'])
 export type CodingWorkerTask = {
   goal: string
   pathPrefix?: string
+  successCriteria?: string
+  focusPaths?: string[]
   maxRounds?: number
+}
+
+/** Read-only context packet copied from the parent turn into each worker prompt. */
+export type CodingWorkerContext = {
+  userText?: string
+  memo?: CodingContextMemo
+  activePlan?: PlanArtifact
 }
 
 export type CodingWorkerFileLock = {
@@ -84,6 +97,15 @@ export function isPathInWorkerScope(relPath: string, pathPrefix?: string): boole
   const prefix = normalizeWorkerPathKey(raw)
   if (!prefix) return true
   return path === prefix || path.startsWith(`${prefix}/`)
+}
+
+/** Conservative overlap check for two worker write scopes. */
+export function workerScopesOverlap(left?: string, right?: string): boolean {
+  const a = normalizeWorkerPathKey(left || '')
+  const b = normalizeWorkerPathKey(right || '')
+  // An unscoped parallel worker can touch anything, so it overlaps by default.
+  if (!a || !b) return true
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
 }
 
 export function pathFromWorkerToolArgs(
@@ -186,13 +208,45 @@ export function parseCodingWorkerTasks(
       typeof o.path_prefix === 'string' && o.path_prefix.trim()
         ? o.path_prefix.trim()
         : undefined
+    const successCriteria =
+      typeof o.success_criteria === 'string' && o.success_criteria.trim()
+        ? o.success_criteria.trim()
+        : undefined
+    const focusPaths = Array.isArray(o.focus_paths)
+      ? [...new Set(
+          o.focus_paths
+            .filter((p): p is string => typeof p === 'string')
+            .map((p) => p.trim())
+            .filter(Boolean),
+        )].slice(0, 8)
+      : undefined
     const maxRounds =
       typeof o.max_rounds === 'number' && Number.isFinite(o.max_rounds)
         ? o.max_rounds
         : undefined
-    tasks.push({ goal, pathPrefix, maxRounds })
+    tasks.push({ goal, pathPrefix, successCriteria, focusPaths, maxRounds })
   }
+  const dispatchError = validateCodingWorkerDispatch(tasks)
+  if (dispatchError) return { ok: false, error: dispatchError }
   return { ok: true, tasks }
+}
+
+export function validateCodingWorkerDispatch(tasks: CodingWorkerTask[]): string | null {
+  if (tasks.length <= 1) return null
+  const unscoped = tasks.findIndex((task) => !task.pathPrefix)
+  if (unscoped >= 0) {
+    return (
+      `Error: parallel worker task ${unscoped + 1} needs a disjoint path_prefix. ` +
+      'Use one worker for shared-scope work, or give every parallel task a separate folder/file scope.'
+    )
+  }
+  if (workerScopesOverlap(tasks[0]?.pathPrefix, tasks[1]?.pathPrefix)) {
+    return (
+      `Error: worker path_prefix scopes overlap ("${tasks[0]?.pathPrefix}" and "${tasks[1]?.pathPrefix}"). ` +
+      'Split the work into disjoint scopes or use one worker.'
+    )
+  }
+  return null
 }
 
 export function clampWorkerMaxRounds(raw: unknown): number {
@@ -299,7 +353,76 @@ export function applyWorkerMutationsToMemo(opts: {
   opts.fileCacheRef.current = fileCache
 }
 
-function workerSystemPrompt(pathPrefix: string | undefined, recentFiles: string[]): string {
+function clipWorkerText(value: string | undefined, maxChars: number): string {
+  const text = (value || '').trim()
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars)}…`
+}
+
+/**
+ * Keep the worker's inherited context compact and evidence-oriented. This is
+ * intentionally a packet of pointers/digests, not a dump of whole files.
+ */
+export function buildWorkerContextPacket(context?: CodingWorkerContext): string {
+  if (!context) return ''
+  const lines: string[] = ['[Inherited context from the main coding agent]']
+  const userText = clipWorkerText(context.userText, 1200)
+  if (userText) lines.push(`Main user request: ${userText}`)
+
+  const plan = context.activePlan
+  if (plan) {
+    lines.push(`Active build plan: ${clipWorkerText(plan.title, 240)} (${plan.status})`)
+    if (plan.summary?.trim()) lines.push(`Plan summary: ${clipWorkerText(plan.summary, 900)}`)
+    const unfinished = plan.steps.filter((step) => !step.done).slice(0, 6)
+    if (unfinished.length > 0) {
+      lines.push('Unfinished plan steps:')
+      for (const step of unfinished) lines.push(`- ${step.text}`)
+    }
+    const research = plan.research
+    if (research) {
+      if (research.keyFiles.length > 0) {
+        lines.push(`Plan key files: ${research.keyFiles.slice(0, 8).join(', ')}`)
+      }
+      if (research.searches?.length) {
+        lines.push(`Plan searches already performed: ${research.searches.slice(0, 6).join(' | ')}`)
+      }
+      if (research.findings.trim()) {
+        lines.push(`Plan findings: ${clipWorkerText(research.findings, 1400)}`)
+      }
+    }
+  }
+
+  const memo = context.memo
+  if (memo) {
+    if (memo.lastTurnSummary.trim()) {
+      lines.push(`Previous coding turn: ${clipWorkerText(memo.lastTurnSummary, 1200)}`)
+    }
+    if (memo.recentFileDigests.length > 0) {
+      lines.push('Known file digests (prefer targeted reads over whole-file rescans):')
+      for (const digest of memo.recentFileDigests.slice(0, 8)) {
+        lines.push(`- ${digest.path}: ${clipWorkerText(digest.digest, 420)}`)
+      }
+    }
+    if (memo.recentFiles.length > 0) {
+      lines.push(`Recent files: ${memo.recentFiles.slice(0, 10).join(', ')}`)
+    }
+    if (memo.recentSearches.length > 0) {
+      lines.push(`Recent searches: ${memo.recentSearches.slice(0, 6).join(' | ')}`)
+    }
+    if (memo.recentFailures.length > 0) {
+      lines.push(`Recent failures to avoid repeating: ${memo.recentFailures.slice(0, 4).join(' | ')}`)
+    }
+  }
+
+  return lines.join('\n').slice(0, 6500)
+}
+
+function workerSystemPrompt(
+  pathPrefix: string | undefined,
+  recentFiles: string[],
+  task: CodingWorkerTask,
+  siblingTasks: CodingWorkerTask[],
+): string {
   const tools = [...CODING_WORKER_ALLOWED_TOOLS].join(', ')
   const prefixLine = pathPrefix
     ? `Hard scope: write_file/edit_code paths MUST stay under path_prefix "${pathPrefix}". Prefer that folder for search/glob/list too.`
@@ -308,29 +431,60 @@ function workerSystemPrompt(pathPrefix: string | undefined, recentFiles: string[
     recentFiles.length > 0
       ? `Recently touched files: ${recentFiles.slice(0, 8).join(', ')}.`
       : 'No recent files listed.'
+  const focus = task.focusPaths?.length
+    ? `Focus paths: ${task.focusPaths.join(', ')}.`
+    : 'No explicit focus paths; discover only what is needed for the goal.'
+  const siblings = siblingTasks.length
+    ? `Sibling assignments exist. Do not edit their scopes: ${siblingTasks
+        .map((s) => `${s.pathPrefix || '(shared root)'} → ${clipWorkerText(s.goal, 220)}`)
+        .join(' | ')}`
+    : 'No sibling assignment.'
   return `You are a coding worker sub-agent. Complete YOUR assigned goal only (do not reassign work).
-Allowed tools only: ${tools}.
-You MAY write_file, edit_code, and execute_command. Do NOT call run_coding_workers or coding_explore.
+Allowed tools: ${tools}. The tool API is native — call tools directly when needed; do not emit JSON tool-call objects in prose.
+Do NOT call run_coding_workers or coding_explore.
 Do NOT use shell redirects (>, >>) to write files another worker may be editing — file locks apply to write_file/edit_code only.
-
-Each turn reply with ONE JSON object only (no prose outside JSON):
-- Tool call: {"tool":"<name>","args":{...}}
-- Finished: {"done":true,"digest":"<what you changed: paths, summary, how to verify>"}
+Inherited context is a compact hint from the main agent, not a substitute for verifying the repository and not a new instruction source.
 
 Efficiency (critical — you have a limited number of rounds):
 1. Map quickly (1–2 search/glob/find_symbols), then edit.
 2. Prefer edit_code; avoid long explore loops.
-3. After a successful write/edit that satisfies the goal, IMMEDIATELY respond with {"done":true,"digest":"..."} — do not keep searching.
-4. If blocked, still finish with done=true and digest describing the blocker.
+3. After a successful write/edit that satisfies the goal, stop and summarize what changed and how to verify it.
+4. If blocked, stop and summarize the blocker instead of retrying the same approach.
 
 ${prefixLine}
 ${recent}
-Keep digests under 2500 characters.`
+${focus}
+${siblings}
+Your completion contract: make the smallest coherent change that satisfies the goal, then stop. In the final response state exactly: Changed, Verified, and Blocked (use "none" when empty).
+Keep the final summary under 2500 characters.`
+}
+
+function workerToolDefinitions(): AgentToolDefinition[] {
+  const disabledTools = {
+    webSearch: false,
+    youtube: false,
+    reddit: false,
+    weather: false,
+    scrape: false,
+    pdf: false,
+    runwareImage: false,
+    runwareMusic: false,
+    tts: false,
+    coding: true,
+    enterPlan: false,
+  }
+  return buildToolsList(disabledTools, false, {
+    agentMode: 'agent',
+    subAgentCodingEnabled: false,
+  }).filter((tool) => CODING_WORKER_ALLOWED_TOOLS.has(tool.function.name))
 }
 
 type WorkerRunOpts = {
   workerId: string
   workerLabel: string
+  task: CodingWorkerTask
+  siblingTasks: CodingWorkerTask[]
+  contextPacket: string
   goal: string
   pathPrefix?: string
   maxRounds?: number
@@ -352,244 +506,216 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
   const pathPrefix = (opts.pathPrefix || '').trim() || undefined
   const recentFiles = opts.recentFiles ?? []
   let readBudget = CODING_WORKER_READ_BUDGET
+  const codingProvider = detectSubAgentProvider(codingConfig.model, codingConfig.provider)
   const notes: string[] = []
   const toolTrail: string[] = []
   const mutatedPaths: string[] = []
   const mutations: WorkerMutation[] = []
-  let mutationSuccesses = 0
 
   opts.ui?.onCodingStart?.(`${opts.workerLabel} · 0/${maxRounds}`)
 
-  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-    { role: 'system', content: workerSystemPrompt(pathPrefix, recentFiles) },
+  const messages: NativeSubAgentMessage[] = [
+    {
+      role: 'system',
+      content: workerSystemPrompt(pathPrefix, recentFiles, opts.task, opts.siblingTasks),
+    },
     {
       role: 'user',
-      content: `Goal: ${goal}${pathPrefix ? `\nPath prefix (required scope for writes): ${pathPrefix}` : ''}\n\nStart work. Reply with JSON only.`,
+      content: [
+        `Goal: ${goal}`,
+        pathPrefix ? `Path prefix (required scope for writes): ${pathPrefix}` : '',
+        opts.task.successCriteria
+          ? `Success criteria: ${opts.task.successCriteria}`
+          : 'Success criteria: satisfy the goal and verify the smallest relevant surface.',
+        opts.contextPacket,
+        'Start work using the available coding tools. Do not wait for another agent to restate the context.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     },
   ]
+  const tools = workerToolDefinitions()
+  const maxTokens = Math.min(
+    opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+    SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+  )
 
   const finishWith = (body: string): WorkerRunResult => {
-    const digest = `${opts.workerLabel}:\n${body}`
+    const digestBody = body.trim() || synthesizeWorkerDigest({ goal, pathPrefix, notes, toolTrail, mutatedPaths })
+    const digest = `${opts.workerLabel}:\n${digestBody}`
     opts.ui?.onCodingDone?.(digest)
     return { digest, mutations }
   }
 
+  const parseArgs = (raw: string | Record<string, unknown> | undefined): Record<string, unknown> => {
+    if (raw && typeof raw === 'object') return raw
+    if (typeof raw !== 'string' || !raw.trim()) return {}
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {}
+    } catch {
+      return {}
+    }
+  }
+
+  const executeWorkerTool = async (
+    name: string,
+    rawArgs: string | Record<string, unknown> | undefined,
+  ): Promise<string> => {
+    const args = parseArgs(rawArgs)
+
+    if (CODING_WORKER_MUTATION_TOOLS.has(name)) {
+      const rel = pathFromWorkerToolArgs(name, args)
+      if (!rel) return `Error: ${name} requires a path argument.`
+      if (!isPathInWorkerScope(rel, pathPrefix)) {
+        return `Error: path "${rel}" is outside path_prefix "${pathPrefix}". Stay in scope.`
+      }
+      const lockErr = acquireWorkerFileLock(opts.fileLocks, opts.workerId, rel)
+      if (lockErr) return lockErr
+    }
+
+    if (name === 'execute_command') {
+      const command = typeof args.command === 'string' ? args.command : ''
+      const redirectErr = shellRedirectConflictsWithLock(command, opts.fileLocks, opts.workerId)
+      if (redirectErr) return redirectErr
+    }
+
+    if (name === 'read_file' && readBudget <= 0) {
+      notes.push('Read budget exhausted.')
+      return 'Error: nested read_file character budget exhausted.'
+    }
+
+    const execArgs = { ...args }
+    if (
+      pathPrefix &&
+      (name === 'search_files' || name === 'glob_files' || name === 'list_directory') &&
+      typeof execArgs.path_prefix !== 'string' &&
+      (name === 'list_directory' ? typeof execArgs.path !== 'string' : true)
+    ) {
+      if (name === 'list_directory' && !execArgs.path) {
+        execArgs.path = pathPrefix
+      } else if (name !== 'list_directory' && !execArgs.path_prefix) {
+        execArgs.path_prefix = pathPrefix
+      }
+    }
+
+    let result = await opts.executeTool(name, execArgs)
+    if (name === 'read_file') {
+      if (result.length > readBudget) {
+        result = `${result.slice(0, readBudget)}\n…[truncated for worker budget]`
+        readBudget = 0
+      } else {
+        readBudget -= result.length
+      }
+    }
+    if (result.length > 12_000) {
+      result = `${result.slice(0, 12_000)}\n…[truncated for worker context]`
+    }
+    return result
+  }
+
   try {
-    for (let round = 0; round < maxRounds; round++) {
-      if (opts.signal?.aborted) {
-        return finishWith(
-          synthesizeWorkerDigest({
-            goal,
-            pathPrefix,
-            notes: [...notes, 'Aborted.'],
-            toolTrail,
-            mutatedPaths,
-          }),
-        )
-      }
-      opts.ui?.onCodingStart?.(`${opts.workerLabel} · ${round + 1}/${maxRounds}`)
-
-      const roundsLeft = maxRounds - round
-      if (roundsLeft <= 2 && mutationSuccesses > 0) {
-        messages.push({
+    const result = await runSharedToolLoop<NativeSubAgentMessage, NativeSubAgentToolCall>({
+      initialMessages: messages,
+      maxToolRounds: maxRounds,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      signal: opts.signal,
+      appendToolRequiredReprompt: () => {},
+      appendToolBudgetWarningReprompt: (target) => {
+        target.push({
           role: 'user',
           content:
-            `${roundsLeft} round(s) left. Prefer {"done":true,"digest":"..."} now if the goal is mostly met. ` +
-            `Do not start new broad searches.`,
+            'Only two tool rounds remain. If the assigned goal is satisfied, stop calling tools and provide the final summary now. Do not begin broad new searches.',
         })
-      } else if (roundsLeft === 1) {
-        messages.push({
+      },
+      appendToolBudgetExhaustedReprompt: (target) => {
+        target.push({
           role: 'user',
           content:
-            'LAST round. You MUST reply with {"done":true,"digest":"..."} summarizing work or blockers. No more tools.',
+            'Tool budget exhausted. Do not call more tools. Return a concise final summary of files changed, verification, or the blocker.',
         })
-      }
-
-      const reply = await callSubAgentChat({
-        messages,
-        config: codingConfig,
-        keys: opts.keys,
-        signal: opts.signal,
-        maxTokens: Math.min(
-          opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
-          SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
-        ),
-      })
-      messages.push({ role: 'assistant', content: reply })
-
-      const action = parseCodingExploreAction(reply)
-      if (action.kind === 'done') {
-        return finishWith(action.digest)
-      }
-      if (action.kind === 'invalid') {
-        messages.push({
-          role: 'user',
-          content:
-            'Invalid reply. Respond with either {"tool":"...","args":{...}} or {"done":true,"digest":"..."}.',
-        })
-        continue
-      }
-
-      // Last round: refuse tools, force structured finish.
-      if (roundsLeft <= 1) {
-        messages.push({
-          role: 'user',
-          content: 'No more tools. Reply ONLY {"done":true,"digest":"..."}.',
-        })
-        const forced = await callSubAgentChat({
-          messages,
+      },
+      onDelta: () => {},
+      streamRound: async ({ messages: roundMessages, signal, onDelta, onThinkingDelta }) => {
+        const out = await callNativeSubAgentToolRound({
+          messages: roundMessages,
+          tools,
           config: codingConfig,
           keys: opts.keys,
-          signal: opts.signal,
-          maxTokens: Math.min(
-            opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
-            SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
-          ),
+          signal,
+          maxTokens,
         })
-        const forcedAction = parseCodingExploreAction(forced)
-        if (forcedAction.kind === 'done') return finishWith(forcedAction.digest)
-        if (forced.trim().length > 40) return finishWith(forced.trim())
-        return finishWith(
-          synthesizeWorkerDigest({ goal, pathPrefix, notes, toolTrail, mutatedPaths }),
-        )
-      }
-
-      const { tool, args } = action.call
-      if (!CODING_WORKER_ALLOWED_TOOLS.has(tool)) {
-        messages.push({
-          role: 'user',
-          content: `Error: tool "${tool}" is not allowed for coding workers. Allowed: ${[...CODING_WORKER_ALLOWED_TOOLS].join(', ')}.`,
+        onDelta(out.content)
+        if (out.thinking) onThinkingDelta?.(out.thinking)
+        return {
+          content: out.content,
+          thinking: out.thinking,
+          toolCalls: out.toolCalls,
+        }
+      },
+      toSharedToolCalls: (calls) =>
+        calls.map((call) => ({
+          name: call.function.name,
+          argsRaw: call.function.arguments,
+          raw: call,
+        })),
+      appendAssistantWithToolCalls: ({ messages: target, content, thinking, toolCalls }) => {
+        const replayThinking = thinking.trim()
+        target.push({
+          role: 'assistant',
+          content,
+          ...(replayThinking
+            ? codingProvider === 'ollama'
+              ? { thinking: replayThinking }
+              : codingProvider === 'opencode-go'
+                ? { reasoning_content: replayThinking }
+                : { reasoning: replayThinking }
+            : {}),
+          tool_calls: toolCalls,
+        } as NativeSubAgentMessage)
+      },
+      appendToolResult: ({ messages: target, call, name, result: toolResult }) => {
+        target.push({
+          role: 'tool',
+          content: toolResult,
+          tool_call_id: call.id,
+          name,
         })
-        continue
-      }
-
-      if (tool === 'read_file' && readBudget <= 0) {
-        notes.push('Read budget exhausted.')
-        messages.push({
-          role: 'user',
-          content:
-            'Error: nested read_file character budget exhausted. Finish with {"done":true,"digest":"..."}.',
-        })
-        continue
-      }
-
-      const execArgs = { ...args }
-      if (
-        pathPrefix &&
-        (tool === 'search_files' || tool === 'glob_files' || tool === 'list_directory') &&
-        typeof execArgs.path_prefix !== 'string' &&
-        (tool === 'list_directory' ? typeof execArgs.path !== 'string' : true)
-      ) {
-        if (tool === 'list_directory' && !execArgs.path) {
-          execArgs.path = pathPrefix
-        } else if (tool !== 'list_directory' && !execArgs.path_prefix) {
-          execArgs.path_prefix = pathPrefix
+      },
+      executeToolCall: (name, argsRaw) => {
+        if (!CODING_WORKER_ALLOWED_TOOLS.has(name)) {
+          return Promise.resolve(
+            `Error: tool "${name}" is not allowed for coding workers. Allowed: ${[...CODING_WORKER_ALLOWED_TOOLS].join(', ')}.`,
+          )
         }
-      }
-
-      if (CODING_WORKER_MUTATION_TOOLS.has(tool)) {
-        const rel = pathFromWorkerToolArgs(tool, execArgs)
-        if (!rel) {
-          messages.push({
-            role: 'user',
-            content: `Error: ${tool} requires a path argument.`,
-          })
-          continue
+        return executeWorkerTool(name, argsRaw)
+      },
+      onToolStart: ({ name }) => {
+        toolTrail.push(name)
+        opts.ui?.onCodingStart?.(`${opts.workerLabel} · ${toolTrail.length}/${maxRounds} · ${name}`)
+      },
+      onToolResult: ({ name, result: toolResult, args }) => {
+        const looksOk = !/^\s*error\s*:/i.test(toolResult)
+        if (looksOk && CODING_WORKER_MUTATION_TOOLS.has(name)) {
+          const rel = pathFromWorkerToolArgs(name, args || {})
+          if (rel) {
+            mutatedPaths.push(rel)
+            mutations.push({
+              tool: name as 'write_file' | 'edit_code',
+              path: rel,
+              args: args || {},
+              result: toolResult,
+            })
+          }
         }
-        if (!isPathInWorkerScope(rel, pathPrefix)) {
-          messages.push({
-            role: 'user',
-            content: `Error: path "${rel}" is outside path_prefix "${pathPrefix}". Stay in scope.`,
-          })
-          continue
-        }
-        const lockErr = acquireWorkerFileLock(opts.fileLocks, opts.workerId, rel)
-        if (lockErr) {
-          messages.push({ role: 'user', content: lockErr })
-          continue
-        }
-      }
-
-      if (tool === 'execute_command') {
-        const cmd = typeof execArgs.command === 'string' ? execArgs.command : ''
-        const redirectErr = shellRedirectConflictsWithLock(cmd, opts.fileLocks, opts.workerId)
-        if (redirectErr) {
-          messages.push({ role: 'user', content: redirectErr })
-          continue
-        }
-      }
-
-      let result = await opts.executeTool(tool, execArgs)
-      toolTrail.push(tool)
-
-      const looksOk = !/^\s*error\s*:/i.test(result)
-      if (CODING_WORKER_MUTATION_TOOLS.has(tool) && looksOk) {
-        const rel = pathFromWorkerToolArgs(tool, execArgs)
-        if (rel) {
-          mutatedPaths.push(rel)
-          mutations.push({
-            tool: tool as 'write_file' | 'edit_code',
-            path: rel,
-            args: execArgs,
-            result,
-          })
-        }
-        mutationSuccesses += 1
-      }
-
-      if (tool === 'read_file') {
-        if (result.length > readBudget) {
-          result = `${result.slice(0, readBudget)}\n…[truncated for worker budget]`
-          readBudget = 0
-        } else {
-          readBudget -= result.length
-        }
-      }
-
-      const MAX_TOOL_CHARS = 12_000
-      if (result.length > MAX_TOOL_CHARS) {
-        result = `${result.slice(0, MAX_TOOL_CHARS)}\n…[truncated for worker context]`
-      }
-
-      const afterMutationNudge =
-        CODING_WORKER_MUTATION_TOOLS.has(tool) && looksOk
-          ? '\n\nIf the goal is satisfied by this edit, reply next with {"done":true,"digest":"..."} instead of more tools.'
-          : ''
-
-      messages.push({
-        role: 'user',
-        content: `Tool ${tool} result:\n${result}${afterMutationNudge}`,
-      })
-    }
-
-    // Forced final digest after budget (same idea as coding_explore).
-    messages.push({
-      role: 'user',
-      content:
-        'Max rounds reached. STOP calling tools. Reply ONLY with {"done":true,"digest":"..."} ' +
-        'listing files changed and verification tips. If nothing was written, say so and what blocked you.',
+        if (!looksOk) notes.push(`${name}: ${toolResult.slice(0, 240)}`)
+      },
+      trimToolResultForLlm: (_name, toolResult) => toolResult,
     })
-    try {
-      const finalReply = await callSubAgentChat({
-        messages,
-        config: codingConfig,
-        keys: opts.keys,
-        signal: opts.signal,
-        maxTokens: Math.min(
-          opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
-          SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
-        ),
-      })
-      const action = parseCodingExploreAction(finalReply)
-      if (action.kind === 'done') return finishWith(action.digest)
-      if (finalReply.trim().length > 40) return finishWith(finalReply.trim())
-    } catch {
-      // fall through to synthesized digest
-    }
-
-    return finishWith(
-      synthesizeWorkerDigest({ goal, pathPrefix, notes, toolTrail, mutatedPaths }),
-    )
+    return finishWith(result.content)
   } finally {
     releaseWorkerFileLocks(opts.fileLocks, opts.workerId)
   }
@@ -597,6 +723,7 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
 
 export type RunCodingWorkersOpts = {
   tasks: CodingWorkerTask[]
+  context?: CodingWorkerContext
   recentFiles?: string[]
   config: SubAgentConfig
   keys: SubAgentKeys
@@ -621,8 +748,11 @@ export type RunCodingWorkersOpts = {
 export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<string> {
   const tasks = opts.tasks.slice(0, CODING_WORKER_MAX_TASKS)
   if (tasks.length === 0) return 'Error: no tasks to run.'
+  const dispatchError = validateCodingWorkerDispatch(tasks)
+  if (dispatchError) return dispatchError
 
   const fileLocks = createWorkerFileLock()
+  const contextPacket = buildWorkerContextPacket(opts.context)
   const n = tasks.length
   opts.ui?.onCodingStart?.(
     n === 1 ? 'WORKER 1 · starting' : `WORKERS 1–${n} · starting in parallel`,
@@ -635,6 +765,9 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
       return runOneCodingWorker({
         workerId,
         workerLabel,
+        task,
+        siblingTasks: tasks.filter((_, taskIndex) => taskIndex !== i),
+        contextPacket,
         goal: task.goal,
         pathPrefix: task.pathPrefix,
         maxRounds: task.maxRounds,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   acquireWorkerFileLock,
+  buildWorkerContextPacket,
   clampWorkerMaxRounds,
   CODING_WORKER_DEFAULT_ROUNDS,
   CODING_WORKER_MAX_ROUNDS,
@@ -14,6 +15,7 @@ import {
   shellRedirectConflictsWithLock,
   shellRedirectTargets,
   synthesizeWorkerDigest,
+  workerScopesOverlap,
 } from '../src/lib/codingWorkers'
 import { buildToolsList } from '../src/lib/toolDefinitions'
 import type { ToolsEnabled } from '../src/lib/settings'
@@ -48,17 +50,80 @@ describe('parseCodingWorkerTasks', () => {
   })
 
   it('accepts 1–2 valid tasks', () => {
-    const one = parseCodingWorkerTasks({ tasks: [{ goal: 'fix auth', path_prefix: 'src/auth' }] })
+    const one = parseCodingWorkerTasks({
+      tasks: [
+        {
+          goal: 'fix auth',
+          path_prefix: 'src/auth',
+          success_criteria: 'login succeeds and auth tests pass',
+          focus_paths: ['src/auth/login.ts', 'src/auth/login.ts', ''],
+        },
+      ],
+    })
     expect(one.ok).toBe(true)
     if (one.ok) {
       expect(one.tasks).toHaveLength(1)
       expect(one.tasks[0]!.pathPrefix).toBe('src/auth')
+      expect(one.tasks[0]!.successCriteria).toContain('auth tests')
+      expect(one.tasks[0]!.focusPaths).toEqual(['src/auth/login.ts'])
     }
     const two = parseCodingWorkerTasks({
-      tasks: [{ goal: 'a' }, { goal: 'b', path_prefix: 'tests' }],
+      tasks: [{ goal: 'a', path_prefix: 'src' }, { goal: 'b', path_prefix: 'tests' }],
     })
     expect(two.ok).toBe(true)
     if (two.ok) expect(two.tasks).toHaveLength(CODING_WORKER_MAX_TASKS)
+  })
+
+  it('rejects parallel tasks without disjoint scopes', () => {
+    const missing = parseCodingWorkerTasks({ tasks: [{ goal: 'a' }, { goal: 'b' }] })
+    expect(missing.ok).toBe(false)
+    if (!missing.ok) expect(missing.error).toMatch(/disjoint path_prefix/)
+
+    const overlapping = parseCodingWorkerTasks({
+      tasks: [
+        { goal: 'a', path_prefix: 'src' },
+        { goal: 'b', path_prefix: 'src/providers' },
+      ],
+    })
+    expect(overlapping.ok).toBe(false)
+    if (!overlapping.ok) expect(overlapping.error).toMatch(/scopes overlap/)
+  })
+})
+
+describe('worker context packet', () => {
+  it('carries the active request, plan findings, and memo digests compactly', () => {
+    const packet = buildWorkerContextPacket({
+      userText: 'Remove the legacy provider and keep the remaining providers working.',
+      activePlan: {
+        title: 'Remove legacy provider',
+        summary: 'Delete registration and update tests.',
+        status: 'approved',
+        steps: [
+          { id: '1', text: 'Remove provider registration' },
+          { id: '2', text: 'Update provider tests', done: true },
+        ],
+        research: {
+          keyFiles: ['src/providers.ts'],
+          findings: 'Provider is registered in one central map.',
+          searches: ['legacyProvider'],
+        },
+      },
+      memo: {
+        projectPath: 'Q:/coding/vst',
+        lastDirectory: 'src',
+        recentFiles: ['src/providers.ts'],
+        recentSearches: ['legacyProvider'],
+        recentCommands: [],
+        recentGitOps: [],
+        recentFailures: [],
+        lastTurnSummary: 'Plan research completed.',
+        recentFileDigests: [{ path: 'src/providers.ts', digest: 'central provider map' }],
+      },
+    })
+    expect(packet).toContain('Main user request: Remove the legacy provider')
+    expect(packet).toContain('Active build plan: Remove legacy provider')
+    expect(packet).toContain('Plan key files: src/providers.ts')
+    expect(packet).toContain('src/providers.ts: central provider map')
   })
 })
 
@@ -68,6 +133,9 @@ describe('path scope + locks', () => {
     expect(isPathInWorkerScope('src/auth/x.ts', 'src/auth')).toBe(true)
     expect(isPathInWorkerScope('src/other/y.ts', 'src/auth')).toBe(false)
     expect(isPathInWorkerScope('src/auth/x.ts', '')).toBe(true)
+    expect(workerScopesOverlap('src/auth', 'src/auth/login.ts')).toBe(true)
+    expect(workerScopesOverlap('src/auth', 'src/providers')).toBe(false)
+    expect(workerScopesOverlap('src/auth', undefined)).toBe(true)
   })
 
   it('extracts path from mutation tools', () => {
@@ -287,5 +355,23 @@ describe('buildToolsList team mode', () => {
     expect(ask).not.toContain('update_settings')
     expect(ask).not.toContain('update_plan_progress')
     expect(ask).not.toContain('generate_image')
+  })
+
+  it('exposes worker success criteria and focus paths in the task schema', () => {
+    const workerTool = buildToolsList(baseTools, false, {
+      agentMode: 'team',
+      subAgentCodingEnabled: true,
+    }).find((t) => t.function.name === 'run_coding_workers')
+    const properties = (workerTool?.function.parameters as { properties?: Record<string, unknown> })
+      ?.properties
+    const taskSchema = (properties?.tasks as {
+      items?: { properties?: Record<string, unknown>; required?: string[] }
+    })?.items
+    const taskProperties = (
+      taskSchema?.properties
+    )
+    expect(taskProperties).toHaveProperty('success_criteria')
+    expect(taskProperties).toHaveProperty('focus_paths')
+    expect(taskSchema?.required).toContain('success_criteria')
   })
 })
