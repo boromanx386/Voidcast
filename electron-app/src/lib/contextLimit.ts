@@ -85,7 +85,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'tencent/hy3': 262_144,
   'kimi-k2.7-code': 262_144,
   'kimi-k2.6': 262_144,
-  'kimi-k3': 1000000,
+  'kimi-k3': 1048576,
   'kimi-k3-eco': 1_000_000,
   'glm-5.3': 1000000,
   'glm-5.2': 1_000_000,
@@ -108,6 +108,11 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'qwen/qwen3.8-flash': 1000000,
   'tencent/hy4-preview': 1048576,
   'hy4-preview': 1024000,
+  'deepseek/deepseek-v4.1-flash': 1048576,
+  'openai/gpt-6-astra': 1050000,
+  'openai/gpt-6-astra-pro': 1050000,
+  'anthropic/claude-fable-5.1': 1000000,
+  'deepseek-v4.1-flash': 1000000,
 }
 
 function buildPresetLookup(

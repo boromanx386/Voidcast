@@ -29,7 +29,6 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'meta/muse-spark-1.2', label: 'Meta Muse Spark 1.2' },
   { id: 'minimax/minimax-m3', label: 'MiniMax M3' },
   { id: 'qwen/qwen3.7-plus', label: 'Qwen3.7 Plus' },
-  { id: 'qwen/qwen3.8-max', label: 'Qwen3.8 Max (flagship · coding)' },
   { id: 'inclusionai/ling-3.0-flash', label: 'Ling 3.0 Flash (ultra-cheap MoE)' },
   { id: 'z-ai/glm-5.2', label: 'GLM 5.2 (reasoning · coding)' },
   { id: 'z-ai/glm-5.3', label: 'GLM 5.3 (reasoning · coding)' },
@@ -48,6 +47,10 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'liquid/lfm-2.5-2.6b:free', label: 'Lfm 2 5 2 6b (66K ctx)' },
   { id: 'qwen/qwen3.8-flash', label: 'Qwen3 8 Flash (1M ctx)' },
   { id: 'tencent/hy4-preview', label: 'Hy4 Preview (1M ctx)' },
+  { id: 'deepseek/deepseek-v4.1-flash', label: 'Deepseek V4 1 Flash (1M ctx)' },
+  { id: 'openai/gpt-6-astra', label: 'GPT 6 Astra (1.1M ctx)' },
+  { id: 'openai/gpt-6-astra-pro', label: 'GPT 6 Astra Pro (1.1M ctx)' },
+  { id: 'anthropic/claude-fable-5.1', label: 'Claude Fable 5 1 (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -70,15 +73,13 @@ export const OPENAI_LLM_PRESET_MODELS: CloudLlmPreset[] = [
 export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b', label: 'Nemotron 3 Ultra 550B' },
-  { id: 'minimaxai/minimax-m3', label: 'MiniMax M3' },
   { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
   { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B IT' },
-  { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
   { id: 'deepseek-ai/deepseek-v4-flash-0731', label: 'Deepseek V4 Flash 0731' },
   { id: 'meta/muse-glimmer-30b', label: 'Muse Glimmer 30b' },
   { id: 'moonshotai/kimi-k3', label: 'Kimi K3' },
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna Xs 2 1' },
-  { id: 'deepseek-ai/deepseek-v4-pro-0813', label: 'Deepseek V4 Pro 0813' },
+  { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash' },
 ]
 
 /**
@@ -107,6 +108,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'hy3', label: 'Hy3' },
   { id: 'glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
   { id: 'hy4-preview', label: 'Hy4 Preview (1M ctx)' },
+  { id: 'deepseek-v4.1-flash', label: 'Deepseek V4 1 Flash (1M ctx)' },
 ]
 
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
