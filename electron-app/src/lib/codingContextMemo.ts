@@ -519,13 +519,7 @@ export function formatCodingTurnEvidenceLabel(evidence: CodingTurnEvidence): str
   parts.push(`${evidence.filesChanged} file(s)`)
   parts.push(`${evidence.commandsRun} command(s)`)
   parts.push(`${evidence.gitMutations} git action(s)`)
-  let line = parts.join(' · ')
-  const cmd = evidence.commandSummaries[0]
-  if (cmd) {
-    const short = cmd.length > 72 ? `${cmd.slice(0, 69)}…` : cmd
-    line += ` — ${short}`
-  }
-  return line
+  return parts.join(' · ')
 }
 
 export const CODING_PLAN_HANDOFF_MAX_CHARS = 6000

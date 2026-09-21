@@ -51,6 +51,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'openai/gpt-6-astra', label: 'GPT 6 Astra (1.1M ctx)' },
   { id: 'openai/gpt-6-astra-pro', label: 'GPT 6 Astra Pro (1.1M ctx)' },
   { id: 'anthropic/claude-fable-5.1', label: 'Claude Fable 5 1 (1M ctx)' },
+  { id: 'z-ai/glm-5.3-flashx', label: 'GLM 5 3 Flashx (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -75,7 +76,6 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3-ultra-550b-a55b', label: 'Nemotron 3 Ultra 550B' },
   { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
   { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B IT' },
-  { id: 'deepseek-ai/deepseek-v4-flash-0731', label: 'Deepseek V4 Flash 0731' },
   { id: 'meta/muse-glimmer-30b', label: 'Muse Glimmer 30b' },
   { id: 'moonshotai/kimi-k3', label: 'Kimi K3' },
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna Xs 2 1' },

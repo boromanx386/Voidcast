@@ -41,6 +41,19 @@ describe('summarizeCodingTurnEvidence', () => {
     expect(ev.commandSummaries[0]).toContain('git commit')
   })
 
+  it('does not expose a command preview in the UI label', () => {
+    let log = emptyCodingTurnLog()
+    log = recordCodingToolInTurnLog(
+      log,
+      'execute_command',
+      { command: 'nvidia-smi --query-gpu=name --format=csv' },
+      '$ nvidia-smi --query-gpu=name --format=csv\nok',
+    )
+    const label = formatCodingTurnEvidenceLabel(summarizeCodingTurnEvidence(log))
+    expect(label).toBe('0 file(s) · 1 command(s) · 0 git action(s)')
+    expect(label).not.toContain('nvidia-smi')
+  })
+
   it('records git_stash push as git mutation', () => {
     let log = emptyCodingTurnLog()
     log = recordCodingToolInTurnLog(log, 'git_stash', { action: 'push' }, 'stash@{0}: wip')

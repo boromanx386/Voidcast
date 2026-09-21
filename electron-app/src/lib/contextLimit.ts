@@ -113,6 +113,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'openai/gpt-6-astra-pro': 1050000,
   'anthropic/claude-fable-5.1': 1000000,
   'deepseek-v4.1-flash': 1000000,
+  'z-ai/glm-5.3-flashx': 1048576,
 }
 
 function buildPresetLookup(
