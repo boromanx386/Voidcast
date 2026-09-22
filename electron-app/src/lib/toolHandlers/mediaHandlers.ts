@@ -232,6 +232,7 @@ export const handleImageRecall: ToolHandlerFn = async (args, ctx) => {
         nvidiaApiKey: ctx.nvidiaApiKey || "",
         opencodeGoApiKey: ctx.opencodeGoApiKey || "",
         ttsBaseUrl: ctx.ttsBaseUrl,
+        opencodeSessionId: ctx.opencodeSessionId,
       },
       ctx.userText,
       ctx.signal,

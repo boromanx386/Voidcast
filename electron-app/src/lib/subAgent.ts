@@ -59,6 +59,8 @@ export type SubAgentKeys = {
   opencodeGoApiKey: string
   /** Used for OpenCode Go local reverse-proxy base on desktop. */
   ttsBaseUrl?: string
+  /** Stable parent-chat session id for OpenCode Go routing. */
+  opencodeSessionId?: string
 }
 
 export type SubAgentImageInput = {
@@ -398,6 +400,7 @@ async function describeWithOpenCodeGo(
   opencodeGoApiKey: string,
   prompt: string,
   signal?: AbortSignal,
+  opencodeSessionId?: string,
 ): Promise<string> {
   const baseUrl = opencodeGoApiBaseForRuntime(undefined, ttsBaseUrl)
   const dataUri = toDataUri(img.base64, img.mime)
@@ -407,6 +410,9 @@ async function describeWithOpenCodeGo(
   // TTS reverse proxy uses Authorization when server-side key is not registered.
   if (opencodeGoApiKey.trim()) {
     headers.Authorization = `Bearer ${opencodeGoApiKey.trim()}`
+  }
+  if (opencodeSessionId?.trim()) {
+    headers['x-opencode-session'] = opencodeSessionId.trim()
   }
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -484,6 +490,7 @@ async function textWithOpenAiCompatible(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   signal?: AbortSignal,
   extraBody?: Record<string, unknown>,
+  extraHeaders?: Record<string, string>,
 ): Promise<string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -491,6 +498,7 @@ async function textWithOpenAiCompatible(
   if (apiKey.trim()) {
     headers.Authorization = `Bearer ${apiKey.trim()}`
   }
+  if (extraHeaders) Object.assign(headers, extraHeaders)
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers,
@@ -604,6 +612,10 @@ export async function callSubAgentChat(opts: {
       opts.keys.opencodeGoApiKey || '',
       messages,
       opts.signal,
+      undefined,
+      opts.keys.opencodeSessionId?.trim()
+        ? { 'x-opencode-session': opts.keys.opencodeSessionId.trim() }
+        : undefined,
     )
   }
   return textWithOllama(
@@ -665,7 +677,7 @@ async function describeSingleImage(
     return describeWithOpenCodeGo(
       img, config.model, maxTokens,
       keys.ttsBaseUrl, keys.opencodeGoApiKey,
-      prompt, signal,
+      prompt, signal, keys.opencodeSessionId,
     )
   }
   return describeWithOllama(

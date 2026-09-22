@@ -27,6 +27,8 @@ export interface ChatWithToolsCommonParams {
   mcpTrustedProjectPaths?: string[]
   /** Chat runtime key for scoped MCP cancel / tool ownership. */
   mcpOwnerId?: string
+  /** Stable per-chat session id for OpenCode Go request routing. */
+  opencodeSessionId?: string
   agentMode?: AgentChatMode
   getActiveBuildPlan?: () => PlanArtifact | undefined
   maxToolRounds?: number
@@ -105,6 +107,7 @@ export function buildToolExecutorOptions(
     mcpServerEnabled: params.mcpServerEnabled,
     mcpTrustedProjectPaths: params.mcpTrustedProjectPaths,
     mcpOwnerId: params.mcpOwnerId,
+    opencodeSessionId: params.opencodeSessionId,
     agentMode: params.agentMode,
     getActiveBuildPlan: params.getActiveBuildPlan,
     subAgent: params.subAgent,

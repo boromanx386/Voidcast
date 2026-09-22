@@ -105,6 +105,7 @@ export async function runOpenRouterChatWithTools(
         onThinkingDelta,
         thinkLevel: params.thinkLevel,
         providerOnly: params.providerOnly,
+        opencodeSessionId: params.opencodeSessionId,
       })
       return {
         content: res.content,

@@ -26,6 +26,7 @@ type ExtractParams = {
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
+  opencodeSessionId?: string
   modelOptions?: OllamaModelOptions
   turns: Turn[]
   signal?: AbortSignal
@@ -129,6 +130,7 @@ export async function extractLongMemoryCandidates(params: ExtractParams): Promis
       signal: params.signal,
       thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
       providerOnly: params.provider === 'openrouter' ? cfg.providerOnly : undefined,
+      opencodeSessionId: params.opencodeSessionId,
       onDelta: () => undefined,
     })
     raw = out.content

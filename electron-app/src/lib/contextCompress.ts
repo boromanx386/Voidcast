@@ -35,6 +35,7 @@ export async function compressConversationContext(params: {
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
+  opencodeSessionId?: string
   turns: ContextTurn[]
   existingSummary?: string
   /** Tool-derived coding state (not assistant chat claims). */
@@ -86,6 +87,7 @@ export async function compressConversationContext(params: {
       signal: params.signal,
       thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
       providerOnly: params.provider === 'openrouter' ? cfg.providerOnly : undefined,
+      opencodeSessionId: params.opencodeSessionId,
       onDelta: () => undefined,
     })
     content = out.content

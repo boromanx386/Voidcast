@@ -101,6 +101,7 @@ export function useLongMemoryUi({
         opencodeGoBaseUrl: settings.opencodeGoBaseUrl,
         opencodeGoApiKey: settings.opencodeGoApiKey,
         opencodeGoModel: settings.opencodeGoModel,
+        opencodeSessionId: activeSessionId || 'voidcast-draft',
         modelOptions: {
           temperature: settings.llmTemperature,
           num_ctx: settings.llmNumCtx,

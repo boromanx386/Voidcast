@@ -43,6 +43,7 @@ The active provider determines which provider-specific group of fields is shown 
 - `opencodeGoBaseUrl` — default `https://opencode.ai/zen/go/v1` (OpenAI-compatible chat models)
 - `opencodeGoApiKey` — local key
 - `opencodeGoModel` — default `'deepseek-v4-pro'`
+- Voidcast sends a stable `x-opencode-session` header for each chat so OpenCode Go can route and cache the conversation correctly.
 
 
 ## Generation/context defaults

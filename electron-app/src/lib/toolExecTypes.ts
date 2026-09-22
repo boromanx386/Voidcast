@@ -74,6 +74,8 @@ export interface ExecCtx {
    * so Stop on chat A does not abort MCP tools for chat B.
    */
   mcpOwnerId?: string;
+  /** Stable per-chat session id for OpenCode Go sub-agent request routing. */
+  opencodeSessionId?: string;
   /** Plan mode blocks mutating tools even if registered. */
   agentMode?: AgentChatMode;
   /**

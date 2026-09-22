@@ -264,6 +264,9 @@ async function callCloudToolRound(opts: {
   const endpoint = cloudEndpoint(opts.provider, opts.config, opts.keys)
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (endpoint.apiKey.trim()) headers.Authorization = `Bearer ${endpoint.apiKey.trim()}`
+  if (opts.provider === 'opencode-go' && opts.keys.opencodeSessionId?.trim()) {
+    headers['x-opencode-session'] = opts.keys.opencodeSessionId.trim()
+  }
   const res = await fetch(`${endpoint.baseUrl}/chat/completions`, {
     method: 'POST',
     headers,

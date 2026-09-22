@@ -449,6 +449,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         opencodeGoBaseUrl: settings.opencodeGoBaseUrl,
         opencodeGoApiKey: settings.opencodeGoApiKey,
         opencodeGoModel: settings.opencodeGoModel,
+        opencodeSessionId: runtimeKey,
         turns,
         existingSummary: hiddenContextSummary,
         verifiedCodingState: codingContextMemo.lastTurnSummary,
@@ -906,6 +907,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             mcpServerEnabled: turnSettings.mcpServerEnabled,
             mcpTrustedProjectPaths: turnSettings.mcpTrustedProjectPaths,
             mcpOwnerId: keyOf(),
+            opencodeSessionId: keyOf(),
             agentMode: turnAgentMode,
             getActiveBuildPlan: () => liveBuildPlan,
             ttsBaseUrl: turnSettings.ttsBaseUrl,
@@ -1171,6 +1173,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 model: cloudCfg.model,
                 thinkLevel: cloudCfg.thinkLevel,
                 providerOnly: cloudCfg.providerOnly,
+                opencodeSessionId: keyOf(),
                 messages: ollamaMessagesToOpenRouter(history),
                 modelOptions: {
                   temperature: turnSettings.llmTemperature,

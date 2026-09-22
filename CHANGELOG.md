@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- **OpenCode Go session routing**: chat and sub-agent requests now send a stable `x-opencode-session` header for each conversation, as required by the OpenCode Go API.
+
 ## [2.8.9] — 2026-09-22
 
 ### Added

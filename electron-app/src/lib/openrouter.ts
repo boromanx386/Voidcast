@@ -51,6 +51,8 @@ export type StreamOpenRouterChatParams = {
   thinkLevel?: LlmThinkLevel
   /** OpenRouter provider slug; when set, routes only to that provider (no fallbacks). */
   providerOnly?: string
+  /** Stable per-chat session id required by OpenCode Go for request routing/caching. */
+  opencodeSessionId?: string
 }
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
@@ -519,6 +521,9 @@ export async function streamOpenRouterChat(
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+      }
+      if (isOpenCodeGo && options.opencodeSessionId?.trim()) {
+        headers['x-opencode-session'] = options.opencodeSessionId.trim()
       }
       if (!usesServerCloudProxy() && options.apiKey.trim()) {
         headers.Authorization = `Bearer ${options.apiKey.trim()}`
