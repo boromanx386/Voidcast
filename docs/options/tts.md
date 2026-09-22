@@ -13,6 +13,17 @@ Default: `'openrouter-tts'`
 
 The panel includes a **refresh TTS** button (`refreshTts`) to re-probe the local server.
 
+## Agent TTS (`generate_tts`)
+
+When TTS tools are enabled, the agent can call `generate_tts` to synthesize the requested text with the active provider and save a playable audio file. The tool uses the settings from this tab; API keys are never passed as tool arguments.
+
+- `text` — exact text to speak (required; maximum 8,000 characters after sanitization).
+- `output_path` — optional project-relative destination such as `public/audio/intro.mp3`; desktop-only and requires a coding project folder. Absolute paths and `..` traversal are rejected.
+- `filename` — optional base name when saving to the generated-audio folder.
+- `voice_instruct` — optional per-request voice/style instruction when supported by the active provider.
+
+If `output_path` is omitted, the desktop app saves the file in its generated-audio folder and attaches the audio player to the chat result.
+
 ## STT provider (`sttProvider`)
 
 Type: `SttProvider = 'none' | 'openrouter'`, default `'none'`.

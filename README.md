@@ -81,6 +81,7 @@ Available tools:
 - **Image Generation** — Runware or **OpenRouter** (Gemini Flash Image, GPT Image 2)
 - **Image Edit** — Runware or OpenRouter; reference images from chat
 - **Music / Audio Generation** — Runware AI soundtracks (ACE-Step v1.5 Turbo and Base; see below)
+- **Text-to-Speech** — `generate_tts` uses the active TTS provider and saves a real audio file; project-relative output paths are supported on desktop
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)

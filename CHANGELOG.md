@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.8.9] — 2026-09-22
+
+### Added
+
+- **Agent TTS tool**: `generate_tts` synthesizes speech with the active TTS provider and saves the audio either to the generated-audio folder or to a validated project-relative path.
+- **Coding turn evidence**: completed coding turns now preserve a verified summary of files changed, commands run, and git mutations for the chat history.
+- **Context usage after compression**: the chat shows an estimated context percentage after a compression completes.
+
+### Changed
+
+- **Coding workers**: worker orchestration, sub-agent tool loops, path scoping, and result digests were hardened for multi-area tasks.
+- **Coding evidence display**: command previews were removed from the compact evidence summary while the structured evidence remains available.
+- **Cloud model presets**: provider presets and context metadata were refreshed, including the latest supported model entries.
+
+### Removed
+
+- **CrofAI provider**: removed from the UI and provider configuration; legacy settings are cleaned up during normalization.
+
+### Fixed
+
+- Auto-save no longer races with chat-title updates while a session is being created or updated.
+
 ## [2.8.8] — 2026-08-28
 
 ### Added
