@@ -202,21 +202,49 @@ export function ChatMessage({
                       </div>
                     </details>
                   ) : null}
-                  {m.agentProgress?.map((progress, i) => (
-                    <details
-                      key={`${m.id}-agent-progress-${progress.round}`}
-                      open={i === (m.agentProgress?.length ?? 0) - 1}
-                      className="rounded border border-neon-purple/25 bg-neon-purple/5"
-                    >
-                      <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-neon-purple/90 hover:text-neon-purple flex items-center gap-2">
-                        <span>AGENT ROUND {progress.round + 1}</span>
-                        <span className="text-[10px] opacity-60">BEFORE TOOLS</span>
-                      </summary>
-                      <div className="border-t border-void-muted/30 px-3 py-2 text-sm">
-                        <ChatMarkdown content={progress.content} />
-                      </div>
-                    </details>
-                  ))}
+                  {m.agentProgress && m.agentProgress.length > 0 ? (
+                    (() => {
+                      const rounds = m.agentProgress
+                      // While a tool round runs (no next draft yet) the newest draft stays pinned
+                      // visible. Once the next draft starts streaming — or the final answer is
+                      // done — the last intermediate folds into the single collapsible group too.
+                      const hasFinal = Boolean(markdownContent && markdownContent.trim())
+                      const pinned = hasFinal ? null : rounds[rounds.length - 1]
+                      const grouped = pinned ? rounds.slice(0, -1) : rounds
+                      return (
+                        <div className="rounded border border-void-muted/30 bg-void-black/40">
+                          {grouped.length > 0 ? (
+                            <details>
+                              <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-void-dim hover:text-void-light flex items-center gap-2">
+                                <span>AGENT ROUNDS · {rounds.length}</span>
+                                <span className="text-[10px] opacity-50">BEFORE TOOLS</span>
+                              </summary>
+                              <div className="divide-y divide-void-muted/20 border-t border-void-muted/30">
+                                {grouped.map((progress) => (
+                                  <div
+                                    key={`${m.id}-agent-progress-${progress.round}`}
+                                    className="px-3 py-2 text-sm"
+                                  >
+                                    <ChatMarkdown content={progress.content} />
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          ) : (
+                            <div className="px-3 py-2 text-[11px] font-mono text-void-dim flex items-center gap-2">
+                              <span>AGENT ROUNDS · {rounds.length}</span>
+                              <span className="text-[10px] opacity-50">BEFORE TOOLS</span>
+                            </div>
+                          )}
+                          {pinned ? (
+                            <div className="border-t border-void-muted/30 px-3 py-2 text-sm">
+                              <ChatMarkdown content={pinned.content} />
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    })()
+                  ) : null}
                   {m.subAgentActivity?.open &&
                   (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
                   settings.subAgent.showAnalysisWindow !== false ? (
