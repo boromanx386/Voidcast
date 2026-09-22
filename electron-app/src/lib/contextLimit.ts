@@ -68,7 +68,6 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'deepseek-v4-flash-0731': 1_000_000,
   'deepseek-v4-flash-vision-exp': 1_000_000,
   'deepseek-v3.2': 163_840,
-  'ox-alpha-free': 1_000_000,
   'longcat-2.0': 1_000_000,
   'z-ai/glm-5.3': 1310720,
   'moonshotai/kimi-k2.7-code': 262_144,
@@ -92,7 +91,6 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'glm-5.1': 202_752,
   'mimo-v2.5': 1_000_000,
   'mimo-v2.5-pro': 1048576,
-  'grok-4.5': 500_000,
   hy3: 262_144,
   'qwen3.8-27b': 262_144,
   'qwen3.6-27b': 262_144,
@@ -114,6 +112,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'anthropic/claude-fable-5.1': 1000000,
   'deepseek-v4.1-flash': 1000000,
   'z-ai/glm-5.3-flashx': 1048576,
+  'google/gemini-3.8-flash': 1048576,
 }
 
 function buildPresetLookup(

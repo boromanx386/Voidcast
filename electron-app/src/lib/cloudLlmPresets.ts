@@ -52,6 +52,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'openai/gpt-6-astra-pro', label: 'GPT 6 Astra Pro (1.1M ctx)' },
   { id: 'anthropic/claude-fable-5.1', label: 'Claude Fable 5 1 (1M ctx)' },
   { id: 'z-ai/glm-5.3-flashx', label: 'GLM 5 3 Flashx (1M ctx)' },
+  { id: 'google/gemini-3.8-flash', label: 'Gemini 3 8 Flash (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -80,6 +81,7 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'moonshotai/kimi-k3', label: 'Kimi K3' },
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna Xs 2 1' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash' },
+  { id: 'deepseek-ai/deepseek-v4.1-flash', label: 'Deepseek V4 1 Flash' },
 ]
 
 /**
@@ -94,7 +96,6 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
     id: 'deepseek-v4-flash-vision-exp',
     label: 'DeepSeek V4 Flash Vision Exp (multimodal)',
   },
-  { id: 'ox-alpha-free', label: 'Ox Alpha Free (coding · agentic · 1M)' },
   { id: 'longcat-2.0', label: 'LongCat 2.0 (1M ctx)' },
   { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code' },
   { id: 'kimi-k2.6', label: 'Kimi K2.6' },
@@ -104,7 +105,6 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'glm-5.1', label: 'GLM 5.1' },
   { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
   { id: 'mimo-v2.5', label: 'MiMo V2.5' },
-  { id: 'grok-4.5', label: 'Grok 4.5' },
   { id: 'hy3', label: 'Hy3' },
   { id: 'glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
   { id: 'hy4-preview', label: 'Hy4 Preview (1M ctx)' },
@@ -197,7 +197,6 @@ const OPENCODE_GO_MODEL_ALIASES: Record<string, string> = {
   'z-ai/glm-5.3': 'glm-5.3',
   'z-ai/glm-5.2': 'glm-5.2',
   'z-ai/glm-5.1': 'glm-5.1',
-  'x-ai/grok-4.5': 'grok-4.5',
   'tencent/hy3': 'hy3',
 }
 

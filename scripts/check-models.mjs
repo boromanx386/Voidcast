@@ -15,7 +15,7 @@
  * and CONTEXT overrides to update, and it edits the two source files for you.
  *
  * Usage:
- *   node scripts/check-models.mjs                # both providers, filtered
+ *   node scripts/check-models.mjs                # all providers, filtered
  *   node scripts/check-models.mjs --openrouter   # OpenRouter only
  *   node scripts/check-models.mjs --opencode     # OpenCode Go only
  *   node scripts/check-models.mjs --nvidia       # NVIDIA only
@@ -25,7 +25,8 @@
  *
  * Sources (all public, no API key):
  *   OpenRouter  GET https://openrouter.ai/api/v1/models
- *   OpenCode Go GET https://models.dev/api.json  (provider key: "opencode-go")
+ *   OpenCode Go GET https://opencode.ai/zen/go/v1/models  (real catalog = source of truth)
+ *               +  https://models.dev/api.json  (ctx/pricing enrichment only; can be stale)
  *   NVIDIA      GET https://integrate.api.nvidia.com/v1/models
  */
 
@@ -42,6 +43,7 @@ const CONTEXT_PATH = join(ROOT, 'electron-app', 'src', 'lib', 'contextLimit.ts')
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/models'
 const MODELSDEV_URL = 'https://models.dev/api.json'
+const OPENCODE_URL = 'https://opencode.ai/zen/go/v1/models'
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/models'
 
 
@@ -286,36 +288,73 @@ async function checkOpenRouter(curated, overrides) {
   return result
 }
 
+// The Voidcast app speaks only OpenAI-compatible /v1/chat/completions for
+// OpenCode Go. Per https://opencode.ai/docs/go/ (Endpoints table), these
+// families are served on other endpoints, so they are omitted from the app's
+// preset list and must not be suggested here:
+//   /v1/messages  → MiniMax, Qwen
+//   /v1/responses → Grok, GPT-5.6 Luna, Muse Spark
+const OPENCODE_NON_CHAT_COMPLETIONS = [
+  /^minimax/i,
+  /^qwen/i,
+  /^grok/i,
+  /^muse-spark/i,
+  /^gpt-5\.6-luna/i,
+]
+
+function isOpenCodeChatCompletions(id) {
+  return !OPENCODE_NON_CHAT_COMPLETIONS.some((re) => re.test(id))
+}
+
+// Legacy ids still returned by /v1/models but absent from the official Go model
+// list (https://opencode.ai/docs/go/): no docs entry, no pricing. Don't suggest:
+//   deepseek-flash → superseded by deepseek-v4-flash
+//   grok-4.5       → superseded by grok-4.6/4.7 (which use /responses anyway)
+const OPENCODE_LEGACY_IDS = new Set(['deepseek-flash', 'grok-4.5'])
+
 async function checkOpenCodeGo(curated, overrides) {
   console.log('=== OPENCODE GO ===')
-  let models
+
+  // Source of truth for existence: the real OpenCode Go catalog (OpenAI-compatible).
+  let liveIds
   try {
-    const d = await fetchJson(MODELSDEV_URL)
-    models = d['opencode-go']?.models || {}
+    const d = await fetchJson(OPENCODE_URL)
+    const list = Array.isArray(d) ? d : d.data || []
+    liveIds = list.map((m) => m.id)
   } catch (e) {
-    console.log(`  fetch failed: ${e.message}`)
+    console.log(`  fetch failed (real API): ${e.message}`)
     console.log('')
     return null
   }
 
+  // Enrichment only: models.dev has ctx/pricing but can lag behind the real API.
+  let md = {}
+  try {
+    const d = await fetchJson(MODELSDEV_URL)
+    md = d['opencode-go']?.models || {}
+  } catch {
+    // enrichment is optional — existence checks above still work without it
+  }
+
+  const live = new Set(liveIds)
   const curatedSet = new Set(curated)
   const result = { provider: 'opencode-go', newModels: [], removed: [], ctx: [] }
 
-  // REMOVED
-  const removed = curated.filter((id) => !(id in models))
+  // REMOVED — in app, gone from the real OpenCode Go catalog
+  const removed = curated.filter((id) => !live.has(id))
   result.removed = removed
   if (removed.length) {
     console.log(`  REMOVED (${removed.length}) — in app, gone from OpenCode Go:`)
     for (const id of removed) console.log(`    [-] ${id}`)
   }
 
-  // CONTEXT mismatch (app override vs models.dev limit.context)
+  // CONTEXT mismatch (app override vs models.dev limit.context, when models.dev knows it)
   const ctx = []
   for (const id of curated) {
-    const m = models[id]
-    if (!m) continue
+    if (!live.has(id)) continue
+    const m = md[id]
     const ov = overrides[id]
-    const lv = m.limit?.context
+    const lv = m?.limit?.context
     if (ov != null && lv != null && ov !== lv) ctx.push([id, ov, lv])
   }
   result.ctx = ctx
@@ -324,24 +363,39 @@ async function checkOpenCodeGo(curated, overrides) {
     for (const [id, ov, lv] of ctx) console.log(`    [~] ${id}: ${fmtNum(ov)} -> ${fmtNum(lv)}`)
   }
 
-  // NEW (small list — show everything)
-  const fresh = Object.keys(models)
-    .filter((id) => !curatedSet.has(id))
-    .sort()
-  result.newModels = fresh.map((id) => ({ id, ctx: models[id].limit?.context }))
+  // NEW — live on the real API, not curated, and chat/completions-compatible only
+  const allFresh = liveIds.filter((id) => !curatedSet.has(id)).sort()
+  const fresh = allFresh.filter((id) => isOpenCodeChatCompletions(id) && !OPENCODE_LEGACY_IDS.has(id))
+  const skipped = allFresh.filter((id) => !isOpenCodeChatCompletions(id))
+  const legacy = allFresh.filter((id) => isOpenCodeChatCompletions(id) && OPENCODE_LEGACY_IDS.has(id))
+  result.newModels = fresh.map((id) => ({ id, ctx: md[id]?.limit?.context }))
+  if (skipped.length) {
+    console.log(
+      `  (filtered ${skipped.length} non-chat/completions model${skipped.length === 1 ? '' : 's'}: ${skipped.join(', ')})`,
+    )
+  }
+  if (legacy.length) {
+    console.log(
+      `  (ignored ${legacy.length} legacy model${legacy.length === 1 ? '' : 's'} not in Go docs: ${legacy.join(', ')})`,
+    )
+  }
   if (fresh.length) {
     console.log(`  NEW (${fresh.length}):`)
     for (const id of fresh) {
-      const m = models[id]
-      console.log(`    [+] ${id}`)
-      console.log(`        ctx ${fmtNum(m.limit?.context)}  ${money(m.cost?.input)} in · ${money(m.cost?.output)} out`)
+      const m = md[id]
+      if (m?.limit?.context != null) {
+        console.log(`    [+] ${id}`)
+        console.log(`        ctx ${fmtNum(m.limit.context)}  ${money(m.cost?.input)} in · ${money(m.cost?.output)} out`)
+      } else {
+        console.log(`    [+] ${id}  (ctx unknown — not in models.dev)`)
+      }
     }
   }
 
   if (!removed.length && !ctx.length && !fresh.length) {
     console.log('  (no changes — curated list is up to date).')
   }
-  console.log('  note: MiniMax/Qwen may use /messages, gpt-5.6-luna /responses — verify endpoint before adding.')
+  console.log('  note: only /v1/chat/completions models listed; MiniMax+Qwen (/messages) and Muse Spark+gpt-5.6-luna (/responses) filtered out.')
   console.log('')
   return result
 }
