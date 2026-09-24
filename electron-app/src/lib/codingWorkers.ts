@@ -37,7 +37,15 @@ export const CODING_WORKER_MAX_TASKS = 2
 /** Default tool rounds before forced digest. */
 export const CODING_WORKER_DEFAULT_ROUNDS = 100
 export const CODING_WORKER_MAX_ROUNDS = 100
-export const CODING_WORKER_READ_BUDGET = 64_000
+/**
+ * Total characters a single worker may pull through read_file across its whole
+ * run. Workers are often told to "read the packet in full first", so this must
+ * comfortably cover the instruction/spec files plus the target source. Once it
+ * is spent, read_file soft-stops with explicit guidance (see executeWorkerTool)
+ * instead of hard-failing and letting the model spin on retries until the round
+ * budget runs out with nothing written.
+ */
+export const CODING_WORKER_READ_BUDGET = 160_000
 
 /** Explore tools + mutation tools (no nested team/explore recursion). */
 export const CODING_WORKER_ALLOWED_TOOLS = new Set([
@@ -261,6 +269,8 @@ export function synthesizeWorkerDigest(opts: {
   notes: string[]
   toolTrail: string[]
   mutatedPaths: string[]
+  /** Why the worker stopped without a structured final summary. */
+  stopReason?: string
 }): string {
   const lines: string[] = [`Goal: ${opts.goal.slice(0, 400)}`]
   if (opts.pathPrefix) lines.push(`Scope: ${opts.pathPrefix}`)
@@ -274,7 +284,8 @@ export function synthesizeWorkerDigest(opts: {
   }
   if (opts.notes.length) lines.push(`Notes: ${opts.notes.join(' ')}`)
   lines.push(
-    'Stopped at round budget without a structured done digest — main agent should verify with git_diff / read_file.',
+    opts.stopReason ??
+      'Ended without a structured final summary — main agent should verify with git_diff / read_file.',
   )
   return lines.join('\n').slice(0, 2500)
 }
@@ -506,6 +517,7 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
   const pathPrefix = (opts.pathPrefix || '').trim() || undefined
   const recentFiles = opts.recentFiles ?? []
   let readBudget = CODING_WORKER_READ_BUDGET
+  let readBudgetNoteLogged = false
   const codingProvider = detectSubAgentProvider(codingConfig.model, codingConfig.provider)
   const notes: string[] = []
   const toolTrail: string[] = []
@@ -541,7 +553,17 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
   )
 
   const finishWith = (body: string): WorkerRunResult => {
-    const digestBody = body.trim() || synthesizeWorkerDigest({ goal, pathPrefix, notes, toolTrail, mutatedPaths })
+    const wroteNothing = mutatedPaths.length === 0
+    let stopReason = 'Ended without a structured final summary'
+    if (readBudget === 0) {
+      stopReason += ' — worker read budget was exhausted before it could finish'
+    } else if (wroteNothing) {
+      stopReason += ' — no files were written or edited'
+    }
+    stopReason += '; main agent should verify with git_diff / read_file.'
+    const digestBody =
+      body.trim() ||
+      synthesizeWorkerDigest({ goal, pathPrefix, notes, toolTrail, mutatedPaths, stopReason })
     const digest = `${opts.workerLabel}:\n${digestBody}`
     opts.ui?.onCodingDone?.(digest)
     return { digest, mutations }
@@ -583,8 +605,17 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
     }
 
     if (name === 'read_file' && readBudget <= 0) {
-      notes.push('Read budget exhausted.')
-      return 'Error: nested read_file character budget exhausted.'
+      if (!readBudgetNoteLogged) {
+        readBudgetNoteLogged = true
+        notes.push('Read budget exhausted — worker could not read more files.')
+      }
+      // Give the model an explicit instruction so it stops retrying dead reads
+      // and produces a usable summary instead of burning the round budget.
+      return (
+        'Error: worker read budget exhausted; you cannot read more files. ' +
+        'Do NOT call read_file again. Finish now: make any remaining in-scope edits from what you already know, ' +
+        'then return a short final summary (files changed, verification, or the blocker).'
+      )
     }
 
     const execArgs = { ...args }
@@ -603,9 +634,16 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
 
     let result = await opts.executeTool(name, execArgs)
     if (name === 'read_file') {
-      if (result.length > readBudget) {
-        result = `${result.slice(0, readBudget)}\n…[truncated for worker budget]`
+      if (result.length >= readBudget) {
+        // Return the meaningful remainder (never an empty slice) and then
+        // soft-stop further reads with guidance, so a nearly-exhausted budget
+        // still yields useful content instead of a silent empty read.
+        const keep = Math.max(0, readBudget)
         readBudget = 0
+        result =
+          keep > 0
+            ? `${result.slice(0, keep)}\n…[worker read budget exhausted — final read; finish without more reads]`
+            : '[worker read budget exhausted — no content returned; finish without more reads]'
       } else {
         readBudget -= result.length
       }
@@ -620,10 +658,17 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
     const result = await runSharedToolLoop<NativeSubAgentMessage, NativeSubAgentToolCall>({
       initialMessages: messages,
       maxToolRounds: maxRounds,
-      maxRequiredToolReprompts: 0,
-      mustCallTool: false,
+      maxRequiredToolReprompts: 2,
+      mustCallTool: true,
       signal: opts.signal,
-      appendToolRequiredReprompt: () => {},
+      appendToolRequiredReprompt: (target) => {
+        target.push({
+          role: 'user',
+          content:
+            'Do not reply with a plan or a summary. Start the assigned work now with a coding tool call ' +
+            '(read_file, search_files, glob_files, list_directory, write_file, edit_code, or execute_command).',
+        })
+      },
       appendToolBudgetWarningReprompt: (target) => {
         target.push({
           role: 'user',

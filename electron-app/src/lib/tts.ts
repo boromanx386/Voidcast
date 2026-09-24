@@ -158,8 +158,13 @@ export async function synthesizeSpeech(options: {
       input: options.text,
       response_format: responseFormat,
     }
+    // Fish Audio models have no fixed catalog: their `voice` is a reference_id, so
+    // openRouterTtsDefaultVoice() returns our stable public default (not '').
+    // Omit the field only when the model truly has no voice at all (empty string).
     const voice = options.openrouterTtsVoice?.trim() || openRouterTtsDefaultVoice(model)
-    payload.voice = voice
+    if (voice) {
+      payload.voice = voice
+    }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (!viaProxy && apiKey) {
       headers.Authorization = `Bearer ${apiKey}`

@@ -53,6 +53,13 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'anthropic/claude-fable-5.1', label: 'Claude Fable 5 1 (1M ctx)' },
   { id: 'z-ai/glm-5.3-flashx', label: 'GLM 5 3 Flashx (1M ctx)' },
   { id: 'google/gemini-3.8-flash', label: 'Gemini 3 8 Flash (1M ctx)' },
+  { id: 'openai/gpt-6-luna', label: 'GPT 6 Luna (1.1M ctx)' },
+  { id: 'openai/gpt-6-sol', label: 'GPT 6 Sol (1.1M ctx)' },
+  { id: 'qwen/qwen3.8-max-0902', label: 'Qwen3 8 Max 0902 (1M ctx)' },
+  { id: 'qwen/qwen3.8-omni-flash', label: 'Qwen3 8 Omni Flash (1M ctx)' },
+  { id: 'x-ai/grok-4.7', label: 'Grok 4 7 (500K ctx)' },
+  { id: 'xiaomi/mimo-v2.6-flash', label: 'Mimo V2 6 Flash (1M ctx)' },
+  { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5 5 (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -109,6 +116,8 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
   { id: 'hy4-preview', label: 'Hy4 Preview (1M ctx)' },
   { id: 'deepseek-v4.1-flash', label: 'Deepseek V4 1 Flash (1M ctx)' },
+  { id: 'mimo-v2.6-flash', label: 'Mimo V2 6 Flash (1M ctx)' },
+  { id: 'mimo-v2.6-pro', label: 'Mimo V2 6 Pro (1M ctx)' },
 ]
 
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {

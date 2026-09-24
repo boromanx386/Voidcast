@@ -144,6 +144,7 @@ export const OPENROUTER_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> 
   { id: 'microsoft/mai-voice-2', label: 'Microsoft MAI-Voice-2' },
   { id: 'canopylabs/orpheus-3b-0.1-ft', label: 'Canopy Orpheus 3B' },
   { id: 'deepgram/flux-tts:free', label: 'Deepgram Flux TTS (free)' },
+  { id: 'fish-audio/s2.1-pro-free:free', label: 'Fish Audio S2.1 Pro Free (free)' },
 ]
 
 export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
@@ -192,13 +193,29 @@ export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> =
   ],
 }
 
+/**
+ * Fish Audio models pick a voice from a `reference_id` (a public Fish Audio voice-model id)
+ * rather than a fixed catalog, and they publish none on OpenRouter. Omitting `voice`
+ * makes every request come back with a *different* random voice, so we ship one stable
+ * public default to keep batches consistent. The field stays free-form so any reference_id
+ * can be pasted in. Default source: https://fish.audio/m/7f92f8afb8ec43bf81429cc1c9199cb1/
+ */
+export const FISH_AUDIO_DEFAULT_VOICE = '7f92f8afb8ec43bf81429cc1c9199cb1'
+export const FISH_AUDIO_TTS_VOICES: readonly string[] = [FISH_AUDIO_DEFAULT_VOICE]
+
+/** True for models whose `voice` is a free-form reference_id (Fish Audio), not a fixed catalog. */
+export function openRouterTtsUsesReferenceVoice(model: string): boolean {
+  return model.trim().startsWith('fish-audio/')
+}
+
 export function openRouterTtsVoicesForModel(model: string): readonly string[] {
   const id = model.trim()
+  if (openRouterTtsUsesReferenceVoice(id)) return FISH_AUDIO_TTS_VOICES
   return OPENROUTER_TTS_VOICES_BY_MODEL[id] ?? OPENROUTER_TTS_VOICES_BY_MODEL[OPENROUTER_TTS_MODEL_DEFAULT]
 }
 
 export function openRouterTtsDefaultVoice(model: string): string {
-  return openRouterTtsVoicesForModel(model)[0] || 'Kore'
+  return openRouterTtsVoicesForModel(model)[0] || ''
 }
 
 export function normalizeOpenRouterTtsModel(model: string | undefined): string {

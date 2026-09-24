@@ -113,6 +113,15 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'deepseek-v4.1-flash': 1000000,
   'z-ai/glm-5.3-flashx': 1048576,
   'google/gemini-3.8-flash': 1048576,
+  'openai/gpt-6-luna': 1050000,
+  'openai/gpt-6-sol': 1050000,
+  'qwen/qwen3.8-max-0902': 1000000,
+  'qwen/qwen3.8-omni-flash': 1000000,
+  'x-ai/grok-4.7': 500000,
+  'xiaomi/mimo-v2.6-flash': 1048576,
+  'mimo-v2.6-flash': 1048576,
+  'mimo-v2.6-pro': 1048576,
+  'anthropic/claude-opus-5.5': 1000000,
 }
 
 function buildPresetLookup(

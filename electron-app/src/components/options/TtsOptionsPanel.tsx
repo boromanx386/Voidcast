@@ -2,6 +2,7 @@ import type { AppSettings } from '@/lib/settings'
 import {
   OPENROUTER_TTS_MODEL_DEFAULT,
   OPENROUTER_TTS_MODEL_PRESETS,
+  openRouterTtsUsesReferenceVoice,
   openRouterTtsVoicesForModel,
   RUNWARE_TTS_MODEL_DEFAULT,
   RUNWARE_TTS_MODEL_PRESETS,
@@ -488,26 +489,45 @@ export function TtsOptionsPanel({
             </div>
             <div className="form-group">
               <label className="form-label">OPENROUTER_TTS_VOICE (optional)</label>
-              <select
-                className="form-select"
-                value={
-                  openRouterTtsVoicesForModel(settings.openrouterTtsModel).includes(
-                    settings.openrouterTtsVoice,
-                  )
-                    ? settings.openrouterTtsVoice
-                    : ''
-                }
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, openrouterTtsVoice: e.target.value }))
-                }
-              >
-                <option value="">(model default)</option>
-                {openRouterTtsVoicesForModel(settings.openrouterTtsModel).map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+              {openRouterTtsUsesReferenceVoice(settings.openrouterTtsModel) ? (
+                <>
+                  <input
+                    className="cyber-input"
+                    list="openrouter-tts-voice-refs"
+                    value={settings.openrouterTtsVoice}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, openrouterTtsVoice: e.target.value }))
+                    }
+                    placeholder="Fish Audio reference_id (default applied when blank)"
+                  />
+                  <datalist id="openrouter-tts-voice-refs">
+                    {openRouterTtsVoicesForModel(settings.openrouterTtsModel).map((v) => (
+                      <option key={v} value={v} />
+                    ))}
+                  </datalist>
+                </>
+              ) : (
+                <select
+                  className="form-select"
+                  value={
+                    openRouterTtsVoicesForModel(settings.openrouterTtsModel).includes(
+                      settings.openrouterTtsVoice,
+                    )
+                      ? settings.openrouterTtsVoice
+                      : ''
+                  }
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, openrouterTtsVoice: e.target.value }))
+                  }
+                >
+                  <option value="">(model default)</option>
+                  {openRouterTtsVoicesForModel(settings.openrouterTtsModel).map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         </div>
