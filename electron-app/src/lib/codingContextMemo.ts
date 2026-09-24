@@ -618,8 +618,10 @@ export const PLAN_HANDOFF_UI_MAX_CHARS = 2800
 
 /**
  * User-visible draft body for enter_plan_mode handoff.
- * Prefers a real agent reply; if the reply is a short stub, shows exploration digests
- * instead. Returns null when there is nothing useful to show (avoid empty badges).
+ * A real agent reply is shown as-is. Otherwise only a one-line notice is produced —
+ * the raw research dump (file digests, turn summary, tool trail) is intentionally NOT
+ * rendered in chat; it already reaches the planner via buildPlanHandoffContextHint().
+ * Returns null when there is nothing useful to show (avoid empty badges).
  */
 export function buildPlanHandoffUiDraftContent(params: {
   replyText?: string
@@ -638,46 +640,15 @@ export function buildPlanHandoffUiDraftContent(params: {
 
   if (!keepReply && !hasResearch) return null
 
-  const lines: string[] = []
+  if (keepReply) return reply.slice(0, PLAN_HANDOFF_UI_MAX_CHARS)
 
-  if (keepReply) {
-    lines.push(reply)
-  } else {
-    lines.push('Entering Plan mode with prior agent-mode research (do not re-explore from scratch).')
-  }
-
-  const paths =
-    digests.length > 0 ? digests.map((d) => d.path) : files.filter(Boolean)
-  if (paths.length > 0) {
-    lines.push('')
-    lines.push(
-      `Explored ${paths.length} file${paths.length === 1 ? '' : 's'} before Plan:`,
-    )
-    for (const p of paths.slice(0, 12)) {
-      const dig = digests.find((d) => d.path === p)
-      if (dig?.digest) {
-        const snippet =
-          dig.digest.length > 140 ? `${dig.digest.slice(0, 137)}…` : dig.digest
-        lines.push(`- \`${p}\` — ${snippet}`)
-      } else {
-        lines.push(`- \`${p}\``)
-      }
-    }
-  }
-
-  if (!keepReply && summary) {
-    lines.push('', summary)
-  } else if (!keepReply && trail) {
-    const toolLines = trail.split('\n').filter(Boolean).slice(0, 10)
-    if (toolLines.length) {
-      lines.push('', 'Tools already run:')
-      for (const t of toolLines) lines.push(`- ${t}`)
-    }
-  }
-
-  const out = lines.join('\n').trim()
-  if (!out) return null
-  return out.slice(0, PLAN_HANDOFF_UI_MAX_CHARS)
+  const fileCount =
+    digests.length > 0 ? digests.length : files.filter(Boolean).length
+  const bits: string[] = []
+  if (fileCount > 0) bits.push(`${fileCount} file${fileCount === 1 ? '' : 's'}`)
+  if (trail) bits.push('tool trail')
+  const detail = bits.length > 0 ? ` (${bits.join(', ')})` : ''
+  return `Plan mode — earlier agent-mode research${detail} carried over; the plan is built from it.`
 }
 
 export function getCodingProjectPath(settings: Pick<AppSettings, 'coding' | 'codingProjectPath'>): string {
