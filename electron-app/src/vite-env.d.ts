@@ -540,6 +540,9 @@ interface VoidcastBridge {
 
   showWindow: () => Promise<void>
 
+  /** OS toast for a finished reply; resolves true when the toast was shown. */
+  notifyAgentDone: (payload: { title?: string; body?: string }) => Promise<boolean>
+
   hideWindow: () => Promise<void>
 
   windowMinimize: () => Promise<void>

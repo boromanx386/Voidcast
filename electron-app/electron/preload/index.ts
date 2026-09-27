@@ -531,6 +531,9 @@ contextBridge.exposeInMainWorld('voidcast', {
   getLanNetworkInfo: () =>
     ipcRenderer.invoke('voidcast:get-lan-network-info') as Promise<{ ips: string[] }>,
   showWindow: () => ipcRenderer.invoke('voidcast:show-window'),
+  /** OS toast for a finished reply; main only shows it while the window is minimized/hidden. */
+  notifyAgentDone: (payload: { title?: string; body?: string }) =>
+    ipcRenderer.invoke('voidcast:notify-agent-done', payload) as Promise<boolean>,
   hideWindow: () => ipcRenderer.invoke('voidcast:hide-window'),
   windowMinimize: () => ipcRenderer.invoke('voidcast:window-minimize'),
   windowToggleMaximize: () =>

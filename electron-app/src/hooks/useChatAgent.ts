@@ -59,6 +59,7 @@ import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { playNotificationSound } from '@/lib/notificationSounds'
+import { notifyAgentDone } from '@/lib/agentDoneNotification'
 import {
   getOpenRouterImageProfile,
   loadSettings,
@@ -1430,6 +1431,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         if (turnSettings.notificationSoundsEnabled && !willAutoSpeak) {
           void playNotificationSound('reply', { volume: turnSettings.notificationSoundVolume })
         }
+        // Main process decides whether to show the Windows toast: it fires only
+        // while the window is minimized or hidden in the tray.
+        notifyAgentDone(replyText)
         if (willAutoSpeak && isViewingThisRun()) {
           void onRead({ id: asstId, role: 'assistant', content: replyText })
         }

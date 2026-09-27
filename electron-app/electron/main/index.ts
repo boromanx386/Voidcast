@@ -10,6 +10,7 @@ import {
   Tray,
   nativeImage,
   nativeTheme,
+  Notification,
   type NativeImage,
   type OpenDialogOptions,
   type WebContents,
@@ -3492,6 +3493,34 @@ ipcMain.handle('voidcast:window-toggle-maximize', () => {
 
 ipcMain.handle('voidcast:window-close', () => {
   win?.close()
+})
+
+/**
+ * OS toast for a finished agent reply. Only fires when the window is out of the
+ * way (minimized, or hidden in the tray) — if the user is looking at the app they
+ * already see the reply. `silent` avoids doubling the in-app notification sound.
+ */
+ipcMain.handle('voidcast:notify-agent-done', (_event, payload: unknown) => {
+  if (!win || win.isDestroyed() || isQuitting) return false
+  if (!win.isMinimized() && win.isVisible()) return false
+  if (!Notification.isSupported()) return false
+  const src = (payload ?? {}) as { title?: unknown; body?: unknown }
+  const title =
+    typeof src.title === 'string' && src.title.trim() ? src.title.trim() : 'Voidcast'
+  const body = typeof src.body === 'string' ? src.body.trim().slice(0, 400) : ''
+  try {
+    const toast = new Notification({ title, body, silent: true })
+    toast.on('click', () => {
+      if (!win || win.isDestroyed()) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    })
+    toast.show()
+    return true
+  } catch {
+    return false
+  }
 })
 
 ipcMain.handle('voidcast:window-is-maximized', () => {
