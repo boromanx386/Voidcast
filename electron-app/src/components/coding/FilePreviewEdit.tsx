@@ -196,7 +196,10 @@ export function FilePreviewEdit({ draft, busy = false, onDraftChange, onSave, on
 
   useEffect(() => {
     const t = requestAnimationFrame(() => {
-      window.focus()
+      // Never call window.focus() here: Electron raises the OS window (even a
+      // minimized one) whenever the renderer focuses it. Move DOM focus only,
+      // and only while the app is already the active window.
+      if (!document.hasFocus()) return
       findInputRef.current?.focus()
     })
     return () => cancelAnimationFrame(t)

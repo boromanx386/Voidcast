@@ -79,9 +79,25 @@ type PreviewMode = 'file' | 'diff' | 'image'
 
 const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal'] as const
 
+/**
+ * Restore keyboard focus after a native dialog.
+ *
+ * Never call `window.focus()` on a background/minimized window: Electron lifts the
+ * OS window to the front, which yanks the app out of the taskbar while the agent
+ * is working. Only re-focus when this window is already the active one.
+ */
 function refocusAppWindow(): void {
+  if (!document.hasFocus()) return
   window.focus()
-  requestAnimationFrame(() => window.focus())
+  requestAnimationFrame(() => {
+    if (document.hasFocus()) window.focus()
+  })
+}
+
+/** Compare two project-relative paths regardless of separator style. */
+function sameCodingPath(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false
+  return normalizeGitPath(a) === normalizeGitPath(b)
 }
 
 export function CodingPanel({
@@ -149,6 +165,15 @@ export function CodingPanel({
   const gitStatusByPathRef = useRef(gitStatusByPath)
   gitStatusByPathRef.current = gitStatusByPath
 
+  /**
+   * True once the user picks a file by hand in the tree. Agent reveals then only
+   * expand the tree + refresh git and never yank the preview to the agent's file.
+   */
+  const userPinnedPreviewRef = useRef(false)
+
+  const selectedPathRef = useRef(selectedPath)
+  selectedPathRef.current = selectedPath
+
   const resetEditState = useCallback(() => {
     setEditing(false)
     setEditDraft('')
@@ -156,12 +181,19 @@ export function CodingPanel({
     setEditBusy(false)
   }, [])
 
-  const confirmDiscardEdit = useCallback((): boolean => {
-    if (!editing || editDraft === editBaseline) return true
-    const ok = window.confirm('Discard unsaved edits?')
-    if (ok) refocusAppWindow()
-    return ok
-  }, [editing, editDraft, editBaseline])
+  const confirmDiscardEdit = useCallback(
+    (opts?: { background?: boolean }): boolean => {
+      if (!editing || editDraft === editBaseline) return true
+      // A background reveal (agent write/edit) must not pop a native modal: the
+      // dialog lifts the minimized window to the front. Skip the reveal instead —
+      // the unsaved draft is kept.
+      if (opts?.background && !document.hasFocus()) return false
+      const ok = window.confirm('Discard unsaved edits?')
+      if (ok) refocusAppWindow()
+      return ok
+    },
+    [editing, editDraft, editBaseline],
+  )
 
   const projectPath = settings.coding.projectPath || settings.codingProjectPath
   const { showFileTree, showFilePreview, showTerminal } = settings.coding
@@ -299,6 +331,7 @@ export function CodingPanel({
     setCommandHistory([])
     setHistoryFromEnd(null)
     commandHistoryDraftRef.current = ''
+    userPinnedPreviewRef.current = false
     setSelectedPath(null)
     setPreviewContent('')
     setPreviewImageSrc(null)
@@ -529,6 +562,8 @@ export function CodingPanel({
       if (!projectPath) return
       if (!confirmDiscardEdit()) return
       resetEditState()
+      // Manual pick → pin the preview: agent reveals must not take it over.
+      userPinnedPreviewRef.current = true
       setSelectedPath(path)
       await loadFilePreview(path)
     },
@@ -558,7 +593,14 @@ export function CodingPanel({
       }
       if (cancelled) return
       if (revealRequestRef.current?.nonce !== nonce) return
-      if (!confirmDiscardEdit()) return
+      // The user hand-picked a file to watch: only the tree/git above follow the
+      // agent — never switch the preview away from the file being watched. If the
+      // agent touched that very file, refresh it in place instead.
+      if (userPinnedPreviewRef.current) {
+        if (sameCodingPath(selectedPathRef.current, path)) await loadFilePreview(path)
+        return
+      }
+      if (!confirmDiscardEdit({ background: true })) return
       resetEditState()
       setSelectedPath(path)
       await loadFilePreview(path)
@@ -750,6 +792,7 @@ export function CodingPanel({
     }
     pushTerminal('system', out.text || 'Discarded all changes.')
     setLocalGitBump((n) => n + 1)
+    userPinnedPreviewRef.current = false
     setSelectedPath(null)
     setPreviewContent('')
     setPreviewImageSrc(null)
