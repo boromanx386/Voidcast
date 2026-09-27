@@ -4,14 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.9.1] — 2026-09-27
+
 ### Added
 
 - **Gemini 3.8 TTS presets**: OpenRouter TTS now offers `google/gemini-3.8-flash-tts` and `google/gemini-3.8-flash-lite-tts`; every Gemini TTS preset (including the 3.1 default) now shares the full 30-voice catalog (`GEMINI_TTS_VOICES`).
-
-## [2.9.0] — 2026-09-27
-
-### Added
-
 - **Fish Audio TTS**: OpenRouter TTS presets now include `fish-audio/s2.1-pro-free:free`; Fish Audio models use a free-form `reference_id` voice (with a stable default) instead of a fixed voice catalog.
 - **Windows toast for finished replies**: when the window is minimized or hidden in the tray, a reply that finishes shows an OS toast titled **Voidcast** with a one-line preview of the answer.
 - **Stable image catalog ids**: every catalog image now gets a permanent id like `img_1a2b3c4d` derived from its content/path, so `image_recall` and `edit_image_runware` can reference it via `reference_image_ids` across turns and reloads instead of positions.
