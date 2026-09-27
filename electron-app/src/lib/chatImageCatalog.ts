@@ -1,5 +1,5 @@
 import type { UiMessage } from '@/types/chat'
-import { imageCatalogKey } from '@/lib/imageVisionCache'
+import { imageCatalogId, imageCatalogKey } from '@/lib/imageVisionCache'
 import { isElectron } from '@/lib/platform'
 
 export type PendingChatImage = {
@@ -13,6 +13,11 @@ export type PendingChatImage = {
 
 export function catalogItemKey(item: PendingChatImage): string {
   return imageCatalogKey(item)
+}
+
+/** Stable content/path-derived id (e.g. `img_1a2b3c4d`) for a catalog image. */
+export function catalogItemId(item: PendingChatImage): string {
+  return imageCatalogId(item)
 }
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -89,7 +94,8 @@ export async function pushAssistantGeneratedImages(
   }
 }
 
-export function dedupeCatalogNewestFirst(items: PendingChatImage[]): PendingChatImage[] {
+/** Keep the first occurrence of each image, preserving incoming (chronological) order. */
+export function dedupeCatalogChronological(items: PendingChatImage[]): PendingChatImage[] {
   const seen = new Set<string>()
   const out: PendingChatImage[] = []
   for (const item of items) {
@@ -101,7 +107,11 @@ export function dedupeCatalogNewestFirst(items: PendingChatImage[]): PendingChat
   return out
 }
 
-/** History only (no current-message queue): chat order old→new, returned newest-first. */
+/**
+ * History only (no current-message queue): stable chronological order, oldest→newest.
+ * Index 1 is always the OLDEST image of the conversation and never renumbers —
+ * newer images are appended at the end.
+ */
 export async function buildSessionImageCatalog(history: UiMessage[]): Promise<PendingChatImage[]> {
   const chronological: PendingChatImage[] = []
 
@@ -124,27 +134,25 @@ export async function buildSessionImageCatalog(history: UiMessage[]): Promise<Pe
     }
   }
 
-  const newestFirst: PendingChatImage[] = []
-  for (let i = chronological.length - 1; i >= 0; i--) {
-    newestFirst.push(chronological[i]!)
-  }
-  return dedupeCatalogNewestFirst(newestFirst)
+  return dedupeCatalogChronological(chronological)
 }
 
 /**
- * Tool catalog: current-message attachments first (index 1 = newest attach), then older session images.
+ * Tool catalog: stable chronological order (oldest→newest). History images keep
+ * their index across turns; current-message attachments are the newest and are
+ * appended at the END (highest indexes).
  */
 export async function buildToolImageCatalog(
   history: UiMessage[],
   queued: PendingChatImage[],
 ): Promise<PendingChatImage[]> {
-  const pendingNewestFirst = [...queued].reverse().map((q) => ({
+  const pendingInOrder = queued.map((q) => ({
     ...q,
     kind: 'pending' as const,
   }))
-  const pendingKeys = new Set(pendingNewestFirst.map(catalogItemKey))
+  const pendingKeys = new Set(pendingInOrder.map(catalogItemKey))
   const session = (await buildSessionImageCatalog(history)).filter(
     (item) => !pendingKeys.has(catalogItemKey(item)),
   )
-  return [...pendingNewestFirst, ...session]
+  return [...session, ...pendingInOrder]
 }

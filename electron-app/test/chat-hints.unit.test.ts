@@ -81,7 +81,9 @@ describe('buildImageCatalogHint', () => {
     expect(hint).toContain('Session image catalog')
     expect(hint).toContain('Index 1')
     expect(hint).toContain('/tmp/a.png')
-    expect(hint).toContain('THIS message are index 1')
+    expect(hint).toContain('attached in THIS message are the newest')
+    expect(hint).toContain('index 1 is the OLDEST image')
+    expect(hint).toMatch(/\[img_[0-9a-f]{8}\]/)
   })
 
   test('without pending attach, tells model catalog images are not newly attached', () => {

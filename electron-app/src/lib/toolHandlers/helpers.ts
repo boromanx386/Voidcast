@@ -4,6 +4,7 @@ import {
   type UiTheme,
 } from "@/lib/settings";
 import type { LongMemoryKind } from "@/types/longMemory";
+import { imageCatalogId } from "@/lib/imageVisionCache";
 
 /** Pick chat images for save_pdf — uses `attached_image_indices` when set; else `embed_attached_images` for all. */
 export function resolvePdfAttachedImages(
@@ -298,16 +299,66 @@ export function indexesFromReferencePaths(
   return { indexes, missingPaths };
 }
 
+export function parseImageIds(raw: unknown): string[] {
+  const split = (s: string): string[] =>
+    s
+      .split(/[\s,;]+/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+  if (Array.isArray(raw)) {
+    return Array.from(new Set(raw.flatMap((x) => split(String(x ?? "")))));
+  }
+  if (typeof raw !== "string") return [];
+  return Array.from(new Set(split(raw)));
+}
+
+export function indexesFromReferenceIds(
+  catalogImages: string[] | undefined,
+  catalogPaths: string[] | undefined,
+  requestedIds: string[],
+): { indexes: number[]; missingIds: string[] } {
+  if (!catalogImages?.length || !requestedIds.length) {
+    return { indexes: [], missingIds: requestedIds };
+  }
+  const indexById = new Map<string, number>();
+  for (let i = 0; i < catalogImages.length; i++) {
+    const base64 = (catalogImages[i] || "").trim();
+    if (!base64) continue;
+    const id = imageCatalogId({ path: catalogPaths?.[i], base64 });
+    if (!indexById.has(id)) indexById.set(id, i + 1);
+  }
+  const indexes: number[] = [];
+  const missingIds: string[] = [];
+  for (const id of requestedIds) {
+    const hit = indexById.get(id);
+    if (!hit) {
+      missingIds.push(id);
+      continue;
+    }
+    indexes.push(hit);
+  }
+  return { indexes, missingIds };
+}
+
 export function resolveReferenceImageIndexes(
   args: Record<string, unknown>,
   catalogPaths: string[] | undefined,
-): { indexes: number[]; missingPaths: string[] } {
+  catalogImages?: string[],
+): { indexes: number[]; missingPaths: string[]; missingIds: string[] } {
   const fromIndexes = parseImageIndexes(args.reference_image_indexes);
+  const fromIds = indexesFromReferenceIds(
+    catalogImages,
+    catalogPaths,
+    parseImageIds(args.reference_image_ids),
+  );
   const requestedPaths = parseImagePaths(args.reference_image_paths);
   const fromPaths = indexesFromReferencePaths(catalogPaths, requestedPaths);
   return {
-    indexes: Array.from(new Set([...fromIndexes, ...fromPaths.indexes])),
+    indexes: Array.from(
+      new Set([...fromIndexes, ...fromIds.indexes, ...fromPaths.indexes]),
+    ),
     missingPaths: fromPaths.missingPaths,
+    missingIds: fromIds.missingIds,
   };
 }
 

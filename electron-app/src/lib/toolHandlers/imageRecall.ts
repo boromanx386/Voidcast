@@ -25,7 +25,11 @@ export async function resolveImageRecallRequest(
   errors: string[];
   maxAvailable: number;
 }> {
-  const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths);
+  const selected = resolveReferenceImageIndexes(
+    args,
+    ctx.userImagePaths,
+    ctx.userImages,
+  );
   const indexes = selected.indexes;
   const purposeRaw =
     typeof args.purpose === "string" ? args.purpose.trim().toLowerCase() : "";
@@ -41,6 +45,9 @@ export async function resolveImageRecallRequest(
   const errors: string[] = [];
   for (const p of selected.missingPaths) {
     errors.push(`path not found in catalog: ${p}`);
+  }
+  for (const id of selected.missingIds) {
+    errors.push(`id not found in catalog: ${id}`);
   }
   for (const idx of indexes) {
     const hit = resolveCatalogImageByOneBasedIndex(

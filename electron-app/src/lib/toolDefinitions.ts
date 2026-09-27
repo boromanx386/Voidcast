@@ -316,7 +316,12 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
         reference_image_indexes: {
           type: 'string',
           description:
-            'Optional 1-based image indexes from the internal conversation image catalog (for example: "1" or "1,2"), where index 1 is the most recent image.',
+            'Optional 1-based image indexes from the internal conversation image catalog (for example: "1" or "1,2"), where index 1 is the OLDEST image in the conversation (the catalog is chronological and stable; images attached in the current message have the highest indexes).',
+        },
+        reference_image_ids: {
+          type: 'string',
+          description:
+            'Optional stable image id(s) from the session catalog (for example: "img_1a2b3c4d" or a comma-separated list). Prefer ids over indexes — the id never changes across turns. Use alongside or instead of reference_image_indexes.',
         },
         reference_image_paths: {
           type: 'string',
@@ -357,7 +362,12 @@ const IMAGE_RECALL_TOOL: AgentToolDefinition = {
         reference_image_indexes: {
           type: 'string',
           description:
-            'Optional 1-based indexes from the internal conversation image catalog (for example: "1" or "1,2"), where index 1 is the most recent image.',
+            'Optional 1-based indexes from the internal conversation image catalog (for example: "1" or "1,2"), where index 1 is the OLDEST image in the conversation (the catalog is chronological and stable; images attached in the current message have the highest indexes).',
+        },
+        reference_image_ids: {
+          type: 'string',
+          description:
+            'Optional stable image id(s) from the session catalog (for example: "img_1a2b3c4d" or a comma-separated list). Prefer ids over indexes — the id never changes across turns. Use alongside or instead of reference_image_indexes.',
         },
         reference_image_paths: {
           type: 'string',

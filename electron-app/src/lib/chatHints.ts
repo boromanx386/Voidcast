@@ -2,7 +2,7 @@ import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import { imageCatalogKey } from '@/lib/imageVisionCache'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
-import { catalogItemKey } from '@/lib/chatImageCatalog'
+import { catalogItemId, catalogItemKey } from '@/lib/chatImageCatalog'
 
 export function deriveSessionTitle(messages: UiMessage[]): string {
   const firstUser = messages.find((m) => m.role === 'user')
@@ -97,15 +97,22 @@ export function buildImageCatalogHint(
         : item.kind === 'pending'
           ? 'attached (this message)'
           : 'attached'
-    return `- Index ${i + 1}: [${kind}] ${label}${item.path ? ` — ${item.path}` : ''}`
+    return `- [${catalogItemId(item)}] Index ${i + 1}: [${kind}] ${label}${item.path ? ` — ${item.path}` : ''}`
   })
+  const total = catalog.length
+  const firstPending = total - pendingCount + 1
+  const stableLead =
+    'The catalog is chronological and STABLE: index 1 is the OLDEST image in this conversation; higher indexes are newer and never renumber. Each line also has a permanent id like [img_1a2b3c4d] — prefer reference_image_ids (it never changes), or use reference_image_indexes.'
   const currentAttachLead =
     pendingCount > 0
-      ? `Images attached in THIS message are index 1${pendingCount > 1 ? `–${pendingCount}` : ''} — describe those, not older generated images unless the user explicitly asks about an older one.`
+      ? [
+          stableLead,
+          `Image(s) attached in THIS message are the newest: index ${firstPending}${pendingCount > 1 ? `–${total}` : ''} — describe those, not older images unless the user explicitly asks about an older one.`,
+        ].join(' ')
       : [
+          stableLead,
           'No image is attached to THIS message.',
-          'Index 1 = most recent image earlier in the session (including generated).',
-          'Do not describe or treat catalog images as newly attached unless the user explicitly asks about them — then call image_recall (or edit_image_runware) with the index/path.',
+          'Do not describe or treat catalog images as newly attached unless the user explicitly asks about them — then call image_recall (or edit_image_runware) with the id or index/path.',
         ].join(' ')
   return [
     'Session image catalog for image_recall / edit_image_runware:',
@@ -123,7 +130,7 @@ export function buildQueuedImagePathHint(queued: PendingChatImage[]): string {
     lines.push(`- ${label}`)
   }
   return [
-    'Images attached to this message (indexes are listed in the session catalog below when Runware image tools are on).',
+    'Images attached to this message (listed LAST in the session catalog below; the catalog is oldest→newest, so these have the highest indexes).',
     ...lines,
   ].join('\n')
 }
@@ -170,7 +177,7 @@ export function buildHistoricalImageRecallHint(
   return [
     hasVision
       ? 'Images from this earlier turn (vision analysis included where available):'
-      : 'Images were attached in this earlier turn. For pixel-accurate vision later, call image_recall with reference_image_indexes (1-based, same order as the internal catalog used by tools) and/or reference_image_paths using the paths below. Earlier turns do not resend raw image bytes in context.',
+      : 'Images were attached in this earlier turn. For pixel-accurate vision later, call image_recall with reference_image_indexes (1-based, stable catalog: index 1 = the OLDEST image in the conversation) and/or reference_image_paths using the paths below. Earlier turns do not resend raw image bytes in context.',
     ...lines,
   ].join('\n')
 }

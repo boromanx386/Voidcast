@@ -14,6 +14,7 @@ import {
 } from "@/lib/subAgent";
 import { resolveImageRecallRequest } from "@/lib/toolHandlers/imageRecall";
 import {
+  parseImageIds,
   parseImageIndexes,
   parseImagePaths,
   pickImageByOneBasedIndex,
@@ -115,20 +116,32 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
   if (!prompt) return "Error: missing prompt parameter for edit_image_runware.";
   const canOverrideSteps = userRequestedStepsOverride(ctx.userText || "");
   const canOverrideCfg = userRequestedCfgOverride(ctx.userText || "");
-  const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths);
+  const selected = resolveReferenceImageIndexes(
+    args,
+    ctx.userImagePaths,
+    ctx.userImages,
+  );
   const indexes = selected.indexes;
   if (!indexes.length) {
-    return 'Error: missing image references for edit_image_runware. Provide reference_image_indexes (e.g. "1" or "1,2") and/or reference_image_paths.';
+    const unknown = selected.missingIds.length
+      ? ` Unknown ids: ${selected.missingIds.join(" | ")}.`
+      : "";
+    return `Error: missing image references for edit_image_runware. Provide reference_image_ids (e.g. "img_1a2b3c4d"), reference_image_indexes (e.g. "1" or "1,2"), and/or reference_image_paths.${unknown}`;
   }
   const refs = indexes
     .map((i) => pickImageByOneBasedIndex(ctx.userImages, ctx.userImageMimes, i))
     .filter((x): x is string => typeof x === "string" && x.length > 0);
   if (!refs.length) {
     const max = ctx.userImages?.length ?? 0;
-    const missing = selected.missingPaths.length
-      ? ` Missing paths: ${selected.missingPaths.join(" | ")}.`
-      : "";
-    return `Error: no valid reference images resolved from provided indexes/paths. Available image count: ${max}.${missing}`;
+    const missing = [
+      selected.missingPaths.length
+        ? ` Missing paths: ${selected.missingPaths.join(" | ")}.`
+        : "",
+      selected.missingIds.length
+        ? ` Unknown ids: ${selected.missingIds.join(" | ")}.`
+        : "",
+    ].join("");
+    return `Error: no valid reference images resolved from provided ids/indexes/paths. Available image count: ${max}.${missing}`;
   }
   try {
     if (ctx.runware.imageProvider === "openrouter") {
@@ -184,14 +197,19 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
 };
 
 export const handleImageRecall: ToolHandlerFn = async (args, ctx) => {
-  const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths);
+  const selected = resolveReferenceImageIndexes(
+    args,
+    ctx.userImagePaths,
+    ctx.userImages,
+  );
   const requestedPaths = parseImagePaths(args.reference_image_paths);
   if (
     !selected.indexes.length &&
     !requestedPaths.length &&
-    !parseImageIndexes(args.reference_image_indexes).length
+    !parseImageIndexes(args.reference_image_indexes).length &&
+    !parseImageIds(args.reference_image_ids).length
   ) {
-    return "Error: missing image references for image_recall. Provide reference_image_indexes and/or reference_image_paths.";
+    return "Error: missing image references for image_recall. Provide reference_image_ids, reference_image_indexes, and/or reference_image_paths.";
   }
   const recall = await resolveImageRecallRequest(args, ctx, {
     codingEnabled: ctx.toolsEnabled.coding,
