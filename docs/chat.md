@@ -56,6 +56,11 @@ While tools are running, the busy indicator shows each active tool by name. Adja
 - Clipboard paste can also queue images as pending attachments.
 - `onChatDrop` reads files into `FileAttachmentSnapshot` (name, path, mime, size, ext, content) → `pendingImages`/`pendingFiles`; picker via `openChatAttachmentPicker`.
 
+## Image Catalog (vision references)
+
+- The session keeps a chronological catalog of images. It is **stable**: index 1 is the oldest image in the conversation and indexes never renumber; each line also carries a permanent id like `[img_1a2b3c4d]` (`imageCatalogId` in `lib/imageVisionCache.ts`, exposed via `lib/chatImageCatalog.ts`).
+- `image_recall` and `edit_image_runware` accept `reference_image_ids` (preferred — ids never change across turns), `reference_image_indexes` (1-based positions), and/or `reference_image_paths`. Unknown ids are reported back in the tool error.
+
 ## Sub-agent activity and workers (SubAgentPanel.tsx)
 
 Full table: [multi-chat-and-team.md](multi-chat-and-team.md) and [options/subagent.md](options/subagent.md).
@@ -99,3 +104,8 @@ Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 ## Reminders
 
 - `reminderNotificationsEnabled` fires a desktop notification when a scheduled reminder is due; reminders are stored in `lib/reminderStorage.ts` and managed from `useVoidcastApp` (`deleteReminder`, `markReminderDone`). `reminderNotificationsEnabled` + `notificationSoundsEnabled` + `notificationSoundVolume` control alerting (see settings-reference).
+
+## Desktop Notification (reply finished)
+
+- When a reply finishes while the window is minimized or hidden in the tray, the desktop app shows an OS toast titled **Voidcast** with a one-line preview of the answer (first non-empty line, light markdown stripped, clamped to 160 chars).
+- `notifyAgentDone()` in `lib/agentDoneNotification.ts` is called from `useChatAgent` after a turn completes; the main process (`voidcast:notify-agent-done`) decides whether to actually show it and fires only when the window is not in the foreground. Best-effort: no-ops in web builds or on error.

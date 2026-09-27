@@ -9,9 +9,13 @@ Default: `'openrouter-tts'`
 
 - **`local`** — your local OmniVoice HTTP server (default URL `http://127.0.0.1:8765`, field `ttsBaseUrl`). Voice design uses Qwen-style voice design; setup links point to OmniVoice docs.
 - **`runware-xai`** — Runware cloud xAI TTS (`runwareTtsModel`, default `'xai:tts@0'`). Uses xAI/gemini/minimax voices and sends `buildRunwareTtsSpeechPayload`-style options.
-- **`openrouter-tts`** — OpenRouter-hosted TTS (`openrouterTtsModel`, default `'google/gemini-3.1-flash-tts-preview'`, optional `openrouterTtsVoice`). Changing model resets the voice so the UI can re-offer voices valid for that model.
+- **`openrouter-tts`** — OpenRouter-hosted TTS (`openrouterTtsModel`, default `'google/gemini-3.1-flash-tts-preview'`, optional `openrouterTtsVoice`). Changing model resets the voice so the UI can re-offer voices valid for that model. The model preset list includes `fish-audio/s2.1-pro-free:free` (Fish Audio S2.1 Pro Free).
 
 The panel includes a **refresh TTS** button (`refreshTts`) to re-probe the local server.
+
+### Fish Audio reference voices
+
+Fish Audio models (`fish-audio/…`) do **not** use a fixed voice catalog: their `voice` is a free-form Fish Audio `reference_id`. If none is set, each request could get a different random voice, so the app falls back to a stable default (`FISH_AUDIO_DEFAULT_VOICE = 7f92f8afb8ec43bf81429cc1c9199cb1`). `openRouterTtsUsesReferenceVoice()` detects these models; there is no per-model voice dropdown — pass the reference id in the voice field.
 
 ## Agent TTS (`generate_tts`)
 

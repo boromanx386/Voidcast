@@ -4,7 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- **OpenCode Go session routing**: chat and sub-agent requests now send a stable `x-opencode-session` header for each conversation, as required by the OpenCode Go API.
+## [2.9.0] — 2026-09-27
+
+### Added
+
+- **Fish Audio TTS**: OpenRouter TTS presets now include `fish-audio/s2.1-pro-free:free`; Fish Audio models use a free-form `reference_id` voice (with a stable default) instead of a fixed voice catalog.
+- **Windows toast for finished replies**: when the window is minimized or hidden in the tray, a reply that finishes shows an OS toast titled **Voidcast** with a one-line preview of the answer.
+- **Stable image catalog ids**: every catalog image now gets a permanent id like `img_1a2b3c4d` derived from its content/path, so `image_recall` and `edit_image_runware` can reference it via `reference_image_ids` across turns and reloads instead of positions.
+- **Agent-rounds label**: intermediate tool-round drafts collapse under a single monochrome label, and the last draft is folded into the reply when the final answer arrives.
+
+### Changed
+
+- **Taskbar and coding preview**: the app stays visible in the taskbar while hidden to the tray, and the coding preview stays pinned while the agent works.
+- **Cloud model presets refreshed**: OpenRouter, NVIDIA, and OpenCode Go presets and context metadata were updated against current provider catalogs; the OpenCode Go model checker prunes dead/legacy entries.
+- **Plan-mode handoff**: the chat message that switches Plan → Agent/Team is now a single-line notice.
+
+### Fixed
+
+- **OpenCode Go session routing**: chat and sub-agent requests now send a stable `x-opencode-session` header per conversation, as required by the OpenCode Go API.
 
 ## [2.8.9] — 2026-09-22
 

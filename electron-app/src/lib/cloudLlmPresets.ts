@@ -60,6 +60,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'x-ai/grok-4.7', label: 'Grok 4 7 (500K ctx)' },
   { id: 'xiaomi/mimo-v2.6-flash', label: 'Mimo V2 6 Flash (1M ctx)' },
   { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5 5 (1M ctx)' },
+  { id: 'xiaomi/mimo-v2.6-pro', label: 'Mimo V2 6 Pro (1.1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -89,6 +90,7 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna Xs 2 1' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash' },
   { id: 'deepseek-ai/deepseek-v4.1-flash', label: 'Deepseek V4 1 Flash' },
+  { id: 'z-ai/glm-5.3', label: 'GLM 5 3' },
 ]
 
 /**
@@ -118,6 +120,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4.1-flash', label: 'Deepseek V4 1 Flash (1M ctx)' },
   { id: 'mimo-v2.6-flash', label: 'Mimo V2 6 Flash (1M ctx)' },
   { id: 'mimo-v2.6-pro', label: 'Mimo V2 6 Pro (1M ctx)' },
+  { id: 'longcat-2.5-preview-free', label: 'Longcat 2 5 Preview Free (1M ctx)' },
 ]
 
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {

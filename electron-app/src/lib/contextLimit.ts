@@ -74,7 +74,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'google/gemma-4-31b-it': 131_072,
   'google/gemma-4-31b-it:free': 262_144,
   'gemma-4-31b-it': 262_144,
-  'nvidia/nemotron-3.5-lightning': 262_144,
+  'nvidia/nemotron-3.5-lightning': 1000000,
   'nvidia/nemotron-3.5-lightning:free': 1_000_000,
   'nvidia/nemotron-3-super-120b-a12b:free': 262_144,
   'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
@@ -122,6 +122,8 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'mimo-v2.6-flash': 1048576,
   'mimo-v2.6-pro': 1048576,
   'anthropic/claude-opus-5.5': 1000000,
+  'xiaomi/mimo-v2.6-pro': 1050000,
+  'longcat-2.5-preview-free': 1000000,
 }
 
 function buildPresetLookup(
