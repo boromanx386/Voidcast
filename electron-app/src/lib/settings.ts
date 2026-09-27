@@ -136,7 +136,43 @@ const OPENAI_TTS_VOICES = new Set([
   'cedar',
 ])
 
+/** Shared Gemini TTS voice catalog (identical across the Gemini 3.1 / 3.8 TTS models). */
+export const GEMINI_TTS_VOICES: readonly string[] = [
+  'Zephyr',
+  'Puck',
+  'Charon',
+  'Kore',
+  'Fenrir',
+  'Leda',
+  'Orus',
+  'Aoede',
+  'Callirrhoe',
+  'Autonoe',
+  'Enceladus',
+  'Iapetus',
+  'Umbriel',
+  'Algieba',
+  'Despina',
+  'Erinome',
+  'Algenib',
+  'Rasalgethi',
+  'Laomedeia',
+  'Achernar',
+  'Alnilam',
+  'Schedar',
+  'Gacrux',
+  'Pulcherrima',
+  'Achird',
+  'Zubenelgenubi',
+  'Vindemiatrix',
+  'Sadachbia',
+  'Sadaltager',
+  'Sulafat',
+]
+
 export const OPENROUTER_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> = [
+  { id: 'google/gemini-3.8-flash-tts', label: 'Google Gemini 3.8 Flash TTS' },
+  { id: 'google/gemini-3.8-flash-lite-tts', label: 'Google Gemini 3.8 Flash Lite TTS' },
   { id: OPENROUTER_TTS_MODEL_DEFAULT, label: 'Google Gemini 3.1 Flash TTS' },
   { id: 'hexgrad/kokoro-82m', label: 'hexgrad Kokoro 82M (cheapest)' },
   { id: 'mistralai/voxtral-mini-tts-2603', label: 'Mistral Voxtral Mini TTS' },
@@ -148,16 +184,9 @@ export const OPENROUTER_TTS_MODEL_PRESETS: Array<{ id: string; label: string }> 
 ]
 
 export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
-  [OPENROUTER_TTS_MODEL_DEFAULT]: [
-    'Zephyr',
-    'Puck',
-    'Charon',
-    'Kore',
-    'Fenrir',
-    'Aoede',
-    'Leda',
-    'Orus',
-  ],
+  [OPENROUTER_TTS_MODEL_DEFAULT]: GEMINI_TTS_VOICES,
+  'google/gemini-3.8-flash-tts': GEMINI_TTS_VOICES,
+  'google/gemini-3.8-flash-lite-tts': GEMINI_TTS_VOICES,
   'hexgrad/kokoro-82m': [
     'af_bella',
     'af_heart',

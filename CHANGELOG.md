@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Gemini 3.8 TTS presets**: OpenRouter TTS now offers `google/gemini-3.8-flash-tts` and `google/gemini-3.8-flash-lite-tts`; every Gemini TTS preset (including the 3.1 default) now shares the full 30-voice catalog (`GEMINI_TTS_VOICES`).
+
 ## [2.9.0] — 2026-09-27
 
 ### Added

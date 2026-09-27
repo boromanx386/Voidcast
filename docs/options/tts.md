@@ -9,7 +9,7 @@ Default: `'openrouter-tts'`
 
 - **`local`** — your local OmniVoice HTTP server (default URL `http://127.0.0.1:8765`, field `ttsBaseUrl`). Voice design uses Qwen-style voice design; setup links point to OmniVoice docs.
 - **`runware-xai`** — Runware cloud xAI TTS (`runwareTtsModel`, default `'xai:tts@0'`). Uses xAI/gemini/minimax voices and sends `buildRunwareTtsSpeechPayload`-style options.
-- **`openrouter-tts`** — OpenRouter-hosted TTS (`openrouterTtsModel`, default `'google/gemini-3.1-flash-tts-preview'`, optional `openrouterTtsVoice`). Changing model resets the voice so the UI can re-offer voices valid for that model. The model preset list includes `fish-audio/s2.1-pro-free:free` (Fish Audio S2.1 Pro Free).
+- **`openrouter-tts`** — OpenRouter-hosted TTS (`openrouterTtsModel`, default `'google/gemini-3.1-flash-tts-preview'`, optional `openrouterTtsVoice`). Changing model resets the voice so the UI can re-offer voices valid for that model. The preset list includes `google/gemini-3.8-flash-tts` and `google/gemini-3.8-flash-lite-tts` (both share the full 30-voice Gemini catalog via `GEMINI_TTS_VOICES`, as does the 3.1 default) plus `fish-audio/s2.1-pro-free:free` (Fish Audio S2.1 Pro Free).
 
 The panel includes a **refresh TTS** button (`refreshTts`) to re-probe the local server.
 
