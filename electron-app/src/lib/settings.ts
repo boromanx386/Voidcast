@@ -227,9 +227,10 @@ export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> =
  * rather than a fixed catalog, and they publish none on OpenRouter. Omitting `voice`
  * makes every request come back with a *different* random voice, so we ship one stable
  * public default to keep batches consistent. The field stays free-form so any reference_id
- * can be pasted in. Default source: https://fish.audio/m/7f92f8afb8ec43bf81429cc1c9199cb1/
+ * can be pasted in. Default source: "DL" (Male/Old/Narration)
+ * https://fish.audio/m/1936333080804be19655c6749b2ae7b2/
  */
-export const FISH_AUDIO_DEFAULT_VOICE = '7f92f8afb8ec43bf81429cc1c9199cb1'
+export const FISH_AUDIO_DEFAULT_VOICE = '1936333080804be19655c6749b2ae7b2'
 export const FISH_AUDIO_TTS_VOICES: readonly string[] = [FISH_AUDIO_DEFAULT_VOICE]
 
 /** True for models whose `voice` is a free-form reference_id (Fish Audio), not a fixed catalog. */
