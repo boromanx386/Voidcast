@@ -672,6 +672,15 @@ interface VoidcastBridge {
       { ok: true; text: string } | { ok: false; error?: string }
     >
 
+    /** Answer a held HTTP auth request (the WEB panel's sign-in bar — never the agent). */
+    authAnswer: (payload: {
+      id: string
+      username?: string
+      password?: string
+      remember?: boolean
+      cancel?: boolean
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
     consoleLogs: (payload?: {
       limit?: number
       projectPath?: string
@@ -716,6 +725,26 @@ interface VoidcastBridge {
           forcedFrames: number
           /** Chromium partition key currently in use (browser profile). */
           profile: string
+          /** HTTP auth the page is waiting for — render the sign-in bar when this is set. */
+          auth: {
+            id: string
+            host: string
+            realm: string
+            url: string
+            pageId: string
+          } | null
+          /** Last denied permission or held sign-in, for the panel's status line. */
+          notice: string | null
+          /** Where downloads land (the project's .voidcast folder, or userData). */
+          downloadsDir: string
+          /** Last download routed through the Voidcast browser. */
+          download: {
+            name: string
+            path: string
+            state: string
+            bytes: number
+            at: number
+          } | null
           /** Every open page; only the active one is painted in the panel. */
           pages: { id: string; url: string; title: string; active: boolean }[]
           activeId: string | null

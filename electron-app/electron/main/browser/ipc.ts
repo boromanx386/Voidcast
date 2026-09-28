@@ -1,5 +1,6 @@
 import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
+  answerBrowserAuth,
   browserStatus,
   clearBrowserData,
   closeBrowserPageForProject,
@@ -467,6 +468,33 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     async (_event, payload: { projectPath?: string; profile?: string }) => {
       try {
         const text = await clearBrowserData(getWindow(), payload?.projectPath, payload?.profile)
+        return { ok: true as const, text }
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'voidcast:browser-auth-answer',
+    async (
+      _event,
+      payload: {
+        id?: string
+        username?: string
+        password?: string
+        remember?: boolean
+        cancel?: boolean
+      },
+    ) => {
+      try {
+        const text = await answerBrowserAuth({
+          id: typeof payload?.id === 'string' ? payload.id : '',
+          username: typeof payload?.username === 'string' ? payload.username : undefined,
+          password: typeof payload?.password === 'string' ? payload.password : undefined,
+          remember: payload?.remember === true,
+          cancel: payload?.cancel === true,
+        })
         return { ok: true as const, text }
       } catch (e) {
         return fail(e)

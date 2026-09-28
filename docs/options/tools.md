@@ -56,6 +56,9 @@ Notes:
 - `browser_emulate` sets viewport metrics and/or `prefers-color-scheme` for the current page. While a viewport override is active, captures come back scaled by the device scale factor (390×844 at dsf 3 → 1170×2532), and full-page shots are clamped to 16000px tall.
 - Screenshots work whether or not the **WEB** view is on screen: every capture is wrapped in a short `Page.startScreencast`, which forces the compositor to produce a frame (~50ms either way). Without that, a hidden view waits ~3.9s on a static page and times out on an animated one.
 - Also available to you manually: the WEB view's own URL bar, back/forward/reload, a `SHOT` button, and `↗` (open the current URL in the system browser).
+- Session hardening is on by default: permissions are **denied** unless they are `fullscreen`, `clipboard-sanitized-write` or `pointerLock`. Without a handler Electron auto-approves camera, microphone, geolocation, notifications and clipboard reads for any page, which is the wrong default for a browser the agent drives over untrusted content. The panel shows the last denial.
+- Downloads never go to the OS Downloads folder: they land in **`<project>/.voidcast/browser/downloads`** (or `userData/browser-downloads/<profile>` when no project is open) under a de-duplicated file name, and the panel shows the last one. `.voidcast/` is git-ignored.
+- HTTP auth (Basic/Digest) is answered from the **encrypted** per-profile store when "remember" was ticked on an earlier prompt; otherwise Chromium holds the page open and the WEB panel renders a sign-in bar. The agent never receives the password — `browser_navigate_page` fails fast with *HTTP authentication required…* instead of sitting on the 25s load timeout. `CLR` also forgets remembered sign-ins.
 
 ## Max agent tool rounds (`agentMaxToolRounds`)
 

@@ -44,6 +44,28 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
   const [pages, setPages] = useState<
     { id: string; url: string; title: string; active: boolean }[]
   >([])
+  /** Held HTTP auth request — the panel is the only place the user can answer it. */
+  const [auth, setAuth] = useState<{
+    id: string
+    host: string
+    realm: string
+    url: string
+    pageId: string
+  } | null>(null)
+  const [authUser, setAuthUser] = useState('')
+  const [authPass, setAuthPass] = useState('')
+  const [authRemember, setAuthRemember] = useState(true)
+  /** Last denied permission / held sign-in reported by main. */
+  const [notice, setNotice] = useState<string | null>(null)
+  /** Last download routed into the project folder (never the OS Downloads folder). */
+  const [download, setDownload] = useState<{
+    name: string
+    path: string
+    state: string
+  } | null>(null)
+  const downloadsDirRef = useRef('')
+  /** Which prompt the typed credentials belong to — a new one starts from empty fields. */
+  const authIdRef = useRef('')
 
   const browserApi = () => (typeof window !== 'undefined' ? window.voidcast?.browser : undefined)
 
@@ -107,6 +129,18 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
     setPainted(Boolean(res.visible))
     setProfile(res.profile ?? '')
     setPages(res.pages ?? [])
+    const nextAuth = res.auth ?? null
+    if ((nextAuth?.id ?? '') !== authIdRef.current) {
+      // A different prompt (or none at all): never carry credentials across requests.
+      authIdRef.current = nextAuth?.id ?? ''
+      setAuthUser('')
+      setAuthPass('')
+      setAuthRemember(true)
+    }
+    setAuth(nextAuth)
+    setNotice(res.notice ?? null)
+    setDownload(res.download ?? null)
+    downloadsDirRef.current = res.downloadsDir ?? ''
     if (!urlFocusedRef.current && res.url && res.url !== 'about:blank') setDraft(res.url)
   }, [pushBounds])
 
@@ -362,6 +396,97 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
 
       {message ? (
         <div className="shrink-0 pb-1 font-mono text-[10px] text-void-dim break-all">{message}</div>
+      ) : null}
+
+      {/* HTTP auth cannot be answered anywhere else: Chromium holds the page open until
+          the user replies here. The agent never sees the password. */}
+      {auth ? (
+        <form
+          className="mb-1 shrink-0 rounded border border-amber-400/40 bg-amber-400/5 p-1.5"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const api = browserApi()
+            if (!api || !auth) return
+            void run('Sign in', async () => {
+              const res = await api.authAnswer({
+                id: auth.id,
+                username: authUser,
+                password: authPass,
+                remember: authRemember,
+              })
+              if (res.ok) {
+                setAuthPass('')
+                setMessage(res.text)
+              }
+              return res
+            })
+          }}
+        >
+          <div className="pb-1 font-mono text-[10px] text-amber-300">
+            {`${auth.host} requires HTTP authentication${
+              auth.realm ? ` (realm "${auth.realm}")` : ''
+            } — the page is waiting.`}
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <input
+              type="text"
+              value={authUser}
+              onChange={(e) => setAuthUser(e.target.value)}
+              placeholder="user name"
+              autoFocus
+              className="cyber-input min-w-0 flex-1 px-2 py-0.5 text-[11px]"
+            />
+            <input
+              type="password"
+              value={authPass}
+              onChange={(e) => setAuthPass(e.target.value)}
+              placeholder="password"
+              className="cyber-input min-w-0 flex-1 px-2 py-0.5 text-[11px]"
+            />
+            <label
+              className="flex items-center gap-1 font-mono text-[10px] text-void-dim"
+              title="Store it encrypted in the OS keychain, for this browser profile only"
+            >
+              <input
+                type="checkbox"
+                checked={authRemember}
+                onChange={(e) => setAuthRemember(e.target.checked)}
+              />
+              remember
+            </label>
+            <button
+              type="submit"
+              className="cyber-btn px-2 py-0.5 text-[10px] disabled:opacity-40"
+              disabled={busy || !authUser.trim()}
+            >
+              SIGN IN
+            </button>
+            <button
+              type="button"
+              className="rounded border border-void-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-void-dim hover:border-red-400 hover:text-red-300"
+              title="Cancel the request — the site keeps answering 401"
+              onClick={() => {
+                const api = browserApi()
+                if (api && auth) void run('Cancel sign-in', () => api.authAnswer({ id: auth.id, cancel: true }))
+              }}
+            >
+              CANCEL
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {notice ? (
+        <div className="shrink-0 pb-1 font-mono text-[10px] text-amber-300/90 break-all">{notice}</div>
+      ) : null}
+
+      {download ? (
+        <div
+          className="shrink-0 pb-1 font-mono text-[10px] text-void-dim/80 break-all"
+          title={downloadsDirRef.current ? `Downloads folder: ${downloadsDirRef.current}` : undefined}
+        >
+          {`download ${download.state}: ${download.name}`}
+        </div>
       ) : null}
 
       {/* The native browser view is drawn over this rect; the hint shows only until it exists. */}

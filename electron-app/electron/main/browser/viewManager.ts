@@ -1,5 +1,6 @@
-import { BrowserWindow, WebContentsView, nativeImage, session } from 'electron'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { BrowserWindow, WebContentsView, app, nativeImage, safeStorage, session } from 'electron'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { existsSync, mkdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { CdpSession } from './cdp'
@@ -35,6 +36,35 @@ export type BrowserPage = {
   createdAt: number
 }
 
+/** An HTTP auth request Chromium is holding open until the user answers it. */
+type PendingAuth = {
+  id: string
+  /** webContents id of the page that asked — lets us drop it when the page dies. */
+  wcId: number
+  pageId: string
+  /** scheme://host:port (+ proxy marker) — the key remembered credentials are stored under. */
+  key: string
+  host: string
+  realm: string
+  url: string
+  answer: (username?: string, password?: string) => void
+}
+
+/** One remembered credential. The password is safeStorage-encrypted, never plaintext. */
+type StoredCredential = { username: string; secret: string }
+
+/** Last download that landed in the project folder — surfaced to the panel and the agent. */
+type DownloadNotice = { name: string; path: string; state: string; bytes: number; at: number }
+
+/** What the WEB panel renders as the sign-in bar. */
+export type BrowserAuthPrompt = {
+  id: string
+  host: string
+  realm: string
+  url: string
+  pageId: string
+}
+
 const HOME_URL = 'about:blank'
 const LOAD_TIMEOUT_MS = 25000
 const MIN_RECT_PX = 8
@@ -65,6 +95,8 @@ let partitionKey = ''
  * 'shared' means one profile for the whole app, anything else is a named profile.
  */
 let profileSetting = ''
+/** The coding project the browser is scoped to. Downloads land inside it, never in OS Downloads. */
+let projectPathSetting = ''
 /** True while the WEB panel is mounted and wants the current page painted. */
 let visibleFlag = false
 /** True once the renderer has pushed a usable panel rect at least once. */
@@ -75,6 +107,18 @@ let shuttingDown = false
 let windowHooked = false
 /** Browser state is global to the app; serialize operations from concurrent chat runs. */
 let browserOperationTail = Promise.resolve()
+/** Partitions already hardened — session listeners accumulate, so they are attached once. */
+const hardenedPartitions = new Set<string>()
+/** HTTP auth requests Chromium is holding open until the user answers them (keyed by prompt id). */
+const pendingAuth = new Map<string, PendingAuth>()
+let authSeq = 1
+/** Remembered HTTP credentials for the active profile, read lazily from userData. */
+let authStore: Record<string, StoredCredential> | null = null
+let authStorePath = ''
+/** Last permission Chromium denied, so "why is the camera blocked" has an answer. */
+let lastPermission: string | null = null
+/** Last download routed into the project folder. */
+let lastDownload: DownloadNotice | null = null
 
 export async function withBrowserLock<T>(fn: () => Promise<T>): Promise<T> {
   const previous = browserOperationTail
@@ -176,6 +220,9 @@ function applyProfile(projectPath?: string): { profile: string; changed: boolean
   profileEpoch += 1
   creating = null
   lastError = null
+  // Held sign-in requests and permission notes belong to the partition we just left.
+  pendingAuth.clear()
+  lastPermission = null
   return { profile: partitionKey, changed: true }
 }
 
@@ -225,15 +272,302 @@ function applyVisibility(): void {
   }
 }
 
+/**
+ * Permissions Chromium may grant without asking. Everything else is denied: Electron
+ * approves every request when no handler is set, and this browser renders untrusted pages
+ * on the agent's behalf — a page could otherwise open the camera, read the clipboard or
+ * ask for the location. The three below cannot leak anything to the page: `fullscreen`
+ * keeps video players working, `clipboard-sanitized-write` the copy buttons, `pointerLock`
+ * canvas/3D apps.
+ */
+const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-sanitized-write', 'pointerLock'])
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host || url
+  } catch {
+    return url
+  }
+}
+
+function partitionName(): string {
+  return `persist:voidcast-browser-${partitionKey || 'default'}`
+}
+
+/**
+ * Hardening that must be in place before the first page in a partition loads: a
+ * deny-by-default permission handler and the download router. Session listeners
+ * accumulate, so each partition is hardened exactly once.
+ */
+function hardenSession(): Electron.Session {
+  const name = partitionName()
+  const ses = session.fromPartition(name)
+  if (hardenedPartitions.has(name)) return ses
+  hardenedPartitions.add(name)
+
+  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    if (ALLOWED_PERMISSIONS.has(permission)) {
+      callback(true)
+      return
+    }
+    lastPermission = `${permission} denied for ${hostOf(details?.requestingUrl ?? '')}`
+    callback(false)
+  })
+  // Keeps navigator.permissions.query() honest about the denials above.
+  ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission))
+
+  ses.on('will-download', (_event, item) => attachDownload(item))
+  return ses
+}
+
+/**
+ * Downloads never land in the OS Downloads folder: a file the agent was tricked into
+ * fetching must not be able to overwrite something the user cares about, and the agent
+ * needs to know where the file went. Project scope → the project, otherwise userData.
+ */
+function downloadsDir(): string {
+  if (projectPathSetting) return path.join(projectPathSetting, '.voidcast', 'browser', 'downloads')
+  return path.join(app.getPath('userData'), 'browser-downloads', partitionKey || 'default')
+}
+
+/** Strip anything that could escape the download folder or confuse Windows. */
+function safeFileName(raw: string): string {
+  const base = path
+    .basename((raw || 'download').trim())
+    .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '_')
+    .replace(/^\.+/, '_')
+  return base.slice(0, 120) || 'download'
+}
+
+function uniqueDownloadPath(dir: string, name: string): string {
+  const ext = path.extname(name)
+  const stem = ext ? name.slice(0, -ext.length) : name
+  let candidate = path.join(dir, name)
+  for (let n = 1; existsSync(candidate) && n < 500; n++) {
+    candidate = path.join(dir, `${stem} (${n})${ext}`)
+  }
+  return candidate
+}
+
+function attachDownload(item: Electron.DownloadItem): void {
+  const dir = downloadsDir()
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch {
+    /* falling back to the default location beats failing the download */
+  }
+  const target = uniqueDownloadPath(dir, safeFileName(item.getFilename()))
+  try {
+    // Must happen synchronously inside will-download, before the download starts.
+    item.setSavePath(target)
+  } catch {
+    /* let Chromium pick if the path is rejected */
+  }
+  item.once('done', (_event, state) => {
+    lastDownload = {
+      name: path.basename(target),
+      path: target,
+      state,
+      bytes: item.getReceivedBytes(),
+      at: Date.now(),
+    }
+  })
+}
+
+function authKey(authInfo: Electron.AuthInfo): string {
+  return `${authInfo.isProxy ? 'proxy' : 'site'}:${authInfo.scheme || 'basic'}://${authInfo.host}:${authInfo.port}`
+}
+
+function authFilePath(): string {
+  return path.join(
+    app.getPath('userData'),
+    'browser-auth',
+    `${sanitizePartitionKey(partitionKey)}.json`,
+  )
+}
+
+async function loadAuthStore(): Promise<Record<string, StoredCredential>> {
+  const file = authFilePath()
+  if (authStore && authStorePath === file) return authStore
+  authStorePath = file
+  authStore = {}
+  try {
+    const parsed = JSON.parse(await readFile(file, 'utf8')) as {
+      entries?: Record<string, StoredCredential>
+    }
+    if (parsed?.entries && typeof parsed.entries === 'object') authStore = parsed.entries
+  } catch {
+    /* no remembered credentials for this profile yet */
+  }
+  return authStore
+}
+
+async function saveAuthStore(store: Record<string, StoredCredential>): Promise<void> {
+  const file = authFilePath()
+  await mkdir(path.dirname(file), { recursive: true })
+  await writeFile(file, JSON.stringify({ version: 1, entries: store }), 'utf8')
+  authStore = store
+  authStorePath = file
+}
+
+/** Encrypt through the OS keychain (DPAPI on Windows) — a password is never written in clear. */
+async function saveCredential(key: string, username: string, password: string): Promise<boolean> {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return false
+    const store = await loadAuthStore()
+    store[key] = { username, secret: safeStorage.encryptString(password).toString('base64') }
+    await saveAuthStore({ ...store })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function decryptSecret(secret: string): string | null {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return null
+    return safeStorage.decryptString(Buffer.from(secret, 'base64'))
+  } catch {
+    return null
+  }
+}
+
+function firstPendingAuth(): PendingAuth | null {
+  return pendingAuth.values().next().value ?? null
+}
+
+function authPrompt(): BrowserAuthPrompt | null {
+  const entry = firstPendingAuth()
+  if (!entry) return null
+  return { id: entry.id, host: entry.host, realm: entry.realm, url: entry.url, pageId: entry.pageId }
+}
+
+/** Why a page is stuck, in words the agent can act on (and the panel can show). */
+function pendingAuthNote(): string | null {
+  const entry = firstPendingAuth()
+  if (!entry) return null
+  const realm = entry.realm ? ` (realm "${entry.realm}")` : ''
+  return `HTTP authentication required by ${entry.host}${realm} — the page stays pending until the user answers the sign-in bar in the coding panel WEB view (they can tick "remember" to store it for this profile).`
+}
+
+/**
+ * Forget the held sign-ins of one page. `cancel` answers the old request with nothing,
+ * which is what Chromium reads as "cancel the authentication" — used when a newer request
+ * supersedes it, so the older subresource fails fast instead of waiting forever.
+ */
+function dropAuthForPage(wcId: number, cancel = false): void {
+  for (const entry of [...pendingAuth.values()]) {
+    if (entry.wcId !== wcId) continue
+    pendingAuth.delete(entry.id)
+    if (cancel) {
+      try {
+        entry.answer()
+      } catch {
+        /* the page may already be gone */
+      }
+    }
+  }
+}
+
+/**
+ * HTTP Basic/Digest. With no `login` listener Electron cancels the authentication, so a
+ * password-protected staging site just hangs on a 401 with no explanation. Remembered
+ * credentials are answered silently (encrypted in userData per profile); anything else is
+ * held open for the user — never auto-filled from the OS.
+ */
+function wireLogin(view: WebContentsView, wcId: number): void {
+  view.webContents.on('login', (event, _details, authInfo, callback) => {
+    event.preventDefault()
+    void handleLogin(wcId, authInfo, callback)
+  })
+}
+
+async function handleLogin(
+  wcId: number,
+  authInfo: Electron.AuthInfo,
+  callback: (username?: string, password?: string) => void,
+): Promise<void> {
+  const key = authKey(authInfo)
+  const saved = (await loadAuthStore())[key]
+  const password = saved ? decryptSecret(saved.secret) : null
+  if (saved && password !== null) {
+    try {
+      callback(saved.username, password)
+    } catch {
+      /* the page went away while the encrypted store was being read */
+    }
+    return
+  }
+  // One held prompt per page: a newer request replaces the older one (and the older one is
+  // cancelled, so its subresource fails immediately instead of hanging on a dead callback).
+  dropAuthForPage(wcId, true)
+  const id = `auth${authSeq++}`
+  pendingAuth.set(id, {
+    id,
+    wcId,
+    pageId: pages.find((p) => p.view.webContents.id === wcId)?.id ?? '',
+    key,
+    host: authInfo.host,
+    realm: authInfo.realm ?? '',
+    url: safeCurrentUrl(wcId),
+    answer: callback,
+  })
+}
+
+/** The URL of the page that is asking, resolved from the live page list. */
+function safeCurrentUrl(wcId: number): string {
+  const page = pages.find((p) => p.view.webContents.id === wcId)
+  try {
+    return page?.view.webContents.getURL() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Reject a load early when the site parks it behind HTTP authentication: Chromium holds
+ * the request open, so the plain load timeout would leave the agent waiting 25s and then
+ * reporting a generic timeout instead of "the user has to sign in".
+ */
+function withAuthWatch<T>(wcId: number, promise: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setInterval(() => {
+      if (![...pendingAuth.values()].some((entry) => entry.wcId === wcId)) return
+      clearInterval(timer)
+      reject(new Error(pendingAuthNote() ?? 'HTTP authentication required.'))
+    }, 500)
+    promise.then(
+      (value) => {
+        clearInterval(timer)
+        resolve(value)
+      },
+      (err) => {
+        clearInterval(timer)
+        reject(err instanceof Error ? err : new Error(String(err)))
+      },
+    )
+  })
+}
+
 async function loadInto(page: BrowserPage, url: string): Promise<string> {
   const target = normalizeUrl(url)
+  const wcId = page.view.webContents.id
+  // A new navigation supersedes whatever the page was holding. Without this, a sign-in
+  // request the user never answered would keep every later load on this page blocked.
+  dropAuthForPage(wcId, true)
   try {
     await withTimeout(
-      page.view.webContents.loadURL(target),
+      withAuthWatch(wcId, page.view.webContents.loadURL(target)),
       LOAD_TIMEOUT_MS,
       `Timed out loading ${target}`,
     )
   } catch (e) {
+    const note = pendingAuthNote()
+    if (note) {
+      // Not a broken load: Chromium is holding it until the user signs in. Say it once —
+      // withAuthWatch already rejected with this same note.
+      throw new Error(note)
+    }
     const detail = e instanceof Error ? e.message : String(e)
     throw new Error(`Navigation failed for ${target}: ${detail}`)
   }
@@ -369,6 +703,10 @@ async function ensureBrowser(
   // without it. So every call that knows the project re-checks here: without this, switching
   // project with the panel closed kept the previous project's cookies and logins.
   if (profile !== undefined) profileSetting = normalizeProfileSetting(profile)
+  // Remember the project so downloads land inside it. Only the panel may clear it — an
+  // agent call without a project path must not forget where we are.
+  if (projectPath) projectPathSetting = projectPath
+  else if (authoritative) projectPathSetting = ''
   const desired = desiredProfileKey(projectPath)
   if (!partitionKey) {
     partitionKey = desired
@@ -405,11 +743,65 @@ export async function clearBrowserData(
 ): Promise<string> {
   return withBrowserLock(async () => {
     await ensureBrowser(win, projectPath, profile)
-    const target = session.fromPartition(`persist:voidcast-browser-${partitionKey}`)
+    const target = session.fromPartition(partitionName())
     await target.clearStorageData()
     await target.clearCache()
+    // Drop the in-memory HTTP auth cache too: without this a page signed in with a
+    // remembered credential keeps working until the app restarts, even after CLR.
+    await target.clearAuthCache().catch(() => undefined)
+    // Remembered HTTP credentials belong to the profile too — this is the only way to
+    // remove them from the encrypted store.
+    const file = authFilePath()
+    await rm(file, { force: true }).catch(() => undefined)
+    authStore = {}
+    authStorePath = ''
     lastError = null
-    return `Cleared cookies, storage and cache for profile "${partitionKey}". Already-open pages keep their in-memory state until they are reloaded.`
+    lastPermission = null
+    lastDownload = null
+    return `Cleared cookies, storage, cache and remembered sign-ins for profile "${partitionKey}". Already-open pages keep their in-memory state until they are reloaded.`
+  })
+}
+
+/**
+ * Answer a held HTTP auth request. Reached from the WEB panel's sign-in bar only — the
+ * agent has no tool for it and never sees the password.
+ */
+export async function answerBrowserAuth(input: {
+  id?: string
+  username?: string
+  password?: string
+  remember?: boolean
+  cancel?: boolean
+}): Promise<string> {
+  return withBrowserLock(async () => {
+    const entry = [...pendingAuth.values()].find((p) => p.id === input.id)
+    if (!entry) {
+      throw new Error('That sign-in request is no longer waiting — reload the page and try again.')
+    }
+    const username = (input.username ?? '').trim()
+    if (!input.cancel && !username) throw new Error('Missing user name for the sign-in request.')
+    // Drop it only once the input is known to be usable — otherwise the page waits forever.
+    pendingAuth.delete(entry.id)
+    if (input.cancel) {
+      // Calling the callback with no arguments cancels the authentication: Chromium then
+      // shows its own 401 page instead of waiting for credentials that never arrive.
+      entry.answer()
+      return `Cancelled the sign-in request for ${entry.host}.`
+    }
+    try {
+      entry.answer(username, input.password ?? '')
+    } catch {
+      throw new Error('The page went away before the sign-in could be applied.')
+    }
+    const saved = input.remember
+      ? await saveCredential(entry.key, username, input.password ?? '')
+      : false
+    const note = input.remember
+      ? saved
+        ? ' Stored encrypted for this browser profile.'
+        : ' Could not store it (no OS keychain available) — used for this request only.'
+      : ''
+    return `Signed in to ${entry.host} as "${username}".${note}`
   })
 }
 
@@ -418,15 +810,18 @@ async function newPageInWindow(
   url?: string,
   epoch = profileEpoch,
 ): Promise<BrowserPage> {
+  // Hardening must be in place before the first page in this partition loads.
+  hardenSession()
   const id = `p${pageSeq++}`
   const view = new WebContentsView({
     webPreferences: {
-      partition: `persist:voidcast-browser-${partitionKey || 'default'}`,
+      partition: partitionName(),
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,
     },
   })
+  const wcId = view.webContents.id
   win.contentView.addChildView(view)
   view.setBounds(parkedRect())
   if (typeof view.setVisible === 'function') view.setVisible(false)
@@ -437,6 +832,8 @@ async function newPageInWindow(
     if (/^https?:/i.test(target)) void openPopup(target).catch(() => undefined)
     return { action: 'deny' }
   })
+  // HTTP Basic/Digest: answered silently from the encrypted store, or held for the user.
+  wireLogin(view, wcId)
 
   // detach() before close (Electron crashes in main if the debugger outlives the view).
   const discard = (): void => {
@@ -490,6 +887,8 @@ async function newPageInWindow(
   applyVisibility()
 
   const onRendererGone = (details?: { reason?: string }) => {
+    // A held sign-in dies with its page — never leave the panel prompting for a dead tab.
+    dropAuthForPage(wcId)
     removeDeadPage(page.id, details?.reason ?? 'unknown reason')
   }
   view.webContents.on('render-process-gone', (_event, details) => onRendererGone(details))
@@ -613,6 +1012,12 @@ function closeBrowserPageUnsafe(id: string): { text: string; activeId: string | 
     throw new Error(`Unknown page "${id}" — call browser_list_pages to see the open pages.`)
   }
   const [page] = pages.splice(index, 1)
+  try {
+    // A held sign-in dies with its page: never leave the panel prompting for a closed tab.
+    dropAuthForPage(page.view.webContents.id, false)
+  } catch {
+    /* the renderer may already be gone — the prompt died with it */
+  }
   try {
     page.cdp.detach()
   } catch {
@@ -802,6 +1207,14 @@ export function browserStatus(): {
   activeId: string | null
   /** Chromium partition key in use ('' until the browser has been configured). */
   profile: string
+  /** A held HTTP auth request — the panel renders its sign-in bar while this is set. */
+  auth: BrowserAuthPrompt | null
+  /** Last denied permission or held sign-in, for the panel's status line. */
+  notice: string | null
+  /** Where downloads land for the current project/profile. */
+  downloadsDir: string
+  /** Last download routed through the browser. */
+  download: DownloadNotice | null
   error: string | null
 } {
   const info = pages.map(pageSummary)
@@ -812,6 +1225,7 @@ export function browserStatus(): {
       ? panelRect
       : parkedRect()
     : { x: 0, y: 0, width: 0, height: 0 }
+  const notice = pendingAuthNote() ?? lastPermission
 
   if (!page || page.view.webContents.isDestroyed()) {
     return {
@@ -826,6 +1240,10 @@ export function browserStatus(): {
       pages: info,
       activeId,
       profile: partitionKey,
+      auth: authPrompt(),
+      notice,
+      downloadsDir: downloadsDir(),
+      download: lastDownload,
       error: lastError,
     }
   }
@@ -841,6 +1259,10 @@ export function browserStatus(): {
     pages: info,
     activeId,
     profile: partitionKey,
+    auth: authPrompt(),
+    notice,
+    downloadsDir: downloadsDir(),
+    download: lastDownload,
     error: lastError,
   }
 }
@@ -873,6 +1295,8 @@ export function disposeBrowserView(): void {
   creating = null
   // Orphan any page creation still in flight so it cannot join `pages` after shutdown.
   profileEpoch += 1
+  // Held sign-ins have no page to return to; the callbacks die with the process anyway.
+  pendingAuth.clear()
   visibleFlag = false
 }
 

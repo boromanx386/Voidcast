@@ -26,6 +26,9 @@ tts-server/*.spec
 # Local experiments / Modal scratch (not shipped)
 modal-test/
 
+# Agent browser artifacts (screenshots, downloads) written into the coding project
+.voidcast/
+
 # Generated audio (local tests)
 *.wav
 

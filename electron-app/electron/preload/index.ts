@@ -50,6 +50,13 @@ contextBridge.exposeInMainWorld('voidcast', {
       ipcRenderer.invoke('voidcast:browser-configure', payload),
     clearData: (payload?: { projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-clear-data', payload),
+    authAnswer: (payload: {
+      id: string
+      username?: string
+      password?: string
+      remember?: boolean
+      cancel?: boolean
+    }) => ipcRenderer.invoke('voidcast:browser-auth-answer', payload),
     consoleLogs: (payload?: { limit?: number; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-console-logs', payload),
     networkRequests: (payload?: { limit?: number; projectPath?: string; profile?: string }) =>
