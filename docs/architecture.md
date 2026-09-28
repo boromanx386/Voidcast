@@ -50,6 +50,7 @@ src/components/
 │               MemoryPreviewModal, ContextWarningBanner,
 │               ChatToolResultBanner, ChatSystemStatus, ChatDragOverlay
 ├── coding/     Coding panel — FileTree, FilePreview, FilePreviewEdit, TerminalView
+├── BrowserPane.tsx  Coding panel WEB mode — chrome for the native browser view
 └── options/    Settings — one panel per tab (see table above)
 ```
 
@@ -117,3 +118,16 @@ MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gat
 
 - **Renderer (React)** — all UI, hooks, and the agent loop above.
 - **Main / TTS server (Electron)** — handles `save_pdf`, YouTube/Reddit scraping, coding tool IPC (read/write/search + terminal execution), MCP connectivity, auto-update, and LAN web proxy. Desktop-only features (MCP, skills discovery, coding tools, auto-save output folders) are noted as such in the docs.
+
+### Built-in browser (main process)
+
+`electron-app/electron/main/browser/` owns the Voidcast browser — the coding panel WEB view that agent `browser_*` tools drive:
+
+- `viewManager.ts` — the page registry: **one `WebContentsView` per open page** (max 8, each a live Chromium renderer) added to `win.contentView`, a single per-project `persist:voidcast-browser-*` partition, URL allowlist (`http`/`https`/`file`/`about:blank`), `detach()` before close. Tabs exist for the agent; the panel is a viewport onto the **current page** only. `target=_blank` / `window.open` become a page here instead of the system browser.
+- **Layout and paint are separate concerns.** Every page always keeps a real viewport: parked pages sit off-screen at the *panel's* size — never 0×0, and never the fallback size once the panel is known, so switching tabs does not reflow. Only the current page is painted, and only while the panel asks for it (`panelRect` / `visible` in `voidcast:browser-status`), so it can never float over the rest of the UI.
+- `cdp.ts` — `CdpSession` over `webContents.debugger`: per-command timeout, accessibility snapshot with `uid → backendDOMNodeId`, trusted input (`Input.dispatchMouseEvent` / `insertText` / `dispatchKeyEvent`), console/network ring buffers.
+- `Page.captureScreenshot` waits for a compositor frame, so every capture runs inside a short `Page.startScreencast` (frames acked). Measured on Electron 33: 67ms visible, 3.9s parked, timeout on an animated page — the screencast makes screenshots independent of whether the panel is on screen.
+- `ipc.ts` — `registerBrowserIpc(() => win)` called from `electron/main/index.ts`; all `voidcast:browser-*` channels resolve `{ ok } | { ok: false, error }`.
+- Ordering rule (spike-derived): create → `addChildView` → `loadURL('about:blank')` → **then** `debugger.attach('1.3')` and enable domains. Sending any CDP command before the view's first navigation hangs forever.
+- Bounds are deliberately **not** clamped against the window size: a stale window measurement used to collapse the rect to 0×0, which presents exactly as "nothing renders" plus "every screenshot times out".
+- The renderer never talks to CDP: `BrowserPane.tsx` only positions the view and renders chrome; the agent path is tool handler → preload bridge → IPC → CDP.

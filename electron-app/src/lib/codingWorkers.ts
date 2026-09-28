@@ -477,6 +477,7 @@ function workerToolDefinitions(): AgentToolDefinition[] {
     reddit: false,
     weather: false,
     scrape: false,
+    browser: false,
     pdf: false,
     runwareImage: false,
     runwareMusic: false,

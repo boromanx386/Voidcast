@@ -131,6 +131,7 @@ const TOOL_PHASE_UI: Record<
   reddit: { icon: '⬢', label: 'REDDIT_FEED', className: 'reddit' },
   weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
   scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrap' },
+  browser: { icon: '⬡', label: 'BROWSER', className: 'scrap' },
   pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
   image: { icon: '◌', label: 'IMAGE_GEN', className: 'image' },
   vision: { icon: '◎', label: 'IMAGE_RECALL', className: 'vision' },

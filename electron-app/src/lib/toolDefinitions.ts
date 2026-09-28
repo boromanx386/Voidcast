@@ -18,6 +18,14 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'git_restore',
   'git_stash',
   'save_pdf',
+  'browser_navigate_page',
+  'browser_new_page',
+  'browser_close_page',
+  'browser_emulate',
+  'browser_handle_dialog',
+  'browser_click',
+  'browser_fill',
+  'browser_press_key',
   'generate_image',
   'edit_image_runware',
   'generate_music_runware',
@@ -104,6 +112,329 @@ const SCRAPE_URL_TOOL: AgentToolDefinition = {
         },
       },
       required: ['url'],
+    },
+  },
+}
+
+const BROWSER_NAVIGATE_PAGE_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_navigate_page',
+    description:
+      'Navigate the built-in Voidcast browser (the coding panel WEB view — the SAME browser the user sees) to an http(s) URL. Use it for live pages, JS-rendered apps and web QA; localhost is allowed. Returns the final URL.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'Full http(s) URL to open (localhost is allowed)',
+        },
+        wait: {
+          type: 'boolean',
+          description: 'Wait for the page load to finish before returning. Default true.',
+        },
+      },
+      required: ['url'],
+    },
+  },
+}
+
+const BROWSER_TAKE_SNAPSHOT_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_take_snapshot',
+    description:
+      'Accessibility snapshot of the current Voidcast browser page. Every line is `<uid> <role> name="..."`. Pass a uid to browser_click / browser_fill. Call it after every navigation or UI change instead of guessing CSS selectors.',
+    parameters: {
+      type: 'object',
+      properties: {
+        max_nodes: {
+          type: 'number',
+          description: 'Optional cap on the number of nodes returned.',
+        },
+      },
+    },
+  },
+}
+
+const BROWSER_CLICK_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_click',
+    description:
+      'Trusted real mouse click on the element with that uid from the last browser_take_snapshot.',
+    parameters: {
+      type: 'object',
+      properties: {
+        uid: {
+          type: 'string',
+          description: 'uid from the most recent browser_take_snapshot',
+        },
+      },
+      required: ['uid'],
+    },
+  },
+}
+
+const BROWSER_FILL_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_fill',
+    description:
+      'Focus the element with that uid and type text into it via trusted input; set submit true to press Enter after.',
+    parameters: {
+      type: 'object',
+      properties: {
+        uid: {
+          type: 'string',
+          description: 'uid from the most recent browser_take_snapshot',
+        },
+        text: {
+          type: 'string',
+          description: 'Text to type into the element',
+        },
+        submit: {
+          type: 'boolean',
+          description: 'If true, press Enter after typing. Default false.',
+        },
+      },
+      required: ['uid', 'text'],
+    },
+  },
+}
+
+const BROWSER_PRESS_KEY_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_press_key',
+    description:
+      'Press a single keyboard key in the page (e.g. Enter, Escape, Tab, ArrowDown, a).',
+    parameters: {
+      type: 'object',
+      properties: {
+        key: {
+          type: 'string',
+          description: 'Key to press (e.g. Enter, Escape, Tab, ArrowDown, a)',
+        },
+      },
+      required: ['key'],
+    },
+  },
+}
+
+const BROWSER_TAKE_SCREENSHOT_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_take_screenshot',
+    description:
+      'Capture part of the current Voidcast browser page as a JPEG saved inside the coding project: the viewport by default, one element (pass uid from browser_take_snapshot) or the whole document (full_page true). Works whether or not the panel is showing the page, and element / full-page captures also cover content below the fold. RETURNS A FILE PATH (no image bytes) — to actually look at it, call image_recall with that path.',
+    parameters: {
+      type: 'object',
+      properties: {
+        uid: {
+          type: 'string',
+          description: 'Element uid from browser_take_snapshot — capture just that element.',
+        },
+        full_page: {
+          type: 'boolean',
+          description:
+            'Capture the whole scrollable page instead of the viewport (clamped to 16000px tall).',
+        },
+      },
+    },
+  },
+}
+
+const BROWSER_EMULATE_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_emulate',
+    description:
+      'Emulate a device viewport and/or colour scheme on the current Voidcast browser page — for responsive QA (mobile widths, dark mode) without opening a second browser. Overrides persist until reset. While a viewport override is active, screenshots come back scaled by the device scale factor.',
+    parameters: {
+      type: 'object',
+      properties: {
+        width: { type: 'number', description: 'Viewport width in CSS px (e.g. 390).' },
+        height: { type: 'number', description: 'Viewport height in CSS px (e.g. 844).' },
+        device_scale_factor: {
+          type: 'number',
+          description: 'Device pixel ratio, default 1 (e.g. 3 for a phone).',
+        },
+        mobile: { type: 'boolean', description: 'Emulate a mobile device (mobile layout metrics).' },
+        dark_mode: {
+          type: 'boolean',
+          description: 'Force prefers-color-scheme to dark (true) or light (false).',
+        },
+        reset: {
+          type: 'boolean',
+          description: 'Clear every override and go back to the panel viewport.',
+        },
+      },
+    },
+  },
+}
+
+const BROWSER_LIST_CONSOLE_MESSAGES_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_list_console_messages',
+    description: 'Recent console messages / page errors from the Voidcast browser.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Max number of recent messages to return.',
+        },
+      },
+    },
+  },
+}
+
+const BROWSER_LIST_NETWORK_REQUESTS_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_list_network_requests',
+    description:
+      'Recent network requests (method, status, url) from the Voidcast browser.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Max number of recent requests to return.',
+        },
+      },
+    },
+  },
+}
+
+const BROWSER_WAIT_FOR_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_wait_for',
+    description:
+      'Wait inside the Voidcast browser page for a condition before acting: a CSS selector, visible text, a URL substring and/or network idle. Use it after clicks or navigation on JS apps instead of retrying blindly. Returns how long it waited, or an error listing exactly what never appeared.',
+    parameters: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'CSS selector that must exist on the page',
+        },
+        text: {
+          type: 'string',
+          description: 'Substring that must appear in the visible page text',
+        },
+        url_pattern: {
+          type: 'string',
+          description: 'Substring the page URL must contain (e.g. /dashboard)',
+        },
+        network_idle: {
+          type: 'boolean',
+          description: 'Also wait until no network request is still in flight',
+        },
+        timeout_ms: {
+          type: 'number',
+          description: 'How long to wait before failing. Default 10000, max 60000.',
+        },
+      },
+    },
+  },
+}
+
+const BROWSER_HANDLE_DIALOG_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_handle_dialog',
+    description:
+      'Set how JavaScript dialogs (alert / confirm / prompt / beforeunload) are answered in the Voidcast browser, and list recent ones. Dialogs are ALWAYS answered automatically so they can never freeze the page — this only chooses accept (default) or dismiss for the next one.',
+    parameters: {
+      type: 'object',
+      properties: {
+        accept: {
+          type: 'boolean',
+          description: 'true (default) accepts the dialog, false dismisses it',
+        },
+        prompt_text: {
+          type: 'string',
+          description: 'Text to enter when accepting a prompt() dialog',
+        },
+      },
+    },
+  },
+}
+
+const BROWSER_LIST_PAGES_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_list_pages',
+    description:
+      'List every page (tab) open in the built-in Voidcast browser, marking the current one with *. The coding panel renders ONLY the current page, and agent tools act on it too — use browser_select_page to switch.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+}
+
+const BROWSER_NEW_PAGE_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_new_page',
+    description:
+      'Open a new page (tab) in the built-in Voidcast browser. By default it becomes the current page and the coding panel switches to it; set background true to leave the current page alone. At most 8 pages can be open.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'Full http(s) URL to open in the new page',
+        },
+        background: {
+          type: 'boolean',
+          description: 'If true the new page stays in the background. Default false.',
+        },
+      },
+      required: ['url'],
+    },
+  },
+}
+
+const BROWSER_SELECT_PAGE_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_select_page',
+    description:
+      'Make a page (tab) the current one. Agent tools AND the coding panel follow this selection, so this is also how you show the user a different page.',
+    parameters: {
+      type: 'object',
+      properties: {
+        page_id: {
+          type: 'string',
+          description: 'Page id from browser_list_pages (for example p2)',
+        },
+      },
+      required: ['page_id'],
+    },
+  },
+}
+
+const BROWSER_CLOSE_PAGE_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_close_page',
+    description:
+      'Close a page (tab) in the built-in Voidcast browser and report which page is current afterwards.',
+    parameters: {
+      type: 'object',
+      properties: {
+        page_id: {
+          type: 'string',
+          description: 'Page id from browser_list_pages (for example p2)',
+        },
+      },
+      required: ['page_id'],
     },
   },
 }
@@ -1341,6 +1672,25 @@ export function buildToolsList(
   if (enabled.reddit) out.push(REDDIT_FEED_TOOL)
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
+  if (enabled.browser) {
+    out.push(BROWSER_TAKE_SNAPSHOT_TOOL)
+    out.push(BROWSER_LIST_CONSOLE_MESSAGES_TOOL)
+    out.push(BROWSER_LIST_NETWORK_REQUESTS_TOOL)
+    out.push(BROWSER_WAIT_FOR_TOOL)
+    out.push(BROWSER_LIST_PAGES_TOOL)
+    out.push(BROWSER_SELECT_PAGE_TOOL)
+    if (!readOnlyMode) {
+      out.push(BROWSER_HANDLE_DIALOG_TOOL)
+      out.push(BROWSER_NEW_PAGE_TOOL)
+      out.push(BROWSER_CLOSE_PAGE_TOOL)
+      out.push(BROWSER_NAVIGATE_PAGE_TOOL)
+      out.push(BROWSER_CLICK_TOOL)
+      out.push(BROWSER_FILL_TOOL)
+      out.push(BROWSER_PRESS_KEY_TOOL)
+      out.push(BROWSER_TAKE_SCREENSHOT_TOOL)
+      out.push(BROWSER_EMULATE_TOOL)
+    }
+  }
   if (enabled.pdf && !readOnlyMode) out.push(SAVE_PDF_TOOL)
   // Vision recall is independent of Runware generate/edit.
   out.push(IMAGE_RECALL_TOOL)
@@ -1412,6 +1762,7 @@ export function anyToolEnabled(
     enabled.reddit ||
     enabled.weather ||
     enabled.scrape ||
+    enabled.browser ||
     enabled.pdf ||
     enabled.runwareImage ||
     enabled.runwareMusic ||

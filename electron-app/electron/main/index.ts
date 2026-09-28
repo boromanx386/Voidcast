@@ -26,6 +26,7 @@ import { mkdir, readdir, readFile, rename, unlink, stat, writeFile } from 'node:
 import { rgPath as bundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
+import { registerBrowserIpc } from './browser/ipc'
 import {
   formatMcpToolName,
   getGlobalMcpConfigPath,
@@ -1666,6 +1667,10 @@ ipcMain.handle('voidcast:coding-pick-directory', async () => {
   if (result.canceled || !result.filePaths?.[0]) return { ok: false as const }
   return { ok: true as const, path: result.filePaths[0] }
 })
+
+// Built-in Voidcast browser (coding panel WEB view) — driven by agent browser_* tools
+// through in-process CDP. The window getter keeps registration independent of createWindow timing.
+registerBrowserIpc(() => win)
 
 /** Live disk watch → renderer refreshes file tree / git colors when Explorer (etc.) mutates the project. */
 let codingProjectWatcher: FSWatcher | null = null

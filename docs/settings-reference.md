@@ -179,6 +179,7 @@ type ToolsEnabled = {
   webSearch: boolean    // web_search tool
   weather: boolean      // get_weather tool
   scrape: boolean       // scrape_url (public URL → plain text)
+  browser: boolean      // built-in Voidcast browser (coding panel WEB view) — browser_* tools
   pdf: boolean          // save_pdf into pdfOutputDir
   youtube: boolean      // YouTube search / video info / transcript
   reddit: boolean       // Reddit read-only feed / search / post fetch
@@ -226,6 +227,7 @@ type ToolsEnabled = {
 | `showFileTree` | `boolean` | on | Show the file tree section. |
 | `showFilePreview` | `boolean` | on | Show the file preview section. |
 | `showTerminal` | `boolean` | off | Show the terminal section. |
+| `showWeb` | `boolean` | off | Show the built-in Voidcast browser (exclusive WEB mode) instead of the three panes. |
 | `panelWidthPx` | `number` | 416 (280–1200) | Coding panel width in px (chat ↔ panel split). |
 | `fileTreeHeightPx` | `number` | 220 (100–480) | File tree section height in px (FILES ↔ preview/terminal split). |
 

@@ -3,6 +3,7 @@ import { FileTree } from '@/components/coding/FileTree'
 import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FilePreview } from '@/components/coding/FilePreview'
 import { TerminalView } from '@/components/coding/TerminalView'
+import { BrowserPane } from '@/components/BrowserPane'
 import { filterCodingTreeEntries } from '@/lib/codingTreeFilter'
 import {
   buildGitStatusByPath,
@@ -43,6 +44,7 @@ type CodingUiVisibilityPatch = Partial<
     | 'showFileTree'
     | 'showFilePreview'
     | 'showTerminal'
+    | 'showWeb'
     | 'panelWidthPx'
     | 'fileTreeHeightPx'
     | 'terminalHeightPx'
@@ -77,7 +79,18 @@ type Props = {
 
 type PreviewMode = 'file' | 'diff' | 'image'
 
-const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal'] as const
+const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal', 'showWeb'] as const
+
+/** WEB is exclusive: it replaces the three panes instead of stacking with them. */
+const SECTION_META: Record<(typeof SECTION_KEYS)[number], { label: string; title: string }> = {
+  showFileTree: { label: 'FILES', title: 'Toggle file tree' },
+  showFilePreview: { label: 'PREVIEW', title: 'Toggle file preview' },
+  showTerminal: { label: 'TERM', title: 'Toggle terminal output' },
+  showWeb: {
+    label: 'WEB',
+    title: 'Voidcast browser — the same view the agent drives with browser_* tools',
+  },
+}
 
 /**
  * Restore keyboard focus after a native dialog.
@@ -196,7 +209,7 @@ export function CodingPanel({
   )
 
   const projectPath = settings.coding.projectPath || settings.codingProjectPath
-  const { showFileTree, showFilePreview, showTerminal } = settings.coding
+  const { showFileTree, showFilePreview, showTerminal, showWeb } = settings.coding
   const savedFileTreeHeight = settings.coding.fileTreeHeightPx
   const savedTerminalHeight = settings.coding.terminalHeightPx
 
@@ -311,11 +324,58 @@ export function CodingPanel({
     [terminalHeight, onCodingUiChange],
   )
 
+  /** Remembers the pane combination WEB replaced, so leaving WEB restores it. */
+  const preWebSectionsRef = useRef<{
+    showFileTree: boolean
+    showFilePreview: boolean
+    showTerminal: boolean
+  } | null>(null)
+
   const toggleSection = useCallback(
     (key: (typeof SECTION_KEYS)[number]) => {
       const cur = settings.coding[key]
+      // WEB: exclusive view mode. Turning it on hides the three panes (remembered);
+      // turning it off (or clicking a pane) restores that remembered combination.
+      if (key === 'showWeb') {
+        if (cur) {
+          const prev = preWebSectionsRef.current
+          preWebSectionsRef.current = null
+          const restored =
+            prev && (prev.showFileTree || prev.showFilePreview || prev.showTerminal)
+              ? prev
+              : { showFileTree: true, showFilePreview: true, showTerminal: true }
+          onCodingUiChange({ showWeb: false, ...restored })
+          return
+        }
+        preWebSectionsRef.current = {
+          showFileTree: settings.coding.showFileTree,
+          showFilePreview: settings.coding.showFilePreview,
+          showTerminal: settings.coding.showTerminal,
+        }
+        onCodingUiChange({
+          showWeb: true,
+          showFileTree: false,
+          showFilePreview: false,
+          showTerminal: false,
+        })
+        return
+      }
+      if (settings.coding.showWeb) {
+        const prev = preWebSectionsRef.current
+        preWebSectionsRef.current = null
+        const base =
+          prev && (prev.showFileTree || prev.showFilePreview || prev.showTerminal)
+            ? prev
+            : { showFileTree: true, showFilePreview: true, showTerminal: true }
+        const patch: CodingUiVisibilityPatch = { showWeb: false, ...base }
+        patch[key] = !base[key]
+        onCodingUiChange(patch)
+        return
+      }
       if (cur) {
-        const othersOn = SECTION_KEYS.filter((k) => k !== key).some((k) => settings.coding[k])
+        const othersOn = SECTION_KEYS.filter(
+          (k) => k !== key && k !== 'showWeb',
+        ).some((k) => settings.coding[k])
         if (!othersOn) return
       }
       onCodingUiChange({ [key]: !cur })
@@ -918,14 +978,7 @@ export function CodingPanel({
       <div className="flex shrink-0 flex-wrap gap-1.5" role="toolbar" aria-label="Coding panel sections">
         {SECTION_KEYS.map((key) => {
           const on = settings.coding[key]
-          const label =
-            key === 'showFileTree' ? 'FILES' : key === 'showFilePreview' ? 'PREVIEW' : 'TERM'
-          const title =
-            key === 'showFileTree'
-              ? 'Toggle file tree'
-              : key === 'showFilePreview'
-                ? 'Toggle file preview'
-                : 'Toggle terminal output'
+          const { label, title } = SECTION_META[key]
           return (
             <button
               key={key}
@@ -952,6 +1005,11 @@ export function CodingPanel({
         }`}
       >
         {(() => {
+          // WEB is an exclusive view mode: the native browser takes the whole body
+          // (no splitters, no commit bar, no RUN row).
+          if (showWeb) {
+            return <BrowserPane projectPath={projectPath || undefined} />
+          }
           const showLower = showFilePreview || showTerminal
           const showCommitBar = dirtyCount > 0
           const treeSplitActive = showFileTree && showLower
@@ -1219,6 +1277,7 @@ export function CodingPanel({
           )
         })()}
       </div>
+      {!showWeb && (
       <div className="flex shrink-0 gap-2">
         <input
           type="text"
@@ -1270,6 +1329,7 @@ export function CodingPanel({
           RUN
         </button>
       </div>
+      )}
     </aside>
   )
 }

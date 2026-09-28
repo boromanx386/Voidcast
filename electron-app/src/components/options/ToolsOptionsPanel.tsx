@@ -121,6 +121,29 @@ export function ToolsOptionsPanel({
         }
       />
 
+      {/* Voidcast browser (coding panel WEB view) */}
+      <ToolToggle
+        checked={settings.toolsEnabled.browser}
+        onChange={(v) =>
+          setSettings((s) => ({
+            ...s,
+            toolsEnabled: { ...s.toolsEnabled, browser: v },
+          }))
+        }
+        label="BROWSER"
+        icon="⬡"
+        iconColor="text-neon-cyan"
+        description={
+          <>
+            Agent can drive the built-in Voidcast browser (the coding panel{' '}
+            <code className="text-neon-cyan">WEB</code> view) — navigate, accessibility
+            snapshot, trusted click/type, screenshots and console/network logs. The agent
+            and you share the same view, so you can watch it or take over anytime. No
+            external Chrome or browser skill is required.
+          </>
+        }
+      />
+
       {/* Enter Plan Mode */}
       <ToolToggle
         checked={settings.toolsEnabled.enterPlan}

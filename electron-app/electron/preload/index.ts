@@ -7,6 +7,62 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:get-weather', payload),
   scrapeUrl: (payload: { url: string; max_chars?: number }) =>
     ipcRenderer.invoke('voidcast:scrape-url', payload),
+  /**
+   * Built-in Voidcast browser (coding panel WEB view). The same browser instance
+   * the user sees is the one agent browser_* tools drive — bytes never leave the app.
+   */
+  browser: {
+    setBounds: (payload: { x: number; y: number; width: number; height: number }) =>
+      ipcRenderer.invoke('voidcast:browser-set-bounds', payload),
+    setVisible: (payload: { visible: boolean }) =>
+      ipcRenderer.invoke('voidcast:browser-set-visible', payload),
+    navigate: (payload: { url: string; projectPath?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-navigate', payload),
+    back: () => ipcRenderer.invoke('voidcast:browser-back'),
+    forward: () => ipcRenderer.invoke('voidcast:browser-forward'),
+    reload: () => ipcRenderer.invoke('voidcast:browser-reload'),
+    snapshot: (payload?: { maxNodes?: number }) =>
+      ipcRenderer.invoke('voidcast:browser-snapshot', payload),
+    click: (payload: { uid: string }) => ipcRenderer.invoke('voidcast:browser-click', payload),
+    fill: (payload: { uid: string; text: string; submit?: boolean }) =>
+      ipcRenderer.invoke('voidcast:browser-fill', payload),
+    pressKey: (payload: { key: string }) =>
+      ipcRenderer.invoke('voidcast:browser-press-key', payload),
+    screenshot: (payload?: { projectPath?: string; uid?: string; fullPage?: boolean }) =>
+      ipcRenderer.invoke('voidcast:browser-screenshot', payload),
+    emulate: (payload: {
+      width?: number
+      height?: number
+      deviceScaleFactor?: number
+      mobile?: boolean
+      darkMode?: boolean
+      reset?: boolean
+    }) => ipcRenderer.invoke('voidcast:browser-emulate', payload),
+    consoleLogs: (payload?: { limit?: number }) =>
+      ipcRenderer.invoke('voidcast:browser-console-logs', payload),
+    networkRequests: (payload?: { limit?: number }) =>
+      ipcRenderer.invoke('voidcast:browser-network-requests', payload),
+    waitFor: (payload: {
+      selector?: string
+      text?: string
+      urlPattern?: string
+      networkIdle?: boolean
+      timeoutMs?: number
+    }) => ipcRenderer.invoke('voidcast:browser-wait-for', payload),
+    handleDialog: (payload: { accept?: boolean; promptText?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-handle-dialog', payload),
+    status: () => ipcRenderer.invoke('voidcast:browser-status'),
+    listPages: (payload?: { projectPath?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-list-pages', payload),
+    newPage: (payload: { url: string; background?: boolean; projectPath?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-new-page', payload),
+    selectPage: (payload: { pageId: string }) =>
+      ipcRenderer.invoke('voidcast:browser-select-page', payload),
+    closePage: (payload: { pageId: string }) =>
+      ipcRenderer.invoke('voidcast:browser-close-page', payload),
+    openExternal: (payload: { url: string }) =>
+      ipcRenderer.invoke('voidcast:browser-open-external', payload),
+  },
   saveImageFromUrl: (payload: {
     imageUrl: string
     outputDir: string

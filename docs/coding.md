@@ -9,7 +9,8 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 - The panel is available when the desktop runtime can access local files (`app.codingPanelAvailable`); web-standalone cannot.
 - The header shows a **code/coding toggle button** that calls `setShowCodingPanel`; the chat screen renders `CodingPanel` beside the chat only when `showCodingPanel && codingPanelAvailable`.
 - The `coding.enabled` setting also gates tool availability: the agent's local coding tools (file read/write/search + terminal) are only registered when `toolsEnabled.coding` is on.
-- Defaults: `enabled: true`, `showFileTree: true`, `showFilePreview: true`, `showTerminal: true`.
+- Defaults: `enabled: true`, `showFileTree: true`, `showFilePreview: true`, `showTerminal: true`, `showWeb: false`.
+- The section toolbar has four buttons: **FILES**, **PREVIEW**, **TERM** and **WEB**. The first three combine freely; **WEB** is an exclusive view mode (see below).
 
 ## Setting the Project Path
 
@@ -47,6 +48,15 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 - Manual commands are run via `invokeExecuteCodingCommand`; output is streamed from the main process (`consumeLastExecuteCommandStreamed`, `expandTextToTerminalLines`, `MAX_TERMINAL_ROWS`).
 - Agent `execute_command` tool output is mirrored into the panel via `agentShellFeed` (per-chat-session terminal ownership keyed by `codingOwnerId` / `runtimeKey`); `agentShellEpoch` clears stale lines when switching sessions.
 - `commandRunning` / `onStopCommand` reflect the foreground agent or manual run (`activeCodingRunId`, `stopCodingCommand` in `useVoidcastApp`).
+
+## WEB — built-in browser (`showWeb`)
+
+- The **WEB** toolbar button turns the panel body into the **Voidcast browser**: a real Chromium `WebContentsView` owned by the main process, rendered *over* the panel area by `electron-app/src/components/BrowserPane.tsx`.
+- WEB is **exclusive**: enabling it turns `showFileTree` / `showFilePreview` / `showTerminal` off (the previous combination is remembered in the component and restored when you leave WEB or click one of the three panes). The commit bar and the `RUN` row are hidden while WEB is active.
+- The same view is what the agent drives through the `browser_*` tools (see [options/tools.md](options/tools.md)) — you can watch the agent work and take over at any time. A `SHOT` button saves a viewport JPEG and `↗` opens the current URL in the system browser.
+- Chrome above the view: status dot (`LIVE` / `IDLE` / `ERROR` / `DESKTOP APP ONLY`), back/forward/reload, URL bar, `GO`, `SHOT`, `↗`. The native view is glued to the host rect through a `ResizeObserver` → `voidcast:browser-set-bounds` (a native view does not follow CSS), and it is hidden on unmount so it can never float over the rest of the UI.
+- Profiles are per project: the view runs in `persist:voidcast-browser-<project slug + hash>`, so logins persist between runs for that project. First creation uses the chat's coding project path; deciding factor is the first `browser_navigate_page` / panel navigation.
+- Requires the desktop runtime (the standalone web build shows `DESKTOP APP ONLY`). Registering the agent tools additionally requires `toolsEnabled.browser`.
 
 ## Chat ⇄ Panel Split (width)
 

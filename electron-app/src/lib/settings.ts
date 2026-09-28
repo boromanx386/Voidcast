@@ -1159,6 +1159,8 @@ export type ToolsEnabled = {
   weather: boolean
   /** Fetch public URL in main process → plain text (HTML stripped) */
   scrape: boolean
+  /** Drive the built-in Voidcast browser (coding panel WEB view) from agent tools. */
+  browser: boolean
   /** Save text as PDF into `pdfOutputDir` (main process) */
   pdf: boolean
   /** YouTube search / video info / transcript (TTS server: yt-dlp + transcript API) */
@@ -1186,6 +1188,8 @@ export type CodingSettings = {
   showFilePreview: boolean
   /** Coding panel: show terminal section */
   showTerminal: boolean
+  /** Coding panel: WEB (built-in browser) exclusive view mode. */
+  showWeb: boolean
   /** Coding panel width in px (chat / panel split). */
   panelWidthPx: number
   /** File tree section height in px (FILES ↔ preview/terminal split). */
@@ -1553,6 +1557,7 @@ export const defaults: AppSettings = {
     webSearch: true,
     weather: true,
     scrape: true,
+    browser: true,
     pdf: true,
     youtube: true,
     reddit: true,
@@ -1574,6 +1579,7 @@ export const defaults: AppSettings = {
     showFileTree: true,
     showFilePreview: true,
     showTerminal: true,
+    showWeb: false,
     panelWidthPx: CODING_PANEL_WIDTH_DEFAULT,
     fileTreeHeightPx: CODING_FILE_TREE_HEIGHT_DEFAULT,
     terminalHeightPx: CODING_TERMINAL_HEIGHT_DEFAULT,
@@ -1700,6 +1706,8 @@ function normalizeTools(s: AppSettings): AppSettings {
       : defaults.coding.showFilePreview
   const showTerminal =
     typeof s.coding?.showTerminal === 'boolean' ? s.coding.showTerminal : defaults.coding.showTerminal
+  const showWeb =
+    typeof s.coding?.showWeb === 'boolean' ? s.coding.showWeb : defaults.coding.showWeb
   const panelWidthPx = clampCodingPanelWidth(
     typeof s.coding?.panelWidthPx === 'number' ? s.coding.panelWidthPx : defaults.coding.panelWidthPx,
   )
@@ -1716,10 +1724,12 @@ function normalizeTools(s: AppSettings): AppSettings {
   let st = showFileTree
   let sp = showFilePreview
   let sm = showTerminal
-  if (!st && !sp && !sm) {
+  let sw = showWeb
+  if (!st && !sp && !sm && !sw) {
     st = defaults.coding.showFileTree
     sp = defaults.coding.showFilePreview
     sm = defaults.coding.showTerminal
+    sw = defaults.coding.showWeb
   }
   return {
     ...s,
@@ -1729,6 +1739,7 @@ function normalizeTools(s: AppSettings): AppSettings {
       weather:
         typeof te?.weather === 'boolean' ? te.weather : defaults.toolsEnabled.weather,
       scrape: typeof te?.scrape === 'boolean' ? te.scrape : defaults.toolsEnabled.scrape,
+      browser: typeof te?.browser === 'boolean' ? te.browser : defaults.toolsEnabled.browser,
       pdf: typeof te?.pdf === 'boolean' ? te.pdf : defaults.toolsEnabled.pdf,
       youtube:
         typeof te?.youtube === 'boolean' ? te.youtube : defaults.toolsEnabled.youtube,
@@ -1761,6 +1772,7 @@ function normalizeTools(s: AppSettings): AppSettings {
       showFileTree: st,
       showFilePreview: sp,
       showTerminal: sm,
+      showWeb: sw,
       panelWidthPx,
       fileTreeHeightPx,
       terminalHeightPx,

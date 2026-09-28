@@ -11,6 +11,7 @@ Type: `ToolsEnabled`, all booleans. Defaults: all `true`.
 | `webSearch` | Web search |
 | `weather` | Weather lookup |
 | `scrape` | Fetch a public URL in the main process → plain text (HTML stripped) |
+| `browser` | Drive the built-in Voidcast browser (coding panel **WEB** view) with agent `browser_*` tools |
 | `pdf` | Save text as PDF into `pdfOutputDir` (main process) |
 | `youtube` | YouTube search / video info / transcript (TTS server: yt-dlp + transcript API) |
 | `reddit` | Reddit read-only feed / search / post fetch via public JSON endpoints (TTS server) |
@@ -20,6 +21,40 @@ Type: `ToolsEnabled`, all booleans. Defaults: all `true`.
 | `enterPlan` | Agent can switch the conversation into Plan mode (read-only plan flow) |
 
 Each flag has a toggle in the panel (`ToolToggle`). If a tool is disabled, the agent no longer registers that tool in its toolset.
+
+### Built-in browser (`browser_*`)
+
+`browser` gates the Voidcast-owned browser: a real Chromium `WebContentsView` inside the app window (the coding panel **WEB** view), driven by the main process over in-process CDP (`webContents.debugger`). It needs no external Chrome and no browser skill — the agent and you share the same view.
+
+| Tool | Access | Purpose |
+| --- | --- | --- |
+| `browser_navigate_page` | write | Open an `http(s)` URL (localhost allowed) and return the final URL |
+| `browser_take_snapshot` | read | Accessibility snapshot; every line is `<uid> <role> name="..."` |
+| `browser_click` | write | Trusted real mouse click on the element with that `uid` |
+| `browser_fill` | write | Focus the `uid` element and type text (optional Enter submit) |
+| `browser_press_key` | write | Press a single key (`Enter`, `Escape`, `Tab`, `ArrowDown`, …) |
+| `browser_take_screenshot` | write | Save a JPEG into `<project>/.voidcast/browser/shots/` — viewport by default, one element via `uid`, whole document via `full_page` |
+| `browser_emulate` | write | Emulate a device viewport / dark mode for responsive QA (`reset` clears it) |
+| `browser_list_console_messages` | read | Recent console messages / page errors |
+| `browser_list_network_requests` | read | Recent network requests (method, status, url) |
+| `browser_wait_for` | read | Wait for a CSS selector, visible text, a URL substring and/or network idle before acting |
+| `browser_handle_dialog` | write | Choose accept/dismiss for JS dialogs (dialogs are always auto-answered, so they can never freeze the page) |
+| `browser_list_pages` | read | List every open page and mark the current one (`*`) |
+| `browser_new_page` | write | Open a new page (tab); it becomes current unless `background` is set |
+| `browser_select_page` | write | Make a page current — agent tools **and** the panel follow |
+| `browser_close_page` | write | Close a page and report the new current page |
+
+Notes:
+
+- Multi-page: the agent can keep up to **8 pages** open (each is a live Chromium renderer, so the cap is about memory). The coding panel renders **only the current page**; once more than one is open the pane header shows a page selector plus `n/total`. Links that open a new window (`target=_blank`, `window.open`) become a page in this browser instead of the system browser, so the flow never leaves the panel.
+- Plan/Ask mode registers only the read-only tools (`browser_navigate_page`, `browser_click`, `browser_fill`, `browser_press_key`, `browser_new_page`, `browser_close_page` and `browser_handle_dialog` are in `PLAN_MODE_BLOCKED_TOOLS`).
+- Element addressing uses the accessibility tree (`Page` → `Accessibility.getFullAXTree`), **not** CSS selectors. Snapshots are taken after every navigation or UI change; `uid` values are only valid for the latest snapshot.
+- Clicks and typing are dispatched as real CDP input events (`Input.dispatchMouseEvent` / `Input.insertText` / `Input.dispatchKeyEvent`), so React/Vue apps react exactly as they would to a real user.
+- `browser_take_screenshot` returns a **file path**, not image bytes — pass that path to **`image_recall`** to actually look at the page (keeps the tool result small).
+- Clicks scroll the element into view first and use its **border** box: an element below the fold is not hit-testable, and dispatching at its off-screen coordinates silently does nothing. Screenshot clips use **document** coordinates, which is a different space from the viewport-space quad CDP returns (both verified in a spike).
+- `browser_emulate` sets viewport metrics and/or `prefers-color-scheme` for the current page. While a viewport override is active, captures come back scaled by the device scale factor (390×844 at dsf 3 → 1170×2532), and full-page shots are clamped to 16000px tall.
+- Screenshots work whether or not the **WEB** view is on screen: every capture is wrapped in a short `Page.startScreencast`, which forces the compositor to produce a frame (~50ms either way). Without that, a hidden view waits ~3.9s on a static page and times out on an animated one.
+- Also available to you manually: the WEB view's own URL bar, back/forward/reload, a `SHOT` button, and `↗` (open the current URL in the system browser).
 
 ## Max agent tool rounds (`agentMaxToolRounds`)
 
@@ -49,7 +84,7 @@ Where the `save_pdf` tool writes files **without showing a save dialog**. Empty 
 
 ## Tools the agent registers
 
-The agent registers tools from the enabled set above (`webSearch`, `weather`, `scrape`, `pdf`, `youtube`, `reddit`, `runwareImage`, `runwareMusic`, `coding`, `enterPlan`) plus:
+The agent registers tools from the enabled set above (`webSearch`, `weather`, `scrape`, `browser`, `pdf`, `youtube`, `reddit`, `runwareImage`, `runwareMusic`, `coding`, `enterPlan`) plus:
 
 - MCP tools from enabled servers (when `mcpEnabled`).
 - The `read_skill` tool and skills catalog when `skillsEnabled` (see [Skills](skills.md)).

@@ -578,6 +578,134 @@ interface VoidcastBridge {
   onClipboardTts: (callback: (text: string) => void) => () => void
 
   onNewChat: (callback: () => void) => () => void
+
+  browser: {
+    setBounds: (payload: {
+      x: number
+      y: number
+      width: number
+      height: number
+    }) => Promise<{ ok: boolean; error?: string }>
+
+    setVisible: (payload: { visible: boolean }) => Promise<{ ok: boolean; error?: string }>
+
+    navigate: (payload: {
+      url: string
+      projectPath?: string
+    }) => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+
+    back: () => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+
+    forward: () => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+
+    reload: () => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+
+    snapshot: (payload?: {
+      maxNodes?: number
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    click: (payload: {
+      uid: string
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    fill: (payload: {
+      uid: string
+      text: string
+      submit?: boolean
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    pressKey: (payload: {
+      key: string
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    screenshot: (payload?: { projectPath?: string; uid?: string; fullPage?: boolean }) => Promise<
+      | {
+          ok: true
+          path: string
+          relativePath?: string
+          bytes: number
+          width: number
+          height: number
+          label: string
+        }
+      | { ok: false; error?: string }
+    >
+
+    emulate: (payload: {
+      width?: number
+      height?: number
+      deviceScaleFactor?: number
+      mobile?: boolean
+      darkMode?: boolean
+      reset?: boolean
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    consoleLogs: (payload?: {
+      limit?: number
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    networkRequests: (payload?: {
+      limit?: number
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+    waitFor: (payload: {
+      selector?: string
+      text?: string
+      urlPattern?: string
+      networkIdle?: boolean
+      timeoutMs?: number
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+    handleDialog: (payload: {
+      accept?: boolean
+      promptText?: string
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    status: () => Promise<
+      | {
+          ok: true
+          state: 'idle' | 'ready' | 'error'
+          url: string
+          title: string
+          attached: boolean
+          /** Effective view rect (parked off-screen when the panel is closed). */
+          bounds: { x: number; y: number; width: number; height: number }
+          /** True only while the WEB panel is on screen and wants the view painted. */
+          visible: boolean
+          /** True once the panel pushed a usable rect. */
+          panelRect: boolean
+          /** Frames seen by the forced-frame screencast (screenshot liveness). */
+          forcedFrames: number
+          /** Every open page; only the active one is painted in the panel. */
+          pages: { id: string; url: string; title: string; active: boolean }[]
+          activeId: string | null
+          error?: string
+        }
+      | { ok: false; error?: string }
+    >
+
+    listPages: (payload?: { projectPath?: string }) => Promise<
+      | {
+          ok: true
+          pages: { id: string; url: string; title: string; active: boolean }[]
+          activeId: string | null
+          text: string
+        }
+      | { ok: false; error?: string }
+    >
+
+    newPage: (payload: { url: string; background?: boolean; projectPath?: string }) => Promise<
+      { ok: true; pageId: string; url: string; text: string } | { ok: false; error?: string }
+    >
+
+    selectPage: (payload: { pageId: string }) => Promise<
+      { ok: true; url: string; text: string } | { ok: false; error?: string }
+    >
+
+    closePage: (payload: { pageId: string }) => Promise<
+      { ok: true; text: string; activeId: string | null } | { ok: false; error?: string }
+    >
+
+    openExternal: (payload: { url: string }) => Promise<{ ok: boolean; error?: string }>
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -30,6 +30,8 @@ export type AgentToolUiPhase =
   | 'skill'
   | 'plan'
   | 'plan_progress'
+  /** Built-in Voidcast browser (coding panel WEB view). */
+  | 'browser'
   | 'mcp'
   | 'other'
 
@@ -118,6 +120,22 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'plan'
     case 'update_plan_progress':
       return 'plan_progress'
+    case 'browser_navigate_page':
+    case 'browser_take_snapshot':
+    case 'browser_click':
+    case 'browser_fill':
+    case 'browser_press_key':
+    case 'browser_take_screenshot':
+    case 'browser_emulate':
+    case 'browser_list_console_messages':
+    case 'browser_list_network_requests':
+    case 'browser_wait_for':
+    case 'browser_handle_dialog':
+    case 'browser_list_pages':
+    case 'browser_new_page':
+    case 'browser_select_page':
+    case 'browser_close_page':
+      return 'browser'
     default:
       return 'other'
   }
