@@ -1190,6 +1190,11 @@ export type CodingSettings = {
   showTerminal: boolean
   /** Coding panel: WEB (built-in browser) exclusive view mode. */
   showWeb: boolean
+  /**
+   * Built-in browser profile: '' = one profile per coding project (default),
+   * 'shared' = one profile for the whole app, anything else = a named profile.
+   */
+  browserProfile: string
   /** Coding panel width in px (chat / panel split). */
   panelWidthPx: number
   /** File tree section height in px (FILES ↔ preview/terminal split). */
@@ -1580,6 +1585,7 @@ export const defaults: AppSettings = {
     showFilePreview: true,
     showTerminal: true,
     showWeb: false,
+    browserProfile: '',
     panelWidthPx: CODING_PANEL_WIDTH_DEFAULT,
     fileTreeHeightPx: CODING_FILE_TREE_HEIGHT_DEFAULT,
     terminalHeightPx: CODING_TERMINAL_HEIGHT_DEFAULT,
@@ -1708,6 +1714,10 @@ function normalizeTools(s: AppSettings): AppSettings {
     typeof s.coding?.showTerminal === 'boolean' ? s.coding.showTerminal : defaults.coding.showTerminal
   const showWeb =
     typeof s.coding?.showWeb === 'boolean' ? s.coding.showWeb : defaults.coding.showWeb
+  const browserProfile =
+    typeof s.coding?.browserProfile === 'string'
+      ? s.coding.browserProfile.trim().slice(0, 60)
+      : defaults.coding.browserProfile
   const panelWidthPx = clampCodingPanelWidth(
     typeof s.coding?.panelWidthPx === 'number' ? s.coding.panelWidthPx : defaults.coding.panelWidthPx,
   )
@@ -1773,6 +1783,7 @@ function normalizeTools(s: AppSettings): AppSettings {
       showFilePreview: sp,
       showTerminal: sm,
       showWeb: sw,
+      browserProfile,
       panelWidthPx,
       fileTreeHeightPx,
       terminalHeightPx,

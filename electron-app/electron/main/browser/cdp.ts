@@ -423,9 +423,17 @@ export class CdpSession {
     return `Clicked ${entry.role} "${entry.name}" at (${Math.round(x)}, ${Math.round(y)}). Page title: ${compact(title)}`
   }
 
+  /**
+   * Focus the element, select whatever it already holds, then insert.
+   *
+   * `Input.insertText` REPLACES the current selection and otherwise inserts at the caret —
+   * without a select-all it appends, so filling an already-filled field silently produced
+   * "oldvalue" + "newvalue".
+   */
   async fillByUid(uid: string, text: string, submit = false): Promise<string> {
     const entry = this.resolveUid(uid)
     await this.send('DOM.focus', { backendNodeId: entry.backendDOMNodeId as number })
+    await this.selectAllFocused()
     await this.send('Input.insertText', { text })
     if (submit) await this.pressKey('Enter')
     await delay(120)
@@ -433,6 +441,41 @@ export class CdpSession {
       'document.activeElement && "value" in document.activeElement ? String(document.activeElement.value) : ""',
     )
     return `Filled ${entry.role} "${entry.name}" — current value: "${compact(value)}"`
+  }
+
+  /**
+   * Select everything in the focused field so the next insert replaces instead of appends.
+   *
+   * `el.select()` is the deterministic path for input/textarea (including React-controlled
+   * ones), `execCommand('selectAll')` covers contenteditable widgets, and a trusted Ctrl+A
+   * with the `selectAll` editing command is the fallback for custom editors. The key events
+   * are best-effort — the JS selection above has already done the job if they fail.
+   */
+  private async selectAllFocused(): Promise<void> {
+    await this.evaluate(`(() => {
+      const el = document.activeElement;
+      if (!el) return "none";
+      if (typeof el.select === "function") { el.select(); return "input"; }
+      if (el.isContentEditable) { document.execCommand("selectAll"); return "contenteditable"; }
+      return "none";
+    })()`)
+    const chord = {
+      key: 'a',
+      code: 'KeyA',
+      modifiers: 2,
+      windowsVirtualKeyCode: 65,
+      nativeVirtualKeyCode: 65,
+    }
+    try {
+      await this.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        ...chord,
+        commands: ['selectAll'],
+      })
+      await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...chord })
+    } catch {
+      /* the JS selection above already covers it */
+    }
   }
 
   async pressKey(rawKey: string): Promise<string> {

@@ -53,6 +53,7 @@ export interface ChatWithToolsCommonParams {
   userImageMimes?: string[]
   userImagePaths?: string[]
   codingProjectPath?: string
+  browserProfile?: string
   codingRecentFiles?: string[]
   /** Mutable ref for per-turn working-set file cache (updated on read/write/edit, injected as user msg). */
   codingFileCacheRef?: React.MutableRefObject<CodingFileCache>
@@ -97,6 +98,7 @@ export function buildToolExecutorOptions(
     userImageMimes: params.userImageMimes,
     userImagePaths: params.userImagePaths,
     codingProjectPath: params.codingProjectPath,
+    browserProfile: params.browserProfile,
     codingRecentFiles: params.codingRecentFiles,
     codingContextMemoRef: params.codingContextMemoRef,
     codingFileCacheRef: params.codingFileCacheRef,

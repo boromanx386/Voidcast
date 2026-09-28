@@ -975,6 +975,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             userImageMimes: toolImageCatalog.map((x) => x.mime),
             userImagePaths: toolImageCatalog.map((x) => x.path || ''),
             codingProjectPath: turnCodingProjectPath,
+            browserProfile: turnSettings.coding.browserProfile,
             codingRecentFiles: turnMemoRef.current.recentFiles,
             codingFileCacheRef: turnFileCacheRef,
             codingContextMemoRef: turnMemoRef,

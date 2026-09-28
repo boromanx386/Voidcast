@@ -52,6 +52,8 @@ export interface ExecCtx {
   userImagePaths?: string[];
   /** Coding project path — coding tools + project skill resolution for read_skill. */
   codingProjectPath?: string;
+  /** Built-in browser profile selected in Settings for this agent turn. */
+  browserProfile?: string;
   /** Recently touched files from coding session memo (boosts search ranking). */
   codingRecentFiles?: string[];
   /** Session coding memo (digests for soft-deny full re-reads). Live ref. */

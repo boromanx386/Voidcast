@@ -15,18 +15,22 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 type BrowserPaneProps = {
   projectPath?: string
+  /** '' = one profile per project, 'shared' = one app-wide, anything else = a named profile. */
+  browserProfile?: string
 }
 
 type BrowserState = 'offline' | 'idle' | 'ready' | 'error'
 
 const STATUS_POLL_MS = 1500
 
-export function BrowserPane({ projectPath }: BrowserPaneProps) {
+export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const frameRef = useRef(0)
   const urlFocusedRef = useRef(false)
   const [draft, setDraft] = useState('')
   const [url, setUrl] = useState('')
+  /** Chromium partition key main is actually using (shown in the header). */
+  const [profile, setProfile] = useState('')
   const [state, setState] = useState<BrowserState>(() =>
     typeof window !== 'undefined' && window.voidcast?.browser ? 'idle' : 'offline',
   )
@@ -101,6 +105,7 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
       }`,
     )
     setPainted(Boolean(res.visible))
+    setProfile(res.profile ?? '')
     setPages(res.pages ?? [])
     if (!urlFocusedRef.current && res.url && res.url !== 'about:blank') setDraft(res.url)
   }, [pushBounds])
@@ -131,14 +136,23 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
     const api = browserApi()
     if (!api) return
     setMessage(null)
-    void run('Navigate', () => api.navigate({ url: target, projectPath: projectPath || undefined }))
-  }, [draft, projectPath, run])
+    void run('Navigate', () =>
+      api.navigate({
+        url: target,
+        projectPath: projectPath || undefined,
+        profile: browserProfile,
+      }),
+    )
+  }, [browserProfile, draft, projectPath, run])
 
   const onScreenshot = useCallback(() => {
     const api = browserApi()
     if (!api) return
     void run('Screenshot', async () => {
-      const res = await api.screenshot({ projectPath: projectPath || undefined })
+      const res = await api.screenshot({
+        projectPath: projectPath || undefined,
+        profile: browserProfile,
+      })
       if (res.ok) {
         setMessage(
           `Saved ${res.relativePath ?? res.path} (${res.bytes} bytes) — ask the agent to look at it with image_recall.`,
@@ -146,7 +160,24 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
       }
       return res
     })
-  }, [projectPath, run])
+  }, [browserProfile, projectPath, run])
+
+  // Tell main which profile this panel wants BEFORE a page exists: a Chromium partition
+  // is fixed once a page lives in it, so a project or profile switch resets the browser
+  // instead of silently reusing the previous project's cookies.
+  useEffect(() => {
+    const api = browserApi()
+    if (!api) return
+    const timer = window.setTimeout(() => {
+      void api
+        .configure({ projectPath, profile: browserProfile })
+        .then((res) => {
+          if (res.ok && res.changed) setMessage(`Browser profile: ${res.profile}`)
+        })
+        .catch(() => undefined)
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [projectPath, browserProfile])
 
   const dotClass =
     state === 'ready'
@@ -166,6 +197,14 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
           <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} aria-hidden />
           {stateLabel}
         </span>
+        {profile ? (
+          <span
+            className="max-w-[130px] truncate font-mono text-[10px] text-void-dim/60"
+            title={`Browser profile (Chromium partition): ${profile}`}
+          >
+            {profile}
+          </span>
+        ) : null}
         {pages.length > 1 ? (
           <>
             <select
@@ -175,7 +214,15 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
               onChange={(e) => {
                 const pageId = e.target.value
                 const api = browserApi()
-                if (api && pageId) void run('Select page', () => api.selectPage({ pageId }))
+                if (api && pageId) {
+                  void run('Select page', () =>
+                    api.selectPage({
+                      pageId,
+                      projectPath: projectPath || undefined,
+                      profile: browserProfile,
+                    }),
+                  )
+                }
               }}
             >
               {pages.map((p) => (
@@ -191,12 +238,40 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
         ) : null}
         <button
           type="button"
+          className="rounded border border-void-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-void-dim hover:border-red-400 hover:text-red-300"
+          title="Clear cookies, storage and cache for this browser profile"
+          onClick={() => {
+            const api = browserApi()
+            if (!api) return
+            if (
+              !window.confirm(
+                `Clear cookies, storage and cache for browser profile "${profile || 'default'}"?\n\nThis logs you out of every site in this profile.`,
+              )
+            ) {
+              return
+            }
+            void run('Clear data', () =>
+              api.clearData({
+                projectPath: projectPath || undefined,
+                profile: browserProfile,
+              }),
+            )
+          }}
+        >
+          CLR
+        </button>
+        <button
+          type="button"
           className="rounded border border-void-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-void-dim hover:border-void-dim hover:text-void-text disabled:opacity-40"
           title="Back"
           disabled={state !== 'ready' || busy}
           onClick={() => {
             const api = browserApi()
-            if (api) void run('Back', () => api.back())
+            if (api) {
+              void run('Back', () =>
+                api.back({ projectPath: projectPath || undefined, profile: browserProfile }),
+              )
+            }
           }}
         >
           ←
@@ -208,7 +283,11 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
           disabled={state !== 'ready' || busy}
           onClick={() => {
             const api = browserApi()
-            if (api) void run('Forward', () => api.forward())
+            if (api) {
+              void run('Forward', () =>
+                api.forward({ projectPath: projectPath || undefined, profile: browserProfile }),
+              )
+            }
           }}
         >
           →
@@ -220,7 +299,11 @@ export function BrowserPane({ projectPath }: BrowserPaneProps) {
           disabled={state !== 'ready' || busy}
           onClick={() => {
             const api = browserApi()
-            if (api) void run('Reload', () => api.reload())
+            if (api) {
+              void run('Reload', () =>
+                api.reload({ projectPath: projectPath || undefined, profile: browserProfile }),
+              )
+            }
           }}
         >
           ⟳

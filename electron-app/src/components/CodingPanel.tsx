@@ -1008,7 +1008,12 @@ export function CodingPanel({
           // WEB is an exclusive view mode: the native browser takes the whole body
           // (no splitters, no commit bar, no RUN row).
           if (showWeb) {
-            return <BrowserPane projectPath={projectPath || undefined} />
+            return (
+              <BrowserPane
+                projectPath={projectPath || undefined}
+                browserProfile={settings.coding.browserProfile}
+              />
+            )
           }
           const showLower = showFilePreview || showTerminal
           const showCommitBar = dirtyCount > 0

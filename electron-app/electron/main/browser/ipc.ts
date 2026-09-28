@@ -1,19 +1,21 @@
 import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
-  activeBrowserPage,
   browserStatus,
-  closeBrowserPage,
+  clearBrowserData,
+  closeBrowserPageForProject,
+  configureBrowser,
   disposeBrowserView,
   emulateBrowser,
   historyStep,
-  listBrowserPages,
+  listBrowserPagesForProject,
   navigateTo,
   openBrowserPage,
   reloadPage,
-  selectBrowserPage,
+  selectBrowserPageForProject,
   setBrowserBounds,
   setBrowserVisible,
   takeBrowserScreenshot,
+  withBrowserContext,
   withSession,
 } from './viewManager'
 
@@ -34,15 +36,6 @@ function fail(e: unknown): { ok: false; error: string } {
 function asInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.min(max, Math.max(min, Math.round(value)))
-}
-
-/** Guard + the page the agent is currently driving (the same one the panel paints). */
-function sessionOrThrow() {
-  const page = activeBrowserPage()
-  if (!page) {
-    throw new Error('No browser page is open yet — use browser_new_page or the panel URL bar.')
-  }
-  return page
 }
 
 export function registerBrowserIpc(getWindow: GetWindow): void {
@@ -85,12 +78,14 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
 
   ipcMain.handle(
     'voidcast:browser-navigate',
-    async (_event, payload: { url?: string; projectPath?: string }) => {
+    async (_event, payload: { url?: string; projectPath?: string; profile?: string; wait?: boolean }) => {
       try {
         const url = typeof payload?.url === 'string' ? payload.url : ''
-        return await withSession(getWindow(), payload?.projectPath, async () => {
-          const finalUrl = await navigateTo(url)
-          return { ok: true as const, url: finalUrl }
+        // Default true: only an explicit `wait: false` skips waiting for the load.
+        const wait = payload?.wait !== false
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async () => {
+          const finalUrl = await navigateTo(url, wait)
+          return { ok: true as const, url: finalUrl, waited: wait }
         })
       } catch (e) {
         return fail(e)
@@ -98,39 +93,69 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     },
   )
 
-  ipcMain.handle('voidcast:browser-back', async () => {
-    try {
-      sessionOrThrow()
-      return { ok: true as const, url: await historyStep('back') }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-back',
+    async (_event, payload: { projectPath?: string; profile?: string }) => {
+      try {
+        return await withBrowserContext(
+          getWindow(),
+          payload?.projectPath,
+          payload?.profile,
+          async (s) => {
+            if (!s) throw new Error('No browser page is open yet — use browser_new_page first.')
+            return { ok: true as const, url: await historyStep('back') }
+          },
+        )
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
-  ipcMain.handle('voidcast:browser-forward', async () => {
-    try {
-      sessionOrThrow()
-      return { ok: true as const, url: await historyStep('forward') }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-forward',
+    async (_event, payload: { projectPath?: string; profile?: string }) => {
+      try {
+        return await withBrowserContext(
+          getWindow(),
+          payload?.projectPath,
+          payload?.profile,
+          async (s) => {
+            if (!s) throw new Error('No browser page is open yet — use browser_new_page first.')
+            return { ok: true as const, url: await historyStep('forward') }
+          },
+        )
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
-  ipcMain.handle('voidcast:browser-reload', async () => {
-    try {
-      sessionOrThrow()
-      return { ok: true as const, url: await reloadPage() }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-reload',
+    async (_event, payload: { projectPath?: string; profile?: string }) => {
+      try {
+        return await withBrowserContext(
+          getWindow(),
+          payload?.projectPath,
+          payload?.profile,
+          async (s) => {
+            if (!s) throw new Error('No browser page is open yet — use browser_new_page first.')
+            return { ok: true as const, url: await reloadPage() }
+          },
+        )
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
   ipcMain.handle(
     'voidcast:browser-snapshot',
-    async (_event, payload: { maxNodes?: number; projectPath?: string }) => {
+    async (_event, payload: { maxNodes?: number; projectPath?: string; profile?: string }) => {
       try {
         const maxNodes = asInt(payload?.maxNodes, 400, 1, 2000)
-        return await withSession(getWindow(), payload?.projectPath, async (s) => {
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const text = await s.cdp.snapshot(maxNodes)
           return { ok: true as const, text }
         })
@@ -142,11 +167,11 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
 
   ipcMain.handle(
     'voidcast:browser-click',
-    async (_event, payload: { uid?: string; projectPath?: string }) => {
+    async (_event, payload: { uid?: string; projectPath?: string; profile?: string }) => {
       try {
         const uid = typeof payload?.uid === 'string' ? payload.uid.trim() : ''
         if (!uid) throw new Error('Missing uid.')
-        return await withSession(getWindow(), payload?.projectPath, async (s) => {
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const text = await s.cdp.clickByUid(uid)
           return { ok: true as const, text }
         })
@@ -158,12 +183,12 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
 
   ipcMain.handle(
     'voidcast:browser-fill',
-    async (_event, payload: { uid?: string; text?: string; submit?: boolean; projectPath?: string }) => {
+    async (_event, payload: { uid?: string; text?: string; submit?: boolean; projectPath?: string; profile?: string }) => {
       try {
         const uid = typeof payload?.uid === 'string' ? payload.uid.trim() : ''
         if (!uid) throw new Error('Missing uid.')
         const text = typeof payload?.text === 'string' ? payload.text : ''
-        return await withSession(getWindow(), payload?.projectPath, async (s) => {
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const result = await s.cdp.fillByUid(uid, text, Boolean(payload?.submit))
           return { ok: true as const, text: result }
         })
@@ -175,11 +200,11 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
 
   ipcMain.handle(
     'voidcast:browser-press-key',
-    async (_event, payload: { key?: string; projectPath?: string }) => {
+    async (_event, payload: { key?: string; projectPath?: string; profile?: string }) => {
       try {
         const key = typeof payload?.key === 'string' ? payload.key.trim() : ''
         if (!key) throw new Error('Missing key.')
-        return await withSession(getWindow(), payload?.projectPath, async (s) => {
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const text = await s.cdp.pressKey(key)
           return { ok: true as const, text }
         })
@@ -193,7 +218,7 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     'voidcast:browser-screenshot',
     async (
       _event,
-      payload: { projectPath?: string; uid?: string; fullPage?: boolean },
+      payload: { projectPath?: string; profile?: string; uid?: string; fullPage?: boolean },
     ) => {
       try {
         const projectPath =
@@ -201,7 +226,7 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
             ? payload.projectPath.trim()
             : undefined
         const uid = typeof payload?.uid === 'string' ? payload.uid.trim() : ''
-        return await withSession(getWindow(), projectPath, async () => {
+        return await withSession(getWindow(), projectPath, payload?.profile, async () => {
           const shot = await takeBrowserScreenshot(projectPath, {
             uid: uid || undefined,
             fullPage: Boolean(payload?.fullPage),
@@ -226,10 +251,11 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         darkMode?: boolean
         reset?: boolean
         projectPath?: string
+        profile?: string
       },
     ) => {
       try {
-        return await withSession(getWindow(), payload?.projectPath, async () => {
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async () => {
           const text = await emulateBrowser({
             width: payload?.width,
             height: payload?.height,
@@ -246,21 +272,44 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     },
   )
 
-  ipcMain.handle('voidcast:browser-console-logs', async (_event, payload: { limit?: number }) => {
-    try {
-      const s = sessionOrThrow()
-      return { ok: true as const, text: s.cdp.consoleLogText(asInt(payload?.limit, 25, 1, 200)) }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-console-logs',
+    async (_event, payload: { limit?: number; projectPath?: string; profile?: string }) => {
+      try {
+        return await withBrowserContext(
+          getWindow(),
+          payload?.projectPath,
+          payload?.profile,
+          (s) => {
+            if (!s) throw new Error('No browser page is open yet — use browser_new_page first.')
+            return {
+              ok: true as const,
+              text: s.cdp.consoleLogText(asInt(payload?.limit, 25, 1, 200)),
+            }
+          },
+        )
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
   ipcMain.handle(
     'voidcast:browser-network-requests',
-    async (_event, payload: { limit?: number }) => {
+    async (_event, payload: { limit?: number; projectPath?: string; profile?: string }) => {
       try {
-        const s = sessionOrThrow()
-        return { ok: true as const, text: s.cdp.networkRequestText(asInt(payload?.limit, 25, 1, 200)) }
+        return await withBrowserContext(
+          getWindow(),
+          payload?.projectPath,
+          payload?.profile,
+          (s) => {
+            if (!s) throw new Error('No browser page is open yet — use browser_new_page first.')
+            return {
+              ok: true as const,
+              text: s.cdp.networkRequestText(asInt(payload?.limit, 25, 1, 200)),
+            }
+          },
+        )
       } catch (e) {
         return fail(e)
       }
@@ -278,6 +327,7 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         networkIdle?: boolean
         timeoutMs?: number
         projectPath?: string
+        profile?: string
       },
     ) => {
       try {
@@ -287,7 +337,7 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         if (!selector && !text && !urlPattern && !payload?.networkIdle) {
           throw new Error('Nothing to wait for — pass selector, text, urlPattern or networkIdle.')
         }
-        return await withSession(getWindow(), payload?.projectPath, async (s) => {
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const result = await s.cdp.waitFor({
             selector: selector || undefined,
             text: text || undefined,
@@ -305,9 +355,9 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
 
   ipcMain.handle(
     'voidcast:browser-handle-dialog',
-    async (_event, payload: { accept?: boolean; promptText?: string; projectPath?: string }) => {
+    async (_event, payload: { accept?: boolean; promptText?: string; projectPath?: string; profile?: string }) => {
       try {
-        return await withSession(getWindow(), payload?.projectPath, async (s) => {
+        return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const result = await s.cdp.handleDialog({
             accept: payload?.accept !== false,
             promptText: typeof payload?.promptText === 'string' ? payload.promptText : undefined,
@@ -320,18 +370,27 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     },
   )
 
-  ipcMain.handle('voidcast:browser-list-pages', async () => {
-    try {
-      // Listing never creates a page — an empty browser is a valid answer.
-      return { ok: true as const, ...listBrowserPages() }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-list-pages',
+    async (_event, payload: { projectPath?: string; profile?: string }) => {
+      try {
+        // Listing never creates a page — an empty browser is a valid answer.
+        return {
+          ok: true as const,
+          ...(await listBrowserPagesForProject(getWindow(), payload?.projectPath, payload?.profile)),
+        }
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
   ipcMain.handle(
     'voidcast:browser-new-page',
-    async (_event, payload: { url?: string; background?: boolean; projectPath?: string }) => {
+    async (
+      _event,
+      payload: { url?: string; background?: boolean; projectPath?: string; profile?: string },
+    ) => {
       try {
         const url = typeof payload?.url === 'string' ? payload.url.trim() : ''
         if (!url) throw new Error('Missing url.')
@@ -340,6 +399,7 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
           url,
           Boolean(payload?.background),
           payload?.projectPath,
+          payload?.profile,
         )
         return { ok: true as const, ...res }
       } catch (e) {
@@ -348,25 +408,71 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     },
   )
 
-  ipcMain.handle('voidcast:browser-select-page', async (_event, payload: { pageId?: string }) => {
-    try {
-      const pageId = typeof payload?.pageId === 'string' ? payload.pageId.trim() : ''
-      if (!pageId) throw new Error('Missing pageId.')
-      return { ok: true as const, ...selectBrowserPage(pageId) }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-select-page',
+    async (_event, payload: { pageId?: string; projectPath?: string; profile?: string }) => {
+      try {
+        const pageId = typeof payload?.pageId === 'string' ? payload.pageId.trim() : ''
+        if (!pageId) throw new Error('Missing pageId.')
+        return {
+          ok: true as const,
+          ...(await selectBrowserPageForProject(
+            getWindow(),
+            payload?.projectPath,
+            payload?.profile,
+            pageId,
+          )),
+        }
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
-  ipcMain.handle('voidcast:browser-close-page', async (_event, payload: { pageId?: string }) => {
-    try {
-      const pageId = typeof payload?.pageId === 'string' ? payload.pageId.trim() : ''
-      if (!pageId) throw new Error('Missing pageId.')
-      return { ok: true as const, ...closeBrowserPage(pageId) }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-close-page',
+    async (_event, payload: { pageId?: string; projectPath?: string; profile?: string }) => {
+      try {
+        const pageId = typeof payload?.pageId === 'string' ? payload.pageId.trim() : ''
+        if (!pageId) throw new Error('Missing pageId.')
+        return {
+          ok: true as const,
+          ...(await closeBrowserPageForProject(
+            getWindow(),
+            payload?.projectPath,
+            payload?.profile,
+            pageId,
+          )),
+        }
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'voidcast:browser-configure',
+    async (_event, payload: { projectPath?: string; profile?: string }) => {
+      try {
+        const res = await configureBrowser(getWindow(), payload?.projectPath, payload?.profile)
+        return { ok: true as const, ...res }
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'voidcast:browser-clear-data',
+    async (_event, payload: { projectPath?: string; profile?: string }) => {
+      try {
+        const text = await clearBrowserData(getWindow(), payload?.projectPath, payload?.profile)
+        return { ok: true as const, text }
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
   ipcMain.handle('voidcast:browser-open-external', async (_event, payload: { url?: string }) => {
     try {

@@ -592,33 +592,53 @@ interface VoidcastBridge {
     navigate: (payload: {
       url: string
       projectPath?: string
-    }) => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+      profile?: string
+      /** false replies as soon as the navigation starts instead of waiting for the load. */
+      wait?: boolean
+    }) => Promise<
+      { ok: true; url: string; waited?: boolean } | { ok: false; error?: string }
+    >
 
-    back: () => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+    back: (payload?: { projectPath?: string; profile?: string }) => Promise<
+      { ok: true; url: string } | { ok: false; error?: string }
+    >
 
-    forward: () => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+    forward: (payload?: { projectPath?: string; profile?: string }) => Promise<
+      { ok: true; url: string } | { ok: false; error?: string }
+    >
 
-    reload: () => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
+    reload: (payload?: { projectPath?: string; profile?: string }) => Promise<
+      { ok: true; url: string } | { ok: false; error?: string }
+    >
 
+    /** Every agent call carries the project path so the profile follows the project. */
     snapshot: (payload?: {
       maxNodes?: number
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
     click: (payload: {
       uid: string
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
     fill: (payload: {
       uid: string
       text: string
       submit?: boolean
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
     pressKey: (payload: {
       key: string
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
-    screenshot: (payload?: { projectPath?: string; uid?: string; fullPage?: boolean }) => Promise<
+    screenshot: (payload?: { projectPath?: string; profile?: string; uid?: string; fullPage?: boolean }) => Promise<
       | {
           ok: true
           path: string
@@ -638,14 +658,30 @@ interface VoidcastBridge {
       mobile?: boolean
       darkMode?: boolean
       reset?: boolean
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
+
+    /** Tell main which profile this panel wants before any page is created. */
+    configure: (payload: { projectPath?: string; profile?: string }) => Promise<
+      { ok: true; profile: string; changed: boolean } | { ok: false; error?: string }
+    >
+
+    /** Wipe cookies/storage/cache for the active browser profile. */
+    clearData: (payload?: { projectPath?: string; profile?: string }) => Promise<
+      { ok: true; text: string } | { ok: false; error?: string }
+    >
 
     consoleLogs: (payload?: {
       limit?: number
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
     networkRequests: (payload?: {
       limit?: number
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
     waitFor: (payload: {
       selector?: string
@@ -653,10 +689,14 @@ interface VoidcastBridge {
       urlPattern?: string
       networkIdle?: boolean
       timeoutMs?: number
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
     handleDialog: (payload: {
       accept?: boolean
       promptText?: string
+      projectPath?: string
+      profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
     status: () => Promise<
@@ -674,6 +714,8 @@ interface VoidcastBridge {
           panelRect: boolean
           /** Frames seen by the forced-frame screencast (screenshot liveness). */
           forcedFrames: number
+          /** Chromium partition key currently in use (browser profile). */
+          profile: string
           /** Every open page; only the active one is painted in the panel. */
           pages: { id: string; url: string; title: string; active: boolean }[]
           activeId: string | null
@@ -682,7 +724,7 @@ interface VoidcastBridge {
       | { ok: false; error?: string }
     >
 
-    listPages: (payload?: { projectPath?: string }) => Promise<
+    listPages: (payload?: { projectPath?: string; profile?: string }) => Promise<
       | {
           ok: true
           pages: { id: string; url: string; title: string; active: boolean }[]
@@ -692,15 +734,15 @@ interface VoidcastBridge {
       | { ok: false; error?: string }
     >
 
-    newPage: (payload: { url: string; background?: boolean; projectPath?: string }) => Promise<
+    newPage: (payload: { url: string; background?: boolean; projectPath?: string; profile?: string }) => Promise<
       { ok: true; pageId: string; url: string; text: string } | { ok: false; error?: string }
     >
 
-    selectPage: (payload: { pageId: string }) => Promise<
+    selectPage: (payload: { pageId: string; projectPath?: string; profile?: string }) => Promise<
       { ok: true; url: string; text: string } | { ok: false; error?: string }
     >
 
-    closePage: (payload: { pageId: string }) => Promise<
+    closePage: (payload: { pageId: string; projectPath?: string; profile?: string }) => Promise<
       { ok: true; text: string; activeId: string | null } | { ok: false; error?: string }
     >
 

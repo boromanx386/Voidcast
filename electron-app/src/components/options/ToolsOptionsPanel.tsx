@@ -144,6 +144,34 @@ export function ToolsOptionsPanel({
         }
       />
 
+      {settings.toolsEnabled.browser ? (
+        <div className="mb-3 ml-1 border-l border-void-muted/40 pl-3">
+          <label className="mb-1 block font-mono text-[10px] uppercase tracking-wide text-void-dim">
+            BROWSER_PROFILE
+          </label>
+          <input
+            type="text"
+            className="cyber-input w-56"
+            placeholder="(empty = one profile per project)"
+            value={settings.coding.browserProfile}
+            onChange={(e) =>
+              setSettings((s) => ({
+                ...s,
+                coding: { ...s.coding, browserProfile: e.target.value.slice(0, 60) },
+              }))
+            }
+          />
+          <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-void-dim">
+            Cookies and logins of the built-in browser. Empty = a separate profile per coding
+            project (recommended — the agent reads untrusted pages, so keeping logins apart limits
+            the blast radius).{' '}
+            <code className="text-neon-cyan">shared</code> = one profile for the whole app. Any
+            other value = a named profile you can reuse across projects. Changing it closes the
+            open browser pages.
+          </p>
+        </div>
+      ) : null}
+
       {/* Enter Plan Mode */}
       <ToolToggle
         checked={settings.toolsEnabled.enterPlan}

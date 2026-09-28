@@ -28,10 +28,10 @@ Each flag has a toggle in the panel (`ToolToggle`). If a tool is disabled, the a
 
 | Tool | Access | Purpose |
 | --- | --- | --- |
-| `browser_navigate_page` | write | Open an `http(s)` URL (localhost allowed) and return the final URL |
+| `browser_navigate_page` | write | Open an `http(s)` URL (localhost allowed) and return the final URL; `wait: false` replies as soon as the navigation starts |
 | `browser_take_snapshot` | read | Accessibility snapshot; every line is `<uid> <role> name="..."` |
 | `browser_click` | write | Trusted real mouse click on the element with that `uid` |
-| `browser_fill` | write | Focus the `uid` element and type text (optional Enter submit) |
+| `browser_fill` | write | Focus the `uid` element, **replace** what it holds with the text (optional Enter submit) |
 | `browser_press_key` | write | Press a single key (`Enter`, `Escape`, `Tab`, `ArrowDown`, …) |
 | `browser_take_screenshot` | write | Save a JPEG into `<project>/.voidcast/browser/shots/` — viewport by default, one element via `uid`, whole document via `full_page` |
 | `browser_emulate` | write | Emulate a device viewport / dark mode for responsive QA (`reset` clears it) |
@@ -49,7 +49,8 @@ Notes:
 - Multi-page: the agent can keep up to **8 pages** open (each is a live Chromium renderer, so the cap is about memory). The coding panel renders **only the current page**; once more than one is open the pane header shows a page selector plus `n/total`. Links that open a new window (`target=_blank`, `window.open`) become a page in this browser instead of the system browser, so the flow never leaves the panel.
 - Plan/Ask mode registers only the read-only tools (`browser_navigate_page`, `browser_click`, `browser_fill`, `browser_press_key`, `browser_new_page`, `browser_close_page` and `browser_handle_dialog` are in `PLAN_MODE_BLOCKED_TOOLS`).
 - Element addressing uses the accessibility tree (`Page` → `Accessibility.getFullAXTree`), **not** CSS selectors. Snapshots are taken after every navigation or UI change; `uid` values are only valid for the latest snapshot.
-- Clicks and typing are dispatched as real CDP input events (`Input.dispatchMouseEvent` / `Input.insertText` / `Input.dispatchKeyEvent`), so React/Vue apps react exactly as they would to a real user.
+- Clicks and typing are dispatched as real CDP input events (`Input.dispatchMouseEvent` / `Input.insertText` / `Input.dispatchKeyEvent`), so React/Vue apps react exactly as they would to a real user. `browser_fill` selects the field's existing value first, so filling an already-filled input replaces it instead of appending (`Input.insertText` only replaces the current *selection*).
+- Every tool call carries the coding project path, so the browser profile is re-derived even while the WEB panel is not mounted. Switching project therefore never lets the agent drive the previous project's logged-in session; a page still loading when the partition changed is discarded, and the tool asks for a fresh snapshot instead of acting on it.
 - `browser_take_screenshot` returns a **file path**, not image bytes — pass that path to **`image_recall`** to actually look at the page (keeps the tool result small).
 - Clicks scroll the element into view first and use its **border** box: an element below the fold is not hit-testable, and dispatching at its off-screen coordinates silently does nothing. Screenshot clips use **document** coordinates, which is a different space from the viewport-space quad CDP returns (both verified in a spike).
 - `browser_emulate` sets viewport metrics and/or `prefers-color-scheme` for the current page. While a viewport override is active, captures come back scaled by the device scale factor (390×844 at dsf 3 → 1170×2532), and full-page shots are clamped to 16000px tall.

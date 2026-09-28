@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView, nativeImage } from 'electron'
+import { BrowserWindow, WebContentsView, nativeImage, session } from 'electron'
 import { mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -44,13 +44,27 @@ const MAX_PAGES = 8
 const FALLBACK_VIEWPORT = { width: 1280, height: 800 }
 /** Parked position for the "laid out but not painted" state. */
 const OFFSCREEN_ORIGIN = -20000
+/** Surfaced when a page creation is overtaken by a profile switch or by shutdown. */
+const PROFILE_CHANGED_MESSAGE =
+  'The browser profile changed while the page was opening — the page was discarded. Retry the call.'
 
 let ownerWindow: BrowserWindow | null = null
 let pages: BrowserPage[] = []
 let activeId: string | null = null
 let pageSeq = 1
 let creating: Promise<BrowserPage> | null = null
+/**
+ * Bumped whenever the partition changes (profile switch or shutdown). A page still being
+ * created for the previous partition re-checks its epoch after every await, so a slow load
+ * can never register the old project's session into the new profile.
+ */
+let profileEpoch = 0
 let partitionKey = ''
+/**
+ * Browser profile selection from settings: '' means one profile per coding project,
+ * 'shared' means one profile for the whole app, anything else is a named profile.
+ */
+let profileSetting = ''
 /** True while the WEB panel is mounted and wants the current page painted. */
 let visibleFlag = false
 /** True once the renderer has pushed a usable panel rect at least once. */
@@ -59,6 +73,22 @@ let panelRect: BrowserRect = { x: 0, y: 0, width: 0, height: 0 }
 let lastError: string | null = null
 let shuttingDown = false
 let windowHooked = false
+/** Browser state is global to the app; serialize operations from concurrent chat runs. */
+let browserOperationTail = Promise.resolve()
+
+export async function withBrowserLock<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = browserOperationTail
+  let release!: () => void
+  browserOperationTail = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+  try {
+    return await fn()
+  } finally {
+    release()
+  }
+}
 
 function panelSizeKnown(): boolean {
   return hasPanelRect && panelRect.width >= MIN_RECT_PX && panelRect.height >= MIN_RECT_PX
@@ -85,9 +115,16 @@ function parkedRect(): BrowserRect {
   }
 }
 
-/** Stable-ish partition key so a project keeps its cookies/logins between runs. */
+/**
+ * Stable-ish partition key so a project keeps its cookies/logins between runs.
+ *
+ * The path is case-folded and stripped of a trailing separator on purpose: Windows paths
+ * are case-insensitive, and two spellings of the same project must not resolve to two
+ * partitions — that mismatch would look like a profile change on every other call and
+ * close the user's pages each time.
+ */
 function sanitizePartitionKey(projectPath?: string): string {
-  const raw = (projectPath ?? '').trim()
+  const raw = (projectPath ?? '').trim().replace(/[\\/]+$/, '').toLowerCase()
   if (!raw) return 'default'
   let hash = 0
   for (let i = 0; i < raw.length; i++) {
@@ -99,6 +136,47 @@ function sanitizePartitionKey(projectPath?: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(-40)
   return `${slug || 'project'}-${(hash >>> 0).toString(36)}`
+}
+
+/** Resolve the partition key for the current profile setting + project path. */
+function desiredProfileKey(projectPath?: string): string {
+  const name = profileSetting.trim()
+  if (!name) return sanitizePartitionKey(projectPath)
+  if (name.toLowerCase() === 'shared') return sanitizePartitionKey('shared')
+  return sanitizePartitionKey(`profile:${name}`)
+}
+
+function normalizeProfileSetting(profile: string | undefined): string {
+  return typeof profile === 'string' ? profile.trim().slice(0, 60) : ''
+}
+
+/** Close every page — used when the profile changes, since pages cannot be re-partitioned. */
+function closeAllPages(): void {
+  for (const page of [...pages]) {
+    try {
+      closeBrowserPageUnsafe(page.id)
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
+/**
+ * Switch to the profile the panel asked for. Pages live inside their partition, so a
+ * profile change closes them instead of silently carrying the wrong cookies.
+ */
+function applyProfile(projectPath?: string): { profile: string; changed: boolean } {
+  const next = desiredProfileKey(projectPath)
+  if (next === partitionKey) return { profile: partitionKey, changed: false }
+  closeAllPages()
+  partitionKey = next
+  // A page creation still in flight was started against the previous partition: orphan it
+  // (its epoch no longer matches) so its late completion cannot add an old-profile page to
+  // the new profile, and so the next call starts a fresh page in the right partition.
+  profileEpoch += 1
+  creating = null
+  lastError = null
+  return { profile: partitionKey, changed: true }
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -168,6 +246,36 @@ function findPage(id: string): BrowserPage {
   return page
 }
 
+/** Remove a page whose renderer died without going through the normal close path. */
+function removeDeadPage(id: string, reason: string): void {
+  const index = pages.findIndex((p) => p.id === id)
+  if (index === -1) return
+  const [page] = pages.splice(index, 1)
+  try {
+    page.cdp.detach()
+  } catch {
+    /* the renderer may already be gone */
+  }
+  if (ownerWindow && !ownerWindow.isDestroyed()) {
+    try {
+      ownerWindow.contentView.removeChildView(page.view)
+    } catch {
+      /* best effort during renderer/window teardown */
+    }
+  }
+  try {
+    if (!page.view.webContents.isDestroyed()) page.view.webContents.close()
+  } catch {
+    /* best effort */
+  }
+  if (activeId === id) {
+    const neighbor = pages[Math.min(index, pages.length - 1)] ?? null
+    activeId = neighbor ? neighbor.id : null
+  }
+  lastError = `Browser page ${id} was removed because its renderer exited (${reason}).`
+  applyVisibility()
+}
+
 export function activeBrowserPage(): BrowserPage | null {
   if (!activeId) return null
   return pages.find((p) => p.id === activeId) ?? null
@@ -202,8 +310,43 @@ export function listBrowserPages(): {
   return { pages: info, activeId, text }
 }
 
-/** Create (once) and return the shared browser window binding. No page is created. */
-async function ensureBrowser(win: BrowserWindow | null, projectPath?: string): Promise<BrowserWindow> {
+/** Re-select the caller's profile without creating a page, then run a read-only query. */
+export async function withBrowserContext<T>(
+  win: BrowserWindow | null,
+  projectPath: string | undefined,
+  profile: string | undefined,
+  fn: (page: BrowserPage | null) => T | Promise<T>,
+): Promise<T> {
+  return withBrowserLock(async () => {
+    await ensureBrowser(win, projectPath, profile)
+    return fn(activeBrowserPage())
+  })
+}
+
+export async function listBrowserPagesForProject(
+  win: BrowserWindow | null,
+  projectPath: string | undefined,
+  profile: string | undefined,
+): Promise<ReturnType<typeof listBrowserPages>> {
+  return withBrowserContext(win, projectPath, profile, () => listBrowserPages())
+}
+
+/**
+ * Create (once) and return the shared browser window binding. No page is created.
+ *
+ * `authoritative` marks the panel's own entry points (configure / open page / history): the
+ * panel is stating "this IS the current project and profile", so an empty project path
+ * really means "no project" and the profile may reset to the default one. Agent calls pass
+ * no flag, and a call whose project path is unknown never switches: a turn without a coding
+ * project would otherwise resolve to the default profile, close the user's pages and flip
+ * the session back and forth every time the project changes.
+ */
+async function ensureBrowser(
+  win: BrowserWindow | null,
+  projectPath?: string,
+  profile?: string,
+  authoritative = false,
+): Promise<BrowserWindow> {
   const target =
     win && !win.isDestroyed()
       ? win
@@ -220,12 +363,61 @@ async function ensureBrowser(win: BrowserWindow | null, projectPath?: string): P
     windowHooked = true
     target.once('closed', () => disposeBrowserView())
   }
-  // Partition is fixed at first use — switching project later keeps the profile.
-  if (!partitionKey) partitionKey = sanitizePartitionKey(projectPath)
+  // A Chromium partition cannot be swapped on a live page, so the key is fixed once a page
+  // exists. The WEB panel re-configures it when the project or the profile setting changes —
+  // but the panel only exists while WEB mode is open, and the agent drives the same browser
+  // without it. So every call that knows the project re-checks here: without this, switching
+  // project with the panel closed kept the previous project's cookies and logins.
+  if (profile !== undefined) profileSetting = normalizeProfileSetting(profile)
+  const desired = desiredProfileKey(projectPath)
+  if (!partitionKey) {
+    partitionKey = desired
+  } else if (desired !== partitionKey && (authoritative || projectPath || profileSetting)) {
+    // A named/shared profile resolves without the path, and the panel may always state the
+    // context explicitly. The agent path needs a real identity before it resets anything.
+    applyProfile(projectPath)
+  }
   return target
 }
 
-async function newPageInWindow(win: BrowserWindow, url?: string): Promise<BrowserPage> {
+/**
+ * Called by the WEB panel on mount and whenever the project or the browser profile
+ * setting changes. Returns whether the profile actually changed (pages were reset).
+ */
+export async function configureBrowser(
+  win: BrowserWindow | null,
+  projectPath: string | undefined,
+  profile: string | undefined,
+): Promise<{ profile: string; changed: boolean }> {
+  return withBrowserLock(async () => {
+    const previous = partitionKey
+    // The panel owns the context: it may state "no project", which resets to the default profile.
+    await ensureBrowser(win, projectPath, profile, true)
+    return { profile: partitionKey, changed: previous !== partitionKey }
+  })
+}
+
+/** Wipe cookies/localStorage/IndexedDB/cache for the active profile (explicit user action). */
+export async function clearBrowserData(
+  win: BrowserWindow | null,
+  projectPath: string | undefined,
+  profile: string | undefined,
+): Promise<string> {
+  return withBrowserLock(async () => {
+    await ensureBrowser(win, projectPath, profile)
+    const target = session.fromPartition(`persist:voidcast-browser-${partitionKey}`)
+    await target.clearStorageData()
+    await target.clearCache()
+    lastError = null
+    return `Cleared cookies, storage and cache for profile "${partitionKey}". Already-open pages keep their in-memory state until they are reloaded.`
+  })
+}
+
+async function newPageInWindow(
+  win: BrowserWindow,
+  url?: string,
+  epoch = profileEpoch,
+): Promise<BrowserPage> {
   const id = `p${pageSeq++}`
   const view = new WebContentsView({
     webPreferences: {
@@ -246,21 +438,62 @@ async function newPageInWindow(win: BrowserWindow, url?: string): Promise<Browse
     return { action: 'deny' }
   })
 
-  // SPIKE RULE: the view must have navigated at least once before any CDP command,
-  // otherwise every command waits for a target that never appears.
-  await withTimeout(
-    view.webContents.loadURL(HOME_URL),
-    15000,
-    'Timed out bootstrapping the Voidcast browser page.',
-  )
+  // detach() before close (Electron crashes in main if the debugger outlives the view).
+  const discard = (): void => {
+    try {
+      win.contentView.removeChildView(view)
+    } catch {
+      /* window or view already gone */
+    }
+    try {
+      if (!view.webContents.isDestroyed()) view.webContents.close()
+    } catch {
+      /* best effort */
+    }
+  }
 
-  const cdp = new CdpSession(view.webContents)
-  await cdp.attach()
+  let cdp: CdpSession | null = null
+  try {
+    // SPIKE RULE: the view must have navigated at least once before any CDP command,
+    // otherwise every command waits for a target that never appears.
+    await withTimeout(
+      view.webContents.loadURL(HOME_URL),
+      15000,
+      'Timed out bootstrapping the Voidcast browser page.',
+    )
+
+    cdp = new CdpSession(view.webContents)
+    await cdp.attach()
+    // The partition cannot be re-assigned, so a view booted for a partition that is no
+    // longer current must never enter `pages` — that is how an old profile's session used
+    // to leak into a newly selected project.
+    if (shuttingDown || epoch !== profileEpoch) throw new Error(PROFILE_CHANGED_MESSAGE)
+  } catch (e) {
+    try {
+      cdp?.detach()
+    } catch {
+      /* best effort */
+    }
+    discard()
+    throw e
+  }
+
+  if (!cdp) {
+    // Unreachable — the catch above always rethrows. Keeps the registration below non-null.
+    discard()
+    throw new Error('Could not create the Voidcast browser page.')
+  }
 
   const page: BrowserPage = { id, view, cdp, createdAt: Date.now() }
   pages.push(page)
   activeId = id
   applyVisibility()
+
+  const onRendererGone = (details?: { reason?: string }) => {
+    removeDeadPage(page.id, details?.reason ?? 'unknown reason')
+  }
+  view.webContents.on('render-process-gone', (_event, details) => onRendererGone(details))
+  view.webContents.once('destroyed', () => onRendererGone({ reason: 'destroyed' }))
 
   if (url && url !== HOME_URL) await loadInto(page, url)
   return page
@@ -268,16 +501,18 @@ async function newPageInWindow(win: BrowserWindow, url?: string): Promise<Browse
 
 /** A page requested by the page itself (popup) — evicts the oldest background page at the cap. */
 async function openPopup(url: string): Promise<void> {
-  const win = ownerWindow
-  if (!win || win.isDestroyed() || shuttingDown) return
-  if (pages.length >= MAX_PAGES) {
-    const oldest = [...pages]
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .find((p) => p.id !== activeId)
-    if (oldest) closeBrowserPage(oldest.id)
-  }
-  if (pages.length >= MAX_PAGES) return
-  await newPageInWindow(win, url)
+  await withBrowserLock(async () => {
+    const win = ownerWindow
+    if (!win || win.isDestroyed() || shuttingDown) return
+    if (pages.length >= MAX_PAGES) {
+      const oldest = [...pages]
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .find((p) => p.id !== activeId)
+      if (oldest) closeBrowserPageUnsafe(oldest.id)
+    }
+    if (pages.length >= MAX_PAGES) return
+    await newPageInWindow(win, url)
+  })
 }
 
 async function ensureActivePage(): Promise<BrowserPage> {
@@ -290,7 +525,10 @@ async function ensureActivePage(): Promise<BrowserPage> {
     return alive
   }
   if (!creating) {
-    creating = newPageInWindow(ownerWindow as BrowserWindow)
+    // Capture the epoch up front: if the profile switches while this page boots, the
+    // creation is discarded by newPageInWindow instead of joining the new profile.
+    const epoch = profileEpoch
+    const pending = newPageInWindow(ownerWindow as BrowserWindow, undefined, epoch)
       .then((page) => {
         lastError = null
         return page
@@ -300,8 +538,10 @@ async function ensureActivePage(): Promise<BrowserPage> {
         throw e
       })
       .finally(() => {
-        creating = null
+        // Release only the slot we own — a profile switch may already have replaced it.
+        if (creating === pending) creating = null
       })
+    creating = pending
   }
   return creating
 }
@@ -310,11 +550,14 @@ async function ensureActivePage(): Promise<BrowserPage> {
 export async function withSession<T>(
   win: BrowserWindow | null,
   projectPath: string | undefined,
+  profile: string | undefined,
   fn: (page: BrowserPage) => Promise<T>,
 ): Promise<T> {
-  await ensureBrowser(win, projectPath)
-  const page = await ensureActivePage()
-  return fn(page)
+  return withBrowserLock(async () => {
+    await ensureBrowser(win, projectPath, profile)
+    const page = await ensureActivePage()
+    return fn(page)
+  })
 }
 
 export async function openBrowserPage(
@@ -322,32 +565,36 @@ export async function openBrowserPage(
   url: string,
   background: boolean,
   projectPath?: string,
+  profile?: string,
 ): Promise<{ pageId: string; url: string; text: string }> {
-  const target = await ensureBrowser(win, projectPath)
-  if (pages.length >= MAX_PAGES) {
-    throw new Error(
-      `Too many pages open (max ${MAX_PAGES}) — close one with browser_close_page first.`,
-    )
-  }
-  const previousId = activeId
-  const page = await newPageInWindow(target, url)
-  if (background && previousId) {
-    activeId = previousId
-    applyVisibility()
-  }
-  const finalUrl = page.view.webContents.getURL() || url
-  return {
-    pageId: page.id,
-    url: finalUrl,
-    text:
-      `Opened ${page.id} — ${finalUrl}.` +
-      (background
-        ? ' It stays in the background; the current page is unchanged.'
-        : ' It is now the current page and the coding panel shows it.'),
-  }
+  return withBrowserLock(async () => {
+    // Panel-driven (GO / URL bar): the path and profile come from the panel's own context.
+    const target = await ensureBrowser(win, projectPath, profile, true)
+    if (pages.length >= MAX_PAGES) {
+      throw new Error(
+        `Too many pages open (max ${MAX_PAGES}) — close one with browser_close_page first.`,
+      )
+    }
+    const previousId = activeId
+    const page = await newPageInWindow(target, url)
+    if (background && previousId) {
+      activeId = previousId
+      applyVisibility()
+    }
+    const finalUrl = page.view.webContents.getURL() || url
+    return {
+      pageId: page.id,
+      url: finalUrl,
+      text:
+        `Opened ${page.id} — ${finalUrl}.` +
+        (background
+          ? ' It stays in the background; the current page is unchanged.'
+          : ' It is now the current page and the coding panel shows it.'),
+    }
+  })
 }
 
-export function selectBrowserPage(id: string): { url: string; text: string } {
+function selectBrowserPageUnsafe(id: string): { url: string; text: string } {
   const page = findPage(id)
   activeId = page.id
   applyVisibility()
@@ -360,7 +607,7 @@ export function selectBrowserPage(id: string): { url: string; text: string } {
   }
 }
 
-export function closeBrowserPage(id: string): { text: string; activeId: string | null } {
+function closeBrowserPageUnsafe(id: string): { text: string; activeId: string | null } {
   const index = pages.findIndex((p) => p.id === id)
   if (index === -1) {
     throw new Error(`Unknown page "${id}" — call browser_list_pages to see the open pages.`)
@@ -396,6 +643,30 @@ export function closeBrowserPage(id: string): { text: string; activeId: string |
   }
 }
 
+export async function selectBrowserPageForProject(
+  win: BrowserWindow | null,
+  projectPath: string | undefined,
+  profile: string | undefined,
+  id: string,
+): Promise<{ url: string; text: string }> {
+  return withBrowserLock(async () => {
+    await ensureBrowser(win, projectPath, profile)
+    return selectBrowserPageUnsafe(id)
+  })
+}
+
+export async function closeBrowserPageForProject(
+  win: BrowserWindow | null,
+  projectPath: string | undefined,
+  profile: string | undefined,
+  id: string,
+): Promise<{ text: string; activeId: string | null }> {
+  return withBrowserLock(async () => {
+    await ensureBrowser(win, projectPath, profile)
+    return closeBrowserPageUnsafe(id)
+  })
+}
+
 export function setBrowserBounds(rect: BrowserRect): void {
   panelRect = {
     x: Math.max(0, Math.round(rect.x)),
@@ -415,10 +686,18 @@ export function setBrowserVisible(visible: boolean): void {
   applyVisibility()
 }
 
-export async function navigateTo(url: string): Promise<string> {
+export async function navigateTo(url: string, wait = true): Promise<string> {
   const page = activeBrowserPage()
   if (!page) throw new Error('Browser page is not running yet — open the coding panel WEB view first.')
-  return loadInto(page, url)
+  if (wait) return loadInto(page, url)
+  // wait:false — the URL is still validated synchronously (a blocked scheme must stay an
+  // error, not a silent no-op), then the navigation runs in the background and the reply
+  // returns at once. The final URL is not known yet, so the requested one is reported.
+  const target = normalizeUrl(url)
+  void page.view.webContents.loadURL(target).catch((e) => {
+    lastError = e instanceof Error ? e.message : String(e)
+  })
+  return target
 }
 
 export async function historyStep(direction: 'back' | 'forward'): Promise<string> {
@@ -521,6 +800,8 @@ export function browserStatus(): {
   forcedFrames: number
   pages: BrowserPageInfo[]
   activeId: string | null
+  /** Chromium partition key in use ('' until the browser has been configured). */
+  profile: string
   error: string | null
 } {
   const info = pages.map(pageSummary)
@@ -544,6 +825,7 @@ export function browserStatus(): {
       forcedFrames: 0,
       pages: info,
       activeId,
+      profile: partitionKey,
       error: lastError,
     }
   }
@@ -558,6 +840,7 @@ export function browserStatus(): {
     forcedFrames: page.cdp.screencastFrameCount,
     pages: info,
     activeId,
+    profile: partitionKey,
     error: lastError,
   }
 }
@@ -588,6 +871,8 @@ export function disposeBrowserView(): void {
   pages = []
   activeId = null
   creating = null
+  // Orphan any page creation still in flight so it cannot join `pages` after shutdown.
+  profileEpoch += 1
   visibleFlag = false
 }
 

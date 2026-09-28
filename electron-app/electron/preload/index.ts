@@ -16,19 +16,25 @@ contextBridge.exposeInMainWorld('voidcast', {
       ipcRenderer.invoke('voidcast:browser-set-bounds', payload),
     setVisible: (payload: { visible: boolean }) =>
       ipcRenderer.invoke('voidcast:browser-set-visible', payload),
-    navigate: (payload: { url: string; projectPath?: string }) =>
+    navigate: (payload: { url: string; projectPath?: string; profile?: string; wait?: boolean }) =>
       ipcRenderer.invoke('voidcast:browser-navigate', payload),
-    back: () => ipcRenderer.invoke('voidcast:browser-back'),
-    forward: () => ipcRenderer.invoke('voidcast:browser-forward'),
-    reload: () => ipcRenderer.invoke('voidcast:browser-reload'),
-    snapshot: (payload?: { maxNodes?: number }) =>
+    back: (payload?: { projectPath?: string; profile?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-back', payload),
+    forward: (payload?: { projectPath?: string; profile?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-forward', payload),
+    reload: (payload?: { projectPath?: string; profile?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-reload', payload),
+    // Every agent-facing call carries the project path: the browser profile follows the
+    // project even while the WEB panel (which normally pushes the switch) is unmounted.
+    snapshot: (payload?: { maxNodes?: number; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-snapshot', payload),
-    click: (payload: { uid: string }) => ipcRenderer.invoke('voidcast:browser-click', payload),
-    fill: (payload: { uid: string; text: string; submit?: boolean }) =>
+    click: (payload: { uid: string; projectPath?: string; profile?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-click', payload),
+    fill: (payload: { uid: string; text: string; submit?: boolean; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-fill', payload),
-    pressKey: (payload: { key: string }) =>
+    pressKey: (payload: { key: string; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-press-key', payload),
-    screenshot: (payload?: { projectPath?: string; uid?: string; fullPage?: boolean }) =>
+    screenshot: (payload?: { projectPath?: string; profile?: string; uid?: string; fullPage?: boolean }) =>
       ipcRenderer.invoke('voidcast:browser-screenshot', payload),
     emulate: (payload: {
       width?: number
@@ -37,10 +43,16 @@ contextBridge.exposeInMainWorld('voidcast', {
       mobile?: boolean
       darkMode?: boolean
       reset?: boolean
+      projectPath?: string
+      profile?: string
     }) => ipcRenderer.invoke('voidcast:browser-emulate', payload),
-    consoleLogs: (payload?: { limit?: number }) =>
+    configure: (payload: { projectPath?: string; profile?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-configure', payload),
+    clearData: (payload?: { projectPath?: string; profile?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-clear-data', payload),
+    consoleLogs: (payload?: { limit?: number; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-console-logs', payload),
-    networkRequests: (payload?: { limit?: number }) =>
+    networkRequests: (payload?: { limit?: number; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-network-requests', payload),
     waitFor: (payload: {
       selector?: string
@@ -48,17 +60,19 @@ contextBridge.exposeInMainWorld('voidcast', {
       urlPattern?: string
       networkIdle?: boolean
       timeoutMs?: number
+      projectPath?: string
+      profile?: string
     }) => ipcRenderer.invoke('voidcast:browser-wait-for', payload),
-    handleDialog: (payload: { accept?: boolean; promptText?: string }) =>
+    handleDialog: (payload: { accept?: boolean; promptText?: string; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-handle-dialog', payload),
     status: () => ipcRenderer.invoke('voidcast:browser-status'),
-    listPages: (payload?: { projectPath?: string }) =>
+    listPages: (payload?: { projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-list-pages', payload),
-    newPage: (payload: { url: string; background?: boolean; projectPath?: string }) =>
+    newPage: (payload: { url: string; background?: boolean; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-new-page', payload),
-    selectPage: (payload: { pageId: string }) =>
+    selectPage: (payload: { pageId: string; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-select-page', payload),
-    closePage: (payload: { pageId: string }) =>
+    closePage: (payload: { pageId: string; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-close-page', payload),
     openExternal: (payload: { url: string }) =>
       ipcRenderer.invoke('voidcast:browser-open-external', payload),
