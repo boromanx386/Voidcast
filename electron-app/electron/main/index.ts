@@ -820,9 +820,9 @@ async function createWindow() {
   // Register clipboard TTS shortcut
   const readClipboardTtsShortcut = 'CommandOrControl+Alt+Shift+V'
   win.webContents.once('did-finish-load', () => {
-    const ok = globalShortcut.register(readClipboardTtsShortcut, () => {
+    const ok = globalShortcut.register(readClipboardTtsShortcut, async () => {
       if (!win) return
-      const text = clipboard.readText().trim()
+      const text = (await clipboard.readText()).trim()
       if (!text) return
       // TTS can run in the tray: do not show/focus the window
       win.webContents.send('voidcast:read-clipboard-tts', text)
