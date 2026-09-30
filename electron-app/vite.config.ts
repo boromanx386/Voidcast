@@ -1,9 +1,61 @@
 import { rmSync } from 'node:fs'
 import path from 'node:path'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron/simple'
 import pkg from './package.json'
+
+/**
+ * Production CSP. This is the policy that ships: no `unsafe-eval`, no `unsafe-inline`
+ * for scripts, no object/base/form embedding. `connect-src` stays deliberately open —
+ * the renderer talks directly to user-configured providers (OpenRouter, Ollama, Runware,
+ * DeepSeek, NVIDIA, the local tools server, LAN web), so enumerating hosts would break
+ * chat/image/TTS whenever a base URL changes. `style-src` keeps `unsafe-inline` for the
+ * inline <style> block in index.html and React inline styles.
+ *
+ * NOTE: `frame-ancestors` is intentionally omitted — a <meta>-delivered CSP cannot carry
+ * it (browsers ignore it there); it is only honoured as a real HTTP header.
+ */
+const CSP_PROD = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: data:",
+  "connect-src 'self' http: https: ws: wss:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+].join('; ')
+
+/**
+ * Dev widens the strict policy by exactly one token: React-refresh injects an inline
+ * preamble, so the dev server needs `'unsafe-inline'`. Vite 5's native-ESM dev server
+ * needs no `eval`, so `'unsafe-eval'` stays out even in development.
+ */
+const CSP_DEV = CSP_PROD.replace(
+  "script-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+)
+
+/**
+ * Swap the CSP meta for a loosened one on the dev server only. The build keeps the strict
+ * policy already present in index.html, so production never carries `unsafe-eval`.
+ */
+function cspMeta(isServe: boolean): Plugin {
+  return {
+    name: 'voidcast-csp-meta',
+    transformIndexHtml(html) {
+      if (!isServe) return html
+      return html.replace(
+        /<meta http-equiv="Content-Security-Policy"[\s\S]*?>/i,
+        `<meta http-equiv="Content-Security-Policy" content="${CSP_DEV}" />`,
+      )
+    },
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => {
@@ -21,6 +73,7 @@ export default defineConfig(({ command }) => {
     },
     plugins: [
       react(),
+      cspMeta(isServe),
       electron({
         main: {
           // Shortcut of `build.lib.entry`
