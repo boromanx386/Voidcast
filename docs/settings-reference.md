@@ -102,7 +102,7 @@ Configured Runware image models: FLUX 9B (`runware:400@6`), Z Image Turbo (`runw
 
 | Key | Type | What it controls |
 | --- | --- | --- |
-| `runwareMusicModel` | `string` | Active Runware music model id (`runware:ace-step@v1.5-turbo` or `runware:ace-step@v1.5-base`). |
+| `runwareMusicModel` | `string` | Active Runware music model id (`runware:ace-step@v1.5-turbo`, `…@v1.5-base`, `…@v1.5-xl-turbo`, `…@v1.5-xl-base`, or `…@v1.5-xl-sft`). |
 | `runwareMusicModelProfiles` | `Record<string, RunwareMusicModelProfile>` | Per-variant defaults for the ACE-Step music family. |
 | `runwareMusicGuidanceType` | `'apg' \| 'cfg'` | Music guidance type. |
 | `runwareMusicVocalLanguage` | `string` | Vocals language (ISO 639-1 code or `unknown`). |
@@ -115,7 +115,7 @@ Legacy / back-compat mirrors (kept in sync with the active profile):
 | --- | --- |
 | `runwareMusicOutputFormat` | `'MP3' \| 'WAV' \| 'FLAC' \| 'OGG'` |
 | `runwareMusicDurationSec` | `number` |
-| `runwareMusicSteps` | `number` (turbo caps at 20, base allows up to 300) |
+| `runwareMusicSteps` | `number` (turbo variants cap at 20, base + XL base/sft allow up to 300) |
 | `runwareMusicCfgScale` | `number` |
 | `runwareMusicSeed` | `number \| null` (optional fixed seed for reproducibility) |
 

@@ -117,10 +117,16 @@ export type RunwareModelOption = {
 const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
 export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo'
 export const RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID = 'runware:ace-step@v1.5-base'
+export const RUNWARE_ACE_STEP_V1_5_XL_TURBO_MODEL_ID = 'runware:ace-step@v1.5-xl-turbo'
+export const RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID = 'runware:ace-step@v1.5-xl-base'
+export const RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID = 'runware:ace-step@v1.5-xl-sft'
 
 export const RUNWARE_ACE_STEP_MUSIC_MODEL_IDS = [
   RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID,
   RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID,
+  RUNWARE_ACE_STEP_V1_5_XL_TURBO_MODEL_ID,
+  RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID,
+  RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID,
 ] as const
 
 export type RunwareMusicModelId = (typeof RUNWARE_ACE_STEP_MUSIC_MODEL_IDS)[number]
@@ -133,9 +139,27 @@ export function isRunwareMusicModelId(modelId: string): boolean {
   return RUNWARE_ACE_STEP_MUSIC_MODEL_SET.has(modelId.trim().toLowerCase())
 }
 
-/** Max inference steps per ACE-Step music variant (turbo is capped much lower). */
+/**
+ * ACE-Step variants that run full CFG inference at ~50 steps: the non-XL base plus the
+ * two quality XL variants (xl-base, xl-sft). Turbo variants are 8-step distilled and
+ * must stay capped low. Matched case-insensitively.
+ */
+const RUNWARE_ACE_STEP_HIGH_STEP_MODEL_SET = new Set<string>(
+  [
+    RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID,
+    RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID,
+    RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID,
+  ].map((x) => x.toLowerCase()),
+)
+
+/** Max inference steps per ACE-Step music variant (turbo variants are capped much lower). */
 export function maxStepsForMusicModel(modelId: string): number {
-  return modelId === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID ? 300 : 20
+  return RUNWARE_ACE_STEP_HIGH_STEP_MODEL_SET.has(modelId.trim().toLowerCase()) ? 300 : 20
+}
+
+/** Default inference steps per ACE-Step variant (turbo variants are 8-step distilled). */
+export function defaultStepsForMusicModel(modelId: string): number {
+  return RUNWARE_ACE_STEP_HIGH_STEP_MODEL_SET.has(modelId.trim().toLowerCase()) ? 100 : 10
 }
 
 export const RUNWARE_ALLOWED_EDIT_MODEL_IDS = [
@@ -1041,7 +1065,7 @@ export async function invokeRunwareGenerateMusic(
     300,
   )
   const steps = clamp(
-    Math.round(asFiniteNumber(req.steps) ?? defaults?.steps ?? (model === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID ? 100 : 10)),
+    Math.round(asFiniteNumber(req.steps) ?? defaults?.steps ?? defaultStepsForMusicModel(model)),
     1,
     stepsMax,
   )

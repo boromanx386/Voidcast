@@ -58,6 +58,9 @@ Choose the active Runware music model:
 
 - **ACE-Step v1.5 Turbo** (`runware:ace-step@v1.5-turbo`) — fast; inference steps capped at 20.
 - **ACE-Step v1.5 Base** (`runware:ace-step@v1.5-base`) — higher quality; allows up to 300 steps.
+- **ACE-Step v1.5 XL Turbo** (`runware:ace-step@v1.5-xl-turbo`) — 4B DiT, 8-step distilled; steps capped at 20.
+- **ACE-Step v1.5 XL Base** (`runware:ace-step@v1.5-xl-base`) — 4B DiT, 50-step CFG; allows up to 300 steps.
+- **ACE-Step v1.5 XL SFT** (`runware:ace-step@v1.5-xl-sft`) — flagship 4B DiT, strongest prompt adherence; allows up to 300 steps.
 
 ### Per-model profiles (`RunwareMusicModelProfile`)
 

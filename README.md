@@ -80,7 +80,7 @@ Available tools:
 - **PDF Export** — agent writes a formatted PDF to a folder you configure (Python tools server / ReportLab)
 - **Image Generation** — Runware or **OpenRouter** (Gemini Flash Image, GPT Image 2)
 - **Image Edit** — Runware or OpenRouter; reference images from chat
-- **Music / Audio Generation** — Runware AI soundtracks (ACE-Step v1.5 Turbo and Base; see below)
+- **Music / Audio Generation** — Runware AI soundtracks (ACE-Step v1.5 Turbo, Base, and XL Turbo/Base/SFT; see below)
 - **Text-to-Speech** — `generate_tts` uses the active TTS provider and saves a real audio file; project-relative output paths are supported on desktop
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
@@ -94,7 +94,7 @@ The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NI
 
 ### Music (Runware)
 
-In **Options → Media → Music tool**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20) or **ACE-Step v1.5 Base** (higher quality, steps up to 300). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
+In **Options → Media → Music tool**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20), **ACE-Step v1.5 Base** (higher quality, steps up to 300), or one of the 4B **XL** variants — **XL Turbo** (8-step distilled, steps capped at 20), **XL Base** (50-step CFG, up to 300 steps) and **XL SFT** (flagship quality, up to 300 steps). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
 
 <p align="center">
   <img src="demos/voidcast-options-image-runware-9x16.png" width="700" alt="Media options panel"/>

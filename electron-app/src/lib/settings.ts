@@ -1141,16 +1141,28 @@ export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
 
 export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo'
 export const RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID = 'runware:ace-step@v1.5-base'
+export const RUNWARE_ACE_STEP_V1_5_XL_TURBO_MODEL_ID = 'runware:ace-step@v1.5-xl-turbo'
+export const RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID = 'runware:ace-step@v1.5-xl-base'
+export const RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID = 'runware:ace-step@v1.5-xl-sft'
 export const RUNWARE_CONFIGURED_MUSIC_MODELS: Array<{ id: string; label: string }> = [
   { id: RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID, label: 'ACE-Step v1.5 Turbo' },
   { id: RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID, label: 'ACE-Step v1.5 Base' },
+  { id: RUNWARE_ACE_STEP_V1_5_XL_TURBO_MODEL_ID, label: 'ACE-Step v1.5 XL Turbo' },
+  { id: RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID, label: 'ACE-Step v1.5 XL Base' },
+  { id: RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID, label: 'ACE-Step v1.5 XL SFT' },
 ]
 const configuredMusicModelIdSet = new Set<string>(
   RUNWARE_CONFIGURED_MUSIC_MODELS.map((m) => m.id),
 )
-/** Per-model UI/clamp cap for inference steps (turbo caps low, base allows up to 300). */
+/** Variants that run full CFG inference (base + XL base/sft); turbo variants cap low. */
+const highStepMusicModelIdSet = new Set<string>([
+  RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID,
+  RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID,
+  RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID,
+])
+/** Per-model UI/clamp cap for inference steps (turbo variants cap low, others allow up to 300). */
 export function maxStepsForMusicModelId(modelId: string): number {
-  return modelId === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID ? 300 : 20
+  return highStepMusicModelIdSet.has(modelId) ? 300 : 20
 }
 
 /** Per-tool toggles; extend with new keys as tools are added */
@@ -1638,6 +1650,27 @@ export const defaults: AppSettings = {
       seed: null,
     },
     [RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID]: {
+      outputFormat: 'MP3',
+      durationSec: 60,
+      steps: 100,
+      cfgScale: 10,
+      seed: null,
+    },
+    [RUNWARE_ACE_STEP_V1_5_XL_TURBO_MODEL_ID]: {
+      outputFormat: 'MP3',
+      durationSec: 60,
+      steps: 10,
+      cfgScale: 10,
+      seed: null,
+    },
+    [RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID]: {
+      outputFormat: 'MP3',
+      durationSec: 60,
+      steps: 100,
+      cfgScale: 10,
+      seed: null,
+    },
+    [RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID]: {
       outputFormat: 'MP3',
       durationSec: 60,
       steps: 100,
@@ -2168,15 +2201,15 @@ function normalizeRunware(s: AppSettings): AppSettings {
       : {}
   const normalizedMusicProfiles: Record<string, RunwareMusicModelProfile> = {}
   for (const m of RUNWARE_CONFIGURED_MUSIC_MODELS) {
-    const isBase = m.id === RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID
-    // Turbo profile migrates from legacy top-level music fields if no profile is stored yet.
-    // Base profile falls back to docs defaults; legacy fields don't apply because they were turbo-shaped.
+    const migratesFromLegacy = m.id === RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID
+    // Only the original Turbo preset migrates from legacy top-level music fields (they were
+    // turbo-shaped). Every other variant (base + XL) falls back to its docs defaults.
     const fallback =
-      isBase
-        ? defaults.runwareMusicModelProfiles[m.id]
-        : (parsedMusicProfiles[m.id]
+      migratesFromLegacy
+        ? (parsedMusicProfiles[m.id]
             ? defaults.runwareMusicModelProfiles[m.id]
             : legacyMusicProfile)
+        : defaults.runwareMusicModelProfiles[m.id]
     const incoming = parsedMusicProfiles[m.id] ?? {}
     const incomingOutputFormatRaw =
       typeof incoming.outputFormat === 'string' ? incoming.outputFormat.trim().toUpperCase() : ''
