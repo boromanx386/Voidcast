@@ -618,6 +618,13 @@ contextBridge.exposeInMainWorld('voidcast', {
   windowClose: () => ipcRenderer.invoke('voidcast:window-close'),
   windowIsMaximized: () =>
     ipcRenderer.invoke('voidcast:window-is-maximized') as Promise<boolean>,
+  /** Authoritative focused/minimized/visible state (document.hasFocus() lies when minimized). */
+  windowFocusState: () =>
+    ipcRenderer.invoke('voidcast:window-focus-state') as Promise<{
+      focused: boolean
+      minimized: boolean
+      visible: boolean
+    }>,
   onWindowMaximizedChange: (callback: (maximized: boolean) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, maximized: unknown) =>
       callback(Boolean(maximized))

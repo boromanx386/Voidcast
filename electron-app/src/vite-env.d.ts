@@ -553,6 +553,9 @@ interface VoidcastBridge {
 
   windowIsMaximized: () => Promise<boolean>
 
+  /** Authoritative focused/minimized/visible state from the main process. */
+  windowFocusState: () => Promise<{ focused: boolean; minimized: boolean; visible: boolean }>
+
   onWindowMaximizedChange: (callback: (maximized: boolean) => void) => () => void
 
   quitApp: () => Promise<void>

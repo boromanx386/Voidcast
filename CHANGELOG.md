@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **Runware music: ACE-Step v1.5 XL presets**: three new 4B DiT variants join the existing Turbo/Base presets — `runware:ace-step@v1.5-xl-turbo` (8-step distilled, steps capped at 20), `runware:ace-step@v1.5-xl-base` (50-step CFG, up to 300 steps) and `runware:ace-step@v1.5-xl-sft` (flagship quality, up to 300 steps). Each keeps its own profile (steps, CFG, duration, format, seed); the XL presets start from docs defaults rather than the legacy turbo-shaped settings.
 
+### Fixed
+
+- **App no longer jumps to the front while the agent writes files**: the background-safe focus guards in the coding panel and the file-preview find bar now read the real window state (`win.isFocused()` / `win.isMinimized()` over a new `voidcast:window-focus-state` IPC) instead of `document.hasFocus()`, which stays `true` for a minimized window. A minimized or backgrounded app now stays where it is when the agent edits or writes a file.
+
 ## [2.9.1] — 2026-09-27
 
 ### Added

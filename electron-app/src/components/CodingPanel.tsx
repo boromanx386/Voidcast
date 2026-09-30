@@ -36,6 +36,7 @@ import {
 } from '@/lib/codingTools'
 import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImagePreview'
 import { codingRevealParentDirs, type CodingRevealRequest } from '@/lib/codingReveal'
+import { isWindowForeground } from '@/lib/windowFocus'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
 
 type CodingUiVisibilityPatch = Partial<
@@ -97,13 +98,16 @@ const SECTION_META: Record<(typeof SECTION_KEYS)[number], { label: string; title
  *
  * Never call `window.focus()` on a background/minimized window: Electron lifts the
  * OS window to the front, which yanks the app out of the taskbar while the agent
- * is working. Only re-focus when this window is already the active one.
+ * is working. Gate on the main-process window state — `document.hasFocus()` stays
+ * true for a minimized window, so it lets the raise through.
  */
-function refocusAppWindow(): void {
-  if (!document.hasFocus()) return
+async function refocusAppWindow(): Promise<void> {
+  if (!(await isWindowForeground())) return
   window.focus()
   requestAnimationFrame(() => {
-    if (document.hasFocus()) window.focus()
+    void isWindowForeground().then((ok) => {
+      if (ok) window.focus()
+    })
   })
 }
 
@@ -195,14 +199,15 @@ export function CodingPanel({
   }, [])
 
   const confirmDiscardEdit = useCallback(
-    (opts?: { background?: boolean }): boolean => {
+    async (opts?: { background?: boolean }): Promise<boolean> => {
       if (!editing || editDraft === editBaseline) return true
       // A background reveal (agent write/edit) must not pop a native modal: the
       // dialog lifts the minimized window to the front. Skip the reveal instead —
-      // the unsaved draft is kept.
-      if (opts?.background && !document.hasFocus()) return false
+      // the unsaved draft is kept. Check the real window state, not
+      // document.hasFocus() (which stays true while minimized).
+      if (opts?.background && !(await isWindowForeground())) return false
       const ok = window.confirm('Discard unsaved edits?')
-      if (ok) refocusAppWindow()
+      if (ok) void refocusAppWindow()
       return ok
     },
     [editing, editDraft, editBaseline],
@@ -620,7 +625,7 @@ export function CodingPanel({
   const onOpenFile = useCallback(
     async (path: string) => {
       if (!projectPath) return
-      if (!confirmDiscardEdit()) return
+      if (!(await confirmDiscardEdit())) return
       resetEditState()
       // Manual pick → pin the preview: agent reveals must not take it over.
       userPinnedPreviewRef.current = true
@@ -660,7 +665,12 @@ export function CodingPanel({
         if (sameCodingPath(selectedPathRef.current, path)) await loadFilePreview(path)
         return
       }
-      if (!confirmDiscardEdit({ background: true })) return
+      if (!(await confirmDiscardEdit({ background: true }))) return
+      // The confirm dialog awaited above is async: the effect may have been torn
+      // down or a newer reveal may have superseded this one while it was open —
+      // re-check before mutating preview state.
+      if (cancelled) return
+      if (revealRequestRef.current?.nonce !== nonce) return
       resetEditState()
       setSelectedPath(path)
       await loadFilePreview(path)
@@ -690,12 +700,12 @@ export function CodingPanel({
     setEditDraft(out.text)
     setEditBaseline(out.text)
     setEditSessionKey((k) => k + 1)
-    refocusAppWindow()
+    void refocusAppWindow()
     setEditing(true)
   }, [projectPath, selectedPath, editing, editBusy, pushTerminal])
 
   const onCancelEdit = useCallback(async () => {
-    if (!confirmDiscardEdit()) return
+    if (!(await confirmDiscardEdit())) return
     const path = selectedPath
     resetEditState()
     if (path) await loadFilePreview(path)
@@ -766,7 +776,7 @@ export function CodingPanel({
         `Discard unstaged changes in:\n${path}\n\nThis cannot be undone (git restore).`,
       )
       if (!ok) return
-      refocusAppWindow()
+      void refocusAppWindow()
       const out = await invokeCodingGit(projectPath, { mode: 'discard', path })
       if (!out.ok) {
         pushTerminal('stderr', out.text || `Discard failed: ${path}`)
@@ -844,7 +854,7 @@ export function CodingPanel({
         `This cannot be undone.`,
     )
     if (!ok) return
-    refocusAppWindow()
+    void refocusAppWindow()
     const out = await invokeCodingGit(projectPath, { mode: 'discardAll' })
     if (!out.ok) {
       pushTerminal('stderr', out.text || 'Discard all failed.')

@@ -3532,6 +3532,19 @@ ipcMain.handle('voidcast:window-is-maximized', () => {
   return win?.isMaximized() ?? false
 })
 
+/**
+ * Authoritative window state. `document.hasFocus()` in the renderer lies for a
+ * minimized window, so background-safe focus guards must ask main instead.
+ */
+ipcMain.handle('voidcast:window-focus-state', () => {
+  if (!win || win.isDestroyed()) return { focused: false, minimized: true, visible: false }
+  return {
+    focused: win.isFocused(),
+    minimized: win.isMinimized(),
+    visible: win.isVisible(),
+  }
+})
+
 ipcMain.handle('voidcast:quit-app', () => {
   isQuitting = true
   app.quit()

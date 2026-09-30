@@ -6,6 +6,7 @@ import {
   type TextRange,
 } from '@/lib/filePreviewFindReplace'
 import { focusTextareaMatch, revealTextareaMatch } from '@/lib/textareaFindScroll'
+import { isWindowForeground } from '@/lib/windowFocus'
 
 type Props = {
   draft: string
@@ -195,14 +196,20 @@ export function FilePreviewEdit({ draft, busy = false, onDraftChange, onSave, on
   }, [matchIndex, matchRanges.length])
 
   useEffect(() => {
-    const t = requestAnimationFrame(() => {
-      // Never call window.focus() here: Electron raises the OS window (even a
-      // minimized one) whenever the renderer focuses it. Move DOM focus only,
-      // and only while the app is already the active window.
-      if (!document.hasFocus()) return
-      findInputRef.current?.focus()
+    let cancelled = false
+    // Never call window.focus() here: Electron raises the OS window (even a
+    // minimized one) whenever the renderer focuses it. Ask the main process for
+    // the real window state — document.hasFocus() stays true while minimized —
+    // and move DOM focus only while the app is genuinely in the foreground.
+    void isWindowForeground().then((ok) => {
+      if (cancelled || !ok) return
+      requestAnimationFrame(() => {
+        if (!cancelled) findInputRef.current?.focus()
+      })
     })
-    return () => cancelAnimationFrame(t)
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const matchLabel =
