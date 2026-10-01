@@ -305,7 +305,7 @@ async function postOpenRouterImageChat(
 }
 
 export async function invokeOpenRouterGenerateImage(
-  req: { prompt: string },
+  req: { prompt: string; width?: number; height?: number },
   config: OpenRouterImageConfig,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -313,13 +313,16 @@ export async function invokeOpenRouterGenerateImage(
   if (!prompt) throw new Error('OpenRouter generate_image requires a non-empty prompt.')
   const model = normalizeOpenRouterImageModel(config.model || OPENROUTER_IMAGE_MODEL_DEFAULT)
   const quality = config.gptQuality || 'auto'
+  // A per-call override from the agent wins; otherwise the configured size is used.
+  const wantWidth = req.width ?? config.width
+  const wantHeight = req.height ?? config.height
   const dims = resolveOpenRouterImageRequest({
-    width: config.width,
-    height: config.height,
+    width: wantWidth,
+    height: wantHeight,
     model,
   })
   const sizeAdjustedNote = dims.adjusted
-    ? `size_adjusted_for_model: ${Math.round(config.width)}x${Math.round(config.height)} -> ${dims.width}x${dims.height}`
+    ? `size_adjusted_for_model: ${Math.round(wantWidth)}x${Math.round(wantHeight)} -> ${dims.width}x${dims.height}`
     : undefined
 
   const { imageUrl, elapsedMs } = usesOpenRouterDedicatedImageApi(model)
@@ -358,7 +361,7 @@ export async function invokeOpenRouterGenerateImage(
 }
 
 export async function invokeOpenRouterEditImage(
-  req: { prompt: string; referenceImages: string[] },
+  req: { prompt: string; referenceImages: string[]; width?: number; height?: number },
   config: OpenRouterImageConfig,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -370,13 +373,16 @@ export async function invokeOpenRouterEditImage(
   }
   const model = normalizeOpenRouterImageModel(config.model || OPENROUTER_IMAGE_MODEL_DEFAULT)
   const quality = config.gptQuality || 'auto'
+  // A per-call override from the agent wins; otherwise the configured edit size is used.
+  const wantWidth = req.width ?? config.width
+  const wantHeight = req.height ?? config.height
   const dims = resolveOpenRouterImageRequest({
-    width: config.width,
-    height: config.height,
+    width: wantWidth,
+    height: wantHeight,
     model,
   })
   const sizeAdjustedNote = dims.adjusted
-    ? `size_adjusted_for_model: ${Math.round(config.width)}x${Math.round(config.height)} -> ${dims.width}x${dims.height}`
+    ? `size_adjusted_for_model: ${Math.round(wantWidth)}x${Math.round(wantHeight)} -> ${dims.width}x${dims.height}`
     : undefined
   const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
     { type: 'text', text: prompt },

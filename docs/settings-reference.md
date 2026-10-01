@@ -71,8 +71,8 @@ These providers store their API keys/URLs here (keys are local to this device):
 | `openrouterImageProfiles` | `Record<string, RunwareModelProfile>` | Per-model width/height/quality when using OpenRouter. |
 | `runwareImageModel` | `string` | Default Runware model id for text-to-image (e.g. `runware:400@6` FLUX 9B). |
 | `runwareEditModel` | `string` | Default Runware model id for image editing with references. |
-| `runwareWidth` | `number` | Default output width for generated images. |
-| `runwareHeight` | `number` | Default output height for generated images. |
+| `runwareWidth` | `number` | Default output width for generated images. The agent may override it per call via `generate_image` / `edit_image_runware` `width`. |
+| `runwareHeight` | `number` | Default output height for generated images. Per-call override as for `runwareWidth`. |
 | `runwareSteps` | `number` | Default inference steps (fewer = faster, lower quality). |
 | `runwareCfgScale` | `number` | Default guidance scale (model-dependent effect). |
 | `runwareNegativePrompt` | `string` | Optional default negative prompt. |

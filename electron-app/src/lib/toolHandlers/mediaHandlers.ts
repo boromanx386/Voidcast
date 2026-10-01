@@ -35,6 +35,19 @@ import { sanitizeForTts } from "@/lib/chatHints";
 
 const MAX_TTS_TOOL_CHARS = 8_000;
 
+/**
+ * Coerce an agent-supplied width/height (number, or a numeric string as some
+ * models emit) into a finite number. `undefined` means "no override" — the
+ * configured resolution stays in charge.
+ */
+const readDimension = (v: unknown): number | undefined => {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
+    return Number(v);
+  }
+  return undefined;
+};
+
 export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.runwareImage) {
     return "Error: generate_image tool is disabled in settings.";
@@ -51,12 +64,14 @@ export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
   if (!prompt) return "Error: missing prompt parameter for generate_image.";
   const canOverrideSteps = userRequestedStepsOverride(ctx.userText || "");
   const canOverrideCfg = userRequestedCfgOverride(ctx.userText || "");
+  const overrideW = readDimension(args.width);
+  const overrideH = readDimension(args.height);
   try {
     if (ctx.runware.imageProvider === "openrouter") {
       const or = ctx.runware.openrouter;
       if (!or) return "Error: OpenRouter image settings are missing.";
       return await invokeOpenRouterGenerateImage(
-        { prompt },
+        { prompt, width: overrideW, height: overrideH },
         {
           apiKey: or.apiKey,
           baseUrl: or.baseUrl,
@@ -78,8 +93,8 @@ export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
             : typeof args.negativePrompt === "string"
               ? args.negativePrompt
               : undefined,
-        width: typeof args.width === "number" ? args.width : undefined,
-        height: typeof args.height === "number" ? args.height : undefined,
+        width: overrideW,
+        height: overrideH,
         steps:
           canOverrideSteps && typeof args.steps === "number"
             ? args.steps
@@ -116,6 +131,8 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
   if (!prompt) return "Error: missing prompt parameter for edit_image_runware.";
   const canOverrideSteps = userRequestedStepsOverride(ctx.userText || "");
   const canOverrideCfg = userRequestedCfgOverride(ctx.userText || "");
+  const overrideW = readDimension(args.width);
+  const overrideH = readDimension(args.height);
   const selected = resolveReferenceImageIndexes(
     args,
     ctx.userImagePaths,
@@ -150,7 +167,12 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
       const editW = ctx.runware.editDefaults?.width ?? ctx.runware.width;
       const editH = ctx.runware.editDefaults?.height ?? ctx.runware.height;
       return await invokeOpenRouterEditImage(
-        { prompt, referenceImages: refs },
+        {
+          prompt,
+          referenceImages: refs,
+          width: overrideW,
+          height: overrideH,
+        },
         {
           apiKey: or.apiKey,
           baseUrl: or.baseUrl,
@@ -174,8 +196,8 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
             : typeof args.negativePrompt === "string"
               ? args.negativePrompt
               : undefined,
-        width: typeof args.width === "number" ? args.width : undefined,
-        height: typeof args.height === "number" ? args.height : undefined,
+        width: overrideW,
+        height: overrideH,
         steps:
           canOverrideSteps && typeof args.steps === "number"
             ? args.steps

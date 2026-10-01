@@ -613,6 +613,16 @@ const GENERATE_IMAGE_TOOL: AgentToolDefinition = {
           type: 'string',
           description: 'Optional negative prompt for elements to avoid.',
         },
+        width: {
+          type: 'number',
+          description:
+            'Optional output width in pixels for THIS call only. Overrides the resolution configured in Options → Media. Values are clamped and snapped to what the selected model allows; when that changes them the result carries a size_adjusted_for_model note. Omit to use the configured resolution.',
+        },
+        height: {
+          type: 'number',
+          description:
+            'Optional output height in pixels for THIS call only. See width. Omit to use the configured resolution.',
+        },
         steps: {
           type: 'number',
           description: 'Optional number of inference steps.',
@@ -670,6 +680,16 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
         cfg_scale: {
           type: 'number',
           description: 'Optional guidance scale.',
+        },
+        width: {
+          type: 'number',
+          description:
+            'Optional output width in pixels for THIS call only. Overrides the configured edit resolution (Options → Media → edit defaults). Clamped and snapped to what the selected model allows. Omit to use the configured resolution.',
+        },
+        height: {
+          type: 'number',
+          description:
+            'Optional output height in pixels for THIS call only. See width. Omit to use the configured resolution.',
         },
         model: {
           type: 'string',

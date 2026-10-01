@@ -847,7 +847,12 @@ export async function invokeRunwareGenerateImage(
   const isGptImage2 = isGptImage2Model(model)
 
   // Resolution: model-aware clamping + step-16 snapping for all models.
-  const fitted = fitModelDimensions(model, config.width, config.height)
+  // A per-call override from the agent wins; otherwise the configured size is used.
+  const fitted = fitModelDimensions(
+    model,
+    asFiniteNumber(req.width) ?? config.width,
+    asFiniteNumber(req.height) ?? config.height,
+  )
   const width = fitted.width
   const height = fitted.height
   const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? config.steps), 1, 80)
@@ -949,7 +954,12 @@ export async function invokeRunwareEditImage(
   const editDefaultCfgScale = config.editDefaults?.cfgScale ?? config.cfgScale
   const editDefaultGptQuality = normalizeGptQuality(config.editDefaults?.gptQuality) ?? 'auto'
   // Resolution: model-aware clamping + step-16 snapping for all models.
-  const fitted = fitModelDimensions(model, editDefaultWidth, editDefaultHeight)
+  // A per-call override from the agent wins; otherwise the edit defaults are used.
+  const fitted = fitModelDimensions(
+    model,
+    asFiniteNumber(req.width) ?? editDefaultWidth,
+    asFiniteNumber(req.height) ?? editDefaultHeight,
+  )
   const width = fitted.width
   const height = fitted.height
   const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? editDefaultSteps), 1, 80)

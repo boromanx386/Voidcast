@@ -39,6 +39,8 @@ Global defaults (used unless a profile overrides):
 | `runwareCfgScale` | Guidance scale (model-dependent effect) |
 | `runwareNegativePrompt` | Optional default negative prompt |
 
+The agent may override the size for a single call by passing `width` / `height` to `generate_image` or `edit_image_runware`. Omitting them uses the configured value, so agent behaviour is unchanged unless it asks for a specific size. For editing the chain is override → edit defaults → global values. Overrides go through the same model-aware clamping as the settings, and the tool result reports a `size_adjusted_for_model` note when a requested value had to change.
+
 Configured Runware image models: **FLUX 9B** (`runware:400@6`), **Z Image Turbo** (`runware:z-image@turbo`), **GPT Image 2** (`openai:gpt-image@2`). OpenRouter presets include **Google Nano Banana 2 Lite / 2** and **OpenAI GPT Image 2**.
 
 ### Auto-save
