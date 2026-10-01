@@ -262,10 +262,15 @@ function normalizeUrl(raw: string): string {
  */
 function applyVisibility(): void {
   for (const page of pages) {
-    const paint = !shuttingDown && visibleFlag && panelSizeKnown() && page.id === activeId
+    const active = !shuttingDown && page.id === activeId
+    const paint = active && visibleFlag && panelSizeKnown()
     try {
       page.view.setBounds(paint ? panelRect : parkedRect())
-      if (typeof page.view.setVisible === 'function') page.view.setVisible(paint)
+      // The ACTIVE page stays VISIBLE even while it is parked off-screen: a hidden renderer
+      // stops requestAnimationFrame outright, so a canvas game (or any rAF-driven app)
+      // freezes the moment the panel is not painting it — while the agent keeps driving it.
+      // Only background pages are hidden for real, exactly like a background tab.
+      if (typeof page.view.setVisible === 'function') page.view.setVisible(active)
     } catch {
       /* view may already be destroyed during teardown */
     }

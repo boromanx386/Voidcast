@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { parseKeyChord } from './keys'
 
 /**
  * In-process CDP client for the Voidcast browser view.
@@ -91,22 +92,7 @@ function formatSnapshotLine(entry: CdpSnapshotNode, node: CdpMessageParams): str
   return parts.join(' ')
 }
 
-const KEY_TABLE: Record<string, { code: string; vk: number; text?: string }> = {
-  Enter: { code: 'Enter', vk: 13, text: '\r' },
-  Tab: { code: 'Tab', vk: 9 },
-  Escape: { code: 'Escape', vk: 27 },
-  Backspace: { code: 'Backspace', vk: 8 },
-  Delete: { code: 'Delete', vk: 46 },
-  ArrowDown: { code: 'ArrowDown', vk: 40 },
-  ArrowUp: { code: 'ArrowUp', vk: 38 },
-  ArrowLeft: { code: 'ArrowLeft', vk: 37 },
-  ArrowRight: { code: 'ArrowRight', vk: 39 },
-  Home: { code: 'Home', vk: 36 },
-  End: { code: 'End', vk: 35 },
-  PageUp: { code: 'PageUp', vk: 33 },
-  PageDown: { code: 'PageDown', vk: 34 },
-  Space: { code: 'Space', vk: 32, text: ' ' },
-}
+// Key specs (named keys, physical codes, shifted characters and chords) live in ./keys.
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -390,6 +376,9 @@ export class CdpSession {
 
   async clickByUid(uid: string): Promise<string> {
     const entry = this.resolveUid(uid)
+    // Focus the page first: a game drawing into a canvas usually ignores input (and refuses
+    // pointer lock) while document.hasFocus() is false.
+    await this.focusForInput()
     // Scroll into view first — coordinates of an element below the fold hit nothing.
     const { viewport } = await this.elementBox(entry.backendDOMNodeId as number, true)
     const x = viewport.x + viewport.width / 2
@@ -432,6 +421,7 @@ export class CdpSession {
    */
   async fillByUid(uid: string, text: string, submit = false): Promise<string> {
     const entry = this.resolveUid(uid)
+    await this.focusForInput()
     await this.send('DOM.focus', { backendNodeId: entry.backendDOMNodeId as number })
     await this.selectAllFocused()
     await this.send('Input.insertText', { text })
@@ -478,31 +468,128 @@ export class CdpSession {
     }
   }
 
-  async pressKey(rawKey: string): Promise<string> {
-    const known = KEY_TABLE[rawKey]
-    const single = rawKey.length === 1
-    const spec = known ?? {
-      code: single ? `Key${rawKey.toUpperCase()}` : rawKey,
-      vk: single ? rawKey.toUpperCase().charCodeAt(0) : 0,
-      text: single ? rawKey : undefined,
+  /**
+   * Install a tiny page-side observer: an animation-frame counter plus a capture-phase
+   * keydown/keyup log (plain `window.__voidcast…` state, no library hooks). It is what makes
+   * a failed key press diagnosable — it shows whether the DOM received the key at all.
+   */
+  private async primeInputProbe(): Promise<number> {
+    const js = `(() => {
+      const w = window;
+      if (typeof w.__voidcastFrames !== 'number') {
+        w.__voidcastFrames = 0;
+        const tick = () => { w.__voidcastFrames++; w.requestAnimationFrame(tick); };
+        w.requestAnimationFrame(tick);
+      }
+      if (!w.__voidcastKeys) {
+        w.__voidcastKeys = [];
+        const rec = (k) => (e) => {
+          w.__voidcastKeys.push(k + ' key=' + JSON.stringify(e.key) + ' code=' + JSON.stringify(e.code) + ' keyCode=' + e.keyCode + ' trusted=' + e.isTrusted);
+          if (w.__voidcastKeys.length > 8) w.__voidcastKeys.shift();
+        };
+        w.addEventListener('keydown', rec('down'), true);
+        w.addEventListener('keyup', rec('up'), true);
+      }
+      return w.__voidcastFrames;
+    })()`
+    try {
+      return Number(await this.evaluate(js)) || 0
+    } catch {
+      return 0
     }
+  }
+
+  /**
+   * Give the page keyboard focus before driving it. A freshly loaded page is NOT focused
+   * (`document.hasFocus() === false`) until something clicks into it, and games, editors and
+   * pointer-lock requests routinely refuse input while that is false.
+   */
+  private async focusForInput(): Promise<void> {
+    try {
+      this.wc.focus()
+    } catch {
+      /* view already gone — the dispatch below reports the real error */
+    }
+  }
+
+  /** The last key events the page actually saw (capture phase, so nothing can swallow it). */
+  private async readInputProbe(): Promise<string[]> {
+    try {
+      const raw = await this.evaluate(`JSON.stringify((window.__voidcastKeys || []).slice(-4))`)
+      const parsed: unknown = JSON.parse(String(raw))
+      return Array.isArray(parsed) ? (parsed as string[]) : []
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Press a key (or a chord such as "Control+A") and release it. The spec comes from
+   * `keys.ts`, which keeps `key` / `code` / `keyCode` consistent with a physical keyboard.
+   */
+  /**
+   * Hold the key down until the page has rendered a frame (max ~350ms).
+   *
+   * Phaser-style loops consume the "just pressed" edge in the game step and wipe it on keyup
+   * (`Key.onUp` clears `_justDown`), so a press that begins and ends between two steps is lost
+   * entirely — and a page that renders nothing (hidden, or the WEB panel is not showing it)
+   * can never see the key, however long it is held.
+   */
+  private async awaitFrame(
+    before: number,
+  ): Promise<{ frames: number; visibilityState: string; hasFocus: boolean }> {
+    const fallback = { frames: before, visibilityState: '?', hasFocus: false }
+    const js = `(() => {
+      const w = window, start = performance.now();
+      return new Promise((resolve) => {
+        const check = () => {
+          const i = { frames: w.__voidcastFrames || 0, visibilityState: document.visibilityState, hasFocus: document.hasFocus() };
+          if (i.frames > ${before} || performance.now() - start > 350) resolve(JSON.stringify(i));
+          else setTimeout(check, 8);
+        };
+        check();
+      });
+    })()`
+    try {
+      const parsed = JSON.parse(String(await this.evaluate(js))) as Partial<typeof fallback>
+      return { ...fallback, ...parsed }
+    } catch {
+      return fallback
+    }
+  }
+
+  async pressKey(rawKey: string): Promise<string> {
+    const { spec, modifiers } = parseKeyChord(rawKey)
+    const bits = modifiers | (spec.modifierBit ?? 0)
     const base = {
-      key: known ? rawKey : single ? rawKey : rawKey,
+      key: spec.key,
       code: spec.code,
       windowsVirtualKeyCode: spec.vk,
       nativeVirtualKeyCode: spec.vk,
+      ...(bits ? { modifiers: bits } : {}),
     }
+    await this.focusForInput()
+    const framesBefore = await this.primeInputProbe()
     await this.send('Input.dispatchKeyEvent', {
-      type: spec.text ? 'keyDown' : 'rawKeyDown',
+      // A printable key uses keyDown (it also produces the keypress/char event); a control
+      // key uses rawKeyDown, exactly like a physical keyboard.
+      type: spec.text !== undefined ? 'keyDown' : 'rawKeyDown',
       ...base,
-      ...(spec.text ? { text: spec.text, unmodifiedText: spec.text } : {}),
+      ...(spec.text !== undefined ? { text: spec.text, unmodifiedText: spec.text } : {}),
     })
-    await this.send('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      ...base,
-    })
-    await delay(80)
-    return `Pressed key "${rawKey}".`
+    // Release only after the page has really rendered a step: game loops consume the "just
+    // pressed" edge in their update and clear it on keyup, so a press that starts and ends
+    // between two steps is lost even though the DOM received it.
+    const held = await this.awaitFrame(framesBefore)
+    await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base })
+    const seen = await this.readInputProbe()
+    const frames = held.frames - framesBefore
+    const step =
+      frames > 0
+        ? `held across ${frames} rendered frame(s)`
+        : `the page rendered NO frame while the key was held (visibilityState="${held.visibilityState}", document.hasFocus()=${held.hasFocus}) — a paused or throttled loop can never see the press`
+    const log = seen.length ? seen.join(' | ') : 'no key events at all'
+    return `Pressed key "${rawKey}" (key="${spec.key}", code="${spec.code}", keyCode=${spec.vk}), ${step}. Page saw: ${log}.`
   }
 
   /** Frames received from the forced screencast — a liveness signal in diagnostics. */
