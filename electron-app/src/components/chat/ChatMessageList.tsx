@@ -31,6 +31,7 @@ type Props = {
     | 'commitEdit'
     | 'updateMessagePlan'
     | 'approveAndBuildPlan'
+    | 'activeAgentMode'
     | 'revisePlanWithCustomNote'
     | 'playingId'
     | 'ttsOk'
@@ -41,9 +42,9 @@ type Props = {
 }
 
 export function ChatMessageList({ app }: Props) {
-  const { settings, messages, busy, toolPhase, toolActivities } = app
+  const { settings, messages, busy, toolPhase, toolActivities, activeAgentMode } = app
   const [emptyStateSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
-  const agentMode = normalizeAgentChatMode(settings.agentMode)
+  const agentMode = normalizeAgentChatMode(activeAgentMode)
   const uiDystopian = settings.uiTheme === 'dystopian'
 
   const emptyStateMessage = useMemo(

@@ -153,6 +153,13 @@ export type ChatSession = {
   /** System prompt preset used by this chat. Missing legacy values resolve to default. */
   systemPromptPreset?: SystemPromptPreset
   /**
+   * Agent mode owned by this chat (agent / ask / plan / team).
+   * Hydration back-fills legacy sessions from `settings.agentMode`; afterwards
+   * `settings.agentMode` only seeds brand-new chats, so plan mode can never leak
+   * onto whichever chat happens to be on screen.
+   */
+  agentMode?: AgentChatMode
+  /**
    * Internal compressed memory for long chats.
    * Never rendered as a visible chat message.
    */

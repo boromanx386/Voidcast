@@ -14,7 +14,7 @@ import { useTtsPlayback } from '@/hooks/useTtsPlayback'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import { runtimeKeyForSession } from '@/lib/sessionAgentStore'
-import type { ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
+import type { AgentChatMode, ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
 import type { OptionsTab, Screen } from '@/types/voidcast'
 
 export type { OptionsTab, Screen } from '@/types/voidcast'
@@ -51,6 +51,10 @@ export function useVoidcastApp() {
   const setSessionsRef = useRef<React.Dispatch<React.SetStateAction<ChatSession[]>>>(() => {})
   const activeSessionIdRef = useRef<string | null>(null)
   const activeSystemPromptPresetRef = useRef<SystemPromptPreset>('default')
+  const activeAgentModeRef = useRef<AgentChatMode>('agent')
+  const setAgentModeForSessionRef = useRef<(sessionId: string, mode: AgentChatMode) => void>(
+    () => {},
+  )
   const busyRef = useRef(false)
   const editingMessageIdRef = useRef<string | null>(null)
   const setErrorRef = useRef<(error: string | null) => void>(() => {})
@@ -111,6 +115,9 @@ export function useVoidcastApp() {
     codingContextMemoRef: coding.codingContextMemoRef,
     codingFileCacheRef: coding.codingFileCacheRef,
     systemPromptPresetRef: activeSystemPromptPresetRef,
+    activeAgentModeRef,
+    setAgentModeForSession: (sessionId, mode) =>
+      setAgentModeForSessionRef.current(sessionId, mode),
     onContextCompressed: ({ summary, throughIndex, activeSessionId: sessionId }) => {
       if (!sessionId) return
       setSessionsRef.current((prev) => {
@@ -201,6 +208,8 @@ export function useVoidcastApp() {
   setSessionsRef.current = sessions.setSessions
   activeSessionIdRef.current = sessions.activeSessionId
   activeSystemPromptPresetRef.current = sessions.activeSystemPromptPreset
+  activeAgentModeRef.current = sessions.activeAgentMode
+  setAgentModeForSessionRef.current = sessions.setAgentModeForSession
   setSessionDirtyRef.current = sessions.setSessionDirty
   claimSessionIdRef.current = sessions.claimSessionIdForDraft
   patchSessionCodingMemoRef.current = sessions.patchSessionCodingMemo

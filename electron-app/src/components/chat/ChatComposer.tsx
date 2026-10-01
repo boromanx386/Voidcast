@@ -33,6 +33,8 @@ type Props = {
     | 'toggleSttRecording'
     | 'activeSystemPromptPreset'
     | 'setSystemPromptPresetForActiveChat'
+    | 'activeAgentMode'
+    | 'setAgentModeForActiveChat'
     | 'longMemoryBusy'
     | 'messages'
     | 'extractLongMemoryNow'
@@ -63,6 +65,8 @@ export function ChatComposer({ app }: Props) {
     toggleSttRecording,
     activeSystemPromptPreset,
     setSystemPromptPresetForActiveChat,
+    activeAgentMode,
+    setAgentModeForActiveChat,
     longMemoryBusy,
     messages,
     extractLongMemoryNow,
@@ -82,12 +86,15 @@ export function ChatComposer({ app }: Props) {
 
   const canSteer = hasPendingDraft
 
+  // The active chat owns its mode — switching chats, or a background escalation,
+  // can no longer retarget this composer.
+  const agentMode = normalizeAgentChatMode(activeAgentMode)
+
   const chatPlaceholder = useMemo(
-    () => getChatComposerPlaceholder(settings.uiTheme, settings.agentMode),
-    [settings.uiTheme, settings.agentMode],
+    () => getChatComposerPlaceholder(settings.uiTheme, agentMode),
+    [settings.uiTheme, agentMode],
   )
 
-  const agentMode = normalizeAgentChatMode(settings.agentMode)
   const [modeMenuOpen, setModeMenuOpen] = useState(false)
   const modeMenuRef = useRef<HTMLDivElement>(null)
 
@@ -141,7 +148,7 @@ export function ChatComposer({ app }: Props) {
   }
 
   const setAgentMode = (mode: AgentChatMode) => {
-    setSettings((s) => ({ ...s, agentMode: mode }))
+    setAgentModeForActiveChat(mode)
     setModeMenuOpen(false)
   }
 

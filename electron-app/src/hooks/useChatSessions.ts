@@ -48,7 +48,14 @@ import {
   sessionAgentStore,
 } from '@/lib/sessionAgentStore'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
-import type { ChatSession, FileAttachmentSnapshot, SystemPromptPreset, UiMessage } from '@/types/chat'
+import type {
+  AgentChatMode,
+  ChatSession,
+  FileAttachmentSnapshot,
+  SystemPromptPreset,
+  UiMessage,
+} from '@/types/chat'
+import { normalizeAgentChatMode } from '@/types/chat'
 
 function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
   return typeof action === 'function' ? (action as (p: T) => T)(prev) : action
@@ -147,6 +154,12 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   /** Preset applied when the next brand-new session is created (no active session yet). */
   const [pendingNewSessionPreset, setPendingNewSessionPreset] =
     useState<SystemPromptPreset>('default')
+  /**
+   * Agent mode for the next brand-new session. Set on every picker change so a fresh
+   * chat keeps the user's last choice instead of a stale global value.
+   */
+  const [pendingNewSessionAgentMode, setPendingNewSessionAgentMode] =
+    useState<AgentChatMode | null>(null)
 
   // `useChatAgent` is created before this hook, so the parent normally mirrors
   // activeSessionId to its runtime key in an effect. That effect is one render
@@ -164,6 +177,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     void (async () => {
       const state = await loadChatSessions()
       if (cancelled) return
+      const baseSettings = loadSettings()
       let sessionsMigrated = false
       const sessions = state.sessions.map((s) => {
         // Legacy/unknown system prompt preset values resolve to 'default'.
@@ -172,6 +186,11 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         if (preset !== s.systemPromptPreset) {
           sessionsMigrated = true
           next = { ...s, systemPromptPreset: preset }
+        }
+        // Give every legacy chat its own mode so it can never follow the viewed chat.
+        if (!next.agentMode) {
+          sessionsMigrated = true
+          next = { ...next, agentMode: normalizeAgentChatMode(baseSettings.agentMode) }
         }
         if (!next.hiddenContextSummary?.trim()) return next
         const through = resolveContextCompressedThroughIndex(
@@ -202,7 +221,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
           active?.messages.length ?? 0,
         ),
       )
-      const baseSettings = loadSettings()
       // Bound path only: no active / no path → General (clear settings folder).
       const projectPath = sessionCodingProjectPath(active ?? undefined)
       setSettings(mergeCodingProjectPathIntoSettings(baseSettings, projectPath))
@@ -316,6 +334,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
           updatedAt: now,
           messages,
           systemPromptPreset: pendingNewSessionPreset,
+          agentMode: pendingNewSessionAgentMode ?? normalizeAgentChatMode(settings.agentMode),
           hiddenContextSummary: nextHiddenContextSummary,
           contextCompressedThroughIndex: nextCompressedThrough,
           codingContextMemo: nextMemo,
@@ -435,6 +454,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         updatedAt: now,
         messages: [],
         systemPromptPreset: pendingNewSessionPreset,
+        agentMode: pendingNewSessionAgentMode ?? normalizeAgentChatMode(settings.agentMode),
         codingContextMemo: normalizeCodingContextMemo(codingContextMemo, projectPath),
         codingProjectPath: projectPath || undefined,
         imageVisionCache: normalizeImageVisionCache(imageVisionCache),
@@ -586,6 +606,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       updatedAt: now,
       messages: sourceMessages,
       systemPromptPreset: session.systemPromptPreset,
+      agentMode: session.agentMode ?? normalizeAgentChatMode(settings.agentMode),
       hiddenContextSummary: session.hiddenContextSummary,
       contextCompressedThroughIndex: session.contextCompressedThroughIndex,
       codingContextMemo: session.codingContextMemo,
@@ -681,6 +702,42 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     ? sessions.find((s) => s.id === activeSessionId)?.systemPromptPreset ?? 'default'
     : pendingNewSessionPreset
 
+  /**
+   * Agent mode of the chat on screen. The session owns the value; `settings.agentMode`
+   * only seeds brand-new chats (and chats hydration has not back-filled yet).
+   */
+  const activeAgentMode: AgentChatMode = activeSessionId
+    ? normalizeAgentChatMode(
+        sessions.find((s) => s.id === activeSessionId)?.agentMode ?? settings.agentMode,
+      )
+    : pendingNewSessionAgentMode ?? normalizeAgentChatMode(settings.agentMode)
+
+  /**
+   * Write agent mode onto one chat by id. Safe for background chats: the session is the
+   * source of truth, so a plan escalation in chat A can never retarget the viewed chat.
+   */
+  const setAgentModeForSession = useCallback(
+    (sessionId: string, mode: AgentChatMode) => {
+      setSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === sessionId)
+        if (idx < 0) return prev
+        const current = prev[idx]
+        if (current.agentMode === mode) return prev
+        const next = [...prev]
+        next[idx] = { ...current, agentMode: mode }
+        return next
+      })
+    },
+    [],
+  )
+
+  /** Per-chat agent mode picker: applies from the next message, like the preset picker. */
+  const setAgentModeForActiveChat = (mode: AgentChatMode) => {
+    setPendingNewSessionAgentMode(mode)
+    if (!activeSessionId) return
+    setAgentModeForSession(activeSessionId, mode)
+  }
+
   const saveOrUpdateSession = () => {
     if (messages.length === 0) return
     const now = Date.now()
@@ -698,6 +755,10 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       updatedAt: now,
       messages,
       systemPromptPreset: existing?.systemPromptPreset ?? pendingNewSessionPreset,
+      agentMode:
+        existing?.agentMode ??
+        pendingNewSessionAgentMode ??
+        normalizeAgentChatMode(settings.agentMode),
       hiddenContextSummary: hiddenContextSummary.trim() || undefined,
       contextCompressedThroughIndex: hiddenContextSummary.trim()
         ? contextCompressedThroughIndex
@@ -824,6 +885,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setUseLongMemoryForActiveChat,
     activeSystemPromptPreset,
     setSystemPromptPresetForActiveChat,
+    activeAgentMode,
+    setAgentModeForActiveChat,
+    setAgentModeForSession,
     claimSessionIdForDraft,
     patchSessionCodingMemo,
   }

@@ -122,6 +122,8 @@ export type UseChatAgentDeps = {
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
   /** Live per-chat preset — read at send time so the current session wins. */
   systemPromptPresetRef: MutableRefObject<SystemPromptPreset>
+  /** Live per-chat agent mode — read at send time so the sender's chat wins. */
+  activeAgentModeRef: MutableRefObject<AgentChatMode>
   onContextCompressed?: (params: {
     summary: string
     throughIndex: number
@@ -140,6 +142,11 @@ export type UseChatAgentDeps = {
    * the first message turns into a mid-run draft → id transition race.
    */
   claimSessionIdForDraft?: () => string | null
+  /**
+   * Persist agent mode onto the chat that owns a run (background runs included).
+   * The session owns the mode; the viewed chat's composer only mirrors it.
+   */
+  setAgentModeForSession?: (sessionId: string, mode: AgentChatMode) => void
 
   pendingImages: PendingChatImage[]
   setPendingImages: Dispatch<SetStateAction<PendingChatImage[]>>
@@ -193,6 +200,14 @@ export type OnSendOptions = {
    * Caller must abort the active run first (`onSteer` / `onStop`) so `busy` is clear.
    */
   steer?: boolean
+  /**
+   * Bind this turn to an exact session runtime key instead of re-deriving it
+   * from the currently viewed chat (`claimSessionIdForDraft` returns the *active*
+   * session, which is not necessarily the one this turn belongs to).
+   * Required for the internal plan-mode escalation, which re-enters `onSend`
+   * while the escalating chat may be in the background.
+   */
+  sessionKey?: string
 }
 
 function lastUserMessage(history: UiMessage[]): UiMessage | undefined {
@@ -249,9 +264,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     codingContextMemoRef,
     codingFileCacheRef,
     systemPromptPresetRef,
+    activeAgentModeRef,
     onContextCompressed,
     patchSessionCodingMemo,
     claimSessionIdForDraft,
+    setAgentModeForSession,
     pendingImages,
     setPendingImages,
     pendingFiles,
@@ -553,12 +570,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
   const onSend = useCallback(
     async (opts?: OnSendOptions) => {
-      // Prefer a real session id before the turn so stream/bind never races rekey.
-      const claimedId = claimSessionIdForDraft?.()
+      // An explicit owner key (internal re-entry, e.g. plan escalation) wins.
+      // Otherwise: prefer a real session id before the turn so stream/bind never
+      // race rekey — but note `claimSessionIdForDraft` returns the *viewed* chat,
+      // so it must never be used to re-route a run that started elsewhere.
+      const explicitKey = opts?.sessionKey?.trim() ?? ''
+      const claimedId = explicitKey ? null : claimSessionIdForDraft?.()
       const startKey =
-        claimedId && claimedId.trim()
-          ? claimedId
-          : runtimeKey
+        explicitKey ||
+        (claimedId && claimedId.trim() ? claimedId : runtimeKey)
 
       const bind: SessionAgentKeyHandle = sessionAgentStore.createKeyHandle(startKey)
       if (claimedId && runtimeKey === DRAFT_RUNTIME_KEY) {
@@ -682,7 +702,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         opts?.forceAgentMode === 'agent' ||
         opts?.forceAgentMode === 'team'
           ? opts.forceAgentMode
-          : normalizeAgentChatMode(settings.agentMode)
+          : normalizeAgentChatMode(activeAgentModeRef.current ?? settings.agentMode)
 
       // Freeze coding root + agent mode for the whole turn so a session switch
       // (which mutates global settings) cannot retarget live tool calls.
@@ -697,9 +717,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         },
       }
 
-      // Only touch global agentMode UI when this chat is (or will stay) visible.
-      const applyGlobalAgentMode = (mode: AgentChatMode) => {
-        if (!isViewingThisRun()) return
+      // Persist the mode on the chat that owns this run — background runs included —
+      // so a plan escalation in chat A can never retarget the chat on screen.
+      const applySessionAgentMode = (mode: AgentChatMode) => {
+        const sid = sessionIdFromRuntimeKey(keyOf())
+        if (sid && setAgentModeForSession) {
+          setAgentModeForSession(sid, mode)
+          return
+        }
         setSettings((s) => (s.agentMode === mode ? s : { ...s, agentMode: mode }))
       }
 
@@ -1270,7 +1295,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 : m,
             ),
           )
-          applyGlobalAgentMode('agent')
+          applySessionAgentMode('agent')
         }
 
         const usageInfo = estimateContextUsage(usage, resolveContextLimit(turnSettings))
@@ -1372,7 +1397,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         sessionAgentStore.getSnapshot(keyOf()).runId === runId && !ac.signal.aborted
 
       if (escalatedToPlan && runStillOwnsSlot) {
-        applyGlobalAgentMode('plan')
+        applySessionAgentMode('plan')
         const handoffHistory = isEdit
           ? activeHistory.filter((m) => m.id !== asstId)
           : userMsg
@@ -1418,6 +1443,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           skipAddUserMsg: true,
           history: handoffHistory,
           planHandoff: true,
+          // Stay on the chat that escalated, even if another chat is being
+          // viewed right now. `keyOf()` still resolves after releaseKeyHandle
+          // (it only drops the handle from the registry). Without this the
+          // nested onSend re-claimed the viewed chat's id and the whole Plan
+          // turn (draft, plan card, messages) landed in the wrong session.
+          sessionKey: keyOf(),
           planHandoffContext: handoffContext || undefined,
           planHandoffUiDraft,
         })
@@ -1559,7 +1590,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       )
       onSessionDirty()
       // Respect composer mode: Team stays Team (workers available). Plan alone → Agent for writes.
-      const composerMode = normalizeAgentChatMode(settings.agentMode)
+      const composerMode = normalizeAgentChatMode(activeAgentModeRef.current ?? settings.agentMode)
       const buildMode: AgentChatMode = composerMode === 'team' ? 'team' : 'agent'
       const teamWorkers =
         buildMode === 'team' &&
