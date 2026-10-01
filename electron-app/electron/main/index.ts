@@ -344,6 +344,7 @@ function captureSpawnCommand(params: {
   command: string
   args: string[]
   cwd?: string
+  env?: NodeJS.ProcessEnv
   timeoutMs: number
   timeoutLabel?: string
   notFoundMessage?: string
@@ -353,13 +354,14 @@ function captureSpawnCommand(params: {
     command,
     args,
     cwd,
+    env,
     timeoutMs,
     timeoutLabel = command,
     notFoundMessage,
     trimOutput = true,
   } = params
   return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd, shell: false, windowsHide: true })
+    const child = spawn(command, args, { cwd, env, shell: false, windowsHide: true })
     let stdout = ''
     let stderr = ''
     let settled = false
@@ -2471,14 +2473,27 @@ ipcMain.handle(
 
 const TYPECHECK_COMMAND_TIMEOUT_MS = 120_000
 
-function resolveTscCommand(cwd: string): { command: string; args: string[] } | null {
+/**
+ * Electron only runs a script through `process.execPath` when it is told to behave like
+ * plain node. In a packaged build `process.execPath` is Voidcast.exe, which otherwise
+ * boots the app itself: the second instance fails `requestSingleInstanceLock()`, calls
+ * `process.exit(0)` and prints nothing — which the typecheck report read as "no errors".
+ */
+const NODE_SCRIPT_ENV: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+
+function resolveTscCommand(
+  cwd: string,
+): { command: string; args: string[]; env?: NodeJS.ProcessEnv } | null {
+  const tscArgs = ['--noEmit', '--pretty', 'false']
   const tscJs = path.join(cwd, 'node_modules', 'typescript', 'bin', 'tsc')
   if (existsSync(tscJs)) {
-    return { command: process.execPath, args: [tscJs, '--noEmit', '--pretty', 'false'] }
+    return { command: process.execPath, args: [tscJs, ...tscArgs], env: NODE_SCRIPT_ENV }
   }
-  const localBin = path.join(cwd, 'node_modules', '.bin', process.platform === 'win32' ? 'tsc.cmd' : 'tsc')
-  if (existsSync(localBin)) {
-    return { command: localBin, args: ['--noEmit', '--pretty', 'false'] }
+  // `node_modules/.bin/tsc.cmd` cannot be spawned with shell:false (EINVAL on Node 20+),
+  // so fall back to the real entry point rather than the shim.
+  const tscLib = path.join(cwd, 'node_modules', 'typescript', 'lib', 'tsc.js')
+  if (existsSync(tscLib)) {
+    return { command: process.execPath, args: [tscLib, ...tscArgs], env: NODE_SCRIPT_ENV }
   }
   return null
 }
@@ -2591,6 +2606,7 @@ ipcMain.handle(
           command: tsc.command,
           args: tsc.args,
           cwd: checkCwd,
+          env: tsc.env,
           timeoutMs: TYPECHECK_COMMAND_TIMEOUT_MS,
           timeoutLabel: 'Typecheck',
           notFoundMessage: 'TypeScript compiler (tsc) not found.',
