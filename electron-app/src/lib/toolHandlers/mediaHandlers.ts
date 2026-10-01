@@ -13,6 +13,7 @@ import {
   formatSubAgentResultsForAgent,
 } from "@/lib/subAgent";
 import { resolveImageRecallRequest } from "@/lib/toolHandlers/imageRecall";
+import { loadProjectImageRecalls } from "@/lib/imageProjectRecall";
 import {
   parseImageIds,
   parseImageIndexes,
@@ -139,7 +140,14 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
     ctx.userImages,
   );
   const indexes = selected.indexes;
-  if (!indexes.length) {
+  // Project images are read from disk by image_recall, so they never enter the
+  // session catalog. Resolve those paths here the same way image_recall does.
+  const projectRoot = (ctx.codingProjectPath || "").trim();
+  const canReadProjectPaths =
+    !!ctx.toolsEnabled.coding &&
+    !!projectRoot &&
+    selected.missingPaths.length > 0;
+  if (!indexes.length && !canReadProjectPaths) {
     const unknown = selected.missingIds.length
       ? ` Unknown ids: ${selected.missingIds.join(" | ")}.`
       : "";
@@ -148,6 +156,17 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
   const refs = indexes
     .map((i) => pickImageByOneBasedIndex(ctx.userImages, ctx.userImageMimes, i))
     .filter((x): x is string => typeof x === "string" && x.length > 0);
+  const projectErrors: string[] = [];
+  if (canReadProjectPaths) {
+    const project = await loadProjectImageRecalls(
+      projectRoot,
+      selected.missingPaths,
+    );
+    for (const img of project.recalled) {
+      refs.push(`data:${img.mime};base64,${img.base64}`);
+    }
+    for (const err of project.errors) projectErrors.push(err);
+  }
   if (!refs.length) {
     const max = ctx.userImages?.length ?? 0;
     const missing = [
@@ -157,6 +176,7 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
       selected.missingIds.length
         ? ` Unknown ids: ${selected.missingIds.join(" | ")}.`
         : "",
+      projectErrors.length ? ` ${projectErrors.join(" ")}` : "",
     ].join("");
     return `Error: no valid reference images resolved from provided ids/indexes/paths. Available image count: ${max}.${missing}`;
   }

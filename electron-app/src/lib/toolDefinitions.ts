@@ -667,7 +667,7 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
         reference_image_paths: {
           type: 'string',
           description:
-            'Optional absolute image path(s) from chat history (single path or comma/newline-separated list). Use when user references image by path/name from history.',
+            'Optional image path(s) - a single path or a comma/newline-separated list. Accepts images attached earlier in the chat AND image files inside the coding project folder (absolute paths, or paths relative to the project root; PNG/JPEG/WebP/GIF/BMP, max 8 MB each). Use when the user references an image by any path or filename, including project assets.',
         },
         negative_prompt: {
           type: 'string',
