@@ -26,6 +26,66 @@ function stripUrlsFromMessages(
   }
 }
 
+/**
+ * Fallback text when an ephemeral image payload is dropped and no per-image
+ * digest is available.
+ */
+export const RECALLED_IMAGE_PLACEHOLDER =
+  '[Recalled image payload was shown in an earlier round. Call image_recall again if you need to look at the image.]'
+
+/** Header for the digest block that replaces dropped image pixels. */
+export const RECALLED_IMAGE_DIGEST_HEADER =
+  '[Raw image pixels were dropped from this turn to save context. What you looked at:]'
+
+/** Carried by the raw recalled-image payload itself (agents append it). */
+export const RECALLED_IMAGE_ROUND_MESSAGE =
+  'Recalled image payload for this round — inspect the attached image(s) and continue. Call image_recall again if you need another look later.'
+
+/** A recalled image pushed into the conversation for one round. */
+export type RecalledImagePayload = {
+  base64: string
+  mime: string
+  /** One-line digest left in place once the pixels are dropped. */
+  digest?: string
+}
+
+/**
+ * Remove raw image bytes from a recalled-image message IN PLACE, leaving a text
+ * digest (preferred) or a generic placeholder. Handles both provider shapes:
+ *   - Ollama: `content: string` + `images: string[]`
+ *   - OpenRouter: `content: [{type:'text'},{type:'image_url'}]`
+ * Message count and positions are preserved, so index bookkeeping
+ * (toolResultRecords) stays valid.
+ */
+function stripRecalledImagePayload(
+  msg: {
+    content?: unknown
+    images?: unknown[]
+  },
+  replacement?: string,
+): boolean {
+  const text = replacement?.trim() || RECALLED_IMAGE_PLACEHOLDER
+  const hasImageField = Array.isArray(msg.images) && msg.images.length > 0
+  const parts = Array.isArray(msg.content)
+    ? (msg.content as Array<{ type?: string; text?: string }>)
+    : null
+  const hasImageParts = parts?.some((p) => p?.type === 'image_url') ?? false
+  if (!hasImageField && !hasImageParts) return false
+
+  if (hasImageField) msg.images = []
+
+  if (parts && hasImageParts) {
+    const kept = parts.filter((p) => p?.type !== 'image_url')
+    const textPart = kept.find((p) => p?.type === 'text')
+    if (textPart) textPart.text = text
+    else kept.unshift({ type: 'text', text })
+    msg.content = kept
+  } else if (hasImageField) {
+    msg.content = text
+  }
+  return true
+}
+
 export type SharedToolCall = {
   name: string
   argsRaw: string | Record<string, unknown> | undefined
@@ -99,13 +159,22 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   guardRepoActionTruth?: boolean
   appendRuntimeRecalledImages?: (
     messages: TMessage[],
-    recalled: Array<{ base64: string; mime: string }>,
+    recalled: RecalledImagePayload[],
   ) => void
   collectRecalledImages?: (ctx: {
     name: string
     argsRaw: string | Record<string, unknown> | undefined
     result: string
-  }) => Array<{ base64: string; mime: string }> | Promise<Array<{ base64: string; mime: string }>>
+  }) => RecalledImagePayload[] | Promise<RecalledImagePayload[]>
+  /**
+   * How many streamRound calls may carry the raw recalled-image base64 payload.
+   * 1 (default) = ephemeral: the model sees the image in the round right after
+   * image_recall, then the bytes are replaced by the digest carried on
+   * {@link RecalledImagePayload.digest} (or a generic placeholder).
+   * 0 = never inject raw bytes (text-only recall). < 0 = legacy (bytes stay for
+   * the whole turn).
+   */
+  keepRecalledImageRounds?: number
   onNoToolCalls?: (ctx: {
     round: number
     messages: TMessage[]
@@ -206,7 +275,7 @@ export async function runSharedToolLoop<
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const parseArgs = params.parseArgsForToolResult ?? defaultParseArgs
   const messages = [...params.initialMessages]
-  const runtimeRecalledImages: Array<{ base64: string; mime: string }> = []
+  const runtimeRecalledImages: RecalledImagePayload[] = []
   let lastAssistantText = ''
   let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
@@ -227,6 +296,16 @@ export async function runSharedToolLoop<
   const maxFalseCodingClaimReprompts = params.maxFalseCodingClaimReprompts ?? 2
   /** Tool-result message positions per round, for old-result clearing. */
   const toolResultRecords: Array<{ index: number; round: number; name: string; cleared: boolean }> = []
+  /** Recalled-image message positions per round, for ephemeral image payloads. */
+  const recalledImageRecords: Array<{
+    index: number
+    round: number
+    cleared: boolean
+    /** Digest block left in place once the raw pixels are dropped. */
+    digest?: string
+  }> = []
+  /** How many streamRound calls may carry raw recalled-image base64 (1 = ephemeral). */
+  const keepRecalledImageRounds = params.keepRecalledImageRounds ?? 1
 
   for (let round = 0; round < params.maxToolRounds; round++) {
     if (params.signal?.aborted) throw abortedError()
@@ -261,6 +340,22 @@ export async function runSharedToolLoop<
         if (!msg || typeof msg.content !== 'string') continue
         if (msg.content.length < clearing.minChars) continue
         msg.content = clearing.placeholder(rec.name, msg.content.length, msg.content)
+        rec.cleared = true
+      }
+    }
+
+    // Ephemeral recalled-image payloads. Raw base64 must reach the model once so it
+    // can actually see the image, but re-sending it on every later round is what
+    // inflates the context. The payload was pushed at the END of round N, so round
+    // N+1 is the first request that carries it; strip before round N+2.
+    if (keepRecalledImageRounds >= 0 && round > 0) {
+      for (const rec of recalledImageRecords) {
+        if (rec.cleared) continue
+        if (round - rec.round <= keepRecalledImageRounds) continue
+        const msg = messages[rec.index] as
+          | { content?: unknown; images?: unknown[] }
+          | undefined
+        if (msg) stripRecalledImagePayload(msg, rec.digest)
         rec.cleared = true
       }
     }
@@ -613,7 +708,25 @@ export async function runSharedToolLoop<
 
     if (runtimeRecalledImages.length > 0 && params.appendRuntimeRecalledImages) {
       const consumed = runtimeRecalledImages.splice(0, runtimeRecalledImages.length)
-      params.appendRuntimeRecalledImages(messages, consumed)
+      // keepRecalledImageRounds === 0 → never inject raw bytes (recall stays text-only).
+      if (keepRecalledImageRounds !== 0) {
+        // Digest left behind once the pixels are dropped, so later rounds still know
+        // *what* was looked at (see RecalledImagePayload.digest).
+        const digestLines = consumed
+          .map((img) => img.digest?.trim())
+          .filter((line): line is string => !!line)
+        const digestBlock =
+          digestLines.length > 0
+            ? [RECALLED_IMAGE_DIGEST_HEADER, ...digestLines].join('\n')
+            : RECALLED_IMAGE_PLACEHOLDER
+        const beforeImagePushLen = messages.length
+        params.appendRuntimeRecalledImages(messages, consumed)
+        if (keepRecalledImageRounds > 0) {
+          for (let i = beforeImagePushLen; i < messages.length; i++) {
+            recalledImageRecords.push({ index: i, round, cleared: false, digest: digestBlock })
+          }
+        }
+      }
     }
 
     params.onToolPhase?.(null)

@@ -24,7 +24,8 @@ import {
 } from '@/lib/openrouter'
 import { executeToolCall, resolveImageRecallRequest } from '@/lib/agentToolExecutor'
 import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
-import { runSharedToolLoop } from '@/lib/agentToolLoop'
+import { RECALLED_IMAGE_ROUND_MESSAGE, runSharedToolLoop } from '@/lib/agentToolLoop'
+import { buildRecalledImageDigestLine } from '@/lib/imageVisionCache'
 import {
   FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
   FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
@@ -223,7 +224,7 @@ export async function runOpenRouterChatWithTools(
       messages.push({
         role: 'user',
         content: [
-          { type: 'text', text: 'Image recall payload for current turn.' },
+          { type: 'text', text: RECALLED_IMAGE_ROUND_MESSAGE },
           ...recalled.map((x) => ({ type: 'image_url' as const, image_url: { url: toDataImageUri(x.base64, x.mime) } })),
         ],
       })
@@ -246,7 +247,16 @@ export async function runOpenRouterChatWithTools(
         },
         { codingEnabled: params.toolsEnabled.coding },
       )
-      return recall.recalled.map((img) => ({ base64: img.base64, mime: img.mime }))
+      const focusValue = (argsObj as { focus?: unknown } | undefined)?.focus
+      const focus = typeof focusValue === 'string' ? focusValue : undefined
+      const visionCache = params.imageVisionCache ?? {}
+      // Digest is computed while the path/focus are still known, and travels with the
+      // payload so the loop can leave it behind when the pixels are stripped.
+      return recall.recalled.map((img) => ({
+        base64: img.base64,
+        mime: img.mime,
+        digest: buildRecalledImageDigestLine(img, visionCache, focus),
+      }))
     },
     executeToolCall: (name, argsRaw) =>
       executeToolCall(

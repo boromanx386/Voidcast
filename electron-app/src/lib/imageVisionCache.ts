@@ -60,6 +60,34 @@ export function lookupVisionCacheDescription(
   return desc || undefined
 }
 
+/** Last path segment (either separator); '' when there is no path. */
+function baseName(path: string | undefined): string {
+  const p = (path || '').trim()
+  if (!p) return ''
+  const parts = p.split(/[\\/]/)
+  return parts[parts.length - 1] || ''
+}
+
+/**
+ * One-line digest for a recalled image whose raw bytes are about to leave the
+ * context. Keeps the stable catalog id plus any cached vision description, so the
+ * model still knows *what* it looked at after the pixels are dropped — and how to
+ * get another look (image_recall again, which is served from this same cache).
+ */
+export function buildRecalledImageDigestLine(
+  item: { path?: string; base64: string; mime?: string },
+  cache: ImageVisionCache,
+  focus?: string,
+): string {
+  const id = imageCatalogId(item)
+  const label = baseName(item.path)
+  const head = label ? `${id} (${label})` : id
+  const desc = lookupVisionCacheDescription(item, cache, focus)
+  return desc
+    ? `- ${head}: ${desc}`
+    : `- ${head}: no cached analysis — call image_recall again if you need another look.`
+}
+
 export function normalizeImageVisionCache(raw: unknown): ImageVisionCache {
   if (!raw || typeof raw !== 'object') return {}
   const out: ImageVisionCache = {}
