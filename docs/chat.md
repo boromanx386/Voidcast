@@ -27,13 +27,14 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
 - **Cap: 3** concurrent runs (`MAX_CONCURRENT_AGENT_RUNS`). Extra start → error until another finishes or Stop.
 - Coding isolation: frozen project path, shell owner by runtime key, terminal feed per chat; same-project double-run can be refused.
 - Switch sessions freely while A runs; B can send. Background finish may mark DONE-style unread until opened.
+- Plan escalation binds to the session that owns the run, not the one on screen, so a background chat's plan handoff (card + draft) can never land in the viewed chat.
 - Draft auto-save can rekey `__draft__` → real session id mid-run.
 - Composer can take a draft while busy; **steer** mid-turn aborts and resends with correction (separate from Stop).
 
 ## Composer (ChatComposer.tsx)
 
 - Multiline textarea with send/stop, image & file chips, STT record, mode and preset menus. Send enabled with non-empty input or pending attachments and not busy; "pending draft" shown while busy.
-- **Agent mode toggle**: cycles `Agent → Team → Plan` (`MODE_CYCLE = ['agent','team','plan']`, also `Shift+Tab`). `AgentChatMode = 'agent' | 'plan' | 'team'` in `electron-app/src/types/chat.ts`; normalized by `normalizeAgentChatMode`.
+- **Agent mode toggle**: cycles `Agent → Ask → Plan → Team` (`MODE_CYCLE = ['agent','ask','plan','team']` in ChatComposer.tsx, also `Shift+Tab`). `AgentChatMode = 'agent' | 'ask' | 'plan' | 'team'` in `electron-app/src/types/chat.ts`; normalized by `normalizeAgentChatMode`. The mode is **per chat** (`ChatSession.agentMode`; `settings.agentMode` only seeds new chats), so a chat running in the background cannot change the mode shown on this one.
   - **Agent** — full tool implementation; coding workers optional if SUB coding is on.
   - **Ask** — read-only Q&A (web/research/coding read/explore); no Plan card, no `enter_plan_mode`, no mutations/workers.
   - **Plan** — read-only; plan artifact + Approve & Build → **Agent** (or **Team** if composer already Team).

@@ -8,9 +8,15 @@ All notable changes to this project will be documented in this file.
 
 - **Runware music: ACE-Step v1.5 XL presets**: three new 4B DiT variants join the existing Turbo/Base presets — `runware:ace-step@v1.5-xl-turbo` (8-step distilled, steps capped at 20), `runware:ace-step@v1.5-xl-base` (50-step CFG, up to 300 steps) and `runware:ace-step@v1.5-xl-sft` (flagship quality, up to 300 steps). Each keeps its own profile (steps, CFG, duration, format, seed); the XL presets start from docs defaults rather than the legacy turbo-shaped settings.
 
+### Changed
+
+- **Agent mode is now per chat**: the composer mode (**Agent → Ask → Plan → Team**) belongs to each chat instead of the window, so a chat running in the background can no longer change the mode shown by the chat you are looking at. `settings.agentMode` is now only the seed for new chats, and existing chats are back-filled with their own mode on load.
+
 ### Fixed
 
+- **Plan mode no longer switches the wrong chat**: entering Plan from a background chat used to re-bind the handoff turn to whatever session was on screen, so the plan card, the handoff draft and the follow-up messages landed in the viewed chat instead of the one that started the run. The escalation now binds to the chat that owns the run, so an escalated background chat keeps its Plan state and the chat you are viewing is left untouched.
 - **App no longer jumps to the front while the agent writes files**: the background-safe focus guards in the coding panel and the file-preview find bar now read the real window state (`win.isFocused()` / `win.isMinimized()` over a new `voidcast:window-focus-state` IPC) instead of `document.hasFocus()`, which stays `true` for a minimized window. A minimized or backgrounded app now stays where it is when the agent edits or writes a file.
+- **`check_types` no longer reports a clean typecheck in packaged builds**: `resolveTscCommand` spawned `process.execPath` directly, which in an installed build is `Voidcast.exe`, not node. Packaged Electron ignores the script argument, so the child booted Voidcast itself, hit the single-instance lock and exited `0` with no output — which the report read as “no errors”, hiding real type errors. tsc now runs with `ELECTRON_RUN_AS_NODE=1`, and the `node_modules/.bin/tsc.cmd` fallback (unspawnable with `shell: false` on Node 20+) was replaced with the real `lib/tsc.js` entry point.
 
 ## [2.9.1] — 2026-09-27
 
