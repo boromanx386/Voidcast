@@ -25,14 +25,7 @@ import {
 import { executeToolCall, resolveImageRecallRequest } from '@/lib/agentToolExecutor'
 import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
 import { RECALLED_IMAGE_ROUND_MESSAGE, runSharedToolLoop } from '@/lib/agentToolLoop'
-import {
-  buildRecalledImageDigestLine,
-  cacheEntriesFromDescribeResults,
-  mergeImageVisionCache,
-} from '@/lib/imageVisionCache'
-import { describeImagesWithSubAgent } from '@/lib/subAgent'
-import { subAgentConfigForRole } from '@/lib/settings'
-import { subAgentKeysFromParams } from '@/lib/agentParams'
+import { buildRecalledImageDigestLine } from '@/lib/imageVisionCache'
 import {
   FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
   FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
@@ -262,47 +255,8 @@ export async function runOpenRouterChatWithTools(
       return recall.recalled.map((img) => ({
         base64: img.base64,
         mime: img.mime,
-        path: img.path,
-        focus,
         digest: buildRecalledImageDigestLine(img, visionCache, focus),
       }))
-    },
-    /**
-     * Called by the loop right before the pixels are dropped, so the digest that
-     * replaces them carries a real description instead of "no cached analysis".
-     * Uses the sub-agent vision model even when `subAgent.enabled` is false — that
-     * flag only chooses WHO looks at the image, not whether it may be described.
-     * Cached descriptions make this run at most once per image+focus.
-     */
-    describeRecalledImages: async (payloads) => {
-      const sub = params.subAgent
-      if (!sub || !(sub.model || '').trim()) return []
-      const focus = payloads[0]?.focus
-      const cache = params.imageVisionCache ?? {}
-      const images = payloads.map((img, index) => ({
-        base64: img.base64,
-        mime: img.mime,
-        path: img.path,
-        index,
-      }))
-      const results = await describeImagesWithSubAgent(
-        images,
-        subAgentConfigForRole(sub, 'vision'),
-        subAgentKeysFromParams(params),
-        params.rawUserText,
-        params.signal,
-        params.subAgentUi,
-        cache,
-        focus,
-      )
-      const newEntries = cacheEntriesFromDescribeResults(images, results, focus)
-      if (Object.keys(newEntries).length > 0) {
-        params.onImageVisionCacheUpdate?.(newEntries)
-      }
-      const merged = mergeImageVisionCache(cache, newEntries)
-      return payloads.map((img) =>
-        buildRecalledImageDigestLine(img, merged, img.focus ?? focus),
-      )
     },
     executeToolCall: (name, argsRaw) =>
       executeToolCall(

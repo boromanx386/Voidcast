@@ -45,10 +45,6 @@ export const RECALLED_IMAGE_ROUND_MESSAGE =
 export type RecalledImagePayload = {
   base64: string
   mime: string
-  /** Catalog path, when the image came from disk (project file or attachment). */
-  path?: string
-  /** Vision focus from the image_recall args — part of the description cache key. */
-  focus?: string
   /** One-line digest left in place once the pixels are dropped. */
   digest?: string
 }
@@ -212,15 +208,6 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     placeholder: (name: string, chars: number, content: string) => string
   }
   parseArgsForToolResult?: (raw: string | Record<string, unknown> | undefined) => Record<string, unknown>
-  /**
-   * Called at strip time, just before raw recalled-image bytes leave the context,
-   * with the payloads that carried them. Should return one digest line per input
-   * (see `buildRecalledImageDigestLine`). Cached descriptions make repeat calls
-   * free, so a second strip of the same image does no work.
-   */
-  describeRecalledImages?: (
-    payloads: RecalledImagePayload[],
-  ) => Promise<string[]> | string[]
   onDelta: (fullText: string) => void
   onThinkingDelta?: (fullThinking: string) => void
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
@@ -316,8 +303,6 @@ export async function runSharedToolLoop<
     cleared: boolean
     /** Digest block left in place once the raw pixels are dropped. */
     digest?: string
-    /** Payloads this message carries, so the digest can be filled before the strip. */
-    payloads: RecalledImagePayload[]
   }> = []
   /** How many streamRound calls may carry raw recalled-image base64 (1 = ephemeral). */
   const keepRecalledImageRounds = params.keepRecalledImageRounds ?? 1
@@ -367,21 +352,6 @@ export async function runSharedToolLoop<
       for (const rec of recalledImageRecords) {
         if (rec.cleared) continue
         if (round - rec.round <= keepRecalledImageRounds) continue
-        // Give the digest real content before the pixels go. Best effort: if the
-        // describer is unavailable or fails, the metadata digest stands.
-        if (params.describeRecalledImages && rec.payloads.length > 0) {
-          try {
-            const lines = await params.describeRecalledImages(rec.payloads)
-            const cleaned = (lines || [])
-              .map((line) => (line || '').trim())
-              .filter((line) => line.length > 0)
-            if (cleaned.length > 0) {
-              rec.digest = [RECALLED_IMAGE_DIGEST_HEADER, ...cleaned].join('\n')
-            }
-          } catch {
-            // keep the digest built at push time
-          }
-        }
         const msg = messages[rec.index] as
           | { content?: unknown; images?: unknown[] }
           | undefined
@@ -753,13 +723,7 @@ export async function runSharedToolLoop<
         params.appendRuntimeRecalledImages(messages, consumed)
         if (keepRecalledImageRounds > 0) {
           for (let i = beforeImagePushLen; i < messages.length; i++) {
-            recalledImageRecords.push({
-              index: i,
-              round,
-              cleared: false,
-              digest: digestBlock,
-              payloads: consumed,
-            })
+            recalledImageRecords.push({ index: i, round, cleared: false, digest: digestBlock })
           }
         }
       }
