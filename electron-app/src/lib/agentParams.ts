@@ -3,7 +3,7 @@ import type { McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { RunwareImageConfig } from '@/lib/runware'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
-import type { SubAgentUiCallbacks } from '@/lib/subAgent'
+import type { SubAgentKeys, SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { OllamaApiMessage, OllamaModelOptions } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import type { AgentTtsConfig, ExecCtx } from '@/lib/toolExecTypes'
@@ -85,6 +85,32 @@ export type { AgentTtsConfig, TtsProvider, VoiceMode, StoredVoiceAnchor }
  * Used by both ollamaAgent and openrouterAgent to avoid duplicating
  * the mapping into executeToolCall's ctx argument.
  */
+/**
+ * Sub-agent endpoints/keys derived from the frozen turn params. Shared by
+ * buildToolExecutorOptions and the strip-time image describer so both reach the
+ * same backends.
+ */
+export function subAgentKeysFromParams(
+  params: ChatWithToolsCommonParams,
+): SubAgentKeys {
+  return {
+    ollamaBaseUrl: params.ollamaBaseUrlForSubAgent || 'http://localhost:11434',
+    openrouterBaseUrl:
+      params.openrouterBaseUrlForSubAgent || 'https://openrouter.ai/api/v1',
+    openrouterApiKey: params.openrouterApiKeyForSubAgent || '',
+    deepseekBaseUrl: params.deepseekBaseUrlForSubAgent || 'https://api.deepseek.com',
+    deepseekApiKey: params.deepseekApiKeyForSubAgent || '',
+    openaiBaseUrl: params.openaiBaseUrlForSubAgent || 'https://api.openai.com/v1',
+    openaiApiKey: params.openaiApiKeyForSubAgent || '',
+    nvidiaBaseUrl:
+      params.nvidiaBaseUrlForSubAgent || 'https://integrate.api.nvidia.com/v1',
+    nvidiaApiKey: params.nvidiaApiKeyForSubAgent || '',
+    opencodeGoApiKey: params.opencodeGoApiKeyForSubAgent || '',
+    ttsBaseUrl: params.ttsBaseUrlForSubAgent ?? params.ttsBaseUrl,
+    opencodeSessionId: params.opencodeSessionId,
+  }
+}
+
 export function buildToolExecutorOptions(
   params: ChatWithToolsCommonParams,
 ): Omit<ExecCtx, 'toolsEnabled'> {
