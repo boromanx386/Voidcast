@@ -846,6 +846,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         turnSettings.imageProvider === 'openrouter'
           ? openRouterImageProfile.height
           : activeRunwareEditProfile.height
+      const imageTransparentBackground =
+        turnSettings.imageProvider === 'openrouter'
+          ? (openRouterImageProfile.transparentBackground ?? false)
+          : (activeRunwareProfile.transparentBackground ?? false)
+      const editTransparentBackground =
+        turnSettings.imageProvider === 'openrouter'
+          ? (openRouterImageProfile.transparentBackground ?? false)
+          : (activeRunwareEditProfile.transparentBackground ?? false)
 
       let userMsg: UiMessage | undefined
       if (!isEdit) {
@@ -971,12 +979,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               steps: activeRunwareProfile.steps,
               cfgScale: activeRunwareProfile.cfgScale,
               gptQuality: imageGptQuality,
+              transparentBackground: imageTransparentBackground,
               editDefaults: {
                 width: editWidth,
                 height: editHeight,
                 steps: activeRunwareEditProfile.steps,
                 cfgScale: activeRunwareEditProfile.cfgScale,
                 gptQuality: editGptQuality,
+                transparentBackground: editTransparentBackground,
               },
               negativePrompt: turnSettings.runwareNegativePrompt,
               imageProvider: turnSettings.imageProvider,

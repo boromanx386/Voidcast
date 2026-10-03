@@ -34,6 +34,20 @@ export const OPENROUTER_IMAGE_MODEL_DEFAULT = 'google/gemini-3.1-flash-lite-imag
 
 /** OpenRouter dedicated Images API model (OpenAI GPT Image 2). */
 export const OPENROUTER_GPT_IMAGE_2_MODEL_ID = 'openai/gpt-image-2'
+/** OpenRouter GPT Image 2.5 — precision tier (dedicated Images API). */
+export const OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID = 'openai/gpt-image-2.5-sunburst'
+/** OpenRouter GPT Image 2.5 — speed tier (dedicated Images API). */
+export const OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID = 'openai/gpt-image-2.5-flare'
+
+/** Quality levels accepted by OpenAI GPT Image models. 2.5 adds `xhigh` and `max`. */
+export type GptImageQuality = 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+const GPT_IMAGE_QUALITY_SET = new Set<string>(['auto', 'low', 'medium', 'high', 'xhigh', 'max'])
+
+/** Type guard for a GPT Image quality value. */
+export function isGptImageQuality(value: unknown): value is GptImageQuality {
+  return typeof value === 'string' && GPT_IMAGE_QUALITY_SET.has(value)
+}
 
 export const OPENROUTER_IMAGE_MODEL_PRESETS: Array<{ id: string; label: string }> = [
   {
@@ -48,10 +62,36 @@ export const OPENROUTER_IMAGE_MODEL_PRESETS: Array<{ id: string; label: string }
     id: OPENROUTER_GPT_IMAGE_2_MODEL_ID,
     label: 'OpenAI GPT Image 2',
   },
+  {
+    id: OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
+    label: 'OpenAI GPT Image 2.5 Sunburst (precision)',
+  },
+  {
+    id: OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID,
+    label: 'OpenAI GPT Image 2.5 Flare (speed)',
+  },
 ]
 
+/** Every OpenRouter model served by the dedicated Images API (OpenAI GPT Image family). */
+export const OPENROUTER_DEDICATED_IMAGE_MODEL_IDS: readonly string[] = [
+  OPENROUTER_GPT_IMAGE_2_MODEL_ID,
+  OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
+  OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID,
+]
+
+const OPENROUTER_DEDICATED_IMAGE_MODEL_ID_SET = new Set<string>(
+  OPENROUTER_DEDICATED_IMAGE_MODEL_IDS.map((id) => id.trim().toLowerCase()),
+)
+
+/** True when `model` is any GPT Image model served via OpenRouter's dedicated Images API. */
+export function isOpenRouterDedicatedImageModel(model: string | undefined | null): boolean {
+  const id = (model ?? '').trim().toLowerCase()
+  if (!id) return false
+  return OPENROUTER_DEDICATED_IMAGE_MODEL_ID_SET.has(id) || id.startsWith('openai/gpt-image-')
+}
+
 export function usesOpenRouterDedicatedImageApi(model: string | undefined | null): boolean {
-  return normalizeOpenRouterImageModel(model) === OPENROUTER_GPT_IMAGE_2_MODEL_ID
+  return isOpenRouterDedicatedImageModel(normalizeOpenRouterImageModel(model))
 }
 
 function defaultOpenRouterImageProfiles(): Record<string, RunwareModelProfile> {
@@ -75,6 +115,20 @@ function defaultOpenRouterImageProfiles(): Record<string, RunwareModelProfile> {
       cfgScale: 7,
       gptQuality: 'auto',
     },
+    [OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 20,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+    [OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 20,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
   }
 }
 
@@ -89,12 +143,10 @@ function normalizeOpenRouterImageProfile(
   const w = Number(incoming?.width)
   const h = Number(incoming?.height)
   const gptQualityRaw = typeof incoming?.gptQuality === 'string' ? incoming.gptQuality : ''
-  const normalizedGptQuality =
-    gptQualityRaw === 'auto' ||
-    gptQualityRaw === 'low' ||
-    gptQualityRaw === 'medium' ||
-    gptQualityRaw === 'high'
-      ? gptQualityRaw
+  const normalizedGptQuality = isGptImageQuality(gptQualityRaw) ? gptQualityRaw : undefined
+  const transparentBackground =
+    typeof incoming?.transparentBackground === 'boolean'
+      ? incoming.transparentBackground
       : undefined
   return {
     width: Number.isFinite(w) ? clamp(Math.round(w), minSide, maxSide) : fallback.width,
@@ -102,7 +154,11 @@ function normalizeOpenRouterImageProfile(
     steps: fallback.steps,
     cfgScale: fallback.cfgScale,
     ...(isGpt
-      ? { gptQuality: normalizedGptQuality ?? fallback.gptQuality ?? 'auto' }
+      ? {
+          gptQuality: normalizedGptQuality ?? fallback.gptQuality ?? 'auto',
+          transparentBackground:
+            transparentBackground ?? fallback.transparentBackground ?? false,
+        }
       : {}),
   }
 }
@@ -1039,7 +1095,9 @@ export type RunwareModelProfile = {
   steps: number
   cfgScale: number
   /** OpenAI GPT Image quality setting (used only for GPT Image models). */
-  gptQuality?: 'auto' | 'low' | 'medium' | 'high'
+  gptQuality?: GptImageQuality
+  /** Request a transparent background (GPT Image models only; alpha PNG output). */
+  transparentBackground?: boolean
 }
 
 /** Per-variant defaults for the ACE-Step music model family. */
@@ -1132,12 +1190,40 @@ export function subAgentConfigForRole(
 
 export const RUNWARE_FLUX_9B_MODEL_ID = 'runware:400@6'
 export const RUNWARE_GPT_IMAGE_2_MODEL_ID = 'openai:gpt-image@2'
+/**
+ * Runware GPT Image 2.5 air ids. The Runware catalogue lists the 2.5 tiers as
+ * `openai:gpt-image@2.5-sunburst` (precision) and `openai:gpt-image@2.5-flare` (speed);
+ * confirm slugs against the live model search (`fetchRunwareImageModels`) when an
+ * API key is available.
+ */
+export const RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID = 'openai:gpt-image@2.5-sunburst'
+export const RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID = 'openai:gpt-image@2.5-flare'
 export const RUNWARE_Z_IMAGE_TURBO_MODEL_ID = 'runware:z-image@turbo'
 export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
   { id: RUNWARE_FLUX_9B_MODEL_ID, label: 'FLUX 9B' },
   { id: RUNWARE_Z_IMAGE_TURBO_MODEL_ID, label: 'Z Image Turbo' },
   { id: RUNWARE_GPT_IMAGE_2_MODEL_ID, label: 'GPT Image 2' },
+  { id: RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID, label: 'GPT Image 2.5 Sunburst (precision)' },
+  { id: RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID, label: 'GPT Image 2.5 Flare (speed)' },
 ]
+
+/** Every Runware GPT Image model (2 + both 2.5 tiers) sharing size/quality handling. */
+export const RUNWARE_GPT_IMAGE_MODEL_IDS: readonly string[] = [
+  RUNWARE_GPT_IMAGE_2_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID,
+]
+
+const RUNWARE_GPT_IMAGE_MODEL_ID_SET = new Set<string>(
+  RUNWARE_GPT_IMAGE_MODEL_IDS.map((id) => id.trim().toLowerCase()),
+)
+
+/** True when `modelId` is any Runware GPT Image model (2 or 2.5). */
+export function isRunwareGptImageModel(modelId: string | undefined | null): boolean {
+  const id = (modelId ?? '').trim().toLowerCase()
+  if (!id) return false
+  return RUNWARE_GPT_IMAGE_MODEL_ID_SET.has(id) || id.startsWith('openai:gpt-image@')
+}
 
 export const RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID = 'runware:ace-step@v1.5-turbo'
 export const RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID = 'runware:ace-step@v1.5-base'
@@ -1626,6 +1712,20 @@ export const defaults: AppSettings = {
     [RUNWARE_GPT_IMAGE_2_MODEL_ID]: {
       width: 1024,
       height: 1024,
+      steps: 30,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+    [RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 30,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+    [RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
       steps: 30,
       cfgScale: 7,
       gptQuality: 'auto',
@@ -2277,11 +2377,12 @@ function normalizeRunware(s: AppSettings): AppSettings {
     const st = Number(incoming.steps)
     const cf = Number(incoming.cfgScale)
     const gptQualityRaw = typeof incoming.gptQuality === 'string' ? incoming.gptQuality : ''
-    const normalizedGptQuality =
-      gptQualityRaw === 'auto' || gptQualityRaw === 'low' || gptQualityRaw === 'medium' || gptQualityRaw === 'high'
-        ? gptQualityRaw
+    const normalizedGptQuality = isGptImageQuality(gptQualityRaw) ? gptQualityRaw : undefined
+    const transparentBackground =
+      typeof incoming.transparentBackground === 'boolean'
+        ? incoming.transparentBackground
         : undefined
-    const isGptImage2 = m.id === RUNWARE_GPT_IMAGE_2_MODEL_ID
+    const isGptImage2 = isRunwareGptImageModel(m.id)
     const isZImageTurbo = m.id === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
     const minSide = isGptImage2 ? 480 : isZImageTurbo ? 128 : 256
     const maxSide = isGptImage2 ? 3840 : 2048
@@ -2297,6 +2398,12 @@ function normalizeRunware(s: AppSettings): AppSettings {
               fallback.gptQuality ??
               defaults.runwareModelProfiles[RUNWARE_GPT_IMAGE_2_MODEL_ID]?.gptQuality ??
               'auto',
+            transparentBackground:
+              transparentBackground ??
+              fallback.transparentBackground ??
+              defaults.runwareModelProfiles[RUNWARE_GPT_IMAGE_2_MODEL_ID]
+                ?.transparentBackground ??
+              false,
           }
         : {}),
     }

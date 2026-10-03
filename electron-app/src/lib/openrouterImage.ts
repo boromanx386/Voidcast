@@ -4,6 +4,7 @@ import {
   normalizeOpenRouterImageModel,
   OPENROUTER_IMAGE_MODEL_DEFAULT,
   usesOpenRouterDedicatedImageApi,
+  type GptImageQuality,
   type ImageProvider,
 } from '@/lib/settings'
 import { usesServerCloudProxy } from '@/lib/platform'
@@ -14,7 +15,9 @@ export type OpenRouterImageConfig = {
   model: string
   width: number
   height: number
-  gptQuality?: 'auto' | 'low' | 'medium' | 'high'
+  gptQuality?: GptImageQuality
+  /** Default transparent background (GPT Image models only). */
+  transparentBackground?: boolean
   /** Optional LAN proxy root (TTS server origin). */
   proxyBaseUrl?: string
 }
@@ -305,7 +308,7 @@ async function postOpenRouterImageChat(
 }
 
 export async function invokeOpenRouterGenerateImage(
-  req: { prompt: string; width?: number; height?: number },
+  req: { prompt: string; width?: number; height?: number; transparentBackground?: boolean },
   config: OpenRouterImageConfig,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -325,6 +328,8 @@ export async function invokeOpenRouterGenerateImage(
     ? `size_adjusted_for_model: ${Math.round(wantWidth)}x${Math.round(wantHeight)} -> ${dims.width}x${dims.height}`
     : undefined
 
+  const transparentBackground =
+    req.transparentBackground ?? config.transparentBackground ?? false
   const { imageUrl, elapsedMs } = usesOpenRouterDedicatedImageApi(model)
     ? await postOpenRouterDedicatedImage(
         config,
@@ -332,6 +337,8 @@ export async function invokeOpenRouterGenerateImage(
           prompt,
           quality,
           size: dims.pixelSize,
+          // GPT Image only: transparent background returns an alpha PNG.
+          ...(transparentBackground ? { background: 'transparent' } : {}),
         },
         signal,
       )
@@ -361,7 +368,13 @@ export async function invokeOpenRouterGenerateImage(
 }
 
 export async function invokeOpenRouterEditImage(
-  req: { prompt: string; referenceImages: string[]; width?: number; height?: number },
+  req: {
+    prompt: string
+    referenceImages: string[]
+    width?: number
+    height?: number
+    transparentBackground?: boolean
+  },
   config: OpenRouterImageConfig,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -389,6 +402,8 @@ export async function invokeOpenRouterEditImage(
     ...refs.slice(0, 8).map((url) => ({ type: 'image_url', image_url: { url } })),
   ]
 
+  const transparentBackground =
+    req.transparentBackground ?? config.transparentBackground ?? false
   const { imageUrl, elapsedMs } = usesOpenRouterDedicatedImageApi(model)
     ? await postOpenRouterDedicatedImage(
         config,
@@ -396,6 +411,7 @@ export async function invokeOpenRouterEditImage(
           prompt,
           quality,
           size: dims.pixelSize,
+          ...(transparentBackground ? { background: 'transparent' } : {}),
           input_references: refs.slice(0, 16).map((url) => ({
             type: 'image_url',
             image_url: { url },

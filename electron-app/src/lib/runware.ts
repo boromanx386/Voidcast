@@ -1,7 +1,12 @@
 import {
+  isGptImageQuality,
+  isRunwareGptImageModel,
   normalizeBaseUrl,
+  RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
+  type GptImageQuality,
   type ImageProvider,
 } from '@/lib/settings'
 import { cloudProxySetupHint, isElectron, usesServerCloudProxy } from '@/lib/platform'
@@ -20,14 +25,17 @@ export type RunwareImageConfig = {
   height: number
   steps: number
   cfgScale: number
-  gptQuality?: 'auto' | 'low' | 'medium' | 'high'
+  gptQuality?: GptImageQuality
+  /** Default transparent background (GPT Image models only). */
+  transparentBackground?: boolean
   /** Optional edit defaults resolved from selected edit model profile. */
   editDefaults?: {
     width: number
     height: number
     steps: number
     cfgScale: number
-    gptQuality?: 'auto' | 'low' | 'medium' | 'high'
+    gptQuality?: GptImageQuality
+    transparentBackground?: boolean
   }
   negativePrompt?: string
   /** Image backend: Runware API or OpenRouter chat completions. */
@@ -60,6 +68,8 @@ export type RunwareGenerateImageRequest = {
   steps?: number
   cfgScale?: number
   model?: string
+  /** Per-call override: request a transparent background (GPT Image models only). */
+  transparentBackground?: boolean
 }
 
 export type RunwareEditImageRequest = {
@@ -72,6 +82,8 @@ export type RunwareEditImageRequest = {
   steps?: number
   cfgScale?: number
   model?: string
+  /** Per-call override: request a transparent background (GPT Image models only). */
+  transparentBackground?: boolean
 }
 
 export type RunwareGenerateMusicRequest = {
@@ -166,6 +178,8 @@ export const RUNWARE_ALLOWED_EDIT_MODEL_IDS = [
   RUNWARE_FLUX_9B_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID,
 ] as const
 
 const RUNWARE_ALLOWED_EDIT_MODEL_SET = new Set<string>(
@@ -177,20 +191,16 @@ function isAllowedEditModelId(modelId: string): boolean {
 }
 
 function isGptImage2Model(modelId: string): boolean {
-  return modelId.trim().toLowerCase() === RUNWARE_GPT_IMAGE_2_MODEL_ID.toLowerCase()
+  // Covers GPT Image 2 and both GPT Image 2.5 tiers (shared size/quality handling).
+  return isRunwareGptImageModel(modelId)
 }
 
 function isZImageTurboModel(modelId: string): boolean {
   return modelId.trim().toLowerCase() === RUNWARE_Z_IMAGE_TURBO_MODEL_ID.toLowerCase()
 }
 
-function normalizeGptQuality(
-  value: unknown,
-): 'auto' | 'low' | 'medium' | 'high' | undefined {
-  if (value === 'auto' || value === 'low' || value === 'medium' || value === 'high') {
-    return value
-  }
-  return undefined
+function normalizeGptQuality(value: unknown): GptImageQuality | undefined {
+  return isGptImageQuality(value) ? value : undefined
 }
 
 function normalizeStringArray(v: unknown): string[] {
@@ -858,6 +868,8 @@ export async function invokeRunwareGenerateImage(
   const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? config.steps), 1, 80)
   const cfgScale = clamp(asFiniteNumber(req.cfgScale) ?? config.cfgScale, 0, 30)
   const gptQuality = normalizeGptQuality(config.gptQuality) ?? 'auto'
+  const transparentBackground =
+    req.transparentBackground ?? config.transparentBackground ?? false
   const negativePrompt = (req.negativePrompt ?? config.negativePrompt ?? '').trim()
   const taskUUID = makeTaskUuid()
 
@@ -878,8 +890,10 @@ export async function invokeRunwareGenerateImage(
     payload.providerSettings = {
       openai: {
         quality: gptQuality,
+        ...(transparentBackground ? { background: 'transparent' } : {}),
       },
     }
+    if (transparentBackground) payload.outputFormat = 'PNG'
   }
 
   const started = Date.now()
@@ -953,6 +967,8 @@ export async function invokeRunwareEditImage(
   const editDefaultSteps = config.editDefaults?.steps ?? config.steps
   const editDefaultCfgScale = config.editDefaults?.cfgScale ?? config.cfgScale
   const editDefaultGptQuality = normalizeGptQuality(config.editDefaults?.gptQuality) ?? 'auto'
+  const editTransparentBackground =
+    req.transparentBackground ?? config.editDefaults?.transparentBackground ?? false
   // Resolution: model-aware clamping + step-16 snapping for all models.
   // A per-call override from the agent wins; otherwise the edit defaults are used.
   const fitted = fitModelDimensions(
@@ -983,8 +999,10 @@ export async function invokeRunwareEditImage(
     payload.providerSettings = {
       openai: {
         quality: editDefaultGptQuality,
+        ...(editTransparentBackground ? { background: 'transparent' } : {}),
       },
     }
+    if (editTransparentBackground) payload.outputFormat = 'PNG'
   }
 
   const started = Date.now()

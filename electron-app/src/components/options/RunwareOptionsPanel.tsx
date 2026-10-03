@@ -1,10 +1,11 @@
 import {
   getRunwareProfileForModel,
   getOpenRouterImageProfile,
-  OPENROUTER_GPT_IMAGE_2_MODEL_ID,
+  isGptImageQuality,
+  isOpenRouterDedicatedImageModel,
+  isRunwareGptImageModel,
   OPENROUTER_IMAGE_MODEL_PRESETS,
   RUNWARE_CONFIGURED_MODELS,
-  RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
   type AppSettings,
   type RunwareModelProfile,
@@ -42,8 +43,9 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
     : RUNWARE_FLUX_MODEL_ID
   const activeImageProfile = getRunwareProfileForModel(settings, selectedImageModel)
   const activeEditProfile = getRunwareProfileForModel(settings, selectedEditModel)
-  const isGptImage2Selected = selectedImageModel === RUNWARE_GPT_IMAGE_2_MODEL_ID
-  const isGptImage2EditSelected = selectedEditModel === RUNWARE_GPT_IMAGE_2_MODEL_ID
+  // Covers GPT Image 2 and both GPT Image 2.5 tiers.
+  const isGptImage2Selected = isRunwareGptImageModel(selectedImageModel)
+  const isGptImage2EditSelected = isRunwareGptImageModel(selectedEditModel)
   const isZImageTurboSelected = selectedImageModel === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
   const isZImageTurboEditSelected = selectedEditModel === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
   const imageMinSide = isGptImage2Selected ? 480 : isZImageTurboSelected ? 128 : 256
@@ -95,7 +97,7 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
   const openRouterImageModel = settings.openrouterImageModel
   const openRouterImageProfile = getOpenRouterImageProfile(settings)
   const isOpenRouterGptImage2 =
-    isOpenRouter && openRouterImageModel === OPENROUTER_GPT_IMAGE_2_MODEL_ID
+    isOpenRouter && isOpenRouterDedicatedImageModel(openRouterImageModel)
   const openrouterModelPresets = OPENROUTER_IMAGE_MODEL_PRESETS
   const openrouterModelKnown = openrouterModelPresets.some(
     (m) => m.id === settings.openrouterImageModel,
@@ -293,12 +295,7 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
                 onChange={(e) =>
                   updateOpenRouterProfile(openRouterImageModel, (current) => ({
                     ...current,
-                    gptQuality:
-                      e.target.value === 'low' ||
-                      e.target.value === 'medium' ||
-                      e.target.value === 'high'
-                        ? e.target.value
-                        : 'auto',
+                    gptQuality: isGptImageQuality(e.target.value) ? e.target.value : 'auto',
                   }))
                 }
               >
@@ -306,10 +303,25 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
                 <option value="low">low</option>
                 <option value="medium">medium</option>
                 <option value="high">high</option>
+                <option value="xhigh">xhigh</option>
+                <option value="max">max</option>
               </select>
               <p className="mt-2 text-xs text-neon-yellow/80">
-                GPT Image 2 supports quality and up to 16 reference images for edits.
+                GPT Image 2.5 supports quality and up to 16 reference images for edits.
               </p>
+              <label className="mt-3 flex items-center gap-2 text-xs font-mono text-void-dim">
+                <input
+                  type="checkbox"
+                  checked={openRouterImageProfile.transparentBackground ?? false}
+                  onChange={(e) =>
+                    updateOpenRouterProfile(openRouterImageModel, (current) => ({
+                      ...current,
+                      transparentBackground: e.target.checked,
+                    }))
+                  }
+                />
+                TRANSPARENT_BACKGROUND (alpha PNG)
+              </label>
             </div>
           ) : null}
 
@@ -434,12 +446,7 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
               onChange={(e) =>
                 updateProfile(selectedImageModel, (current) => ({
                   ...current,
-                  gptQuality:
-                    e.target.value === 'low' ||
-                    e.target.value === 'medium' ||
-                    e.target.value === 'high'
-                      ? e.target.value
-                      : 'auto',
+                  gptQuality: isGptImageQuality(e.target.value) ? e.target.value : 'auto',
                 }))
               }
             >
@@ -447,7 +454,22 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
               <option value="low">low</option>
               <option value="medium">medium</option>
               <option value="high">high</option>
+              <option value="xhigh">xhigh</option>
+              <option value="max">max</option>
             </select>
+            <label className="mt-3 flex items-center gap-2 text-xs font-mono text-void-dim">
+              <input
+                type="checkbox"
+                checked={activeImageProfile.transparentBackground ?? false}
+                onChange={(e) =>
+                  updateProfile(selectedImageModel, (current) => ({
+                    ...current,
+                    transparentBackground: e.target.checked,
+                  }))
+                }
+              />
+              TRANSPARENT_BACKGROUND (alpha PNG)
+            </label>
           </div>
         )}
       </div>

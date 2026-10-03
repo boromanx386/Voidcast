@@ -635,6 +635,11 @@ const GENERATE_IMAGE_TOOL: AgentToolDefinition = {
           type: 'string',
           description: 'Optional Runware model id override.',
         },
+        transparent_background: {
+          type: 'boolean',
+          description:
+            'Optional. Set true to request a transparent background (output PNG with alpha). Supported ONLY by OpenAI GPT Image models (GPT Image 2 / 2.5); ignored by Gemini/FLUX. Use for logos, icons, stickers, cut-outs.',
+        },
       },
       required: ['prompt'],
     },
@@ -694,6 +699,11 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
         model: {
           type: 'string',
           description: 'Optional Runware edit model id override.',
+        },
+        transparent_background: {
+          type: 'boolean',
+          description:
+            'Optional. Set true to request a transparent background (output PNG with alpha). Supported ONLY by OpenAI GPT Image models (GPT Image 2 / 2.5); ignored by Gemini/FLUX.',
         },
       },
       required: ['prompt'],

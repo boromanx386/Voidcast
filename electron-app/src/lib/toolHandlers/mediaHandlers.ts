@@ -49,6 +49,21 @@ const readDimension = (v: unknown): number | undefined => {
   return undefined;
 };
 
+/**
+ * Coerce an agent-supplied boolean (true/false, or "true"/"1"/"yes" as some
+ * models emit) into a boolean. `undefined` means "no override" — the
+ * configured profile default stays in charge.
+ */
+const readBoolean = (v: unknown): boolean | undefined => {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1" || s === "yes") return true;
+    if (s === "false" || s === "0" || s === "no") return false;
+  }
+  return undefined;
+};
+
 export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.runwareImage) {
     return "Error: generate_image tool is disabled in settings.";
@@ -67,12 +82,18 @@ export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
   const canOverrideCfg = userRequestedCfgOverride(ctx.userText || "");
   const overrideW = readDimension(args.width);
   const overrideH = readDimension(args.height);
+  const overrideTransparent = readBoolean(args.transparent_background);
   try {
     if (ctx.runware.imageProvider === "openrouter") {
       const or = ctx.runware.openrouter;
       if (!or) return "Error: OpenRouter image settings are missing.";
       return await invokeOpenRouterGenerateImage(
-        { prompt, width: overrideW, height: overrideH },
+        {
+          prompt,
+          width: overrideW,
+          height: overrideH,
+          transparentBackground: overrideTransparent,
+        },
         {
           apiKey: or.apiKey,
           baseUrl: or.baseUrl,
@@ -80,6 +101,7 @@ export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
           width: ctx.runware.width,
           height: ctx.runware.height,
           gptQuality: ctx.runware.gptQuality,
+          transparentBackground: ctx.runware.transparentBackground,
           proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
         },
         ctx.signal,
@@ -107,6 +129,7 @@ export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
               ? args.cfgScale
               : undefined,
         model: typeof args.model === "string" ? args.model : undefined,
+        transparentBackground: overrideTransparent,
       },
       ctx.runware,
       ctx.signal,
@@ -134,6 +157,7 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
   const canOverrideCfg = userRequestedCfgOverride(ctx.userText || "");
   const overrideW = readDimension(args.width);
   const overrideH = readDimension(args.height);
+  const overrideTransparent = readBoolean(args.transparent_background);
   const selected = resolveReferenceImageIndexes(
     args,
     ctx.userImagePaths,
@@ -192,6 +216,7 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
           referenceImages: refs,
           width: overrideW,
           height: overrideH,
+          transparentBackground: overrideTransparent,
         },
         {
           apiKey: or.apiKey,
@@ -201,6 +226,7 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
           height: editH,
           gptQuality:
             ctx.runware.editDefaults?.gptQuality ?? ctx.runware.gptQuality,
+          transparentBackground: ctx.runware.editDefaults?.transparentBackground,
           proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
         },
         ctx.signal,
@@ -229,6 +255,7 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
               ? args.cfgScale
               : undefined,
         model: typeof args.model === "string" ? args.model : undefined,
+        transparentBackground: overrideTransparent,
       },
       ctx.runware,
       ctx.signal,
