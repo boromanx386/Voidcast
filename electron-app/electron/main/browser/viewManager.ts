@@ -746,6 +746,9 @@ export async function configureBrowser(
     const previous = partitionKey
     // The panel owns the context: it may state "no project", which resets to the default profile.
     await ensureBrowser(win, projectPath, profile, true)
+    // Opening the panel (or switching project/profile) is a "the browser is in use" signal.
+    // It is also the only trigger that fires when the agent never opens a page of its own.
+    runBrowserMaintenance(partitionKey || 'default', hardenedPartitions)
     return { profile: partitionKey, changed: previous !== partitionKey }
   })
 }
@@ -773,6 +776,9 @@ export async function clearBrowserData(
     lastError = null
     lastPermission = null
     lastDownload = null
+    // Clearing is an explicit "sort my browser data out" action: housekeeping for the other
+    // profiles runs here too, instead of only wiping the one on screen.
+    runBrowserMaintenance(partitionKey || 'default', hardenedPartitions)
     return `Cleared cookies, storage, cache and remembered sign-ins for profile "${partitionKey}". Already-open pages keep their in-memory state until they are reloaded.`
   })
 }
