@@ -426,7 +426,8 @@ export function ChatComposer({ app }: Props) {
               </button>
             )}
 
-            {settings.sttProvider === 'openrouter' && !isWebStandalone() && (
+            {(settings.sttProvider === 'openrouter' || settings.sttProvider === 'whistle') &&
+              !isWebStandalone() && (
               <button
                 type="button"
                 disabled={busy || sttPending}

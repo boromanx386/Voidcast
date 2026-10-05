@@ -22,7 +22,7 @@ export {
 
 export type VoiceMode = 'design' | 'clone'
 export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
-export type SttProvider = 'none' | 'openrouter'
+export type SttProvider = 'none' | 'openrouter' | 'whistle'
 /** Backend for generate_image / edit_image_runware tools. */
 export type ImageProvider = 'runware' | 'openrouter'
 

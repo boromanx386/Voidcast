@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Runware music: ACE-Step v1.5 XL presets**: three new 4B DiT variants join the existing Turbo/Base presets — `runware:ace-step@v1.5-xl-turbo` (8-step distilled, steps capped at 20), `runware:ace-step@v1.5-xl-base` (50-step CFG, up to 300 steps) and `runware:ace-step@v1.5-xl-sft` (flagship quality, up to 300 steps). Each keeps its own profile (steps, CFG, duration, format, seed); the XL presets start from docs defaults rather than the legacy turbo-shaped settings.
+- **Offline speech-to-text (Whistle)**: new `sttProvider: 'whistle'` runs fully offline via the bundled `cactus-needle` engine and the 16.9 MB Whistle model (Apache-2.0) — no API key or internet. The renderer resamples recordings to 16 kHz mono WAV and POSTs to the tools-server `POST /stt/transcribe`; the native engine (`whistle.cact` + `libneedle.dll`) is embedded into the tools exe by `voidcast-tools-server.spec`, so a fresh machine needs no download. Supports 7 languages (not Serbian — use `openrouter` for that). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### Changed
 

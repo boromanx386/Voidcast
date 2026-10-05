@@ -199,12 +199,17 @@ export function TtsOptionsPanel({
                   setSettings((s) => ({
                     ...s,
                     sttProvider:
-                      e.target.value === 'openrouter' ? 'openrouter' : 'none',
+                      e.target.value === 'openrouter'
+                        ? 'openrouter'
+                        : e.target.value === 'whistle'
+                          ? 'whistle'
+                          : 'none',
                   }))
                 }
               >
                 <option value="none">Disabled</option>
                 <option value="openrouter">OpenRouter Whisper</option>
+                <option value="whistle">Whistle (local, 16.9 MB)</option>
               </select>
             </div>
 
@@ -225,6 +230,17 @@ export function TtsOptionsPanel({
                     placeholder="openai/whisper-large-v3-turbo"
                   />
                 </div>
+              </div>
+            )}
+
+            {settings.sttProvider === 'whistle' && (
+              <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
+                <p className="text-xs text-void-dim">
+                  Runs fully offline with the bundled{' '}
+                  <span className="font-mono text-neon-green">Whistle</span> model (~16.9 MB,
+                  cactus-needle). No API key or internet needed. Click the microphone button in the
+                  composer to record and transcribe.
+                </p>
               </div>
             )}
           </>

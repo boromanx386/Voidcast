@@ -45,6 +45,8 @@ from pdf_tool import HAS_REPORTLAB, save_pdf_to_folder
 
 from reddit_tool import RedditError, reddit_tool_run
 
+from stt_whistle import transcribe_wav as whistle_transcribe_wav
+
 from youtube_tools import (
     HAS_YOUTUBE_TRANSCRIPT,
     HAS_YTDLP,
@@ -680,6 +682,56 @@ async def tools_reddit(req: RedditRequest):
             status_code=503,
             detail=str(e) or "Reddit tool failed",
         ) from e
+
+
+class SttWhistleRequest(BaseModel):
+    """Base64-encoded 16 kHz mono WAV audio for local Whistle transcription."""
+
+    audio_base64: str = Field(..., min_length=1)
+    format: str = Field(default="wav", max_length=16)
+
+
+@app.post("/stt/transcribe", dependencies=[Depends(require_lan_access)])
+async def stt_transcribe(req: SttWhistleRequest):
+    """Local speech-to-text via cactus-needle (Whistle). Expects 16 kHz mono WAV.
+
+    The Electron renderer records with MediaRecorder (WebM/Opus), decodes it with
+    WebAudio and resamples to 16 kHz mono WAV before POSTing here, so the base
+    `cactus-needle` install is enough (no ffmpeg / `[mic]` extra required).
+    """
+    try:
+        raw = base64.b64decode(req.audio_base64, validate=False)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Invalid base64 audio: {e}") from e
+
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as fh:
+            fh.write(raw)
+            tmp_path = fh.name
+        result = await asyncio.to_thread(whistle_transcribe_wav, tmp_path)
+        return {
+            "ok": True,
+            "text": result.get("text", ""),
+            "language": result.get("language"),
+        }
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "Whistle not available",
+        ) from e
+    except Exception as e:
+        logger.exception("stt/transcribe failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=str(e) or "Whistle transcription failed",
+        ) from e
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 @app.post("/tools/pdf", dependencies=[Depends(require_lan_access)])

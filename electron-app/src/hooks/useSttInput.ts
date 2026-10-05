@@ -1,5 +1,11 @@
 import { useCallback, useRef, useState } from 'react'
-import { blobToBase64, startRecording, transcribeWithOpenRouter } from '@/lib/stt'
+import {
+  blobToBase64,
+  encodeWav16k,
+  startRecording,
+  transcribeWithOpenRouter,
+  transcribeWithWhistle,
+} from '@/lib/stt'
 import type { AppSettings } from '@/lib/settings'
 
 export type UseSttInputParams = {
@@ -43,14 +49,23 @@ export function useSttInput({
       if (!blob || blob.size === 0) return
       setSttPending(true)
       try {
-        const base64 = await blobToBase64(blob)
-        const text = await transcribeWithOpenRouter({
-          apiKey: settings.openrouterApiKey,
-          model: settings.openrouterSttModel,
-          audioBase64: base64,
-          format: 'webm',
-          ttsBaseUrl: settings.ttsBaseUrl,
-        })
+        let text: string
+        if (settings.sttProvider === 'whistle') {
+          const wavBase64 = await encodeWav16k(blob)
+          text = await transcribeWithWhistle({
+            audioBase64: wavBase64,
+            ttsBaseUrl: settings.ttsBaseUrl,
+          })
+        } else {
+          const base64 = await blobToBase64(blob)
+          text = await transcribeWithOpenRouter({
+            apiKey: settings.openrouterApiKey,
+            model: settings.openrouterSttModel,
+            audioBase64: base64,
+            format: 'webm',
+            ttsBaseUrl: settings.ttsBaseUrl,
+          })
+        }
         if (text.trim()) {
           setInput((prev) => (prev ? prev + ' ' : '') + text.trim())
         }

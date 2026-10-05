@@ -1,0 +1,25 @@
+cactus-needle / needle / Whistle
+Copyright Cactus Compute, Inc. and the Cactus contributors.
+Licensed under the Apache License, Version 2.0.
+
+This directory redistributes the following unmodified components, bundled into
+the Voidcast tools-server binary (see tts-server/voidcast-tools-server.spec) to
+provide fully offline speech-to-text:
+
+  - whistle.cact      Whistle ASR model weights (~16.9 MB)
+                      https://huggingface.co/Cactus-Compute/whistle
+                      License: Apache-2.0
+
+  - libneedle.dll     needle native inference engine (Windows x64)
+                      https://huggingface.co/Cactus-Compute/needle3
+                      License: Apache-2.0
+
+The cactus-needle Python package (https://pypi.org/project/cactus-needle/) is
+installed as a runtime dependency (tts-server/requirements-tools.txt) and is
+also licensed under Apache-2.0.
+
+A copy of the Apache License 2.0 text that governs these components is provided
+in the sibling LICENSE file. These files are redistributed unmodified; Voidcast
+does not alter the needle engine or the Whistle weights.
+
+Whistle supports English, German, French, Spanish, Italian, Dutch and Polish.

@@ -323,7 +323,7 @@ Other UX features:
 ## Speech & Audio
 
 - **Text-to-Speech** — Local OmniVoice (free on your PC; requires `.venv` setup, see `LOCAL_TTS_SETUP.md`), or cloud via Runware / OpenRouter TTS (very low cost per reply)
-- **Speech-to-Text** — OpenRouter Whisper (push-to-talk; inexpensive per recording)
+- **Speech-to-Text** — local **Whistle** via the bundled `cactus-needle` engine (fully offline, no API key; ~16.9 MB, 7 languages) or OpenRouter Whisper (push-to-talk; inexpensive per recording)
 
 Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for typical costs.
 
@@ -472,6 +472,7 @@ Voidcast uses:
 - **Tailwind CSS** — MIT
 - **Lucide Icons** — ISC
 - **Runware** — Commercial API (free tier available)
+- **cactus-needle / Whistle** — Apache-2.0 (bundled offline STT engine; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md))
 
 ---
 

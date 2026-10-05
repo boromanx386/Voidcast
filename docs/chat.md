@@ -101,7 +101,7 @@ Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 ## TTS Auto-Voice & STT Input
 
 - **TTS**: `useTtsPlayback` reads replies when `autoVoice` on; `ttsProvider` (`local` OmniVoice HTTP, `runware-xai`, `openrouter-tts`), `voiceMode` (`design`/`clone`), `voiceInstruct`, `cloneRefText`, `ttsSpeed`, `ttsNumStep`, `ttsDurationSec`, `ttsChunkMaxChars`, `runwareXaiVoice`, `runwareTtsModel`, `runwareTtsSpeed`. A read/speaker icon per assistant message triggers `onRead`/`abortTts`.
-- **STT**: `useSttInput` with `sttProvider` (`none`/`openrouter`, Whisper model `openrouterSttModel`); record button shows `isRecording`, `recordingDuration`, `sttPending`; transcript fills composer.
+- **STT**: `useSttInput` with `sttProvider` (`none`/`openrouter`/`whistle`; Whisper model `openrouterSttModel`, `whistle` runs offline via the bundled cactus-needle engine); record button shows `isRecording`, `recordingDuration`, `sttPending`; transcript fills composer.
 
 ## Reminders
 

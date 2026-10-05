@@ -69,7 +69,7 @@ Specialized state hooks live in `src/hooks/`:
 - `useChatSessions` — chat session list, active session, CRUD (new / rename / delete / fork / export); sticky unsaved drafts when auto-save is off.
 - `useChatAgent` — runs the agent loop for the **visible** runtime key; binds mid-run rekey draft → session.
 - `useLongMemoryUi` — long-term memory management UI state.
-- `useSttInput` — speech-to-text input (OpenRouter Whisper).
+- `useSttInput` — speech-to-text input (OpenRouter Whisper or local Whistle via the tools-server).
 - `useTtsPlayback` — text-to-speech playback + auto-voice.
 - `useCodingSession` — the coding panel session state (owner-aware shell feed).
 

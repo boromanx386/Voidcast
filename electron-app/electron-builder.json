@@ -35,8 +35,10 @@
         "reddit_tool.py",
         "pdf_tool.py",
         "youtube_tools.py",
+        "stt_whistle.py",
         "requirements-tools.txt",
         "requirements.txt",
+        "vendor/**",
         "fonts/**",
         "web-ui/**"
       ]
