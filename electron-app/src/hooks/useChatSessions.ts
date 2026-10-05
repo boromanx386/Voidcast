@@ -26,6 +26,7 @@ import { deriveSessionTitle } from '@/lib/chatHints'
 import { invokePickCodingDirectory } from '@/lib/codingTools'
 import { uid } from '@/lib/chatUid'
 import {
+  mergeImageVisionCache,
   normalizeImageVisionCache,
   type ImageVisionCache,
 } from '@/lib/imageVisionCache'
@@ -498,6 +499,28 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     [settings],
   )
 
+  /** Merge vision-cache entries into a background (non-visible) session. */
+  const patchSessionImageVision = useCallback(
+    (sessionId: string, entries: ImageVisionCache) => {
+      setSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === sessionId)
+        if (idx < 0) return prev
+        const current = prev[idx]
+        const next = [...prev]
+        next[idx] = {
+          ...current,
+          imageVisionCache: mergeImageVisionCache(
+            normalizeImageVisionCache(current.imageVisionCache),
+            entries,
+          ),
+          updatedAt: Date.now(),
+        }
+        return next
+      })
+    },
+    [],
+  )
+
   /** Reset the active view for a brand-new chat bound to `projectPath` ('' = General). */
   const resetForNewChat = (projectPath: string) => {
     // Leave other sessions' agent runs running in the background.
@@ -888,6 +911,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     activeAgentMode,
     setAgentModeForActiveChat,
     setAgentModeForSession,
+    patchSessionImageVision,
     claimSessionIdForDraft,
     patchSessionCodingMemo,
   }

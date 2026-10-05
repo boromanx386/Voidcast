@@ -28,6 +28,7 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
 - Coding isolation: frozen project path, shell owner by runtime key, terminal feed per chat; same-project double-run can be refused.
 - Switch sessions freely while A runs; B can send. Background finish may mark DONE-style unread until opened.
 - Plan escalation binds to the session that owns the run, not the one on screen, so a background chat's plan handoff (card + draft) can never land in the viewed chat.
+- Window-level mirrors (`hiddenContextSummary`, `contextCompressedThroughIndex`, `imageVisionCache`, composer mode) are written per session for a background run; a run only touches the view-level copy while its own chat is the one on screen.
 - Draft auto-save can rekey `__draft__` → real session id mid-run.
 - Composer can take a draft while busy; **steer** mid-turn aborts and resends with correction (separate from Stop).
 

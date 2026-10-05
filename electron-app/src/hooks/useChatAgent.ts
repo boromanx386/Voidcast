@@ -147,6 +147,10 @@ export type UseChatAgentDeps = {
    * The session owns the mode; the viewed chat's composer only mirrors it.
    */
   setAgentModeForSession?: (sessionId: string, mode: AgentChatMode) => void
+  /** Composer-mode target for plan actions (approve / revise) — the session on screen. */
+  setAgentModeForActiveChat?: (mode: AgentChatMode) => void
+  /** Persist vision-cache entries onto the chat that owns a run (background included). */
+  patchSessionImageVision?: (sessionId: string, entries: ImageVisionCache) => void
 
   pendingImages: PendingChatImage[]
   setPendingImages: Dispatch<SetStateAction<PendingChatImage[]>>
@@ -269,6 +273,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     patchSessionCodingMemo,
     claimSessionIdForDraft,
     setAgentModeForSession,
+    setAgentModeForActiveChat,
+    patchSessionImageVision,
     pendingImages,
     setPendingImages,
     pendingFiles,
@@ -476,8 +482,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const nextSummary = compressed.trim()
       if (!nextSummary) return
       const throughIndex = messages.length
-      setHiddenContextSummary(nextSummary)
-      setContextCompressedThroughIndex(throughIndex)
+      // The compression await can span a chat switch, and these two are window-level
+      // mirrors — writing them after switching would slice the *viewed* chat's history
+      // with this chat's summary. The owning session is written by onContextCompressed
+      // either way, so a switch only skips the mirror, never the persistence.
+      if (runtimeKey === runtimeKeyRef.current) {
+        setHiddenContextSummary(nextSummary)
+        setContextCompressedThroughIndex(throughIndex)
+      }
       setContextWarnDismissed(true)
       // Prevent auto-compress from immediately re-entering while the
       // post-compression usage is still only an estimate.
@@ -718,14 +730,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       }
 
       // Persist the mode on the chat that owns this run — background runs included —
-      // so a plan escalation in chat A can never retarget the chat on screen.
+      // so a plan escalation in chat A can never retarget the chat on screen. There is
+      // deliberately no window-level fallback: writing global settings here is the bug
+      // this guards against, so an unresolvable session id is a no-op.
       const applySessionAgentMode = (mode: AgentChatMode) => {
         const sid = sessionIdFromRuntimeKey(keyOf())
-        if (sid && setAgentModeForSession) {
-          setAgentModeForSession(sid, mode)
-          return
-        }
-        setSettings((s) => (s.agentMode === mode ? s : { ...s, agentMode: mode }))
+        if (sid) setAgentModeForSession?.(sid, mode)
       }
 
       // Per-turn isolation so background runs do not share mutables with the active view.
@@ -1038,7 +1048,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               )
               if (isViewingThisRun()) {
                 setImageVisionCache((prev) => mergeImageVisionCache(prev, entries))
+                return
               }
+              // Background run: the view-level cache belongs to another chat, so patch
+              // the owning session or the analysis is thrown away.
+              const visionSid = sessionIdFromRuntimeKey(keyOf())
+              if (visionSid) patchSessionImageVision?.(visionSid, entries)
             },
             onEscalateToPlan: () => {
               escalatedToPlan = true
@@ -1606,7 +1621,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         buildMode === 'team' &&
         Boolean(settings.toolsEnabled.coding) &&
         Boolean(settings.subAgent?.codingEnabled)
-      setSettings((s) => (s.agentMode === buildMode ? s : { ...s, agentMode: buildMode }))
+      setAgentModeForActiveChat?.(buildMode)
       const buildText = formatPlanForBuildPrompt(approved, { teamWorkers })
       void onSend({
         text: buildText,
@@ -1620,7 +1635,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       onSend,
       onSessionDirty,
       setMessages,
-      setSettings,
+      setAgentModeForActiveChat,
       settings.agentMode,
       settings.subAgent?.codingEnabled,
       settings.toolsEnabled.coding,
@@ -1633,14 +1648,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const note = customNote.trim()
       if (!note) return
       onSessionDirty()
-      setSettings((s) => (s.agentMode === 'plan' ? s : { ...s, agentMode: 'plan' }))
+      setAgentModeForActiveChat?.('plan')
       const reviseText = formatPlanForRevisePrompt(plan, note)
       void onSend({
         text: reviseText,
         forceAgentMode: 'plan',
       })
     },
-    [busy, onSend, onSessionDirty, setSettings],
+    [busy, onSend, onSessionDirty, setAgentModeForActiveChat],
   )
 
   return {
