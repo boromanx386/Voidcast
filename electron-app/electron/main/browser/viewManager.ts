@@ -4,6 +4,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { CdpSession } from './cdp'
+import { recordProfileKey, runBrowserMaintenance, trimProfileCaches } from './maintenance'
 
 /**
  * Owns the Voidcast browser: one Chromium view per open page, inside our own window.
@@ -212,6 +213,7 @@ function closeAllPages(): void {
 function applyProfile(projectPath?: string): { profile: string; changed: boolean } {
   const next = desiredProfileKey(projectPath)
   if (next === partitionKey) return { profile: partitionKey, changed: false }
+  const previous = partitionKey
   closeAllPages()
   partitionKey = next
   // A page creation still in flight was started against the previous partition: orphan it
@@ -223,6 +225,9 @@ function applyProfile(projectPath?: string): { profile: string; changed: boolean
   // Held sign-in requests and permission notes belong to the partition we just left.
   pendingAuth.clear()
   lastPermission = null
+  // We just left that profile: drop its re-downloadable caches. Cookies, local storage and
+  // every remembered sign-in survive — hundreds of MB of HTTP/code/service-worker cache do not.
+  if (previous) void trimProfileCaches(previous)
   return { profile: partitionKey, changed: true }
 }
 
@@ -309,6 +314,11 @@ function hardenSession(): Electron.Session {
   const ses = session.fromPartition(name)
   if (hardenedPartitions.has(name)) return ses
   hardenedPartitions.add(name)
+  // This partition belongs to the app and to a project: record it so housekeeping never treats
+  // it as an orphan, and let the once-per-run maintenance go now that we are actually here.
+  const key = partitionKey || 'default'
+  recordProfileKey(key)
+  runBrowserMaintenance(key, hardenedPartitions)
 
   ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
     if (ALLOWED_PERMISSIONS.has(permission)) {
