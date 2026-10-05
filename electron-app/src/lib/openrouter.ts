@@ -507,9 +507,14 @@ export async function streamOpenRouterChat(
       if (extra) Object.assign(body, extra)
       if (options.tools !== undefined) body.tools = options.tools
       if (isDeepSeekApi(root)) applyDeepSeekThinkingBody(body, options.thinkLevel)
-      // OpenCode Go: honor THINKING_LEVEL without forcing disable when unset.
+      // OpenCode Go: honor THINKING_LEVEL without the Anthropic-only `thinking`
+      // field (the zen/go gateway strictly rejects unknown fields:
+      // json: unknown field "thinking"). Omit everything when set to 'off'.
       if (isOpenCodeGo && options.thinkLevel !== undefined) {
-        applyDeepSeekThinkingBody(body, options.thinkLevel)
+        const effort = options.thinkLevel === 'on' ? 'medium' : options.thinkLevel
+        if (effort === 'low' || effort === 'medium' || effort === 'high') {
+          body.reasoning_effort = effort
+        }
       }
       if (apiLabel === 'OpenAI') {
         applyOpenAiReasoningBody(body, options.thinkLevel, options.tools !== undefined)
