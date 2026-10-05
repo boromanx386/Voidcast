@@ -61,6 +61,8 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'xiaomi/mimo-v2.6-flash', label: 'Mimo V2 6 Flash (1M ctx)' },
   { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5 5 (1M ctx)' },
   { id: 'xiaomi/mimo-v2.6-pro', label: 'Mimo V2 6 Pro (1.1M ctx)' },
+  { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5 5 (1M ctx)' },
+  { id: 'openai/gpt-6.1-sol', label: 'GPT 6 1 Sol (1.1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
