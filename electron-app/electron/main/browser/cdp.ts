@@ -589,7 +589,15 @@ export class CdpSession {
         ? `held across ${frames} rendered frame(s)`
         : `the page rendered NO frame while the key was held (visibilityState="${held.visibilityState}", document.hasFocus()=${held.hasFocus}) — a paused or throttled loop can never see the press`
     const log = seen.length ? seen.join(' | ') : 'no key events at all'
-    return `Pressed key "${rawKey}" (key="${spec.key}", code="${spec.code}", keyCode=${spec.vk}), ${step}. Page saw: ${log}.`
+    const sawDown = seen.some((entry) => entry.startsWith('down'))
+    const head = `Pressed key "${rawKey}" (key="${spec.key}", code="${spec.code}", keyCode=${spec.vk})`
+    // Quiet when the press plainly worked; the probe dump only when it cannot have been seen.
+    if (frames > 0 && sawDown) return `${head}, ${step}.`
+    const why =
+      frames > 0
+        ? 'frames were rendered but the page never logged the keydown'
+        : 'no frame was rendered, so a paused or throttled game loop cannot see the press'
+    return `${head}: ${step} — WARNING: ${why}. Page saw: ${log}.`
   }
 
   /** Frames received from the forced screencast — a liveness signal in diagnostics. */

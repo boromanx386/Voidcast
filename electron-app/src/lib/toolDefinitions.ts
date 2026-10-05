@@ -203,6 +203,16 @@ const BROWSER_FILL_TOOL: AgentToolDefinition = {
   },
 }
 
+const BROWSER_STATUS_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_status',
+    description:
+      'Current state of the Voidcast browser and its active page: profile, url/title, every open page, whether the active page is actually painted in the coding panel, a held HTTP sign-in, the last denied permission and the last download. Call this FIRST when a page does not react to input — a page the panel is not painting is hidden, a hidden page stops requestAnimationFrame, and canvas games (or any rAF-driven app) freeze until something paints it.',
+    parameters: { type: 'object', properties: {} },
+  },
+}
+
 const BROWSER_PRESS_KEY_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1709,6 +1719,7 @@ export function buildToolsList(
     out.push(BROWSER_WAIT_FOR_TOOL)
     out.push(BROWSER_LIST_PAGES_TOOL)
     out.push(BROWSER_SELECT_PAGE_TOOL)
+    out.push(BROWSER_STATUS_TOOL)
     if (!readOnlyMode) {
       out.push(BROWSER_HANDLE_DIALOG_TOOL)
       out.push(BROWSER_NEW_PAGE_TOOL)

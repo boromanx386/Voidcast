@@ -132,6 +132,7 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
     case 'browser_wait_for':
     case 'browser_handle_dialog':
     case 'browser_list_pages':
+    case 'browser_status':
     case 'browser_new_page':
     case 'browser_select_page':
     case 'browser_close_page':

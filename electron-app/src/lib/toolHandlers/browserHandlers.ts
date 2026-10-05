@@ -247,6 +247,48 @@ export const handleBrowserHandleDialog: ToolHandlerFn = async (args, ctx) => {
   }
 };
 
+export const handleBrowserStatus: ToolHandlerFn = async (_args, ctx) => {
+  if (!ctx.toolsEnabled.browser) {
+    return "Error: browser tools are disabled in settings.";
+  }
+  const bridge = browserBridge();
+  if (!bridge) {
+    return "Error: the Voidcast browser is only available in the Electron desktop app.";
+  }
+  try {
+    const res = await bridge.status();
+    if (!res.ok) return `Error: ${res.error ?? "could not read browser status"}`;
+    const lines = [
+      `profile: ${res.profile || "(not configured yet)"}`,
+      `state: ${res.state}${res.error ? ` — last error: ${res.error}` : ""}`,
+      `active page: ${res.url || "(none open)"}${res.title ? ` — ${res.title}` : ""}`,
+      `painted in the WEB panel: ${
+        res.visible
+          ? "yes"
+          : "NO — the page is hidden, and a hidden page stops requestAnimationFrame, so canvas games and rAF-driven apps are frozen while it is not shown"
+      }`,
+      `pages: ${
+        res.pages.map((p) => `${p.active ? "*" : " "}${p.id} ${p.url || "(blank)"}`).join(" | ") ||
+        "(none)"
+      }`,
+    ];
+    if (res.auth) {
+      lines.push(
+        `sign-in waiting: ${res.auth.host}${res.auth.realm ? ` (realm "${res.auth.realm}")` : ""} — the user has to answer the sign-in bar in the WEB panel before the page can continue`,
+      );
+    }
+    if (res.notice) lines.push(`notice: ${res.notice}`);
+    lines.push(
+      `downloads: ${res.downloadsDir}${
+        res.download ? ` — last: ${res.download.name} (${res.download.state})` : ""
+      }`,
+    );
+    return lines.join("\n");
+  } catch (e) {
+    return errText(e);
+  }
+};
+
 export const handleBrowserListPages: ToolHandlerFn = async (_args, ctx) => {
   if (!ctx.toolsEnabled.browser) {
     return "Error: browser tools are disabled in settings.";
@@ -361,6 +403,7 @@ export const handleBrowserEmulate: ToolHandlerFn = async (args, ctx) => {
 export const browserHandlersRegistry: ToolHandlerRegistry = {
   ["browser_navigate_page"]: handleBrowserNavigatePage,
   ["browser_list_pages"]: handleBrowserListPages,
+  ["browser_status"]: handleBrowserStatus,
   ["browser_new_page"]: handleBrowserNewPage,
   ["browser_select_page"]: handleBrowserSelectPage,
   ["browser_close_page"]: handleBrowserClosePage,

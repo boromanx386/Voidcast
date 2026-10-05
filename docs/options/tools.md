@@ -35,6 +35,7 @@ Each flag has a toggle in the panel (`ToolToggle`). If a tool is disabled, the a
 | `browser_press_key` | write | Press one key or a chord: a character (`1`, `a`, `+`), a physical code (`Digit1`, `KeyA`, `Numpad1`, `F5`) or a name (`Enter`, `Escape`, `Tab`, `ArrowUp`, …), optionally with modifiers (`Control+A`) |
 | `browser_take_screenshot` | write | Save a JPEG into `<project>/.voidcast/browser/shots/` — viewport by default, one element via `uid`, whole document via `full_page` |
 | `browser_emulate` | write | Emulate a device viewport / dark mode for responsive QA (`reset` clears it) |
+| `browser_status` | read | Browser state: profile, active url/title, open pages, whether the active page is **painted in the panel**, a held sign-in, the last download |
 | `browser_list_console_messages` | read | Recent console messages / page errors |
 | `browser_list_network_requests` | read | Recent network requests (method, status, url) |
 | `browser_wait_for` | read | Wait for a CSS selector, visible text, a URL substring and/or network idle before acting |
