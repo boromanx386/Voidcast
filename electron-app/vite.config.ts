@@ -7,11 +7,14 @@ import pkg from './package.json'
 
 /**
  * Production CSP. This is the policy that ships: no `unsafe-eval`, no `unsafe-inline`
- * for scripts, no object/base/form embedding. `connect-src` stays deliberately open —
- * the renderer talks directly to user-configured providers (OpenRouter, Ollama, Runware,
- * DeepSeek, NVIDIA, the local tools server, LAN web), so enumerating hosts would break
- * chat/image/TTS whenever a base URL changes. `style-src` keeps `unsafe-inline` for the
- * inline <style> block in index.html and React inline styles.
+ * for scripts, no object/base/form embedding. `connect-src` allows `https:`/`wss:` to any
+ * host so user-configured HTTPS providers (OpenRouter, Runware, DeepSeek, NVIDIA, remote
+ * images) and same-origin calls keep working, plus plain `http:`/`ws:` to loopback only —
+ * the local tools server (127.0.0.1:8765) and a local Ollama. Plain HTTP to a non-loopback
+ * host is blocked, which closes the cheap exfiltration channel; if you point a provider at
+ * a plain-HTTP address on another machine (e.g. a LAN Ollama), add that origin here.
+ * `style-src` keeps `unsafe-inline` for the inline <style> block in index.html and React
+ * inline styles.
  *
  * NOTE: `frame-ancestors` is intentionally omitted — a <meta>-delivered CSP cannot carry
  * it (browsers ignore it there); it is only honoured as a real HTTP header.
@@ -23,7 +26,7 @@ const CSP_PROD = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: data:",
-  "connect-src 'self' http: https: ws: wss:",
+  "connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'none'",
