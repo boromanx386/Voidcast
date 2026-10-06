@@ -183,8 +183,8 @@ export function buildOllamaMessages(
     toolsSystemHint?: string
     /**
      * Volatile tool/agent hints that change turn-to-turn (coding memo, live
-     * processes, concurrency warning). Emitted AFTER the history so they never
-     * bust the cached stable prefix.
+     * processes, concurrency warning). Prepended to the final user turn so they
+     * never bust the cached stable prefix.
      */
     volatileSystemHint?: string
     /** Runtime context (e.g. local time/date/timezone) */
@@ -219,13 +219,16 @@ export function buildOllamaMessages(
   const memorySection = longTermMemory
     ? `Relevant long-term user memory (do not quote verbatim unless asked):\n${longTermMemory}`
     : ''
-  // Cache-friendly ordering: byte-identical STABLE prefix first, then the
-  // conversation history, then the per-turn VOLATILE tail, and only then the new
-  // user turn. A provider reuses a warm prompt cache for the longest matching
-  // prefix and busts it at the first differing token. The clock, volatile agent
-  // hints, compression summary and retrieved memory change every turn, so they
-  // must sit AFTER the history — otherwise the cacheable prefix ends at the
-  // volatile piece and the whole history is recomputed every turn and tool round.
+  // Cache-friendly ordering: byte-identical STABLE prefix first (system + tools),
+  // then the whole conversation history, and the per-turn VOLATILE tail only at
+  // the very end — merged onto the final user turn, never as a trailing SYSTEM
+  // message (local llama.cpp / Llama-3 Jinja templates reject a system message
+  // that is not at the very beginning). A provider reuses a warm prompt cache for
+  // the longest matching prefix and busts it at the first differing token; the
+  // clock, volatile agent hints, compression summary and retrieved memory change
+  // every turn, so they must sit after the history, or the cacheable prefix would
+  // end at the volatile piece and the whole history would be recomputed every
+  // turn and tool round.
   const stableSys = [
     // --- stable head (unchanged turn-to-turn) ---
     base,
@@ -238,7 +241,7 @@ export function buildOllamaMessages(
   ]
     .filter(Boolean)
     .join('\n\n')
-  // --- volatile tail (changes per turn) — emitted after the history, below ---
+  // --- volatile tail (changes per turn) — prepended to the final user turn ---
   const volatileTail = [volatileHint, runtimeHint, summarySection, memorySection]
     .filter(Boolean)
     .join('\n\n')
@@ -258,15 +261,19 @@ export function buildOllamaMessages(
       out.push({ role: m.role, content: m.content })
     }
   }
-  // Volatile per-turn context goes AFTER the history (still before the new user
-  // turn) so the stable system+tools block AND the whole history stay cached.
-  if (volatileTail) {
-    out.push({ role: 'system', content: volatileTail })
-  }
+  // Volatile per-turn context rides on the FINAL user turn instead of a trailing
+  // SYSTEM message: local llama.cpp / Llama-3-style Jinja templates reject any
+  // system message that is not at the very beginning ("System message must be at
+  // the beginning"). It stays the last thing in the payload — prepended to the
+  // user text so the actual request still ends the prompt — while the stable
+  // system+tools block and the whole history stay cacheable.
+  const nextUserContent = volatileTail
+    ? `${volatileTail}\n\n${newUserContent}`
+    : newUserContent
   const nextUser: OllamaApiMessage =
     opts.newUserImages && opts.newUserImages.length > 0
-      ? { role: 'user', content: newUserContent, images: opts.newUserImages }
-      : { role: 'user', content: newUserContent }
+      ? { role: 'user', content: nextUserContent, images: opts.newUserImages }
+      : { role: 'user', content: nextUserContent }
   out.push(nextUser)
   return out
 }
