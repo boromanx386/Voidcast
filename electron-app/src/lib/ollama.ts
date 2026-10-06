@@ -153,6 +153,12 @@ export type OllamaModelOptions = {
 /** Usage counters from Ollama chat response chunks/final object. */
 export type OllamaChatUsage = {
   prompt_eval_count?: number
+  /**
+   * Prompt tokens served from the provider KV-cache this request.
+   * Ollama: `prompt_eval_cached_count`. OpenAI/OpenRouter:
+   * `prompt_tokens_details.cached_tokens`. DeepSeek: `prompt_cache_hit_tokens`.
+   */
+  cached_prompt_tokens?: number
   eval_count?: number
   total_duration?: number
   load_duration?: number
@@ -190,6 +196,22 @@ function pickUsageNumber(v: unknown): number | undefined {
 }
 
 /**
+ * Cache-hit tokens from any provider shape. Ollama uses
+ * `prompt_eval_cached_count`; OpenAI/OpenRouter/Anthropic-via-OR use
+ * `prompt_tokens_details.cached_tokens`; DeepSeek uses `prompt_cache_hit_tokens`.
+ */
+function pickCachedPromptTokens(o: Record<string, unknown>): number | undefined {
+  const ollama = pickUsageNumber(o.prompt_eval_cached_count)
+  if (ollama !== undefined) return ollama
+  const details = o.prompt_tokens_details
+  if (details && typeof details === 'object') {
+    const cached = pickUsageNumber((details as Record<string, unknown>).cached_tokens)
+    if (cached !== undefined) return cached
+  }
+  return pickUsageNumber(o.prompt_cache_hit_tokens)
+}
+
+/**
  * Extract usage counters from one Ollama chunk/object.
  * Usage fields usually arrive on the final chunk (`done: true`), but we
  * tolerate any chunk carrying counters.
@@ -199,6 +221,7 @@ export function parseChatStreamUsage(obj: unknown): OllamaChatUsage | undefined 
   const o = obj as Record<string, unknown>
   const usage: OllamaChatUsage = {
     prompt_eval_count: pickUsageNumber(o.prompt_eval_count),
+    cached_prompt_tokens: pickCachedPromptTokens(o),
     eval_count: pickUsageNumber(o.eval_count),
     total_duration: pickUsageNumber(o.total_duration),
     load_duration: pickUsageNumber(o.load_duration),
@@ -206,6 +229,66 @@ export function parseChatStreamUsage(obj: unknown): OllamaChatUsage | undefined 
     eval_duration: pickUsageNumber(o.eval_duration),
   }
   return Object.values(usage).some((v) => v !== undefined) ? usage : undefined
+}
+
+/**
+ * One-line prompt-cache summary, e.g. `cache 12,340 / 14,002 (88% hit)`.
+ * Returns undefined when the provider did not report cached prompt tokens
+ * (i.e. it has no prompt-cache telemetry), so callers can skip logging.
+ */
+export function formatCacheHitRate(usage: OllamaChatUsage | undefined): string | undefined {
+  const prompt = usage?.prompt_eval_count
+  const cached = usage?.cached_prompt_tokens
+  if (typeof prompt !== 'number' || typeof cached !== 'number' || prompt <= 0) return undefined
+  const hit = Math.min(prompt, Math.max(0, Math.round(cached)))
+  return `cache ${hit.toLocaleString()} / ${prompt.toLocaleString()} (${Math.round((hit / prompt) * 100)}% hit)`
+}
+
+/** Fast, allocation-light 32-bit FNV-1a hash — for prefix fingerprinting in logs. */
+function fnv1a(str: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
+
+/** Minimal message shape needed to fingerprint the cache prefix (any provider). */
+type FingerprintMessage = { role: string; content?: unknown }
+
+/**
+ * Fingerprint of the prompt we actually sent. `head` hashes the first system
+ * message (the stable prefix that MUST stay byte-identical for cache hits);
+ * `pre` hashes every message except the final user turn (the cacheable body);
+ * `n` is the message count. Two lines side by side separate a payload bust
+ * (head/pre changed) from a server-side eviction (unchanged, yet 0%).
+ */
+function promptFingerprint(messages?: FingerprintMessage[]): string | undefined {
+  if (!messages || messages.length === 0) return undefined
+  const head = messages.find((m) => m.role === 'system')
+  const pre = messages
+    .slice(0, Math.max(0, messages.length - 1))
+    .map((m) => `${m.role}\u0000${typeof m.content === 'string' ? m.content : ''}`)
+    .join('\u0001')
+  return `head=${head ? fnv1a(String(head.content)) : 'none'} pre=${fnv1a(pre)} n=${messages.length}`
+}
+
+/**
+ * Diagnostic passthrough: log the provider-reported prompt-cache hit rate plus a
+ * prefix fingerprint for this single API request, then return the usage
+ * unchanged so it can be wrapped inline at a return site.
+ */
+export function logPromptCache(
+  usage: OllamaChatUsage | undefined,
+  messages?: FingerprintMessage[],
+): OllamaChatUsage | undefined {
+  const line = formatCacheHitRate(usage)
+  if (line) {
+    const fp = promptFingerprint(messages)
+    console.info(`[voidcast] prompt ${line}${fp ? ` · ${fp}` : ''}`)
+  }
+  return usage
 }
 
 function choosePreferredNumber(
@@ -230,6 +313,10 @@ export function mergeOllamaUsage(
     prompt_eval_count: choosePreferredNumber(
       prev.prompt_eval_count,
       next.prompt_eval_count,
+    ),
+    cached_prompt_tokens: choosePreferredNumber(
+      prev.cached_prompt_tokens,
+      next.cached_prompt_tokens,
     ),
     eval_count: choosePreferredNumber(prev.eval_count, next.eval_count),
     total_duration: choosePreferredNumber(prev.total_duration, next.total_duration),
@@ -338,5 +425,5 @@ export async function streamOllamaChat(
       /* ignore trailing parse noise */
     }
   }
-  return { content: full, thinking: fullThinking, usage }
+  return { content: full, thinking: fullThinking, usage: logPromptCache(usage, options.messages) }
 }

@@ -29,6 +29,7 @@ import type {
 import {
   fetchOllamaWithRetry,
   isThinkingUiEnabled,
+  logPromptCache,
   mergeOllamaUsage,
   parseChatStreamUsage,
   toOllamaThinkBodyValue,
@@ -265,7 +266,7 @@ export async function streamOllamaChatOnce(options: {
     content: fullContent,
     thinking: fullThinking,
     tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
-    usage,
+    usage: logPromptCache(usage, options.messages),
   }
 }
 

@@ -918,7 +918,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       const isRunActive = () => sessionAgentStore.isRunActive(keyOf(), runId)
       let replyText = ''
-      let usage: { prompt_eval_count?: number; eval_count?: number } | undefined
+      let usage:
+        | { prompt_eval_count?: number; cached_prompt_tokens?: number; eval_count?: number }
+        | undefined
       let escalatedToPlan = false
       let liveBuildPlan: PlanArtifact | undefined =
         opts?.buildFromPlanMessageId

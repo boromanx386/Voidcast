@@ -1,4 +1,5 @@
 import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
+import { logPromptCache } from './ollama'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from './platform'
 import type { LlmThinkLevel } from './settings'
@@ -34,6 +35,13 @@ export type OpenRouterUsage = {
   prompt_tokens?: number
   completion_tokens?: number
   total_tokens?: number
+  /** OpenAI/DeepSeek/Anthropic-via-OR cache detail. */
+  prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number }
+  /** DeepSeek-native cache fields (passthrough). */
+  prompt_cache_hit_tokens?: number
+  prompt_cache_miss_tokens?: number
+  /** OpenRouter-reported USD saved by cache hits for this request. */
+  cache_discount?: number
 }
 
 export type StreamOpenRouterChatParams = {
@@ -51,7 +59,7 @@ export type StreamOpenRouterChatParams = {
   thinkLevel?: LlmThinkLevel
   /** OpenRouter provider slug; when set, routes only to that provider (no fallbacks). */
   providerOnly?: string
-  /** Stable per-chat session id required by OpenCode Go for request routing/caching. */
+  /** Stable per-chat id: OpenCode Go `x-opencode-session`, and OpenRouter `session_id` sticky-routing key. */
   opencodeSessionId?: string
 }
 
@@ -187,9 +195,11 @@ export function mapOpenRouterUsageToOllama(usage: OpenRouterUsage | undefined): 
   if (!usage) return undefined
   const prompt = usage.prompt_tokens
   const completion = usage.completion_tokens
-  if (prompt === undefined && completion === undefined) return undefined
+  const cached = usage.prompt_tokens_details?.cached_tokens ?? usage.prompt_cache_hit_tokens
+  if (prompt === undefined && completion === undefined && cached === undefined) return undefined
   return {
     prompt_eval_count: typeof prompt === 'number' ? prompt : undefined,
+    cached_prompt_tokens: typeof cached === 'number' ? cached : undefined,
     eval_count: typeof completion === 'number' ? completion : undefined,
   }
 }
@@ -522,6 +532,14 @@ export async function streamOpenRouterChat(
       if (apiLabel === 'OpenRouter') {
         const provider = openRouterProviderRoutingBody(options.providerOnly)
         if (provider) body.provider = provider
+        // Sticky-routing key. Without it OpenRouter derives the route by hashing
+        // the opening messages — which change as context evolves — so each turn
+        // can land on a different endpoint with its own cold KV-cache and prompt
+        // caching never warms up (and stickiness only starts AFTER a first hit,
+        // which then never comes). Reuse the same stable per-chat id already used
+        // for OpenCode Go so the conversation stays pinned to the warm endpoint.
+        const sessionId = (options.opencodeSessionId || '').trim()
+        if (sessionId) body.session_id = sessionId.slice(0, 256)
       }
 
       const headers: Record<string, string> = {
@@ -573,7 +591,7 @@ export async function streamOpenRouterChat(
         return {
           content,
           tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
-          usage: mapOpenRouterUsageToOllama(data.usage),
+          usage: logPromptCache(mapOpenRouterUsageToOllama(data.usage), messages),
           reasoning,
         }
       }
@@ -664,6 +682,6 @@ export async function streamOpenRouterChat(
     content: full,
     reasoning: fullReasoning,
     tool_calls: toolCalls.filter((t) => Boolean(t.function?.name)),
-    usage: mapOpenRouterUsageToOllama(usage),
+    usage: logPromptCache(mapOpenRouterUsageToOllama(usage), options.messages),
   }
 }

@@ -17,6 +17,10 @@ export type ContextUsageInfo = {
   modelId?: string
   /** True when promptTokens is a local estimate made before the next model call. */
   estimated?: boolean
+  /** Prompt tokens served from the provider KV-cache this turn (when reported). */
+  cachedPromptTokens?: number
+  /** Prompt-cache hit rate: cachedPromptTokens / promptTokens, 0..1 (when reported). */
+  cacheHitRatio?: number
 }
 
 export const CONTEXT_WARN_RATIO = 0.78
@@ -110,10 +114,16 @@ export function estimateContextUsage(
   const prompt = Math.max(0, Math.round(usage.prompt_eval_count ?? 0))
   const evalCount = Math.max(0, Math.round(usage.eval_count ?? 0))
   if (prompt <= 0 && evalCount <= 0) return null
+  const cached =
+    usage.cached_prompt_tokens !== undefined
+      ? Math.min(prompt, Math.max(0, Math.round(usage.cached_prompt_tokens)))
+      : undefined
   const ratio = prompt / maxTokens
   return {
     promptTokens: prompt,
     outputTokens: evalCount,
+    cachedPromptTokens: cached,
+    cacheHitRatio: cached !== undefined && prompt > 0 ? cached / prompt : undefined,
     maxTokens,
     ratio,
     shouldWarn: ratio >= CONTEXT_WARN_RATIO,

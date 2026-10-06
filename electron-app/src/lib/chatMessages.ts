@@ -181,6 +181,12 @@ export function buildOllamaMessages(
     askModeSystemHint?: string
     /** Merged after user system prompt when tools are on */
     toolsSystemHint?: string
+    /**
+     * Volatile tool/agent hints that change turn-to-turn (coding memo, live
+     * processes, concurrency warning). Emitted AFTER the history so they never
+     * bust the cached stable prefix.
+     */
+    volatileSystemHint?: string
     /** Runtime context (e.g. local time/date/timezone) */
     runtimeSystemHint?: string
     /**
@@ -202,6 +208,7 @@ export function buildOllamaMessages(
   const planModeHint = opts.planModeSystemHint?.trim()
   const askModeHint = opts.askModeSystemHint?.trim()
   const hint = opts.toolsSystemHint?.trim()
+  const volatileHint = opts.volatileSystemHint?.trim()
   const runtimeHint = opts.runtimeSystemHint?.trim()
   const base = opts.systemPrompt.trim()
   const hiddenSummary = opts.hiddenContextSummary?.trim()
@@ -212,22 +219,31 @@ export function buildOllamaMessages(
   const memorySection = longTermMemory
     ? `Relevant long-term user memory (do not quote verbatim unless asked):\n${longTermMemory}`
     : ''
-  const sys = [
+  // Cache-friendly ordering: byte-identical STABLE prefix first, then the
+  // conversation history, then the per-turn VOLATILE tail, and only then the new
+  // user turn. A provider reuses a warm prompt cache for the longest matching
+  // prefix and busts it at the first differing token. The clock, volatile agent
+  // hints, compression summary and retrieved memory change every turn, so they
+  // must sit AFTER the history — otherwise the cacheable prefix ends at the
+  // volatile piece and the whole history is recomputed every turn and tool round.
+  const stableSys = [
+    // --- stable head (unchanged turn-to-turn) ---
     base,
     projectInstructionsHint,
     planModeHint,
     askModeHint,
     skillsHint,
-    runtimeHint,
     hint,
     ATTACHMENT_TRUTH_HINT,
-    summarySection,
-    memorySection,
   ]
     .filter(Boolean)
     .join('\n\n')
-  if (sys) {
-    out.push({ role: 'system', content: sys })
+  // --- volatile tail (changes per turn) — emitted after the history, below ---
+  const volatileTail = [volatileHint, runtimeHint, summarySection, memorySection]
+    .filter(Boolean)
+    .join('\n\n')
+  if (stableSys) {
+    out.push({ role: 'system', content: stableSys })
   }
   for (const m of priorMessages) {
     if (m.role === 'user' && m.images?.length) {
@@ -241,6 +257,11 @@ export function buildOllamaMessages(
     } else {
       out.push({ role: m.role, content: m.content })
     }
+  }
+  // Volatile per-turn context goes AFTER the history (still before the new user
+  // turn) so the stable system+tools block AND the whole history stay cached.
+  if (volatileTail) {
+    out.push({ role: 'system', content: volatileTail })
   }
   const nextUser: OllamaApiMessage =
     opts.newUserImages && opts.newUserImages.length > 0

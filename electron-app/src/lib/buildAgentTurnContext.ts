@@ -241,6 +241,10 @@ export async function buildAgentTurnContext(
     : ''
   const askModeSystemHint = askMode ? buildAskModeSystemHint() : ''
   const toolsHintParts: string[] = []
+  // Volatile hints change turn-to-turn / per tool round (coding memo, live
+  // processes, concurrency warning). Emitted AFTER the history so they never
+  // bust the cached stable prefix — put only genuinely-changing text here.
+  const volatileHintParts: string[] = []
   if (handoffHint && planMode) toolsHintParts.push(handoffHint)
   // Approve & Build (Plan → implement) — never applies to Ask.
   if (!readOnlyMode && buildFromPlan && teamMode && settings.subAgent?.codingEnabled) {
@@ -328,12 +332,12 @@ export async function buildAgentTurnContext(
         'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
       )
     }
-    toolsHintParts.push(buildCodingMemoHint(codingContextMemo, { buildWithResearch }))
+    volatileHintParts.push(buildCodingMemoHint(codingContextMemo, { buildWithResearch }))
     if (codingConcurrencyAdvisory.trim()) {
-      toolsHintParts.push(codingConcurrencyAdvisory.trim())
+      volatileHintParts.push(codingConcurrencyAdvisory.trim())
     }
     const activeHint = buildActiveProcessesHint(activeCodingProcesses)
-    if (activeHint) toolsHintParts.push(activeHint)
+    if (activeHint) volatileHintParts.push(activeHint)
   }
   if (useTools && !readOnlyMode) {
     const visible = getAgentVisibleSettings(settings)
@@ -408,6 +412,8 @@ export async function buildAgentTurnContext(
     longTermMemoryContext: longMemoryContext,
     toolsSystemHint:
       useTools && toolsHintParts.length > 0 ? toolsHintParts.join('\n\n') : undefined,
+    volatileSystemHint:
+      volatileHintParts.length > 0 ? volatileHintParts.join('\n\n') : undefined,
     newUserImages:
       visionImagesForCurrentMessage.length > 0 ? visionImagesForCurrentMessage : undefined,
     includeThinkingInHistory: isThinkingUiEnabled(settings.llmThinkLevel),
