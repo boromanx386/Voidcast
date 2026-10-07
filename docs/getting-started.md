@@ -44,6 +44,7 @@ Cloud API keys are kept in renderer `localStorage`; on LAN web clients `saveSett
 ## Using Local Ollama
 
 - Default `ollamaBaseUrl` is `http://localhost:11434`. Desktop also supports a desktop proxy for web clients.
+- **Plain HTTP to a non-loopback host is blocked by CSP**: the renderer's `connect-src` allows `https:`/`wss:` plus loopback `http:`/`ws:` only. A LAN Ollama at `http://192.168.x.x:11434` needs its origin added to `index.html` to work.
 - `ollamaModel` defaults to `llama3.2`. The model list is fetched from `/api/tags` in `electron-app/src/lib/ollama.ts`.
 - Ollama-specific LLM options: `llmTemperature`, `llmNumCtx` (`options.num_ctx`), `llmThinkLevel` (`think`), and `llmSystemPrompt`.
 - OpenRouter/NVIDIA reasoning appears in the UI when `llmThinkLevel` is not `off`.

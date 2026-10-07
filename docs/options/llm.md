@@ -13,6 +13,7 @@ The active provider determines which provider-specific group of fields is shown 
 
 ### Ollama (local)
 - `ollamaBaseUrl` — default `http://localhost:11434`; on desktop a local proxy may be used.
+- **CSP note:** the renderer's `connect-src` allows `https:`/`wss:` plus loopback `http:`/`ws:` only, so an Ollama server reached over plain HTTP at a **non-loopback** address (e.g. `http://192.168.1.50:11434`) is blocked until that origin is added to `index.html`.
 - `ollamaModel` — default `'llama3.2'`. A **Refresh/load models** button populates this from the Ollama server (`loadModels`, `ollamaModels`, `modelsLoading`, `modelsError`); you can also type a custom model id.
 
 ### OpenRouter (cloud)
@@ -23,6 +24,7 @@ The active provider determines which provider-specific group of fields is shown 
 - **Per-model provider mapping** — `openrouterProviderByModel` (`Record<string, string>`). Maps each OpenRouter model id to a provider slug lock. If a model has a lock, requests for that model go only to that provider; otherwise OpenRouter default routing is used. Editing the lock for the current model updates `openrouterProviderOnly` too.
 - **Pinned models** — `pinnedModels` (`string[]`). Provider-specific ids like `'openrouter:anthropic/claude-sonnet-5'` or `'openrouter:openai/gpt-5.6-sol'`. Pinned models appear as quick-select chips in the panel (and in the chat model picker); toggle a pin on/off per candidate model.
 - **Provider listing** — **LIST ALL** queries OpenRouter for every provider serving the selected model and shows provider name, context length, input/output price, and recent uptime. Click a row to apply that provider as the current model's `OPENROUTER_PROVIDER` lock. Desktop requests go directly to OpenRouter; LAN web requests use the local proxy.
+- **Sticky routing for prompt cache** — each chat sends a stable `session_id` so OpenRouter keeps routing the conversation to the same provider and its prompt cache keeps hitting. Volatile per-turn context (clock, coding memo, live processes, summary, long-term memory) is attached to the final user turn rather than a trailing system message, keeping the cached prefix byte-identical.
 
 ### NVIDIA
 - `nvidiaBaseUrl` — default `https://integrate.api.nvidia.com/v1`

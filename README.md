@@ -393,6 +393,17 @@ npm run dev
 
 Starts the Python tools server on `http://127.0.0.1:8765` and the Electron app with Vite HMR.
 
+### Lint & format
+
+From `electron-app/`:
+
+```bash
+npm run lint         # eslint .
+npm run lint:fix     # eslint . --fix
+npm run format       # prettier --write .
+npm run format:check # prettier --check .
+```
+
 ### Building the production app
 
 ```bash

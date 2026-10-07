@@ -93,6 +93,7 @@ Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 - **Footer CTX popup** (`ChatSystemStatus.tsx`): click the CTX meter for auto-compress toggle (`contextAutoCompress` at ~90%) and **COMPRESS NOW** (`summarizeContextNow`) anytime — useful on 1M-ctx models when you want to shrink early. Disabled while the agent is busy or a compress is already running.
 - **Warning banner** (`ContextWarningBanner.tsx`): shows `CTX_USAGE %` when `shouldWarn`, `contextAutoCompress` off, not dismissed — COMPRESS / IGNORE.
 - Auto-compress near 90% of the model context limit stores `hiddenContextSummary` (never rendered) + `contextCompressedThroughIndex`.
+- **Cache-stable ordering**: the system prompt and full history form a byte-identical cached prefix each turn; volatile context (clock, coding memo, live processes, summary, long-term memory) rides on the **final user turn** instead of a trailing system message. Cached-token counts are mapped from the usage block and a `[voidcast] prompt …` cache-hit line is logged.
 
 ## Tool-Result & Error Banners
 
