@@ -77,6 +77,7 @@ Available tools:
 - **YouTube** — search videos + fetch transcripts
 - **Reddit** — browse subreddits, search posts, read threads
 - **Web Scrape** — fetch and summarize public pages
+- **Built-in Browser** — drive a real Chromium view inside the app (coding panel **WEB** view): navigate, click, type, snapshot, screenshots, console/network, device emulation — no external Chrome (see below)
 - **PDF Export** — agent writes a formatted PDF to a folder you configure (Python tools server / ReportLab)
 - **Image Generation** — Runware or **OpenRouter** (Gemini Flash Image, GPT Image 2)
 - **Image Edit** — Runware or OpenRouter; reference images from chat
@@ -84,6 +85,7 @@ Available tools:
 - **Text-to-Speech** — `generate_tts` uses the active TTS provider and saves a real audio file; project-relative output paths are supported on desktop
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
+- **Plan Mode** — `enter_plan_mode` switches the chat into a read-only plan flow (explore first, then approve) before coding
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 - **MCP Servers (desktop)** — connect external MCP tools from `~/.voidcast/mcp.json` (see below)
 
@@ -143,6 +145,16 @@ Example remote OAuth entry:
   }
 }
 ```
+
+### Built-in Browser
+
+Voidcast ships its **own Chromium view** — no external Chrome, no browser extension. It is the coding panel's **WEB** tab, driven by the main process over in-process CDP, and **you and the agent share the same view**.
+
+- **`browser_*` tools** — `navigate`, `take_snapshot` (accessibility tree: `<uid> <role> name="…"`), `click`, `fill`, `press_key`, `take_screenshot`, `emulate` (device viewport / dark mode), plus read-only `status`, `list_console_messages`, `list_network_requests`, `wait_for`.
+- **Multi-page** — up to **8** tabs; links that open a new window (`target=_blank`) become a page in this browser instead of the system browser, so the flow never leaves the panel.
+- **Real input** — clicks and keys are dispatched as real CDP input events, so React/Vue apps and canvas games react exactly as to a real user. Screenshots save to `<project>/.voidcast/browser/shots/` (the tool returns a path — pass it to `image_recall` to look).
+- **Downloads & auth** — downloads land in `<project>/.voidcast/browser/downloads/` (never the OS folder); HTTP Basic/Digest sign-ins can be remembered per profile (encrypted — the agent never sees the password).
+- **Locked down by default** — permissions are **denied** unless they are `fullscreen`, `clipboard-sanitized-write` or `pointerLock`; the agent reads untrusted pages with a hardened profile per coding project.
 
 ### Chat modes
 
@@ -260,6 +272,8 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 ## Context Compression
 
 Local and small-context models hit a wall after long chats. When prompt usage nears the model limit (~90%), Voidcast can **auto-compress** (toggle in **Options → LLM**, or from the footer **CTX** popup): it summarizes older turns into a hidden memory buffer (provider-aware) and injects that into the system prompt on later turns. **The full chat stays visible in the UI**; only new messages after compression are sent again as raw turns to the model. Click the footer CTX meter for **COMPRESS NOW** anytime (including early on large-context models), or use the yellow warning banner when auto is off.
+
+Prompts are ordered for **prompt-cache hits**: the system prompt and history stay a stable prefix, while volatile per-turn context (clock, live processes, long-term memory, compression summary) rides on the **final user turn** instead of a trailing system message; OpenRouter requests use a stable `session_id` for sticky routing.
 
 <p align="center">
   <img src="demos/voidcast-options-llm-openrouter-9x16.png" width="700" alt="LLM options panel"/>
@@ -454,22 +468,42 @@ Coding tools run inside the Electron app (not as separate HTTP routes). Image ed
 ## Repository Layout
 
 ```
-├── electron-app/              # Main Electron application
+├── electron-app/                    # Electron + React desktop app
+│   ├── electron/
+│   │   ├── main/                    # Main process (window, browser panel, housekeeping, IPC)
+│   │   ├── preload/                 # contextBridge preload scripts
+│   │   └── electron-env.d.ts
 │   ├── src/
-│   │   ├── App.tsx            # Thin shell (chat vs options routing)
-│   │   ├── hooks/             # App state: sessions, agent, TTS/STT, attachments…
-│   │   ├── components/chat/   # Chat UI (header, sidebar, messages, composer…)
-│   │   ├── components/options/
-│   │   └── lib/               # Shared tool catalog/handlers, settings, providers, helpers
-│   └── test/                  # Vitest unit tests
-├── tts-server/                # Python tools + TTS server
-│   ├── main.py                # Combined FastAPI app (tools + web UI)
-│   ├── pdf_tool.py            # ReportLab PDF renderer for save_pdf
-│   ├── tools_main.py          # Tools-only entry for dev
-│   ├── fonts/                 # Noto Sans TTFs (bundled into tools exe)
-│   └── requirements.txt       # Python dependencies
-├── assets/                    # Application assets (icons, images)
-└── releases/                  # Build output directory
+│   │   ├── App.tsx                  # Thin shell (chat vs options routing)
+│   │   ├── hooks/                   # App state: sessions, agent, TTS/STT, attachments…
+│   │   ├── components/chat/         # Chat UI (header, sidebar, messages, composer…)
+│   │   ├── components/options/      # Options panels (LLM, TTS, image, skills, tools…)
+│   │   └── lib/                     # Shared tool catalog/handlers, settings, providers, helpers
+│   ├── public/                      # Static assets served as-is
+│   ├── test/                        # Vitest unit tests
+│   ├── electron-builder.json        # Packaging + GitHub publish config
+│   └── release/                     # Build output (gitignored)
+├── tts-server/                      # Python tools + TTS/STT server (FastAPI)
+│   ├── main.py                      # Combined app (tools + web UI)
+│   ├── tts_main.py                  # TTS-only entry
+│   ├── tools_main.py                # Tools-only entry for dev
+│   ├── pdf_tool.py                  # ReportLab PDF renderer for save_pdf
+│   ├── stt_whistle.py               # Offline Whistle STT (cactus-needle)
+│   ├── voidcast-tools-server.spec   # PyInstaller spec for the bundled tools exe
+│   ├── fonts/                       # Noto Sans TTFs (bundled into tools exe)
+│   ├── vendor/                      # Bundled native engines + Whistle model
+│   └── web-ui/                      # LAN web UI for phones
+├── docs/                            # Docs (architecture, chat, coding, options…)
+├── demos/                           # Screenshots & demo assets used in this README
+├── scripts/                         # Build/release helpers (tools exe, web UI copy…)
+├── site/                            # Landing page (static site)
+├── videos/                          # Promo/demo video sources
+├── CHANGELOG.md                     # Release history
+├── LICENSE                          # MIT
+├── THIRD_PARTY_NOTICES.md           # Bundled third-party licenses
+├── LOCAL_TTS_SETUP.md               # Local tools/TTS server setup
+├── start-dev.bat                    # One-click dev launcher
+└── start-tts-local.bat              # Run the local tools/TTS server only
 ```
 
 ---
