@@ -25,9 +25,17 @@
  *
  * Sources (all public, no API key):
  *   OpenRouter  GET https://openrouter.ai/api/v1/models
- *   OpenCode Go GET https://opencode.ai/zen/go/v1/models  (real catalog = source of truth)
- *               +  https://models.dev/api.json  (ctx/pricing enrichment only; can be stale)
+ *   OpenCode Go GET https://opencode.ai/zen/go/v1/models  (live catalog; it is a
+ *                 chat/completions-first feed and OMITS /v1/messages-only models such as
+ *                 claude-haiku-5-5, so it is not the only existence check)
+ *               +  https://models.dev/api.json  (ctx/pricing enrichment, and the per-model
+ *                 endpoint via `provider.npm`: @ai-sdk/anthropic = /v1/messages,
+ *                 @ai-sdk/openai = /v1/responses, @ai-sdk/openai-compatible = /v1/chat/completions)
  *   NVIDIA      GET https://integrate.api.nvidia.com/v1/models
+ *
+ * OpenCode Go endpoints handled: `/v1/chat/completions` and `/v1/messages` (both are first-class
+ * app presets — the app routes per model via openCodeGoApiStyle()). `/v1/responses` is not
+ * implemented by the app, so those models are skipped rather than suggested.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -85,6 +93,24 @@ function extractPresetIds(source, constName) {
   let m
   while ((m = idRe.exec(block[1]))) ids.push(m[1])
   return ids
+}
+
+/**
+ * Extract the quoted entries of a `new Set([...])` block, e.g.
+ * OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS (the app's per-model /v1/messages routing set).
+ */
+function extractSetEntries(source, constName) {
+  const block = source.match(setBlockRe(constName))
+  if (!block) return new Set()
+  const out = new Set()
+  const re = /'([^']+)'/g
+  let m
+  while ((m = re.exec(block[2]))) out.add(m[1])
+  return out
+}
+
+function setBlockRe(constName) {
+  return new RegExp(`((?:export )?const ${constName}\\s*(?::[^=]+)?=\\s*new Set\\(\\[)([\\s\\S]*?)(\\]\\))`)
 }
 
 /** Extract MODEL_CONTEXT_OVERRIDES as { id: number }. */
@@ -152,6 +178,28 @@ function updateContextOverride(source, id, value) {
 function upsertContextOverride(source, id, value) {
   const exists = new RegExp(`'${escapeRe(id)}':\\s*[\\d_]+`).test(source)
   return exists ? updateContextOverride(source, id, value) : addContextOverride(source, id, value)
+}
+
+/**
+ * Insert a quoted id into a `new Set([...])` block — used to pin a newly added
+ * /v1/messages model in OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS so the app routes it
+ * to `{base}/messages` instead of /v1/chat/completions.
+ */
+function addSetEntry(source, constName, id) {
+  if (extractSetEntries(source, constName).has(id)) return source
+  const m = source.match(setBlockRe(constName))
+  if (!m) return source
+  const insertAt = m.index + m[1].length + m[2].length
+  return source.slice(0, insertAt) + `  '${id}',\n` + source.slice(insertAt)
+}
+
+/** Remove a quoted id line from a `new Set([...])` block. */
+function removeSetEntry(source, constName, id) {
+  const m = source.match(setBlockRe(constName))
+  if (!m) return source
+  const newBody = m[2].replace(new RegExp(`[ \\t]*'${escapeRe(id)}',\\r?\\n`), '')
+  if (newBody === m[2]) return source
+  return source.slice(0, m.index + m[1].length) + newBody + source.slice(m.index + m[1].length + m[2].length)
 }
 
 // ---- label / formatting helpers ------------------------------------------
@@ -288,34 +336,69 @@ async function checkOpenRouter(curated, overrides) {
   return result
 }
 
-// The Voidcast app speaks only OpenAI-compatible /v1/chat/completions for
-// OpenCode Go. Per https://opencode.ai/docs/go/ (Endpoints table), these
-// families are served on other endpoints, so they are omitted from the app's
-// preset list and must not be suggested here:
-//   /v1/messages  → MiniMax, Qwen
-//   /v1/responses → Grok, GPT-5.6 Luna, Muse Spark
-const OPENCODE_NON_CHAT_COMPLETIONS = [
-  /^minimax/i,
-  /^qwen/i,
-  /^grok/i,
-  /^muse-spark/i,
-  /^gpt-5\.6-luna/i,
-]
-
-function isOpenCodeChatCompletions(id) {
-  return !OPENCODE_NON_CHAT_COMPLETIONS.some((re) => re.test(id))
+// OpenCode Go serves three wire formats (https://opencode.ai/docs/go/, Endpoints table).
+// The app implements two of them — see CloudLlmApiStyle in cloudLlmPresets.ts:
+//   /v1/chat/completions → 'openai-chat'
+//   /v1/messages         → 'anthropic-messages'   (MiniMax, Qwen, Claude Haiku 5.5)
+//   /v1/responses        → not implemented, so those models are never suggested.
+//
+// The app already knows per model which endpoint to use: openCodeGoApiStyle() consults
+// OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS. This checker mirrors that set, so a
+// /v1/messages model is a normal preset candidate — and when applied, the id is also
+// pinned into that routing set (addSetEntry), otherwise the app would POST it to
+// /v1/chat/completions and get a 404.
+const OPENCODE_ENDPOINT_LABEL = {
+  'openai-chat': '/v1/chat/completions',
+  'anthropic-messages': '/v1/messages',
+  'openai-responses': '/v1/responses',
 }
 
-// Legacy ids still returned by /v1/models but absent from the official Go model
-// list (https://opencode.ai/docs/go/): no docs entry, no pricing. Don't suggest:
+// models.dev carries the AI SDK package per model (`provider.npm`) and it maps 1:1 to
+// the docs' endpoint column.
+const OPENCODE_NPM_ENDPOINT = {
+  '@ai-sdk/anthropic': 'anthropic-messages',
+  '@ai-sdk/openai': 'openai-responses',
+  '@ai-sdk/openai-compatible': 'openai-chat',
+}
+
+// Fallback for ids models.dev does not know: the families the Go docs pin to another
+// endpoint. MiniMax + Qwen are /v1/messages (every listed variant is), Grok / Muse
+// Spark / *-luna are /v1/responses. The provider-level npm
+// ('@ai-sdk/openai-compatible') is only a default and must not win here, or a Qwen id
+// without a model-level npm would be misread as chat/completions.
+const OPENCODE_MESSAGES_FAMILIES = [/^minimax/i, /^qwen/i]
+const OPENCODE_RESPONSES_FAMILIES = [/^grok/i, /^muse-spark/i, /^gpt-[0-9.]+-luna/i]
+
+/** Resolve the OpenCode Go wire endpoint for a model id → { style, verified }. */
+function openCodeEndpoint(id, npm) {
+  const mapped = npm && OPENCODE_NPM_ENDPOINT[npm]
+  if (mapped === 'anthropic-messages' || mapped === 'openai-responses') {
+    return { style: mapped, verified: true }
+  }
+  if (OPENCODE_MESSAGES_FAMILIES.some((re) => re.test(id))) {
+    return { style: 'anthropic-messages', verified: false }
+  }
+  if (OPENCODE_RESPONSES_FAMILIES.some((re) => re.test(id))) {
+    return { style: 'openai-responses', verified: false }
+  }
+  return { style: 'openai-chat', verified: true }
+}
+
+// Legacy ids still returned by /v1/models but absent from the official Go model list
+// (https://opencode.ai/docs/go/) — no docs row and no models.dev entry, so their
+// endpoint cannot be verified. Don't suggest:
 //   deepseek-flash → superseded by deepseek-v4-flash
 //   grok-4.5       → superseded by grok-4.6/4.7 (which use /responses anyway)
-const OPENCODE_LEGACY_IDS = new Set(['deepseek-flash', 'grok-4.5'])
+//   minimax-m2.5   → superseded by minimax-m2.7
+//   qwen3.5-plus   → superseded by qwen3.7-plus
+const OPENCODE_LEGACY_IDS = new Set(['deepseek-flash', 'grok-4.5', 'minimax-m2.5', 'qwen3.5-plus'])
 
-async function checkOpenCodeGo(curated, overrides) {
+async function checkOpenCodeGo(curated, overrides, appMessages) {
   console.log('=== OPENCODE GO ===')
 
-  // Source of truth for existence: the real OpenCode Go catalog (OpenAI-compatible).
+  // Live catalog. NOTE: this feed is chat/completions-first and omits /v1/messages-only
+  // models (claude-haiku-5-5 is missing from it today), so existence is judged on the
+  // union below, never on this list alone.
   let liveIds
   try {
     const d = await fetchJson(OPENCODE_URL)
@@ -327,31 +410,55 @@ async function checkOpenCodeGo(curated, overrides) {
     return null
   }
 
-  // Enrichment only: models.dev has ctx/pricing but can lag behind the real API.
+  // Enrichment: models.dev has ctx/pricing AND the wire endpoint (`provider.npm`).
   let md = {}
   try {
     const d = await fetchJson(MODELSDEV_URL)
     md = d['opencode-go']?.models || {}
   } catch {
-    // enrichment is optional — existence checks above still work without it
+    // enrichment is optional — existence checks below still work without it
   }
 
   const live = new Set(liveIds)
+  const mdIds = new Set(Object.keys(md))
   const curatedSet = new Set(curated)
+  const messagesSet = appMessages instanceof Set ? appMessages : new Set(appMessages || [])
   const result = { provider: 'opencode-go', newModels: [], removed: [], ctx: [] }
 
-  // REMOVED — in app, gone from the real OpenCode Go catalog
-  const removed = curated.filter((id) => !live.has(id))
+  const endpointOf = (id) => openCodeEndpoint(id, md[id]?.provider?.npm)
+  const exists = (id) => live.has(id) || mdIds.has(id) || messagesSet.has(id)
+
+  // REMOVED — in app, gone from every source (live feed, models.dev, app routing set)
+  const removed = curated.filter((id) => !exists(id))
   result.removed = removed
   if (removed.length) {
     console.log(`  REMOVED (${removed.length}) — in app, gone from OpenCode Go:`)
     for (const id of removed) console.log(`    [-] ${id}`)
   }
 
+  // STALE ROUTING — the app pins a model to /v1/messages that nothing upstream lists
+  const staleMessages = [...messagesSet].filter((id) => !live.has(id) && !mdIds.has(id))
+  if (staleMessages.length) {
+    console.log(`  STALE ROUTING (${staleMessages.length}) — in OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS, not upstream:`)
+    for (const id of staleMessages) console.log(`    [!] ${id}`)
+  }
+
+  // MISROUTED — upstream serves it on /v1/messages but the app does not pin it, so it
+  // would POST to /v1/chat/completions and fail.
+  const misrouted = curated.filter(
+    (id) => endpointOf(id).style === 'anthropic-messages' && !messagesSet.has(id),
+  )
+  if (misrouted.length) {
+    console.log(`  MISROUTED (${misrouted.length}) — /v1/messages model missing from the app routing set:`)
+    for (const id of misrouted) {
+      console.log(`    [!] ${id} — app would POST /v1/chat/completions; add it to OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS`)
+    }
+  }
+
   // CONTEXT mismatch (app override vs models.dev limit.context, when models.dev knows it)
   const ctx = []
   for (const id of curated) {
-    if (!live.has(id)) continue
+    if (!exists(id)) continue
     const m = md[id]
     const ov = overrides[id]
     const lv = m?.limit?.context
@@ -363,15 +470,21 @@ async function checkOpenCodeGo(curated, overrides) {
     for (const [id, ov, lv] of ctx) console.log(`    [~] ${id}: ${fmtNum(ov)} -> ${fmtNum(lv)}`)
   }
 
-  // NEW — live on the real API, not curated, and chat/completions-compatible only
-  const allFresh = liveIds.filter((id) => !curatedSet.has(id)).sort()
-  const fresh = allFresh.filter((id) => isOpenCodeChatCompletions(id) && !OPENCODE_LEGACY_IDS.has(id))
-  const skipped = allFresh.filter((id) => !isOpenCodeChatCompletions(id))
-  const legacy = allFresh.filter((id) => isOpenCodeChatCompletions(id) && OPENCODE_LEGACY_IDS.has(id))
-  result.newModels = fresh.map((id) => ({ id, ctx: md[id]?.limit?.context }))
+  // NEW — reachable by the app, not curated. `/v1/messages` models count: the app
+  // routes them via openCodeGoApiStyle(), so they are normal presets.
+  const candidates = [...new Set([...liveIds, ...messagesSet])].sort()
+  const allFresh = candidates.filter((id) => !curatedSet.has(id))
+  const fresh = allFresh.filter((id) => endpointOf(id).style !== 'openai-responses' && !OPENCODE_LEGACY_IDS.has(id))
+  const skipped = allFresh.filter((id) => endpointOf(id).style === 'openai-responses')
+  const legacy = allFresh.filter((id) => endpointOf(id).style !== 'openai-responses' && OPENCODE_LEGACY_IDS.has(id))
+  result.newModels = fresh.map((id) => ({
+    id,
+    ctx: md[id]?.limit?.context,
+    apiStyle: endpointOf(id).style,
+  }))
   if (skipped.length) {
     console.log(
-      `  (filtered ${skipped.length} non-chat/completions model${skipped.length === 1 ? '' : 's'}: ${skipped.join(', ')})`,
+      `  (skipped ${skipped.length} /v1/responses-only model${skipped.length === 1 ? '' : 's'} — app speaks chat/completions + messages: ${skipped.join(', ')})`,
     )
   }
   if (legacy.length) {
@@ -381,21 +494,26 @@ async function checkOpenCodeGo(curated, overrides) {
   }
   if (fresh.length) {
     console.log(`  NEW (${fresh.length}):`)
-    for (const id of fresh) {
-      const m = md[id]
+    for (const it of result.newModels) {
+      const m = md[it.id]
+      const ep = endpointOf(it.id)
+      const tag =
+        it.apiStyle === 'anthropic-messages'
+          ? `  →  ${OPENCODE_ENDPOINT_LABEL[it.apiStyle]} (Anthropic Messages)${ep.verified ? '' : ' — endpoint unverified, not in models.dev'}`
+          : ''
       if (m?.limit?.context != null) {
-        console.log(`    [+] ${id}`)
+        console.log(`    [+] ${it.id}${tag}`)
         console.log(`        ctx ${fmtNum(m.limit.context)}  ${money(m.cost?.input)} in · ${money(m.cost?.output)} out`)
       } else {
-        console.log(`    [+] ${id}  (ctx unknown — not in models.dev)`)
+        console.log(`    [+] ${it.id}${tag}  (ctx unknown — not in models.dev)`)
       }
     }
   }
 
-  if (!removed.length && !ctx.length && !fresh.length) {
+  if (!removed.length && !ctx.length && !fresh.length && !misrouted.length && !staleMessages.length) {
     console.log('  (no changes — curated list is up to date).')
   }
-  console.log('  note: only /v1/chat/completions models listed; MiniMax+Qwen (/messages) and Muse Spark+gpt-5.6-luna (/responses) filtered out.')
+  console.log('  note: /v1/chat/completions and /v1/messages models are both suggested; adding a /v1/messages model also pins it in OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS. /v1/responses-only models (Grok, Muse Spark, *-luna) are skipped.')
   console.log('')
   return result
 }
@@ -493,10 +611,14 @@ async function interactiveApply(or, oc, nv, presetsSource, contextSource) {
   const state = { presets: presetsSource, context: contextSource, added: 0, removed: 0, changed: 0 }
 
   const groups = []
+  const ocChat = (oc?.newModels || []).filter((m) => m.apiStyle !== 'anthropic-messages')
+  const ocMessages = (oc?.newModels || []).filter((m) => m.apiStyle === 'anthropic-messages')
   if (or?.newModels.length)
     groups.push({ title: 'ADD — OpenRouter', items: or.newModels, kind: 'add', preset: 'OPENROUTER_LLM_PRESET_MODELS' })
-  if (oc?.newModels.length)
-    groups.push({ title: 'ADD — OpenCode Go', items: oc.newModels, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
+  if (ocChat.length)
+    groups.push({ title: 'ADD — OpenCode Go (/v1/chat/completions)', items: ocChat, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
+  if (ocMessages.length)
+    groups.push({ title: 'ADD — OpenCode Go (/v1/messages · Anthropic)', items: ocMessages, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
   if (nv?.newModels.length)
     groups.push({ title: 'ADD — NVIDIA', items: nv.newModels, kind: 'add', preset: 'NVIDIA_LLM_PRESET_MODELS' })
   if (or?.removed.length)
@@ -550,14 +672,25 @@ async function interactiveApply(or, oc, nv, presetsSource, contextSource) {
 
 function applyOne(g, index, state) {
   const it = g.items[index]
+  const isMessagesModel = it.apiStyle === 'anthropic-messages' && g.preset === 'OPENCODE_GO_LLM_PRESET_MODELS'
   if (g.kind === 'add') {
-    const label = makeLabel(it.id, it.ctx)
+    let label = makeLabel(it.id, it.ctx)
+    if (isMessagesModel) {
+      label = label.endsWith(')') ? label.slice(0, -1) + ' · Anthropic Messages)' : `${label} (Anthropic Messages)`
+    }
     state.presets = addPresetToArray(state.presets, g.preset, it.id, label)
+    if (isMessagesModel) {
+      // Routing: the app must POST this id to `{base}/messages`, not /v1/chat/completions.
+      state.presets = addSetEntry(state.presets, 'OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS', it.id)
+    }
     if (it.ctx != null) state.context = upsertContextOverride(state.context, it.id, it.ctx)
     state.added++
     console.log(`    + added ${it.id}  (${label})`)
   } else if (g.kind === 'remove') {
     state.presets = removePresetFromArray(state.presets, g.preset, it.id)
+    if (g.preset === 'OPENCODE_GO_LLM_PRESET_MODELS') {
+      state.presets = removeSetEntry(state.presets, 'OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS', it.id)
+    }
     state.context = removeContextOverride(state.context, it.id)
     state.removed++
     console.log(`    - removed ${it.id}`)
@@ -578,12 +711,16 @@ async function main() {
   const curatedOpenCode = extractPresetIds(presetsSource, 'OPENCODE_GO_LLM_PRESET_MODELS')
   const curatedNvidia = extractPresetIds(presetsSource, 'NVIDIA_LLM_PRESET_MODELS')
   const overrides = extractContextOverrides(contextSource)
+  // The app's per-model /v1/messages routing set (config, not just metadata).
+  const openCodeMessages = extractSetEntries(presetsSource, 'OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS')
 
   console.log('Voidcast — cloud model preset checker')
   console.log('')
 
   const or = !OPENCODE_ONLY && !NVIDIA_ONLY ? await checkOpenRouter(curatedOpenRouter, overrides) : null
-  const oc = !OPENROUTER_ONLY && !NVIDIA_ONLY ? await checkOpenCodeGo(curatedOpenCode, overrides) : null
+  const oc = !OPENROUTER_ONLY && !NVIDIA_ONLY
+    ? await checkOpenCodeGo(curatedOpenCode, overrides, openCodeMessages)
+    : null
   const nv = !OPENROUTER_ONLY && !OPENCODE_ONLY ? await checkOpenAICompat({ title: 'NVIDIA', url: NVIDIA_URL, preset: 'NVIDIA_LLM_PRESET_MODELS', curated: curatedNvidia, overrides, filter: isNvidiaChatModel }) : null
 
   if (APPLY_FLAG) {
