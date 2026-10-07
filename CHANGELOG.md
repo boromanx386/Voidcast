@@ -4,17 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.9.3] — 2026-10-07
+
 ### Added
 
 - **Runware music: ACE-Step v1.5 XL presets**: three new 4B DiT variants join the existing Turbo/Base presets — `runware:ace-step@v1.5-xl-turbo` (8-step distilled, steps capped at 20), `runware:ace-step@v1.5-xl-base` (50-step CFG, up to 300 steps) and `runware:ace-step@v1.5-xl-sft` (flagship quality, up to 300 steps). Each keeps its own profile (steps, CFG, duration, format, seed); the XL presets start from docs defaults rather than the legacy turbo-shaped settings.
 - **Offline speech-to-text (Whistle)**: new `sttProvider: 'whistle'` runs fully offline via the bundled `cactus-needle` engine and the 16.9 MB Whistle model (Apache-2.0) — no API key or internet. The renderer resamples recordings to 16 kHz mono WAV and POSTs to the tools-server `POST /stt/transcribe`; the native engine (`whistle.cact` + `libneedle.dll`) is embedded into the tools exe by `voidcast-tools-server.spec`, so a fresh machine needs no download. Supports 7 languages (not Serbian — use `openrouter` for that). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- **Prompt-cache-friendly request ordering**: the message builder now keeps a byte-stable cacheable prefix — the system prompt and the full history are identical run-to-run, while volatile per-turn context (clock, coding-project memo, live processes, compression summary, long-term memory) is attached to the **final user turn** instead of a trailing system message. This also fixes local llama.cpp/Llama-3 templates that reject a non-leading system message. OpenRouter requests send a stable `session_id` for sticky provider routing; cached-token counts are mapped from the usage block and a `[voidcast] prompt …` cache-hit diagnostic is logged each turn.
 
 ### Changed
 
 - **Agent mode is now per chat**: the composer mode (**Agent → Ask → Plan → Team**) belongs to each chat instead of the window, so a chat running in the background can no longer change the mode shown by the chat you are looking at. `settings.agentMode` is now only the seed for new chats, and existing chats are back-filled with their own mode on load.
+- **Dev tooling**: Prettier and ESLint are now configured (`electron-app/.prettierrc.json`, `.prettierignore`, `eslint.config.mjs`) with `npm run format` / `format:check` and `npm run lint` / `lint:fix` scripts.
 
 ### Fixed
 
+- **Plain-HTTP provider origins are now blocked (CSP)**: the production `connect-src` was narrowed from `http: https: ws: wss:` to `https:`/`wss:` plus loopback `http:`/`ws:` (the tools server and local Ollama). A provider pointed at a plain-HTTP **non-loopback** host — e.g. a LAN Ollama at `http://192.168.x.x:11434` — is now refused by CSP until that origin is added to `index.html`.
+- **Browser housekeeping actually ran**: `runBrowserMaintenance` now also fires from the panel (opening/clearing pages), not only `hardenSession`, and the trim decision is measured from each profile's real on-disk size (`dirBytes`) instead of the size recorded in `browser-profiles.json`, so profiles the registry never recorded get their re-downloadable caches dropped too.
 - **Plan mode no longer switches the wrong chat**: entering Plan from a background chat used to re-bind the handoff turn to whatever session was on screen, so the plan card, the handoff draft and the follow-up messages landed in the viewed chat instead of the one that started the run. The escalation now binds to the chat that owns the run, so an escalated background chat keeps its Plan state and the chat you are viewing is left untouched.
 - **Plan actions no longer write the window-level agent mode**: approving or revising a plan (and an escalation whose session id could not be resolved) wrote `settings.agentMode`, which the composer no longer reads. The mode is now written onto the chat itself, like the mode picker — an unresolvable chat is a no-op instead of a window-wide write.
 - **Background chats keep their image-vision analysis**: vision entries produced by a background run were merged only into the on-screen cache and then dropped, so opening that chat re-ran the analysis. They are now persisted onto the owning chat.
