@@ -973,6 +973,7 @@ _STRIP_FWD = frozenset(
         "content-length",
         "transfer-encoding",
         "authorization",
+        "x-api-key",
     }
 )
 
@@ -983,6 +984,7 @@ async def _reverse_proxy(
     full_path: str,
     *,
     bearer_key: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> StreamingResponse:
     target = f"{upstream_base.rstrip('/')}/{full_path}"
     if request.url.query:
@@ -996,6 +998,8 @@ async def _reverse_proxy(
     }
     if bearer_key:
         fwd_headers["Authorization"] = f"Bearer {bearer_key}"
+    if extra_headers:
+        fwd_headers.update(extra_headers)
 
     client = httpx.AsyncClient(
         timeout=httpx.Timeout(600.0, connect=60.0),
@@ -1123,14 +1127,25 @@ async def opencode_go_proxy(request: Request, full_path: str):
         if auth.lower().startswith("bearer "):
             key = auth[7:].strip()
     if not key:
+        # Anthropic Messages clients (/messages) send the key as x-api-key.
+        key = (request.headers.get("x-api-key") or "").strip()
+    if not key:
         raise HTTPException(
             status_code=503,
             detail=(
                 "OpenCode Go API key not configured "
-                "(desktop General / OPENCODE_GO_API_KEY env, or Authorization header)"
+                "(desktop General / OPENCODE_GO_API_KEY env, Authorization Bearer, or x-api-key)"
             ),
         )
-    return await _reverse_proxy(request, OPENCODE_GO_UPSTREAM, full_path, bearer_key=key)
+    # Only Anthropic Messages endpoints (.../messages) need x-api-key upstream.
+    is_messages = full_path.rstrip("/").endswith("messages")
+    return await _reverse_proxy(
+        request,
+        OPENCODE_GO_UPSTREAM,
+        full_path,
+        bearer_key=key,
+        extra_headers={"x-api-key": key} if is_messages else None,
+    )
 
 
 @app.post("/tts", dependencies=[Depends(require_lan_access)])

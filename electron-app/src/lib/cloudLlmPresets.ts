@@ -123,7 +123,26 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'mimo-v2.6-flash', label: 'Mimo V2 6 Flash (1M ctx)' },
   { id: 'mimo-v2.6-pro', label: 'Mimo V2 6 Pro (1M ctx)' },
   { id: 'longcat-2.5-preview-free', label: 'Longcat 2 5 Preview Free (1M ctx)' },
+  { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Anthropic Messages)' },
 ]
+
+/** Wire format for a provider/model pair. `anthropic-messages` posts to `{base}/messages`. */
+export type CloudLlmApiStyle = 'openai-chat' | 'anthropic-messages'
+
+/** OpenCode Go models served only on Anthropic `/zen/go/v1/messages` (https://opencode.ai/docs/go/). */
+const OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS: ReadonlySet<string> = new Set([
+  'claude-haiku-5-5',
+  'minimax-m3',
+  'minimax-m2.7',
+  'qwen3.8-max',
+  'qwen3.8-flash',
+  'qwen3.7-plus',
+])
+
+export function openCodeGoApiStyle(model: string): CloudLlmApiStyle {
+  const id = normalizeOpenCodeGoModelId(model)
+  return OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS.has(id) ? 'anthropic-messages' : 'openai-chat'
+}
 
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
   'minimax/minimax-m2.5:free': 'minimax/minimax-m2.5',

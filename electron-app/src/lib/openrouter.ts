@@ -4,6 +4,13 @@ import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from './platform'
 import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
+import { openCodeGoApiStyle } from './cloudLlmPresets'
+import {
+  anthropicMessagesHeaders,
+  applyAnthropicStreamEvent,
+  buildAnthropicMessagesBody,
+  createAnthropicStreamState,
+} from './anthropicMessages'
 
 export type OpenRouterContentPart =
   | { type: 'text'; text: string }
@@ -466,6 +473,100 @@ function pickReasoningDelta(d: unknown): string {
   return ''
 }
 
+/**
+ * OpenCode Go Anthropic Messages path (`{base}/messages`, SSE).
+ * Only reached for models listed in `openCodeGoApiStyle` as `anthropic-messages`.
+ */
+async function streamAnthropicMessages(
+  options: StreamOpenRouterChatParams,
+  root: string,
+): Promise<{
+  content: string
+  reasoning: string
+  tool_calls: OpenRouterToolCall[]
+  usage?: OllamaChatUsage
+}> {
+  assertCloudLlmApiKey('opencode-go', options.apiKey)
+  const messages = sanitizeMessagesForOpenCodeGo(options.messages)
+  const body = buildAnthropicMessagesBody({
+    model: options.model,
+    messages,
+    tools: options.tools,
+    thinkLevel: options.thinkLevel,
+  })
+  const headers = anthropicMessagesHeaders({
+    apiKey: options.apiKey,
+    sessionId: options.opencodeSessionId,
+    sendAuth: !usesServerCloudProxy(),
+  })
+
+  let res: Response | null = null
+  let lastErr = ''
+  for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
+    res = await fetchWithHardAbort(
+      `${root}/messages`,
+      {
+        method: 'POST',
+        headers,
+        signal: options.signal,
+        body: JSON.stringify(body),
+      },
+      options.signal,
+    )
+    if (res.ok) break
+    const err = await parseOpenRouterError(res)
+    lastErr = `OpenCode Go /messages ${res.status}: ${err.text || res.statusText}`
+    if (!RETRYABLE_STATUS.has(res.status)) throw new Error(lastErr)
+    if (attempt >= MAX_RETRIES_PER_MODEL - 1) break
+    const retrySec =
+      typeof err.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0
+        ? err.retryAfterSeconds
+        : 2 ** attempt
+    await sleepMs(retrySec * 1000, options.signal)
+  }
+  if (!res || !res.ok) throw new Error(lastErr || 'OpenCode Go /messages request failed')
+  if (!res.body) throw new Error('No response body')
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  const state = createAnthropicStreamState()
+  let buffer = ''
+
+  const handleLine = (raw: string) => {
+    const line = raw.trim()
+    if (!line.startsWith('data:')) return
+    const payload = line.slice(5).trim()
+    if (!payload || payload === '[DONE]') return
+    let obj: unknown
+    try {
+      obj = JSON.parse(payload)
+    } catch {
+      return
+    }
+    const { textChanged, reasoningChanged } = applyAnthropicStreamEvent(state, obj)
+    if (reasoningChanged) options.onThinkingDelta?.(state.reasoning)
+    if (textChanged) options.onDelta(state.text)
+  }
+
+  while (true) {
+    if (options.signal?.aborted) throwAbortError()
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split('\n')
+    buffer = parts.pop() ?? ''
+    for (const raw of parts) handleLine(raw)
+  }
+  if (buffer) handleLine(buffer)
+
+  return {
+    content: state.text,
+    reasoning: state.reasoning,
+    tool_calls: state.toolCalls.filter((t) => Boolean(t.function.name)),
+    usage: logPromptCache(mapOpenRouterUsageToOllama(state.usage), options.messages),
+  }
+}
+
 export async function streamOpenRouterChat(
   options: StreamOpenRouterChatParams,
 ): Promise<{
@@ -482,6 +583,11 @@ export async function streamOpenRouterChat(
     isElectron() &&
     isNvidia &&
     Boolean(window.voidcast?.llmChatProxy)
+
+  // OpenCode Go models served only on Anthropic `/messages` (e.g. claude-haiku-5-5).
+  if (isOpenCodeGoApi(root) && openCodeGoApiStyle(options.model) === 'anthropic-messages') {
+    return streamAnthropicMessages(options, root)
+  }
 
   const extra = compactOpenRouterOptions(options.modelOptions)
   const models = [options.model]

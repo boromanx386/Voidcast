@@ -1,4 +1,12 @@
-import { detectSubAgentProvider, type SubAgentProviderId } from '@/lib/cloudLlmPresets'
+import {
+  detectSubAgentProvider,
+  openCodeGoApiStyle,
+  type SubAgentProviderId,
+} from '@/lib/cloudLlmPresets'
+import {
+  anthropicMessagesHeaders,
+  buildAnthropicMessagesBody,
+} from '@/lib/anthropicMessages'
 import {
   deepseekApiBaseForRuntime,
   nvidiaApiBaseForRuntime,
@@ -7,7 +15,7 @@ import {
   usesServerCloudProxy,
 } from '@/lib/platform'
 import { normalizeBaseUrl } from '@/lib/settings'
-import { openRouterProviderRoutingBody } from '@/lib/openrouter'
+import { openRouterProviderRoutingBody, type OpenRouterMessage } from '@/lib/openrouter'
 import { fetchOllamaWithRetry } from '@/lib/ollama'
 import type { AgentToolDefinition } from '@/lib/toolDefinitions'
 import type { SubAgentConfig } from '@/lib/settings'
@@ -203,7 +211,7 @@ function cloudEndpoint(
   return {
     label: 'OpenCode Go',
     baseUrl: opencodeGoApiBaseForRuntime(undefined, keys.ttsBaseUrl),
-    apiKey: keys.opencodeGoApiKey || '',
+    apiKey: viaProxy ? '' : keys.opencodeGoApiKey || '',
     extraBody: {},
   }
 }
@@ -262,6 +270,57 @@ async function callCloudToolRound(opts: {
   maxTokens: number
 }): Promise<NativeSubAgentToolRound> {
   const endpoint = cloudEndpoint(opts.provider, opts.config, opts.keys)
+
+  // OpenCode Go Anthropic-style models (e.g. claude-haiku-5-5) only accept /messages.
+  if (opts.provider === 'opencode-go' && openCodeGoApiStyle(opts.config.model) === 'anthropic-messages') {
+    const body = buildAnthropicMessagesBody({
+      model: opts.config.model,
+      messages: toOpenAiMessages(opts.messages) as OpenRouterMessage[],
+      tools: opts.tools,
+      maxTokens: opts.maxTokens,
+    })
+    body.stream = false
+    body.temperature = 0.2
+    const res = await fetch(`${endpoint.baseUrl}/messages`, {
+      method: 'POST',
+      headers: anthropicMessagesHeaders({
+        apiKey: endpoint.apiKey,
+        sessionId: opts.keys.opencodeSessionId,
+        sendAuth: !usesServerCloudProxy(),
+      }),
+      signal: opts.signal,
+      body: JSON.stringify({ ...body, ...endpoint.extraBody }),
+    })
+    if (!res.ok) {
+      const error = await res.text().catch(() => '')
+      throw new Error(`${endpoint.label} worker /messages ${res.status}: ${error || res.statusText}`)
+    }
+    const data = (await res.json()) as {
+      content?: Array<{ type?: string; text?: string; thinking?: string; id?: string; name?: string; input?: unknown }>
+    }
+    let content = ''
+    let thinking = ''
+    const toolCalls: NativeSubAgentToolCall[] = []
+    for (const block of data.content ?? []) {
+      if (block.type === 'text' && block.text) content += block.text
+      else if (block.type === 'thinking' && block.thinking) thinking += block.thinking
+      else if (block.type === 'tool_use' && block.name) {
+        toolCalls.push({
+          id: block.id || `worker_call_${toolCalls.length + 1}`,
+          type: 'function',
+          function: {
+            name: block.name,
+            arguments:
+              block.input && typeof block.input === 'object' && !Array.isArray(block.input)
+                ? (block.input as Record<string, unknown>)
+                : {},
+          },
+        })
+      }
+    }
+    return { content, thinking, toolCalls }
+  }
+
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (endpoint.apiKey.trim()) headers.Authorization = `Bearer ${endpoint.apiKey.trim()}`
   if (opts.provider === 'opencode-go' && opts.keys.opencodeSessionId?.trim()) {
