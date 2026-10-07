@@ -63,6 +63,8 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'xiaomi/mimo-v2.6-pro', label: 'Mimo V2 6 Pro (1.1M ctx)' },
   { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5 5 (1M ctx)' },
   { id: 'openai/gpt-6.1-sol', label: 'GPT 6 1 Sol (1.1M ctx)' },
+  { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5 5 (1M ctx)' },
+  { id: 'mistralai/mistral-large-4-0', label: 'Mistral Large 4 0 (524K ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -124,6 +126,8 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'mimo-v2.6-pro', label: 'Mimo V2 6 Pro (1M ctx)' },
   { id: 'longcat-2.5-preview-free', label: 'Longcat 2 5 Preview Free (1M ctx)' },
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Anthropic Messages)' },
+  { id: 'qwen3.8-flash', label: 'Qwen3 8 Flash (1M ctx · Anthropic Messages)' },
+  { id: 'qwen3.8-max', label: 'Qwen3 8 Max (1M ctx · Anthropic Messages)' },
 ]
 
 /** Wire format for a provider/model pair. `anthropic-messages` posts to `{base}/messages`. */

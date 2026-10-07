@@ -126,6 +126,10 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'longcat-2.5-preview-free': 1000000,
   'anthropic/claude-sonnet-5.5': 1000000,
   'openai/gpt-6.1-sol': 1050000,
+  'anthropic/claude-haiku-5.5': 1000000,
+  'mistralai/mistral-large-4-0': 524288,
+  'qwen3.8-flash': 1000000,
+  'qwen3.8-max': 1000000,
 }
 
 function buildPresetLookup(
