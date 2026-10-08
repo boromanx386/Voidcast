@@ -129,6 +129,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Anthropic Messages)' },
   { id: 'qwen3.8-flash', label: 'Qwen3 8 Flash (1M ctx · Anthropic Messages)' },
   { id: 'qwen3.8-max', label: 'Qwen3 8 Max (1M ctx · Anthropic Messages)' },
+  { id: 'step-5-preview-free', label: 'Step 5 Preview Free (1M ctx)' },
 ]
 
 /** Wire format for a provider/model pair. `anthropic-messages` posts to `{base}/messages`. */

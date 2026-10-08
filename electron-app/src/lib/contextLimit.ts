@@ -130,6 +130,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'mistralai/mistral-large-4-0': 524288,
   'qwen3.8-flash': 1000000,
   'qwen3.8-max': 1000000,
+  'step-5-preview-free': 1000000,
 }
 
 function buildPresetLookup(
