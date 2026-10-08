@@ -69,6 +69,8 @@ export type StreamOpenRouterChatParams = {
   providerOnly?: string
   /** Stable per-chat id: OpenCode Go `x-opencode-session`, and OpenRouter `session_id` sticky-routing key. */
   opencodeSessionId?: string
+  /** Output cap for Anthropic `/messages` models; defaults to ANTHROPIC_DEFAULT_MAX_TOKENS. */
+  maxTokens?: number
 }
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
@@ -519,6 +521,7 @@ async function streamAnthropicMessages(
     messages,
     tools: options.tools,
     thinkLevel: options.thinkLevel,
+    maxTokens: options.maxTokens,
   })
   const headers = anthropicMessagesHeaders({
     apiKey: options.apiKey,
@@ -585,10 +588,22 @@ async function streamAnthropicMessages(
   }
   if (buffer) handleLine(buffer)
 
+  const toolCalls = state.toolCalls.filter((t) => Boolean(t.function.name))
+  // An empty assistant turn (no text, no tool call) must never end a turn silently:
+  // it looks like the agent "stopped" with no explanation. Surface why.
+  if (!state.text.trim() && toolCalls.length === 0) {
+    const reason = state.stopReason ? ` (stop_reason: ${state.stopReason})` : ''
+    const hint =
+      state.stopReason === 'max_tokens'
+        ? ' The output token budget was exhausted before any text or tool call — raise max tokens or lower thinking effort.'
+        : ' The model returned neither text nor a tool call.'
+    throw new Error(`OpenCode Go /messages returned an empty assistant turn${reason}.${hint}`)
+  }
+
   return {
     content: state.text,
     reasoning: state.reasoning,
-    tool_calls: state.toolCalls.filter((t) => Boolean(t.function.name)),
+    tool_calls: toolCalls,
     usage: logPromptCache(mapOpenRouterUsageToOllama(state.usage), options.messages),
   }
 }

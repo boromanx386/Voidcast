@@ -9,8 +9,12 @@
  * Leaf module: no imports, safe to pull in from anywhere.
  */
 
-/** Sniff the image MIME type from the base64 magic prefix. Falls back to PNG. */
-export function sniffImageMime(base64: string): string {
+/**
+ * Sniff the image MIME type from the base64 magic prefix.
+ * Returns null when the payload matches no known image magic, so callers can choose
+ * between a declared type and the PNG fallback themselves.
+ */
+export function sniffImageMimeOrNull(base64: string): string | null {
   const clean = base64.replace(/\s+/g, '')
   if (clean.startsWith('iVBORw0KGgo')) return 'image/png'
   if (clean.startsWith('/9j/')) return 'image/jpeg'
@@ -19,7 +23,12 @@ export function sniffImageMime(base64: string): string {
   // deterministic regardless of the file size that follows. Bytes 10-12 are "EBP" (of "WEBP"),
   // which encode to "RUJQ" at chars 12-15 — that distinguishes WebP from other RIFF files.
   if (clean.startsWith('UklGR') && clean.slice(12, 16) === 'RUJQ') return 'image/webp'
-  return 'image/png'
+  return null
+}
+
+/** Sniff the image MIME type from the base64 magic prefix. Falls back to PNG. */
+export function sniffImageMime(base64: string): string {
+  return sniffImageMimeOrNull(base64) ?? 'image/png'
 }
 
 /**

@@ -1,5 +1,5 @@
 import { buildToolsList } from '@/lib/toolDefinitions'
-import { sniffImageMime } from '@/lib/imageMime'
+import { sniffImageMimeOrNull } from '@/lib/imageMime'
 import { AGENT_MAX_TOOL_ROUNDS_DEFAULT, clampAgentMaxToolRounds } from '@/lib/settings'
 import {
   type ChatWithToolsCommonParams,
@@ -60,7 +60,10 @@ function toOpenRouterToolCalls(calls: OpenRouterToolCall[]): OpenRouterToolCall[
 
 function toBase64DataImageUri(base64: string, mime: string): string {
   const clean = base64.replace(/\s+/g, '')
-  const safeMime = /^image\/[a-z0-9.+-]+$/i.test(mime) ? mime : sniffImageMime(clean)
+  // The magic prefix wins over the declared type: a label can be wrong (WebP bytes declared as
+  // image/png) and strict providers such as Anthropic /messages validate against the bytes.
+  const declared = /^image\/[a-z0-9.+-]+$/i.test(mime) ? mime : null
+  const safeMime = sniffImageMimeOrNull(clean) ?? declared ?? 'image/png'
   return `data:${safeMime};base64,${clean}`
 }
 

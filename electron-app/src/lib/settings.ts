@@ -1119,8 +1119,10 @@ export const SUB_AGENT_DEFAULT_CONTEXT_TOKENS = 16384
 /**
  * Max generated tokens per sub-agent call (vision + coding).
  * Not exposed in Options — coding explore/workers also cap further.
+ * 16K: on Anthropic `/messages` models the thinking budget shares `max_tokens`,
+ * so a low cap yields an empty `max_tokens` turn (no text, no tool call).
  */
-export const SUB_AGENT_DEFAULT_OUTPUT_TOKENS = 2048
+export const SUB_AGENT_DEFAULT_OUTPUT_TOKENS = 16384
 
 /** Sub-agent config — delegates tasks (vision, coding explore, etc.) to separate models. */
 export type SubAgentConfig = {

@@ -17,8 +17,14 @@ import type {
 } from './openrouter'
 
 export const ANTHROPIC_VERSION = '2023-06-01'
-/** Default output cap; Anthropic requires `max_tokens` on every request. */
-export const ANTHROPIC_DEFAULT_MAX_TOKENS = 8192
+/**
+ * Default output cap; Anthropic requires `max_tokens` on every request.
+ * Must be generous: with adaptive thinking the thinking tokens are billed
+ * against this same budget, so a low cap produces an empty `max_tokens`
+ * turn (no text, no tool_use) on large tool results. Overridable per call
+ * via `maxTokens`; lower this for models whose hard output limit is 8192.
+ */
+export const ANTHROPIC_DEFAULT_MAX_TOKENS = 32000
 
 export type AnthropicTextBlock = { type: 'text'; text: string }
 export type AnthropicImageBlock = {
@@ -224,6 +230,8 @@ export type AnthropicStreamState = {
   /** content_block index → what kind of block it is (and tool slot for tool_use). */
   blocks: Map<number, { kind: 'text' | 'thinking' | 'tool_use'; toolSlot?: number }>
   usage?: OpenRouterUsage
+  /** Anthropic stop_reason ('end_turn' | 'max_tokens' | 'tool_use' | 'stop_sequence'). */
+  stopReason?: string
 }
 
 export function createAnthropicStreamState(): AnthropicStreamState {
@@ -274,6 +282,8 @@ export function applyAnthropicStreamEvent(
   }
 
   if (type === 'message_delta') {
+    const delta = e.delta as { stop_reason?: string } | undefined
+    if (delta?.stop_reason) state.stopReason = delta.stop_reason
     const u = e.usage as { output_tokens?: number } | undefined
     if (u && typeof u.output_tokens === 'number') {
       const prev = state.usage ?? {}
