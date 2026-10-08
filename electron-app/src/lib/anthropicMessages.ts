@@ -24,7 +24,35 @@ export const ANTHROPIC_VERSION = '2023-06-01'
  * turn (no text, no tool_use) on large tool results. Overridable per call
  * via `maxTokens`; lower this for models whose hard output limit is 8192.
  */
-export const ANTHROPIC_DEFAULT_MAX_TOKENS = 32000
+export const ANTHROPIC_DEFAULT_MAX_TOKENS = 16384
+
+/**
+ * Step-down ladder for a rejected `max_tokens`. Providers never clamp: asking
+ * for more than the model's hard output limit is a 400 error, and 400 is not a
+ * retryable status, so the request has to be re-sent with a smaller cap.
+ */
+export const ANTHROPIC_MAX_TOKENS_FALLBACKS: readonly number[] = [8192, 4096]
+
+/**
+ * Decide the `max_tokens` for a retry after a failed `/messages` request.
+ *
+ * Returns `null` — "do not retry, let the normal error path run" — unless the
+ * failure really is a max-tokens rejection with a cheaper rung still on the
+ * ladder. Kept pure so the condition is testable without a network.
+ */
+export function anthropicMaxTokensFallback(
+  status: number,
+  errorText: string,
+  currentMaxTokens: number,
+  step: number,
+): number | null {
+  if (status !== 400) return null
+  if (!/max_tokens/i.test(errorText)) return null
+  if (step < 0 || step >= ANTHROPIC_MAX_TOKENS_FALLBACKS.length) return null
+  const next = ANTHROPIC_MAX_TOKENS_FALLBACKS[step]
+  if (!(currentMaxTokens > next)) return null
+  return next
+}
 
 export type AnthropicTextBlock = { type: 'text'; text: string }
 export type AnthropicImageBlock = {
@@ -294,6 +322,15 @@ export function applyAnthropicStreamEvent(
         total_tokens: (prev.prompt_tokens ?? 0) + completion,
       }
     }
+    return res
+  }
+
+  // Terminal event. Some gateways omit the reason on `message_delta` and only
+  // repeat it here, so treat it as a fallback and never overwrite a reason we
+  // already captured.
+  if (type === 'message_stop') {
+    const msg = e.message as { stop_reason?: string } | undefined
+    if (msg?.stop_reason && !state.stopReason) state.stopReason = msg.stop_reason
     return res
   }
 

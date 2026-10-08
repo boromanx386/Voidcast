@@ -7,6 +7,7 @@ import { normalizeBaseUrl } from './settings'
 import { openCodeGoApiStyle } from './cloudLlmPresets'
 import { toDataImageUri } from './imageMime'
 import {
+  anthropicMaxTokensFallback,
   anthropicMessagesHeaders,
   applyAnthropicStreamEvent,
   buildAnthropicMessagesBody,
@@ -516,7 +517,7 @@ async function streamAnthropicMessages(
 }> {
   assertCloudLlmApiKey('opencode-go', options.apiKey)
   const messages = sanitizeMessagesForOpenCodeGo(options.messages)
-  const body = buildAnthropicMessagesBody({
+  let body: Record<string, unknown> = buildAnthropicMessagesBody({
     model: options.model,
     messages,
     tools: options.tools,
@@ -531,6 +532,10 @@ async function streamAnthropicMessages(
 
   let res: Response | null = null
   let lastErr = ''
+  // Models with a lower hard output cap reject max_tokens with 400. Walk the
+  // ladder in ANTHROPIC_MAX_TOKENS_FALLBACKS (16384 -> 8192 -> 4096) instead of
+  // failing the whole turn; a non-max-token 400 still throws immediately.
+  let fallbackIdx = 0
   for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
     res = await fetchWithHardAbort(
       `${root}/messages`,
@@ -545,6 +550,18 @@ async function streamAnthropicMessages(
     if (res.ok) break
     const err = await parseOpenRouterError(res)
     lastErr = `OpenCode Go /messages ${res.status}: ${err.text || res.statusText}`
+    const currentMax = typeof body.max_tokens === 'number' ? body.max_tokens : 0
+    const fallbackMax = anthropicMaxTokensFallback(
+      res.status,
+      err.text || '',
+      currentMax,
+      fallbackIdx,
+    )
+    if (fallbackMax !== null) {
+      body = { ...body, max_tokens: fallbackMax }
+      fallbackIdx++
+      continue
+    }
     if (!RETRYABLE_STATUS.has(res.status)) throw new Error(lastErr)
     if (attempt >= MAX_RETRIES_PER_MODEL - 1) break
     const retrySec =
