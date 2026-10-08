@@ -33,8 +33,8 @@ Global defaults (used unless a profile overrides):
 
 | Key | What it controls |
 | --- | --- |
-| `runwareWidth` | Default output width |
-| `runwareHeight` | Default output height |
+| `runwareWidth` | Default output width (UI only; the agent passes `width` per call) |
+| `runwareHeight` | Default output height (UI only; the agent passes `height` per call) |
 | `runwareSteps` | Inference steps (fewer = faster, lower quality) |
 | `runwareCfgScale` | Guidance scale (model-dependent effect) |
 | `runwareNegativePrompt` | Optional default negative prompt |

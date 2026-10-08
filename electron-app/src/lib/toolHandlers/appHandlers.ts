@@ -64,34 +64,6 @@ export const handleUpdateSettings: ToolHandlerFn = async (args, ctx) => {
   const field = fieldRaw as AgentEditableSettingsField;
   const current = loadSettings();
   const candidate: AppSettings = { ...current };
-  const updateActiveRunwareProfile = (patch: {
-    width?: number;
-    height?: number;
-  }) => {
-    const activeModelId = candidate.runwareImageModel;
-    const currentProfile = candidate.runwareModelProfiles[activeModelId] ?? {
-      width: candidate.runwareWidth,
-      height: candidate.runwareHeight,
-      steps: candidate.runwareSteps,
-      cfgScale: candidate.runwareCfgScale,
-    };
-    candidate.runwareModelProfiles = {
-      ...candidate.runwareModelProfiles,
-      [activeModelId]: {
-        ...currentProfile,
-        ...(typeof patch.width === "number"
-          ? { width: Math.round(patch.width) }
-          : {}),
-        ...(typeof patch.height === "number"
-          ? { height: Math.round(patch.height) }
-          : {}),
-      },
-    };
-    if (typeof patch.width === "number")
-      candidate.runwareWidth = Math.round(patch.width);
-    if (typeof patch.height === "number")
-      candidate.runwareHeight = Math.round(patch.height);
-  };
   if (field === "llmSystemPrompt") {
     const next = parseToolValueAsString(valueRaw);
     candidate.llmSystemPrompt = next;
@@ -152,20 +124,6 @@ export const handleUpdateSettings: ToolHandlerFn = async (args, ctx) => {
     } else {
       return "Error: autoVoice expects a boolean value (true/false, on/off, yes/no, 1/0).";
     }
-  } else if (field === "runwareResolution") {
-    const pair = parseResolutionPair(valueRaw);
-    if (!pair) {
-      return 'Error: runwareResolution expects "WIDTHxHEIGHT" (for example 1920x1080).';
-    }
-    updateActiveRunwareProfile(pair);
-  } else if (field === "runwareWidth") {
-    const n = parseToolValueAsNumber(valueRaw);
-    if (n === null) return "Error: runwareWidth expects a numeric value.";
-    updateActiveRunwareProfile({ width: n });
-  } else if (field === "runwareHeight") {
-    const n = parseToolValueAsNumber(valueRaw);
-    if (n === null) return "Error: runwareHeight expects a numeric value.";
-    updateActiveRunwareProfile({ height: n });
   } else if (field === "runwareImageModel") {
     const next = parseToolValueAsString(valueRaw).trim();
     if (!next) return "Error: runwareImageModel cannot be empty.";
@@ -185,9 +143,6 @@ export const handleUpdateSettings: ToolHandlerFn = async (args, ctx) => {
   }
   const normalized = normalizeSettingsCandidate(candidate);
   saveSettings(normalized);
-  if (field === "runwareResolution") {
-    return `OK: updated runwareResolution to ${normalized.runwareWidth}x${normalized.runwareHeight}.`;
-  }
   const applied = normalized[field];
   return `OK: updated ${field} to ${String(applied)}.`;
 };

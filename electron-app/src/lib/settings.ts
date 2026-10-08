@@ -1548,9 +1548,6 @@ export const AGENT_EDITABLE_SETTINGS_FIELDS = [
   'uiTheme',
   'longMemoryAdd',
   'autoVoice',
-  'runwareResolution',
-  'runwareWidth',
-  'runwareHeight',
   'runwareImageModel',
   'runwareEditModel',
 ] as const

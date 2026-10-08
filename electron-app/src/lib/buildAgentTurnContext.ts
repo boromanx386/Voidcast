@@ -343,14 +343,12 @@ export async function buildAgentTurnContext(
     const visible = getAgentVisibleSettings(settings)
     const settingsHint = [
       'You have an update_settings tool for app configuration.',
-      'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareResolution, runwareWidth, runwareHeight, runwareImageModel, runwareEditModel.',
+      'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareImageModel, runwareEditModel. Image resolution is NOT settable here; pass width/height per generate_image / edit_image_runware call instead.',
       `Current llmSystemPrompt: ${JSON.stringify(String(visible.llmSystemPrompt ?? ''))}`,
       `Current llmNumCtx: ${String(visible.llmNumCtx ?? '')}`,
       `Current llmTemperature: ${String(visible.llmTemperature ?? '')}`,
       `Current uiTheme: ${String(visible.uiTheme ?? '')}`,
       `Current autoVoice: ${String(visible.autoVoice ?? '')}`,
-      `Current runwareWidth: ${String(visible.runwareWidth ?? '')}`,
-      `Current runwareHeight: ${String(visible.runwareHeight ?? '')}`,
       `Current runwareImageModel: ${String(visible.runwareImageModel ?? '')}`,
       `Current runwareEditModel: ${String(visible.runwareEditModel ?? '')}`,
       'Sensitive keys are hidden; never ask to reveal API keys.',
