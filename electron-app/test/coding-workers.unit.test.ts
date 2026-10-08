@@ -138,6 +138,21 @@ describe('path scope + locks', () => {
     expect(workerScopesOverlap('src/auth', undefined)).toBe(true)
   })
 
+  it('blocks path traversal and absolute paths outside the worker scope', () => {
+    // `..` that climbs out of the scope must not match the prefix.
+    expect(isPathInWorkerScope('src/../package.json', 'src')).toBe(false)
+    expect(isPathInWorkerScope('src/auth/../../package.json', 'src/auth')).toBe(false)
+    expect(isPathInWorkerScope('../outside.ts', '')).toBe(false)
+    expect(isPathInWorkerScope('../src/auth/x.ts', 'src/auth')).toBe(false)
+    // Absolute POSIX and Windows drive paths are never in scope.
+    expect(isPathInWorkerScope('/etc/passwd', 'src')).toBe(false)
+    expect(isPathInWorkerScope('C:\\Users\\x.ts', '')).toBe(false)
+    expect(isPathInWorkerScope('C:/Users/x.ts', 'src')).toBe(false)
+    // `..` that stays inside the scope is still allowed.
+    expect(isPathInWorkerScope('src/auth/sub/../x.ts', 'src/auth')).toBe(true)
+    expect(normalizeWorkerPathKey('src/auth/sub/../x.ts')).toBe('src/auth/x.ts')
+  })
+
   it('extracts path from mutation tools', () => {
     expect(pathFromWorkerToolArgs('write_file', { path: 'a.ts' })).toBe('a.ts')
     expect(pathFromWorkerToolArgs('edit_code', { path: 'b.ts' })).toBe('b.ts')
@@ -173,7 +188,20 @@ describe('worker round budget helpers', () => {
     })
     expect(d).toContain('src/auth/login.ts')
     expect(d).toContain('search_files')
+    expect(d).toContain('Ended without a structured final summary')
+  })
+
+  it('reports round budget when the worker wrote nothing', () => {
+    const d = synthesizeWorkerDigest({
+      goal: 'Fix auth',
+      pathPrefix: 'src/auth',
+      notes: [],
+      toolTrail: ['search_files'],
+      mutatedPaths: [],
+      stopReason: 'Stopped at round budget.',
+    })
     expect(d).toContain('round budget')
+    expect(d).toContain('Stopped at round budget.')
   })
 })
 

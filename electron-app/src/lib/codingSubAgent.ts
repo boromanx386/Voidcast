@@ -388,6 +388,25 @@ ${recent}
 Keep digests under 2000 characters. Prefer search_files/glob_files before reading whole files.`
 }
 
+export const CODING_EXPLORE_DIGEST_MAX = 2000
+
+/** Caps the final explore digest so the orchestrator never receives an unbounded blob. */
+export function capExploreDigest(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= CODING_EXPLORE_DIGEST_MAX) return trimmed
+  return `${trimmed.slice(0, CODING_EXPLORE_DIGEST_MAX)}\n…[digest truncated to ${CODING_EXPLORE_DIGEST_MAX} chars]`
+}
+
+/** One-line cost report appended to every explore digest. */
+export function exploreStatsLine(stats: {
+  rounds: number
+  maxRounds: number
+  readChars: number
+  toolCalls: number
+}): string {
+  return `[explore stats] rounds: ${stats.rounds}/${stats.maxRounds}, read chars: ${stats.readChars}/${CODING_EXPLORE_READ_BUDGET}, tool calls: ${stats.toolCalls}`
+}
+
 export async function runCodingExplore(opts: {
   goal: string
   pathPrefix?: string
@@ -408,6 +427,15 @@ export async function runCodingExplore(opts: {
   const recentFiles = opts.recentFiles ?? []
   let readBudget = CODING_EXPLORE_READ_BUDGET
   const notes: string[] = []
+  let toolCalls = 0
+  let roundsUsed = 0
+  const stats = () =>
+    exploreStatsLine({
+      rounds: roundsUsed,
+      maxRounds,
+      readChars: CODING_EXPLORE_READ_BUDGET - readBudget,
+      toolCalls,
+    })
 
   opts.ui?.onCodingStart?.(`SUB_AGENT · EXPLORE (0/${maxRounds})`)
 
@@ -440,9 +468,10 @@ export async function runCodingExplore(opts: {
       })
       messages.push({ role: 'assistant', content: reply })
 
+      roundsUsed = round + 1
       const action = parseCodingExploreAction(reply)
       if (action.kind === 'done') {
-        const digest = `[Coding explore]\n${action.digest}`
+        const digest = `[Coding explore]\n${capExploreDigest(action.digest)}\n${stats()}`
         opts.ui?.onCodingDone?.(digest)
         return digest
       }
@@ -489,6 +518,7 @@ export async function runCodingExplore(opts: {
         }
       }
 
+      toolCalls++
       let result = await opts.executeTool(tool, execArgs)
       if (tool === 'read_file') {
         if (result.length > readBudget) {
@@ -538,7 +568,7 @@ export async function runCodingExplore(opts: {
         ? action.digest
         : finalReply.trim() || 'Explore finished without a structured digest.'
     const noteLine = notes.length ? `\n(${notes.join(' ')})` : ''
-    const digest = `[Coding explore]\n${body}${noteLine}`
+    const digest = `[Coding explore]\n${capExploreDigest(body)}${noteLine}\n${stats()}`
     opts.ui?.onCodingDone?.(digest)
     return digest
   } catch (e) {

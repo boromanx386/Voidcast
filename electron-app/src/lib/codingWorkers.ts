@@ -83,14 +83,31 @@ export function createWorkerFileLock(): CodingWorkerFileLock {
   return { locked: new Map(), owned: new Map() }
 }
 
+/**
+ * Normalize a relative path for scope/lock comparisons.
+ * Resolves `.` and `..` segments. A `..` that would climb above the project
+ * root is kept as a leading `..` so it can never match a scope prefix.
+ */
 export function normalizeWorkerPathKey(path: string): string {
-  return path
-    .trim()
-    .replace(/\\/g, '/')
-    .replace(/^\.\/+/, '')
-    .replace(/\/{2,}/g, '/')
-    .replace(/\/+$/, '')
-    .toLowerCase()
+  const out: string[] = []
+  for (const seg of path.trim().replace(/\\/g, '/').split('/')) {
+    if (!seg || seg === '.') continue
+    if (seg === '..') {
+      if (out.length > 0 && out[out.length - 1] !== '..') out.pop()
+      else out.push('..')
+      continue
+    }
+    out.push(seg)
+  }
+  return out.join('/').toLowerCase()
+}
+
+/** True if the raw path is absolute (POSIX `/…` or Windows drive `C:…`) or escapes the root via `..`. */
+function isEscapingWorkerPath(relPath: string): boolean {
+  const raw = relPath.trim().replace(/\\/g, '/')
+  if (raw.startsWith('/') || /^[a-zA-Z]:/.test(raw)) return true
+  const key = normalizeWorkerPathKey(raw)
+  return key === '..' || key.startsWith('../')
 }
 
 /**
@@ -98,6 +115,7 @@ export function normalizeWorkerPathKey(path: string): string {
  * path_prefix may be a file or directory; directory match allows prefix/child.
  */
 export function isPathInWorkerScope(relPath: string, pathPrefix?: string): boolean {
+  if (isEscapingWorkerPath(relPath)) return false
   const path = normalizeWorkerPathKey(relPath)
   if (!path) return false
   const raw = (pathPrefix || '').trim()
@@ -328,8 +346,9 @@ export function applyWorkerMutationsToMemo(opts: {
     if (!filePath) continue
 
     if (m.tool === 'write_file') {
-      const content = typeof m.args.content === 'string' ? m.args.content : ''
-      if (content) {
+      // An empty string is a valid write (truncate), so only a missing content arg is skipped.
+      if (typeof m.args.content === 'string') {
+        const content = m.args.content
         fileCache = upsertCodingFileCache(fileCache, filePath, content)
         memo = {
           ...memo,
@@ -507,6 +526,8 @@ type WorkerRunOpts = {
   ui?: SubAgentUiCallbacks
   fileLocks: CodingWorkerFileLock
   executeTool: (name: string, args: Record<string, unknown>) => Promise<string>
+  /** Shared sink owned by the parent, so mutations survive if the worker throws. */
+  mutationSink: WorkerMutation[]
 }
 
 async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult> {
@@ -523,7 +544,7 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
   const notes: string[] = []
   const toolTrail: string[] = []
   const mutatedPaths: string[] = []
-  const mutations: WorkerMutation[] = []
+  const mutations: WorkerMutation[] = opts.mutationSink
 
   opts.ui?.onCodingStart?.(`${opts.workerLabel} · 0/${maxRounds}`)
 
@@ -634,6 +655,42 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
     }
 
     let result = await opts.executeTool(name, execArgs)
+    if (CODING_WORKER_MUTATION_TOOLS.has(name) && !/^\s*error\s*:/i.test(result)) {
+      // Per-file verification: check only the file this worker just touched, so the
+      // model sees type errors in its own change before it finishes.
+      const rel = pathFromWorkerToolArgs(name, args)
+      if (rel) {
+        try {
+          // Walk up from the touched file to the nearest folder that has a tsconfig.json
+          // (e.g. electron-app/src/lib -> electron-app/src -> electron-app). The project
+          // root is excluded because it is already known to have no tsconfig here.
+          const segs = rel.replace(/\\/g, '/').split('/').filter(Boolean)
+          const candidateDirs: string[] = []
+          for (let i = segs.length - 1; i >= 1; i--) candidateDirs.push(segs.slice(0, i).join('/'))
+          let check: string | null = null
+          let checkedDir = ''
+          for (const dir of candidateDirs) {
+            // paths must be relative to the package folder (path_prefix), not the project root.
+            const relToPackage = rel.replace(/\\/g, '/').slice(dir.length + 1)
+            const out = await opts.executeTool('check_types', { paths: [relToPackage], path_prefix: dir })
+            if (!/no tsconfig\.json/i.test(out)) {
+              check = out
+              checkedDir = dir
+              break
+            }
+          }
+          if (check === null) {
+            // Say so explicitly so the model does not mistake a skipped check for a passing one.
+            result = `${result}\n\n[auto check_types skipped for ${rel}: no tsconfig.json in any parent folder. Main agent should verify.]`
+          } else {
+            result = `${result}\n\n[auto check_types for ${rel} (package: ${checkedDir})]\n${check.slice(0, 2_000)}`
+          }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          result = `${result}\n\n[auto check_types for ${rel} failed: ${msg}]`
+        }
+      }
+    }
     if (name === 'read_file') {
       if (result.length >= readBudget) {
         // Return the meaningful remainder (never an empty slice) and then
@@ -808,7 +865,9 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
     tasks.map((task, i) => {
       const workerId = `worker-${i + 1}`
       const workerLabel = `WORKER ${i + 1}`
+      const mutationSink: WorkerMutation[] = []
       return runOneCodingWorker({
+        mutationSink,
         workerId,
         workerLabel,
         task,
@@ -826,7 +885,8 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
         executeTool: opts.executeTool,
       }).catch((e): WorkerRunResult => {
         const msg = e instanceof Error ? e.message : String(e)
-        return { digest: `${workerLabel}: Error: ${msg}`, mutations: [] }
+        // Keep whatever the worker already wrote before it failed.
+        return { digest: `${workerLabel}: Error: ${msg}`, mutations: mutationSink }
       })
     }),
   )
@@ -847,8 +907,14 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
     }
   }
 
+  // Deterministic list of files the workers actually wrote/edited (from tool
+  // results, not model prose). Lets the orchestrator skip re-reading them.
+  const touchedPaths = [...new Set(settled.flatMap((s) => s.mutations.map((m) => m.path)))]
   const report = [
     `Coding workers finished (${settled.length}):`,
+    touchedPaths.length
+      ? `Files touched by workers (${touchedPaths.length}): ${touchedPaths.join(', ')}`
+      : 'Files touched by workers: none.',
     ...settled.map((s) => `---\n${s.digest}`),
   ].join('\n')
   opts.ui?.onCodingDone?.(report.length > 4000 ? `${report.slice(0, 4000)}…` : report)

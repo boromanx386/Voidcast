@@ -187,7 +187,8 @@ describe('buildToolsCodingHint', () => {
     expect(hint).toContain('run_coding_workers')
     expect(hint).toContain('orchestrator protocol')
     expect(hint).toContain('TEAM MODE')
-    expect(hint).toContain('DEFAULT for non-trivial coding')
+    expect(hint).toContain('ONLY when the task splits into 2 path-disjoint areas')
+    expect(hint).toContain('coding_explore')
   })
 
   test('agent mode exposes workers as optional', () => {
