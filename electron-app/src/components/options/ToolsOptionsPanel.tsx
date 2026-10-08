@@ -215,29 +215,6 @@ export function ToolsOptionsPanel({
         }
       />
 
-      {/* Reddit */}
-      <ToolToggle
-        checked={settings.toolsEnabled.reddit}
-        onChange={(v) =>
-          setSettings((s) => ({
-            ...s,
-            toolsEnabled: { ...s.toolsEnabled, reddit: v },
-          }))
-        }
-        label="REDDIT_FEED"
-        icon="⬢"
-        iconColor="text-orange-400"
-        description={
-          <>
-            <code className="text-orange-400">reddit_feed</code> via local server{' '}
-            <code className="text-orange-400">POST /tools/reddit</code>. Read-only:
-            subreddit feeds (hot/new/top/rising), search, and post + top comments via
-            Reddit RSS (no Reddit developer app — Reddit no longer allows self-service API
-            apps).
-          </>
-        }
-      />
-
       {/* Scrape URL */}
       <ToolToggle
         checked={settings.toolsEnabled.scrape}

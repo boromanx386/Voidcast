@@ -248,7 +248,6 @@ export const PARALLEL_SAFE_AGENT_TOOLS: ReadonlySet<string> = new Set([
   'web_search',
   'get_weather',
   'scrape_url',
-  'reddit_feed',
   'search_youtube',
   'list_directory',
   'read_file',

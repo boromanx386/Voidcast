@@ -4,7 +4,6 @@ import {
   TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT,
   buildToolsCodingHint,
   TOOLS_PDF_HINT,
-  TOOLS_REDDIT_HINT,
   TOOLS_IMAGE_RECALL_HINT,
   TOOLS_RUNWARE_IMAGE_HINT,
   TOOLS_RUNWARE_MUSIC_HINT,
@@ -283,7 +282,6 @@ export async function buildAgentTurnContext(
   }
   if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
   if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
-  if (settings.toolsEnabled.reddit) toolsHintParts.push(TOOLS_REDDIT_HINT)
   if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
   if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
   if (settings.toolsEnabled.pdf && !readOnlyMode) toolsHintParts.push(TOOLS_PDF_HINT)

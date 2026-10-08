@@ -117,7 +117,7 @@ MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gat
 ## Process boundaries
 
 - **Renderer (React)** — all UI, hooks, and the agent loop above.
-- **Main / TTS server (Electron)** — handles `save_pdf`, YouTube/Reddit scraping, coding tool IPC (read/write/search + terminal execution), MCP connectivity, auto-update, and LAN web proxy. Desktop-only features (MCP, skills discovery, coding tools, auto-save output folders) are noted as such in the docs.
+- **Main / TTS server (Electron)** — handles `save_pdf`, YouTube scraping, coding tool IPC (read/write/search + terminal execution), MCP connectivity, auto-update, and LAN web proxy. Desktop-only features (MCP, skills discovery, coding tools, auto-save output folders) are noted as such in the docs.
 
 ### Built-in browser (main process)
 

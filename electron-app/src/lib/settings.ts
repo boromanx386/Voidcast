@@ -1265,8 +1265,6 @@ export type ToolsEnabled = {
   pdf: boolean
   /** YouTube search / video info / transcript (TTS server: yt-dlp + transcript API) */
   youtube: boolean
-  /** Reddit read-only feed / search / post fetch via public JSON endpoints (TTS server) */
-  reddit: boolean
   /** Generate images via Runware API */
   runwareImage: boolean
   /** Generate music/audio via Runware ACE-Step model */
@@ -1662,7 +1660,6 @@ export const defaults: AppSettings = {
     browser: true,
     pdf: true,
     youtube: true,
-    reddit: true,
     runwareImage: true,
     runwareMusic: true,
     tts: true,
@@ -1885,8 +1882,6 @@ function normalizeTools(s: AppSettings): AppSettings {
       pdf: typeof te?.pdf === 'boolean' ? te.pdf : defaults.toolsEnabled.pdf,
       youtube:
         typeof te?.youtube === 'boolean' ? te.youtube : defaults.toolsEnabled.youtube,
-      reddit:
-        typeof te?.reddit === 'boolean' ? te.reddit : defaults.toolsEnabled.reddit,
       runwareImage:
         typeof te?.runwareImage === 'boolean'
           ? te.runwareImage

@@ -3,7 +3,6 @@ import { invokeGetWeather } from "@/lib/weather";
 import { invokeScrapeUrl } from "@/lib/scrapeUrl";
 import { invokeSavePdf } from "@/lib/savePdf";
 import { invokeYoutubeTool } from "@/lib/youtubeTool";
-import { invokeRedditTool, type RedditToolParams } from "@/lib/redditTool";
 import {
   resolvePdfAttachedImages,
   resolvePdfImagePaths,
@@ -47,65 +46,6 @@ export const handleSearchYoutube: ToolHandlerFn = async (args, ctx) => {
         video_url: videoUrl || undefined,
         get_transcript: getTranscript,
         max_results: maxResults,
-      },
-      ctx.ttsBaseUrl,
-      ctx.signal,
-    );
-  } catch (e) {
-    return e instanceof Error ? e.message : String(e);
-  }
-};
-
-export const handleRedditFeed: ToolHandlerFn = async (args, ctx) => {
-  if (!ctx.toolsEnabled.reddit) {
-    return "Error: reddit_feed tool is disabled in settings.";
-  }
-  const subreddit =
-    typeof args.subreddit === "string" ? args.subreddit.trim() : "";
-  const sortRaw =
-    typeof args.sort === "string" ? args.sort.trim().toLowerCase() : "";
-  const timeRaw =
-    typeof args.time === "string" ? args.time.trim().toLowerCase() : "";
-  const allowedSorts: RedditToolParams["sort"][] = [
-    "hot",
-    "new",
-    "top",
-    "rising",
-    "controversial",
-    "best",
-  ];
-  const allowedTimes: RedditToolParams["time"][] = [
-    "hour",
-    "day",
-    "week",
-    "month",
-    "year",
-    "all",
-  ];
-  const sort = allowedSorts.find((s) => s === sortRaw);
-  const time = allowedTimes.find((t) => t === timeRaw);
-  const limitRaw = args.limit;
-  const limit =
-    typeof limitRaw === "number" && Number.isFinite(limitRaw)
-      ? Math.min(25, Math.max(1, Math.round(limitRaw)))
-      : undefined;
-  const query = typeof args.query === "string" ? args.query.trim() : "";
-  const postUrl = typeof args.post_url === "string" ? args.post_url.trim() : "";
-  const maxCommentsRaw = args.max_comments;
-  const maxComments =
-    typeof maxCommentsRaw === "number" && Number.isFinite(maxCommentsRaw)
-      ? Math.min(50, Math.max(1, Math.round(maxCommentsRaw)))
-      : undefined;
-  try {
-    return await invokeRedditTool(
-      {
-        subreddit: subreddit || undefined,
-        sort,
-        time,
-        limit,
-        query: query || undefined,
-        post_url: postUrl || undefined,
-        max_comments: maxComments,
       },
       ctx.ttsBaseUrl,
       ctx.signal,
@@ -193,7 +133,6 @@ export const handleSavePdf: ToolHandlerFn = async (args, ctx) => {
 export const webHandlersRegistry: ToolHandlerRegistry = {
   ["web_search"]: handleWebSearch,
   ["search_youtube"]: handleSearchYoutube,
-  ["reddit_feed"]: handleRedditFeed,
   ["get_weather"]: handleGetWeather,
   ["scrape_url"]: handleScrapeUrl,
   ["save_pdf"]: handleSavePdf,

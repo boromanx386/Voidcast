@@ -23,7 +23,6 @@ import type { ToolsEnabled } from '../src/lib/settings'
 const baseTools: ToolsEnabled = {
   webSearch: false,
   youtube: false,
-  reddit: false,
   weather: false,
   scrape: false,
   pdf: false,

@@ -2,7 +2,7 @@
 
 ![Voidcast](logo.jpg)
 
-**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, DeepSeek (direct API), **OpenAI** (Chat Completions), or **OpenCode Go**, and ships with built-in tools for web search, scraping, YouTube, Reddit, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, DeepSeek (direct API), **OpenAI** (Chat Completions), or **OpenCode Go**, and ships with built-in tools for web search, scraping, YouTube, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
 *Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
 
@@ -17,7 +17,7 @@ https://github.com/user-attachments/assets/e7700e45-ca2c-40a0-b3d0-ffbdd3cf1c1c
 ## What You Can Do
 
 **Browse and create without leaving chat**  
-Agent invokes search, Reddit, YouTube, weather, image generation and edit, music generation, PDF — results appear inline.
+Agent invokes search, YouTube, weather, image generation and edit, music generation, PDF — results appear inline.
 
 **See what the agent is doing**
 Adjacent read-only tool calls can run in parallel (up to four), while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts available in collapsible round blocks.
@@ -75,7 +75,6 @@ Available tools:
 - **Web Search** — real-time DuckDuckGo search
 - **Weather** — current conditions + forecast
 - **YouTube** — search videos + fetch transcripts
-- **Reddit** — browse subreddits, search posts, read threads
 - **Web Scrape** — fetch and summarize public pages
 - **Built-in Browser** — drive a real Chromium view inside the app (coding panel **WEB** view): navigate, click, type, snapshot, screenshots, console/network, device emulation — no external Chrome (see below)
 - **PDF Export** — agent writes a formatted PDF to a folder you configure (Python tools server / ReportLab)
@@ -449,7 +448,6 @@ The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost
 | `POST /tools/scrape` | Web scraping |
 | `POST /tools/weather` | Weather data |
 | `POST /tools/youtube` | YouTube search / transcripts |
-| `POST /tools/reddit` | Reddit feed / posts |
 | `POST /tools/pdf` | PDF export (`save_pdf`) |
 | `POST /tools/runware_proxy` | Runware image / music proxy |
 | `POST /tools/cloud-secrets` | Push cloud API keys to the host for LAN clients |

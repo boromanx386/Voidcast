@@ -182,7 +182,6 @@ type ToolsEnabled = {
   browser: boolean      // built-in Voidcast browser (coding panel WEB view) — browser_* tools
   pdf: boolean          // save_pdf into pdfOutputDir
   youtube: boolean      // YouTube search / video info / transcript
-  reddit: boolean       // Reddit read-only feed / search / post fetch
   runwareImage: boolean // generate_image / edit via Runware API
   runwareMusic: boolean // generate music via Runware ACE-Step
   coding: boolean       // local coding tools (read/write/search + terminal)

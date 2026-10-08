@@ -14,7 +14,6 @@ Type: `ToolsEnabled`, all booleans. Defaults: all `true`.
 | `browser` | Drive the built-in Voidcast browser (coding panel **WEB** view) with agent `browser_*` tools |
 | `pdf` | Save text as PDF into `pdfOutputDir` (main process) |
 | `youtube` | YouTube search / video info / transcript (TTS server: yt-dlp + transcript API) |
-| `reddit` | Reddit read-only feed / search / post fetch via public JSON endpoints (TTS server) |
 | `runwareImage` | Generate images via Runware API |
 | `runwareMusic` | Generate music/audio via Runware ACE-Step model |
 | `coding` | Local coding tools (file read/write/search + terminal command execution) |
@@ -91,7 +90,7 @@ Where the `save_pdf` tool writes files **without showing a save dialog**. Empty 
 
 ## Tools the agent registers
 
-The agent registers tools from the enabled set above (`webSearch`, `weather`, `scrape`, `browser`, `pdf`, `youtube`, `reddit`, `runwareImage`, `runwareMusic`, `coding`, `enterPlan`) plus:
+The agent registers tools from the enabled set above (`webSearch`, `weather`, `scrape`, `browser`, `pdf`, `youtube`, `runwareImage`, `runwareMusic`, `coding`, `enterPlan`) plus:
 
 - MCP tools from enabled servers (when `mcpEnabled`).
 - The `read_skill` tool and skills catalog when `skillsEnabled` (see [Skills](skills.md)).

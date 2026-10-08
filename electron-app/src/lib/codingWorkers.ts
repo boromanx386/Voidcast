@@ -493,7 +493,6 @@ function workerToolDefinitions(): AgentToolDefinition[] {
   const disabledTools = {
     webSearch: false,
     youtube: false,
-    reddit: false,
     weather: false,
     scrape: false,
     browser: false,

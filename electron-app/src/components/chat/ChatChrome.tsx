@@ -128,7 +128,6 @@ const TOOL_PHASE_UI: Record<
 > = {
   search: { icon: '⌕', label: 'SEARCHING_NET', className: 'search' },
   youtube: { icon: '▶', label: 'YOUTUBE_PROC', className: 'youtube' },
-  reddit: { icon: '⬢', label: 'REDDIT_FEED', className: 'reddit' },
   weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
   scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrap' },
   browser: { icon: '⬡', label: 'BROWSER', className: 'scrap' },

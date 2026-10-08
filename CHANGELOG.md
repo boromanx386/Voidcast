@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **Reddit tool (`reddit_feed`) removed**: Reddit is retiring the unauthenticated endpoints this tool depended on — RSS feeds stop 2026-11-13, new public API access requests closed 2026-10-31, and the remaining public Data API plus access for unregistered apps goes away between 2027-01-12 and March 2027. `web_search`, `scrape_url` and the built-in browser tools cover the use case. Dropped: the `reddit_feed` agent tool, the `toolsEnabled.reddit` setting (option toggle included), the chat tool-activity indicator, `electron-app/src/lib/redditTool.ts`, the tools-server `POST /tools/reddit` endpoint and `tts-server/reddit_tool.py`.
+
 ## [2.9.3] — 2026-10-07
 
 ### Added

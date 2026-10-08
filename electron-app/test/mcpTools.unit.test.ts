@@ -83,7 +83,6 @@ describe('mcp progressive disclosure (3 layers)', () => {
       {
         webSearch: false,
         youtube: false,
-        reddit: false,
         weather: false,
         scrape: false,
         pdf: false,
