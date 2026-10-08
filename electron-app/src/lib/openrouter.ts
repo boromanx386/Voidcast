@@ -211,8 +211,19 @@ export function mapOpenRouterUsageToOllama(usage: OpenRouterUsage | undefined): 
   }
 }
 
+/** Sniff the image MIME type from the base64 magic prefix. Falls back to PNG. */
+function sniffImageMime(base64: string): string {
+  if (base64.startsWith('iVBORw0KGgo')) return 'image/png'
+  if (base64.startsWith('/9j/')) return 'image/jpeg'
+  if (base64.startsWith('R0lGOD')) return 'image/gif'
+  // RIFF container: "UklGR" = "RIFF"; bytes 9-11 are "EBP" (of "WEBP"), which encode to "RUJQ" at chars 12-15
+  if (base64.startsWith('UklGR') && base64.slice(12, 16) === 'RUJQ') return 'image/webp'
+  return 'image/png'
+}
+
 function toDataImageUri(base64: string): string {
-  return `data:image/png;base64,${base64.replace(/\s+/g, '')}`
+  const clean = base64.replace(/\s+/g, '')
+  return `data:${sniffImageMime(clean)};base64,${clean}`
 }
 
 function normalizeNvidiaBaseUrl(root: string): string {

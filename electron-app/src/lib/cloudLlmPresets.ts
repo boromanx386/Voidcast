@@ -99,8 +99,9 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
 
 /**
  * OpenCode Go models on OpenAI-compatible `/v1/chat/completions`
- * (https://opencode.ai/docs/go/). Anthropic `/messages` models (MiniMax, Qwen) and
- * `/responses` models (Muse Spark 1.2 Contributor) omitted.
+ * (https://opencode.ai/docs/go/). Anthropic `/messages` models (Claude Haiku 5.5, MiniMax,
+ * some Qwen) are listed here too, and `openCodeGoApiStyle` routes them to `/messages`.
+ * `/responses` models (Muse Spark 1.2 Contributor) are omitted.
  */
 export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
@@ -235,6 +236,8 @@ const OPENCODE_GO_MODEL_ALIASES: Record<string, string> = {
   'z-ai/glm-5.2': 'glm-5.2',
   'z-ai/glm-5.1': 'glm-5.1',
   'tencent/hy3': 'hy3',
+  'anthropic/claude-haiku-5-5': 'claude-haiku-5-5',
+  'opencode-go/claude-haiku-5-5': 'claude-haiku-5-5',
 }
 
 export function normalizeOpenCodeGoModelId(model: string): string {

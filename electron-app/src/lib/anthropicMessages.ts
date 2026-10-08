@@ -170,19 +170,6 @@ export function openAiToolsToAnthropic(tools: unknown): AnthropicTool[] | undefi
   return out.length ? out : undefined
 }
 
-/** Anthropic extended-thinking budget per UI think level; `null` = thinking off. */
-const ANTHROPIC_THINKING_BUDGET: Record<string, number> = {
-  low: 1024,
-  medium: 4096,
-  high: 8192,
-  on: 4096,
-}
-
-export function anthropicThinkingBudget(thinkLevel: string | undefined): number | null {
-  if (!thinkLevel || thinkLevel === 'off') return null
-  return ANTHROPIC_THINKING_BUDGET[thinkLevel] ?? ANTHROPIC_THINKING_BUDGET.on
-}
-
 /** Maps the app think level to output_config.effort for adaptive thinking. null = no thinking. */
 export function anthropicThinkingEffort(thinkLevel: string | undefined): 'low' | 'medium' | 'high' | null {
   if (!thinkLevel || thinkLevel === 'off') return null

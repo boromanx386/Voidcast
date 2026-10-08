@@ -7,6 +7,7 @@ import {
   anthropicMessagesHeaders,
   buildAnthropicMessagesBody,
 } from '@/lib/anthropicMessages'
+import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import {
   deepseekApiBaseForRuntime,
   nvidiaApiBaseForRuntime,
@@ -273,6 +274,7 @@ async function callCloudToolRound(opts: {
 
   // OpenCode Go Anthropic-style models (e.g. claude-haiku-5-5) only accept /messages.
   if (opts.provider === 'opencode-go' && openCodeGoApiStyle(opts.config.model) === 'anthropic-messages') {
+    assertCloudLlmApiKey('opencode-go', endpoint.apiKey)
     const body = buildAnthropicMessagesBody({
       model: opts.config.model,
       messages: toOpenAiMessages(opts.messages) as OpenRouterMessage[],
