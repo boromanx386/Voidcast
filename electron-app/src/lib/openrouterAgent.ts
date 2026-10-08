@@ -1,4 +1,5 @@
 import { buildToolsList } from '@/lib/toolDefinitions'
+import { sniffImageMime } from '@/lib/imageMime'
 import { AGENT_MAX_TOOL_ROUNDS_DEFAULT, clampAgentMaxToolRounds } from '@/lib/settings'
 import {
   type ChatWithToolsCommonParams,
@@ -57,9 +58,10 @@ function toOpenRouterToolCalls(calls: OpenRouterToolCall[]): OpenRouterToolCall[
     })
 }
 
-function toDataImageUri(base64: string, mime: string): string {
-  const safeMime = /^image\/[a-z0-9.+-]+$/i.test(mime) ? mime : 'image/png'
-  return `data:${safeMime};base64,${base64.replace(/\s+/g, '')}`
+function toBase64DataImageUri(base64: string, mime: string): string {
+  const clean = base64.replace(/\s+/g, '')
+  const safeMime = /^image\/[a-z0-9.+-]+$/i.test(mime) ? mime : sniffImageMime(clean)
+  return `data:${safeMime};base64,${clean}`
 }
 
 export type RunOpenRouterChatWithToolsParams = ChatWithToolsCommonParams & {
@@ -225,7 +227,7 @@ export async function runOpenRouterChatWithTools(
         role: 'user',
         content: [
           { type: 'text', text: RECALLED_IMAGE_ROUND_MESSAGE },
-          ...recalled.map((x) => ({ type: 'image_url' as const, image_url: { url: toDataImageUri(x.base64, x.mime) } })),
+          ...recalled.map((x) => ({ type: 'image_url' as const, image_url: { url: toBase64DataImageUri(x.base64, x.mime) } })),
         ],
       })
     },

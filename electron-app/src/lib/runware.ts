@@ -11,6 +11,7 @@ import {
 } from '@/lib/settings'
 import { cloudProxySetupHint, isElectron, usesServerCloudProxy } from '@/lib/platform'
 import { makeRunwareTaskUuid, normalizeRunwareTasks } from '@/lib/runwareUuid'
+import { toDataImageUri } from '@/lib/imageMime'
 
 export type RunwareImageConfig = {
   apiBaseUrl: string
@@ -730,15 +731,6 @@ function formatRunwareMusicToolResult(payload: {
   return lines.join('\n')
 }
 
-function normalizeImageDataUri(value: string): string {
-  const raw = (value || '').trim()
-  if (!raw) return ''
-  if (raw.startsWith('data:image/')) return raw
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
-  const cleaned = raw.replace(/\s+/g, '')
-  return `data:image/png;base64,${cleaned}`
-}
-
 export function quantizeToStep16(value: number): number {
   return Math.round(value / 16) * 16
 }
@@ -945,7 +937,7 @@ export async function invokeRunwareEditImage(
   }
 
   const refs = (req.referenceImages || [])
-    .map((x) => normalizeImageDataUri(x))
+    .map((x) => toDataImageUri(x))
     .filter((x) => x.length > 0)
   if (refs.length === 0) {
     throw new Error('Runware edit_image_runware requires at least one reference image.')

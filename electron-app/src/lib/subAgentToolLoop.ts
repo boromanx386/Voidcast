@@ -16,7 +16,7 @@ import {
   usesServerCloudProxy,
 } from '@/lib/platform'
 import { normalizeBaseUrl } from '@/lib/settings'
-import { openRouterProviderRoutingBody, type OpenRouterMessage } from '@/lib/openrouter'
+import { openRouterProviderRoutingBody, postJsonWithRetry, type OpenRouterMessage } from '@/lib/openrouter'
 import { fetchOllamaWithRetry } from '@/lib/ollama'
 import type { AgentToolDefinition } from '@/lib/toolDefinitions'
 import type { SubAgentConfig } from '@/lib/settings'
@@ -283,19 +283,22 @@ async function callCloudToolRound(opts: {
     })
     body.stream = false
     body.temperature = 0.2
-    const res = await fetch(`${endpoint.baseUrl}/messages`, {
-      method: 'POST',
-      headers: anthropicMessagesHeaders({
-        apiKey: endpoint.apiKey,
-        sessionId: opts.keys.opencodeSessionId,
-        sendAuth: !usesServerCloudProxy(),
-      }),
-      signal: opts.signal,
-      body: JSON.stringify({ ...body, ...endpoint.extraBody }),
-    })
+    const { res, errorText } = await postJsonWithRetry(
+      `${endpoint.baseUrl}/messages`,
+      {
+        method: 'POST',
+        headers: anthropicMessagesHeaders({
+          apiKey: endpoint.apiKey,
+          sessionId: opts.keys.opencodeSessionId,
+          sendAuth: !usesServerCloudProxy(),
+        }),
+        signal: opts.signal,
+        body: JSON.stringify({ ...body, ...endpoint.extraBody }),
+      },
+      opts.signal,
+    )
     if (!res.ok) {
-      const error = await res.text().catch(() => '')
-      throw new Error(`${endpoint.label} worker /messages ${res.status}: ${error || res.statusText}`)
+      throw new Error(`${endpoint.label} worker /messages ${res.status}: ${errorText || res.statusText}`)
     }
     const data = (await res.json()) as {
       content?: Array<{ type?: string; text?: string; thinking?: string; id?: string; name?: string; input?: unknown }>
@@ -328,23 +331,26 @@ async function callCloudToolRound(opts: {
   if (opts.provider === 'opencode-go' && opts.keys.opencodeSessionId?.trim()) {
     headers['x-opencode-session'] = opts.keys.opencodeSessionId.trim()
   }
-  const res = await fetch(`${endpoint.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers,
-    signal: opts.signal,
-    body: JSON.stringify({
-      model: opts.config.model,
-      messages: toOpenAiMessages(opts.messages),
-      tools: opts.tools,
-      max_tokens: opts.maxTokens,
-      temperature: 0.2,
-      stream: false,
-      ...endpoint.extraBody,
-    }),
-  })
+  const { res, errorText } = await postJsonWithRetry(
+    `${endpoint.baseUrl}/chat/completions`,
+    {
+      method: 'POST',
+      headers,
+      signal: opts.signal,
+      body: JSON.stringify({
+        model: opts.config.model,
+        messages: toOpenAiMessages(opts.messages),
+        tools: opts.tools,
+        max_tokens: opts.maxTokens,
+        temperature: 0.2,
+        stream: false,
+        ...endpoint.extraBody,
+      }),
+    },
+    opts.signal,
+  )
   if (!res.ok) {
-    const error = await res.text().catch(() => '')
-    throw new Error(`${endpoint.label} worker ${res.status}: ${error || res.statusText}`)
+    throw new Error(`${endpoint.label} worker ${res.status}: ${errorText || res.statusText}`)
   }
   const data = (await res.json()) as {
     choices?: Array<{

@@ -5,6 +5,7 @@ import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from '.
 import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
 import { openCodeGoApiStyle } from './cloudLlmPresets'
+import { toDataImageUri } from './imageMime'
 import {
   anthropicMessagesHeaders,
   applyAnthropicStreamEvent,
@@ -211,21 +212,6 @@ export function mapOpenRouterUsageToOllama(usage: OpenRouterUsage | undefined): 
   }
 }
 
-/** Sniff the image MIME type from the base64 magic prefix. Falls back to PNG. */
-function sniffImageMime(base64: string): string {
-  if (base64.startsWith('iVBORw0KGgo')) return 'image/png'
-  if (base64.startsWith('/9j/')) return 'image/jpeg'
-  if (base64.startsWith('R0lGOD')) return 'image/gif'
-  // RIFF container: "UklGR" = "RIFF"; bytes 9-11 are "EBP" (of "WEBP"), which encode to "RUJQ" at chars 12-15
-  if (base64.startsWith('UklGR') && base64.slice(12, 16) === 'RUJQ') return 'image/webp'
-  return 'image/png'
-}
-
-function toDataImageUri(base64: string): string {
-  const clean = base64.replace(/\s+/g, '')
-  return `data:${sniffImageMime(clean)};base64,${clean}`
-}
-
 function normalizeNvidiaBaseUrl(root: string): string {
   if (!root.includes('integrate.api.nvidia.com')) return root
   const withoutEndpoint = root.replace(/\/chat\/completions\/?$/i, '')
@@ -416,6 +402,35 @@ async function parseOpenRouterError(res: Response): Promise<{
   } catch {
     return { text: txt }
   }
+}
+
+/**
+ * POST with hard abort and bounded retry on transient statuses (429/502/503/504),
+ * mirroring the streaming path. Returns the last Response (ok or not) plus the last
+ * upstream error text. The body is not read on success, so the caller can consume it.
+ */
+export async function postJsonWithRetry(
+  url: string,
+  init: RequestInit,
+  signal?: AbortSignal,
+): Promise<{ res: Response; errorText: string }> {
+  let res: Response | null = null
+  let errorText = ''
+  for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
+    res = await fetchWithHardAbort(url, init, signal)
+    if (res.ok) return { res, errorText: '' }
+    const err = await parseOpenRouterError(res)
+    errorText = err.text || res.statusText
+    if (!RETRYABLE_STATUS.has(res.status)) return { res, errorText }
+    if (attempt >= MAX_RETRIES_PER_MODEL - 1) break
+    const retrySec =
+      typeof err.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0
+        ? err.retryAfterSeconds
+        : 2 ** attempt
+    await sleepMs(retrySec * 1000, signal)
+  }
+  if (!res) throw new Error('Request failed')
+  return { res, errorText }
 }
 
 export function ollamaMessagesToOpenRouter(messages: OllamaApiMessage[]): OpenRouterMessage[] {

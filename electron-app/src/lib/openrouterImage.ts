@@ -8,6 +8,7 @@ import {
   type ImageProvider,
 } from '@/lib/settings'
 import { usesServerCloudProxy } from '@/lib/platform'
+import { sniffImageMime } from '@/lib/imageMime'
 
 export type OpenRouterImageConfig = {
   apiKey: string
@@ -127,8 +128,10 @@ function toDataImageUri(raw: string, mimeHint?: string): string {
   const s = raw.trim()
   if (s.startsWith('data:image/')) return s
   if (s.startsWith('http://') || s.startsWith('https://')) return s
-  const mime = (mimeHint || 'image/png').trim() || 'image/png'
-  return `data:${mime};base64,${s.replace(/\s+/g, '')}`
+  const clean = s.replace(/\s+/g, '')
+  const hint = (mimeHint || '').trim()
+  const mime = /^image\/[a-z0-9.+-]+$/i.test(hint) ? hint : sniffImageMime(clean)
+  return `data:${mime};base64,${clean}`
 }
 
 type OpenRouterImagePart = {
@@ -205,8 +208,7 @@ function imageUrlFromImagesApiItem(item: { b64_json?: string; url?: string }): s
   if (httpUrl) return httpUrl
   const b64 = (item.b64_json || '').trim()
   if (!b64) return ''
-  if (b64.startsWith('data:image/')) return b64
-  return `data:image/png;base64,${b64.replace(/\s+/g, '')}`
+  return toDataImageUri(b64)
 }
 
 function extractImagesFromImagesApi(body: ImagesApiResponse): string[] {
