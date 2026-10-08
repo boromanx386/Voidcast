@@ -37,6 +37,14 @@ export function ChatSidebar({ app }: Props) {
   } = app
 
   const projectGroups = useMemo(() => groupSessionsByProject(sessions), [sessions])
+  /** Folder group that holds the open chat — highlighted in the list. */
+  const activeGroupKey = useMemo(() => {
+    if (!activeSessionId) return null
+    for (const group of projectGroups) {
+      if (group.sessions.some((s) => s.id === activeSessionId)) return group.key
+    }
+    return null
+  }, [projectGroups, activeSessionId])
   const busyBySession = useBusySessionMap()
   const unreadCompleteBySession = useUnreadCompleteSessionMap()
 
@@ -85,25 +93,32 @@ export function ChatSidebar({ app }: Props) {
           <div className="px-4 py-2 text-xs text-void-dim/60">No sessions yet</div>
         )}
         {projectGroups.map((group, index) => {
-          const collapsed = sidebarCollapsed[group.key] !== true
+          const isActiveGroup = activeGroupKey !== null && group.key === activeGroupKey
+          const toggled = sidebarCollapsed[group.key]
+          // Folder holding the open chat shows its chats by default,
+          // so the active session stays visible without a click.
+          const collapsed = toggled === undefined ? !isActiveGroup : toggled !== true
           return (
-            <div key={group.key} className={index > 0 ? 'mt-2' : undefined}>
-              <div className="group flex w-full items-center">
+            <div
+              key={group.key}
+              className={`session-group group${isActiveGroup ? ' active' : ''}${
+                index > 0 ? ' mt-2' : ''
+              }`}
+            >
+              <div className="flex w-full items-center">
                 <button
                   type="button"
                   onClick={() =>
                     setSidebarCollapsed((p) => ({ ...p, [group.key]: !p[group.key] }))
                   }
-                  className="flex min-w-0 flex-1 items-center justify-between px-4 py-2 text-xs font-mono text-void-dim hover:text-void-light"
+                  className="session-group-toggle"
                   title={group.path || 'General chat — no project folder'}
+                  aria-current={isActiveGroup ? 'true' : undefined}
                 >
-                  <span className="flex min-w-0 items-center gap-1.5 truncate">
-                    {group.path ? (
-                      <FolderIcon className="h-3.5 w-3.5 shrink-0" />
-                    ) : null}
-                    <span className="truncate">
-                      {group.label} ({group.sessions.length})
-                    </span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {group.path ? <FolderIcon className="h-3.5 w-3.5 shrink-0" /> : null}
+                    <span className="truncate">{group.label}</span>
+                    <span className="shrink-0 opacity-70">({group.sessions.length})</span>
                   </span>
                   <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
                 </button>
@@ -122,6 +137,12 @@ export function ChatSidebar({ app }: Props) {
                   </button>
                 )}
               </div>
+
+              {isActiveGroup && group.path ? (
+                <div className="session-group-path" title={group.path}>
+                  {group.path}
+                </div>
+              ) : null}
 
               {!collapsed && (
                 <div className="space-y-0.5">

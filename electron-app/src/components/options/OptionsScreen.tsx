@@ -75,27 +75,31 @@ export function OptionsScreen({ app }: Props) {
 
         {/* Tabs */}
         <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['general', 'llm', 'media', 'tts', 'tools', 'skills', 'subAgent'] as OptionsTab[]).map((tab) => (
+          {(['general', 'llm', 'subAgent', 'media', 'tts', 'tools', 'skills'] as OptionsTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setOptionsTab(tab)}
               title={
-                tab === 'tts'
-                  ? 'Text-to-speech & speech-to-text'
-                  : tab === 'media'
-                    ? 'Image and music generation tools'
-                    : undefined
+                tab === 'llm'
+                  ? 'Agent: model, provider, prompt & context'
+                  : tab === 'subAgent'
+                    ? 'Sub-agent: helper models & nested workers'
+                    : tab === 'tts'
+                      ? 'Text-to-speech & speech-to-text'
+                      : tab === 'media'
+                        ? 'Image and music generation tools'
+                        : undefined
               }
               className={`option-tab flex-1 ${optionsTab === tab ? 'active' : ''}`}
             >
               {tab === 'general' && '◆ GENERAL'}
-              {tab === 'llm' && '◇ LLM'}
+              {tab === 'llm' && '◇ AGENT'}
+              {tab === 'subAgent' && '⬢ SUB'}
               {tab === 'media' && '◌ MEDIA'}
               {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
               {tab === 'tools' && '⬡ TOOLS'}
               {tab === 'skills' && '✦ SKILLS'}
-              {tab === 'subAgent' && '⬢ SUB'}
             </button>
           ))}
         </div>

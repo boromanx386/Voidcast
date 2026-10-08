@@ -187,31 +187,16 @@ function inferCloudContextTokens(modelId: string): number | undefined {
     return MODEL_CONTEXT_OVERRIDES[modelId] ?? MODEL_CONTEXT_OVERRIDES[key]
   }
 
-  if (key.endsWith(':free') || key.includes(':free')) return 32_768
-
-  if (key.includes('opus') || key.includes('claude-sonnet') || key.includes('claude-fable')) {
-    return 200_000
-  }
+  // Manual (typed, non-preset) cloud models always default to the 256k provider
+  // window — no low guesses. Only families with reliably larger windows keep a
+  // heuristic here; exact per-model values live in MODEL_CONTEXT_OVERRIDES.
   if (key.includes('gemini') && (key.includes('pro') || key.includes('flash'))) {
     return 1_048_576
   }
-  if (key.includes('gpt-5') || key.includes('gpt-4') || key.includes('gpt-oss')) {
-    return 128_000
-  }
-  if (key.includes('grok')) return 131_072
-  if (key.includes('kimi')) return 128_000
   if (key.includes('deepseek')) {
     return 1_000_000
   }
-  if (key.includes('qwen')) return 128_000
-  if (key.includes('nemotron')) return 128_000
-  if (key.includes('minimax')) return 128_000
-  if (key.includes('glm')) return 128_000
-  if (key.includes('gemma')) return 131_072
-  if (key.includes('mistral')) return 128_000
-  if (key.includes('step')) return 128_000
   if (key.includes('hy3')) return 262_144
-  if (key.includes('greg')) return 229_376
 
   return undefined
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FileTree } from '@/components/coding/FileTree'
 import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FilePreview } from '@/components/coding/FilePreview'
@@ -990,21 +990,26 @@ export function CodingPanel({
           const on = settings.coding[key]
           const { label, title } = SECTION_META[key]
           return (
-            <button
-              key={key}
-              type="button"
-              title={title}
-              aria-pressed={on}
-              aria-label={`${label}: ${on ? 'on' : 'off'}`}
-              onClick={() => toggleSection(key)}
-              className={`rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors ${
-                on
-                  ? 'coding-accent-border coding-accent-bg coding-accent-text'
-                  : 'border-void-muted/50 text-void-dim/70 hover:border-void-dim hover:text-void-text'
-              }`}
-            >
-              {label}
-            </button>
+            <Fragment key={key}>
+              {/* WEB replaces the three panes instead of stacking with them — keep it apart. */}
+              {key === 'showWeb' ? (
+                <span className="coding-toolbar-divider" aria-hidden />
+              ) : null}
+              <button
+                type="button"
+                title={title}
+                aria-pressed={on}
+                aria-label={`${label}: ${on ? 'on' : 'off'}`}
+                onClick={() => toggleSection(key)}
+                className={`rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors ${
+                  on
+                    ? 'coding-accent-border coding-accent-bg coding-accent-text'
+                    : 'border-void-muted/50 text-void-dim/70 hover:border-void-dim hover:text-void-text'
+                }`}
+              >
+                {label}
+              </button>
+            </Fragment>
           )
         })}
       </div>

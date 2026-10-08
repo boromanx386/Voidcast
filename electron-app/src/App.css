@@ -131,6 +131,34 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply opacity-100;
 }
 
+/* Sidebar project-folder group (one row per folder that holds chats) */
+.session-group {
+  @apply relative border-l-2 border-transparent;
+}
+
+.session-group-toggle {
+  @apply flex min-w-0 flex-1 items-center justify-between gap-2 px-4 py-2 font-mono text-xs;
+  @apply text-void-dim hover:text-void-light;
+}
+
+/* Folder that holds the OPEN chat — has to be unmistakable in the list */
+.session-group.active {
+  @apply border-neon-cyan;
+  background: linear-gradient(90deg, rgb(var(--color-neon-cyan) / 0.12) 0%, transparent 100%);
+}
+
+.session-group.active .session-group-toggle {
+  @apply text-neon-cyan;
+}
+
+.session-group.active .session-group-toggle:hover {
+  @apply text-void-white;
+}
+
+.session-group-path {
+  @apply -mt-1 truncate px-4 pb-1 text-[10px] font-mono text-neon-cyan/70;
+}
+
 /* Chat area */
 .voidcast-chat {
   @apply flex-1 flex flex-col relative;
@@ -632,6 +660,13 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .coding-accent-border {
   border-color: rgb(var(--coding-accent-fg) / 0.5);
+}
+
+/* Vertical rule: WEB is an exclusive view mode (replaces the panes), not a pane —
+   the divider keeps it visibly apart from FILES / PREVIEW / TERM. */
+.coding-toolbar-divider {
+  @apply mx-0.5 h-4 w-px shrink-0 self-center;
+  background-color: rgb(var(--color-void-muted) / 0.9);
 }
 
 .coding-label--preview {

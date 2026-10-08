@@ -98,6 +98,56 @@ describe('resolveContextLimit', () => {
     expect(limit.maxTokens).toBe(256_000)
     expect(limit.source).toBe('provider_default')
   })
+
+  test('manual (typed) cloud models default to 256k, never 128k', () => {
+    const manualIds = [
+      'gpt-5.9-unknown',
+      'gpt-4-unknown',
+      'gpt-oss-unknown',
+      'qwen3-30b-unknown',
+      'kimi-x-unknown',
+      'glm-x-unknown',
+      'nemotron-x-unknown',
+      'minimax-x-unknown',
+      'mistral-x-unknown',
+      'gemma-x-unknown',
+      'grok-x-unknown',
+      'claude-opus-unknown',
+      'step-x-unknown',
+      'some-model-9000:free',
+    ]
+    for (const id of manualIds) {
+      const limit = resolveContextLimit(
+        baseSettings({ llmProvider: 'openrouter', openrouterModel: id }),
+      )
+      expect(limit.maxTokens, id).toBe(256_000)
+      expect(limit.source, id).toBe('provider_default')
+    }
+  })
+
+  test('manual models on other providers also default to 256k', () => {
+    const cases = [
+      baseSettings({ llmProvider: 'openai', openaiModel: 'gpt-5.9-unknown' }),
+      baseSettings({ llmProvider: 'nvidia', nvidiaModel: 'some-nemotron-9000' }),
+      baseSettings({ llmProvider: 'opencode-go', opencodeGoModel: 'qwen3-unknown' }),
+    ]
+    for (const settings of cases) {
+      const limit = resolveContextLimit(settings)
+      expect(limit.maxTokens).toBe(256_000)
+      expect(limit.source).toBe('provider_default')
+    }
+  })
+
+  test('manual models keep their known larger windows', () => {
+    const deepseek = resolveContextLimit(
+      baseSettings({ llmProvider: 'deepseek', deepseekModel: 'deepseek-unknown-9000' }),
+    )
+    expect(deepseek.maxTokens).toBe(1_000_000)
+    const gemini = resolveContextLimit(
+      baseSettings({ llmProvider: 'openrouter', openrouterModel: 'gemini-9-pro-unknown' }),
+    )
+    expect(gemini.maxTokens).toBe(1_048_576)
+  })
 })
 
 describe('estimateContextUsage with resolved limit', () => {
