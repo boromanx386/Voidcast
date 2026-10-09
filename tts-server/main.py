@@ -25,7 +25,9 @@ import logging
 import os
 import re
 import tempfile
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -72,6 +74,13 @@ from host_tool_config import (
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
+
+# Dedicated, bounded pool for blocking web tools (ddgs/YouTube). If ddgs stalls on
+# DuckDuckGo rate limits, threads pile up here and can never starve the *default*
+# executor that serves TTS / proxy / health — so one bad search no longer freezes
+# the whole server. The semaphore caps how many searches may run at once.
+_TOOLS_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="tools-net")
+_SEARCH_SEM = asyncio.Semaphore(2)
 
 def resolve_web_ui_dir() -> Path:
     """Find Vite `web-ui` output (dev, Electron resources cwd, or VOIDCAST_WEB_UI_DIR)."""
@@ -500,7 +509,11 @@ def _search_web_ddgs(query: str) -> str:
         stamp = f" [{source}{' | ' + date_raw if date_raw else ''}]"
         out.append(f"{title}{stamp}\n{body[:450]}\n{link}")
 
-    with DDGS(timeout=20) as ddgs:  # type: ignore[misc]
+    # Hard wall-clock budget: ddgs retries internally against rate-limited DDG
+    # backends, so without this a single search can stay busy for minutes and pin
+    # a worker thread. Cap the whole thing to ~15s.
+    deadline = time.monotonic() + 15
+    with DDGS(timeout=10) as ddgs:  # type: ignore[misc]
         # 1) News endpoint first (usually fresher).
         try:
             for r in list(ddgs.news(q_norm, max_results=8)):
@@ -508,18 +521,18 @@ def _search_web_ddgs(query: str) -> str:
                     _append_result(r, "news")
         except Exception:
             pass
-        # 2) Recent text results.
+        # 2) Recent text results (bail out on budget or enough results).
         for query_variant in (q_norm, q_recent):
+            if time.monotonic() > deadline or len(out) >= 8:
+                break
             try:
                 for r in list(ddgs.text(query_variant, max_results=10, timelimit="m")):
                     if isinstance(r, dict):
                         _append_result(r, "text:m")
             except Exception:
                 continue
-            if len(out) >= 8:
-                break
-        # 3) Fallback broader text if still sparse.
-        if len(out) < 4:
+        # 3) Fallback broader text only if still sparse AND budget remains.
+        if len(out) < 4 and time.monotonic() < deadline - 5:
             try:
                 for r in list(ddgs.text(q_norm, max_results=10)):
                     if isinstance(r, dict):
@@ -535,9 +548,20 @@ def _search_web_ddgs(query: str) -> str:
 @app.post("/tools/search", dependencies=[Depends(require_lan_access)])
 async def tools_search(req: SearchRequest):
     """Web search via ddgs (multiple backends); requires `pip install ddgs`."""
+    loop = asyncio.get_running_loop()
     try:
-        text = await asyncio.to_thread(_search_web_ddgs, req.query)
+        # Run on a DEDICATED bounded pool (never the default executor that serves
+        # TTS/proxy/health) and enforce a hard 20s cap so a stalled ddgs search
+        # returns a message instead of hanging the request forever.
+        async with _SEARCH_SEM:
+            text = await asyncio.wait_for(
+                loop.run_in_executor(_TOOLS_EXECUTOR, _search_web_ddgs, req.query),
+                timeout=20,
+            )
         return {"ok": True, "text": text}
+    except asyncio.TimeoutError:
+        logger.warning("tools/search timed out after 20s: %r", req.query)
+        return {"ok": False, "text": "", "detail": "Web search timed out"}
     except Exception as e:
         logger.exception("tools/search failed: %s", e)
         raise HTTPException(

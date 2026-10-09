@@ -28,12 +28,27 @@ export async function invokeWebSearch(
   signal?: AbortSignal,
 ): Promise<string> {
   const root = normalizeBaseUrl(ttsBaseUrl || 'http://127.0.0.1:8765')
+
+  // Never let the chip spin forever: cap the server round-trip and merge the
+  // caller's abort signal (Stop button) with our own timeout into one signal.
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, 25000)
+  const onAbort = () => controller.abort()
+  if (signal) {
+    if (signal.aborted) controller.abort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+  }
+
   try {
     const res = await fetch(`${root}/tools/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
-      signal,
+      signal: controller.signal,
     })
     const data = (await res.json().catch(() => ({}))) as {
       ok?: boolean
@@ -43,8 +58,19 @@ export async function invokeWebSearch(
     if (res.ok && data.ok && typeof data.text === 'string' && data.text.length > 0) {
       return data.text
     }
-  } catch {
-    /* TTS off or unreachable */
+    // Server answered with a soft failure (e.g. its own 20s timeout) — surface it
+    // instead of silently falling through to the weaker IPC fallback.
+    if (data.detail) return `Search failed: ${data.detail}`
+    if (res.status === 504) return 'Search failed: Web search timed out'
+  } catch (e) {
+    // Stop was pressed → propagate immediately, do NOT retry via IPC.
+    if (signal?.aborted) throw e instanceof Error ? e : new Error('Search aborted')
+    // Our own client-side timeout fired → report instead of hanging.
+    if (timedOut) throw new Error('Search failed: Web search timed out')
+    /* TTS off or unreachable → try IPC fallback below */
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
   }
 
   try {

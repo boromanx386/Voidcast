@@ -476,7 +476,8 @@ function killTrackedToolsServerSync(): void {
 
 async function isToolsServerHealthy(baseUrl = TOOLS_SERVER_HEALTH_URL): Promise<boolean> {
   try {
-    const res = await fetch(`${baseUrl}/health`)
+    // Bounded probe: a half-dead process squatting on the port must never hang us.
+    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(2000) })
     return res.ok
   } catch {
     return false
@@ -545,11 +546,15 @@ async function ensureToolsServerRunning(): Promise<void> {
   if (toolsServerStarting) return
   toolsServerStarting = true
   try {
-    if (await isToolsServerHealthy()) {
-      return
+    // Give an already-starting server (e.g. the `dev:tts` script that runs
+    // alongside Electron in `npm run dev`) a moment to bind before we race it.
+    for (let i = 0; i < 6; i++) {
+      if (await isToolsServerHealthy()) {
+        return
+      }
+      await new Promise((r) => setTimeout(r, 500))
     }
     const cwd = getToolsServerDir()
-    const bundledExe = getBundledToolsExePath()
     const args = [
       '-m',
       'uvicorn',
@@ -562,8 +567,12 @@ async function ensureToolsServerRunning(): Promise<void> {
       cwd,
     ]
     const candidates: Array<{ command: string; args: string[] }> = []
-    candidates.push({ command: bundledExe, args: [] })
-    if (!app.isPackaged) {
+    if (app.isPackaged) {
+      // Packaged builds ship a bundled tools executable.
+      candidates.push({ command: getBundledToolsExePath(), args: [] })
+    } else {
+      // Dev: NEVER launch the (possibly stale) bundled exe first — it would bind
+      // the port before `dev:tts` and silently serve an old build.
       const devPython = path.join(process.env.APP_ROOT, '..', '.venv', 'Scripts', 'python.exe')
       candidates.push({ command: devPython, args })
       candidates.push({ command: 'py', args: ['-3', ...args] })
@@ -893,7 +902,8 @@ ipcMain.handle(
       const q = String(query ?? '').trim()
       if (!q) return { ok: false, text: 'Empty query' }
       const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
-      const res = await fetch(url)
+      // Hard cap so this IPC fallback can never hang the main process forever.
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
       if (!res.ok) return { ok: false, text: `HTTP ${res.status}` }
       const data = (await res.json()) as {
         AbstractText?: string
@@ -918,9 +928,14 @@ ipcMain.handle(
       }
       return { ok: true, text: parts.join('\n\n') }
     } catch (e) {
+      const aborted = e instanceof Error && e.name === 'AbortError'
       return {
         ok: false,
-        text: e instanceof Error ? e.message : String(e),
+        text: aborted
+          ? 'Search fallback timed out'
+          : e instanceof Error
+            ? e.message
+            : String(e),
       }
     }
   },
