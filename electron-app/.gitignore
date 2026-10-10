@@ -35,3 +35,6 @@ yarn.lock
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Screenshots written by the e2e spec (regenerated on every run)
+test/screenshots/
