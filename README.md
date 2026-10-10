@@ -1,8 +1,6 @@
 # Voidcast
 
-<p align="center">
-  <img src="logo.jpg" width="200" alt="Voidcast"/>
-</p>
+![Voidcast](logo.jpg)
 
 **Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It runs on your own choice of LLM provider — local **Ollama** or a cloud provider you already have a key for — and ships with built-in tools for web search, scraping, YouTube, weather, PDF export, reminders, TTS/STT, image generation, and music generation. A full coding toolset (read/write/search/git/execute) operates on your local project, and desktop builds can connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
