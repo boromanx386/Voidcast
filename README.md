@@ -1,6 +1,8 @@
 # Voidcast
 
-![Voidcast](logo_app_nobg.png)
+<p align="center">
+  <img src="logo.jpg" width="200" alt="Voidcast"/>
+</p>
 
 **Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It runs on your own choice of LLM provider — local **Ollama** or a cloud provider you already have a key for — and ships with built-in tools for web search, scraping, YouTube, weather, PDF export, reminders, TTS/STT, image generation, and music generation. A full coding toolset (read/write/search/git/execute) operates on your local project, and desktop builds can connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
 
@@ -158,6 +160,11 @@ Voidcast ships its **own Chromium view** — no external Chrome, no browser exte
 
 Full tool reference: [docs/options/tools.md](docs/options/tools.md).
 
+<p align="center">
+  <img src="demos/voidcast-browser.jpg" width="700" alt="Built-in browser playing YouTube — the agent opened it, played a track and translated the lyrics"/>
+</p>
+<p align="center"><em>The WEB tab is a real Chromium view, shared with the agent — here it opened YouTube, played a track, and translated the lyrics live. Take over any time.</em></p>
+
 ### Chat modes
 
 Composer chip (or `Shift+Tab`) cycles **Agent → Ask → Plan → Team**:
@@ -218,9 +225,9 @@ Full detail: [docs/coding.md](docs/coding.md).
 Full detail: [docs/coding.md](docs/coding.md).
 
 <p align="center">
-  <img src="demos/voidcast-coding-panel.jpg" width="700" alt="Coding panel with git status and a diff"/>
+  <img src="demos/voidcast-coding-panel.jpg" width="700" alt="Coding panel with the file tree, preview, terminal and commit bar"/>
 </p>
-<p align="center"><em>File tree, preview, terminal, and git status — all in one panel.</em></p>
+<p align="center"><em>File tree, preview, terminal and commit bar — all in one panel.</em></p>
 
 **Project memory:** recent files, directories, command outcomes, and tool failures are stored **per project** in browser `localStorage` and survive app restarts. Opening the same repo again hydrates that snapshot into new chats; the active session still keeps live search/git hints for the current thread.
 
@@ -280,7 +287,7 @@ Cross-chat memory is stored locally in IndexedDB:
 Paste images into the chat, or drag-and-drop images and documents. On desktop, **PDF** and **DOCX** attachments extract text the same way as the native file picker (main-process parsers). The assistant can analyze images via **image_recall** (always available, independent of the Runware toggle) and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware or OpenRouter from the same thread.
 
 <p align="center">
-  <img src="demos/voidcast-chat-image.jpg" width="700" alt="Images generated in chat, running in the built-in browser"/>
+  <img src="demos/voidcast-chat-image.jpg" width="700" alt="Editing an image in chat — the agent returns four recolors of the same logo"/>
 </p>
 <p align="center"><em>Paste an image and ask the agent to transform it — results appear inline.</em></p>
 
