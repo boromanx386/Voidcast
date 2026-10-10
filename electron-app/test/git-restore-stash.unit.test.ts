@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { isPlanModeBlockedTool } from '../src/lib/toolDefinitions'
-import { CODING_ACTION_TOOLS } from '../src/lib/agentToolUtils'
 import { isCodingToolFailure } from '../src/lib/codingContextMemo'
 
 describe('git_restore / git_stash agent tools', () => {
@@ -8,11 +7,6 @@ describe('git_restore / git_stash agent tools', () => {
     expect(isPlanModeBlockedTool('git_restore')).toBe(true)
     expect(isPlanModeBlockedTool('git_stash')).toBe(true)
     expect(isPlanModeBlockedTool('git_status')).toBe(false)
-  })
-
-  it('count as coding action tools for false-claim guard', () => {
-    expect(CODING_ACTION_TOOLS.has('git_restore')).toBe(true)
-    expect(CODING_ACTION_TOOLS.has('git_stash')).toBe(true)
   })
 
   it('detects restore success/failure from result text', () => {

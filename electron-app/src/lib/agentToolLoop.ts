@@ -1,12 +1,8 @@
 import type { OllamaChatUsage } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import {
-  CODING_ACTION_TOOLS,
   isParallelSafeAgentTool,
   isSuccessfulRepoActionTool,
-  shouldGuardFalseCodingClaims,
-  shouldGuardFalseImageClaims,
-  shouldGuardFalseMusicClaims,
   TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY,
   TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY,
 } from '@/lib/agentToolUtils'
@@ -136,22 +132,6 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
    * Loop will stream one more round and ignore further tool calls.
    */
   appendToolBudgetExhaustedReprompt?: (messages: TMessage[]) => void
-  /** When true, reprompt if the model claims an image URL/result without calling image tools. */
-  guardFalseImageClaims?: boolean
-  /** User-typed message for this turn (skip image guard on music requests). */
-  guardFalseImageClaimsUserText?: string
-  appendFalseImageClaimReprompt?: (messages: TMessage[]) => void
-  maxFalseImageClaimReprompts?: number
-  /** When true, reprompt if the model claims music/audio/TTS without calling generate_music_runware or generate_tts. */
-  guardFalseMusicClaims?: boolean
-  guardFalseMusicClaimsUserText?: string
-  appendFalseMusicClaimReprompt?: (messages: TMessage[]) => void
-  maxFalseMusicClaimReprompts?: number
-  /** When true, reprompt if the model claims code was edited/saved/run without calling a mutating coding tool. */
-  guardFalseCodingClaims?: boolean
-  guardFalseCodingClaimsUserText?: string
-  appendFalseCodingClaimReprompt?: (messages: TMessage[]) => void
-  maxFalseCodingClaimReprompts?: number
   /**
    * When true (Agent/Team + coding), budget wrap-up must not present model prose as
    * repo work unless a successful file/shell/git mutation occurred this turn.
@@ -280,20 +260,11 @@ export async function runSharedToolLoop<
   let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
   let requiredToolRepromptCount = 0
-  let falseImageClaimRepromptCount = 0
-  let falseMusicClaimRepromptCount = 0
-  let falseCodingClaimRepromptCount = 0
   let hasExecutedToolInTurn = false
-  let hasExecutedImageToolInTurn = false
-  let hasExecutedMusicToolInTurn = false
-  let hasExecutedCodingToolInTurn = false
   let hasExecutedRepoActionInTurn = false
   const maxParallelToolCalls = Number.isFinite(params.maxParallelToolCalls)
     ? Math.max(1, Math.floor(params.maxParallelToolCalls!))
     : 4
-  const maxFalseImageClaimReprompts = params.maxFalseImageClaimReprompts ?? 2
-  const maxFalseMusicClaimReprompts = params.maxFalseMusicClaimReprompts ?? 2
-  const maxFalseCodingClaimReprompts = params.maxFalseCodingClaimReprompts ?? 2
   /** Tool-result message positions per round, for old-result clearing. */
   const toolResultRecords: Array<{ index: number; round: number; name: string; cleared: boolean }> = []
   /** Recalled-image message positions per round, for ephemeral image payloads. */
@@ -486,72 +457,6 @@ export async function runSharedToolLoop<
 
       const assistantText = (lastAssistantText || content).trim()
       if (
-        params.guardFalseImageClaims &&
-        params.appendFalseImageClaimReprompt &&
-        !hasExecutedImageToolInTurn &&
-        shouldGuardFalseImageClaims(assistantText, params.guardFalseImageClaimsUserText ?? '') &&
-        falseImageClaimRepromptCount < maxFalseImageClaimReprompts
-      ) {
-        falseImageClaimRepromptCount += 1
-        params.appendAssistantWithToolCalls({
-          messages,
-          content: assistantText,
-          thinking,
-          toolCalls: [],
-        })
-        params.appendFalseImageClaimReprompt(messages)
-        preserveIntermediateResponse(params, round, assistantText)
-        lastAssistantText = ''
-        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
-        clearStreamedAssistantContent(params)
-        continue
-      }
-
-      if (
-        params.guardFalseMusicClaims &&
-        params.appendFalseMusicClaimReprompt &&
-        !hasExecutedMusicToolInTurn &&
-        shouldGuardFalseMusicClaims(assistantText, params.guardFalseMusicClaimsUserText ?? '') &&
-        falseMusicClaimRepromptCount < maxFalseMusicClaimReprompts
-      ) {
-        falseMusicClaimRepromptCount += 1
-        params.appendAssistantWithToolCalls({
-          messages,
-          content: assistantText,
-          thinking,
-          toolCalls: [],
-        })
-        params.appendFalseMusicClaimReprompt(messages)
-        preserveIntermediateResponse(params, round, assistantText)
-        lastAssistantText = ''
-        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
-        clearStreamedAssistantContent(params)
-        continue
-      }
-
-      if (
-        params.guardFalseCodingClaims &&
-        params.appendFalseCodingClaimReprompt &&
-        !hasExecutedCodingToolInTurn &&
-        shouldGuardFalseCodingClaims(assistantText, params.guardFalseCodingClaimsUserText ?? '') &&
-        falseCodingClaimRepromptCount < maxFalseCodingClaimReprompts
-      ) {
-        falseCodingClaimRepromptCount += 1
-        params.appendAssistantWithToolCalls({
-          messages,
-          content: assistantText,
-          thinking,
-          toolCalls: [],
-        })
-        params.appendFalseCodingClaimReprompt(messages)
-        preserveIntermediateResponse(params, round, assistantText)
-        lastAssistantText = ''
-        persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
-        clearStreamedAssistantContent(params)
-        continue
-      }
-
-      if (
         params.mustCallTool &&
         !hasExecutedToolInTurn &&
         requiredToolRepromptCount < params.maxRequiredToolReprompts
@@ -648,15 +553,6 @@ export async function runSharedToolLoop<
         toolResultRecords.push({ index: i, round, name: shared.name, cleared: false })
       }
       hasExecutedToolInTurn = true
-      if (shared.name === 'generate_image' || shared.name === 'edit_image_runware') {
-        hasExecutedImageToolInTurn = true
-      }
-      if (shared.name === 'generate_music_runware' || shared.name === 'generate_tts') {
-        hasExecutedMusicToolInTurn = true
-      }
-      if (CODING_ACTION_TOOLS.has(shared.name)) {
-        hasExecutedCodingToolInTurn = true
-      }
       if (isSuccessfulRepoActionTool(shared.name, result)) {
         hasExecutedRepoActionInTurn = true
       }

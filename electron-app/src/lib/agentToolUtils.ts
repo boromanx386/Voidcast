@@ -94,93 +94,6 @@ export function shouldForceWebSearchOnRoundZero(
   return shouldForceWebSearch(rawUserText, { codingEnabled: toolsEnabled.coding })
 }
 
-/** Tool-result style line or markdown image with http(s) URL. */
-const ASSISTANT_IMAGE_URL_LINE_RE = /^\s*image_url:\s*https?:\/\//im
-const ASSISTANT_MARKDOWN_IMAGE_HTTP_RE = /!\[[^\]]*\]\(https?:\/\/[^)\s]+\)/i
-/** Common "here is your image" phrasing plus a URL in the same reply. */
-const ASSISTANT_IMAGE_DELIVERY_RE =
-  /\b(here(?:'s| is)|evo (?:je|ti)?)\s+(?:your\s+|the\s+)?(?:(?:generated|edited|modified)\s+)?(?:image|picture|slika)\b/i
-const ASSISTANT_IMAGE_ACTION_CLAIM_RE =
-  /\b(i(?:'ve| have)?\s+(?:generated|created|made|drawn|edited|modified))\s+(?:an?\s+)?(?:image|picture|slika)\b/i
-/** Runware image CDN host only — not api.runware.ai and not music audio_url lines. */
-const RUNWARE_IMAGE_CDN_RE = /https?:\/\/[^\s)>]*\bim\.runware\b/i
-
-const MUSIC_USER_REQUEST_RE =
-  /\b(music|song|songs|beat|beats|soundtrack|jingle|pesm[aue]|muzik|audio\s+track|generate\s+music|napravi\s+pesmu|runware\s+music|voiceover|voice[\s-]?over|narration|tts|text[\s-]?to[\s-]?speech|spoken\s+audio|govor|naracij)\b/i
-
-export function isMusicFocusedUserText(text: string): boolean {
-  return MUSIC_USER_REQUEST_RE.test(text.trim())
-}
-
-function stripMusicUrlArtifacts(text: string): string {
-  return text
-    .replace(/^\s*audio_url:\s*https?:\/\/\S+\s*$/gim, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
-/**
- * True when assistant text looks like it delivered a Runware image (URL or claim)
- * without a generate_image / edit_image_runware tool result in this turn.
- */
-export function assistantClaimsImageWithoutTool(text: string): boolean {
-  const t = stripMusicUrlArtifacts(text)
-  if (!t) return false
-  if (ASSISTANT_IMAGE_URL_LINE_RE.test(t)) return true
-  if (ASSISTANT_MARKDOWN_IMAGE_HTTP_RE.test(t)) return true
-  if (RUNWARE_IMAGE_CDN_RE.test(t)) return true
-  if (ASSISTANT_IMAGE_ACTION_CLAIM_RE.test(t) && /https?:\/\//.test(t)) return true
-  if (ASSISTANT_IMAGE_DELIVERY_RE.test(t) && /https?:\/\//.test(t)) return true
-  return false
-}
-
-/** Skip image guard when the user asked for music (audio_url / generate_music_runware turn). */
-export function shouldGuardFalseImageClaims(
-  assistantText: string,
-  rawUserText: string,
-): boolean {
-  if (isMusicFocusedUserText(rawUserText)) return false
-  return assistantClaimsImageWithoutTool(assistantText)
-}
-
-const ASSISTANT_AUDIO_URL_LINE_RE = /^\s*audio_(?:url|path):\s*\S+/im
-const ASSISTANT_MUSIC_DELIVERY_RE =
-  /\b(here(?:'s| is)|evo (?:je|ti)?)\s+(?:your\s+|the\s+)?(?:(?:generated|created)\s+)?(?:song|music|track|beat|audio|pesm[aue]|voiceover|narration|tts)\b/i
-const ASSISTANT_MUSIC_ACTION_CLAIM_RE =
-  /\b(i(?:'ve| have)?\s+(?:generated|created|made|composed|synthesized))\s+(?:a\s+)?(?:song|music|track|beat|audio|pesm[aue]|voiceover|narration|tts)\b/i
-
-const IMAGE_USER_REQUEST_RE =
-  /\b(generate_image|edit_image|draw|slika|picture|chart|diagram|infographic|image)\b/i
-
-export function isImageFocusedUserText(text: string): boolean {
-  const t = text.trim()
-  if (!t) return false
-  if (isMusicFocusedUserText(t)) return false
-  return IMAGE_USER_REQUEST_RE.test(t)
-}
-
-/**
- * True when assistant text looks like it delivered Runware music (URL or claim)
- * without a generate_music_runware tool result in this turn.
- */
-export function assistantClaimsMusicWithoutTool(text: string): boolean {
-  const t = text.trim()
-  if (!t) return false
-  if (ASSISTANT_AUDIO_URL_LINE_RE.test(t)) return true
-  if (ASSISTANT_MUSIC_ACTION_CLAIM_RE.test(t) && /https?:\/\//.test(t)) return true
-  if (ASSISTANT_MUSIC_DELIVERY_RE.test(t) && /https?:\/\//.test(t)) return true
-  return false
-}
-
-/** Skip music guard when the user asked for an image, not audio. */
-export function shouldGuardFalseMusicClaims(
-  assistantText: string,
-  rawUserText: string,
-): boolean {
-  if (isImageFocusedUserText(rawUserText)) return false
-  return assistantClaimsMusicWithoutTool(assistantText)
-}
-
 /** File mutations on disk (includes parallel workers). */
 export const CODING_FILE_MUTATION_TOOLS = new Set([
   'write_file',
@@ -200,9 +113,6 @@ export const CODING_REPO_ACTION_TOOLS = new Set([
   ...CODING_SHELL_TOOLS,
   ...CODING_GIT_MUTATION_TOOLS,
 ])
-
-/** Coding tools whose execution proves an action claim ("edited/saved/ran") is real. */
-export const CODING_ACTION_TOOLS = CODING_REPO_ACTION_TOOLS
 
 /** Agent or Team — modes that may mutate the coding project. */
 export function isImplementAgentMode(mode: AgentChatMode | string | undefined | null): boolean {
@@ -267,86 +177,6 @@ export const PARALLEL_SAFE_AGENT_TOOLS: ReadonlySet<string> = new Set([
 export function isParallelSafeAgentTool(name: string): boolean {
   return PARALLEL_SAFE_AGENT_TOOLS.has(name)
 }
-
-/** User asked for a concrete coding action (change/run), not just a question. */
-const CODING_ACTION_REQUEST_RE =
-  /\b(fix|change|edit|update|modify|refactor|rename|implement|create|write|save|remove|delete|run|execute|build|install|apply|patch|add\s+(?:a|the|an|new|to)\b|popravi|ispravi|izmeni|promeni|sredi|dodaj|napravi|kreiraj|napiši|sačuvaj|obriši|ukloni|pokreni|izvrši|implementiraj|refaktoriši|uradi)/i
-
-/** First-person past-tense action claim (English). */
-const ASSISTANT_CODING_DONE_CLAIM_EN_RE =
-  /\bi(?:'ve| have)?\s+(?:now\s+|also\s+|just\s+|successfully\s+)?(?:created|saved|wrote|written|edited|updated|modified|changed|fixed|implemented|refactored|applied|added|removed|deleted|renamed|patched)\b/i
-
-/** First-person past-tense action claim (Serbian, both word orders). */
-const ASSISTANT_CODING_DONE_CLAIM_SR_RE =
-  /\b(?:(?:napravi|kreira|sačuva|snimi|izmeni|ažurira|popravi|ispravi|implementira|refaktorisa|doda|obrisa|ukloni|pokrenu|izvrši|primeni|uradi)(?:o|la)\s+sam|sam\s+(?:napravi|kreira|sačuva|snimi|izmeni|ažurira|popravi|ispravi|implementira|refaktorisa|doda|obrisa|ukloni|pokrenu|izvrši|primeni|uradi)(?:o|la))\b/i
-
-/** Passive "file was saved / changes have been applied" phrasing. */
-const ASSISTANT_CODING_PASSIVE_CLAIM_RE =
-  /\b(?:(?:file|fajl)\w*\s+(?:has\s+been|have\s+been|was|were|is\s+now|are\s+now|je|su)\s+(?:created|saved|updated|edited|written|modified|kreiran\w*|sačuvan\w*|izmenjen\w*|ažuriran\w*)|(?:changes?|izmen[ae])\s+(?:have\s+been|has\s+been|are|su)\s+(?:applied|saved|made|primenjen\w*|sačuvan\w*))\b/i
-
-/** "I ran the command/tests/build" style claim. */
-const ASSISTANT_CODING_RUN_CLAIM_RE =
-  /\bi(?:'ve| have)?\s+(?:ran|run|executed|started)\s+(?:the\s+)?(?:command|tests?|build|script|typecheck|npm|server)\b/i
-
-/** Claim must be anchored to code/file context to avoid firing on generic prose. */
-const CODING_CONTEXT_RE =
-  /\b(file|files|fajl\w*|code|kod\w*|function|funkcij\w*|class|klas[aeu]\w*|component|komponent\w*|module|modul\w*|script|skript\w*|config|test\w*|command|komand\w*|import\w*|bug\w*)\b|\.\w{1,5}\b/i
-
-/** Truthful references to earlier turns ("I edited it earlier") are not false claims. */
-const PAST_TURN_REFERENCE_RE =
-  /\b(earlier|previously|prethodno|ranije|malopre|u\s+prethodn\w+)\b/i
-
-/**
- * True when assistant text claims a coding action (edit/write/run) was performed
- * without a write_file / edit_code / execute_command tool result in this turn.
- */
-export function assistantClaimsCodingActionWithoutTool(text: string): boolean {
-  const t = text.trim()
-  if (!t) return false
-  if (PAST_TURN_REFERENCE_RE.test(t)) return false
-  if (ASSISTANT_CODING_PASSIVE_CLAIM_RE.test(t)) return true
-  if (ASSISTANT_CODING_RUN_CLAIM_RE.test(t)) return true
-  if (
-    (ASSISTANT_CODING_DONE_CLAIM_EN_RE.test(t) || ASSISTANT_CODING_DONE_CLAIM_SR_RE.test(t)) &&
-    CODING_CONTEXT_RE.test(t)
-  ) {
-    return true
-  }
-  return false
-}
-
-/** Guard only when the user actually requested a coding action this turn. */
-export function shouldGuardFalseCodingClaims(
-  assistantText: string,
-  rawUserText: string,
-): boolean {
-  if (!CODING_ACTION_REQUEST_RE.test(rawUserText.trim())) return false
-  return assistantClaimsCodingActionWithoutTool(assistantText)
-}
-
-/** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */
-export const FALSE_CODING_CLAIM_REPROMPT_MESSAGE = [
-  '[Internal — not for the user] Your last message claimed a file was created/edited/saved or a command was run, but no write_file, edit_code, or execute_command tool was called this turn. Nothing was actually done.',
-  'Fix it now: call the correct coding tool(s) immediately to perform the work for real, then wait for the tool results.',
-  'In your next user-visible reply: report only what the tools actually did, based on their results. Do NOT apologize, mention mistakes, tools, or reprompts, and never claim work is done without a successful tool result in this turn.',
-  'If you cannot run the tools, say briefly that the coding action could not be performed — no extra explanation.',
-].join(' ')
-
-/** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */
-export const FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE = [
-  '[Internal — not for the user] Your last message described or linked music/audio/TTS without calling generate_music_runware or generate_tts.',
-  'Fix it now: call the correct audio tool immediately using the user’s original request (generate_music_runware for songs/music, generate_tts for voiceover/narration/speech files), then wait for the tool result.',
-  'In your next user-visible reply: short caption only. Do NOT paste audio_url/audio_path lines, apologize, mention mistakes, fake links, tools, or reprompts.',
-  'If you cannot run the tool, say briefly that audio generation is unavailable — no extra explanation.',
-].join(' ')
-
-/** Shown to the model only (API user turn); must not encourage meta-apologies in chat. */
-export const FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE = [
-  '[Internal — not for the user] Your last message described or linked an image without calling generate_image or edit_image_runware.',
-  'Fix it now: call the correct image tool immediately using the user’s original request, then wait for the tool result.',
-  'In your next user-visible reply: short caption only (what changed in the image). Do NOT apologize, mention mistakes, fake links, tools, reprompts, or “now it is real”.',
-  'If you cannot run the tool, say briefly that image generation is unavailable — no extra explanation.',
-].join(' ')
 
 /** Soft nudge near the end of the tool-call budget (model-only). */
 export const TOOL_BUDGET_WARNING_REPROMPT_MESSAGE = [

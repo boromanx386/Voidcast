@@ -40,9 +40,6 @@ import { buildRecalledImageDigestLine } from '@/lib/imageVisionCache'
 import { executeToolCall, resolveImageRecallRequest } from '@/lib/agentToolExecutor'
 import {
   deriveSearchQuery,
-  FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
-  FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
-  FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
   getLastUserText,
   isImplementAgentMode,
   pickFirstHttpUrl,
@@ -387,34 +384,6 @@ export async function runOllamaChatWithTools(
       messages.push({
         role: 'user',
         content: TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE,
-      })
-    },
-    guardFalseImageClaims: params.toolsEnabled.runwareImage,
-    guardFalseImageClaimsUserText: rawUserText,
-    maxFalseImageClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
-    appendFalseImageClaimReprompt: (messages) => {
-      messages.push({
-        role: 'user',
-        content: FALSE_IMAGE_CLAIM_REPROMPT_MESSAGE,
-      })
-    },
-    guardFalseMusicClaims: params.toolsEnabled.runwareMusic || params.toolsEnabled.tts,
-    guardFalseMusicClaimsUserText: rawUserText,
-    maxFalseMusicClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
-    appendFalseMusicClaimReprompt: (messages) => {
-      messages.push({
-        role: 'user',
-        content: FALSE_MUSIC_CLAIM_REPROMPT_MESSAGE,
-      })
-    },
-    guardFalseCodingClaims:
-      params.toolsEnabled.coding && !isImplementAgentMode(params.agentMode),
-    guardFalseCodingClaimsUserText: rawUserText,
-    maxFalseCodingClaimReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
-    appendFalseCodingClaimReprompt: (messages) => {
-      messages.push({
-        role: 'user',
-        content: FALSE_CODING_CLAIM_REPROMPT_MESSAGE,
       })
     },
     guardRepoActionTruth: implementCoding,
