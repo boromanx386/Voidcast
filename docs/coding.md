@@ -10,7 +10,8 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 - The header shows a **code/coding toggle button** that calls `setShowCodingPanel`; the chat screen renders `CodingPanel` beside the chat only when `showCodingPanel && codingPanelAvailable`.
 - The `coding.enabled` setting also gates tool availability: the agent's local coding tools (file read/write/search + terminal) are only registered when `toolsEnabled.coding` is on.
 - Defaults: `enabled: true`, `showFileTree: true`, `showFilePreview: true`, `showTerminal: true`, `showWeb: false`.
-- The section toolbar has four buttons: **FILES**, **PREVIEW**, **TERM** and **WEB**. The first three combine freely; **WEB** is an exclusive view mode (see below).
+- The panel header carries the **mode switch** — `◆ CODING` / `● WEB`. `CODING` is the pane stack; `WEB` turns the whole body into the built-in browser (see below). Leaving WEB restores the exact pane combination you had before it.
+- The section toolbar has three pane buttons: **FILES**, **PREVIEW** and **TERM**. They combine freely (the last remaining pane cannot be turned off) and are hidden while the panel is in WEB mode.
 
 ## Setting the Project Path
 

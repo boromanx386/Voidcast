@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FileTree } from '@/components/coding/FileTree'
 import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FilePreview } from '@/components/coding/FilePreview'
@@ -80,15 +80,25 @@ type Props = {
 
 type PreviewMode = 'file' | 'diff' | 'image'
 
-const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal', 'showWeb'] as const
+const SECTION_KEYS = ['showFileTree', 'showFilePreview', 'showTerminal'] as const
 
-/** WEB is exclusive: it replaces the three panes instead of stacking with them. */
+/** The three body panes. WEB is not a pane — it is a mode (see PANEL_MODE_META + the header switch). */
 const SECTION_META: Record<(typeof SECTION_KEYS)[number], { label: string; title: string }> = {
   showFileTree: { label: 'FILES', title: 'Toggle file tree' },
   showFilePreview: { label: 'PREVIEW', title: 'Toggle file preview' },
   showTerminal: { label: 'TERM', title: 'Toggle terminal output' },
-  showWeb: {
-    label: 'WEB',
+}
+
+/** Header mode switch: the pane stack, or the browser taking over the whole body. */
+const PANEL_MODES = ['coding', 'web'] as const
+
+const PANEL_MODE_META: Record<
+  (typeof PANEL_MODES)[number],
+  { label: string; title: string }
+> = {
+  coding: { label: '◆ CODING', title: 'Coding panel: file tree, preview and terminal' },
+  web: {
+    label: '● WEB',
     title: 'Voidcast browser — the same view the agent drives with browser_* tools',
   },
 }
@@ -336,22 +346,14 @@ export function CodingPanel({
     showTerminal: boolean
   } | null>(null)
 
-  const toggleSection = useCallback(
-    (key: (typeof SECTION_KEYS)[number]) => {
-      const cur = settings.coding[key]
-      // WEB: exclusive view mode. Turning it on hides the three panes (remembered);
-      // turning it off (or clicking a pane) restores that remembered combination.
-      if (key === 'showWeb') {
-        if (cur) {
-          const prev = preWebSectionsRef.current
-          preWebSectionsRef.current = null
-          const restored =
-            prev && (prev.showFileTree || prev.showFilePreview || prev.showTerminal)
-              ? prev
-              : { showFileTree: true, showFilePreview: true, showTerminal: true }
-          onCodingUiChange({ showWeb: false, ...restored })
-          return
-        }
+  /**
+   * CODING ⇄ WEB. WEB stores the visible panes here and blanks them; leaving WEB
+   * restores exactly that combination (never an empty body).
+   */
+  const setPanelMode = useCallback(
+    (mode: (typeof PANEL_MODES)[number]) => {
+      if (mode === 'web') {
+        if (settings.coding.showWeb) return
         preWebSectionsRef.current = {
           showFileTree: settings.coding.showFileTree,
           showFilePreview: settings.coding.showFilePreview,
@@ -365,22 +367,26 @@ export function CodingPanel({
         })
         return
       }
-      if (settings.coding.showWeb) {
-        const prev = preWebSectionsRef.current
-        preWebSectionsRef.current = null
-        const base =
-          prev && (prev.showFileTree || prev.showFilePreview || prev.showTerminal)
-            ? prev
-            : { showFileTree: true, showFilePreview: true, showTerminal: true }
-        const patch: CodingUiVisibilityPatch = { showWeb: false, ...base }
-        patch[key] = !base[key]
-        onCodingUiChange(patch)
-        return
-      }
+      if (!settings.coding.showWeb) return
+      const prev = preWebSectionsRef.current
+      preWebSectionsRef.current = null
+      const restored =
+        prev && (prev.showFileTree || prev.showFilePreview || prev.showTerminal)
+          ? prev
+          : { showFileTree: true, showFilePreview: true, showTerminal: true }
+      onCodingUiChange({ showWeb: false, ...restored })
+    },
+    [onCodingUiChange, settings.coding],
+  )
+
+  const toggleSection = useCallback(
+    (key: (typeof SECTION_KEYS)[number]) => {
+      const cur = settings.coding[key]
+      // Never leave the body empty: the last visible pane stays on.
       if (cur) {
-        const othersOn = SECTION_KEYS.filter(
-          (k) => k !== key && k !== 'showWeb',
-        ).some((k) => settings.coding[k])
+        const othersOn = SECTION_KEYS.filter((k) => k !== key).some(
+          (k) => settings.coding[k],
+        )
         if (!othersOn) return
       }
       onCodingUiChange({ [key]: !cur })
@@ -955,8 +961,29 @@ export function CodingPanel({
       className="coding-panel flex h-full min-h-0 shrink-0 flex-col gap-3 overflow-hidden bg-void-dark p-3"
       style={{ width: widthPx ?? settings.coding.panelWidthPx }}
     >
-      <div className="flex shrink-0 items-center justify-between">
-        <div className="text-sm font-mono coding-accent-text">CODING_PANEL</div>
+      <div className="flex shrink-0 items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5" role="group" aria-label="Panel mode">
+          {PANEL_MODES.map((mode) => {
+            const on = mode === 'web' ? showWeb : !showWeb
+            const { label, title } = PANEL_MODE_META[mode]
+            return (
+              <button
+                key={mode}
+                type="button"
+                title={title}
+                aria-pressed={on}
+                onClick={() => setPanelMode(mode)}
+                className={`rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors ${
+                  on
+                    ? 'coding-accent-border coding-accent-bg coding-accent-text'
+                    : 'border-void-muted/50 text-void-dim/70 hover:border-void-dim hover:text-void-text'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
         {!projectPath ? (
           <button
             type="button"
@@ -985,17 +1012,19 @@ export function CodingPanel({
           </button>
         )}
       </div>
-      <div className="flex shrink-0 flex-wrap gap-1.5" role="toolbar" aria-label="Coding panel sections">
-        {SECTION_KEYS.map((key) => {
-          const on = settings.coding[key]
-          const { label, title } = SECTION_META[key]
-          return (
-            <Fragment key={key}>
-              {/* WEB replaces the three panes instead of stacking with them — keep it apart. */}
-              {key === 'showWeb' ? (
-                <span className="coding-toolbar-divider" aria-hidden />
-              ) : null}
+      {/* Panes only exist in CODING mode — WEB takes the whole body, so the toolbar is hidden. */}
+      {!showWeb ? (
+        <div
+          className="flex shrink-0 flex-wrap gap-1.5"
+          role="toolbar"
+          aria-label="Coding panel panes"
+        >
+          {SECTION_KEYS.map((key) => {
+            const on = settings.coding[key]
+            const { label, title } = SECTION_META[key]
+            return (
               <button
+                key={key}
                 type="button"
                 title={title}
                 aria-pressed={on}
@@ -1009,10 +1038,10 @@ export function CodingPanel({
               >
                 {label}
               </button>
-            </Fragment>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      ) : null}
       <div
         ref={bodySplitRef}
         className={`flex min-h-0 flex-1 flex-col overflow-hidden${

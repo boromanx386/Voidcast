@@ -226,7 +226,7 @@ type ToolsEnabled = {
 | `showFileTree` | `boolean` | on | Show the file tree section. |
 | `showFilePreview` | `boolean` | on | Show the file preview section. |
 | `showTerminal` | `boolean` | off | Show the terminal section. |
-| `showWeb` | `boolean` | off | Show the built-in Voidcast browser (exclusive WEB mode) instead of the three panes. |
+| `showWeb` | `boolean` | off | Opens the panel in **WEB** mode (header `● WEB` switch): the body becomes the built-in Voidcast browser instead of the three panes. |
 | `browserProfile` | `string` | `''` = one profile per coding project · `'shared'` = one app-wide profile · any other value = a named profile | Cookies/logins of the built-in browser. Changing it (or the project) closes the open pages — the key is re-derived both by the WEB panel and by every agent call, so it applies even when WEB is closed. `CLR` also forgets remembered HTTP-auth credentials (kept `safeStorage`-encrypted per profile). |
 | `panelWidthPx` | `number` | 416 (280–1200) | Coding panel width in px (chat ↔ panel split). |
 | `fileTreeHeightPx` | `number` | 220 (100–480) | File tree section height in px (FILES ↔ preview/terminal split). |

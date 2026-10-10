@@ -662,13 +662,6 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   border-color: rgb(var(--coding-accent-fg) / 0.5);
 }
 
-/* Vertical rule: WEB is an exclusive view mode (replaces the panes), not a pane —
-   the divider keeps it visibly apart from FILES / PREVIEW / TERM. */
-.coding-toolbar-divider {
-  @apply mx-0.5 h-4 w-px shrink-0 self-center;
-  background-color: rgb(var(--color-void-muted) / 0.9);
-}
-
 .coding-label--preview {
   color: rgb(var(--coding-preview-label-fg));
 }
