@@ -323,9 +323,11 @@ function getToolsServerDir(): string {
 }
 
 function getBundledToolsExePath(): string {
+  // Windows ships `voidcast-tools-server.exe`; Linux/macOS ship a plain binary.
+  const binName = process.platform === 'win32' ? 'voidcast-tools-server.exe' : 'voidcast-tools-server'
   return app.isPackaged
-    ? path.join(process.resourcesPath, 'tools', 'voidcast-tools-server.exe')
-    : path.join(process.env.APP_ROOT, '..', 'tts-server', 'dist', 'voidcast-tools-server.exe')
+    ? path.join(process.resourcesPath, 'tools', binName)
+    : path.join(process.env.APP_ROOT, '..', 'tts-server', 'dist', binName)
 }
 
 /** Bind on all interfaces so LAN phones can reach the web UI and API proxy (override via VOIDCAST_TOOLS_HOST). */

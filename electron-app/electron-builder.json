@@ -43,8 +43,11 @@
       ]
     },
     {
-      "from": "../tts-server/dist/voidcast-tools-server.exe",
-      "to": "tools/voidcast-tools-server.exe"
+      "from": "../tts-server/dist",
+      "to": "tools",
+      "filter": [
+        "voidcast-tools-server*"
+      ]
     }
   ],
   "win": {
@@ -58,6 +61,15 @@
       }
     ],
     "artifactName": "${productName}_${version}_Setup.${ext}"
+  },
+  "linux": {
+    "icon": "../logo_app_nobg.png",
+    "target": [
+      "AppImage",
+      "deb"
+    ],
+    "category": "Utility",
+    "artifactName": "${productName}_${version}.${ext}"
   },
   "nsis": {
     "oneClick": false,
