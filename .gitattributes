@@ -1,2 +1,7 @@
 tts-server/vendor/cactus/whistle.cact filter=lfs diff=lfs merge=lfs -text
 tts-server/vendor/cactus/libneedle.dll filter=lfs diff=lfs merge=lfs -text
+
+# Force LF for scripts that run on Linux/macOS (git autocrlf would otherwise
+# rewrite these to CRLF on checkout -> "bad interpreter: /bin/bash^M").
+*.sh text eol=lf
+*.py text eol=lf
