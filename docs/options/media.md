@@ -6,6 +6,11 @@ Settings here back the agent's `generate_image`, `edit_image_runware`, and `gene
 
 ---
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-media.png" width="720" alt="Options → Media tab"/>
+</p>
+<p align="center"><em>Options → Media.</em></p>
+
 ## Images
 
 ### Backend (`imageProvider`)

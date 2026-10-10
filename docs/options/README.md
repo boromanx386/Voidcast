@@ -10,6 +10,11 @@ This is the reference documentation for the **Settings** screen in the desktop/w
 6. [Skills](skills.md) — Agent Skills discovery from `~/.agents`, `~/.claude`, `~/.cursor/skills`.
 7. [Sub-Agent](subagent.md) — vision + coding explore/workers, analysis in chat (shown as the **SUB** tab).
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-all.png" width="900" alt="Voidcast Options tabs"/>
+</p>
+<p align="center"><em>All seven tabs in one composite — <a href="general.md">General</a>, <a href="llm.md">LLM</a>, <a href="media.md">Media</a>, <a href="tts.md">TTS</a>, <a href="tools.md">Tools</a>, <a href="skills.md">Skills</a>, <a href="subagent.md">Sub-Agent</a>. Each tab below opens with its own wide screenshot.</em></p>
+
 ## Auto-save
 
 Options **auto-save as you change them**. There is no Save button — every toggle, text field, and selector writes immediately to the settings store (`electron-app/src/lib/settings.ts`, `saveSettings`, localStorage key `voidcast-settings-v1`). The UI state updates via the `setSettings` dispatch passed to each panel.

@@ -136,3 +136,41 @@ MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gat
 - **Input aims to match a physical keyboard**, which is what canvas games notice: `keys.ts` resolves a token to a consistent `key`/`code`/`keyCode` (`1` → `key="1"`, `code="Digit1"`, `keyCode=49`; `Control+A` works too), because Chromium silently DROPS a `code` it does not recognise — the old "Key1" reached the page as `code=""`, which broke every game switching on `event.code`. `clickByUid`, `fillByUid` and `pressKey` also focus the view first (`webContents.focus()`), since `document.hasFocus()` is false on a freshly loaded page and games ignore input — and refuse `requestPointerLock()` — while it is.
 - **Profile housekeeping** (`browser/maintenance.ts`) stops `userData/Partitions` from growing without bound. Every profile the app touches is recorded in `browser-profiles.json`; a **trim** drops only re-downloadable caches (`clearCache`, `clearCodeCaches` and the `cachestorage`/`shadercache`/`serviceworkers` storages), so cookies, local storage and logins survive. `runBrowserMaintenance` fires once per app run from `hardenSession` (and again whenever a profile is left behind in `applyProfile`), and now also from the panel when pages are opened or cleared; it walks `Partitions/` on disk and measures each inactive profile's **real** size (`dirBytes`) against the 100 MB floor instead of trusting the size recorded in `browser-profiles.json`, so profiles the registry never recorded are trimmed too. A profile is **deleted** only when this build never recorded it, nothing has touched it for a week, and it is not in use this run — that is what removes leftovers of renamed folders and the pre-normalisation keys, while a project that is merely unopened keeps its session.
 - **The active page is never hidden.** Parked pages are laid out off-screen, but only *background* pages get `setVisible(false)`: a hidden renderer stops `requestAnimationFrame` outright, so a game loop (or any rAF-driven app) freezes the moment the panel stops painting it, even though the agent keeps driving it. Known limitation: `requestPointerLock()` still fails under CDP-dispatched input (injected events do not grant transient user activation), so a mouse-look game that insists on the pointer lock cannot be driven yet.
+
+---
+
+## Runtime Expectations
+
+The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost-only in dev is fine too). Common endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /` | LAN web chat UI (static bundle) |
+| `GET /health` | Server health check |
+| `POST /tools/search` | Web search |
+| `POST /tools/scrape` | Web scraping |
+| `POST /tools/weather` | Weather data |
+| `POST /tools/youtube` | YouTube search / transcripts |
+| `POST /tools/pdf` | PDF export (`save_pdf`) |
+| `POST /tools/runware_proxy` | Runware image / music proxy |
+| `POST /tools/cloud-secrets` | Push cloud API keys to the host for LAN clients |
+| `DELETE /tools/cloud-secrets` | Clear desktop-registered cloud API keys |
+| `GET /tools/cloud-secrets-status` | Whether LAN clients can read keys from this host |
+| `POST /tools/host-tool-config` | Push host paths (e.g. PDF folder) for LAN clients |
+| `DELETE /tools/host-tool-config` | Clear desktop-registered host tool config |
+| `GET /tools/user-data` | Fetch long memory + reminders for sync |
+| `POST /tools/user-data-sync` | Merge long memory + reminders (desktop ↔ LAN) |
+| `POST /tts` | Text-to-speech (local OmniVoice setup) |
+
+Coding tools run inside the Electron app (not as separate HTTP routes). Image edit/generation and settings updates go through the desktop agent or the LAN web proxy to the same backends.
+
+---
+
+## Internals
+
+Implementation details that shape behaviour but would only add noise to the README:
+
+- **`edit_code` exact match** — the tool requires an exact `find_text` match; on a miss it returns the actual file snippet plus `closest_matches`, so the model never invents a fuzzy diff. `write_file` is atomic (temp+rename), with an auto-closing newline and range support for large files. `git_diff`, `search_files`, and `list_directory` return compact result digests instead of multi-thousand-char dumps.
+- **Process awareness** — active shell processes (foreground/background) are surfaced as a CTX hint. `execute_command` supports `run_in_background`; long-lived commands auto-promote to background after **2.5s** of idle output. Background processes survive chat switches; only foreground runs are stopped on session change. The stop button targets the current foreground command; app quit kills everything.
+- **Prompt-cache ordering** — the system prompt and history stay a stable prefix, while volatile per-turn context (clock, live processes, long-term memory, compression summary) rides on the **final user turn** instead of a trailing system message; OpenRouter requests use a stable `session_id` for sticky routing.
+- **OpenAI + tools** — `reasoning_effort` is forced to `none` for OpenAI whenever tools are active, and stream usage is requested so the CTX meter shows real token counts.

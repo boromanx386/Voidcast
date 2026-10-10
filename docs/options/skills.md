@@ -2,6 +2,11 @@
 
 > Grounded in `electron-app/src/components/options/SkillsOptionsPanel.tsx` and `electron-app/src/lib/settings.ts`.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-skills.png" width="720" alt="Options → Skills tab"/>
+</p>
+<p align="center"><em>Options → Skills.</em></p>
+
 ## Enable Agent Skills (`skillsEnabled`)
 
 Type: `boolean`, default `true`.

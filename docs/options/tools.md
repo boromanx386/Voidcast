@@ -2,6 +2,11 @@
 
 > Grounded in `electron-app/src/components/options/ToolsOptionsPanel.tsx` and `electron-app/src/lib/settings.ts`. This tab controls which tools the chat agent can use, how long tool loops may run, MCP server connectivity, the coding project path, and the PDF output directory.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-tools.png" width="720" alt="Options → Tools tab"/>
+</p>
+<p align="center"><em>Options → Tools.</em></p>
+
 ## Tool enable flags (`toolsEnabled`)
 
 Type: `ToolsEnabled`, all booleans. Defaults: all `true`.

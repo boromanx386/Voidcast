@@ -4,6 +4,11 @@
 
 **Also see product overview:** [multi-chat-and-team.md](../multi-chat-and-team.md) (multi-chat + Team + workers in one place).
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-sub.png" width="720" alt="Options → Sub-Agent tab"/>
+</p>
+<p align="center"><em>Options → SUB.</em></p>
+
 ## What a sub-agent is
 
 A **separate model (and provider)** the main chat agent can call for side work, so the main model stays on orchestration / final answer. Two independent roles:

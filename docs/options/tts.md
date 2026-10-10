@@ -2,6 +2,11 @@
 
 > Grounded in `electron-app/src/components/options/TtsOptionsPanel.tsx` and `electron-app/src/lib/settings.ts`. In web builds the tab is labeled **TTS**; in desktop builds **TTS/STT**.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-tts.png" width="720" alt="Options → TTS/STT tab"/>
+</p>
+<p align="center"><em>Options → TTS/STT.</em></p>
+
 ## TTS provider (`ttsProvider`)
 
 Type: `TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'`

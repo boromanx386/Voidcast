@@ -2,6 +2,11 @@
 
 > Grounded in `electron-app/src/components/options/GeneralOptionsPanel.tsx` and `electron-app/src/lib/settings.ts`.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-general.png" width="720" alt="Options → General tab"/>
+</p>
+<p align="center"><em>Options → General.</em></p>
+
 ## Interface Theme
 
 - **Field:** `uiTheme`

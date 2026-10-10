@@ -1,10 +1,17 @@
 # Voidcast
 
-![Voidcast](logo.jpg)
+![Voidcast](logo_app_nobg.png)
 
-**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It calls LLMs via Ollama, OpenRouter, NVIDIA NIM, DeepSeek (direct API), **OpenAI** (Chat Completions), or **OpenCode Go**, and ships with built-in tools for web search, scraping, YouTube, weather, PDF export, reminders, TTS/STT, image generation, and music generation (Runware ACE-Step). A full coding toolset (read/write/search/git/execute) operates on your local project. Desktop builds can also connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It runs on your own choice of LLM provider — local **Ollama** or a cloud provider you already have a key for — and ships with built-in tools for web search, scraping, YouTube, weather, PDF export, reminders, TTS/STT, image generation, and music generation. A full coding toolset (read/write/search/git/execute) operates on your local project, and desktop builds can connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+
+Providers: **Ollama** · **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenAI** · **OpenCode Go** — see [Runs on Free Cloud APIs](#runs-on-free-cloud-apis).
 
 *Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
+
+<p align="center">
+  <img src="demos/voidcast-hero.jpg" width="1000" alt="Voidcast — sessions sidebar, chat and the coding panel"/>
+</p>
+<p align="center"><em>Sessions on the left, the agent running parallel tools and workers in chat, and the coding panel with file tree, diff, commit bar and terminal.</em></p>
 
 ### Quick demo (~39s) — sound on!
 
@@ -88,7 +95,12 @@ Available tools:
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 - **MCP Servers (desktop)** — connect external MCP tools from `~/.voidcast/mcp.json` (see below)
 
-The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NIM**, **DeepSeek** (direct API — no OpenRouter free-tier routing), **OpenAI** (Chat Completions), and **OpenCode Go** (OpenAI-compatible; desktop chat goes through the local tools/TTS proxy so CORS is not an issue). All providers share the same tool catalog and executor. `reasoning_effort` is forced to `none` for OpenAI whenever tools are active, and stream usage is requested so the CTX meter shows real token counts.
+All providers share the same tool catalog and executor. See [Runs on Free Cloud APIs](#runs-on-free-cloud-apis) for the list and what each gives you.
+
+<p align="center">
+  <img src="demos/voidcast-options-all.png" width="900" alt="Voidcast Options tabs"/>
+</p>
+<p align="center"><em>Options — General, LLM, Media, TTS/STT, Tools, Skills and Sub-Agent in one composite. Every tab is documented in <a href="docs/options/README.md">docs/options</a>.</em></p>
 
 
 
@@ -97,21 +109,11 @@ The agent loop supports **Ollama** (local or cloud), **OpenRouter**, **NVIDIA NI
 
 In **Options → Media → Music tool**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20), **ACE-Step v1.5 Base** (higher quality, steps up to 300), or one of the 4B **XL** variants — **XL Turbo** (8-step distilled, steps capped at 20), **XL Base** (50-step CFG, up to 300 steps) and **XL SFT** (flagship quality, up to 300 steps). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
 
-<p align="center">
-  <img src="demos/voidcast-options-image-runware-9x16.png" width="700" alt="Media options panel"/>
-</p>
-<p align="center"><em>Options → Media: image generation/edit and music tool selection.</em></p>
-
 ### PDF Export
 
 Enable **SAVE_PDF** and set **PDF_OUTPUT_DIR** in **Options → Tools** (folder on the host running the tools server). The agent calls `save_pdf`; files land there with no save dialog.
 
 Supports Markdown-lite (headings, lists, tables, bold). Images can come from chat attachments or Runware URLs from a prior image/music turn. Works on desktop and LAN web.
-
-<p align="center">
-  <img src="demos/voidcast-options-tools-9x16.png" width="700" alt="Tools options panel"/>
-</p>
-<p align="center"><em>Options → Tools: enable SAVE_PDF and set PDF_OUTPUT_DIR; the agent writes formatted PDFs with no save dialog.</em></p>
 
 ### Agent Skills
 
@@ -128,9 +130,9 @@ In **Options → Tools → MCP_SERVERS**, enable MCP and edit `~/.voidcast/mcp.j
 - **stdio** — `command` / `args` / `env` (e.g. `npx -y @runware/mcp`)
 - **remote** — `url` (Streamable HTTP or SSE). Optional `"oauth": true` opens a browser sign-in; tokens live under `~/.voidcast/mcp-oauth/`.
 
-Optional project **`.mcp.json`** merges with the global file. Untrusted project configs are blocked until you click **TRUST_PROJECT_MCP** (server preview first). Toggle servers individually; **RELOAD** reconnects.
+Project **`.mcp.json`** merges with the global file and stays blocked until you click **TRUST_PROJECT_MCP** (server preview first); toggle servers individually or **RELOAD** to reconnect.
 
-The agent discovers tools progressively (`mcp_list_tools` → `mcp_get_tool` → `mcp_call`) so schemas do not flood the context window. Large tool results spill to `~/.voidcast/mcp-results/` and are read via `mcp_read_result`. MCP write/call tools are blocked in Plan mode. Chat **Stop** cancels in-flight MCP calls.
+The agent discovers tools progressively (`mcp_list_tools` → `mcp_get_tool` → `mcp_call`) so schemas do not flood the context window; large results spill to `~/.voidcast/mcp-results/`. MCP write/call tools are blocked in Plan mode, and chat **Stop** cancels in-flight calls.
 
 Example remote OAuth entry:
 
@@ -147,13 +149,14 @@ Example remote OAuth entry:
 
 ### Built-in Browser
 
-Voidcast ships its **own Chromium view** — no external Chrome, no browser extension. It is the coding panel's **WEB** tab, driven by the main process over in-process CDP, and **you and the agent share the same view**.
+Voidcast ships its **own Chromium view** — no external Chrome, no browser extension. It is the coding panel's **WEB** tab, and **you and the agent share the same view**: watch it work, take over any time.
 
-- **`browser_*` tools** — `navigate`, `take_snapshot` (accessibility tree: `<uid> <role> name="…"`), `click`, `fill`, `press_key`, `take_screenshot`, `emulate` (device viewport / dark mode), plus read-only `status`, `list_console_messages`, `list_network_requests`, `wait_for`.
-- **Multi-page** — up to **8** tabs; links that open a new window (`target=_blank`) become a page in this browser instead of the system browser, so the flow never leaves the panel.
-- **Real input** — clicks and keys are dispatched as real CDP input events, so React/Vue apps and canvas games react exactly as to a real user. Screenshots save to `<project>/.voidcast/browser/shots/` (the tool returns a path — pass it to `image_recall` to look).
-- **Downloads & auth** — downloads land in `<project>/.voidcast/browser/downloads/` (never the OS folder); HTTP Basic/Digest sign-ins can be remembered per profile (encrypted — the agent never sees the password).
-- **Locked down by default** — permissions are **denied** unless they are `fullscreen`, `clipboard-sanitized-write` or `pointerLock`; the agent reads untrusted pages with a hardened profile per coding project.
+- **`browser_*` tools** — navigate, click, fill, press key, accessibility snapshot, screenshots, console/network, device emulation.
+- **Multi-page** — up to **8** tabs; links that open a new window become a page here instead of the system browser.
+- **Real input** — clicks and keys are dispatched as real CDP input events, so React/Vue apps and canvas games react exactly as to a real user.
+- **Locked down by default** — permissions denied unless `fullscreen`, `clipboard-sanitized-write` or `pointerLock`; downloads go to `<project>/.voidcast/browser/downloads/`, never the OS folder.
+
+Full tool reference: [docs/options/tools.md](docs/options/tools.md).
 
 ### Chat modes
 
@@ -171,16 +174,6 @@ Composer chip (or `Shift+Tab`) cycles **Agent → Ask → Plan → Team**:
 - MCP writes and mutating coding tools stay blocked in Plan and Ask.
 
 Full walkthrough: [docs/multi-chat-and-team.md](docs/multi-chat-and-team.md).
-
-<p align="center">
-  <img src="demos/voidcast-options-skills-9x16.png" width="700" alt="Skills tab"/>
-</p>
-<p align="center"><em>Options → SKILLS: global and project skills with source labels, loaded on demand via read_skill.</em></p>
-
-<p align="center">
-  <img src="demos/voidcast-options-sub-9x16.png" width="700" alt="Sub-agent options panel"/>
-</p>
-<p align="center"><em>Options → SUB: configure sub-agent behavior.</em></p>
 
 ---
 
@@ -200,41 +193,32 @@ Right-side panel with file tree, file preview, and terminal output. The agent ac
 - `coding_explore` — read-only codebase exploration via sub-agent
 - `run_coding_workers` — **Team** mode only: up to two parallel workers for multi-area edits (see [Multi-chat & Team](docs/multi-chat-and-team.md))
 
-Hardened tools: `edit_code` requires exact `find_text` match — if it doesn't match, returns the actual file snippet and `closest_matches` (no model-invented fuzzy diffs). `write_file` writes atomically via temp+rename, with auto-closing newline and range support for large files. Clear-result digests replace multi-thousand-char dumps from `git_diff`, `search_files`, and `list_directory`.
+Hardened tools: `edit_code` requires an exact `find_text` match, `write_file` writes atomically (temp+rename), and clear-result digests replace multi-thousand-char dumps from `git_diff`, `search_files`, and `list_directory`.
 
-**Process awareness** — the agent sees active shell processes (foreground/background) as a CTX hint, so it knows about running dev servers, watchers, and agent-browser sessions. Three explicit process tools — `list_processes` (active processes with runId/command/status), `stop_process` (kill by runId), and `read_process_output` (poll last ~64KB with offset) — give reliable foreground/background management. `execute_command` gained `run_in_background` for dev servers/watchers. Long-lived commands auto-promote to background after 2.5s of idle output. Background processes survive chat switches; only foreground runs are stopped on session change. The stop button targets the current foreground command; app quit kills everything.
+**Process awareness** — the agent sees active shell processes as a CTX hint and manages them explicitly with `list_processes` / `stop_process` / `read_process_output`. Implementation details: [docs/coding.md](docs/coding.md).
 
 ### Git integration
 
-The coding panel surfaces git state visually and lets you commit without leaving the app:
+The coding panel surfaces git state and lets you commit without leaving the app:
 
-- **Status colors** — file tree shows dirty files letter-coded: `M` yellow (modified), `A` green (added), `D` red (deleted), `?` gray (untracked), `R` magenta (renamed). Directory names turn yellow when they contain changes.
-- **Ignored dirs shown dimmed** — heavy folders (`node_modules`, `dist`, …) stay visible in the tree but dimmed; double-click opens them in the OS file manager.
-- **Stage / unstage / discard** — inline buttons on each dirty file row (`+` / `−` / `↶`), plus the same actions in the file preview header.
-- **Diff preview** — clicking a dirty file opens a unified diff with line numbers, `@@` hunk headers, and `+` green / `-` red highlighting. Staged vs unstaged diff auto-selects based on status. Long lines scroll horizontally (no wrap).
-- **Commit bar** — collapsible panel below the tree when changes exist: expand for message + **COMMIT** (staged only), **COMMIT ALL** (stage all + commit like VS Code), and **DISCARD ALL** (restore + clean). Collapsed by default.
-- **Dirty-only toggle** — "DIRTY N" / "ALL · N" in the file tree header filters the tree to show only changed files.
+- **Status colors** — dirty files are letter-coded in the tree: `M` yellow, `A` green, `D` red, `?` gray, `R` magenta; folders with changes turn yellow. Heavy folders (`node_modules`, `dist`, …) stay visible but dimmed.
+- **Stage / unstage / discard** — inline buttons on each dirty file row (`+` / `−` / `↶`) and in the preview header.
+- **Diff preview** — unified diff with line numbers and `@@` hunks; staged vs unstaged auto-selects from status.
+- **Commit bar** — collapsible panel: **COMMIT** (staged only), **COMMIT ALL**, **DISCARD ALL**.
+- **Dirty-only toggle** — "DIRTY N" / "ALL · N" filters the tree to changed files.
 
-### File preview
+Full detail: [docs/coding.md](docs/coding.md).
 
-- **Syntax highlighting** — source files use highlight.js in preview mode (images and diffs unchanged).
-- **Markdown rendering** — `.md` / `.mdx` open as rendered Markdown (`ChatMarkdown`); **Source** toggles back to highlighted raw text.
-- **Inline edit** — **✎ Edit** opens a full editor with find/replace (yellow/cyan match marks, **Enter** / **↓** to jump, **Ctrl+S** save, **Esc** cancel). Git stage/unstage/discard stay in the header when not editing.
+### File preview & layout
 
-### Resizable layout
+- **Preview** — syntax highlighting (highlight.js) and rendered Markdown for `.md` / `.mdx` (with a **Source** toggle), plus an inline **✎ Edit** editor with find/replace (**Ctrl+S** save, **Esc** cancel).
+- **Three-level split, all resizable** — chat ↔ panel, file tree ↔ preview/terminal, preview ↔ terminal. Drag any divider (or arrow keys / `Home` / `End`); sizes persist across restarts (`panelWidthPx` 416, `fileTreeHeightPx` 220, `terminalHeightPx` 200). The panel stays collapsed when the agent edits files — no auto-expand on every write.
+- **Project instructions** — with coding tools on, `AGENTS.md` / `CLAUDE.md` from the project root is injected into the system prompt on every turn, and skills found in the repo show a `[project]` label and override global ones with the same name.
 
-The coding panel uses a three-level split:
-
-- **Chat ↔ coding panel** — a draggable vertical divider between the chat and the coding panel. Width persists across app restarts (`panelWidthPx`, default 416px, range 280–1200). The panel stays collapsed when the agent edits files (no auto-expand on every write). Keyboard: ←/→ to resize, Home/End for extremes.
-- **File tree ↔ preview/terminal** — a draggable horizontal divider inside the coding panel between the file tree and the lower sections (preview, commit bar, terminal). Height persists (`fileTreeHeightPx`, default 220px, range 100–480). Keyboard: ↑/↓ to resize, Home/End for extremes.
-- **Preview ↔ terminal** — a draggable horizontal divider between the file preview and the terminal, shown only when both are visible. Height persists (`terminalHeightPx`, default 200px, range 80–480). Terminal-only layouts fill the remaining space; commit-only uses natural height. Keyboard: ↑/↓ (16px step, `Shift` 32px), Home/End for extremes.
-
-### Project instructions & local skills
-
-With coding tools on, Voidcast loads **`AGENTS.md` / `CLAUDE.md`** from the project root into the system prompt so repo-wide conventions are available on every turn. Skills discovered from `.cursor/skills`, `.claude/skills`, `.agents/skills`, or `skills/` in the repo are treated as **project skills** — they show a `[project]` source label in the catalog and override global skills with the same name.
+Full detail: [docs/coding.md](docs/coding.md).
 
 <p align="center">
-  <img src="demos/voidcast-coding-panel-git-status.png" width="700" alt="Coding panel with git status"/>
+  <img src="demos/voidcast-coding-panel.jpg" width="700" alt="Coding panel with git status and a diff"/>
 </p>
 <p align="center"><em>File tree, preview, terminal, and git status — all in one panel.</em></p>
 
@@ -272,12 +256,7 @@ All you need are free accounts and API keys. Chat LLMs can stay on free tiers; *
 
 Local and small-context models hit a wall after long chats. When prompt usage nears the model limit (~90%), Voidcast can **auto-compress** (toggle in **Options → LLM**, or from the footer **CTX** popup): it summarizes older turns into a hidden memory buffer (provider-aware) and injects that into the system prompt on later turns. **The full chat stays visible in the UI**; only new messages after compression are sent again as raw turns to the model. Click the footer CTX meter for **COMPRESS NOW** anytime (including early on large-context models), or use the yellow warning banner when auto is off.
 
-Prompts are ordered for **prompt-cache hits**: the system prompt and history stay a stable prefix, while volatile per-turn context (clock, live processes, long-term memory, compression summary) rides on the **final user turn** instead of a trailing system message; OpenRouter requests use a stable `session_id` for sticky routing.
-
-<p align="center">
-  <img src="demos/voidcast-options-llm-openrouter-9x16.png" width="700" alt="LLM options panel"/>
-</p>
-<p align="center"><em>Options → LLM: pick a provider (Ollama, OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go), set context compression, and thinking level.</em></p>
+Prompts are ordered for **prompt-cache hits** (stable system prompt + history prefix, volatile context on the final user turn) — details in [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -301,7 +280,7 @@ Cross-chat memory is stored locally in IndexedDB:
 Paste images into the chat, or drag-and-drop images and documents. On desktop, **PDF** and **DOCX** attachments extract text the same way as the native file picker (main-process parsers). The assistant can analyze images via **image_recall** (always available, independent of the Runware toggle) and, when needed, recall them from conversation history for iterative visual work. **Generate or edit** images via Runware or OpenRouter from the same thread.
 
 <p align="center">
-  <img src="demos/voidcast-chat-image-edit-scene-transfer.png" width="700" alt="Image editing in chat"/>
+  <img src="demos/voidcast-chat-image.jpg" width="700" alt="Images generated in chat, running in the built-in browser"/>
 </p>
 <p align="center"><em>Paste an image and ask the agent to transform it — results appear inline.</em></p>
 
@@ -340,20 +319,11 @@ Other UX features:
 
 Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for typical costs.
 
-<p align="center">
-  <img src="demos/voidcast-options-tts-9x16.png" width="700" alt="TTS/STT options panel"/>
-</p>
-<p align="center"><em>Options → TTS: choose local OmniVoice or cloud TTS/STT providers.</em></p>
-
 ---
 
 ## LAN web UI — chat from your phone
 
 Phone/tablet access is **opt-in**. On the desktop app open **Options → General → LAN_WEB_ACCESS**, turn it on, then scan the QR code (or copy the shown URL). When the toggle is off, cloud API keys stay only in desktop storage and are not registered on the tools server.
-
-<p align="center">
-  <img src="demos/voidcast-options-general-9x16.png" width="700" alt="General options - LAN web access"/>
-</p>
 
 The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces). With LAN web access enabled, open on your phone:
 
@@ -433,33 +403,6 @@ Voidcast uses a **bundled Python tools server** for reliable operation:
 - **Production**: the installer bundles the tools server and starts it automatically
 
 This approach ensures all users get the same environment without manual Python setup.
-
----
-
-## Runtime Expectations
-
-The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost-only in dev is fine too). Common endpoints:
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /` | LAN web chat UI (static bundle) |
-| `GET /health` | Server health check |
-| `POST /tools/search` | Web search |
-| `POST /tools/scrape` | Web scraping |
-| `POST /tools/weather` | Weather data |
-| `POST /tools/youtube` | YouTube search / transcripts |
-| `POST /tools/pdf` | PDF export (`save_pdf`) |
-| `POST /tools/runware_proxy` | Runware image / music proxy |
-| `POST /tools/cloud-secrets` | Push cloud API keys to the host for LAN clients |
-| `DELETE /tools/cloud-secrets` | Clear desktop-registered cloud API keys |
-| `GET /tools/cloud-secrets-status` | Whether LAN clients can read keys from this host |
-| `POST /tools/host-tool-config` | Push host paths (e.g. PDF folder) for LAN clients |
-| `DELETE /tools/host-tool-config` | Clear desktop-registered host tool config |
-| `GET /tools/user-data` | Fetch long memory + reminders for sync |
-| `POST /tools/user-data-sync` | Merge long memory + reminders (desktop ↔ LAN) |
-| `POST /tts` | Text-to-speech (local OmniVoice setup) |
-
-Coding tools run inside the Electron app (not as separate HTTP routes). Image edit/generation and settings updates go through the desktop agent or the LAN web proxy to the same backends.
 
 ---
 
