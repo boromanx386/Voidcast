@@ -61,6 +61,13 @@ export const TOOLS_TTS_HINT = `You have a generate_tts tool that synthesizes spe
  */
 export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolute file paths for attached images (user turns) and for locally saved generated images (assistant turns). Coding tools read/write only inside the coding project folder. To vision-analyze screenshots or assets already in the repo (e.g. demos/*.png), call image_recall with reference_image_paths set to the project-relative or absolute path—do not ask the user to re-attach. Chat images that live outside the project can be copied into the repo with execute_command, then recalled from the new path.`
 
+/**
+ * Options has coding tools ON, but this chat has no project folder — so the
+ * coding tools are not sent at all (see buildToolsList). Say that plainly
+ * instead of writing a coding prompt for tools the model does not have.
+ */
+export const TOOLS_CODING_NO_FOLDER_HINT = `Coding tools are ENABLED in Options but NOT available in this chat: it has no project folder bound, so you have no file / terminal / git access here. Do not attempt coding work in this chat and never claim you did. Tell the user to bind a folder (coding panel → the "No project folder" path row, or the ⚠ chip in the chat header) or to open a chat that is already bound to a project folder. Everything else (web search, scrape, browser, images, music, TTS, PDF, weather, reminders) still works normally here.`
+
 /** When coding tools are enabled — same MUST-call discipline as image/music hints. */
 export function buildToolsCodingHint(
   projectPath: string,

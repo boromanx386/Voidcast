@@ -75,17 +75,21 @@ export type RunOpenRouterChatWithToolsParams = ChatWithToolsCommonParams & {
 export async function runOpenRouterChatWithTools(
   params: RunOpenRouterChatWithToolsParams,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
+  // Coding tools are only advertised when this chat has a project folder
+  // (buildToolsList drops them for `''`), so the implement-mode prompt and the
+  // repo-action truth guard must follow the same rule.
+  const codingToolsOn = params.toolsEnabled.coding && params.codingProjectPath !== ''
   const tools = buildToolsList(params.toolsEnabled, Boolean(params.skillsEnabled), {
     agentMode: params.agentMode,
     mcpTools: params.mcpEnabled ? params.mcpTools : undefined,
     subAgentCodingEnabled: Boolean(params.subAgent?.codingEnabled),
+    codingProjectPath: params.codingProjectPath,
   })
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
   const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
   const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
-  const implementCoding =
-    params.toolsEnabled.coding && isImplementAgentMode(params.agentMode)
+  const implementCoding = codingToolsOn && isImplementAgentMode(params.agentMode)
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
     initialMessages,

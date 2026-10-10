@@ -1649,7 +1649,17 @@ const MCP_READ_RESULT_TOOL: AgentToolDefinition = {
 export function buildToolsList(
   enabled: ToolsEnabled,
   skillsEnabled = false,
-  opts?: { agentMode?: AgentChatMode; mcpTools?: McpToolInfo[]; subAgentCodingEnabled?: boolean },
+  opts?: {
+    agentMode?: AgentChatMode
+    mcpTools?: McpToolInfo[]
+    subAgentCodingEnabled?: boolean
+    /**
+     * Project folder bound to this turn. `''` = the chat has no folder (General
+     * chat) → coding tools are not advertised at all. `undefined` = the caller
+     * did not say (workers, sub-agents, tests) → keep the historical behaviour.
+     */
+    codingProjectPath?: string
+  },
 ): AgentToolDefinition[] {
   const planMode = opts?.agentMode === 'plan'
   const teamMode = opts?.agentMode === 'team'
@@ -1658,6 +1668,13 @@ export function buildToolsList(
   // Plan additionally drives the plan artifact (planMode below).
   const readOnlyMode = isReadOnlyAgentMode(opts?.agentMode)
   const out: AgentToolDefinition[] = []
+  // Coding tools need a bound project folder: without one every handler would
+  // only answer "coding project folder is not set in settings", so never
+  // advertise tools that are guaranteed to fail. `undefined` = the caller did
+  // not say (workers / sub-agents / tests) → keep the historical behaviour.
+  const codingToolsOn =
+    enabled.coding &&
+    (opts?.codingProjectPath === undefined || opts.codingProjectPath.trim().length > 0)
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
   if (enabled.weather) out.push(GET_WEATHER_TOOL)
@@ -1691,7 +1708,7 @@ export function buildToolsList(
   }
   if (enabled.runwareMusic && !readOnlyMode) out.push(GENERATE_MUSIC_RUNWARE_TOOL)
   if (enabled.tts && !readOnlyMode) out.push(GENERATE_TTS_TOOL)
-  if (enabled.coding) {
+  if (codingToolsOn) {
     out.push(CODING_LIST_DIRECTORY_TOOL)
     out.push(CODING_READ_FILE_TOOL)
     if (!readOnlyMode) {

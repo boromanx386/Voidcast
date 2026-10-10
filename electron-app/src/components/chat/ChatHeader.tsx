@@ -1,6 +1,8 @@
+import { useCallback } from 'react'
 import { CodeIcon } from '@/components/icons/CodeIcon'
 import { WindowControls } from '@/components/WindowControls'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
+import { invokePickCodingDirectory } from '@/lib/codingTools'
 
 type Props = { app: VoidcastApp }
 
@@ -32,7 +34,22 @@ export function ChatHeader({ app }: Props) {
     busy,
     canSaveSession,
     saveOrUpdateSession,
+    settings,
+    applyCodingProjectPath,
   } = app
+
+  // Coding tools ON in Options + no folder bound to this chat = the agent has no
+  // file access here. Warn up front instead of letting the user find out mid-task.
+  // Desktop only: binding a folder needs the native picker (web-standalone cannot).
+  const codingToolsNeedFolder =
+    codingPanelAvailable &&
+    settings.toolsEnabled.coding &&
+    !(settings.coding.projectPath || '').trim()
+
+  const bindCodingFolder = useCallback(async () => {
+    const picked = await invokePickCodingDirectory()
+    if (picked.ok) applyCodingProjectPath(picked.path)
+  }, [applyCodingProjectPath])
 
   return (
     <header className="voidcast-header min-w-0">
@@ -55,6 +72,18 @@ export function ChatHeader({ app }: Props) {
       </div>
 
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
+        {codingToolsNeedFolder && (
+          <button
+            type="button"
+            onClick={() => void bindCodingFolder()}
+            className="flex min-w-0 items-center gap-1 rounded border border-neon-yellow/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-neon-yellow transition-colors hover:border-neon-yellow/70 hover:text-neon-yellow/80"
+            title="Coding tools are enabled in Options, but this chat has no project folder — the agent has no file, terminal or git access here. Click to bind a folder."
+          >
+            <span aria-hidden>⚠</span>
+            <span className="hidden truncate sm:inline">coding off · no folder</span>
+            <span className="truncate sm:hidden">no folder</span>
+          </button>
+        )}
         {codingPanelAvailable && (
           <button
             type="button"

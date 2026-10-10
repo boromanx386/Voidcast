@@ -282,6 +282,7 @@ export async function runOllamaChatWithTools(
     agentMode: params.agentMode,
     mcpTools: params.mcpEnabled ? params.mcpTools : undefined,
     subAgentCodingEnabled: Boolean(params.subAgent?.codingEnabled),
+    codingProjectPath: params.codingProjectPath,
   })
   if (tools.length === 0) {
     throw new Error('runOllamaChatWithTools called with no tools enabled')
@@ -293,7 +294,9 @@ export async function runOllamaChatWithTools(
   const originalNeedsFresh = shouldForceWebSearchOnRoundZero(rawUserText, params.toolsEnabled)
   const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
   const implementCoding =
-    params.toolsEnabled.coding && isImplementAgentMode(params.agentMode)
+    params.toolsEnabled.coding &&
+    params.codingProjectPath !== '' &&
+    isImplementAgentMode(params.agentMode)
   return runSharedToolLoop<OllamaApiMessage, OllamaToolCall>({
     initialMessages: [...params.initialMessages],
     maxToolRounds: clampAgentMaxToolRounds(

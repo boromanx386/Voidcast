@@ -345,6 +345,41 @@ describe('buildToolsList coding_explore', () => {
     expect(tools.some((t) => t.function.name === 'read_process_output')).toBe(true)
     expect(tools.some((t) => t.function.name === 'stop_process')).toBe(true)
   })
+
+  it('drops coding tools when the chat has no project folder (General chat)', () => {
+    const tools = buildToolsList(codingEnabled as never, false, { codingProjectPath: '' })
+    const names = tools.map((t) => t.function.name)
+    expect(names).not.toContain('read_file')
+    expect(names).not.toContain('edit_code')
+    expect(names).not.toContain('execute_command')
+    expect(names).not.toContain('git_status')
+    // Non-coding tools stay available in a folder-less chat.
+    expect(names).toContain('image_recall')
+  })
+
+  it('drops run_coding_workers and coding_explore when there is no project folder', () => {
+    const tools = buildToolsList(codingEnabled as never, false, {
+      agentMode: 'team',
+      subAgentCodingEnabled: true,
+      codingProjectPath: '',
+    })
+    const names = tools.map((t) => t.function.name)
+    expect(names).not.toContain('run_coding_workers')
+    expect(names).not.toContain('coding_explore')
+  })
+
+  it('keeps coding tools when a project folder is bound', () => {
+    const tools = buildToolsList(codingEnabled as never, false, {
+      codingProjectPath: 'Q:\\some\\project',
+    })
+    expect(tools.some((t) => t.function.name === 'read_file')).toBe(true)
+    expect(tools.some((t) => t.function.name === 'execute_command')).toBe(true)
+  })
+
+  it('keeps coding tools when the caller does not state a folder (workers/tests)', () => {
+    const tools = buildToolsList(codingEnabled as never, false)
+    expect(tools.some((t) => t.function.name === 'read_file')).toBe(true)
+  })
 })
 
 describe('buildToolsList image_recall vs runware', () => {

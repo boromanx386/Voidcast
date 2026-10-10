@@ -2,6 +2,7 @@ import {
   buildOllamaMessages,
   sliceUiHistoryForContext,
   TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT,
+  TOOLS_CODING_NO_FOLDER_HINT,
   buildToolsCodingHint,
   TOOLS_PDF_HINT,
   TOOLS_IMAGE_RECALL_HINT,
@@ -226,9 +227,18 @@ export async function buildAgentTurnContext(
         )
       : []
   const mcpActive = settings.mcpEnabled && mcpTools.length > 0
+  // Coding tools need a bound project folder. In a General chat the option can
+  // be ON while the tools are not sent at all (see buildToolsList), so every
+  // coding-flavoured hint below follows these flags, not toolsEnabled.coding.
+  const hasCodingFolder = codingProjectPath.length > 0
+  const codingToolsOn = settings.toolsEnabled.coding && hasCodingFolder
+  const codingBlockedNoFolder = settings.toolsEnabled.coding && !hasCodingFolder
   const useTools =
-    anyToolEnabled(settings.toolsEnabled, skillsActive, mcpActive) ||
-    Boolean(settings.subAgent?.enabled)
+    anyToolEnabled(
+      { ...settings.toolsEnabled, coding: codingToolsOn },
+      skillsActive,
+      mcpActive,
+    ) || Boolean(settings.subAgent?.enabled)
   const skillsSystemHint = skillsActive ? buildSkillsCatalogHint(discoveredSkills) : ''
   const projectInstructionFiles =
     settings.toolsEnabled.coding && codingProjectPath
@@ -256,7 +266,7 @@ export async function buildAgentTurnContext(
     toolsHintParts.push(BUILD_WITH_RESEARCH_SYSTEM_HINT)
   }
   if (useTools) toolsHintParts.push(TOOLS_TRUTH_HINT)
-  if (teamMode && useTools && settings.subAgent?.codingEnabled) {
+  if (teamMode && useTools && codingToolsOn && settings.subAgent?.codingEnabled) {
     toolsHintParts.push(
       'TEAM DEFAULT: multi-file / multi-area work → call run_coding_workers early (≤2 path-disjoint tasks). You orchestrate; workers implement. Skip enter_plan_mode.',
     )
@@ -304,7 +314,12 @@ export async function buildAgentTurnContext(
   }
   if (settings.toolsEnabled.runwareMusic && !readOnlyMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
   if (settings.toolsEnabled.tts && !readOnlyMode) toolsHintParts.push(TOOLS_TTS_HINT)
-  if (settings.toolsEnabled.coding) {
+  if (codingBlockedNoFolder) {
+    // Option is ON but this chat has no project folder → the coding tools are
+    // not even sent (see buildToolsList). Without this branch the model would
+    // read a full coding prompt for tools it does not have.
+    toolsHintParts.push(TOOLS_CODING_NO_FOLDER_HINT)
+  } else if (codingToolsOn) {
     const codingSub = Boolean(settings.subAgent?.codingEnabled)
     if (readOnlyMode) {
       toolsHintParts.push(
