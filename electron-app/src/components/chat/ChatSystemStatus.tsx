@@ -4,7 +4,7 @@ import ModelSwitcherPopup from '@/components/chat/ModelSwitcherPopup'
 import { contextLimitSourceLabel } from '@/lib/contextLimit'
 import { isWebStandalone } from '@/lib/platform'
 import { llmModelLabel, llmProviderTitle } from '@/lib/llmProviderDisplay'
-import { applyModelSwitcherSelection } from '@/lib/pinnedModels'
+import { applyScopedModelToSettings, toScopedPinnedId } from '@/lib/pinnedModels'
 import type { AppSettings, LlmProvider } from '@/lib/settings'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
@@ -39,6 +39,8 @@ type Props = {
     | 'contextCompressBusy'
     | 'summarizeContextNow'
     | 'messages'
+    | 'activeModelId'
+    | 'setModelForActiveChat'
   >
 }
 
@@ -53,16 +55,20 @@ export function ChatSystemStatus({ app }: Props) {
     contextCompressBusy,
     summarizeContextNow,
     messages,
+    activeModelId,
+    setModelForActiveChat,
   } = app
   const [showModelSwitcher, setShowModelSwitcher] = useState(false)
   const [showCtxPopup, setShowCtxPopup] = useState(false)
   const switcherWrapRef = useRef<HTMLDivElement>(null)
   const ctxWrapRef = useRef<HTMLDivElement>(null)
 
+  // The header reflects and switches the model of THIS chat only; the app-level model
+  // from Options stays the default for chats that never picked one.
+  const modelSettings = applyScopedModelToSettings(settings, activeModelId)
+
   const handleModelSelect = (selection: { provider: LlmProvider; modelId: string }) => {
-    setSettings((prev) =>
-      applyModelSwitcherSelection(prev, selection.provider, selection.modelId),
-    )
+    setModelForActiveChat(toScopedPinnedId(selection.provider, selection.modelId))
   }
 
   const canCompress =
@@ -104,7 +110,7 @@ export function ChatSystemStatus({ app }: Props) {
           <button
             type="button"
             className="max-w-[220px] cursor-pointer truncate text-left text-[11px] text-void-text/80 outline-none transition-colors hover:text-void-text focus-visible:outline-none focus-visible:ring-0"
-            title={llmProviderTitle(settings)}
+            title={llmProviderTitle(modelSettings)}
             aria-expanded={showModelSwitcher}
             aria-haspopup="dialog"
             onClick={() => {
@@ -112,12 +118,12 @@ export function ChatSystemStatus({ app }: Props) {
               setShowModelSwitcher((v) => !v)
             }}
           >
-            {llmModelLabel(settings)}{' '}
-            <span className="text-void-dim/50">({providerShortLabel(settings)})</span>
+            {llmModelLabel(modelSettings)}{' '}
+            <span className="text-void-dim/50">({providerShortLabel(modelSettings)})</span>
           </button>
           {showModelSwitcher && (
             <ModelSwitcherPopup
-              settings={settings}
+              settings={modelSettings}
               rootRef={switcherWrapRef}
               onSelectModel={handleModelSelect}
               onManageModels={() => openOptions('llm')}

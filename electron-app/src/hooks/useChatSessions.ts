@@ -57,6 +57,7 @@ import type {
   UiMessage,
 } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
+import { currentPinnedModelId } from '@/lib/pinnedModels'
 
 function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
   return typeof action === 'function' ? (action as (p: T) => T)(prev) : action
@@ -761,6 +762,38 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setAgentModeForSession(activeSessionId, mode)
   }
 
+  /**
+   * Scoped LLM pin of the chat on screen. `ChatSession.model` wins; otherwise the chat
+   * follows the app-level model from Options — which the chat-header switcher no longer
+   * writes, so picking a model in one chat cannot retarget another.
+   */
+  const activeModelId: string = activeSessionId
+    ? sessions.find((s) => s.id === activeSessionId)?.model?.trim() ||
+      currentPinnedModelId(settings)
+    : currentPinnedModelId(settings)
+
+  /**
+   * Write the scoped model pin onto one chat by id. Safe for background chats: the
+   * session owns the model, so a switch elsewhere never retargets a running turn.
+   */
+  const setModelForSession = useCallback((sessionId: string, scopedId: string) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === sessionId)
+      if (idx < 0) return prev
+      const current = prev[idx]
+      if ((current.model ?? '') === scopedId) return prev
+      const next = [...prev]
+      next[idx] = { ...current, model: scopedId }
+      return next
+    })
+  }, [])
+
+  /** Chat-header model switcher: pins the model to this chat only. */
+  const setModelForActiveChat = (scopedId: string) => {
+    if (!activeSessionId) return
+    setModelForSession(activeSessionId, scopedId)
+  }
+
   const saveOrUpdateSession = () => {
     if (messages.length === 0) return
     const now = Date.now()
@@ -912,6 +945,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setAgentModeForActiveChat,
     setAgentModeForSession,
     patchSessionImageVision,
+    activeModelId,
+    setModelForActiveChat,
     claimSessionIdForDraft,
     patchSessionCodingMemo,
   }

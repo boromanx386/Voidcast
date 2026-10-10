@@ -52,6 +52,7 @@ export function useVoidcastApp() {
   const activeSessionIdRef = useRef<string | null>(null)
   const activeSystemPromptPresetRef = useRef<SystemPromptPreset>('default')
   const activeAgentModeRef = useRef<AgentChatMode>('agent')
+  const activeModelIdRef = useRef<string>('')
   const setAgentModeForActiveChatRef = useRef<(mode: AgentChatMode) => void>(() => {})
   const patchSessionImageVisionRef = useRef<
     (sessionId: string, entries: ImageVisionCache) => void
@@ -120,6 +121,7 @@ export function useVoidcastApp() {
     codingFileCacheRef: coding.codingFileCacheRef,
     systemPromptPresetRef: activeSystemPromptPresetRef,
     activeAgentModeRef,
+    activeModelIdRef,
     setAgentModeForSession: (sessionId, mode) =>
       setAgentModeForSessionRef.current(sessionId, mode),
     setAgentModeForActiveChat: (mode) => setAgentModeForActiveChatRef.current(mode),
@@ -216,6 +218,7 @@ export function useVoidcastApp() {
   activeSessionIdRef.current = sessions.activeSessionId
   activeSystemPromptPresetRef.current = sessions.activeSystemPromptPreset
   activeAgentModeRef.current = sessions.activeAgentMode
+  activeModelIdRef.current = sessions.activeModelId
   setAgentModeForSessionRef.current = sessions.setAgentModeForSession
   setAgentModeForActiveChatRef.current = sessions.setAgentModeForActiveChat
   patchSessionImageVisionRef.current = sessions.patchSessionImageVision

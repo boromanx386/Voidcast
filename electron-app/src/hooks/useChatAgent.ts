@@ -35,6 +35,7 @@ import {
   type ActiveCodingProcess,
 } from '@/lib/codingActiveProcesses'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
+import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
@@ -124,6 +125,8 @@ export type UseChatAgentDeps = {
   systemPromptPresetRef: MutableRefObject<SystemPromptPreset>
   /** Live per-chat agent mode — read at send time so the sender's chat wins. */
   activeAgentModeRef: MutableRefObject<AgentChatMode>
+  /** Live per-chat model pin (`provider:modelId`) — read at send time. */
+  activeModelIdRef: MutableRefObject<string>
   onContextCompressed?: (params: {
     summary: string
     throughIndex: number
@@ -188,6 +191,8 @@ export type OnSendOptions = {
   skipAddUserMsg?: boolean
   /** Override settings.agentMode for this turn (Approve → Build: Agent, or Team if already selected). */
   forceAgentMode?: AgentChatMode
+  /** Model pin (`provider:modelId`) for this turn — plan handoff keeps its run's model. */
+  forceModel?: string
   /** After a successful build turn, mark this plan message as built. */
   buildFromPlanMessageId?: string
   /** enter_plan_mode handoff: reuse attachments from the last user message in history. */
@@ -269,6 +274,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     codingFileCacheRef,
     systemPromptPresetRef,
     activeAgentModeRef,
+    activeModelIdRef,
     onContextCompressed,
     patchSessionCodingMemo,
     claimSessionIdForDraft,
@@ -716,11 +722,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           ? opts.forceAgentMode
           : normalizeAgentChatMode(activeAgentModeRef.current ?? settings.agentMode)
 
-      // Freeze coding root + agent mode for the whole turn so a session switch
-      // (which mutates global settings) cannot retarget live tool calls.
+      // Freeze coding root + agent mode + model for the whole turn so a session switch
+      // (or a model switch in another chat) cannot retarget live tool calls.
       const turnCodingProjectPath = getCodingProjectPath(settings)
+      const turnModelId = (opts?.forceModel ?? activeModelIdRef.current ?? '').trim()
       const turnSettings: AppSettings = {
-        ...settings,
+        ...applyScopedModelToSettings(settings, turnModelId || currentPinnedModelId(settings)),
         agentMode: turnAgentMode,
         codingProjectPath: turnCodingProjectPath,
         coding: {
@@ -1476,6 +1483,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           // nested onSend re-claimed the viewed chat's id and the whole Plan
           // turn (draft, plan card, messages) landed in the wrong session.
           sessionKey: keyOf(),
+          forceModel: turnModelId,
           planHandoffContext: handoffContext || undefined,
           planHandoffUiDraft,
         })

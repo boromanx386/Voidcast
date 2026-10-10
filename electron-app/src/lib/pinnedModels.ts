@@ -86,6 +86,16 @@ export function currentPinnedModelId(settings: AppSettings): string {
   }
 }
 
+/** Apply a scoped pin (`provider:modelId`) onto settings; no-op when empty/unparseable. */
+export function applyScopedModelToSettings(
+  settings: AppSettings,
+  scopedId: string | null | undefined,
+): AppSettings {
+  const parsed = scopedId ? parsePinnedId(scopedId) : null
+  if (!parsed) return settings
+  return applyModelSwitcherSelection(settings, parsed.provider, parsed.modelId)
+}
+
 export function pinnedIdLabel(pinnedId: string): string {
   return parsePinnedId(pinnedId)?.modelId ?? pinnedId
 }
