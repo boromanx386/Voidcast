@@ -32,6 +32,7 @@ import {
   invokePickCodingDirectory,
   invokeReadCodingFile,
   invokeWriteCodingFile,
+  invokeDeleteCodingPath,
   subscribeCodingFsChange,
 } from '@/lib/codingTools'
 import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImagePreview'
@@ -76,6 +77,12 @@ type Props = {
    * Manual RUN attaches output to this owner.
    */
   codingOwnerId?: string
+  /**
+   * Add a project-relative path to the chat composer as a reference chip. Only
+   * the path reaches the model (no snapshot text) and it reads the file itself
+   * with `read_file` when it needs the contents.
+   */
+  onReferencePath?: (relPath: string) => void
 }
 
 type PreviewMode = 'file' | 'diff' | 'image'
@@ -140,6 +147,7 @@ export function CodingPanel({
   commandRunning = false,
   onStopCommand,
   codingOwnerId,
+  onReferencePath,
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
@@ -851,6 +859,48 @@ export function CodingPanel({
     [projectPath, commitBusy, commitMessage, stagedCount, dirtyCount, pushTerminal],
   )
 
+  /**
+   * Point the agent at a file or folder: add a path-reference chip to the chat
+   * composer. Only the path reaches the model — never file content — and it
+   * reads the file itself with `read_file` when it needs the contents.
+   */
+  const onPointAtPath = useCallback(
+    (path: string) => {
+      if (!projectPath) return
+      if (!onReferencePath) {
+        pushTerminal('stderr', 'Adding a path reference needs the desktop app.')
+        return
+      }
+      onReferencePath(path)
+      pushTerminal('stdout', `→ ${path} referenced in the composer (path only, no content)`)
+    },
+    [onReferencePath, projectPath, pushTerminal],
+  )
+
+  /**
+   * Applies to files and folders: Recycle Bin by default (a folder moves with
+   * everything inside), Shift-click in the tree asks for a permanent delete.
+   */
+  const onDeletePath = useCallback(
+    async (path: string, options?: { permanent?: boolean }) => {
+      if (!projectPath) return
+      const permanent = options?.permanent === true
+      const ok = window.confirm(
+        permanent
+          ? `Permanently delete (no Recycle Bin copy; a folder loses everything inside):\n${path}`
+          : `Move to the Recycle Bin (a folder moves with its contents):\n${path}`,
+      )
+      if (!ok) return
+      const res = await invokeDeleteCodingPath(projectPath, path, { permanent })
+      if (!res.ok) {
+        pushTerminal('stderr', res.error)
+        return
+      }
+      pushTerminal('stdout', permanent ? `Deleted ${path}` : `Moved ${path} to the Recycle Bin`)
+    },
+    [projectPath, pushTerminal],
+  )
+
   const onDiscardAll = useCallback(async () => {
     if (!projectPath || dirtyCount === 0) return
     const ok = window.confirm(
@@ -1177,9 +1227,8 @@ export function CodingPanel({
                       onDirtyOnlyChange={onDirtyOnlyChange}
                       onToggleDirectory={toggleDirectory}
                       onSelectFile={(path) => void onOpenFile(path)}
-                      onStageFile={(path) => void onStageFile(path)}
-                      onUnstageFile={(path) => void onUnstageFile(path)}
-                      onDiscardFile={(path) => void onDiscardFile(path)}
+                      onPointAtPath={onPointAtPath}
+                      onDeletePath={(path, options) => void onDeletePath(path, options)}
                       onOpenExternal={(path) => {
                         if (!projectPath) return
                         const abs = `${projectPath.replace(/\\/g, '/')}/${path}`

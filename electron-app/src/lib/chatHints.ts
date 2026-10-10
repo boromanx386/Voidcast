@@ -202,12 +202,18 @@ export function buildAssistantImageVisionHint(
 
 export function buildQueuedFilePathHint(queued: FileAttachmentSnapshot[]): string {
   if (!queued.length) return ''
+  const references = queued.filter((f) => f.referenceOnly === true)
   const lines = queued.map((f, idx) => {
-    const tag = f.truncated ? ' (snapshot truncated)' : ''
+    const tag = f.referenceOnly
+      ? ' (path reference only — no snapshot sent)'
+      : f.truncated
+        ? ' (snapshot truncated)'
+        : ''
     return `- ${idx + 1}: ${f.path || f.name}${tag}`
   })
   const contentBlocks = queued
     .map((f, idx) => {
+      if (f.referenceOnly === true) return ''
       const text = (f.content || '').trim()
       if (!text) return ''
       const short = text.length > 12000 ? `${text.slice(0, 12000)}\n...[cut]` : text
@@ -217,9 +223,18 @@ export function buildQueuedFilePathHint(queued: FileAttachmentSnapshot[]): strin
   return [
     'Attached file references for this message:',
     ...lines,
-    'Important: local file access is not needed for these attachments in this turn because their snapshot/path metadata is already included in chat context.',
+    ...(references.length > 0
+      ? [
+          'Some of these are path references only — no snapshot text was sent for them. The user is pointing you at the file: read it yourself (read_file / list_directory / search_files) when you need its contents, and never claim you cannot access local files.',
+        ]
+      : []),
     ...(contentBlocks.length > 0
-      ? ['', 'Attached file snapshot text (use for analysis):', ...contentBlocks]
+      ? [
+          'Important: local file access is not needed for the snapshot attachments in this turn because their snapshot/path metadata is already included in chat context.',
+          '',
+          'Attached file snapshot text (use for analysis):',
+          ...contentBlocks,
+        ]
       : []),
     'When snapshot text exists, analyze it directly and do not claim missing tools for local PDF/DOCX access.',
     'Use these paths as primary source and snapshot content when present.',

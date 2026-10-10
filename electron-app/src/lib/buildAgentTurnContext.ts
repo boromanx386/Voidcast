@@ -185,8 +185,18 @@ export async function buildAgentTurnContext(
       const fileHint = x.fileAttachments?.length
         ? [
             'Attached files in this user turn:',
-            ...x.fileAttachments.map((f, idx) => `- ${idx + 1}: ${f.path || f.name}`),
-            'File snapshots are stored in the original attachment turn.',
+            ...x.fileAttachments.map(
+              (f, idx) =>
+                `- ${idx + 1}: ${f.path || f.name}${
+                  f.referenceOnly ? ' (path reference — no snapshot was sent)' : ''
+                }`,
+            ),
+            // Snapshots live in one turn only: this rebuilt history does NOT carry
+            // the text, so the model must re-read the file instead of pretending it
+            // still has the contents.
+            'Snapshot text was sent only in the turn where the file was attached',
+            'and is NOT repeated here — read the file yourself with `read_file` if you',
+            'need its contents, and never claim you already have them.',
           ].join('\n')
         : ''
       const imageRecallHint = buildHistoricalImageRecallHint(x, toolImageCatalog, imageVisionCache)

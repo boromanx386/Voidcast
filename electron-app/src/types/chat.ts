@@ -70,6 +70,12 @@ export type FileAttachmentSnapshot = {
   ext: string
   content?: string
   truncated?: boolean
+  /**
+   * Path-only reference (no snapshot text). Added by the coding panel's `＋`
+   * tree action: the model receives the path and reads the file itself with
+   * `read_file` instead of being handed the contents.
+   */
+  referenceOnly?: boolean
 }
 
 /** Assistant-only progress captured before a tool round replaces the draft reply. */

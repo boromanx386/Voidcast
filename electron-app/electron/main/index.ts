@@ -22,7 +22,7 @@ import os from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, watch, type FSWatcher } from 'node:fs'
-import { mkdir, readdir, readFile, rename, unlink, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { rgPath as bundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
@@ -1806,6 +1806,40 @@ ipcMain.handle(
         a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1,
       )
       return { ok: true as const, entries: mapped }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-delete-path',
+  async (
+    _evt,
+    payload: { projectPath?: string; path?: string; permanent?: boolean },
+  ) => {
+    try {
+      const projectPath = String(payload?.projectPath ?? '').trim()
+      const relPath = String(payload?.path ?? '').trim()
+      if (!projectPath || !relPath) {
+        return { ok: false as const, error: 'Missing projectPath or path.' }
+      }
+      const absPath = resolveInsideProject(projectPath, relPath)
+      if (path.resolve(absPath) === path.resolve(projectPath)) {
+        return { ok: false as const, error: 'Refusing to delete the project folder itself.' }
+      }
+      // Folders are supported too: trashItem moves a whole directory (contents
+      // included) to the Recycle Bin, while a permanent delete needs a recursive
+      // remove because unlink fails on a directory with EISDIR.
+      const isDir = (await stat(absPath)).isDirectory()
+      if (payload?.permanent === true) {
+        // Shift-click: no Recycle Bin copy.
+        await rm(absPath, { recursive: isDir, force: true })
+      } else {
+        // Reversible: the OS moves it to the Recycle Bin / trash (folder + contents).
+        await shell.trashItem(absPath)
+      }
+      return { ok: true as const }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }

@@ -25,6 +25,23 @@ export async function invokePickCodingDirectory(): Promise<{ ok: true; path: str
   return fn()
 }
 
+/**
+ * Delete a file inside the project: Recycle Bin by default (reversible),
+ * permanent with `permanent: true`. The main process refuses paths outside
+ * `projectPath`, so this can never touch anything else on disk.
+ */
+export async function invokeDeleteCodingPath(
+  projectPath: string,
+  path: string,
+  options?: { permanent?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const fn = window.voidcast?.codingDeletePath
+  if (!fn) return { ok: false, error: 'Delete is available only in Electron desktop.' }
+  const res = await fn({ projectPath, path, permanent: options?.permanent === true })
+  if (!res.ok) return { ok: false, error: res.error || 'Delete failed.' }
+  return { ok: true }
+}
+
 export async function invokeListCodingDirectory(
   projectPath: string,
   path = '',

@@ -23,9 +23,10 @@ export type FileTreeProps = {
   onDirtyOnlyChange?: (next: boolean) => void
   onToggleDirectory: (dirPath: string) => void | Promise<void>
   onSelectFile: (path: string) => void
-  onStageFile?: (path: string) => void
-  onUnstageFile?: (path: string) => void
-  onDiscardFile?: (path: string) => void
+  /** Insert this file's project-relative path into the chat composer (point the agent at it). */
+  onPointAtPath?: (path: string) => void
+  /** Move the file to the OS trash; `permanent: true` hard-deletes it. */
+  onDeletePath?: (path: string, options?: { permanent?: boolean }) => void
   /** Open a file in the OS default app (e.g. double-click an image or sound). */
   onOpenExternal?: (path: string) => void
 }
@@ -49,9 +50,8 @@ function TreeRows({
   childrenByDir,
   onToggleDirectory,
   onSelectFile,
-  onStageFile,
-  onUnstageFile,
-  onDiscardFile,
+  onPointAtPath,
+  onDeletePath,
   onOpenExternal,
   selectedPath,
   gitStatusByPath,
@@ -69,25 +69,59 @@ function TreeRows({
       {visible.map((node) =>
         node.type === 'directory' ? (
           <div key={node.path}>
-            <button
-              type="button"
-              title={node.path}
-              style={{ paddingLeft: pad }}
-              onClick={() => void onToggleDirectory(node.path)}
-              className={`w-full rounded py-1 text-left text-xs font-mono hover:bg-void-mid/40 ${
-                node.ignored
-                  ? 'text-void-dim/70 opacity-70'
-                  : byPath && dirHasGitChanges(node.path, byPath)
-                    ? 'coding-dir-dirty'
-                    : 'text-void-light'
-              }`}
-            >
-              <span className="inline-block w-4 tabular-nums text-void-dim">
-                {loadingDirs.has(node.path) ? '…' : expandedDirs.has(node.path) ? '▾' : '▸'}
-              </span>
-              <span className="opacity-90">{expandedDirs.has(node.path) ? '📂' : '📁'}</span>{' '}
-              <span className="break-all">{node.name}</span>
-            </button>
+            <div className="group flex w-full items-stretch gap-0.5 rounded">
+              <button
+                type="button"
+                title={node.path}
+                style={{ paddingLeft: pad }}
+                onClick={() => void onToggleDirectory(node.path)}
+                className={`min-w-0 flex-1 rounded py-1 text-left text-xs font-mono break-all hover:bg-void-mid/40 ${
+                  node.ignored
+                    ? 'text-void-dim/70 opacity-70'
+                    : byPath && dirHasGitChanges(node.path, byPath)
+                      ? 'coding-dir-dirty'
+                      : 'text-void-light'
+                }`}
+              >
+                <span className="inline-block w-4 tabular-nums text-void-dim">
+                  {loadingDirs.has(node.path) ? '…' : expandedDirs.has(node.path) ? '▾' : '▸'}
+                </span>
+                <span className="opacity-90">{expandedDirs.has(node.path) ? '📂' : '📁'}</span>{' '}
+                <span className="break-all">{node.name}</span>
+              </button>
+              <div className="flex shrink-0 items-center gap-0.5 pr-0.5 opacity-70 group-hover:opacity-100">
+                {/* Point the agent at the whole folder (relative path into the composer). */}
+                {onPointAtPath ? (
+                  <button
+                    type="button"
+                    title="Add folder path to chat input (the agent lists it with list_directory)"
+                    aria-label={`Point the agent at ${node.name}`}
+                    className="coding-btn--tree coding-btn--point"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onPointAtPath(node.path)
+                    }}
+                  >
+                    ＋
+                  </button>
+                ) : null}
+                {/* Folder delete: Recycle Bin, Shift = permanent (contents included). */}
+                {onDeletePath ? (
+                  <button
+                    type="button"
+                    title="Move folder to Recycle Bin (Shift = delete permanently, contents included)"
+                    aria-label={`Delete folder ${node.name}`}
+                    className="coding-btn--tree coding-btn--delete"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeletePath(node.path, { permanent: e.shiftKey })
+                    }}
+                  >
+                    🗑
+                  </button>
+                ) : null}
+              </div>
+            </div>
             {expandedDirs.has(node.path) &&
               (loadingDirs.has(node.path) && childrenByDir[node.path] === undefined ? (
                 <div
@@ -112,9 +146,8 @@ function TreeRows({
                   childrenByDir={childrenByDir}
                   onToggleDirectory={onToggleDirectory}
                   onSelectFile={onSelectFile}
-                  onStageFile={onStageFile}
-                  onUnstageFile={onUnstageFile}
-                  onDiscardFile={onDiscardFile}
+                  onPointAtPath={onPointAtPath}
+                  onDeletePath={onDeletePath}
                   onOpenExternal={onOpenExternal}
                   selectedPath={selectedPath}
                   gitStatusByPath={gitStatusByPath}
@@ -128,11 +161,8 @@ function TreeRows({
             const letter = status?.letter
             const colorClass = letter ? gitLetterTextClass(letter) : ''
             const selected = selectedPath === node.path
-            const canStage = Boolean(status && (status.unstaged || status.untracked) && onStageFile)
-            const canUnstage = Boolean(status?.staged && onUnstageFile)
-            const canDiscard = Boolean(
-              status && status.unstaged && !status.untracked && onDiscardFile,
-            )
+            // Git stage/unstage/discard now live only in the PREVIEW header; the
+            // tree row keeps the status letter + color, plus point-at-file and delete.
             return (
               <div
                 key={node.path}
@@ -164,52 +194,40 @@ function TreeRows({
                   </span>
                   📄 {node.name}
                 </button>
-                {(canStage || canUnstage || canDiscard) && (
-                  <div className="flex shrink-0 items-center gap-0.5 pr-0.5 opacity-70 group-hover:opacity-100">
-                    {canStage ? (
-                      <button
-                        type="button"
-                        title="Stage"
-                        aria-label={`Stage ${node.name}`}
-                        className="coding-btn--tree coding-btn--stage"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onStageFile?.(node.path)
-                        }}
-                      >
-                        +
-                      </button>
-                    ) : null}
-                    {canUnstage ? (
-                      <button
-                        type="button"
-                        title="Unstage"
-                        aria-label={`Unstage ${node.name}`}
-                        className="coding-btn--tree coding-btn--unstage"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onUnstageFile?.(node.path)
-                        }}
-                      >
-                        −
-                      </button>
-                    ) : null}
-                    {canDiscard ? (
-                      <button
-                        type="button"
-                        title="Discard unstaged changes"
-                        aria-label={`Discard ${node.name}`}
-                        className="coding-btn--tree coding-btn--discard"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDiscardFile?.(node.path)
-                        }}
-                      >
-                        ↶
-                      </button>
-                    ) : null}
-                  </div>
-                )}
+                <div className="flex shrink-0 items-center gap-0.5 pr-0.5 opacity-70 group-hover:opacity-100">
+                  {/* Point the agent at this file: the relative path goes into the
+                      composer, so the model reads it itself with read_file —
+                      file content is never pasted from here. */}
+                  {onPointAtPath ? (
+                    <button
+                      type="button"
+                      title="Add path to chat input (the agent reads it with read_file)"
+                      aria-label={`Point the agent at ${node.name}`}
+                      className="coding-btn--tree coding-btn--point"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onPointAtPath(node.path)
+                      }}
+                    >
+                      ＋
+                    </button>
+                  ) : null}
+                  {/* Recycle Bin by default; Shift = permanent delete. */}
+                  {onDeletePath ? (
+                    <button
+                      type="button"
+                      title="Move to Recycle Bin (Shift = delete permanently)"
+                      aria-label={`Delete ${node.name}`}
+                      className="coding-btn--tree coding-btn--delete"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeletePath(node.path, { permanent: e.shiftKey })
+                      }}
+                    >
+                      🗑
+                    </button>
+                  ) : null}
+                </div>
               </div>
             )
           })()
@@ -232,9 +250,8 @@ export function FileTree({
   onDirtyOnlyChange,
   onToggleDirectory,
   onSelectFile,
-  onStageFile,
-  onUnstageFile,
-  onDiscardFile,
+  onPointAtPath,
+  onDeletePath,
   onOpenExternal,
 }: FileTreeProps) {
   const dirtyCount = gitStatusByPath?.size ?? 0
@@ -295,9 +312,8 @@ export function FileTree({
                 childrenByDir={childrenByDir}
                 onToggleDirectory={onToggleDirectory}
                 onSelectFile={onSelectFile}
-                onStageFile={onStageFile}
-                onUnstageFile={onUnstageFile}
-                onDiscardFile={onDiscardFile}
+                onPointAtPath={onPointAtPath}
+                onDeletePath={onDeletePath}
                 onOpenExternal={onOpenExternal}
                 selectedPath={selectedPath}
                 gitStatusByPath={gitStatusByPath}

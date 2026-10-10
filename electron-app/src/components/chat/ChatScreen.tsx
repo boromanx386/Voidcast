@@ -200,6 +200,28 @@ export function ChatScreen({ app }: Props) {
                 app.setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
               }
               onUpdateProjectPath={app.applyCodingProjectPath}
+              onReferencePath={(relPath) => {
+                // Point the agent at a file/folder: add a reference chip to the
+                // composer. Only the path reaches the model — never file content —
+                // and it reads the file itself with read_file when it needs to.
+                app.setPendingFiles((prev) => {
+                  if (prev.some((f) => f.path === relPath)) return prev
+                  const name = relPath.split(/[\\/]/).pop() || relPath
+                  return [
+                    ...prev,
+                    {
+                      id: `ref-${relPath}`,
+                      name,
+                      path: relPath,
+                      mime: '',
+                      size: 0,
+                      ext: '',
+                      content: '',
+                      referenceOnly: true,
+                    },
+                  ].slice(0, 8)
+                })
+              }}
               codingOwnerId={app.viewRuntimeKey}
             />
             </>

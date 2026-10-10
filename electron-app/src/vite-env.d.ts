@@ -368,6 +368,13 @@ interface VoidcastBridge {
     allowLargeRead?: boolean
   }) => Promise<{ ok: true; content: string; lineEndings: 'crlf' | 'lf' } | { ok: false; error?: string }>
 
+  /** Delete a project file: OS trash by default, permanent when `permanent` is true. */
+  codingDeletePath: (payload: {
+    projectPath: string
+    path: string
+    permanent?: boolean
+  }) => Promise<{ ok: true } | { ok: false; error?: string }>
+
   codingWriteFile: (payload: {
     projectPath: string
     path: string

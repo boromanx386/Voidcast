@@ -227,17 +227,27 @@ export function ChatComposer({ app }: Props) {
             {pendingFiles.map((f, i) => (
               <div
                 key={f.id}
-                className="relative rounded border border-void-muted/60 bg-void-black/30 px-2 py-1 text-xs font-mono text-void-dim"
+                title={
+                  f.referenceOnly
+                    ? `${f.path} — path reference only; the agent reads the file itself when it needs it`
+                    : f.path
+                }
+                className={`relative rounded border px-2 py-1 text-xs font-mono ${
+                  f.referenceOnly
+                    ? 'border-neon-cyan/40 bg-neon-cyan/5 text-neon-cyan'
+                    : 'border-void-muted/60 bg-void-black/30 text-void-dim'
+                }`}
               >
-                <div>
-                  {f.name}
+                <div className="max-w-[16rem] truncate">
+                  {f.referenceOnly ? <span className="opacity-70">@ </span> : null}
+                  {f.referenceOnly ? f.path : f.name}
                   {f.truncated ? ' [truncated]' : ''}
                 </div>
                 <button
                   type="button"
                   onClick={() => removePendingFile(i)}
                   className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded border border-void-muted bg-void-black text-[9px] text-void-dim hover:border-neon-red/50 hover:text-neon-red"
-                  aria-label="Remove file"
+                  aria-label={f.referenceOnly ? 'Remove path reference' : 'Remove file'}
                 >
                   ×
                 </button>

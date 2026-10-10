@@ -761,6 +761,23 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply rounded px-1 py-0.5 text-[10px] font-mono transition-colors;
 }
 
+/* File-tree row: point the agent at a file (path into composer), or trash it. */
+.coding-btn--tree.coding-btn--point {
+  color: rgb(var(--coding-action-stage-fg));
+}
+
+.coding-btn--tree.coding-btn--point:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-stage-fg) / 0.15);
+}
+
+.coding-btn--tree.coding-btn--delete {
+  color: rgb(var(--coding-action-discard-fg));
+}
+
+.coding-btn--tree.coding-btn--delete:hover:not(:disabled) {
+  background-color: rgb(var(--coding-action-discard-fg) / 0.15);
+}
+
 .coding-btn--stage {
   color: rgb(var(--coding-action-stage-fg));
   border-color: rgb(var(--coding-action-stage-fg) / 0.4);

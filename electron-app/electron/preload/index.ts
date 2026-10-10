@@ -436,6 +436,15 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: true; path: string }
       | { ok: false; error?: string }
     >,
+  /**
+   * Delete a file inside the project: OS trash by default (reversible), hard
+   * delete when `permanent` is true. The main process resolves the path inside
+   * projectPath and refuses anything outside it.
+   */
+  codingDeletePath: (payload: { projectPath: string; path: string; permanent?: boolean }) =>
+    ipcRenderer.invoke('voidcast:coding-delete-path', payload) as Promise<
+      { ok: true } | { ok: false; error?: string }
+    >,
   codingSearchFiles: (payload: {
     projectPath: string
     query: string
