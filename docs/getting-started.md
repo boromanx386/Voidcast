@@ -4,6 +4,16 @@
 
 Voidcast is an **Electron desktop app**. Install the packaged build for your platform and launch it; the renderer loads the chat screen (`Screen = 'chat'` from `electron-app/src/types/voidcast.ts`).
 
+Packaged builds are published on [Releases](https://github.com/boromanx386/Voidcast/releases):
+
+| Platform | Artifact | How to install |
+|---|---|---|
+| Windows 10/11 (x64) | `Voidcast_x.y.z_Setup.exe` | Run the installer |
+| Linux (x64) | `Voidcast_x.y.z.AppImage` | `chmod +x` then run it — supports auto-update |
+| Linux (x64) | `Voidcast_x.y.z.deb` | `sudo apt install ./Voidcast_x.y.z.deb` — updates are manual |
+
+Both packages bundle the Python tools server (port **8765**), so no Python setup is needed.
+
 - First launch opens a fresh chat session with an empty composer and the **Sessions** sidebar.
 - The app also has a **LAN web client** runtime (point a phone/tablet browser at the desktop's server) and a **web-standalone** browser mode. See [README.md](README.md) for the differences.
 

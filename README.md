@@ -45,24 +45,25 @@ Facts, reminders, and preferences persist across sessions — stored locally in 
 
 ## Get Started (One Click)
 
-| Windows | Status |
-|---------|--------|
-| [Download Installer](https://github.com/boromanx386/Voidcast/releases) | One-click setup. No Python. No pip. No terminal. |
+| Platform | Download | Status |
+|----------|----------|--------|
+| **Windows 10/11 (x64)** | [`Voidcast_x.y.z_Setup.exe`](https://github.com/boromanx386/Voidcast/releases/latest) | One-click setup. No Python. No pip. No terminal. |
+| **Linux (x64)** | [AppImage or `.deb`](https://github.com/boromanx386/Voidcast/releases/latest) | AppImage: `chmod +x` and run — it updates itself. `.deb`: `sudo apt install ./Voidcast_*.deb` — manual updates. |
 
-1. Download `Voidcast_Setup.exe` from [Releases](https://github.com/boromanx386/Voidcast/releases)
-2. Run it. Next → Next → Done.
+1. Download the build for your platform from [Releases](https://github.com/boromanx386/Voidcast/releases/latest)
+2. Install it: Windows — run the setup, Next → Next → Done. Linux — `chmod +x Voidcast_*.AppImage && ./Voidcast_*.AppImage`, or `sudo apt install ./Voidcast_*.deb`.
 3. Add your API keys in **Options → General → CLOUD_API_KEYS** (stored only on your PC).
 4. Start the agent.
 
 > 💡 **First launch to first chat: under 60 seconds.**
 
-Requires Windows 10/11. The installer bundles the Python tools server — no manual setup needed.
+Requires Windows 10/11 or a 64-bit Linux desktop (X11/Wayland). Both packages bundle the Python tools server — no manual Python setup needed.
 
 ---
 
 ## Updates (desktop)
 
-The packaged Windows app can check [GitHub Releases](https://github.com/boromanx386/Voidcast/releases) for new versions (optional — off by default).
+The packaged desktop app (Windows installer, Linux AppImage) can check [GitHub Releases](https://github.com/boromanx386/Voidcast/releases) for new versions (optional — off by default).
 
 In **Options → General**:
 
@@ -70,6 +71,8 @@ In **Options → General**:
 - When disabled, use **`CHECK FOR UPDATE`** anytime for a manual check.
 
 You choose whether updates run automatically; nothing is forced without your toggle.
+
+> 🐧 On Linux the same flow works for the **AppImage** build only — `electron-updater` has no `.deb` updater, so a `.deb` install is updated by downloading a new package.
 
 ---
 
@@ -361,7 +364,14 @@ Firewall: allow inbound TCP **8765** on the PC if the phone cannot connect.
 
 ## Development & Building
 
-Requires Node.js, Python 3.12+ with a repo `.venv`, and Windows for the full desktop build.
+Requires Node.js 20+ and Python 3.12+ with a repo `.venv`. Full desktop builds run on **Windows** (NSIS installer) and **Linux** (AppImage + `.deb`).
+
+On Linux two one-shot scripts do the whole setup:
+
+```bash
+bash start-dev.sh     # dev: installs deps + venv, then tools server + Electron (HMR)
+bash build-linux.sh   # build: freezes the Linux tools server, then AppImage + .deb
+```
 
 ### Install dependencies
 
@@ -399,6 +409,19 @@ cd electron-app && npm run build
 ```
 
 Compiles the main process and renderer, builds the tools executable, then packages with `electron-builder` (Windows installer).
+
+On Linux, `bash build-linux.sh` from the repo root runs the same pipeline end to end — PyInstaller freezes the Linux tools server first, then `electron-builder --linux` writes the AppImage and `.deb` into `electron-app/release/<version>/`.
+
+### Releasing
+
+The version lives in `electron-app/package.json`. Bump it, then:
+
+```bash
+npm run release                # commit + tag vX.Y.Z + push
+npm run release -- --dry-run   # show what it would do
+```
+
+The pushed tag makes GitHub Actions (`.github/workflows/release.yml`) build Windows and Linux on their own runners and publish **one** Release with both installers plus the `latest*.yml` update manifests.
 
 ### Packaging Model
 

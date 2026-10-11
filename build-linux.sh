@@ -12,8 +12,10 @@
 # Output: electron-app/release/<version>/
 #
 # Usage:
-#   bash build-linux.sh            # AppImage + deb
-#   bash build-linux.sh --dir      # samo raspakovani dir (brzo, za test)
+#   bash build-linux.sh                  # AppImage + deb
+#   bash build-linux.sh --dir            # samo raspakovani dir (brzo, za test)
+#   bash build-linux.sh "--publish never"  # CI: bez objave na GitHub
+#   VOIDCAST_SKIP_SYSDEPS=1 bash build-linux.sh   # ne diraj apt (CI)
 #
 set -euo pipefail
 
