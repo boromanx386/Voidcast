@@ -1,14 +1,27 @@
 {
-  "name": "vst-omnivoice-workspace",
+  "name": "voidcast-workspace",
   "private": true,
+  "description": "Workspace root for Voidcast — only dev/build helper scripts live here. The Electron app itself is in electron-app/.",
+  "license": "MIT",
+  "author": "https://github.com/boromanx386/Voidcast",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boromanx386/Voidcast.git"
+  },
   "scripts": {
+    "postinstall": "node -e \"console.log('\\n  Ovo je workspace root. Aplikacija je u electron-app/ - cd electron-app && npm install\\n')\"",
     "dev": "concurrently -n tts,ui -c blue,green \"npm run dev:tts\" \"npm run dev:electron\"",
-    "dev:tts": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn tools_main:app --host 0.0.0.0 --port 8765",
-    "dev:tts:local": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn tts_main:app --host 0.0.0.0 --port 8765",
+    "dev:tts": "node scripts/dev-tts.mjs tools",
+    "dev:tts:win": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn tools_main:app --host 0.0.0.0 --port 8765",
+    "dev:tts:unix": "cd tts-server && ../.venv/bin/python -m uvicorn tools_main:app --host 0.0.0.0 --port 8765",
+    "dev:tts:local": "node scripts/dev-tts.mjs tts",
+    "dev:tts:local:win": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn tts_main:app --host 0.0.0.0 --port 8765",
+    "dev:tts:local:unix": "cd tts-server && ../.venv/bin/python -m uvicorn tts_main:app --host 0.0.0.0 --port 8765",
     "dev:electron": "cd electron-app && npm run dev",
     "build:web": "cd electron-app && npm run build:web",
     "build:tools-exe": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-tools-exe.ps1",
-    "check:models": "node scripts/check-models.mjs"
+    "check:models": "node scripts/check-models.mjs",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
