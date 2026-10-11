@@ -2,24 +2,24 @@
 /**
  * Voidcast release helper.
  *
- * 1) (opciono) `--bump` podigne verziju u:
+ * 1) (optional) `--bump` raises the version in:
  *      electron-app/package.json
  *      electron-app/package-lock.json
  *      electron-app/src/hooks/useAppSettings.ts  (default appVersion)
- * 2) commit svih izmena  ("chore: release vX.Y.Z")
- * 3) tag vX.Y.Z
- * 4) push grane + tag
+ * 2) commits every pending change  ("chore: release vX.Y.Z")
+ * 3) tags vX.Y.Z
+ * 4) pushes the branch + tag
  *
- * GitHub Actions (.github/workflows/release.yml) tada sagradi Windows i Linux
- * i objavi jedan GitHub Release (installeri + latest*.yml za auto-update).
+ * GitHub Actions (.github/workflows/release.yml) then builds Windows and Linux
+ * and publishes a single GitHub Release (installers + latest*.yml for auto-update).
  *
  * Usage:
  *   node scripts/release.mjs --bump patch   bump + commit + tag + push
  *   node scripts/release.mjs --bump minor
- *   node scripts/release.mjs                commit + tag + push (verzija već podignuta)
- *   node scripts/release.mjs --dry-run      samo prikaži šta bi uradio
- *   node scripts/release.mjs --no-push      commit + tag lokalno, bez push-a
- *   node scripts/release.mjs -m "poruka"    custom commit poruka
+ *   node scripts/release.mjs                commit + tag + push (version already bumped)
+ *   node scripts/release.mjs --dry-run      show what would happen, change nothing
+ *   node scripts/release.mjs --no-push      commit + tag locally, no push
+ *   node scripts/release.mjs -m "message"   custom commit message
  */
 
 import { spawnSync } from 'node:child_process'
@@ -40,7 +40,7 @@ const bumpRaw =
       ? args[bumpIdx].slice('--bump='.length)
       : args[bumpIdx + 1]
 
-// Indeksi argumenata koji su VREDNOSTI (ne flagovi) — da ne uđu u `flags`.
+// Indexes of arguments that hold VALUES (not flags), so they stay out of `flags`.
 const valueIdx = new Set()
 if (msgIdx >= 0) valueIdx.add(msgIdx + 1)
 if (bumpIdx >= 0 && !args[bumpIdx].startsWith('--bump=')) valueIdx.add(bumpIdx + 1)
@@ -73,22 +73,22 @@ if (flags.has('--help') || flags.has('-h')) {
   console.log(`
 Voidcast release helper
 
-  node scripts/release.mjs [opcije]
+  node scripts/release.mjs [options]
 
-Opcije:
-  --bump <kind>    podigni verziju pre commit-a: patch | minor | major
-                   (piše u package.json, package-lock.json i useAppSettings.ts)
-  --dry-run        prikaži šta bi uradio, bez izmena
-  --no-push        commit + tag lokalno, bez push-a
-  -m, --message    poruka commita (default: "chore: release vX.Y.Z")
-  -h, --help       ova pomoć
+Options:
+  --bump <kind>    bump the version before committing: patch | minor | major
+                   (writes package.json, package-lock.json and useAppSettings.ts)
+  --dry-run        show what would happen, change nothing
+  --no-push        commit + tag locally, skip the push
+  -m, --message    commit message (default: "chore: release vX.Y.Z")
+  -h, --help       this help
 `)
   process.exit(0)
 }
 
 function git(...a) {
   const r = spawnSync('git', a, { cwd: root, encoding: 'utf8' })
-  if (r.error) die(`git nije dostupan: ${r.error.message}`)
+  if (r.error) die(`git is not available: ${r.error.message}`)
   if (r.status !== 0) die(`git ${a.join(' ')} → ${(r.stderr || r.stdout || '').trim()}`)
   return (r.stdout || '').trim()
 }
@@ -97,8 +97,8 @@ function gitTry(...a) {
   return { ok: r.status === 0, out: (r.stdout || '').trim() }
 }
 
-// --- repo + verzija -----------------------------------------------------
-if (!gitTry('rev-parse', '--show-toplevel').ok) die('Nisi unutar git repozitorijuma.')
+// --- repo + version -----------------------------------------------------
+if (!gitTry('rev-parse', '--show-toplevel').ok) die('Not inside a git repository.')
 
 const pkgPath = join(root, 'electron-app', 'package.json')
 const lockPath = join(root, 'electron-app', 'package-lock.json')
@@ -108,14 +108,14 @@ let version = ''
 try {
   version = JSON.parse(readFileSync(pkgPath, 'utf8')).version || ''
 } catch (e) {
-  die(`Ne mogu da pročitam ${pkgPath}: ${e.message}`)
+  die(`Cannot read ${pkgPath}: ${e.message}`)
 }
-if (!version) die(`Nema "version" u ${pkgPath}`)
+if (!version) die(`No "version" field in ${pkgPath}`)
 
-// --- bump verzije -------------------------------------------------------
+// --- version bump -------------------------------------------------------
 function nextVersion(cur, kind) {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(cur)
-  if (!m) die(`Ne mogu da parsiram verziju "${cur}" (očekujem x.y.z).`)
+  if (!m) die(`Cannot parse version "${cur}" (expected x.y.z).`)
   let major = Number(m[1])
   let minor = Number(m[2])
   let patch = Number(m[3])
@@ -137,7 +137,7 @@ function bumpJsonVersion(file, from, to) {
   try {
     json = JSON.parse(readFileSync(file, 'utf8'))
   } catch (e) {
-    warn(`${file}: ${e.message} — preskačem`)
+    warn(`${file}: ${e.message} — skipping`)
     return 0
   }
   let hits = 0
@@ -151,7 +151,7 @@ function bumpJsonVersion(file, from, to) {
     hits += 1
   }
   if (!hits) {
-    warn(`${file}: nema verzije ${from} — preskačem`)
+    warn(`${file}: no version ${from} found — skipping`)
     return 0
   }
   writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`)
@@ -163,12 +163,12 @@ function bumpTsDefault(file, to) {
   try {
     src = readFileSync(file, 'utf8')
   } catch {
-    warn(`${file}: nema fajla — preskačem`)
+    warn(`${file}: file missing — skipping`)
     return 0
   }
   const re = /(\[appVersion[^\]]*\]\s*=\s*useState\()\s*'[^']*'/
   if (!re.test(src)) {
-    warn(`${file}: ne nalazim appVersion useState — preskačem`)
+    warn(`${file}: no appVersion useState found — skipping`)
     return 0
   }
   writeFileSync(file, src.replace(re, `$1'${to}'`))
@@ -177,35 +177,35 @@ function bumpTsDefault(file, to) {
 
 if (bumpRaw !== undefined) {
   if (!BUMP_KINDS.includes(bumpRaw)) {
-    die(`Nepoznat --bump "${bumpRaw}" (dozvoljeno: ${BUMP_KINDS.join(' | ')})`)
+    die(`Unknown --bump "${bumpRaw}" (allowed: ${BUMP_KINDS.join(' | ')})`)
   }
   const next = nextVersion(version, bumpRaw)
-  log(`bump verzije: ${C.bold(version)} → ${C.bold(next)} (${bumpRaw})`)
+  log(`bumping ${C.bold(version)} → ${C.bold(next)} (${bumpRaw})`)
   if (DRY) {
-    log('[dry] upisujem verziju u package.json, package-lock.json i useAppSettings.ts')
+    log('[dry] would write the version to package.json, package-lock.json and useAppSettings.ts')
   } else {
     let hits = 0
     hits += bumpJsonVersion(pkgPath, version, next)
     hits += bumpJsonVersion(lockPath, version, next)
     hits += bumpTsDefault(tsPath, next)
-    ok(`verzija upisana na ${hits} ${hits === 1 ? 'mesto' : 'mesta'}`)
+    ok(`version written to ${hits} place${hits === 1 ? '' : 's'}`)
   }
   version = next
 }
 
 const tag = `v${version}`
 const branch = git('rev-parse', '--abbrev-ref', 'HEAD')
-if (branch === 'HEAD') die('Detached HEAD — prebaci se na granu (npr. main).')
+if (branch === 'HEAD') die('Detached HEAD — switch to a branch (e.g. main).')
 
-log(`verzija ${C.bold(version)}  ·  grana ${C.bold(branch)}  ·  tag ${C.bold(tag)}`)
+log(`version ${C.bold(version)}  ·  branch ${C.bold(branch)}  ·  tag ${C.bold(tag)}`)
 
-// --- tag već postoji? ---------------------------------------------------
+// --- tag already exists? ------------------------------------------------
 if (gitTry('rev-parse', '-q', '--verify', `refs/tags/${tag}`).ok) {
-  die(`Tag ${tag} već postoji lokalno.`)
+  die(`Tag ${tag} already exists locally.`)
 }
 const remoteHas = gitTry('ls-remote', '--tags', 'origin', tag)
 if (remoteHas.ok && remoteHas.out.includes(`refs/tags/${tag}`)) {
-  die(`Tag ${tag} već postoji na origin-u.`)
+  die(`Tag ${tag} already exists on origin.`)
 }
 
 // --- commit -------------------------------------------------------------
@@ -213,30 +213,30 @@ const dirty = git('status', '--porcelain')
 const commitMsg = customMessage || `chore: release ${tag}`
 if (dirty) {
   const n = dirty.split('\n').filter(Boolean).length
-  log(`commit-ujem ${n} izmena: ${C.dim(commitMsg)}`)
+  log(`committing ${n} change${n === 1 ? '' : 's'}: ${C.dim(commitMsg)}`)
   if (!DRY) {
     git('add', '-A')
     git('commit', '-m', commitMsg)
   }
-  ok(DRY ? '[dry] commit' : 'commit napravljen')
+  ok(DRY ? '[dry] commit' : 'commit created')
 } else {
-  warn('nema izmena — tagujem postojeći HEAD')
+  warn('nothing to commit — tagging the current HEAD')
 }
 
 // --- tag ----------------------------------------------------------------
 if (!DRY) git('tag', '-a', tag, '-m', tag)
-ok(DRY ? `[dry] git tag -a ${tag}` : `tag ${tag} napravljen`)
+ok(DRY ? `[dry] git tag -a ${tag}` : `tag ${tag} created`)
 
 // --- push ---------------------------------------------------------------
 if (NO_PUSH) {
-  warn(`push preskočen (--no-push). Ručno: git push origin ${branch} && git push origin ${tag}`)
+  warn(`push skipped (--no-push). Manually: git push origin ${branch} && git push origin ${tag}`)
 } else if (DRY) {
   log(`[dry] git push origin ${branch} && git push origin ${tag}`)
 } else {
-  log(`pushujem ${branch} + ${tag} ...`)
+  log(`pushing ${branch} + ${tag} ...`)
   git('push', 'origin', branch)
   git('push', 'origin', tag)
-  ok('pushovano')
+  ok('pushed')
 }
 
 // --- link ---------------------------------------------------------------
@@ -245,4 +245,4 @@ const m = /github\.com[:/]+([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(remoteUrl)
 const url = m ? `https://github.com/${m[1]}/${m[2]}/actions` : null
 console.log('')
 if (url) ok(`GitHub Actions: ${C.bold(url)}`)
-else ok('Gotovo — pogledaj GitHub → Actions.')
+else ok('Done — check GitHub → Actions.')

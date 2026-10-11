@@ -1,10 +1,10 @@
 name: Release
 
-# Push taga (npr. v2.10.0) -> sagradi Windows + Linux i objavi GitHub Release.
-# Ručno pokretanje (workflow_dispatch) samo gradi artefakte (bez objave).
+# Pushing a tag (e.g. v2.10.0) -> builds Windows + Linux and publishes a GitHub Release.
+# Manual runs (workflow_dispatch) build artifacts only (no publish).
 #
-# Zašto dva OS-a: PyInstaller ne može unakrsno da kompajlira, pa se
-# voidcast-tools-server.exe gradi na Windowsu, a voidcast-tools-server na Linuxu.
+# Why two OSes: PyInstaller cannot cross-compile, so voidcast-tools-server.exe is
+# frozen on Windows and voidcast-tools-server on Linux.
 
 on:
   push:
@@ -107,7 +107,7 @@ jobs:
           PKG="$(node -p "require('./electron-app/package.json').version")"
           echo "tag=$TAG  electron-app/package.json=$PKG"
           if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag v$TAG ne odgovara verziji $PKG u electron-app/package.json"
+            echo "::error::Tag v$TAG does not match version $PKG in electron-app/package.json"
             exit 1
           fi
 
@@ -117,11 +117,11 @@ jobs:
           path: dist
           merge-multiple: true
 
-      # Artefakti se raspakuju u podfolder (dist/<verzija>/...), zato rekurzivni globovi.
+      # Artifacts unpack into a subfolder (dist/<version>/...), hence the recursive globs.
       - name: List
         run: find dist -type f | sort
 
-      # Ako želiš da prvo pregledaš pre objave: stavi draft: true.
+      # To review before publishing: set draft: true.
       - name: Create / update release
         uses: softprops/action-gh-release@v3
         with:

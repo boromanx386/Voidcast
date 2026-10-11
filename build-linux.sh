@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Voidcast — Linux build script (AppImage + .deb), iz source-a.
-# Sam skida/instališe što fali (Node, Python, venv, build alate).
+# Voidcast — Linux build script (AppImage + .deb), from source.
+# Fetches/installs whatever is missing (Node, Python, venv, build tools).
 #
 # Steps:
 #   1) venv + tools-server dependencies
@@ -13,9 +13,9 @@
 #
 # Usage:
 #   bash build-linux.sh                  # AppImage + deb
-#   bash build-linux.sh --dir            # samo raspakovani dir (brzo, za test)
-#   bash build-linux.sh "--publish never"  # CI: bez objave na GitHub
-#   VOIDCAST_SKIP_SYSDEPS=1 bash build-linux.sh   # ne diraj apt (CI)
+#   bash build-linux.sh --dir            # unpacked dir only (fast, for testing)
+#   bash build-linux.sh "--publish never"  # CI: do not publish to GitHub
+#   VOIDCAST_SKIP_SYSDEPS=1 bash build-linux.sh   # leave apt alone (CI)
 #
 set -euo pipefail
 
@@ -39,19 +39,19 @@ as_root()  { "${SUDO[@]}" "$@"; }
 have_apt() { command -v apt-get >/dev/null 2>&1; }
 pkg_ok()   { dpkg -s "$1" >/dev/null 2>&1; }
 
-[ -f "$TTS/tools_exe_entry.py" ] || die "Nema $TTS/tools_exe_entry.py"
-[ -d "$TTS/fonts" ]              || die "Nema $TTS/fonts (NotoSans-Regular.ttf + NotoSans-Bold.ttf)"
-[ -f "$ROOT/logo_app_nobg.png" ] || die "Nema logo_app_nobg.png u korenu (treba za ikonu)."
+[ -f "$TTS/tools_exe_entry.py" ] || die "Missing $TTS/tools_exe_entry.py"
+[ -d "$TTS/fonts" ]              || die "Missing $TTS/fonts (NotoSans-Regular.ttf + NotoSans-Bold.ttf)"
+[ -f "$ROOT/logo_app_nobg.png" ] || die "Missing logo_app_nobg.png in the repo root (needed for the icon)."
 
-# ------------------------------------------------------------------ sistemski paketi
-# VOIDCAST_SKIP_SYSDEPS=1 preskače apt (za CI gde je okruženje već spremno).
+# ------------------------------------------------------------------ system packages
+# VOIDCAST_SKIP_SYSDEPS=1 skips apt (for CI where the environment is already prepared).
 if have_apt && [ "${VOIDCAST_SKIP_SYSDEPS:-0}" != "1" ]; then
   missing=()
   for p in ca-certificates curl git python3 python3-venv python3-pip build-essential fakeroot dpkg; do
     pkg_ok "$p" || missing+=("$p")
   done
   if [ "${#missing[@]}" -gt 0 ]; then
-    step "Instaliram sistemske pakete: ${missing[*]}"
+    step "Installing system packages: ${missing[*]}"
     as_root apt-get update -y
     as_root apt-get install -y "${missing[@]}"
   fi
@@ -68,9 +68,9 @@ node_ok() {
 
 if ! node_ok; then
   if ! have_apt; then
-    die "Node.js ${NODE_MIN}+ nije instaliran, a nemam apt da ga skinem. Skini ručno: https://nodejs.org"
+    die "Node.js ${NODE_MIN}+ is not installed and apt is unavailable to fetch it. Install manually: https://nodejs.org"
   fi
-  step "Instaliram Node.js ${NODE_MAJOR}.x (NodeSource) ..."
+  step "Installing Node.js ${NODE_MAJOR}.x (NodeSource) ..."
   url="https://deb.nodesource.com/setup_${NODE_MAJOR}.x"
   if [ "$(id -u)" -eq 0 ]; then
     curl -fsSL "$url" | bash -
@@ -79,38 +79,38 @@ if ! node_ok; then
   fi
   as_root apt-get install -y nodejs
 fi
-node_ok || die "Node.js i dalje nije dostupan posle instalacije."
+node_ok || die "Node.js is still unavailable after install."
 step "Node $(node -v)  |  npm $(npm -v)"
 
 # ------------------------------------------------------------------ 1) venv
 if [ ! -x "$VENV/bin/python" ]; then
-  step "Pravim venv ..."
+  step "Creating venv ..."
   if ! python3 -m venv "$VENV"; then
     if have_apt; then as_root apt-get install -y python3-venv; fi
     python3 -m venv "$VENV"
   fi
 fi
 PY="$VENV/bin/python"
-[ -x "$PY" ] || die "venv nije napravljen ($PY)."
+[ -x "$PY" ] || die "venv was not created ($PY)."
 
 if ! "$PY" -c "import fastapi" >/dev/null 2>&1; then
-  step "Instaliram tools dependencies ..."
+  step "Installing tools dependencies ..."
   "$PY" -m pip install --upgrade pip
   "$PY" -m pip install -r "$TTS/requirements-tools.txt"
 fi
 
 # ------------------------------------------------------------------ node deps
 if [ ! -d "$APP/node_modules" ]; then
-  step "npm install u electron-app (prvi put traje) ..."
+  step "npm install in electron-app (first run is slow) ..."
   ( cd "$APP" && npm install )
 fi
 
 # ------------------------------------------------------------------ 2) web UI
 if [ ! -f "$TTS/web-ui/index.web.html" ]; then
-  step "Build web UI (build:web) ..."
+  step "Building web UI (build:web) ..."
   ( cd "$APP" && npm run build:web )
 fi
-[ -f "$TTS/web-ui/index.web.html" ] || die "web-ui/index.web.html nije napravljen."
+[ -f "$TTS/web-ui/index.web.html" ] || die "web-ui/index.web.html was not created."
 
 # ------------------------------------------------------------------ 3) freeze tools server
 step "PyInstaller: Linux tools binary ..."
@@ -133,7 +133,7 @@ rm -rf "$TTS/dist" "$TTS/build-linux"
   --exclude-module tensorboard \
   "$TTS/tools_exe_entry.py"
 
-[ -f "$TTS/dist/voidcast-tools-server" ] || die "PyInstaller nije napravio voidcast-tools-server."
+[ -f "$TTS/dist/voidcast-tools-server" ] || die "PyInstaller did not produce voidcast-tools-server."
 chmod +x "$TTS/dist/voidcast-tools-server"
 step "OK: $TTS/dist/voidcast-tools-server"
 
@@ -141,4 +141,4 @@ step "OK: $TTS/dist/voidcast-tools-server"
 step "tsc + vite build + electron-builder --linux ${EXTRA_ARGS} ..."
 ( cd "$APP" && npx tsc && npx vite build && npx electron-builder --linux ${EXTRA_ARGS} )
 
-step "Gotovo. Paket: $APP/release/<version>/"
+step "Done. Package: $APP/release/<version>/"
