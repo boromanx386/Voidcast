@@ -1,0 +1,128 @@
+name: Release
+
+# Push taga (npr. v2.10.0) -> sagradi Windows + Linux i objavi GitHub Release.
+# Ručno pokretanje (workflow_dispatch) samo gradi artefakte (bez objave).
+#
+# Zašto dva OS-a: PyInstaller ne može unakrsno da kompajlira, pa se
+# voidcast-tools-server.exe gradi na Windowsu, a voidcast-tools-server na Linuxu.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: ubuntu-latest
+            platform: linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: electron-app/package-lock.json
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tts-server/requirements-tools.txt
+
+      - name: Repo venv + tools deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv .venv
+          if [ -x .venv/bin/python ]; then
+            PY=".venv/bin/python"
+          else
+            PY=".venv/Scripts/python.exe"
+          fi
+          echo "Tools binary se gradi sa: $PY"
+          "$PY" -m pip install --upgrade pip
+          "$PY" -m pip install -r tts-server/requirements-tools.txt pyinstaller
+
+      - name: Install node deps
+        working-directory: electron-app
+        run: npm ci
+
+      - name: Build (Windows)
+        if: matrix.platform == 'windows'
+        working-directory: electron-app
+        run: npm run build:ci
+
+      - name: Build (Linux)
+        if: matrix.platform == 'linux'
+        run: bash build-linux.sh "--publish never"
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.platform }}
+          if-no-files-found: error
+          path: |
+            electron-app/release/**/*.exe
+            electron-app/release/**/*.blockmap
+            electron-app/release/**/*.AppImage
+            electron-app/release/**/*.deb
+            electron-app/release/**/latest*.yml
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Verify tag matches package.json version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./electron-app/package.json').version")"
+          echo "tag=$TAG  electron-app/package.json=$PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG ne odgovara verziji $PKG u electron-app/package.json"
+            exit 1
+          fi
+
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List
+        run: ls -lah dist
+
+      # Ako želiš da prvo pregledaš pre objave: stavi draft: true.
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false

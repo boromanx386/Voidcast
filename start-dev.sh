@@ -1,45 +1,93 @@
 #!/usr/bin/env bash
-# Voidcast — dev launcher for Linux/macOS.
+# Voidcast — dev launcher for Linux (sam skida sve što fali).
 #
-# Starts both halves from source:
-#   1) Python tools server  (uvicorn tools_main:app, port 8765)
-#   2) Electron desktop app (electron-app -> vite dev)
+# Diže oba dela iz source-a:
+#   1) Python tools server (uvicorn tools_main:app, port 8765)
+#   2) Electron app       (electron-app -> vite dev)
+#
+# Automatski instalira što nedostaje: Node.js + npm (NodeSource),
+# python3 / python3-venv / python3-pip / build-essential, Python deps i npm pakete.
 #
 # Usage:
-#   ./start-dev.sh
-#   VOIDCAST_TOOLS_HOST=127.0.0.1 ./start-dev.sh   # LAN closed, local only
-#   VOIDCAST_TOOLS_PORT=8765 ./start-dev.sh
+#   bash start-dev.sh
+#   VOIDCAST_TOOLS_HOST=127.0.0.1 bash start-dev.sh   # samo lokalno (bez LAN-a)
+#   VOIDCAST_TOOLS_PORT=8765 bash start-dev.sh
+#   VOIDCAST_NODE_MAJOR=20 bash start-dev.sh
 #
-# Ctrl+C shuts both down.
+# Ctrl+C gasi oba procesa.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$ROOT/.venv"
-PY="$VENV/bin/python"
 TTS_DIR="$ROOT/tts-server"
 APP_DIR="$ROOT/electron-app"
+
+NODE_MAJOR="${VOIDCAST_NODE_MAJOR:-22}"   # koja NodeSource verzija se instalira
+NODE_MIN=20                                # minimum za Vite 5 / Electron 44
 
 c_info=$'\033[36m'; c_warn=$'\033[33m'; c_err=$'\033[31m'; c_off=$'\033[0m'
 info() { echo "${c_info}[voidcast]${c_off} $*"; }
 warn() { echo "${c_warn}[voidcast]${c_off} $*" >&2; }
 die()  { echo "${c_err}[voidcast]${c_off} $*" >&2; exit 1; }
 
-# ---------------------------------------------------------------- preflight
-command -v node    >/dev/null 2>&1 || die "Node.js nije instaliran.  ->  nvm install 22"
-command -v npm     >/dev/null 2>&1 || die "npm nije instaliran."
-command -v python3 >/dev/null 2>&1 || die "python3 nije instaliran.  ->  sudo apt install python3 python3-venv"
-[ -d "$TTS_DIR" ]  || die "Ne vidim tts-server/ (pokreni skriptu iz korena projekta)."
-[ -d "$APP_DIR" ]  || die "Ne vidim electron-app/ (pokreni skriptu iz korena projekta)."
+# ------------------------------------------------------------------ root / apt
+if [ "$(id -u)" -eq 0 ]; then SUDO=(); else SUDO=(sudo); fi
+as_root()  { "${SUDO[@]}" "$@"; }
+have_apt() { command -v apt-get >/dev/null 2>&1; }
+pkg_ok()   { dpkg -s "$1" >/dev/null 2>&1; }
 
-TOOLS_HOST="${VOIDCAST_TOOLS_HOST:-0.0.0.0}"
-TOOLS_PORT="${VOIDCAST_TOOLS_PORT:-8765}"
+[ -d "$TTS_DIR" ] || die "Ne vidim tts-server/ (pokreni skriptu iz korena projekta)."
+[ -d "$APP_DIR" ] || die "Ne vidim electron-app/ (pokreni skriptu iz korena projekta)."
 
-# ---------------------------------------------------------------- python venv
-if [ ! -x "$PY" ]; then
-  info "Pravim Python venv u .venv ..."
-  python3 -m venv "$VENV"
+# ------------------------------------------------------------------ sistemski paketi
+if have_apt; then
+  missing=()
+  for p in ca-certificates curl git python3 python3-venv python3-pip build-essential; do
+    pkg_ok "$p" || missing+=("$p")
+  done
+  if [ "${#missing[@]}" -gt 0 ]; then
+    info "Instaliram sistemske pakete: ${missing[*]}"
+    as_root apt-get update -y
+    as_root apt-get install -y "${missing[@]}"
+  fi
 fi
+
+# ------------------------------------------------------------------ node
+node_ok() {
+  command -v node >/dev/null 2>&1 || return 1
+  command -v npm  >/dev/null 2>&1 || return 1
+  local v; v="$(node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1)"
+  if [ -z "${v:-}" ]; then return 1; fi
+  [ "$v" -ge "$NODE_MIN" ] 2>/dev/null
+}
+
+if ! node_ok; then
+  if ! have_apt; then
+    die "Node.js ${NODE_MIN}+ nije instaliran, a nemam apt da ga skinem. Skini ručno: https://nodejs.org"
+  fi
+  info "Instaliram Node.js ${NODE_MAJOR}.x (NodeSource) ..."
+  url="https://deb.nodesource.com/setup_${NODE_MAJOR}.x"
+  if [ "$(id -u)" -eq 0 ]; then
+    curl -fsSL "$url" | bash -
+  else
+    curl -fsSL "$url" | sudo -E bash -
+  fi
+  as_root apt-get install -y nodejs
+fi
+node_ok || die "Node.js i dalje nije dostupan posle instalacije (proveri 'node -v')."
+info "Node $(node -v)  |  npm $(npm -v)"
+
+# ------------------------------------------------------------------ python venv
+if [ ! -x "$VENV/bin/python" ]; then
+  info "Pravim Python venv ..."
+  if ! python3 -m venv "$VENV"; then
+    if have_apt; then as_root apt-get install -y python3-venv; fi
+    python3 -m venv "$VENV"
+  fi
+fi
+PY="$VENV/bin/python"
+[ -x "$PY" ] || die "venv nije napravljen ($PY)."
 
 if ! "$PY" -c "import fastapi, uvicorn" >/dev/null 2>&1; then
   info "Instaliram tools-server dependencies (requirements-tools.txt) ..."
@@ -47,13 +95,24 @@ if ! "$PY" -c "import fastapi, uvicorn" >/dev/null 2>&1; then
   "$PY" -m pip install -r "$TTS_DIR/requirements-tools.txt"
 fi
 
-# ---------------------------------------------------------------- node deps
+# ------------------------------------------------------------------ node deps
 if [ ! -d "$APP_DIR/node_modules" ]; then
-  info "npm install u electron-app (prvi put traje) ..."
+  info "npm install u electron-app (prvi put traje, skida Electron ~150 MB) ..."
   ( cd "$APP_DIR" && npm install )
 fi
 
-# ---------------------------------------------------------------- lifecycle
+# ------------------------------------------------------------------ electron sandbox
+if [ -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] &&
+   [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" = "1" ]; then
+  warn "AppArmor ograničava user-namespaces (Ubuntu 24.04+) — gasim Electron sandbox za ovaj run."
+  warn "Trajno rešenje:  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
+  export ELECTRON_DISABLE_SANDBOX=1
+fi
+
+# ------------------------------------------------------------------ run
+TOOLS_HOST="${VOIDCAST_TOOLS_HOST:-0.0.0.0}"
+TOOLS_PORT="${VOIDCAST_TOOLS_PORT:-8765}"
+
 PIDS=()
 cleanup() {
   trap - EXIT INT TERM
@@ -70,13 +129,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# ---------------------------------------------------------------- 1) tools server
 info "Tools server -> http://${TOOLS_HOST}:${TOOLS_PORT}"
 ( cd "$TTS_DIR" && exec "$PY" -m uvicorn tools_main:app --host "$TOOLS_HOST" --port "$TOOLS_PORT" ) &
 PIDS+=("$!")
 
 for i in $(seq 1 40); do
-  if command -v curl >/dev/null 2>&1 && curl -fsS "http://127.0.0.1:${TOOLS_PORT}/health" >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:${TOOLS_PORT}/health" >/dev/null 2>&1; then
     info "Tools server je spreman."
     break
   fi
@@ -86,7 +144,6 @@ for i in $(seq 1 40); do
   sleep 0.5
 done
 
-# ---------------------------------------------------------------- 2) electron
 info "Electron (vite dev) ..."
 ( cd "$APP_DIR" && exec npm run dev ) &
 PIDS+=("$!")
