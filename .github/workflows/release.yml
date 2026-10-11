@@ -82,6 +82,7 @@ jobs:
         with:
           name: dist-${{ matrix.platform }}
           if-no-files-found: error
+          retention-days: 7
           path: |
             electron-app/release/**/*.exe
             electron-app/release/**/*.blockmap
