@@ -69,6 +69,7 @@
       "deb"
     ],
     "category": "Utility",
+    "maintainer": "Boroman <mr.borivoj@gmail.com>",
     "artifactName": "${productName}_${version}.${ext}"
   },
   "nsis": {
