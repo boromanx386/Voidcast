@@ -116,13 +116,20 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # Artefakti se raspakuju u podfolder (dist/<verzija>/...), zato rekurzivni globovi.
       - name: List
-        run: ls -lah dist
+        run: find dist -type f | sort
 
       # Ako želiš da prvo pregledaš pre objave: stavi draft: true.
       - name: Create / update release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: |
+            dist/**/*.exe
+            dist/**/*.blockmap
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/*.yml
+          fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
