@@ -36,15 +36,14 @@ export function ChatHeader({ app }: Props) {
     saveOrUpdateSession,
     settings,
     applyCodingProjectPath,
+    activeCodingProjectPath,
   } = app
 
   // Coding tools ON in Options + no folder bound to this chat = the agent has no
   // file access here. Warn up front instead of letting the user find out mid-task.
   // Desktop only: binding a folder needs the native picker (web-standalone cannot).
   const codingToolsNeedFolder =
-    codingPanelAvailable &&
-    settings.toolsEnabled.coding &&
-    !(settings.coding.projectPath || '').trim()
+    codingPanelAvailable && settings.toolsEnabled.coding && !activeCodingProjectPath.trim()
 
   const bindCodingFolder = useCallback(async () => {
     const picked = await invokePickCodingDirectory()

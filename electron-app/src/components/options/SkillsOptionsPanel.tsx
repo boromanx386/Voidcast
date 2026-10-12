@@ -12,15 +12,17 @@ import type { AppSettings } from '@/lib/settings'
 type Props = {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
+  /** Folder of the chat on screen — the project whose skills / AGENTS.md this tab reads. */
+  activeCodingProjectPath: string
 }
 
-export function SkillsOptionsPanel({ settings, setSettings }: Props) {
+export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectPath }: Props) {
   const [skills, setSkills] = useState<AgentSkillMeta[]>([])
   const [projectFiles, setProjectFiles] = useState<ProjectAgentInstructions[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const desktop = isElectron()
-  const projectPath = (settings.coding.projectPath || settings.codingProjectPath || '').trim()
+  const projectPath = activeCodingProjectPath.trim()
 
   const load = useCallback(
     async (force: boolean) => {
@@ -155,7 +157,8 @@ export function SkillsOptionsPanel({ settings, setSettings }: Props) {
         </p>
       ) : (
         <p className="text-xs text-void-dim">
-          Set a coding project (Options → Tools) to load project skills and AGENTS.md / CLAUDE.md.
+          This chat has no coding folder. Bind one in the chat header (or the coding panel) to
+          load project skills and AGENTS.md / CLAUDE.md.
         </p>
       )}
 

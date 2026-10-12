@@ -13,13 +13,13 @@ You can open different sessions in the sidebar and **run agents in more than one
 | Isolation | Each session has its own messages, abort controller, tool phase, active tool activities, and media state (`sessionAgentStore`) |
 | Cap | Up to **3** concurrent agent runs (`MAX_CONCURRENT_AGENT_RUNS`). Starting a 4th fails with an error until one finishes or you Stop |
 | Project / shell | Coding tools freeze **project path**, shell owner, and terminal feed per chat so two chats do not share one shell by accident |
-| Different projects | Only **one live coding project** across chats: starting a run in project B while another chat is busy in project A **fails** until that agent stops |
+| Different projects | **Allowed** — a run in project B while another chat is busy in project A starts normally. Every coding tool call carries its own project root, and terminal feeds plus coding memos stay per chat. The browser is per project as well: each project keeps its own pages, active tab and profile switch, so two chats in different folders cannot close or hijack each other's pages |
 | Same project | **Allowed** — multiple chats may code the same folder at once. Use disjoint files; `run_coding_workers` file locks apply **within one batch only**, not across chats. The agent gets a context hint when a peer is busy on the same path |
 | Switching | Leave a busy chat; sidebar shows busy/unread. When a **background** run finishes, the session can show a DONE-style affordance until you open it |
 | Draft → save | An unsaved draft run can rekey to a real session id mid-turn when the chat is first saved |
 | Stop | Stop only cancels the **active** chat’s agent. Other chats keep running |
 
-**How to try it:** start a long Agent turn in chat A → New chat (or open B) → send in B → both run; open A/B from the sidebar freely.
+**How to try it:** start a long Agent turn in chat A (bound to folder X) → New chat (or open B) → bind its own folder Y → send in B → both run in parallel; open A/B from the sidebar freely.
 
 Related: clipboard image paste, type-while-busy + steer mid-turn (see [CHANGELOG](../CHANGELOG.md) Unreleased), sticky unsaved drafts when auto-save is off.
 

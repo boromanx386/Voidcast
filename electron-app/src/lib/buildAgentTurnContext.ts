@@ -93,6 +93,8 @@ export type BuildAgentTurnContextParams = {
   buildFromPlan?: boolean
   /** Non-blocking multi-chat same-project warning (from sessionAgentStore). */
   codingConcurrencyAdvisory?: string
+  /** Coding root of the chat that owns this turn ('' = General). Frozen at send time. */
+  codingProjectPath?: string
 }
 
 export type BuildAgentTurnContextResult = {
@@ -133,6 +135,7 @@ export async function buildAgentTurnContext(
     planHandoffContext = '',
     buildFromPlan = false,
     codingConcurrencyAdvisory = '',
+    codingProjectPath: codingProjectPathInput = '',
   } = params
 
   const toolImageCatalog = await buildToolImageCatalog(activeHistory, queued)
@@ -151,11 +154,8 @@ export async function buildAgentTurnContext(
   const attachedFileHint = buildQueuedFilePathHint(queuedFiles)
 
   const runtimeTimeHint = buildRuntimeTimeHint()
-  const codingProjectPath = (
-    settings.coding.projectPath ||
-    settings.codingProjectPath ||
-    ''
-  ).trim()
+  // Explicit turn value, not a settings read: the chat that owns this run owns the root.
+  const codingProjectPath = codingProjectPathInput.trim()
   const agentMode = normalizeAgentChatMode(settings.agentMode)
   const planMode = agentMode === 'plan'
   const askMode = agentMode === 'ask'

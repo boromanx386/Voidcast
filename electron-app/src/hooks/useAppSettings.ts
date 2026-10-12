@@ -1,14 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
-
-function stringArraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
-  const aa = a ?? []
-  const bb = b ?? []
-  if (aa.length !== bb.length) return false
-  for (let i = 0; i < aa.length; i++) {
-    if (aa[i] !== bb[i]) return false
-  }
-  return true
-}
+import { mergeExternalSettings } from '@/lib/externalSettingsSync'
 import {
   clearCloudSecretsFromServer,
   pushCloudSecretsToServer,
@@ -26,29 +17,19 @@ export function useAppSettings() {
   /** PDF folder on the PC running the tools server (from desktop push; used on LAN web). */
   const [hostPdfOutputDir, setHostPdfOutputDir] = useState('')
   const effectivePdfOutputDir = resolvePdfOutputDir(settings.pdfOutputDir, hostPdfOutputDir)
-  const [appVersion, setAppVersion] = useState('2.10.0')
+  const [appVersion, setAppVersion] = useState('2.11.0')
 
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
 
-  // Keep UI state in sync when settings are changed outside React state (for example via agent tool).
+  // Keep UI state in sync when settings are changed outside React state (for example via
+  // agent tool). Only the externally-owned keys are adopted — replacing the whole object
+  // would drag the coding folder of another chat back in.
   useEffect(() => {
     const interval = window.setInterval(() => {
       const stored = loadSettings()
-      setSettings((prev) => {
-        const changed =
-          prev.llmSystemPrompt !== stored.llmSystemPrompt ||
-          prev.llmNumCtx !== stored.llmNumCtx ||
-          prev.llmTemperature !== stored.llmTemperature ||
-          prev.uiTheme !== stored.uiTheme ||
-          prev.runwareWidth !== stored.runwareWidth ||
-          prev.runwareHeight !== stored.runwareHeight ||
-          prev.runwareImageModel !== stored.runwareImageModel ||
-          prev.runwareEditModel !== stored.runwareEditModel ||
-          !stringArraysEqual(prev.pinnedModels, stored.pinnedModels)
-        return changed ? stored : prev
-      })
+      setSettings((prev) => mergeExternalSettings(prev, stored))
     }, 1000)
     return () => {
       window.clearInterval(interval)

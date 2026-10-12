@@ -35,6 +35,8 @@ export type BrowserPage = {
   view: WebContentsView
   cdp: CdpSession
   createdAt: number
+  /** Bucket this page belongs to — `bucketKey(projectPath)`. */
+  key: string
 }
 
 /** An HTTP auth request Chromium is holding open until the user answers it. */
@@ -43,6 +45,8 @@ type PendingAuth = {
   /** webContents id of the page that asked — lets us drop it when the page dies. */
   wcId: number
   pageId: string
+  /** Chromium partition that asked: a remembered sign-in must land in its own store file. */
+  partition: string
   /** scheme://host:port (+ proxy marker) — the key remembered credentials are stored under. */
   key: string
   host: string
@@ -81,23 +85,57 @@ const PROFILE_CHANGED_MESSAGE =
 
 let ownerWindow: BrowserWindow | null = null
 let pages: BrowserPage[] = []
-let activeId: string | null = null
 let pageSeq = 1
-let creating: Promise<BrowserPage> | null = null
-/**
- * Bumped whenever the partition changes (profile switch or shutdown). A page still being
- * created for the previous partition re-checks its epoch after every await, so a slow load
- * can never register the old project's session into the new profile.
- */
-let profileEpoch = 0
-let partitionKey = ''
 /**
  * Browser profile selection from settings: '' means one profile per coding project,
  * 'shared' means one profile for the whole app, anything else is a named profile.
  */
 let profileSetting = ''
-/** The coding project the browser is scoped to. Downloads land inside it, never in OS Downloads. */
-let projectPathSetting = ''
+
+/**
+ * Per-project browser state.
+ *
+ * The browser used to keep one active page, one partition and one remembered project for the
+ * whole app: opening a page in project B closed project A's pages and stole the active page
+ * from whatever the panel was showing. Everything project-scoped lives here now, and every
+ * locked entry point points `currentKey` at the caller's bucket.
+ */
+type BrowserBucket = {
+  /** Active page of this bucket — what its agent tools and its panel view act on. */
+  activeId: string | null
+  /** Partition the bucket's pages live in — a view cannot be re-partitioned in place. */
+  partition: string
+  /** Coding project the bucket is scoped to; downloads and shots land inside it. */
+  projectPath: string
+  /**
+   * Bumped when this bucket's partition changes (profile switch or shutdown). A page still
+   * being created for the previous partition re-checks its epoch after every await, so a slow
+   * load can never register the old project's session into the new profile.
+   */
+  epoch: number
+  /** Page creation in flight for this bucket. */
+  creating: Promise<BrowserPage> | null
+}
+
+const buckets = new Map<string, BrowserBucket>()
+/** Bucket of the operation currently inside `withBrowserLock` — the lock is the mutex. */
+let currentKey = ''
+/** Bucket the WEB panel is showing: the only one that paints, and status' default. */
+let panelKey = ''
+
+/** Stable bucket id for a coding project path ('' = no project, the app-wide browser). */
+function bucketKey(projectPath?: string): string {
+  return sanitizePartitionKey(projectPath)
+}
+
+function bucket(key: string = currentKey): BrowserBucket {
+  let found = buckets.get(key)
+  if (!found) {
+    found = { activeId: null, partition: '', projectPath: '', epoch: 0, creating: null }
+    buckets.set(key, found)
+  }
+  return found
+}
 /** True while the WEB panel is mounted and wants the current page painted. */
 let visibleFlag = false
 /** True once the renderer has pushed a usable panel rect at least once. */
@@ -120,6 +158,8 @@ let authStorePath = ''
 let lastPermission: string | null = null
 /** Last download routed into the project folder. */
 let lastDownload: DownloadNotice | null = null
+/** Bumped every time a download starts, so a click can tell a new one from a stale notice. */
+let downloadSeq = 0
 
 export async function withBrowserLock<T>(fn: () => Promise<T>): Promise<T> {
   const previous = browserOperationTail
@@ -195,9 +235,10 @@ function normalizeProfileSetting(profile: string | undefined): string {
   return typeof profile === 'string' ? profile.trim().slice(0, 60) : ''
 }
 
-/** Close every page — used when the profile changes, since pages cannot be re-partitioned. */
-function closeAllPages(): void {
+/** Close one bucket's pages — used when its profile changes, since pages cannot be re-partitioned. */
+function closePagesIn(key: string): void {
   for (const page of [...pages]) {
+    if (page.key !== key) continue
     try {
       closeBrowserPageUnsafe(page.id)
     } catch {
@@ -207,28 +248,33 @@ function closeAllPages(): void {
 }
 
 /**
- * Switch to the profile the panel asked for. Pages live inside their partition, so a
- * profile change closes them instead of silently carrying the wrong cookies.
+ * Switch the calling bucket to the profile it asked for. Pages live inside their partition,
+ * so a profile change closes that bucket's pages instead of silently carrying the wrong
+ * cookies — and closes nobody else's: a chat in another project keeps its tabs.
  */
 function applyProfile(projectPath?: string): { profile: string; changed: boolean } {
+  const st = bucket()
   const next = desiredProfileKey(projectPath)
-  if (next === partitionKey) return { profile: partitionKey, changed: false }
-  const previous = partitionKey
-  closeAllPages()
-  partitionKey = next
+  if (next === st.partition) return { profile: st.partition, changed: false }
+  const previous = st.partition
+  closePagesIn(currentKey)
+  st.partition = next
   // A page creation still in flight was started against the previous partition: orphan it
   // (its epoch no longer matches) so its late completion cannot add an old-profile page to
   // the new profile, and so the next call starts a fresh page in the right partition.
-  profileEpoch += 1
-  creating = null
+  st.epoch += 1
+  st.creating = null
   lastError = null
   // Held sign-in requests and permission notes belong to the partition we just left.
   pendingAuth.clear()
   lastPermission = null
   // We just left that profile: drop its re-downloadable caches. Cookies, local storage and
   // every remembered sign-in survive — hundreds of MB of HTTP/code/service-worker cache do not.
-  if (previous) void trimProfileCaches(previous)
-  return { profile: partitionKey, changed: true }
+  // Skipped while another project is still working in the same partition.
+  if (previous && ![...buckets.values()].some((b) => b.partition === previous)) {
+    void trimProfileCaches(previous)
+  }
+  return { profile: st.partition, changed: true }
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -267,14 +313,13 @@ function normalizeUrl(raw: string): string {
  */
 function applyVisibility(): void {
   for (const page of pages) {
-    const active = !shuttingDown && page.id === activeId
-    const paint = active && visibleFlag && panelSizeKnown()
+    const active = !shuttingDown && page.id === bucket(page.key).activeId
+    // Only the panel's project paints. Every active page — in any project — stays VISIBLE
+    // while parked: a hidden renderer stops requestAnimationFrame outright, so a canvas game
+    // in a background chat would freeze the moment the agent keeps driving it.
+    const paint = active && page.key === panelKey && visibleFlag && panelSizeKnown()
     try {
       page.view.setBounds(paint ? panelRect : parkedRect())
-      // The ACTIVE page stays VISIBLE even while it is parked off-screen: a hidden renderer
-      // stops requestAnimationFrame outright, so a canvas game (or any rAF-driven app)
-      // freezes the moment the panel is not painting it — while the agent keeps driving it.
-      // Only background pages are hidden for real, exactly like a background tab.
       if (typeof page.view.setVisible === 'function') page.view.setVisible(active)
     } catch {
       /* view may already be destroyed during teardown */
@@ -300,8 +345,8 @@ function hostOf(url: string): string {
   }
 }
 
-function partitionName(): string {
-  return `persist:voidcast-browser-${partitionKey || 'default'}`
+function partitionName(key: string = currentKey): string {
+  return `persist:voidcast-browser-${bucket(key).partition || 'default'}`
 }
 
 /**
@@ -309,16 +354,21 @@ function partitionName(): string {
  * deny-by-default permission handler and the download router. Session listeners
  * accumulate, so each partition is hardened exactly once.
  */
-function hardenSession(): Electron.Session {
-  const name = partitionName()
+/** Partition -> coding project, so a download lands in the project that started it. */
+const partitionProjects = new Map<string, string>()
+
+function hardenSession(bucketId: string = currentKey): Electron.Session {
+  const name = partitionName(bucketId)
   const ses = session.fromPartition(name)
   if (hardenedPartitions.has(name)) return ses
   hardenedPartitions.add(name)
   // This partition belongs to the app and to a project: record it so housekeeping never treats
   // it as an orphan, and let the once-per-run maintenance go now that we are actually here.
-  const key = partitionKey || 'default'
-  recordProfileKey(key)
-  runBrowserMaintenance(key, hardenedPartitions)
+  const profile = bucket(bucketId).partition || 'default'
+  const projectPath = bucket(bucketId).projectPath
+  if (projectPath) partitionProjects.set(profile, projectPath)
+  recordProfileKey(profile)
+  runBrowserMaintenance(profile, hardenedPartitions)
 
   ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
     if (ALLOWED_PERMISSIONS.has(permission)) {
@@ -331,7 +381,7 @@ function hardenSession(): Electron.Session {
   // Keeps navigator.permissions.query() honest about the denials above.
   ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission))
 
-  ses.on('will-download', (_event, item) => attachDownload(item))
+  ses.on('will-download', (_event, item) => attachDownload(item, profile))
   return ses
 }
 
@@ -340,9 +390,10 @@ function hardenSession(): Electron.Session {
  * fetching must not be able to overwrite something the user cares about, and the agent
  * needs to know where the file went. Project scope → the project, otherwise userData.
  */
-function downloadsDir(): string {
-  if (projectPathSetting) return path.join(projectPathSetting, '.voidcast', 'browser', 'downloads')
-  return path.join(app.getPath('userData'), 'browser-downloads', partitionKey || 'default')
+function downloadsDir(profile: string = bucket().partition || 'default'): string {
+  const projectPath = partitionProjects.get(profile) ?? ''
+  if (projectPath) return path.join(projectPath, '.voidcast', 'browser', 'downloads')
+  return path.join(app.getPath('userData'), 'browser-downloads', profile || 'default')
 }
 
 /** Strip anything that could escape the download folder or confuse Windows. */
@@ -364,8 +415,8 @@ function uniqueDownloadPath(dir: string, name: string): string {
   return candidate
 }
 
-function attachDownload(item: Electron.DownloadItem): void {
-  const dir = downloadsDir()
+function attachDownload(item: Electron.DownloadItem, profile: string): void {
+  const dir = downloadsDir(profile)
   try {
     mkdirSync(dir, { recursive: true })
   } catch {
@@ -378,6 +429,18 @@ function attachDownload(item: Electron.DownloadItem): void {
   } catch {
     /* let Chromium pick if the path is rejected */
   }
+  // Announce the download before it finishes: a click that starts one must be able to name
+  // the file in its own result instead of leaving the agent to hunt for it later (or look
+  // in the OS Downloads folder). downloadSeq lets a click tell a download that began while
+  // it was running apart from an earlier, stale notice.
+  lastDownload = {
+    name: path.basename(target),
+    path: target,
+    state: 'started',
+    bytes: 0,
+    at: Date.now(),
+  }
+  downloadSeq += 1
   item.once('done', (_event, state) => {
     lastDownload = {
       name: path.basename(target),
@@ -389,20 +452,32 @@ function attachDownload(item: Electron.DownloadItem): void {
   })
 }
 
+/** Monotonic count of downloads routed through this profile; a click diffs it. */
+export function downloadMark(): number {
+  return downloadSeq
+}
+
+/** The most recent download notice if a download began after `mark`, else null. */
+export function downloadNoticeSince(mark: number): DownloadNotice | null {
+  return downloadSeq > mark ? lastDownload : null
+}
+
 function authKey(authInfo: Electron.AuthInfo): string {
   return `${authInfo.isProxy ? 'proxy' : 'site'}:${authInfo.scheme || 'basic'}://${authInfo.host}:${authInfo.port}`
 }
 
-function authFilePath(): string {
+function authFilePath(partition: string = bucket().partition): string {
   return path.join(
     app.getPath('userData'),
     'browser-auth',
-    `${sanitizePartitionKey(partitionKey)}.json`,
+    `${sanitizePartitionKey(partition)}.json`,
   )
 }
 
-async function loadAuthStore(): Promise<Record<string, StoredCredential>> {
-  const file = authFilePath()
+async function loadAuthStore(
+  partition: string = bucket().partition,
+): Promise<Record<string, StoredCredential>> {
+  const file = authFilePath(partition)
   if (authStore && authStorePath === file) return authStore
   authStorePath = file
   authStore = {}
@@ -417,8 +492,11 @@ async function loadAuthStore(): Promise<Record<string, StoredCredential>> {
   return authStore
 }
 
-async function saveAuthStore(store: Record<string, StoredCredential>): Promise<void> {
-  const file = authFilePath()
+async function saveAuthStore(
+  store: Record<string, StoredCredential>,
+  partition: string = bucket().partition,
+): Promise<void> {
+  const file = authFilePath(partition)
   await mkdir(path.dirname(file), { recursive: true })
   await writeFile(file, JSON.stringify({ version: 1, entries: store }), 'utf8')
   authStore = store
@@ -426,12 +504,17 @@ async function saveAuthStore(store: Record<string, StoredCredential>): Promise<v
 }
 
 /** Encrypt through the OS keychain (DPAPI on Windows) — a password is never written in clear. */
-async function saveCredential(key: string, username: string, password: string): Promise<boolean> {
+async function saveCredential(
+  key: string,
+  username: string,
+  password: string,
+  partition: string,
+): Promise<boolean> {
   try {
     if (!safeStorage.isEncryptionAvailable()) return false
-    const store = await loadAuthStore()
+    const store = await loadAuthStore(partition)
     store[key] = { username, secret: safeStorage.encryptString(password).toString('base64') }
-    await saveAuthStore({ ...store })
+    await saveAuthStore({ ...store }, partition)
     return true
   } catch {
     return false
@@ -503,7 +586,11 @@ async function handleLogin(
   callback: (username?: string, password?: string) => void,
 ): Promise<void> {
   const key = authKey(authInfo)
-  const saved = (await loadAuthStore())[key]
+  // Resolve the asking page's own partition: this event can fire long after the call that
+  // opened the page, so `currentKey` may already point at another project.
+  const asking = pages.find((p) => p.view.webContents.id === wcId)
+  const partition = asking ? bucket(asking.key).partition : bucket().partition
+  const saved = (await loadAuthStore(partition))[key]
   const password = saved ? decryptSecret(saved.secret) : null
   if (saved && password !== null) {
     try {
@@ -520,7 +607,8 @@ async function handleLogin(
   pendingAuth.set(id, {
     id,
     wcId,
-    pageId: pages.find((p) => p.view.webContents.id === wcId)?.id ?? '',
+    pageId: asking?.id ?? '',
+    partition,
     key,
     host: authInfo.host,
     realm: authInfo.realm ?? '',
@@ -617,15 +705,14 @@ function removeDeadPage(id: string, reason: string): void {
   } catch {
     /* best effort */
   }
-  if (activeId === id) {
-    const neighbor = pages[Math.min(index, pages.length - 1)] ?? null
-    activeId = neighbor ? neighbor.id : null
-  }
+  const dead = bucket(page.key)
+  if (dead.activeId === id) dead.activeId = pages.find((p) => p.key === page.key)?.id ?? null
   lastError = `Browser page ${id} was removed because its renderer exited (${reason}).`
   applyVisibility()
 }
 
-export function activeBrowserPage(): BrowserPage | null {
+export function activeBrowserPage(key: string = currentKey): BrowserPage | null {
+  const activeId = bucket(key).activeId
   if (!activeId) return null
   return pages.find((p) => p.id === activeId) ?? null
 }
@@ -636,16 +723,16 @@ function pageSummary(page: BrowserPage): BrowserPageInfo {
     id: page.id,
     url: destroyed ? '' : page.view.webContents.getURL(),
     title: destroyed ? '' : page.view.webContents.getTitle(),
-    active: page.id === activeId,
+    active: page.id === bucket(page.key).activeId,
   }
 }
 
-export function listBrowserPages(): {
+export function listBrowserPages(key: string = currentKey): {
   pages: BrowserPageInfo[]
   activeId: string | null
   text: string
 } {
-  const info = pages.map(pageSummary)
+  const info = pages.filter((p) => p.key === key).map(pageSummary)
   const text = info.length
     ? info
         .map(
@@ -656,7 +743,7 @@ export function listBrowserPages(): {
         )
         .join('\n')
     : '(no pages open)'
-  return { pages: info, activeId, text }
+  return { pages: info, activeId: bucket(key).activeId, text }
 }
 
 /** Re-select the caller's profile without creating a page, then run a read-only query. */
@@ -712,6 +799,11 @@ async function ensureBrowser(
     windowHooked = true
     target.once('closed', () => disposeBrowserView())
   }
+  // Every entry point states the project it is calling for: that is this call's bucket, and
+  // nothing below can reach into another project's pages.
+  currentKey = bucketKey(projectPath)
+  const st = bucket()
+  if (authoritative) panelKey = currentKey
   // A Chromium partition cannot be swapped on a live page, so the key is fixed once a page
   // exists. The WEB panel re-configures it when the project or the profile setting changes —
   // but the panel only exists while WEB mode is open, and the agent drives the same browser
@@ -720,12 +812,12 @@ async function ensureBrowser(
   if (profile !== undefined) profileSetting = normalizeProfileSetting(profile)
   // Remember the project so downloads land inside it. Only the panel may clear it — an
   // agent call without a project path must not forget where we are.
-  if (projectPath) projectPathSetting = projectPath
-  else if (authoritative) projectPathSetting = ''
+  if (projectPath) st.projectPath = projectPath
+  else if (authoritative) st.projectPath = ''
   const desired = desiredProfileKey(projectPath)
-  if (!partitionKey) {
-    partitionKey = desired
-  } else if (desired !== partitionKey && (authoritative || projectPath || profileSetting)) {
+  if (!st.partition) {
+    st.partition = desired
+  } else if (desired !== st.partition && (authoritative || projectPath || profileSetting)) {
     // A named/shared profile resolves without the path, and the panel may always state the
     // context explicitly. The agent path needs a real identity before it resets anything.
     applyProfile(projectPath)
@@ -743,13 +835,13 @@ export async function configureBrowser(
   profile: string | undefined,
 ): Promise<{ profile: string; changed: boolean }> {
   return withBrowserLock(async () => {
-    const previous = partitionKey
+    const previous = bucket(bucketKey(projectPath)).partition
     // The panel owns the context: it may state "no project", which resets to the default profile.
     await ensureBrowser(win, projectPath, profile, true)
     // Opening the panel (or switching project/profile) is a "the browser is in use" signal.
     // It is also the only trigger that fires when the agent never opens a page of its own.
-    runBrowserMaintenance(partitionKey || 'default', hardenedPartitions)
-    return { profile: partitionKey, changed: previous !== partitionKey }
+    runBrowserMaintenance(bucket().partition || 'default', hardenedPartitions)
+    return { profile: bucket().partition, changed: previous !== bucket().partition }
   })
 }
 
@@ -769,7 +861,7 @@ export async function clearBrowserData(
     await target.clearAuthCache().catch(() => undefined)
     // Remembered HTTP credentials belong to the profile too — this is the only way to
     // remove them from the encrypted store.
-    const file = authFilePath()
+    const file = authFilePath(bucket().partition)
     await rm(file, { force: true }).catch(() => undefined)
     authStore = {}
     authStorePath = ''
@@ -778,8 +870,8 @@ export async function clearBrowserData(
     lastDownload = null
     // Clearing is an explicit "sort my browser data out" action: housekeeping for the other
     // profiles runs here too, instead of only wiping the one on screen.
-    runBrowserMaintenance(partitionKey || 'default', hardenedPartitions)
-    return `Cleared cookies, storage, cache and remembered sign-ins for profile "${partitionKey}". Already-open pages keep their in-memory state until they are reloaded.`
+    runBrowserMaintenance(bucket().partition || 'default', hardenedPartitions)
+    return `Cleared cookies, storage, cache and remembered sign-ins for profile "${bucket().partition}". Already-open pages keep their in-memory state until they are reloaded.`
   })
 }
 
@@ -815,7 +907,7 @@ export async function answerBrowserAuth(input: {
       throw new Error('The page went away before the sign-in could be applied.')
     }
     const saved = input.remember
-      ? await saveCredential(entry.key, username, input.password ?? '')
+      ? await saveCredential(entry.key, username, input.password ?? '', entry.partition)
       : false
     const note = input.remember
       ? saved
@@ -829,14 +921,16 @@ export async function answerBrowserAuth(input: {
 async function newPageInWindow(
   win: BrowserWindow,
   url?: string,
-  epoch = profileEpoch,
+  key: string = currentKey,
+  epoch = bucket(key).epoch,
 ): Promise<BrowserPage> {
+  const st = bucket(key)
   // Hardening must be in place before the first page in this partition loads.
-  hardenSession()
+  hardenSession(key)
   const id = `p${pageSeq++}`
   const view = new WebContentsView({
     webPreferences: {
-      partition: partitionName(),
+      partition: partitionName(key),
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,
@@ -850,7 +944,7 @@ async function newPageInWindow(
   view.webContents.setWindowOpenHandler(({ url: target }) => {
     // target=_blank / window.open stay inside the Voidcast browser (never the system
     // browser), so the flow keeps running in the panel and the agent can drive it.
-    if (/^https?:/i.test(target)) void openPopup(target).catch(() => undefined)
+    if (/^https?:/i.test(target)) void openPopup(target, key).catch(() => undefined)
     return { action: 'deny' }
   })
   // HTTP Basic/Digest: answered silently from the encrypted store, or held for the user.
@@ -885,7 +979,7 @@ async function newPageInWindow(
     // The partition cannot be re-assigned, so a view booted for a partition that is no
     // longer current must never enter `pages` — that is how an old profile's session used
     // to leak into a newly selected project.
-    if (shuttingDown || epoch !== profileEpoch) throw new Error(PROFILE_CHANGED_MESSAGE)
+    if (shuttingDown || epoch !== st.epoch) throw new Error(PROFILE_CHANGED_MESSAGE)
   } catch (e) {
     try {
       cdp?.detach()
@@ -902,9 +996,9 @@ async function newPageInWindow(
     throw new Error('Could not create the Voidcast browser page.')
   }
 
-  const page: BrowserPage = { id, view, cdp, createdAt: Date.now() }
+  const page: BrowserPage = { id, view, cdp, createdAt: Date.now(), key }
   pages.push(page)
-  activeId = id
+  st.activeId = id
   applyVisibility()
 
   const onRendererGone = (details?: { reason?: string }) => {
@@ -920,35 +1014,39 @@ async function newPageInWindow(
 }
 
 /** A page requested by the page itself (popup) — evicts the oldest background page at the cap. */
-async function openPopup(url: string): Promise<void> {
+async function openPopup(url: string, key: string): Promise<void> {
   await withBrowserLock(async () => {
     const win = ownerWindow
     if (!win || win.isDestroyed() || shuttingDown) return
-    if (pages.length >= MAX_PAGES) {
-      const oldest = [...pages]
+    const st = bucket(key)
+    const mine = (): BrowserPage[] => pages.filter((p) => p.key === key)
+    // The cap is per project: a tab storm in one chat must not evict another project's pages.
+    if (mine().length >= MAX_PAGES) {
+      const oldest = [...mine()]
         .sort((a, b) => a.createdAt - b.createdAt)
-        .find((p) => p.id !== activeId)
+        .find((p) => p.id !== st.activeId)
       if (oldest) closeBrowserPageUnsafe(oldest.id)
     }
-    if (pages.length >= MAX_PAGES) return
-    await newPageInWindow(win, url)
+    if (mine().length >= MAX_PAGES) return
+    await newPageInWindow(win, url, key)
   })
 }
 
-async function ensureActivePage(): Promise<BrowserPage> {
-  const existing = activeBrowserPage()
+async function ensureActivePage(key: string = currentKey): Promise<BrowserPage> {
+  const st = bucket(key)
+  const existing = activeBrowserPage(key)
   if (existing && !existing.view.webContents.isDestroyed()) return existing
-  const alive = pages.find((p) => !p.view.webContents.isDestroyed())
+  const alive = pages.find((p) => p.key === key && !p.view.webContents.isDestroyed())
   if (alive) {
-    activeId = alive.id
+    st.activeId = alive.id
     applyVisibility()
     return alive
   }
-  if (!creating) {
+  if (!st.creating) {
     // Capture the epoch up front: if the profile switches while this page boots, the
     // creation is discarded by newPageInWindow instead of joining the new profile.
-    const epoch = profileEpoch
-    const pending = newPageInWindow(ownerWindow as BrowserWindow, undefined, epoch)
+    const epoch = st.epoch
+    const pending = newPageInWindow(ownerWindow as BrowserWindow, undefined, key, epoch)
       .then((page) => {
         lastError = null
         return page
@@ -959,11 +1057,11 @@ async function ensureActivePage(): Promise<BrowserPage> {
       })
       .finally(() => {
         // Release only the slot we own — a profile switch may already have replaced it.
-        if (creating === pending) creating = null
+        if (st.creating === pending) st.creating = null
       })
-    creating = pending
+    st.creating = pending
   }
-  return creating
+  return st.creating
 }
 
 /** Run `fn` against the current page, creating a blank one if nothing is open yet. */
@@ -990,15 +1088,16 @@ export async function openBrowserPage(
   return withBrowserLock(async () => {
     // Panel-driven (GO / URL bar): the path and profile come from the panel's own context.
     const target = await ensureBrowser(win, projectPath, profile, true)
-    if (pages.length >= MAX_PAGES) {
+    const st = bucket()
+    if (pages.filter((p) => p.key === currentKey).length >= MAX_PAGES) {
       throw new Error(
         `Too many pages open (max ${MAX_PAGES}) — close one with browser_close_page first.`,
       )
     }
-    const previousId = activeId
+    const previousId = st.activeId
     const page = await newPageInWindow(target, url)
     if (background && previousId) {
-      activeId = previousId
+      st.activeId = previousId
       applyVisibility()
     }
     const finalUrl = page.view.webContents.getURL() || url
@@ -1015,8 +1114,13 @@ export async function openBrowserPage(
 }
 
 function selectBrowserPageUnsafe(id: string): { url: string; text: string } {
+  const st = bucket()
+  // Scoped to the calling project: one chat cannot re-point the panel at another one's tab.
   const page = findPage(id)
-  activeId = page.id
+  if (page.key !== currentKey) {
+    throw new Error(`Unknown page "${id}" — call browser_list_pages to see the open pages.`)
+  }
+  st.activeId = page.id
   applyVisibility()
   const url = page.view.webContents.getURL()
   return {
@@ -1056,16 +1160,16 @@ function closeBrowserPageUnsafe(id: string): { text: string; activeId: string | 
   } catch {
     /* best effort */
   }
-  if (activeId === id) {
-    const neighbor = pages[Math.min(index, pages.length - 1)] ?? null
-    activeId = neighbor ? neighbor.id : null
+  const st = bucket(page.key)
+  if (st.activeId === id) {
+    st.activeId = pages.find((p) => p.key === page.key)?.id ?? null
   }
   applyVisibility()
   return {
     text: `Closed ${id}.${
-      activeId ? ` Current page is ${activeId}.` : ' No pages are open any more.'
+      st.activeId ? ` Current page is ${st.activeId}.` : ' No pages are open any more.'
     }`,
-    activeId,
+    activeId: st.activeId,
   }
 }
 
@@ -1215,7 +1319,7 @@ export async function emulateBrowser(opts: {
   return page.cdp.emulate(opts)
 }
 
-export function browserStatus(): {
+export function browserStatus(projectPath?: string): {
   state: 'idle' | 'ready' | 'error'
   url: string
   title: string
@@ -1238,9 +1342,14 @@ export function browserStatus(): {
   download: DownloadNotice | null
   error: string | null
 } {
-  const info = pages.map(pageSummary)
-  const page = activeBrowserPage()
-  const painting = Boolean(page && !shuttingDown && visibleFlag && panelSizeKnown())
+  // The panel asks for its own bucket; the agent passes its project path so a background
+  // run reports its own tabs instead of whatever the panel happens to be showing.
+  const key = projectPath === undefined ? panelKey || currentKey : bucketKey(projectPath)
+  const info = pages.filter((p) => p.key === key).map(pageSummary)
+  const page = activeBrowserPage(key)
+  const painting = Boolean(
+    page && !shuttingDown && page.key === panelKey && visibleFlag && panelSizeKnown(),
+  )
   const bounds: BrowserRect = page
     ? painting
       ? panelRect
@@ -1259,11 +1368,11 @@ export function browserStatus(): {
       panelRect: hasPanelRect,
       forcedFrames: 0,
       pages: info,
-      activeId,
-      profile: partitionKey,
+      activeId: bucket(key).activeId,
+      profile: bucket(key).partition,
       auth: authPrompt(),
       notice,
-      downloadsDir: downloadsDir(),
+      downloadsDir: downloadsDir(bucket(key).partition || 'default'),
       download: lastDownload,
       error: lastError,
     }
@@ -1278,11 +1387,11 @@ export function browserStatus(): {
     panelRect: hasPanelRect,
     forcedFrames: page.cdp.screencastFrameCount,
     pages: info,
-    activeId,
-    profile: partitionKey,
+    activeId: bucket(key).activeId,
+    profile: bucket(key).partition,
     auth: authPrompt(),
     notice,
-    downloadsDir: downloadsDir(),
+    downloadsDir: downloadsDir(bucket(key).partition || 'default'),
     download: lastDownload,
     error: lastError,
   }
@@ -1312,10 +1421,14 @@ export function disposeBrowserView(): void {
     }
   }
   pages = []
-  activeId = null
-  creating = null
-  // Orphan any page creation still in flight so it cannot join `pages` after shutdown.
-  profileEpoch += 1
+  for (const st of buckets.values()) {
+    st.activeId = null
+    st.creating = null
+    // Orphan any page creation still in flight so it cannot join `pages` after shutdown.
+    st.epoch += 1
+  }
+  currentKey = ''
+  panelKey = ''
   // Held sign-ins have no page to return to; the callbacks die with the process anyway.
   pendingAuth.clear()
   visibleFlag = false

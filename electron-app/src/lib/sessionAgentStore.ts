@@ -485,30 +485,6 @@ class SessionAgentStore {
   }
 
   /**
-   * If another busy run is coding against a different project, return an error message.
-   * Same path is allowed (multi-chat on one repo); use codingSameProjectBusyAdvisory
-   * for a non-blocking warning. `forKey` is excluded (restarting same chat).
-   */
-  codingProjectConflict(forKey: string, nextPath: string): string | null {
-    const mine = this.canonicalKey(forKey)
-    const next = normalizeCodingPathKey(nextPath)
-    if (!next) return null
-    for (const [key, slot] of this.slots) {
-      if (!slot.busy) continue
-      if (this.canonicalKey(key) === mine) continue
-      const other = normalizeCodingPathKey(slot.codingProjectPath || '')
-      if (!other) continue
-      if (other !== next) {
-        return (
-          `Another chat is already coding in a different project (${slot.codingProjectPath}). ` +
-          `Stop that agent first, or run both against the same folder.`
-        )
-      }
-    }
-    return null
-  }
-
-  /**
    * Non-blocking hint when another chat is (or very recently was) coding the same
    * project folder. Injected into the agent context — does not prevent the run.
    */

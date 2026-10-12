@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   emptyCodingContextMemo,
   emptyCodingFileCache,
-  getCodingProjectPath,
-  mergeCodingProjectPathIntoSettings,
   patchSessionCodingState,
   resolveMemoForSession,
   saveProjectCodingMemo,
@@ -38,7 +36,7 @@ import {
 } from '@/lib/imageVisionCache'
 import { isElectron } from '@/lib/platform'
 import { DRAFT_RUNTIME_KEY } from '@/lib/sessionAgentStore'
-import { loadSettings, type AppSettings } from '@/lib/settings'
+import type { AppSettings } from '@/lib/settings'
 import type { ChatSession } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
 
@@ -49,10 +47,11 @@ type OwnerFeed = {
 
 export type UseCodingSessionParams = {
   settings: AppSettings
-  setSettings: React.Dispatch<React.SetStateAction<AppSettings>>
   imageVisionCache: ImageVisionCache
   setImageVisionCache: React.Dispatch<React.SetStateAction<ImageVisionCache>>
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>
+  /** Bind a folder to the chat on screen; the sessions hook owns it per chat. */
+  onCodingPathChanged: (path: string) => void
   /** Current chat runtime key — scopes terminal display to this owner. */
   viewRuntimeKey?: string
 }
@@ -90,7 +89,6 @@ export type UseCodingSessionResult = {
   setCodingFileCache: React.Dispatch<React.SetStateAction<CodingFileCache>>
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
   codingPanelAvailable: boolean
-  syncCodingProjectPathToSettings: (path: string) => void
   applyCodingProjectPath: (path: string) => void
   restoreCodingContextForSession: (
     session: ChatSession,
@@ -109,10 +107,10 @@ function resolveActionLines(
 
 export function useCodingSession({
   settings,
-  setSettings,
   imageVisionCache,
   setImageVisionCache,
   setSessions,
+  onCodingPathChanged,
   viewRuntimeKey = DRAFT_RUNTIME_KEY,
 }: UseCodingSessionParams): UseCodingSessionResult {
   const [showCodingPanel, setShowCodingPanel] = useState(false)
@@ -124,7 +122,7 @@ export function useCodingSession({
   const [codingGitNonce, setCodingGitNonce] = useState(0)
   const [codingRevealRequest, setCodingRevealRequest] = useState<CodingRevealRequest | null>(null)
   const [codingContextMemo, setCodingContextMemoState] = useState<CodingContextMemo>(() =>
-    emptyCodingContextMemo(getCodingProjectPath(loadSettings())),
+    emptyCodingContextMemo(''),
   )
   const codingContextMemoRef = useRef(codingContextMemo)
   codingContextMemoRef.current = codingContextMemo
@@ -141,7 +139,8 @@ export function useCodingSession({
   )
   const codingFileCacheRef = useRef(codingFileCache)
   codingFileCacheRef.current = codingFileCache
-  const codingProjectPathForMemoRef = useRef(getCodingProjectPath(loadSettings()))
+  /** Boot seed only (the app default) — every chat switch overwrites it from the session. */
+  const codingProjectPathForMemoRef = useRef('')
 
   const feedsByOwnerRef = useRef(new Map<string, OwnerFeed>())
   /** draft → session after rekey so in-flight shell IPC still lands on the live feed. */
@@ -336,29 +335,32 @@ export function useCodingSession({
     }
   }, [resolveOwnerKey])
 
+  // Persist under the memo's own folder — never the app default, which another chat may
+  // own while this one keeps running in the background.
   useEffect(() => {
-    const projectPath = getCodingProjectPath(settings)
+    const projectPath = codingContextMemo.projectPath.trim()
     if (!projectPath) return
     const t = window.setTimeout(() => {
       saveProjectCodingMemo(projectPath, codingContextMemo)
     }, 400)
     return () => window.clearTimeout(t)
-  }, [codingContextMemo, settings.coding.projectPath, settings.codingProjectPath])
+  }, [codingContextMemo])
 
-  const syncCodingProjectPathToSettings = useCallback((path: string) => {
-    const trimmed = path.trim()
-    codingProjectPathForMemoRef.current = trimmed
-    setSettings((s) => mergeCodingProjectPathIntoSettings(s, trimmed))
-  }, [setSettings])
-
-  const applyCodingProjectPath = useCallback((path: string) => {
-    const trimmed = path.trim()
-    if (codingProjectPathForMemoRef.current !== trimmed) {
-      codingProjectPathForMemoRef.current = trimmed
-      setCodingContextMemo(emptyCodingContextMemo(trimmed))
-    }
-    setSettings((s) => mergeCodingProjectPathIntoSettings(s, trimmed))
-  }, [setSettings])
+  /**
+   * Bind a folder to the chat on screen. Ownership stays with the sessions hook; writing
+   * the settings default here is what used to retarget every other chat.
+   */
+  const applyCodingProjectPath = useCallback(
+    (path: string) => {
+      const trimmed = path.trim()
+      if (codingProjectPathForMemoRef.current !== trimmed) {
+        codingProjectPathForMemoRef.current = trimmed
+        setCodingContextMemo(emptyCodingContextMemo(trimmed))
+      }
+      onCodingPathChanged(trimmed)
+    },
+    [onCodingPathChanged, setCodingContextMemo],
+  )
 
   const restoreCodingContextForSession = useCallback(
     (session: ChatSession, options?: { flushActiveSessionId?: string | null }) => {
@@ -369,12 +371,10 @@ export function useCodingSession({
       const flushId = options?.flushActiveSessionId
       if (flushId) {
         setSessions((prev) => {
-          const patched = patchSessionCodingState(
-            prev,
-            flushId,
-            getCodingProjectPath(settings),
-            codingContextMemo,
-          )
+          // Flush against the folder of the chat being left, never the new one.
+          const at = prev.findIndex((s) => s.id === flushId)
+          const flushPath = at >= 0 ? sessionCodingProjectPath(prev[at]) : ''
+          const patched = patchSessionCodingState(prev, flushId, flushPath, codingContextMemo)
           const idx = patched.findIndex((s) => s.id === flushId)
           if (idx < 0) return patched
           const cur = patched[idx]!
@@ -392,15 +392,14 @@ export function useCodingSession({
 
       // Swap terminal view only — never kill shells belonging to other chats.
       switchCodingTerminalOwner(session.id)
-      syncCodingProjectPathToSettings(path)
+      // The ref follows the chat on screen; settings stay the untouched app default.
+      codingProjectPathForMemoRef.current = path
       setCodingContextMemo(memo)
       setImageVisionCache(normalizeImageVisionCache(session.imageVisionCache))
     },
     [
-      settings,
       codingContextMemo,
       imageVisionCache,
-      syncCodingProjectPathToSettings,
       setImageVisionCache,
       setSessions,
       switchCodingTerminalOwner,
@@ -432,7 +431,6 @@ export function useCodingSession({
     setCodingFileCache,
     codingFileCacheRef,
     codingPanelAvailable,
-    syncCodingProjectPathToSettings,
     applyCodingProjectPath,
     restoreCodingContextForSession,
     codingProjectPathForMemoRef,

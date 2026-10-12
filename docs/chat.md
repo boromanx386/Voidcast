@@ -5,6 +5,7 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 ## Header (ChatHeader.tsx)
 
 - Sessions sidebar toggle, VOIDCAST brand, coding-panel toggle (desktop only), Window controls.
+- **Bind-folder prompt**: `codingToolsNeedFolder` shows when coding tools are on and **this chat** has no folder (`activeCodingProjectPath` empty). There is no app-level default that could satisfy it — binding a folder is always a per-chat action.
 
 ## Model Switcher (ChatSystemStatus.tsx, ModelSwitcherPopup.tsx)
 
@@ -26,7 +27,8 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
 
 - Runtime: `sessionAgentStore` — one slot per session (or draft key), holds messages, busy, abort, media, sub-agent activity writes.
 - **Cap: 3** concurrent runs (`MAX_CONCURRENT_AGENT_RUNS`). Extra start → error until another finishes or Stop.
-- Coding isolation: frozen project path, shell owner by runtime key, terminal feed per chat; same-project double-run can be refused.
+- Coding isolation: **the folder belongs to the chat** (`ChatSession.codingProjectPath`; a draft keeps its own `draftCodingProjectPath` until `claimSessionIdForDraft` writes it). `activeCodingProjectPath` feeds the coding panel and the header, and `useChatAgent` freezes the **sending** chat's root into `turnSettings` through `codingProjectPathForRuntimeKey(runtimeKey)` — a background run never picks up the chat on screen. There is no app-level coding folder field: the root travels as an explicit turn value (`buildAgentTurnContext({ codingProjectPath })`), not on `settings`.
+- Shell owner by runtime key, terminal feed per chat. **Two chats in different folders run in parallel** — the guard that refused a second project is gone, because every coding tool call carries its own root. Same-folder peers are allowed too and the agent gets a non-blocking context hint. The browser is per project too: each project keeps its own pages, active tab and profile switch, so two chats in different folders can never close or steal each other's tabs.
 - Switch sessions freely while A runs; B can send. Background finish may mark DONE-style unread until opened.
 - Plan escalation binds to the session that owns the run, not the one on screen, so a background chat's plan handoff (card + draft) can never land in the viewed chat.
 - Window-level mirrors (`hiddenContextSummary`, `contextCompressedThroughIndex`, `imageVisionCache`, composer mode) are written per session for a background run; a run only touches the view-level copy while its own chat is the one on screen.

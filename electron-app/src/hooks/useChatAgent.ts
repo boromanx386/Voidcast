@@ -81,7 +81,6 @@ import {
 } from '@/lib/subAgentPanelState'
 import { buildSteerCourseCorrectionText, toConversationTurns } from '@/lib/chatHints'
 import { sliceUiHistoryForContext } from '@/lib/chatMessages'
-import { getCodingProjectPath } from '@/lib/codingContextMemo'
 import {
   DRAFT_RUNTIME_KEY,
   isRealSessionRuntimeKey,
@@ -128,6 +127,12 @@ export type UseChatAgentDeps = {
   activeAgentModeRef: MutableRefObject<AgentChatMode>
   /** Live per-chat model pin (`provider:modelId`) — read at send time. */
   activeModelIdRef: MutableRefObject<string>
+  /**
+   * Folder bound to the chat that owns a run, resolved by its runtime key. Reading it
+   * from settings would give the app default (or another chat's folder) for a
+   * background run.
+   */
+  codingProjectPathForRuntimeKey: (runtimeKey: string) => string
   onContextCompressed?: (params: {
     summary: string
     throughIndex: number
@@ -276,6 +281,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     systemPromptPresetRef,
     activeAgentModeRef,
     activeModelIdRef,
+  codingProjectPathForRuntimeKey,
     onContextCompressed,
     patchSessionCodingMemo,
     claimSessionIdForDraft,
@@ -724,17 +730,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           : normalizeAgentChatMode(activeAgentModeRef.current ?? settings.agentMode)
 
       // Freeze coding root + agent mode + model for the whole turn so a session switch
-      // (or a model switch in another chat) cannot retarget live tool calls.
-      const turnCodingProjectPath = getCodingProjectPath(settings)
+      // (or a model switch in another chat) cannot retarget live tool calls. The root
+      // comes from the chat that owns the run — background runs included.
+      const turnCodingProjectPath = codingProjectPathForRuntimeKey(keyOf())
       const turnModelId = (opts?.forceModel ?? activeModelIdRef.current ?? '').trim()
+      // The coding root is NOT folded into settings any more: settings has no coding
+      // folder field, and the turn passes `turnCodingProjectPath` around explicitly.
       const turnSettings: AppSettings = {
         ...applyScopedModelToSettings(settings, turnModelId || currentPinnedModelId(settings)),
         agentMode: turnAgentMode,
-        codingProjectPath: turnCodingProjectPath,
-        coding: {
-          ...settings.coding,
-          projectPath: turnCodingProjectPath,
-        },
       }
 
       // Persist the mode on the chat that owns this run — background runs included —
@@ -766,18 +770,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
       }
 
-      if (
-        turnSettings.toolsEnabled.coding &&
-        turnCodingProjectPath
-      ) {
-        const conflict = sessionAgentStore.codingProjectConflict(keyOf(), turnCodingProjectPath)
-        if (conflict) {
-          setErr(conflict)
-          sessionAgentStore.releaseKeyHandle(bind)
-          return
-        }
-      }
-
+      // Full multi-chat: a run in another folder is fully independent — every coding tool
+      // call carries its own projectPath, so it must not be refused here. Only a peer on
+      // the SAME folder is a real hazard (shared files), and that stays a non-blocking hint.
       const codingConcurrencyAdvisory =
         turnSettings.toolsEnabled.coding && turnCodingProjectPath
           ? sessionAgentStore.codingSameProjectBusyAdvisory(keyOf(), turnCodingProjectPath) ?? ''
@@ -800,6 +795,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       const turnContext = await buildAgentTurnContext({
         settings: turnSettings,
+        codingProjectPath: turnCodingProjectPath,
         systemPromptPreset: systemPromptPresetRef.current,
         activeHistory,
         text,

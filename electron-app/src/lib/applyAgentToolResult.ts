@@ -3,7 +3,6 @@ import { uid } from '@/lib/chatUid'
 import { dedupeNonEmpty } from '@/lib/chatHints'
 import {
   commandResultSnippet,
-  getCodingProjectPath,
   isCodingToolFailure,
   normalizeCodingContextMemo,
   pushRecentCommand,
@@ -347,10 +346,8 @@ export function applyAgentToolResult(
         }
       }
 
-      return normalizeCodingContextMemo(
-        next,
-        (codingProjectPathFrozen || '').trim() || getCodingProjectPath(settings),
-      )
+      // The frozen root of the sending chat; '' = General. No app-default fallback.
+      return normalizeCodingContextMemo(next, (codingProjectPathFrozen || '').trim())
     })
   }
 

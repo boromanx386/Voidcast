@@ -6,6 +6,8 @@ import {
   closeBrowserPageForProject,
   configureBrowser,
   disposeBrowserView,
+  downloadMark,
+  downloadNoticeSince,
   emulateBrowser,
   historyStep,
   listBrowserPagesForProject,
@@ -37,6 +39,23 @@ function fail(e: unknown): { ok: false; error: string } {
 function asInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+/**
+ * A download a click kicks off has barely started when the click itself returns, so it would
+ * never reach the click's own result. Wait a short, bounded grace for one to register, then
+ * stop — a click that downloads nothing pays at most this long.
+ */
+async function waitForDownload(
+  mark: number,
+): Promise<{ name: string; path: string; state: string } | null> {
+  const deadline = Date.now() + 700
+  for (;;) {
+    const download = downloadNoticeSince(mark)
+    if (download) return download
+    if (Date.now() >= deadline) return null
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  }
 }
 
 export function registerBrowserIpc(getWindow: GetWindow): void {
@@ -173,8 +192,15 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         const uid = typeof payload?.uid === 'string' ? payload.uid.trim() : ''
         if (!uid) throw new Error('Missing uid.')
         return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
+          const mark = downloadMark()
           const text = await s.cdp.clickByUid(uid)
-          return { ok: true as const, text }
+          const download = await waitForDownload(mark)
+          return {
+            ok: true as const,
+            text: download
+              ? `${text}\nDownload started: ${download.name} (${download.state}) — saved to ${download.path}`
+              : text,
+          }
         })
       } catch (e) {
         return fail(e)

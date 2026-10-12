@@ -1279,7 +1279,6 @@ export type ToolsEnabled = {
 
 export type CodingSettings = {
   enabled: boolean
-  projectPath: string
   /** Coding panel: show file tree section */
   showFileTree: boolean
   /** Coding panel: show file preview section */
@@ -1464,8 +1463,6 @@ export type AppSettings = {
   agentMode: AgentChatMode
   /** Standalone coding panel settings. */
   coding: CodingSettings
-  /** Backward-compatible top-level alias for coding project path. */
-  codingProjectPath: string
   /** Where `save_pdf` writes files (no dialog). Empty = tool returns an error until set. */
   pdfOutputDir: string
   /** Visual chrome: cyberpunk shell vs calmer zinc/indigo layout */
@@ -1674,7 +1671,6 @@ export const defaults: AppSettings = {
   agentMode: 'agent',
   coding: {
     enabled: true,
-    projectPath: '',
     showFileTree: true,
     showFilePreview: true,
     showTerminal: true,
@@ -1684,7 +1680,6 @@ export const defaults: AppSettings = {
     fileTreeHeightPx: CODING_FILE_TREE_HEIGHT_DEFAULT,
     terminalHeightPx: CODING_TERMINAL_HEIGHT_DEFAULT,
   },
-  codingProjectPath: '',
   pdfOutputDir: '',
   uiTheme: 'obsidian',
   imageProvider: 'runware',
@@ -1826,13 +1821,6 @@ function normalizeTools(s: AppSettings): AppSettings {
       : typeof s.coding?.enabled === 'boolean'
         ? s.coding.enabled
         : defaults.toolsEnabled.coding
-  const codingProjectPathRaw =
-    typeof s.coding?.projectPath === 'string'
-      ? s.coding.projectPath
-      : typeof s.codingProjectPath === 'string'
-        ? s.codingProjectPath
-        : defaults.coding.projectPath
-  const codingProjectPath = codingProjectPathRaw.trim()
   const showFileTree =
     typeof s.coding?.showFileTree === 'boolean' ? s.coding.showFileTree : defaults.coding.showFileTree
   const showFilePreview =
@@ -1905,7 +1893,6 @@ function normalizeTools(s: AppSettings): AppSettings {
     mcpTrustedProjectPaths: normalizeMcpTrustedProjectPaths(s.mcpTrustedProjectPaths),
     coding: {
       enabled: codingEnabled,
-      projectPath: codingProjectPath,
       showFileTree: st,
       showFilePreview: sp,
       showTerminal: sm,
@@ -1915,7 +1902,6 @@ function normalizeTools(s: AppSettings): AppSettings {
       fileTreeHeightPx,
       terminalHeightPx,
     },
-    codingProjectPath,
   }
 }
 

@@ -12,16 +12,20 @@ describe('sessionAgentStore coding project concurrency', () => {
     sessionAgentStore.discard(chatB)
   })
 
-  it('blocks a different project while another chat is busy', () => {
+  it('treats a different project as independent (no block, no hint)', () => {
     sessionAgentStore.beginRun(chatA, { codingProjectPath: projA })
-    expect(sessionAgentStore.codingProjectConflict(chatB, projB)).toMatch(/different project/)
-    expect(sessionAgentStore.codingProjectConflict(chatB, projA)).toBeNull()
+    // Full multi-chat: a peer coding another folder cannot collide on files, so there is
+    // nothing to refuse and nothing to warn about.
+    expect(sessionAgentStore.codingSameProjectBusyAdvisory(chatB, projB)).toBeNull()
     sessionAgentStore.stop(chatA)
   })
 
-  it('allows the same project on two chats (no hard conflict)', () => {
+  it('says nothing when either side has no project folder', () => {
+    sessionAgentStore.beginRun(chatA, { codingProjectPath: '' })
+    expect(sessionAgentStore.codingSameProjectBusyAdvisory(chatB, projA)).toBeNull()
+    sessionAgentStore.stop(chatA)
     sessionAgentStore.beginRun(chatA, { codingProjectPath: projA })
-    expect(sessionAgentStore.codingProjectConflict(chatB, projA)).toBeNull()
+    expect(sessionAgentStore.codingSameProjectBusyAdvisory(chatB, '')).toBeNull()
     sessionAgentStore.stop(chatA)
   })
 

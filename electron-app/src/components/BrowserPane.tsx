@@ -392,6 +392,22 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
         >
           ↗
         </button>
+        <button
+          type="button"
+          className="rounded border border-void-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-void-dim hover:border-void-dim hover:text-void-text disabled:opacity-40"
+          title={
+            downloadsDirRef.current
+              ? `Open the browser downloads folder: ${downloadsDirRef.current}`
+              : 'Downloads folder — available once the browser is configured'
+          }
+          disabled={!downloadsDirRef.current}
+          onClick={() => {
+            const open = typeof window !== 'undefined' ? window.voidcast?.openPath : undefined
+            if (open && downloadsDirRef.current) void open(downloadsDirRef.current)
+          }}
+        >
+          ↓
+        </button>
       </div>
 
       {message ? (
