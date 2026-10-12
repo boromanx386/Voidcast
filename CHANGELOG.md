@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.11.0] — 2026-10-12
+
+### Added
+
+- **Per-turn and per-tool duration timers**: the assistant message now stamps `turnStartedAt` / `turnEndedAt` and renders a live duration chip at the end of the bubble, every tool activity carries `startedAt` / `timeoutSec` and shows a live counter in the busy strip (a countdown when the tool declares a timeout), and a tool that runs out of time surfaces a `TOOL_TIMEOUT` banner above the composer.
+- **Frameless custom window chrome on Linux**: the main window now uses `titleBarStyle: 'hidden'` plus the app's own chrome background on Linux, behind a new `usesCustomWindowChrome()` platform helper (`electron-app/src/lib/platform.ts`) that also replaces the two duplicated `isWindowsDesktop()` copies in `WinChromeBoot` and `WindowControls`.
+- **Coding: downloads started by a browser click reach the tool result**: a download is still in flight when the click returns, so it never made it into the result and the agent had to poll `browser_status` (or look in the OS Downloads folder). `attachDownload` now records the notice as soon as the download begins and bumps a monotonic `downloadSeq`; the click handler snapshots the mark, waits a short bounded grace (at most 700 ms) for a new download, then appends `Download started: <name> (<state>) — saved to <path>`. The browser pane also gains a toolbar button that opens the downloads folder through `window.voidcast.openPath`.
+
+### Changed
+
+- **`npm run release -- --bump <kind>`** now raises the version in all three files (package.json, package-lock.json, `useAppSettings.ts`) before committing.
+- **Release pipeline hardening**: installers are collected from the nested artifact directories, the publish step fails on unmatched files instead of publishing an empty release, artifact retention is 7 days, the dead `electron-app` workflows are gone, and the artifact / pages actions are off Node 20 (upload-artifact v7, download-artifact v8, `softprops/action-gh-release` v3, upload-pages-artifact v5).
+- **Docs**: `AGENTS.md` now documents the repo rules (English-only, no generated output in git, the four version spots, release/tag rules), and the bundled-ripgrep note describes the real per-platform resolution instead of claiming Windows-only.
+
+### Fixed
+
+- **Bundled ripgrep never ran in packaged builds**: `@vscode/ripgrep` resolves `rgPath` inside `app.asar` — `existsSync()` is asar-aware so the path looked present, but `spawn()` failed with `ENOTDIR`, so every ripgrep-backed search failed and the system-`rg` fallback was unreachable. The main process now points the bundled path at `app.asar.unpacked` with a separator-anchored match and probes each candidate by actually running `rg --version`, warning about the ones it skips.
+
 ## [2.10.0] — 2026-10-11
 
 ### Added
