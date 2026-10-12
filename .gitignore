@@ -14,6 +14,7 @@ electron-app/dist-electron/
 electron-app/release/
 tts-server/web-ui/
 tts-server/build/
+tts-server/build-linux/
 tts-server/dist/
 tts-server/*.spec
 
