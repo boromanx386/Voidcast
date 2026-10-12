@@ -1473,7 +1473,12 @@ const CODING_BINARY_SCAN_BYTES = 65_536
 
 // asarUnpack ships the real binary in `app.asar.unpacked`, but @vscode/ripgrep resolves the
 // packed path inside `app.asar` — and spawn() cannot execute from inside the archive (ENOTDIR).
-const bundledRgPath = rawBundledRgPath?.replace('app.asar', 'app.asar.unpacked')
+// Anchor on the path segment only: replace('app.asar', …) would also rewrite an earlier,
+// unrelated occurrence (e.g. a checkout folder literally named `app.asar`).
+const bundledRgPath = rawBundledRgPath?.replace(
+  /([\\/])app\.asar([\\/])/,
+  '$1app.asar.unpacked$2',
+)
 
 let cachedRipgrepCommand: string | undefined
 
@@ -1500,8 +1505,11 @@ function resolveRipgrepCommand(): string {
       cachedRipgrepCommand = candidate
       return candidate
     }
+    // A silent fallback hides a misconfigured VOIDCAST_RG_PATH or a broken bundle.
+    console.warn(`[ripgrep] not executable, trying next candidate: ${candidate}`)
   }
 
+  console.warn('[ripgrep] no executable ripgrep found, search will report no results')
   cachedRipgrepCommand = 'rg'
   return 'rg'
 }
