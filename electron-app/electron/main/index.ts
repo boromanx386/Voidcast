@@ -23,7 +23,7 @@ import { randomUUID } from 'node:crypto'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
-import { rgPath as bundledRgPath } from '@vscode/ripgrep'
+import { rgPath as rawBundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
 import { scrapePublicUrlToText } from './scrape'
 import { registerBrowserIpc } from './browser/ipc'
@@ -1471,21 +1471,35 @@ function runGitCapture(
 const RIPGREP_TIMEOUT_MS = 90_000
 const CODING_BINARY_SCAN_BYTES = 65_536
 
+// asarUnpack ships the real binary in `app.asar.unpacked`, but @vscode/ripgrep resolves the
+// packed path inside `app.asar` — and spawn() cannot execute from inside the archive (ENOTDIR).
+const bundledRgPath = rawBundledRgPath?.replace('app.asar', 'app.asar.unpacked')
+
 let cachedRipgrepCommand: string | undefined
 
-/** Bundled @vscode/ripgrep → optional VOIDCAST_RG_PATH → system `rg` on PATH. */
+/** Only candidates that can actually be executed count — existsSync() lies inside app.asar. */
+function canExecute(cmd: string): boolean {
+  try {
+    return spawnSync(cmd, ['--version'], { stdio: 'ignore', windowsHide: true }).status === 0
+  } catch {
+    return false
+  }
+}
+
+/** optional VOIDCAST_RG_PATH → bundled @vscode/ripgrep → system `rg` on PATH. */
 function resolveRipgrepCommand(): string {
   if (cachedRipgrepCommand) return cachedRipgrepCommand
 
   const envPath = process.env.VOIDCAST_RG_PATH?.trim()
-  if (envPath && existsSync(envPath)) {
-    cachedRipgrepCommand = envPath
-    return envPath
-  }
+  const candidates = [envPath, bundledRgPath, 'rg'].filter(
+    (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
+  )
 
-  if (bundledRgPath && existsSync(bundledRgPath)) {
-    cachedRipgrepCommand = bundledRgPath
-    return bundledRgPath
+  for (const candidate of candidates) {
+    if (canExecute(candidate)) {
+      cachedRipgrepCommand = candidate
+      return candidate
+    }
   }
 
   cachedRipgrepCommand = 'rg'
