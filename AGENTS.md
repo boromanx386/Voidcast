@@ -122,7 +122,10 @@ After editing a version string, verify **all four** places:
   `voidcast-tools-server*`.
 - On Linux the `build-linux.sh` / `start-dev.sh` scripts must keep the executable bit
   and the AppArmor/Electron-sandbox workaround.
-- Bundled ripgrep is Windows-only; other platforms fall back to the system `rg`.
+- Bundled ripgrep ships per platform (`@vscode/ripgrep-win32-x64` on Windows,
+  `@vscode/ripgrep-linux-x64` on Linux). `electron/main/index.ts` resolves the binary
+  from `app.asar.unpacked` and, if it is missing or not executable, warns and falls back
+  to a system `rg` or `VOIDCAST_RG_PATH`.
 
 ---
 
