@@ -7,6 +7,11 @@ import {
   anthropicMessagesHeaders,
   buildAnthropicMessagesBody,
 } from '@/lib/anthropicMessages'
+import {
+  buildResponsesBody,
+  parseResponsesOutput,
+  responsesHeaders,
+} from '@/lib/openResponses'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import {
   deepseekApiBaseForRuntime,
@@ -324,6 +329,41 @@ async function callCloudToolRound(opts: {
       }
     }
     return { content, thinking, toolCalls }
+  }
+
+  // OpenCode Go Responses-style models (the Contributor tier) only accept /responses.
+  if (
+    opts.provider === 'opencode-go' &&
+    openCodeGoApiStyle(opts.config.model) === 'opencode-responses'
+  ) {
+    assertCloudLlmApiKey('opencode-go', endpoint.apiKey)
+    const body = buildResponsesBody({
+      model: opts.config.model,
+      messages: toOpenAiMessages(opts.messages) as OpenRouterMessage[],
+      tools: opts.tools,
+      maxTokens: opts.maxTokens,
+    })
+    body.stream = false
+    // No temperature here: reasoning-capable Responses models reject sampling params.
+    const { res, errorText } = await postJsonWithRetry(
+      `${endpoint.baseUrl}/responses`,
+      {
+        method: 'POST',
+        headers: responsesHeaders({
+          apiKey: endpoint.apiKey,
+          sessionId: opts.keys.opencodeSessionId,
+          sendAuth: !usesServerCloudProxy(),
+        }),
+        signal: opts.signal,
+        body: JSON.stringify({ ...body, ...endpoint.extraBody }),
+      },
+      opts.signal,
+    )
+    if (!res.ok) {
+      throw new Error(`${endpoint.label} worker /responses ${res.status}: ${errorText || res.statusText}`)
+    }
+    const parsed = parseResponsesOutput(await res.json())
+    return { content: parsed.content, thinking: parsed.reasoning, toolCalls: parsed.toolCalls }
   }
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }

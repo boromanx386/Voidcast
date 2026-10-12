@@ -13,6 +13,13 @@ import {
   buildAnthropicMessagesBody,
   createAnthropicStreamState,
 } from './anthropicMessages'
+import {
+  applyResponsesStreamEvent,
+  buildResponsesBody,
+  createResponsesStreamState,
+  responsesHeaders,
+  responsesMaxTokensFallback,
+} from './openResponses'
 
 export type OpenRouterContentPart =
   | { type: 'text'; text: string }
@@ -625,6 +632,133 @@ async function streamAnthropicMessages(
   }
 }
 
+/**
+ * OpenCode Go Responses API path (`{base}/responses`, SSE).
+ * Only reached for models that `openCodeGoApiStyle` marks `opencode-responses`.
+ */
+async function streamOpenCodeResponses(
+  options: StreamOpenRouterChatParams,
+  root: string,
+): Promise<{
+  content: string
+  reasoning: string
+  tool_calls: OpenRouterToolCall[]
+  usage?: OllamaChatUsage
+}> {
+  assertCloudLlmApiKey('opencode-go', options.apiKey)
+  const messages = sanitizeMessagesForOpenCodeGo(options.messages)
+  let body: Record<string, unknown> = buildResponsesBody({
+    model: options.model,
+    messages,
+    tools: options.tools,
+    thinkLevel: options.thinkLevel,
+    maxTokens: options.maxTokens,
+  })
+  const headers = responsesHeaders({
+    apiKey: options.apiKey,
+    sessionId: options.opencodeSessionId,
+    sendAuth: !usesServerCloudProxy(),
+  })
+
+  let res: Response | null = null
+  let lastErr = ''
+  // Models with a lower hard output cap reject max_output_tokens with 400. Walk the
+  // ladder in RESPONSES_MAX_OUTPUT_TOKENS_FALLBACKS (16384 -> 8192 -> 4096) instead of
+  // failing the whole turn; a non-cap 400 still throws immediately.
+  let fallbackIdx = 0
+  for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
+    res = await fetchWithHardAbort(
+      `${root}/responses`,
+      {
+        method: 'POST',
+        headers,
+        signal: options.signal,
+        body: JSON.stringify(body),
+      },
+      options.signal,
+    )
+    if (res.ok) break
+    const err = await parseOpenRouterError(res)
+    lastErr = `OpenCode Go /responses ${res.status}: ${err.text || res.statusText}`
+    const currentMax = typeof body.max_output_tokens === 'number' ? body.max_output_tokens : 0
+    const fallbackMax = responsesMaxTokensFallback(
+      res.status,
+      err.text || '',
+      currentMax,
+      fallbackIdx,
+    )
+    if (fallbackMax !== null) {
+      body = { ...body, max_output_tokens: fallbackMax }
+      fallbackIdx++
+      continue
+    }
+    if (!RETRYABLE_STATUS.has(res.status)) throw new Error(lastErr)
+    if (attempt >= MAX_RETRIES_PER_MODEL - 1) break
+    const retrySec =
+      typeof err.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0
+        ? err.retryAfterSeconds
+        : 2 ** attempt
+    await sleepMs(retrySec * 1000, options.signal)
+  }
+  if (!res || !res.ok) throw new Error(lastErr || 'OpenCode Go /responses request failed')
+  if (!res.body) throw new Error('No response body')
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  const state = createResponsesStreamState()
+  let buffer = ''
+
+  const handleLine = (raw: string) => {
+    const line = raw.trim()
+    if (!line.startsWith('data:')) return
+    const payload = line.slice(5).trim()
+    if (!payload || payload === '[DONE]') return
+    let obj: unknown
+    try {
+      obj = JSON.parse(payload)
+    } catch {
+      return
+    }
+    const { textChanged, reasoningChanged } = applyResponsesStreamEvent(state, obj)
+    if (reasoningChanged) options.onThinkingDelta?.(state.reasoning)
+    if (textChanged) options.onDelta(state.text)
+  }
+
+  while (true) {
+    if (options.signal?.aborted) throwAbortError()
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split('\n')
+    buffer = parts.pop() ?? ''
+    for (const raw of parts) handleLine(raw)
+  }
+  if (buffer) handleLine(buffer)
+
+  const toolCalls = state.toolCalls.filter((t) => Boolean(t.function.name))
+  // An empty assistant turn (no text, no tool call) must never end a turn silently:
+  // it looks like the agent "stopped" with no explanation. Surface why.
+  if (!state.text.trim() && toolCalls.length === 0) {
+    const reason = state.incompleteReason
+      ? ` (incomplete: ${state.incompleteReason})`
+      : state.status
+        ? ` (status: ${state.status})`
+        : ''
+    const hint =
+      state.incompleteReason === 'max_output_tokens'
+        ? ' The output token budget was exhausted before any text or tool call — raise max tokens or lower reasoning effort.'
+        : ' The model returned neither text nor a tool call.'
+    throw new Error(`OpenCode Go /responses returned an empty assistant turn${reason}.${hint}`)
+  }
+
+  return {
+    content: state.text,
+    reasoning: state.reasoning,
+    tool_calls: toolCalls,
+    usage: logPromptCache(mapOpenRouterUsageToOllama(state.usage), options.messages),
+  }
+}
+
 export async function streamOpenRouterChat(
   options: StreamOpenRouterChatParams,
 ): Promise<{
@@ -645,6 +779,11 @@ export async function streamOpenRouterChat(
   // OpenCode Go models served only on Anthropic `/messages` (e.g. claude-haiku-5-5).
   if (isOpenCodeGoApi(root) && openCodeGoApiStyle(options.model) === 'anthropic-messages') {
     return streamAnthropicMessages(options, root)
+  }
+
+  // OpenCode Go models served only on the Responses API (the Contributor tier).
+  if (isOpenCodeGoApi(root) && openCodeGoApiStyle(options.model) === 'opencode-responses') {
+    return streamOpenCodeResponses(options, root)
   }
 
   const extra = compactOpenRouterOptions(options.modelOptions)

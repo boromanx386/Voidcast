@@ -101,7 +101,10 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
  * OpenCode Go models on OpenAI-compatible `/v1/chat/completions`
  * (https://opencode.ai/docs/go/). Anthropic `/messages` models (Claude Haiku 5.5, MiniMax,
  * some Qwen) are listed here too, and `openCodeGoApiStyle` routes them to `/messages`.
- * `/responses` models (Muse Spark 1.2 Contributor) are omitted.
+ *
+ * Responses-API models (the Contributor tier, e.g. Muse Spark 1.2 Contributor) have no
+ * published ids, so they are not preset entries: paste the slug from the Go dashboard into
+ * the custom model field and `openCodeGoApiStyle` routes it to `{base}/responses`.
  */
 export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
@@ -132,8 +135,11 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'step-5-preview-free', label: 'Step 5 Preview Free (1M ctx)' },
 ]
 
-/** Wire format for a provider/model pair. `anthropic-messages` posts to `{base}/messages`. */
-export type CloudLlmApiStyle = 'openai-chat' | 'anthropic-messages'
+/**
+ * Wire format for a provider/model pair.
+ * `anthropic-messages` posts to `{base}/messages`; `opencode-responses` to `{base}/responses`.
+ */
+export type CloudLlmApiStyle = 'openai-chat' | 'anthropic-messages' | 'opencode-responses'
 
 /** OpenCode Go models served only on Anthropic `/zen/go/v1/messages` (https://opencode.ai/docs/go/). */
 const OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS: ReadonlySet<string> = new Set([
@@ -145,9 +151,31 @@ const OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS: ReadonlySet<string> = new Set([
   'qwen3.7-plus',
 ])
 
+/**
+ * OpenCode Go models served only on the Responses API (`{base}/responses`).
+ *
+ * The docs do not publish these ids, so routing is mostly by shape: the Contributor tier
+ * is the Responses-only family and its ids are bare slugs. The literal set is the escape
+ * hatch for anything the pattern misses.
+ */
+const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set([
+  'muse-spark-1.2-contributor',
+  'muse-spark-1.3-contributor',
+])
+
+const OPENCODE_GO_RESPONSES_MODEL_PATTERN = /(^|[-_/])contributor([-_/]|$)/i
+
+/** True when an OpenCode Go model speaks the Responses API instead of chat-completions. */
+export function isOpenCodeGoResponsesModel(model: string): boolean {
+  const id = normalizeOpenCodeGoModelId(model)
+  return OPENCODE_GO_RESPONSES_MODELS.has(id) || OPENCODE_GO_RESPONSES_MODEL_PATTERN.test(id)
+}
+
 export function openCodeGoApiStyle(model: string): CloudLlmApiStyle {
   const id = normalizeOpenCodeGoModelId(model)
-  return OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS.has(id) ? 'anthropic-messages' : 'openai-chat'
+  if (OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS.has(id)) return 'anthropic-messages'
+  if (isOpenCodeGoResponsesModel(id)) return 'opencode-responses'
+  return 'openai-chat'
 }
 
 const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
