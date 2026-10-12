@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { isElectron } from '@/lib/platform'
-
-function isWindowsDesktop(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return isElectron() && navigator.userAgent.includes('Windows')
-}
+import { usesCustomWindowChrome } from '@/lib/platform'
 
 function MinimizeIcon() {
   return (
@@ -42,10 +37,10 @@ function CloseIcon() {
 const btnClass =
   'cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0'
 
-/** Custom Windows caption buttons styled like other header cyber-btn icons. */
+/** Custom caption buttons (Windows + Linux) styled like other header cyber-btn icons. */
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false)
-  const enabled = isWindowsDesktop() && Boolean(window.voidcast?.windowMinimize)
+  const enabled = usesCustomWindowChrome() && Boolean(window.voidcast?.windowMinimize)
 
   useEffect(() => {
     if (!enabled || !window.voidcast) return

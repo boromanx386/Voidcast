@@ -735,12 +735,16 @@ async function createWindow() {
     ? (createZoomedWindowIcon(appIconPath) ?? appIconPath)
     : appIconPath
 
+  // Electron supports titleBarStyle 'hidden' on Windows and Linux: the renderer draws the
+  // caption buttons and owns the drag region there. macOS keeps its native traffic lights.
+  const framelessChrome = process.platform === 'win32' || process.platform === 'linux'
+
   win = new BrowserWindow({
     title: '',
     autoHideMenuBar: true,
     icon: windowIcon,
     show: false, // Start hidden until ready
-    ...(process.platform === 'win32'
+    ...(framelessChrome
       ? {
           backgroundColor: WIN_CHROME_BACKGROUND,
           titleBarStyle: 'hidden',
