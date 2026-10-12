@@ -8,6 +8,17 @@ export function isElectron(): boolean {
   if (window.voidcast) return true
   return navigator.userAgent.toLowerCase().includes('electron')
 }
+/**
+ * True when the desktop shell draws its own window chrome: frameless title bar with custom
+ * caption buttons and an app-region drag header. Electron supports `titleBarStyle: 'hidden'`
+ * on Windows and Linux; macOS keeps its native traffic lights and is excluded on purpose.
+ */
+export function usesCustomWindowChrome(): boolean {
+  if (!isElectron() || typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  return ua.includes('Windows') || ua.includes('Linux')
+}
+
 /** Set at build time in `vite.config.web.ts` — authoritative for the LAN/phone bundle. */
 export function isWebBuild(): boolean {
   return import.meta.env.VITE_BUILD_TARGET === 'web'
