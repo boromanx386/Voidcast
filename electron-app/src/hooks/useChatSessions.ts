@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type MutableRefObject,
@@ -15,9 +16,8 @@ import {
 } from '@/lib/chatSessionsStorage'
 import {
   emptyCodingContextMemo,
-  getCodingProjectPath,
-  mergeCodingProjectPathIntoSettings,
   normalizeCodingContextMemo,
+  patchSessionCodingPath,
   resolveMemoForSession,
   sessionCodingProjectPath,
   type CodingContextMemo,
@@ -162,6 +162,13 @@ export function useChatSessions(deps: ChatSessionsDeps) {
    */
   const [pendingNewSessionAgentMode, setPendingNewSessionAgentMode] =
     useState<AgentChatMode | null>(null)
+  /**
+   * Folder owned by the not-yet-created chat. It lives here instead of in settings so a
+   * draft can never borrow — or clear — the app default another chat is using.
+   * Empty string = General.
+   */
+  const [draftCodingProjectPath, setDraftCodingProjectPath] = useState('')
+  const draftCodingProjectPathRef = useRef('')
 
   // `useChatAgent` is created before this hook, so the parent normally mirrors
   // activeSessionId to its runtime key in an effect. That effect is one render
@@ -223,9 +230,11 @@ export function useChatSessions(deps: ChatSessionsDeps) {
           active?.messages.length ?? 0,
         ),
       )
-      // Bound path only: no active / no path → General (clear settings folder).
+      // Bound path only: no active / no path → General. The open chat owns its folder,
+      // so hydrating must never rewrite the app-level default in settings.
       const projectPath = sessionCodingProjectPath(active ?? undefined)
-      setSettings(mergeCodingProjectPathIntoSettings(baseSettings, projectPath))
+      setDraftCodingProjectPath('')
+      draftCodingProjectPathRef.current = ''
       codingProjectPathForMemoRef.current = projectPath
       setCodingContextMemo(resolveMemoForSession(active ?? undefined, projectPath))
       setImageVisionCache(normalizeImageVisionCache(active?.imageVisionCache))
@@ -291,7 +300,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       if (!settings.autoSaveChat) return
       const newId = uid()
       const now = Date.now()
-      const projectPath = getCodingProjectPath(settings)
+      const projectPath = draftCodingProjectPathRef.current
       const newSession: ChatSession = {
         id: newId,
         title: deriveSessionTitle(messages),
@@ -323,7 +332,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       const nextCompressedThrough = nextHiddenContextSummary
         ? contextCompressedThroughIndex
         : undefined
-      const projectPath = getCodingProjectPath(settings)
+      // An existing chat keeps its own folder ('' = General); only a fresh row inherits the draft.
+      const projectPath =
+        idx >= 0 ? sessionCodingProjectPath(prev[idx]) : draftCodingProjectPathRef.current
       const nextMemo = normalizeCodingContextMemo(codingContextMemo, projectPath)
       const nextVisionCache = normalizeImageVisionCache(imageVisionCache)
 
@@ -401,8 +412,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     imageVisionCache,
     activeSessionId,
     sessionsHydrated,
-    settings.coding.projectPath,
-    settings.codingProjectPath,
     settings.autoSaveChat,
     pendingNewSessionPreset,
   ])
@@ -442,7 +451,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     if (activeSessionId) return activeSessionId
     const newId = uid()
     const now = Date.now()
-    const projectPath = getCodingProjectPath(settings)
+    const projectPath = draftCodingProjectPathRef.current
     const stickyUnsaved = !settings.autoSaveChat
     sessionAgentStore.rekey(DRAFT_RUNTIME_KEY, newId)
     rekeyComposerDraft(DRAFT_RUNTIME_KEY, newId)
@@ -470,8 +479,6 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }, [
     activeSessionId,
     settings.autoSaveChat,
-    settings.coding.projectPath,
-    settings.codingProjectPath,
     rekeyCodingTerminalOwner,
     pendingNewSessionPreset,
     codingContextMemo,
@@ -485,7 +492,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         const idx = prev.findIndex((s) => s.id === sessionId)
         if (idx < 0) return prev
         const current = prev[idx]
-        const projectPath = sessionCodingProjectPath(current) || getCodingProjectPath(settings)
+        // The memo belongs to this chat — no settings fallback, '' = General.
+        const projectPath = sessionCodingProjectPath(current)
         const prevMemo = resolveMemoForSession(current, projectPath)
         const nextMemo = normalizeCodingContextMemo(resolveAction(prevMemo, action), projectPath)
         const next = [...prev]
@@ -497,7 +505,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         return next
       })
     },
-    [settings],
+    [],
   )
 
   /** Merge vision-cache entries into a background (non-visible) session. */
@@ -549,9 +557,11 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     switchCodingTerminalOwner?.(DRAFT_RUNTIME_KEY)
     resetCodingTerminal()
     const trimmed = projectPath.trim()
-    // 1C: A new chat is General unless a folder is bound to it up front.
+    // 1C: A new chat is General unless a folder is bound to it up front. The folder
+    // belongs to the draft, so the app default in settings is left untouched.
     codingProjectPathForMemoRef.current = trimmed
-    setSettings((s) => mergeCodingProjectPathIntoSettings(s, trimmed))
+    setDraftCodingProjectPath(trimmed)
+    draftCodingProjectPathRef.current = trimmed
     setCodingContextMemo(emptyCodingContextMemo(trimmed))
     setImageVisionCache({})
   }
@@ -819,11 +829,14 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       contextCompressedThroughIndex: hiddenContextSummary.trim()
         ? contextCompressedThroughIndex
         : undefined,
+      // Saved chat keeps the folder it owns; only a brand-new row takes the draft's.
       codingContextMemo: normalizeCodingContextMemo(
         codingContextMemo,
-        getCodingProjectPath(settings),
+        existing ? sessionCodingProjectPath(existing) : draftCodingProjectPathRef.current,
       ),
-      codingProjectPath: getCodingProjectPath(settings) || undefined,
+      codingProjectPath:
+        (existing ? sessionCodingProjectPath(existing) : draftCodingProjectPathRef.current) ||
+        undefined,
       imageVisionCache: normalizeImageVisionCache(imageVisionCache),
       // Explicit Save promotes sticky draft into durable storage.
     }
@@ -867,7 +880,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       switchCodingTerminalOwner?.(DRAFT_RUNTIME_KEY)
       resetCodingTerminal()
       codingProjectPathForMemoRef.current = ''
-      setSettings((s) => mergeCodingProjectPathIntoSettings(s, ''))
+      setDraftCodingProjectPath('')
+      draftCodingProjectPathRef.current = ''
       setCodingContextMemo(emptyCodingContextMemo(''))
       setImageVisionCache({})
       applyComposerDraft(DRAFT_RUNTIME_KEY)
@@ -905,6 +919,35 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setRenamingSessionId(null)
     setRenameValue('')
   }
+
+  /** Folder owned by the chat on screen; the draft path while it has no id yet. */
+  const activeCodingProjectPath = activeSessionId
+    ? sessionCodingProjectPath(sessions.find((s) => s.id === activeSessionId))
+    : draftCodingProjectPath
+
+  /** Rebind the folder of the chat on screen — the chat owns it, nothing else writes it. */
+  const setCodingPathForActiveChat = useCallback(
+    (projectPath: string) => {
+      const trimmed = projectPath.trim()
+      if (!activeSessionId) {
+        setDraftCodingProjectPath(trimmed)
+        draftCodingProjectPathRef.current = trimmed
+        return
+      }
+      setSessions((prev) => patchSessionCodingPath(prev, activeSessionId, trimmed))
+    },
+    [activeSessionId],
+  )
+
+  /** Folder bound to any chat by runtime key (background runs included); '' = General. */
+  const codingProjectPathForRuntimeKey = useCallback(
+    (runtimeKey: string) => {
+      if (runtimeKey === DRAFT_RUNTIME_KEY) return draftCodingProjectPathRef.current
+      const session = sessions.find((s) => s.id === runtimeKey)
+      return session ? sessionCodingProjectPath(session) : ''
+    },
+    [sessions],
+  )
 
   return {
     sessions,
@@ -947,6 +990,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     patchSessionImageVision,
     activeModelId,
     setModelForActiveChat,
+    activeCodingProjectPath,
+    setCodingPathForActiveChat,
+    codingProjectPathForRuntimeKey,
     claimSessionIdForDraft,
     patchSessionCodingMemo,
   }

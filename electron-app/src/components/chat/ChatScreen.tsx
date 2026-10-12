@@ -188,6 +188,7 @@ export function ChatScreen({ app }: Props) {
             </div>
             <CodingPanel
               settings={app.settings}
+              projectPath={app.activeCodingProjectPath}
               widthPx={panelWidth}
               fileTreeRevision={app.codingFileTreeNonce}
               gitRevision={app.codingGitNonce}

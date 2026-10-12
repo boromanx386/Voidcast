@@ -55,6 +55,8 @@ type CodingUiVisibilityPatch = Partial<
 
 type Props = {
   settings: AppSettings
+  /** Folder of the chat on screen ('' = General). Owned per chat, not by settings. */
+  projectPath?: string
   onUpdateProjectPath: (path: string) => void
   onCodingUiChange: (patch: CodingUiVisibilityPatch) => void
   /** Controlled panel width from chat ↔ panel splitter. */
@@ -136,6 +138,7 @@ function sameCodingPath(a: string | null, b: string | null): boolean {
 
 export function CodingPanel({
   settings,
+  projectPath: chatProjectPath = '',
   onUpdateProjectPath,
   onCodingUiChange,
   widthPx,
@@ -231,7 +234,8 @@ export function CodingPanel({
     [editing, editDraft, editBaseline],
   )
 
-  const projectPath = settings.coding.projectPath || settings.codingProjectPath
+  // The folder belongs to the chat on screen; settings only seed it at boot.
+  const projectPath = chatProjectPath.trim()
   const { showFileTree, showFilePreview, showTerminal, showWeb } = settings.coding
   const savedFileTreeHeight = settings.coding.fileTreeHeightPx
   const savedTerminalHeight = settings.coding.terminalHeightPx

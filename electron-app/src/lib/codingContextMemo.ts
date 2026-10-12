@@ -1,4 +1,3 @@
-import type { AppSettings } from '@/lib/settings'
 import { applySnippetEdit } from '@/lib/codingEol'
 
 export type CodingCommandMemo = {
@@ -651,10 +650,6 @@ export function buildPlanHandoffUiDraftContent(params: {
   return `Plan mode — earlier agent-mode research${detail} carried over; the plan is built from it.`
 }
 
-export function getCodingProjectPath(settings: Pick<AppSettings, 'coding' | 'codingProjectPath'>): string {
-  return (settings.coding.projectPath || settings.codingProjectPath || '').trim()
-}
-
 export function emptyCodingContextMemo(projectPath = ''): CodingContextMemo {
   return {
     projectPath,
@@ -952,24 +947,40 @@ export function sessionCodingProjectPath(
   return fallbackPath.trim()
 }
 
-/** Update settings project path without clearing coding memo. */
-export function mergeCodingProjectPathIntoSettings(settings: AppSettings, path: string): AppSettings {
-  const trimmed = path.trim()
-  const cur = (settings.coding.projectPath || settings.codingProjectPath || '').trim()
-  if (cur === trimmed) return settings
-  return {
-    ...settings,
-    coding: { ...settings.coding, enabled: true, projectPath: trimmed },
-    codingProjectPath: trimmed,
-    toolsEnabled: { ...settings.toolsEnabled, coding: true },
-  }
-}
-
 type SessionCodingPatch = {
   id: string
   updatedAt: number
   codingProjectPath?: string
   codingContextMemo?: CodingContextMemo
+}
+
+/**
+ * Rebind one chat's coding folder, keeping the memo's own contents.
+ *
+ * The folder belongs to the chat, so binding a folder in chat B must leave chat A's
+ * path (and its memo) exactly as it was.
+ */
+export function patchSessionCodingPath<T extends SessionCodingPatch>(
+  sessions: T[],
+  sessionId: string,
+  projectPath: string,
+): T[] {
+  const idx = sessions.findIndex((s) => s.id === sessionId)
+  if (idx < 0) return sessions
+  const trimmed = projectPath.trim()
+  const cur = sessions[idx]
+  if ((cur.codingProjectPath ?? '') === trimmed) return sessions
+  const next = [...sessions]
+  next[idx] = {
+    ...cur,
+    updatedAt: Date.now(),
+    codingProjectPath: trimmed || undefined,
+    codingContextMemo: normalizeCodingContextMemo(
+      cur.codingContextMemo ?? emptyCodingContextMemo(),
+      trimmed,
+    ),
+  }
+  return next
 }
 
 /** Persist current memo + path onto a session before switching away. */

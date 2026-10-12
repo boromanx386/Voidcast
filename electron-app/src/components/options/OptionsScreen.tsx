@@ -39,7 +39,7 @@ export function OptionsScreen({ app }: Props) {
     voiceAnchor,
     onBakeVoiceAnchor,
     onClearVoiceAnchor,
-    applyCodingProjectPath,
+    activeCodingProjectPath,
     effectivePdfOutputDir,
   } = app
 
@@ -158,12 +158,16 @@ export function OptionsScreen({ app }: Props) {
                 modelsError={modelsError}
               />
             ) : optionsTab === 'skills' ? (
-              <SkillsOptionsPanel settings={settings} setSettings={setSettings} />
+              <SkillsOptionsPanel
+                settings={settings}
+                setSettings={setSettings}
+                activeCodingProjectPath={activeCodingProjectPath}
+              />
             ) : (
               <ToolsOptionsPanel
                 settings={settings}
                 setSettings={setSettings}
-                onCodingProjectPathApplied={applyCodingProjectPath}
+                activeCodingProjectPath={activeCodingProjectPath}
                 effectivePdfOutputDir={effectivePdfOutputDir}
               />
             )}

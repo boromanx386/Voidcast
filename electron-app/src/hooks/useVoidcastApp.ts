@@ -76,6 +76,11 @@ export function useVoidcastApp() {
     (sessionId: string, action: React.SetStateAction<CodingContextMemo>) => void
   >(() => {})
 
+  /** Mirror for sessions.setCodingPathForActiveChat (the sessions hook is created below). */
+  const setCodingPathForActiveChatRef = useRef<(path: string) => void>(() => {})
+  /** Mirror for sessions.codingProjectPathForRuntimeKey (the agent hook is created below). */
+  const codingProjectPathForRuntimeKeyRef = useRef<(runtimeKey: string) => string>(() => '')
+
   // Must exist before coding + agent so terminal ownership tracks the viewed chat.
   const [viewSessionId, setViewSessionId] = useState<string | null>(null)
   const runtimeKey = runtimeKeyForSession(viewSessionId)
@@ -84,10 +89,10 @@ export function useVoidcastApp() {
 
   const coding = useCodingSession({
     settings,
-    setSettings,
     imageVisionCache,
     setImageVisionCache,
     setSessions: (action) => setSessionsRef.current(action),
+    onCodingPathChanged: (path) => setCodingPathForActiveChatRef.current(path),
     viewRuntimeKey: runtimeKey,
   })
 
@@ -122,6 +127,8 @@ export function useVoidcastApp() {
     systemPromptPresetRef: activeSystemPromptPresetRef,
     activeAgentModeRef,
     activeModelIdRef,
+    codingProjectPathForRuntimeKey: (key) =>
+      codingProjectPathForRuntimeKeyRef.current(key),
     setAgentModeForSession: (sessionId, mode) =>
       setAgentModeForSessionRef.current(sessionId, mode),
     setAgentModeForActiveChat: (mode) => setAgentModeForActiveChatRef.current(mode),
@@ -225,6 +232,8 @@ export function useVoidcastApp() {
   setSessionDirtyRef.current = sessions.setSessionDirty
   claimSessionIdRef.current = sessions.claimSessionIdForDraft
   patchSessionCodingMemoRef.current = sessions.patchSessionCodingMemo
+  setCodingPathForActiveChatRef.current = sessions.setCodingPathForActiveChat
+  codingProjectPathForRuntimeKeyRef.current = sessions.codingProjectPathForRuntimeKey
 
   // Keep agent runtime key in sync with sidebar selection (session id or draft).
   useEffect(() => {

@@ -17,8 +17,8 @@ import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } 
 type Props = {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
-  /** Commits project path (browse / blur) and resets coding context memo when path changes. */
-  onCodingProjectPathApplied?: (path: string) => void
+  /** Folder of the chat on screen — the project whose `.mcp.json` this tab edits. */
+  activeCodingProjectPath: string
   /** Resolved folder for save_pdf (local on desktop, or host path pushed from desktop on phone). */
   effectivePdfOutputDir?: string
 }
@@ -26,7 +26,7 @@ type Props = {
 export function ToolsOptionsPanel({
   settings,
   setSettings,
-  onCodingProjectPathApplied,
+  activeCodingProjectPath,
   effectivePdfOutputDir = '',
 }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
@@ -44,29 +44,6 @@ export function ToolsOptionsPanel({
       setPickBusy(false)
     }
   }, [setSettings])
-
-  const browseCodingFolder = useCallback(async () => {
-    const vc = isElectron() ? window.voidcast?.pickCodingDirectory : undefined
-    if (!vc) return
-    setPickBusy(true)
-    try {
-      const r = await vc()
-      if (r.ok && r.path) {
-        if (onCodingProjectPathApplied) {
-          onCodingProjectPathApplied(r.path)
-        } else {
-          setSettings((s) => ({
-            ...s,
-            coding: { ...s.coding, projectPath: r.path, enabled: true },
-            codingProjectPath: r.path,
-            toolsEnabled: { ...s.toolsEnabled, coding: true },
-          }))
-        }
-      }
-    } finally {
-      setPickBusy(false)
-    }
-  }, [setSettings, onCodingProjectPathApplied])
 
   return (
     <div className="grid gap-4 text-sm">
@@ -366,38 +343,15 @@ export function ToolsOptionsPanel({
           }
           noBorder
         />
-        {settings.toolsEnabled.coding && isElectron() && (
-          <div className="mt-4 border-t border-void-muted/20 pt-4">
-            <label className="form-label text-void-dim">
-              <span className="mr-2">▸</span>CODING_PROJECT_DIR
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <input
-                type="text"
-                spellCheck={false}
-                className="cyber-input flex-1 min-w-[12rem]"
-                placeholder="C:\project\folder"
-                value={settings.coding.projectPath}
-                onChange={(e) =>
-                  setSettings((s) => ({
-                    ...s,
-                    coding: { ...s.coding, projectPath: e.target.value },
-                    codingProjectPath: e.target.value,
-                  }))
-                }
-                onBlur={(e) => onCodingProjectPathApplied?.(e.target.value)}
-              />
-              <button type="button" disabled={pickBusy} className="cyber-btn text-xs" onClick={() => void browseCodingFolder()}>
-                {pickBusy ? '...' : 'BROWSE'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* MCP Servers (desktop) */}
       {isElectron() && (
-        <McpServersSection settings={settings} setSettings={setSettings} />
+        <McpServersSection
+          settings={settings}
+          setSettings={setSettings}
+          activeCodingProjectPath={activeCodingProjectPath}
+        />
       )}
     </div>
   )
@@ -406,9 +360,12 @@ export function ToolsOptionsPanel({
 function McpServersSection({
   settings,
   setSettings,
+  activeCodingProjectPath,
 }: {
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
+  /** Folder of the chat on screen — the agent loads MCP servers from the same one. */
+  activeCodingProjectPath: string
 }) {
   const [status, setStatus] = useState<
     {
@@ -426,11 +383,7 @@ function McpServersSection({
   const [pendingProjectTrust, setPendingProjectTrust] = useState(false)
   const [projectPreviewServers, setProjectPreviewServers] = useState<McpProjectServerPreview[]>([])
 
-  const projectPath = (
-    settings.coding.projectPath ||
-    settings.codingProjectPath ||
-    ''
-  ).trim()
+  const projectPath = activeCodingProjectPath.trim()
 
   const enabledServers = settings.mcpServerEnabled
   const trustedProjectPaths = settings.mcpTrustedProjectPaths

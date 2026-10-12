@@ -79,11 +79,13 @@ Max agent↔tool loop rounds per assistant turn (main agent only). Nested **work
 - **Per-server enable** — `mcpServerEnabled` (`Record<string, boolean>`). Key = server id from mcp.json; missing key = enabled. Set `false` to keep a server in config but not connect/expose its tools. The `McpServersSection` panel lists discovered servers with per-server toggle/connect/status handling.
 - **Trusted project paths** — `mcpTrustedProjectPaths` (`string[]`, default `[]`). Project roots the user explicitly trusted to load `.mcp.json` MCP servers from. Untrusted project configs are ignored until approved here (managed by `electron-app/src/lib/mcpProjectTrust.ts`).
 - The panel refreshes the MCP server list (scans `~/.voidcast/mcp.json` and trusted project `.mcp.json` files) and shows connection/test actions per server.
+- Which **project** `.mcp.json` is read here is the folder of the chat on screen (`activeCodingProjectPath`) — the same one the agent loads servers from, so the two cannot disagree.
 
 ## Coding project path
 
-- `coding.projectPath` (`CodingSettings.projectPath`, default `''`) and its backward-compatible top-level alias **`codingProjectPath`** (`string`, default `''`).
-- Choosing a folder applies the project path immediately via `applyCodingProjectPath` (passed from `OptionsScreen`).
+- There is **no app-level coding folder field any more**. `coding.projectPath` (`CodingSettings.projectPath`) and the backward-compatible top-level `codingProjectPath` alias were removed: with the folder owned per chat they only seeded a new chat — which `newChat()` deliberately does not do, a new chat is General — and decided which project the MCP / skills tabs read.
+- The folder a chat works in lives on the session: `ChatSession.codingProjectPath`, bound through `activeCodingProjectPath` / `setCodingPathForActiveChat` → `patchSessionCodingPath`, plus `draftCodingProjectPath` until the chat has an id. `ChatHeader` and the coding panel render it, and `useChatAgent` freezes the sending chat's root (`codingProjectPathForRuntimeKey`) and hands it to the turn explicitly instead of folding it into `turnSettings`.
+- The **MCP section below and Options → Skills read that same `activeCodingProjectPath`**, so the servers and skills you see are the ones the chat's agent loads. A chat with no folder (General) shows an empty state.
 - Other coding panel layout fields live in `CodingSettings` (`showFileTree`, `showFilePreview`, `showTerminal`, `panelWidthPx`, `fileTreeHeightPx`) and are adjusted in the coding panel, not this tab.
 - Top-level `coding.enabled` toggles the standalone coding panel (also mirrored by the `coding` tool flag).
 
