@@ -154,9 +154,9 @@ const OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS: ReadonlySet<string> = new Set([
 /**
  * OpenCode Go models served only on the Responses API (`{base}/responses`).
  *
- * The docs do not publish these ids, so routing is mostly by shape: the Contributor tier
- * is the Responses-only family and its ids are bare slugs. The literal set is the escape
- * hatch for anything the pattern misses.
+ * The docs do not publish these ids, so this is only the *statically known* set: the
+ * Contributor tier plus a shape test for its bare slugs. Everything else is discovered at
+ * runtime — see `discoveredOpenCodeGoStyles` below.
  */
 const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set([
   'muse-spark-1.2-contributor',
@@ -165,7 +165,24 @@ const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set([
 
 const OPENCODE_GO_RESPONSES_MODEL_PATTERN = /(^|[-_/])contributor([-_/]|$)/i
 
-/** True when an OpenCode Go model speaks the Responses API instead of chat-completions. */
+/**
+ * Wire formats learned at runtime. OpenCode Go answers `/chat/completions` with a
+ * `ModelProtocolUnsupported` 400 for models it only serves elsewhere; the caller replays
+ * the turn on the format that worked and records it here. Without this, a Responses-only
+ * model we have no id for would burn a failed request on every single turn.
+ *
+ * In-memory on purpose: the probe is one extra request per model per app run, and a stale
+ * hint never survives a restart.
+ */
+const discoveredOpenCodeGoStyles = new Map<string, CloudLlmApiStyle>()
+
+/** Remember the wire format a model turned out to speak, so routing stops probing. */
+export function rememberOpenCodeGoApiStyle(model: string, style: CloudLlmApiStyle): void {
+  const id = normalizeOpenCodeGoModelId(model)
+  if (id) discoveredOpenCodeGoStyles.set(id, style)
+}
+
+/** True when an OpenCode Go model is *statically* known to speak the Responses API. */
 export function isOpenCodeGoResponsesModel(model: string): boolean {
   const id = normalizeOpenCodeGoModelId(model)
   return OPENCODE_GO_RESPONSES_MODELS.has(id) || OPENCODE_GO_RESPONSES_MODEL_PATTERN.test(id)
@@ -174,6 +191,8 @@ export function isOpenCodeGoResponsesModel(model: string): boolean {
 export function openCodeGoApiStyle(model: string): CloudLlmApiStyle {
   const id = normalizeOpenCodeGoModelId(model)
   if (OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS.has(id)) return 'anthropic-messages'
+  const discovered = discoveredOpenCodeGoStyles.get(id)
+  if (discovered) return discovered
   if (isOpenCodeGoResponsesModel(id)) return 'opencode-responses'
   return 'openai-chat'
 }

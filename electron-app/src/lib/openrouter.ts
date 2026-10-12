@@ -4,7 +4,8 @@ import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from './platform'
 import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
-import { openCodeGoApiStyle } from './cloudLlmPresets'
+import type { CloudLlmApiStyle } from './cloudLlmPresets'
+import { openCodeGoApiStyle, rememberOpenCodeGoApiStyle } from './cloudLlmPresets'
 import { toDataImageUri } from './imageMime'
 import {
   anthropicMaxTokensFallback,
@@ -759,6 +760,47 @@ async function streamOpenCodeResponses(
   }
 }
 
+/** Resolve the API root exactly the way `streamOpenRouterChatInner` does. */
+function resolveOpenRouterRoot(baseUrl: string | undefined): string {
+  return normalizeNvidiaBaseUrl(normalizeBaseUrl(baseUrl || 'https://openrouter.ai/api/v1'))
+}
+
+/**
+ * OpenCode Go answers `/chat/completions` with this when the model exists on the gateway
+ * but is only served on another wire format — a protocol mismatch, not a bad model name.
+ *
+ * That distinction is what makes the turn safe to replay elsewhere: the 400 comes back
+ * before the SSE body opens, so no delta has been emitted to the caller yet.
+ */
+export function isOpenCodeGoProtocolUnsupportedError(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error ?? '')
+  return /ModelProtocolUnsupported/i.test(text) || /does not support this protocol/i.test(text)
+}
+
+/**
+ * Which endpoint an OpenCode Go turn should be replayed on, or `null` to keep the error.
+ * Only fires for models routed to `/chat/completions`: the Anthropic and Responses sets
+ * are already routed away from that path, so they never reach here.
+ */
+export function openCodeGoProtocolFallback(
+  root: string,
+  model: string,
+  error: unknown,
+): CloudLlmApiStyle | null {
+  if (!isOpenCodeGoApi(root)) return null
+  if (openCodeGoApiStyle(model) !== 'openai-chat') return null
+  if (!isOpenCodeGoProtocolUnsupportedError(error)) return null
+  return 'opencode-responses'
+}
+
+/**
+ * Entry point for one LLM chat turn, over whichever cloud wire format the provider needs.
+ *
+ * OpenCode Go does not publish which format a model speaks, so a model routed to
+ * `/chat/completions` can come back with `ModelProtocolUnsupported`. When that happens the
+ * turn is replayed on `/responses`, and the format is remembered so later turns route
+ * straight there — the probe costs one extra request per model per app run, not per turn.
+ */
 export async function streamOpenRouterChat(
   options: StreamOpenRouterChatParams,
 ): Promise<{
@@ -767,9 +809,38 @@ export async function streamOpenRouterChat(
   tool_calls: OpenRouterToolCall[]
   usage?: OllamaChatUsage
 }> {
-  const root = normalizeNvidiaBaseUrl(
-    normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1'),
-  )
+  try {
+    return await streamOpenRouterChatInner(options)
+  } catch (error) {
+    const root = resolveOpenRouterRoot(options.baseUrl)
+    if (openCodeGoProtocolFallback(root, options.model, error) !== 'opencode-responses') {
+      throw error
+    }
+    // OpenCode Go serves three wire formats and will not say which one a model needs.
+    // `/chat/completions` has already refused, so try the other two before giving up.
+    try {
+      const result = await streamOpenCodeResponses(options, root)
+      rememberOpenCodeGoApiStyle(options.model, 'opencode-responses')
+      return result
+    } catch (responsesError) {
+      if (!isOpenCodeGoProtocolUnsupportedError(responsesError)) throw responsesError
+      // Not Responses either — Anthropic Messages is the only format left.
+      const result = await streamAnthropicMessages(options, root)
+      rememberOpenCodeGoApiStyle(options.model, 'anthropic-messages')
+      return result
+    }
+  }
+}
+
+async function streamOpenRouterChatInner(
+  options: StreamOpenRouterChatParams,
+): Promise<{
+  content: string
+  reasoning: string
+  tool_calls: OpenRouterToolCall[]
+  usage?: OllamaChatUsage
+}> {
+  const root = resolveOpenRouterRoot(options.baseUrl)
   const isNvidia = root.includes('integrate.api.nvidia.com')
   const canUseElectronNvidiaProxy =
     isElectron() &&
