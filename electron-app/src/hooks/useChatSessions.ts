@@ -97,7 +97,7 @@ export type ChatSessionsDeps = {
   pendingFiles: FileAttachmentSnapshot[]
   setPendingFiles: Dispatch<SetStateAction<FileAttachmentSnapshot[]>>
   setError: Dispatch<SetStateAction<string | null>>
-  setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf'; text: string } | null>>
+  setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf' | 'timeout'; text: string } | null>>
   setContextUsageInfo: Dispatch<SetStateAction<ContextUsageInfo | null>>
   setContextWarnDismissed: Dispatch<SetStateAction<boolean>>
   busy: boolean

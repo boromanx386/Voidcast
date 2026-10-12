@@ -2,6 +2,7 @@ import type { RefObject } from 'react'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { PlanArtifactCard } from '@/components/chat/PlanArtifactCard'
 import { SubAgentActivityCard } from '@/components/chat/SubAgentPanel'
+import { TurnTimer } from '@/components/chat/TurnTimer'
 import { dedupeNonEmpty } from '@/lib/chatHints'
 import { imageDataUrl } from '@/lib/imageAttachment'
 import {
@@ -649,6 +650,17 @@ export function ChatMessage({
             ) : null}
           </div>
         )}
+
+        {/* Per-turn duration: live while the turn runs, frozen once it ends. */}
+        {m.role === 'assistant' && m.turnStartedAt != null ? (
+          <div className="mt-2 flex justify-end">
+            <TurnTimer
+              startedAt={m.turnStartedAt}
+              endedAt={m.turnEndedAt}
+              live={busy && index === messages.length - 1}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   )

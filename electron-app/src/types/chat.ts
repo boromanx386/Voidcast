@@ -88,6 +88,10 @@ export type UiMessage = {
   id: string
   role: ChatRole
   content: string
+  /** Assistant only: epoch ms when this turn started (drives the per-bubble duration chip). */
+  turnStartedAt?: number
+  /** Assistant only: epoch ms when this turn ended (stamped in the run's finally block). */
+  turnEndedAt?: number
   /**
    * Assistant only: streamed model reasoning (Ollama `thinking` / OpenRouter `reasoning`).
    * Shown above the main reply when non-empty.

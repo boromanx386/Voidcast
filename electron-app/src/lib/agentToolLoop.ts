@@ -195,7 +195,13 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   /** Captures a streamed draft before the next tool round replaces it. */
   onIntermediateResponse?: (ctx: { round: number; content: string }) => void
   /** Lifecycle callbacks for rendering multiple concurrent tool calls. */
-  onToolStart?: (ctx: { id: string; name: string; phase: AgentToolUiPhase | null }) => void
+  onToolStart?: (ctx: {
+    id: string
+    name: string
+    phase: AgentToolUiPhase | null
+    /** Raw tool arguments, so the UI can read a declared timeout for the countdown. */
+    args?: Record<string, unknown>
+  }) => void
   onToolFinish?: (ctx: { id: string; name: string; phase: AgentToolUiPhase | null }) => void
   onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   /** Called at the start of each tool round; returns a user message to inject (e.g. working-set cache). Empty string = skip. */
@@ -401,7 +407,8 @@ export async function runSharedToolLoop<
     ) => {
       const phase = params.toolPhaseForName?.(name) ?? null
       params.onToolPhase?.(phase)
-      params.onToolStart?.({ id, name, phase })
+      // `args` lets the busy strip show a timeout countdown for long shell/tool calls.
+      params.onToolStart?.({ id, name, phase, args: parseArgs(argsRaw) })
       try {
         return await executeToolCallSafely(name, argsRaw)
       } finally {

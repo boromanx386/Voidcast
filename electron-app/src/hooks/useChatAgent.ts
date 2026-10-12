@@ -55,6 +55,7 @@ import {
 } from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { isToolTimeoutResult, readToolTimeoutSec } from '@/lib/turnTimer'
 import { streamOllamaChat, isThinkingUiEnabled } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
@@ -901,7 +902,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       }
 
       const asstId = uid()
-      const asstMsg: UiMessage = { id: asstId, role: 'assistant', content: '' }
+      const asstMsg: UiMessage = {
+        id: asstId,
+        role: 'assistant',
+        content: '',
+        turnStartedAt: Date.now(),
+      }
       if (isEdit) {
         const handoffDraft =
           isPlanHandoff && opts?.planHandoffUiDraft?.content?.trim()
@@ -1105,18 +1111,28 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 ),
               )
             },
-            onToolStart: ({ id, name, phase }: {
+            onToolStart: ({
+              id,
+              name,
+              phase,
+              args,
+            }: {
               id: string
               name: string
               phase: AgentToolUiPhase | null
+              args?: Record<string, unknown>
             }) => {
               if (!isRunActive()) return
               const activityId = `${runId}:${id}`
+              const timeoutSec = readToolTimeoutSec(args)
               sessionAgentStore.update(keyOf(), (prev) => ({
                 ...prev,
+                // A new tool means the previous one is done — drop a stale timeout notice.
+                toolResultBanner:
+                  prev.toolResultBanner?.kind === 'timeout' ? null : prev.toolResultBanner,
                 toolActivities: [
                   ...prev.toolActivities.filter((activity) => activity.id !== activityId),
-                  { id: activityId, name, phase },
+                  { id: activityId, name, phase, startedAt: Date.now(), timeoutSec },
                 ],
               }))
             },
@@ -1132,6 +1148,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             },
             onToolResult: (payload: AgentToolResultPayload) => {
               if (!isRunActive()) return
+              // Surface tool timeouts (long builds/downloads) instead of burying them in the reply.
+              if (isToolTimeoutResult(payload.result)) {
+                const secs = readToolTimeoutSec(payload.args)
+                setBanner({
+                  kind: 'timeout',
+                  text: `${payload.name} timed out${secs ? ` after ${secs}s` : ''} and was stopped. The model can see this and may retry with a longer timeout.`,
+                })
+              }
               if (harvestingPlanResearch) {
                 harvestPlanToolIntoBuffer(
                   planResearchHarvest,
@@ -1411,6 +1435,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           void playNotificationSound('error', { volume: turnSettings.notificationSoundVolume })
         }
       } finally {
+        // Freeze the per-turn duration chip (covers normal, abort and error exits).
+        const turnEndedAt = Date.now()
+        setMsgs((prev) =>
+          prev.some((m) => m.id === asstId && m.turnEndedAt == null)
+            ? prev.map((m) => (m.id === asstId ? { ...m, turnEndedAt } : m))
+            : prev,
+        )
         sessionAgentStore.endRun(keyOf(), runId)
         // Release exactly once for every exit path (normal, escalate, abort,
         // error, early return). Previously leaked on early returns inside try.

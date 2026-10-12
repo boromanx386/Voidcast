@@ -39,6 +39,10 @@ export type AgentToolActivity = {
   id: string
   name: string
   phase: AgentToolUiPhase | null
+  /** Epoch ms when the call started — drives the live per-tool timer in the busy strip. */
+  startedAt?: number
+  /** Configured timeout (seconds) when the tool runs a long child process (shell/typecheck). */
+  timeoutSec?: number
 }
 
 export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {

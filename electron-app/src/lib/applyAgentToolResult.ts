@@ -62,7 +62,7 @@ export type AgentToolResultHandlerDeps = {
   setCodingGitNonce: Dispatch<SetStateAction<number>>
   /** Open coding panel + focus a project-relative path after write/edit. */
   revealCodingFile?: (path: string) => void
-  setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf'; text: string } | null>>
+  setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf' | 'timeout'; text: string } | null>>
   setMessages: Dispatch<SetStateAction<UiMessage[]>>
   setAssistantGeneratedImages: Dispatch<SetStateAction<Record<string, string[]>>>
   setAssistantSavedImagePaths: Dispatch<SetStateAction<Record<string, string[]>>>

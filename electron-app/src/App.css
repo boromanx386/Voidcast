@@ -963,6 +963,14 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 .tool-indicator.skill { @apply text-neon-purple border-neon-purple/30; }
 .tool-indicator.other { @apply text-void-dim border-void-muted/50; }
 
+/* A tool that has already run past its configured timeout turns red. */
+.tool-indicator--overtime { @apply text-neon-red border-neon-red/40; }
+
+/* Per-turn duration chip at the bottom of an assistant bubble. */
+.turn-timer {
+  @apply inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-void-dim;
+}
+
 /* Options panel */
 .options-panel {
   @apply flex-1 overflow-y-auto p-6;

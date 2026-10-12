@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { AgentToolActivity, AgentToolUiPhase } from '@/lib/agentToolPhase'
+import { useElapsedMs } from '@/hooks/useElapsedMs'
+import { formatCountdown, formatDurationMs } from '@/lib/turnTimer'
 
 export function CrtOverlay() {
   return <div className="crt-overlay" aria-hidden="true" />
@@ -156,6 +158,32 @@ const TOOL_PHASE_UI: Record<
   other: { icon: '◈', label: 'TOOL', className: 'other' },
 }
 
+/** One running tool with a live elapsed timer (countdown when the timeout is known). */
+function ToolActivityRow({ activity }: { activity: AgentToolActivity }) {
+  const tool = TOOL_PHASE_UI[activity.phase || 'other']
+  const elapsed = useElapsedMs(activity.startedAt, undefined, activity.startedAt != null)
+  const timeLabel =
+    activity.startedAt == null
+      ? null
+      : activity.timeoutSec
+        ? formatCountdown(elapsed ?? 0, activity.timeoutSec)
+        : formatDurationMs(elapsed ?? 0)
+  const overtime = activity.timeoutSec != null && (elapsed ?? 0) > activity.timeoutSec * 1000
+  return (
+    <div
+      className={`tool-indicator ${tool.className}${overtime ? ' tool-indicator--overtime' : ''}`}
+    >
+      <span className="opacity-70">{tool.icon}</span>
+      <span>{tool.label}</span>
+      <span className="ml-2 text-[10px] opacity-60">{activity.name}</span>
+      {timeLabel ? (
+        <span className="ml-2 text-[10px] opacity-80 tabular-nums">{timeLabel}</span>
+      ) : null}
+      <span className="ml-2 animate-pulse">_</span>
+    </div>
+  )
+}
+
 export function ToolIndicator({
   phase,
   activities,
@@ -171,17 +199,9 @@ export function ToolIndicator({
             PARALLEL_TOOLS · {activities.length} ACTIVE
           </div>
         ) : null}
-        {activities.map((activity) => {
-          const tool = TOOL_PHASE_UI[activity.phase || 'other']
-          return (
-            <div key={activity.id} className={`tool-indicator ${tool.className}`}>
-              <span className="opacity-70">{tool.icon}</span>
-              <span>{tool.label}</span>
-              <span className="ml-2 text-[10px] opacity-60">{activity.name}</span>
-              <span className="ml-2 animate-pulse">_</span>
-            </div>
-          )
-        })}
+        {activities.map((activity) => (
+          <ToolActivityRow key={activity.id} activity={activity} />
+        ))}
       </div>
     )
   }
