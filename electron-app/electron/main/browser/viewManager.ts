@@ -120,6 +120,8 @@ let authStorePath = ''
 let lastPermission: string | null = null
 /** Last download routed into the project folder. */
 let lastDownload: DownloadNotice | null = null
+/** Bumped every time a download starts, so a click can tell a new one from a stale notice. */
+let downloadSeq = 0
 
 export async function withBrowserLock<T>(fn: () => Promise<T>): Promise<T> {
   const previous = browserOperationTail
@@ -378,6 +380,18 @@ function attachDownload(item: Electron.DownloadItem): void {
   } catch {
     /* let Chromium pick if the path is rejected */
   }
+  // Announce the download before it finishes: a click that starts one must be able to name
+  // the file in its own result instead of leaving the agent to hunt for it later (or look
+  // in the OS Downloads folder). downloadSeq lets a click tell a download that began while
+  // it was running apart from an earlier, stale notice.
+  lastDownload = {
+    name: path.basename(target),
+    path: target,
+    state: 'started',
+    bytes: 0,
+    at: Date.now(),
+  }
+  downloadSeq += 1
   item.once('done', (_event, state) => {
     lastDownload = {
       name: path.basename(target),
@@ -387,6 +401,16 @@ function attachDownload(item: Electron.DownloadItem): void {
       at: Date.now(),
     }
   })
+}
+
+/** Monotonic count of downloads routed through this profile; a click diffs it. */
+export function downloadMark(): number {
+  return downloadSeq
+}
+
+/** The most recent download notice if a download began after `mark`, else null. */
+export function downloadNoticeSince(mark: number): DownloadNotice | null {
+  return downloadSeq > mark ? lastDownload : null
 }
 
 function authKey(authInfo: Electron.AuthInfo): string {
