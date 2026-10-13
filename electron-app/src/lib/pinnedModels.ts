@@ -24,9 +24,7 @@ export function toScopedPinnedId(provider: LlmProvider, modelId: string): string
   return `${provider}:${raw}`
 }
 
-export function parsePinnedId(
-  pinnedId: string,
-): { provider: LlmProvider; modelId: string } | null {
+export function parsePinnedId(pinnedId: string): { provider: LlmProvider; modelId: string } | null {
   const id = pinnedId.trim()
   if (!id) return null
 

@@ -39,11 +39,7 @@ describe('parseCodingWorkerTasks', () => {
     expect(parseCodingWorkerTasks({ tasks: [] }).ok).toBe(false)
     expect(
       parseCodingWorkerTasks({
-        tasks: [
-          { goal: 'a' },
-          { goal: 'b' },
-          { goal: 'c' },
-        ],
+        tasks: [{ goal: 'a' }, { goal: 'b' }, { goal: 'c' }],
       }).ok,
     ).toBe(false)
   })
@@ -67,7 +63,10 @@ describe('parseCodingWorkerTasks', () => {
       expect(one.tasks[0]!.focusPaths).toEqual(['src/auth/login.ts'])
     }
     const two = parseCodingWorkerTasks({
-      tasks: [{ goal: 'a', path_prefix: 'src' }, { goal: 'b', path_prefix: 'tests' }],
+      tasks: [
+        { goal: 'a', path_prefix: 'src' },
+        { goal: 'b', path_prefix: 'tests' },
+      ],
     })
     expect(two.ok).toBe(true)
     if (two.ok) expect(two.tasks).toHaveLength(CODING_WORKER_MAX_TASKS)
@@ -212,9 +211,8 @@ describe('applyWorkerMutationsToMemo', () => {
 
   it('records write_file into recentFiles, fileCache, and recentFileDigests', async () => {
     const { applyWorkerMutationsToMemo } = await load()
-    const { emptyCodingContextMemo, emptyCodingFileCache } = await import(
-      '../src/lib/codingContextMemo'
-    )
+    const { emptyCodingContextMemo, emptyCodingFileCache } =
+      await import('../src/lib/codingContextMemo')
     const memo = { current: emptyCodingContextMemo('proj') }
     const fileCache = { current: emptyCodingFileCache() }
     applyWorkerMutationsToMemo({
@@ -270,9 +268,8 @@ describe('applyWorkerMutationsToMemo', () => {
 
   it('skips failed mutations (result starts with Error:)', async () => {
     const { applyWorkerMutationsToMemo } = await load()
-    const { emptyCodingContextMemo, emptyCodingFileCache } = await import(
-      '../src/lib/codingContextMemo'
-    )
+    const { emptyCodingContextMemo, emptyCodingFileCache } =
+      await import('../src/lib/codingContextMemo')
     const memo = { current: emptyCodingContextMemo('proj') }
     const fileCache = { current: emptyCodingFileCache() }
     applyWorkerMutationsToMemo({
@@ -294,9 +291,8 @@ describe('applyWorkerMutationsToMemo', () => {
 
   it('applies multiple mutations serially without losing entries (no race)', async () => {
     const { applyWorkerMutationsToMemo } = await load()
-    const { emptyCodingContextMemo, emptyCodingFileCache } = await import(
-      '../src/lib/codingContextMemo'
-    )
+    const { emptyCodingContextMemo, emptyCodingFileCache } =
+      await import('../src/lib/codingContextMemo')
     const memo = { current: emptyCodingContextMemo('proj') }
     const fileCache = { current: emptyCodingFileCache() }
     applyWorkerMutationsToMemo({
@@ -391,12 +387,12 @@ describe('buildToolsList team mode', () => {
     }).find((t) => t.function.name === 'run_coding_workers')
     const properties = (workerTool?.function.parameters as { properties?: Record<string, unknown> })
       ?.properties
-    const taskSchema = (properties?.tasks as {
-      items?: { properties?: Record<string, unknown>; required?: string[] }
-    })?.items
-    const taskProperties = (
-      taskSchema?.properties
-    )
+    const taskSchema = (
+      properties?.tasks as {
+        items?: { properties?: Record<string, unknown>; required?: string[] }
+      }
+    )?.items
+    const taskProperties = taskSchema?.properties
     expect(taskProperties).toHaveProperty('success_criteria')
     expect(taskProperties).toHaveProperty('focus_paths')
     expect(taskSchema?.required).toContain('success_criteria')

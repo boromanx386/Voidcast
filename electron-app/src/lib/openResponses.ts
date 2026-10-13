@@ -65,9 +65,7 @@ export type ResponsesInputTextPart = { type: 'input_text'; text: string }
 export type ResponsesOutputTextPart = { type: 'output_text'; text: string }
 export type ResponsesInputImagePart = { type: 'input_image'; image_url: string }
 export type ResponsesContentPart =
-  | ResponsesInputTextPart
-  | ResponsesOutputTextPart
-  | ResponsesInputImagePart
+  ResponsesInputTextPart | ResponsesOutputTextPart | ResponsesInputImagePart
 
 export type ResponsesMessageItem = {
   type: 'message'
@@ -89,9 +87,7 @@ export type ResponsesFunctionCallOutputItem = {
 }
 
 export type ResponsesInputItem =
-  | ResponsesMessageItem
-  | ResponsesFunctionCallItem
-  | ResponsesFunctionCallOutputItem
+  ResponsesMessageItem | ResponsesFunctionCallItem | ResponsesFunctionCallOutputItem
 
 export type ResponsesTool = {
   type: 'function'
@@ -357,13 +353,14 @@ export function applyResponsesStreamEvent(
   }
   if (type === 'response.failed') {
     const response = e.response as { error?: { message?: string } } | undefined
-    throw new Error(response?.error?.message || responsesErrorMessage(e) || 'Responses request failed')
+    throw new Error(
+      response?.error?.message || responsesErrorMessage(e) || 'Responses request failed',
+    )
   }
 
   if (type === 'response.output_item.added') {
     const item = e.item as
-      | { type?: string; call_id?: string; id?: string; name?: string }
-      | undefined
+      { type?: string; call_id?: string; id?: string; name?: string } | undefined
     if (item?.type === 'function_call' && typeof e.output_index === 'number') {
       const slot = toolSlotForEvent(state, e)
       if (slot !== undefined) {
@@ -405,7 +402,10 @@ export function applyResponsesStreamEvent(
 
   // `reasoning_summary_text` is what `reasoning.summary: 'auto'` produces;
   // `reasoning_text` is the raw variant some gateways emit instead.
-  if (type === 'response.reasoning_summary_text.delta' || type === 'response.reasoning_text.delta') {
+  if (
+    type === 'response.reasoning_summary_text.delta' ||
+    type === 'response.reasoning_text.delta'
+  ) {
     const delta = typeof e.delta === 'string' ? e.delta : ''
     if (delta) {
       state.reasoning += delta
@@ -438,7 +438,8 @@ export function applyResponsesStreamEvent(
       | undefined
     if (response?.usage) state.usage = usageFromResponses(response.usage)
     if (response?.status) state.status = response.status
-    if (response?.incomplete_details?.reason) state.incompleteReason = response.incomplete_details.reason
+    if (response?.incomplete_details?.reason)
+      state.incompleteReason = response.incomplete_details.reason
     return res
   }
 
@@ -469,7 +470,8 @@ export function parseResponsesOutput(data: unknown): {
       for (const p of parts) {
         if (!p || typeof p !== 'object') continue
         const part = p as { type?: string; text?: string }
-        if ((part.type === 'output_text' || part.type === 'text') && part.text) out.content += part.text
+        if ((part.type === 'output_text' || part.type === 'text') && part.text)
+          out.content += part.text
       }
       continue
     }

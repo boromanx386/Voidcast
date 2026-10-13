@@ -21,9 +21,7 @@ function stripImagesForPersistence(msg: UiMessage): UiMessage {
           return rest
         })()
   if (base.generatedImageUrls?.length) {
-    const generatedImageUrls = base.generatedImageUrls.filter(
-      (u) => !u.startsWith('data:image/'),
-    )
+    const generatedImageUrls = base.generatedImageUrls.filter((u) => !u.startsWith('data:image/'))
     base =
       generatedImageUrls.length > 0
         ? { ...base, generatedImageUrls }
@@ -115,7 +113,10 @@ function normalizeState(raw: unknown): ChatSessionsState {
   if (!raw || typeof raw !== 'object') return { ...EMPTY_STATE }
   const r = raw as Partial<ChatSessionsState>
   const sessions = Array.isArray(r.sessions)
-    ? r.sessions.filter(isSessionLike).map(normalizeSession).sort((a, b) => b.updatedAt - a.updatedAt)
+    ? r.sessions
+        .filter(isSessionLike)
+        .map(normalizeSession)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
     : []
   const activeSessionId =
     typeof r.activeSessionId === 'string' && sessions.some((x) => x.id === r.activeSessionId)
@@ -199,7 +200,10 @@ export async function loadChatSessions(): Promise<ChatSessionsState> {
   try {
     return await migrateFromLocalStorageIfNeeded()
   } catch (err) {
-    console.warn('[voidcast] Chat sessions IndexedDB load failed; using localStorage fallback.', err)
+    console.warn(
+      '[voidcast] Chat sessions IndexedDB load failed; using localStorage fallback.',
+      err,
+    )
     return loadLegacyLocalStorage()
   }
 }
@@ -234,13 +238,10 @@ export function upsertSession(
   }
 }
 
-export function deleteSessionById(
-  state: ChatSessionsState,
-  sessionId: string,
-): ChatSessionsState {
+export function deleteSessionById(state: ChatSessionsState, sessionId: string): ChatSessionsState {
   const sessions = state.sessions.filter((s) => s.id !== sessionId)
   const activeSessionId =
-    state.activeSessionId === sessionId ? sessions[0]?.id ?? null : state.activeSessionId
+    state.activeSessionId === sessionId ? (sessions[0]?.id ?? null) : state.activeSessionId
   return { sessions, activeSessionId }
 }
 

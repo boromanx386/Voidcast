@@ -1,4 +1,10 @@
-import type { ToolsEnabled, SubAgentConfig, LlmThinkLevel, TtsProvider, VoiceMode } from '@/lib/settings'
+import type {
+  ToolsEnabled,
+  SubAgentConfig,
+  LlmThinkLevel,
+  TtsProvider,
+  VoiceMode,
+} from '@/lib/settings'
 import type { McpToolInfo } from '@/lib/mcpTools'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { RunwareImageConfig } from '@/lib/runware'
@@ -46,11 +52,7 @@ export interface ChatWithToolsCommonParams {
   }) => void
   onToolFinish?: (ctx: { id: string; name: string; phase: AgentToolUiPhase | null }) => void
   pdfOutputDir?: string
-  onToolResult?: (payload: {
-    name: string
-    result: string
-    args?: Record<string, unknown>
-  }) => void
+  onToolResult?: (payload: { name: string; result: string; args?: Record<string, unknown> }) => void
   runware?: RunwareImageConfig
   /** Frozen TTS config for generate_tts. */
   tts?: AgentTtsConfig

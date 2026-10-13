@@ -56,9 +56,7 @@ describe('recordCodingToolInTurnLog', () => {
 
 describe('buildCodingTurnSummary', () => {
   it('returns empty when log is empty', () => {
-    expect(
-      buildCodingTurnSummary({ userGoal: 'refactor', log: emptyCodingTurnLog() }),
-    ).toBe('')
+    expect(buildCodingTurnSummary({ userGoal: 'refactor', log: emptyCodingTurnLog() })).toBe('')
   })
 
   it('omits agent note when only read-only tool events', () => {

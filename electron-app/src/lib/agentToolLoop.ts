@@ -11,9 +11,7 @@ import { sanitizeImageToolResultForLlm } from '@/lib/openrouterImage'
 
 /** Strip all http(s) URLs from message content so the model can't recycle
  *  hallucinated URLs from previous rounds when it skips tool calls. */
-function stripUrlsFromMessages(
-  messages: Array<{ content?: string | unknown }>,
-): void {
+function stripUrlsFromMessages(messages: Array<{ content?: string | unknown }>): void {
   const urlRegex = /https?:\/\/[^\s)>]+/g
   for (const msg of messages) {
     if (typeof msg.content === 'string') {
@@ -137,10 +135,7 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
    * repo work unless a successful file/shell/git mutation occurred this turn.
    */
   guardRepoActionTruth?: boolean
-  appendRuntimeRecalledImages?: (
-    messages: TMessage[],
-    recalled: RecalledImagePayload[],
-  ) => void
+  appendRuntimeRecalledImages?: (messages: TMessage[], recalled: RecalledImagePayload[]) => void
   collectRecalledImages?: (ctx: {
     name: string
     argsRaw: string | Record<string, unknown> | undefined
@@ -166,7 +161,10 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
       callFactory: () => TProviderToolCall,
     ) => Promise<void>
   }) => Promise<boolean>
-  executeToolCall: (name: string, argsRaw: string | Record<string, unknown> | undefined) => Promise<string>
+  executeToolCall: (
+    name: string,
+    argsRaw: string | Record<string, unknown> | undefined,
+  ) => Promise<string>
   /** Optional deterministic trim of noisy tool results for the LLM only (UI still gets raw). */
   trimToolResultForLlm?: (name: string, resultForLlm: string) => string
   /**
@@ -187,7 +185,9 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
     /** Replaces cleared body; `content` is the full result about to be evicted. */
     placeholder: (name: string, chars: number, content: string) => string
   }
-  parseArgsForToolResult?: (raw: string | Record<string, unknown> | undefined) => Record<string, unknown>
+  parseArgsForToolResult?: (
+    raw: string | Record<string, unknown> | undefined,
+  ) => Record<string, unknown>
   onDelta: (fullText: string) => void
   onThinkingDelta?: (fullThinking: string) => void
   onToolPhase?: (phase: AgentToolUiPhase | null) => void
@@ -245,10 +245,7 @@ function preserveIntermediateResponse<TMessage>(
   params.onIntermediateResponse?.({ round, content: trimmed })
 }
 
-function appendThinkingRound(
-  prefix: string,
-  thinking: string,
-): string {
+function appendThinkingRound(prefix: string, thinking: string): string {
   if (!thinking.trim()) return prefix
   return `${prefix}${thinking.trim()}\n\n---\n\n`
 }
@@ -272,7 +269,8 @@ export async function runSharedToolLoop<
     ? Math.max(1, Math.floor(params.maxParallelToolCalls!))
     : 4
   /** Tool-result message positions per round, for old-result clearing. */
-  const toolResultRecords: Array<{ index: number; round: number; name: string; cleared: boolean }> = []
+  const toolResultRecords: Array<{ index: number; round: number; name: string; cleared: boolean }> =
+    []
   /** Recalled-image message positions per round, for ephemeral image payloads. */
   const recalledImageRecords: Array<{
     index: number
@@ -329,9 +327,7 @@ export async function runSharedToolLoop<
       for (const rec of recalledImageRecords) {
         if (rec.cleared) continue
         if (round - rec.round <= keepRecalledImageRounds) continue
-        const msg = messages[rec.index] as
-          | { content?: unknown; images?: unknown[] }
-          | undefined
+        const msg = messages[rec.index] as { content?: unknown; images?: unknown[] } | undefined
         if (msg) stripRecalledImagePayload(msg, rec.digest)
         rec.cleared = true
       }
@@ -527,10 +523,7 @@ export async function runSharedToolLoop<
 
     preserveIntermediateResponse(params, round, content ?? lastAssistantText)
 
-    const executeToolCallForLoop = async (
-      valid: (typeof validCalls)[number],
-      index: number,
-    ) => {
+    const executeToolCallForLoop = async (valid: (typeof validCalls)[number], index: number) => {
       return executeToolCallWithActivity(
         valid.shared.name,
         valid.shared.argsRaw,
@@ -538,10 +531,7 @@ export async function runSharedToolLoop<
       )
     }
 
-    const commitToolResult = async (
-      valid: (typeof validCalls)[number],
-      result: string,
-    ) => {
+    const commitToolResult = async (valid: (typeof validCalls)[number], result: string) => {
       const shared = valid.shared
       const call = valid.provider
       let resultForLlm = sanitizeImageToolResultForLlm(shared.name, result)
@@ -580,7 +570,7 @@ export async function runSharedToolLoop<
 
     // Execute adjacent read-only calls concurrently, but commit all results in
     // provider order. Any serial tool acts as a barrier for the surrounding batch.
-    for (let index = 0; index < validCalls.length; ) {
+    for (let index = 0; index < validCalls.length;) {
       const current = validCalls[index]!
       if (!isParallelSafeAgentTool(current.shared.name)) {
         const result = await executeToolCallForLoop(current, index)
@@ -599,9 +589,7 @@ export async function runSharedToolLoop<
       }
 
       const results = await Promise.all(
-        batch.map((valid, batchIndex) =>
-          executeToolCallForLoop(valid, index + batchIndex),
-        ),
+        batch.map((valid, batchIndex) => executeToolCallForLoop(valid, index + batchIndex)),
       )
       for (let batchIndex = 0; batchIndex < batch.length; batchIndex++) {
         await commitToolResult(batch[batchIndex]!, results[batchIndex]!)

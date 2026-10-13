@@ -156,8 +156,7 @@ function normalizeOpenRouterImageProfile(
     ...(isGpt
       ? {
           gptQuality: normalizedGptQuality ?? fallback.gptQuality ?? 'auto',
-          transparentBackground:
-            transparentBackground ?? fallback.transparentBackground ?? false,
+          transparentBackground: transparentBackground ?? fallback.transparentBackground ?? false,
         }
       : {}),
   }
@@ -297,7 +296,10 @@ export function openRouterTtsUsesReferenceVoice(model: string): boolean {
 export function openRouterTtsVoicesForModel(model: string): readonly string[] {
   const id = model.trim()
   if (openRouterTtsUsesReferenceVoice(id)) return FISH_AUDIO_TTS_VOICES
-  return OPENROUTER_TTS_VOICES_BY_MODEL[id] ?? OPENROUTER_TTS_VOICES_BY_MODEL[OPENROUTER_TTS_MODEL_DEFAULT]
+  return (
+    OPENROUTER_TTS_VOICES_BY_MODEL[id] ??
+    OPENROUTER_TTS_VOICES_BY_MODEL[OPENROUTER_TTS_MODEL_DEFAULT]
+  )
 }
 
 export function openRouterTtsDefaultVoice(model: string): string {
@@ -306,7 +308,11 @@ export function openRouterTtsDefaultVoice(model: string): string {
 
 export function normalizeOpenRouterTtsModel(model: string | undefined): string {
   const trimmed = (model || '').trim()
-  if (!trimmed || RETIRED_OPENROUTER_TTS_MODELS.has(trimmed) || trimmed.startsWith('openai/gpt-4o-mini-tts')) {
+  if (
+    !trimmed ||
+    RETIRED_OPENROUTER_TTS_MODELS.has(trimmed) ||
+    trimmed.startsWith('openai/gpt-4o-mini-tts')
+  ) {
     return OPENROUTER_TTS_MODEL_DEFAULT
   }
   return trimmed
@@ -1028,8 +1034,7 @@ export function clampRunwareTtsSpeed(speed: number): number {
 export function runwareTtsSupportsPositivePrompt(model: string): boolean {
   const id = normalizeRunwareTtsModel(model)
   return (
-    id === 'alibaba:qwen@3-tts-1.7b-customvoice' ||
-    id === 'alibaba:qwen@3-tts-1.7b-voicedesign'
+    id === 'alibaba:qwen@3-tts-1.7b-customvoice' || id === 'alibaba:qwen@3-tts-1.7b-voicedesign'
   )
 }
 
@@ -1087,7 +1092,8 @@ export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'ope
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
 
 /** UI shell: dystopian (neon/CRT), minimal (zinc/indigo), matrix (green/code rain), light (warm paper), blood-moon (crimson void), obsidian (neutral dark), terminal (amber CLI) */
-export type UiTheme = 'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian' | 'terminal'
+export type UiTheme =
+  'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian' | 'terminal'
 
 export type RunwareModelProfile = {
   width: number
@@ -1239,9 +1245,7 @@ export const RUNWARE_CONFIGURED_MUSIC_MODELS: Array<{ id: string; label: string 
   { id: RUNWARE_ACE_STEP_V1_5_XL_BASE_MODEL_ID, label: 'ACE-Step v1.5 XL Base' },
   { id: RUNWARE_ACE_STEP_V1_5_XL_SFT_MODEL_ID, label: 'ACE-Step v1.5 XL SFT' },
 ]
-const configuredMusicModelIdSet = new Set<string>(
-  RUNWARE_CONFIGURED_MUSIC_MODELS.map((m) => m.id),
-)
+const configuredMusicModelIdSet = new Set<string>(RUNWARE_CONFIGURED_MUSIC_MODELS.map((m) => m.id))
 /** Variants that run full CFG inference (base + XL base/sft); turbo variants cap low. */
 const highStepMusicModelIdSet = new Set<string>([
   RUNWARE_ACE_STEP_V1_5_BASE_MODEL_ID,
@@ -1822,13 +1826,17 @@ function normalizeTools(s: AppSettings): AppSettings {
         ? s.coding.enabled
         : defaults.toolsEnabled.coding
   const showFileTree =
-    typeof s.coding?.showFileTree === 'boolean' ? s.coding.showFileTree : defaults.coding.showFileTree
+    typeof s.coding?.showFileTree === 'boolean'
+      ? s.coding.showFileTree
+      : defaults.coding.showFileTree
   const showFilePreview =
     typeof s.coding?.showFilePreview === 'boolean'
       ? s.coding.showFilePreview
       : defaults.coding.showFilePreview
   const showTerminal =
-    typeof s.coding?.showTerminal === 'boolean' ? s.coding.showTerminal : defaults.coding.showTerminal
+    typeof s.coding?.showTerminal === 'boolean'
+      ? s.coding.showTerminal
+      : defaults.coding.showTerminal
   const showWeb =
     typeof s.coding?.showWeb === 'boolean' ? s.coding.showWeb : defaults.coding.showWeb
   const browserProfile =
@@ -1836,7 +1844,9 @@ function normalizeTools(s: AppSettings): AppSettings {
       ? s.coding.browserProfile.trim().slice(0, 60)
       : defaults.coding.browserProfile
   const panelWidthPx = clampCodingPanelWidth(
-    typeof s.coding?.panelWidthPx === 'number' ? s.coding.panelWidthPx : defaults.coding.panelWidthPx,
+    typeof s.coding?.panelWidthPx === 'number'
+      ? s.coding.panelWidthPx
+      : defaults.coding.panelWidthPx,
   )
   const fileTreeHeightPx = clampCodingFileTreeHeight(
     typeof s.coding?.fileTreeHeightPx === 'number'
@@ -1863,13 +1873,11 @@ function normalizeTools(s: AppSettings): AppSettings {
     toolsEnabled: {
       webSearch:
         typeof te?.webSearch === 'boolean' ? te.webSearch : defaults.toolsEnabled.webSearch,
-      weather:
-        typeof te?.weather === 'boolean' ? te.weather : defaults.toolsEnabled.weather,
+      weather: typeof te?.weather === 'boolean' ? te.weather : defaults.toolsEnabled.weather,
       scrape: typeof te?.scrape === 'boolean' ? te.scrape : defaults.toolsEnabled.scrape,
       browser: typeof te?.browser === 'boolean' ? te.browser : defaults.toolsEnabled.browser,
       pdf: typeof te?.pdf === 'boolean' ? te.pdf : defaults.toolsEnabled.pdf,
-      youtube:
-        typeof te?.youtube === 'boolean' ? te.youtube : defaults.toolsEnabled.youtube,
+      youtube: typeof te?.youtube === 'boolean' ? te.youtube : defaults.toolsEnabled.youtube,
       runwareImage:
         typeof te?.runwareImage === 'boolean'
           ? te.runwareImage
@@ -1886,8 +1894,7 @@ function normalizeTools(s: AppSettings): AppSettings {
     agentMaxToolRounds: clampAgentMaxToolRounds(
       typeof s.agentMaxToolRounds === 'number' ? s.agentMaxToolRounds : defaults.agentMaxToolRounds,
     ),
-    skillsEnabled:
-      typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
+    skillsEnabled: typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
     mcpEnabled: typeof s.mcpEnabled === 'boolean' ? s.mcpEnabled : defaults.mcpEnabled,
     mcpServerEnabled: normalizeMcpServerEnabled(s.mcpServerEnabled),
     mcpTrustedProjectPaths: normalizeMcpTrustedProjectPaths(s.mcpTrustedProjectPaths),
@@ -1980,20 +1987,20 @@ function normalizeLlm(s: AppSettings): AppSettings {
     typeof s.openrouterBaseUrl === 'string' && s.openrouterBaseUrl.trim()
       ? s.openrouterBaseUrl.trim()
       : defaults.openrouterBaseUrl
-  const openrouterApiKey =
-    typeof s.openrouterApiKey === 'string' ? s.openrouterApiKey.trim() : ''
+  const openrouterApiKey = typeof s.openrouterApiKey === 'string' ? s.openrouterApiKey.trim() : ''
   const openrouterModel = normalizeOpenRouterModelId(
     typeof s.openrouterModel === 'string' && s.openrouterModel.trim()
       ? s.openrouterModel.trim()
       : defaults.openrouterModel,
   )
-  const openrouterProviderByModel = normalizeOpenRouterProviderByModel(
-    s.openrouterProviderByModel,
-  )
+  const openrouterProviderByModel = normalizeOpenRouterProviderByModel(s.openrouterProviderByModel)
   const legacyProviderOnly =
     typeof s.openrouterProviderOnly === 'string' ? s.openrouterProviderOnly.trim() : ''
   // Migrate single global provider into the per-model map for the active model.
-  if (legacyProviderOnly && !Object.prototype.hasOwnProperty.call(openrouterProviderByModel, openrouterModel)) {
+  if (
+    legacyProviderOnly &&
+    !Object.prototype.hasOwnProperty.call(openrouterProviderByModel, openrouterModel)
+  ) {
     openrouterProviderByModel[openrouterModel] = legacyProviderOnly
   }
   const openrouterProviderOnly = openrouterProviderByModel[openrouterModel] ?? ''
@@ -2002,8 +2009,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     typeof s.nvidiaBaseUrl === 'string' && s.nvidiaBaseUrl.trim()
       ? s.nvidiaBaseUrl.trim()
       : defaults.nvidiaBaseUrl
-  const nvidiaApiKey =
-    typeof s.nvidiaApiKey === 'string' ? s.nvidiaApiKey.trim() : ''
+  const nvidiaApiKey = typeof s.nvidiaApiKey === 'string' ? s.nvidiaApiKey.trim() : ''
   const nvidiaModel = normalizeNvidiaModelId(
     typeof s.nvidiaModel === 'string' && s.nvidiaModel.trim()
       ? s.nvidiaModel.trim()
@@ -2013,8 +2019,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     typeof s.deepseekBaseUrl === 'string' && s.deepseekBaseUrl.trim()
       ? s.deepseekBaseUrl.trim()
       : defaults.deepseekBaseUrl
-  const deepseekApiKey =
-    typeof s.deepseekApiKey === 'string' ? s.deepseekApiKey.trim() : ''
+  const deepseekApiKey = typeof s.deepseekApiKey === 'string' ? s.deepseekApiKey.trim() : ''
   const deepseekModel = normalizeDeepSeekModelId(
     typeof s.deepseekModel === 'string' && s.deepseekModel.trim()
       ? s.deepseekModel.trim()
@@ -2024,8 +2029,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     typeof s.openaiBaseUrl === 'string' && s.openaiBaseUrl.trim()
       ? s.openaiBaseUrl.trim()
       : defaults.openaiBaseUrl
-  const openaiApiKey =
-    typeof s.openaiApiKey === 'string' ? s.openaiApiKey.trim() : ''
+  const openaiApiKey = typeof s.openaiApiKey === 'string' ? s.openaiApiKey.trim() : ''
   const openaiModel = normalizeOpenAiModelId(
     typeof s.openaiModel === 'string' && s.openaiModel.trim()
       ? s.openaiModel.trim()
@@ -2035,8 +2039,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     typeof s.opencodeGoBaseUrl === 'string' && s.opencodeGoBaseUrl.trim()
       ? s.opencodeGoBaseUrl.trim()
       : defaults.opencodeGoBaseUrl
-  const opencodeGoApiKey =
-    typeof s.opencodeGoApiKey === 'string' ? s.opencodeGoApiKey.trim() : ''
+  const opencodeGoApiKey = typeof s.opencodeGoApiKey === 'string' ? s.opencodeGoApiKey.trim() : ''
   const opencodeGoModel = normalizeOpenCodeGoModelId(
     typeof s.opencodeGoModel === 'string' && s.opencodeGoModel.trim()
       ? s.opencodeGoModel.trim()
@@ -2064,9 +2067,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     opencodeGoApiKey,
     opencodeGoModel,
     llmTemperature: Number.isFinite(t) ? clamp(t, 0, 2) : defaults.llmTemperature,
-    llmNumCtx: Number.isFinite(ctx)
-      ? clamp(Math.round(ctx), 512, 262144)
-      : defaults.llmNumCtx,
+    llmNumCtx: Number.isFinite(ctx) ? clamp(Math.round(ctx), 512, 262144) : defaults.llmNumCtx,
     contextAutoCompress:
       typeof s.contextAutoCompress === 'boolean'
         ? s.contextAutoCompress
@@ -2076,8 +2077,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
         ? s.longMemoryDefaultEnabled
         : defaults.longMemoryDefaultEnabled,
     llmThinkLevel: normalizeLlmThinkLevel(s, defaults.llmThinkLevel),
-    llmSystemPrompt:
-      typeof s.llmSystemPrompt === 'string' ? s.llmSystemPrompt : '',
+    llmSystemPrompt: typeof s.llmSystemPrompt === 'string' ? s.llmSystemPrompt : '',
   }
 }
 
@@ -2090,17 +2090,14 @@ function normalizeTts(s: AppSettings): AppSettings {
         ? 'openrouter-tts'
         : 'local'
   const voiceRaw = typeof s.runwareXaiVoice === 'string' ? s.runwareXaiVoice.trim() : ''
-  const previousRunwareModel =
-    typeof s.runwareTtsModel === 'string' ? s.runwareTtsModel.trim() : ''
+  const previousRunwareModel = typeof s.runwareTtsModel === 'string' ? s.runwareTtsModel.trim() : ''
   const runwareTtsModel = normalizeRunwareTtsModel(previousRunwareModel)
   const runwareModelChanged =
     Boolean(previousRunwareModel) && runwareTtsModel !== previousRunwareModel
   const allowedVoices = runwareTtsVoicesForModel(runwareTtsModel)
   const voiceAllowed = Boolean(voiceRaw) && allowedVoices.includes(voiceRaw)
   const runwareXaiVoice =
-    runwareModelChanged || !voiceAllowed
-      ? runwareTtsDefaultVoice(runwareTtsModel)
-      : voiceRaw
+    runwareModelChanged || !voiceAllowed ? runwareTtsDefaultVoice(runwareTtsModel) : voiceRaw
   const runwareXaiLanguage =
     typeof s.runwareXaiLanguage === 'string' ? s.runwareXaiLanguage.trim() : ''
   const runwareXaiPositivePrompt =
@@ -2110,8 +2107,7 @@ function normalizeTts(s: AppSettings): AppSettings {
       ? s.runwareTtsSpeed
       : defaults.runwareTtsSpeed
   const runwareTtsSpeed = clampRunwareTtsSpeed(runwareTtsSpeedRaw)
-  const previousModel =
-    typeof s.openrouterTtsModel === 'string' ? s.openrouterTtsModel.trim() : ''
+  const previousModel = typeof s.openrouterTtsModel === 'string' ? s.openrouterTtsModel.trim() : ''
   const openrouterTtsModel = normalizeOpenRouterTtsModel(previousModel)
   const orTtsVoiceRaw = typeof s.openrouterTtsVoice === 'string' ? s.openrouterTtsVoice.trim() : ''
   const modelChanged = openrouterTtsModel !== previousModel
@@ -2165,7 +2161,7 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
       ? (providerMap[model] || '').trim()
       : typeof raw.openrouterProviderOnly === 'string'
         ? raw.openrouterProviderOnly.trim()
-        : defaults.subAgent.openrouterProviderOnly ?? ''
+        : (defaults.subAgent.openrouterProviderOnly ?? '')
   const codingOpenrouterProviderOnly =
     codingProvider === 'openrouter' &&
     codingModel &&
@@ -2173,7 +2169,7 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
       ? (providerMap[codingModel] || '').trim()
       : typeof raw.codingOpenrouterProviderOnly === 'string'
         ? raw.codingOpenrouterProviderOnly.trim()
-        : defaults.subAgent.codingOpenrouterProviderOnly ?? ''
+        : (defaults.subAgent.codingOpenrouterProviderOnly ?? '')
 
   // Token budgets are internal defaults only (not exposed in Options UI).
   // Always pin so old saved tweaks cannot confuse runtime.
@@ -2206,7 +2202,15 @@ function normalizePdfDir(s: AppSettings): AppSettings {
 function normalizeUiTheme(s: AppSettings): AppSettings {
   const t = s.uiTheme
   const uiTheme: UiTheme =
-    t === 'minimal' || t === 'dystopian' || t === 'matrix' || t === 'light' || t === 'blood-moon' || t === 'obsidian' || t === 'terminal' ? t : 'minimal'
+    t === 'minimal' ||
+    t === 'dystopian' ||
+    t === 'matrix' ||
+    t === 'light' ||
+    t === 'blood-moon' ||
+    t === 'obsidian' ||
+    t === 'terminal'
+      ? t
+      : 'minimal'
   return { ...s, uiTheme }
 }
 
@@ -2221,9 +2225,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
   const steps = Number(s.runwareSteps)
   const cfg = Number(s.runwareCfgScale)
   const configuredModelIdSet = new Set(RUNWARE_CONFIGURED_MODELS.map((x) => x.id))
-  const apiBase = typeof s.runwareApiBaseUrl === 'string'
-    ? s.runwareApiBaseUrl.trim()
-    : ''
+  const apiBase = typeof s.runwareApiBaseUrl === 'string' ? s.runwareApiBaseUrl.trim() : ''
   const apiKey = typeof s.runwareApiKey === 'string' ? s.runwareApiKey.trim() : ''
   const model =
     typeof s.runwareImageModel === 'string' && s.runwareImageModel.trim()
@@ -2233,27 +2235,31 @@ function normalizeRunware(s: AppSettings): AppSettings {
     typeof s.runwareEditModel === 'string' && s.runwareEditModel.trim()
       ? s.runwareEditModel.trim()
       : defaults.runwareEditModel
-  const negative =
-    typeof s.runwareNegativePrompt === 'string' ? s.runwareNegativePrompt : ''
+  const negative = typeof s.runwareNegativePrompt === 'string' ? s.runwareNegativePrompt : ''
   const outputDir =
     typeof s.runwareImageOutputDir === 'string' ? s.runwareImageOutputDir.trim() : ''
-  const musicOutputFormatRaw = typeof s.runwareMusicOutputFormat === 'string'
-    ? s.runwareMusicOutputFormat.trim().toUpperCase()
-    : ''
+  const musicOutputFormatRaw =
+    typeof s.runwareMusicOutputFormat === 'string'
+      ? s.runwareMusicOutputFormat.trim().toUpperCase()
+      : ''
   const musicOutputFormat =
-    musicOutputFormatRaw === 'WAV' || musicOutputFormatRaw === 'FLAC' || musicOutputFormatRaw === 'OGG'
+    musicOutputFormatRaw === 'WAV' ||
+    musicOutputFormatRaw === 'FLAC' ||
+    musicOutputFormatRaw === 'OGG'
       ? musicOutputFormatRaw
       : 'MP3'
   const musicDuration = Number(s.runwareMusicDurationSec)
   const musicSteps = Number(s.runwareMusicSteps)
   const musicCfg = Number(s.runwareMusicCfgScale)
-  const musicGuidanceRaw = typeof s.runwareMusicGuidanceType === 'string'
-    ? s.runwareMusicGuidanceType.trim().toLowerCase()
-    : ''
+  const musicGuidanceRaw =
+    typeof s.runwareMusicGuidanceType === 'string'
+      ? s.runwareMusicGuidanceType.trim().toLowerCase()
+      : ''
   const musicGuidanceType = musicGuidanceRaw === 'cfg' ? 'cfg' : 'apg'
-  const musicVocalLangRaw = typeof s.runwareMusicVocalLanguage === 'string'
-    ? s.runwareMusicVocalLanguage.trim().toLowerCase()
-    : ''
+  const musicVocalLangRaw =
+    typeof s.runwareMusicVocalLanguage === 'string'
+      ? s.runwareMusicVocalLanguage.trim().toLowerCase()
+      : ''
   const musicVocalLanguage = musicVocalLangRaw || defaults.runwareMusicVocalLanguage
   const musicSeedRaw = Number(s.runwareMusicSeed)
   const musicSeed = Number.isFinite(musicSeedRaw)
@@ -2270,9 +2276,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
     steps: Number.isFinite(musicSteps)
       ? clamp(Math.round(musicSteps), 1, 300)
       : defaults.runwareMusicSteps,
-    cfgScale: Number.isFinite(musicCfg)
-      ? clamp(musicCfg, 1, 30)
-      : defaults.runwareMusicCfgScale,
+    cfgScale: Number.isFinite(musicCfg) ? clamp(musicCfg, 1, 30) : defaults.runwareMusicCfgScale,
     seed: musicSeed,
   }
   const parsedMusicProfiles =
@@ -2284,12 +2288,11 @@ function normalizeRunware(s: AppSettings): AppSettings {
     const migratesFromLegacy = m.id === RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID
     // Only the original Turbo preset migrates from legacy top-level music fields (they were
     // turbo-shaped). Every other variant (base + XL) falls back to its docs defaults.
-    const fallback =
-      migratesFromLegacy
-        ? (parsedMusicProfiles[m.id]
-            ? defaults.runwareMusicModelProfiles[m.id]
-            : legacyMusicProfile)
-        : defaults.runwareMusicModelProfiles[m.id]
+    const fallback = migratesFromLegacy
+      ? parsedMusicProfiles[m.id]
+        ? defaults.runwareMusicModelProfiles[m.id]
+        : legacyMusicProfile
+      : defaults.runwareMusicModelProfiles[m.id]
     const incoming = parsedMusicProfiles[m.id] ?? {}
     const incomingOutputFormatRaw =
       typeof incoming.outputFormat === 'string' ? incoming.outputFormat.trim().toUpperCase() : ''
@@ -2335,9 +2338,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
 
   const legacyProfile: RunwareModelProfile = {
     width: Number.isFinite(width) ? clamp(Math.round(width), 256, 2048) : defaults.runwareWidth,
-    height: Number.isFinite(height)
-      ? clamp(Math.round(height), 256, 2048)
-      : defaults.runwareHeight,
+    height: Number.isFinite(height) ? clamp(Math.round(height), 256, 2048) : defaults.runwareHeight,
     steps: Number.isFinite(steps) ? clamp(Math.round(steps), 1, 80) : defaults.runwareSteps,
     cfgScale: Number.isFinite(cfg) ? clamp(cfg, 0, 30) : defaults.runwareCfgScale,
   }
@@ -2350,7 +2351,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
     const fallback =
       m.id === RUNWARE_FLUX_9B_MODEL_ID
         ? legacyProfile
-        : defaults.runwareModelProfiles[m.id] ?? legacyProfile
+        : (defaults.runwareModelProfiles[m.id] ?? legacyProfile)
     const incoming = parsedProfiles[m.id] ?? {}
     const w = Number(incoming.width)
     const h = Number(incoming.height)
@@ -2381,8 +2382,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
             transparentBackground:
               transparentBackground ??
               fallback.transparentBackground ??
-              defaults.runwareModelProfiles[RUNWARE_GPT_IMAGE_2_MODEL_ID]
-                ?.transparentBackground ??
+              defaults.runwareModelProfiles[RUNWARE_GPT_IMAGE_2_MODEL_ID]?.transparentBackground ??
               false,
           }
         : {}),
@@ -2402,17 +2402,13 @@ function normalizeRunware(s: AppSettings): AppSettings {
       : {}
   const legacyOpenRouterDims: RunwareModelProfile = {
     width: Number.isFinite(width) ? clamp(Math.round(width), 256, 3840) : defaults.runwareWidth,
-    height: Number.isFinite(height)
-      ? clamp(Math.round(height), 256, 3840)
-      : defaults.runwareHeight,
+    height: Number.isFinite(height) ? clamp(Math.round(height), 256, 3840) : defaults.runwareHeight,
     steps: 20,
     cfgScale: 7,
   }
   const normalizedOpenRouterProfiles: Record<string, RunwareModelProfile> = {}
   for (const preset of OPENROUTER_IMAGE_MODEL_PRESETS) {
-    const fallback =
-      openrouterDefaults[preset.id] ??
-      legacyOpenRouterDims
+    const fallback = openrouterDefaults[preset.id] ?? legacyOpenRouterDims
     normalizedOpenRouterProfiles[preset.id] = normalizeOpenRouterImageProfile(
       preset.id,
       parsedOpenRouterProfiles[preset.id],
@@ -2421,9 +2417,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
   }
   for (const [modelId, profile] of Object.entries(parsedOpenRouterProfiles)) {
     if (normalizedOpenRouterProfiles[modelId]) continue
-    const fallback =
-      openrouterDefaults[modelId] ??
-      legacyOpenRouterDims
+    const fallback = openrouterDefaults[modelId] ?? legacyOpenRouterDims
     normalizedOpenRouterProfiles[modelId] = normalizeOpenRouterImageProfile(
       modelId,
       profile,
@@ -2476,17 +2470,14 @@ function normalizeNotificationSounds(s: AppSettings): AppSettings {
       typeof s.notificationSoundsEnabled === 'boolean'
         ? s.notificationSoundsEnabled
         : defaults.notificationSoundsEnabled,
-    notificationSoundVolume: Number.isFinite(v)
-      ? clamp(v, 0, 1)
-      : defaults.notificationSoundVolume,
+    notificationSoundVolume: Number.isFinite(v) ? clamp(v, 0, 1) : defaults.notificationSoundVolume,
   }
 }
 
 function normalizeLanWebAccess(s: AppSettings): AppSettings {
   return {
     ...s,
-    lanWebAccessEnabled:
-      typeof s.lanWebAccessEnabled === 'boolean' ? s.lanWebAccessEnabled : false,
+    lanWebAccessEnabled: typeof s.lanWebAccessEnabled === 'boolean' ? s.lanWebAccessEnabled : false,
   }
 }
 
@@ -2495,7 +2486,9 @@ function normalizeAll(s: AppSettings): AppSettings {
     normalizeNotificationSounds(
       normalizeRunware(
         normalizeAgentMode(
-          normalizeUiTheme(normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s)))))),
+          normalizeUiTheme(
+            normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s))))),
+          ),
         ),
       ),
     ),
@@ -2546,7 +2539,10 @@ function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
   if (isViteDevServerUrl(next.ollamaBaseUrl) || next.ollamaBaseUrl.includes('/api/ollama')) {
     assign({ ollamaBaseUrl: defaultOllamaBaseUrlForRuntime() })
   }
-  if (isViteDevServerUrl(next.openrouterBaseUrl) || next.openrouterBaseUrl.includes('/api/openrouter')) {
+  if (
+    isViteDevServerUrl(next.openrouterBaseUrl) ||
+    next.openrouterBaseUrl.includes('/api/openrouter')
+  ) {
     assign({ openrouterBaseUrl: defaults.openrouterBaseUrl })
   }
   if (isViteDevServerUrl(next.nvidiaBaseUrl) || next.nvidiaBaseUrl.includes('/api/nvidia')) {
@@ -2627,9 +2623,7 @@ export function loadSettings(): AppSettings {
 
 export function saveSettings(s: AppSettings): void {
   const toSave =
-    typeof window !== 'undefined' && isLanWebClient() && !isElectron()
-      ? stripCloudSecrets(s)
-      : s
+    typeof window !== 'undefined' && isLanWebClient() && !isElectron() ? stripCloudSecrets(s) : s
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
 }
 
@@ -2692,7 +2686,11 @@ export function getOpenRouterProviderOnly(
   s: Pick<AppSettings, 'openrouterModel' | 'openrouterProviderByModel' | 'openrouterProviderOnly'>,
 ): string {
   const modelId = (s.openrouterModel || '').trim()
-  if (modelId && s.openrouterProviderByModel && Object.prototype.hasOwnProperty.call(s.openrouterProviderByModel, modelId)) {
+  if (
+    modelId &&
+    s.openrouterProviderByModel &&
+    Object.prototype.hasOwnProperty.call(s.openrouterProviderByModel, modelId)
+  ) {
     return (s.openrouterProviderByModel[modelId] || '').trim()
   }
   return (s.openrouterProviderOnly || '').trim()
@@ -2732,7 +2730,10 @@ export function withOpenRouterProviderOnly(
 }
 
 export function getOpenRouterImageProfile(
-  s: Pick<AppSettings, 'openrouterImageModel' | 'openrouterImageProfiles' | 'runwareWidth' | 'runwareHeight'>,
+  s: Pick<
+    AppSettings,
+    'openrouterImageModel' | 'openrouterImageProfiles' | 'runwareWidth' | 'runwareHeight'
+  >,
 ): RunwareModelProfile {
   const modelId = normalizeOpenRouterImageModel(s.openrouterImageModel)
   const incoming = s.openrouterImageProfiles?.[modelId]

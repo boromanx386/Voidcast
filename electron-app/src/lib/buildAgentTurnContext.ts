@@ -26,10 +26,7 @@ import {
 } from '@/lib/chatHints'
 import { buildToolImageCatalog, type PendingChatImage } from '@/lib/chatImageCatalog'
 import { buildCodingMemoHint, type CodingContextMemo } from '@/lib/codingContextMemo'
-import {
-  buildActiveProcessesHint,
-  type ActiveCodingProcess,
-} from '@/lib/codingActiveProcesses'
+import { buildActiveProcessesHint, type ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import { searchMemories } from '@/lib/longMemoryStorage'
 import type { OllamaApiMessage } from '@/lib/ollama'
@@ -163,8 +160,7 @@ export async function buildAgentTurnContext(
   const readOnlyMode = isReadOnlyAgentMode(agentMode)
   const modeLabel = planMode ? 'Plan' : askMode ? 'Ask' : null
   const handoffHint = planHandoffContext.trim()
-  const handoffUserBlock =
-    planMode && handoffHint ? formatPlanHandoffUserBlock(handoffHint) : ''
+  const handoffUserBlock = planMode && handoffHint ? formatPlanHandoffUserBlock(handoffHint) : ''
   const ollamaUserText = [
     text,
     handoffUserBlock,
@@ -244,11 +240,8 @@ export async function buildAgentTurnContext(
   const codingToolsOn = settings.toolsEnabled.coding && hasCodingFolder
   const codingBlockedNoFolder = settings.toolsEnabled.coding && !hasCodingFolder
   const useTools =
-    anyToolEnabled(
-      { ...settings.toolsEnabled, coding: codingToolsOn },
-      skillsActive,
-      mcpActive,
-    ) || Boolean(settings.subAgent?.enabled)
+    anyToolEnabled({ ...settings.toolsEnabled, coding: codingToolsOn }, skillsActive, mcpActive) ||
+    Boolean(settings.subAgent?.enabled)
   const skillsSystemHint = skillsActive ? buildSkillsCatalogHint(discoveredSkills) : ''
   const projectInstructionFiles =
     settings.toolsEnabled.coding && codingProjectPath
@@ -268,9 +261,7 @@ export async function buildAgentTurnContext(
   // Approve & Build (Plan → implement) — never applies to Ask.
   if (!readOnlyMode && buildFromPlan && teamMode && settings.subAgent?.codingEnabled) {
     toolsHintParts.push(
-      buildWithResearch
-        ? BUILD_WITH_TEAM_WORKERS_SYSTEM_HINT
-        : BUILD_TEAM_WORKERS_SYSTEM_HINT,
+      buildWithResearch ? BUILD_WITH_TEAM_WORKERS_SYSTEM_HINT : BUILD_TEAM_WORKERS_SYSTEM_HINT,
     )
   } else if (!readOnlyMode && buildWithResearch) {
     toolsHintParts.push(BUILD_WITH_RESEARCH_SYSTEM_HINT)
@@ -286,7 +277,7 @@ export async function buildAgentTurnContext(
     const mcpLines = [
       'MCP progressive discovery (keep context small):',
       '1) mcp_list_tools with a focused query → short catalog only (no schemas).',
-      '2) mcp_get_tool with ONE qualified name → that tool\'s schema only.',
+      "2) mcp_get_tool with ONE qualified name → that tool's schema only.",
       readOnlyMode
         ? `3) mcp_call is disabled in ${modeLabel} mode (read-only). Use list/get + non-MCP research tools only.`
         : '3) mcp_call with name + arguments.',
@@ -322,7 +313,8 @@ export async function buildAgentTurnContext(
       toolsHintParts.push(TOOLS_IMAGE_RECALL_HINT)
     }
   }
-  if (settings.toolsEnabled.runwareMusic && !readOnlyMode) toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
+  if (settings.toolsEnabled.runwareMusic && !readOnlyMode)
+    toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
   if (settings.toolsEnabled.tts && !readOnlyMode) toolsHintParts.push(TOOLS_TTS_HINT)
   if (codingBlockedNoFolder) {
     // Option is ON but this chat has no project folder → the coding tools are
@@ -433,8 +425,7 @@ export async function buildAgentTurnContext(
     longTermMemoryContext: longMemoryContext,
     toolsSystemHint:
       useTools && toolsHintParts.length > 0 ? toolsHintParts.join('\n\n') : undefined,
-    volatileSystemHint:
-      volatileHintParts.length > 0 ? volatileHintParts.join('\n\n') : undefined,
+    volatileSystemHint: volatileHintParts.length > 0 ? volatileHintParts.join('\n\n') : undefined,
     newUserImages:
       visionImagesForCurrentMessage.length > 0 ? visionImagesForCurrentMessage : undefined,
     includeThinkingInHistory: isThinkingUiEnabled(settings.llmThinkLevel),

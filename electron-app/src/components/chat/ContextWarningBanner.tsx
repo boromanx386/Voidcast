@@ -26,16 +26,14 @@ export function ContextWarningBanner({ app }: Props) {
 
   return (
     <>
-      {contextUsageInfo?.shouldWarn &&
-        !settings.contextAutoCompress &&
-        !contextWarnDismissed && (
+      {contextUsageInfo?.shouldWarn && !settings.contextAutoCompress && !contextWarnDismissed && (
         <div className="border-t border-neon-yellow/30 bg-neon-yellow/5 px-4 py-3 mx-4 my-2 rounded">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm font-mono text-neon-yellow">
-              <span className="opacity-70">CONTEXT_WARNING:</span>
-              {' '}CTX_USAGE {contextUsageInfo.estimated ? '~' : ''}
-              {Math.round(contextUsageInfo.ratio * 100)}%
-              ({contextUsageInfo.promptTokens}/{contextUsageInfo.maxTokens})
+              <span className="opacity-70">CONTEXT_WARNING:</span> CTX_USAGE{' '}
+              {contextUsageInfo.estimated ? '~' : ''}
+              {Math.round(contextUsageInfo.ratio * 100)}% ({contextUsageInfo.promptTokens}/
+              {contextUsageInfo.maxTokens})
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -66,15 +64,15 @@ export function ContextWarningBanner({ app }: Props) {
       {settings.contextAutoCompress &&
         contextUsageInfo?.shouldCompress &&
         (contextCompressBusy || busy) && (
-        <div className="border-t border-neon-cyan/25 bg-neon-cyan/5 px-4 py-2 mx-4 my-2 rounded">
-          <div className="text-sm font-mono text-neon-cyan">
-            <span className="opacity-70">CONTEXT:</span>
-            {' '}CTX {contextUsageInfo.estimated ? '~' : ''}
-            {Math.round(contextUsageInfo.ratio * 100)}%
-            {contextCompressBusy ? ' · auto-compressing…' : ' · auto-compress when idle'}
+          <div className="border-t border-neon-cyan/25 bg-neon-cyan/5 px-4 py-2 mx-4 my-2 rounded">
+            <div className="text-sm font-mono text-neon-cyan">
+              <span className="opacity-70">CONTEXT:</span> CTX{' '}
+              {contextUsageInfo.estimated ? '~' : ''}
+              {Math.round(contextUsageInfo.ratio * 100)}%
+              {contextCompressBusy ? ' · auto-compressing…' : ' · auto-compress when idle'}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </>
   )
 }

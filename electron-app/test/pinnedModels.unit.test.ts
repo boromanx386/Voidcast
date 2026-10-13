@@ -22,9 +22,7 @@ describe('pinnedModels helpers', () => {
 
   test('deepseek and opencode-go can pin the same model name', () => {
     expect(toScopedPinnedId('deepseek', 'deepseek-v4-pro')).toBe('deepseek:deepseek-v4-pro')
-    expect(toScopedPinnedId('opencode-go', 'deepseek-v4-pro')).toBe(
-      'opencode-go:deepseek-v4-pro',
-    )
+    expect(toScopedPinnedId('opencode-go', 'deepseek-v4-pro')).toBe('opencode-go:deepseek-v4-pro')
     expect(parsePinnedId('deepseek:deepseek-v4-pro')).toEqual({
       provider: 'deepseek',
       modelId: 'deepseek-v4-pro',
@@ -138,7 +136,6 @@ describe('pinnedModels helpers', () => {
     const og = applyModelSwitcherSelection(base, 'opencode-go', 'opencode-go:deepseek-v4-pro')
     expect(og.llmProvider).toBe('opencode-go')
     expect(og.opencodeGoModel).toBe('deepseek-v4-pro')
-
 
     const nv = applyModelSwitcherSelection(base, 'nvidia', 'nvidia:z-ai/glm-5.2')
     expect(nv.llmProvider).toBe('nvidia')

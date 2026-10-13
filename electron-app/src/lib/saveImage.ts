@@ -35,9 +35,7 @@ export async function invokeSaveImageFromUrl(opts: {
   filename?: string
 }): Promise<string> {
   if (!isElectron()) {
-    throw new Error(
-      'Auto-save images is only available in the desktop app (Electron).',
-    )
+    throw new Error('Auto-save images is only available in the desktop app (Electron).')
   }
   const vc = window.voidcast?.saveImageFromUrl
   if (!vc) {

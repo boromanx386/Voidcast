@@ -3,15 +3,8 @@ import {
   openCodeGoApiStyle,
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
-import {
-  anthropicMessagesHeaders,
-  buildAnthropicMessagesBody,
-} from '@/lib/anthropicMessages'
-import {
-  buildResponsesBody,
-  parseResponsesOutput,
-  responsesHeaders,
-} from '@/lib/openResponses'
+import { anthropicMessagesHeaders, buildAnthropicMessagesBody } from '@/lib/anthropicMessages'
+import { buildResponsesBody, parseResponsesOutput, responsesHeaders } from '@/lib/openResponses'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import {
   deepseekApiBaseForRuntime,
@@ -21,7 +14,11 @@ import {
   usesServerCloudProxy,
 } from '@/lib/platform'
 import { normalizeBaseUrl } from '@/lib/settings'
-import { openRouterProviderRoutingBody, postJsonWithRetry, type OpenRouterMessage } from '@/lib/openrouter'
+import {
+  openRouterProviderRoutingBody,
+  postJsonWithRetry,
+  type OpenRouterMessage,
+} from '@/lib/openrouter'
 import { fetchOllamaWithRetry } from '@/lib/ollama'
 import type { AgentToolDefinition } from '@/lib/toolDefinitions'
 import type { SubAgentConfig } from '@/lib/settings'
@@ -166,7 +163,9 @@ function cloudEndpoint(
 ): { label: string; baseUrl: string; apiKey: string; extraBody: Record<string, unknown> } {
   const viaProxy = usesServerCloudProxy()
   const providerOnly =
-    provider === 'openrouter' ? openRouterProviderRoutingBody(config.openrouterProviderOnly) : undefined
+    provider === 'openrouter'
+      ? openRouterProviderRoutingBody(config.openrouterProviderOnly)
+      : undefined
 
   if (provider === 'openrouter') {
     const baseUrl = viaProxy
@@ -278,7 +277,10 @@ async function callCloudToolRound(opts: {
   const endpoint = cloudEndpoint(opts.provider, opts.config, opts.keys)
 
   // OpenCode Go Anthropic-style models (e.g. claude-haiku-5-5) only accept /messages.
-  if (opts.provider === 'opencode-go' && openCodeGoApiStyle(opts.config.model) === 'anthropic-messages') {
+  if (
+    opts.provider === 'opencode-go' &&
+    openCodeGoApiStyle(opts.config.model) === 'anthropic-messages'
+  ) {
     assertCloudLlmApiKey('opencode-go', endpoint.apiKey)
     const body = buildAnthropicMessagesBody({
       model: opts.config.model,
@@ -303,10 +305,19 @@ async function callCloudToolRound(opts: {
       opts.signal,
     )
     if (!res.ok) {
-      throw new Error(`${endpoint.label} worker /messages ${res.status}: ${errorText || res.statusText}`)
+      throw new Error(
+        `${endpoint.label} worker /messages ${res.status}: ${errorText || res.statusText}`,
+      )
     }
     const data = (await res.json()) as {
-      content?: Array<{ type?: string; text?: string; thinking?: string; id?: string; name?: string; input?: unknown }>
+      content?: Array<{
+        type?: string
+        text?: string
+        thinking?: string
+        id?: string
+        name?: string
+        input?: unknown
+      }>
     }
     let content = ''
     let thinking = ''
@@ -360,7 +371,9 @@ async function callCloudToolRound(opts: {
       opts.signal,
     )
     if (!res.ok) {
-      throw new Error(`${endpoint.label} worker /responses ${res.status}: ${errorText || res.statusText}`)
+      throw new Error(
+        `${endpoint.label} worker /responses ${res.status}: ${errorText || res.statusText}`,
+      )
     }
     const parsed = parseResponsesOutput(await res.json())
     return { content: parsed.content, thinking: parsed.reasoning, toolCalls: parsed.toolCalls }

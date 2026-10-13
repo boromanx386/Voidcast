@@ -12,7 +12,9 @@ import {
   type ActiveCodingProcess,
 } from '../src/lib/codingActiveProcesses'
 
-function proc(partial: Partial<ActiveCodingProcess> & Pick<ActiveCodingProcess, 'runId' | 'command'>): ActiveCodingProcess {
+function proc(
+  partial: Partial<ActiveCodingProcess> & Pick<ActiveCodingProcess, 'runId' | 'command'>,
+): ActiveCodingProcess {
   return {
     pid: 1000,
     kind: 'foreground',
@@ -53,10 +55,7 @@ describe('upsert / remove / applyOutput', () => {
   })
 
   it('applyOutputToActiveProcess updates matching run only', () => {
-    const list = [
-      proc({ runId: 'r1', command: 'a' }),
-      proc({ runId: 'r2', command: 'b' }),
-    ]
+    const list = [proc({ runId: 'r1', command: 'a' }), proc({ runId: 'r2', command: 'b' })]
     const next = applyOutputToActiveProcess(list, 'r2', 'Listening on :5173\n')
     expect(next[0]!.lastLines).toEqual([])
     expect(next[1]!.lastLines).toEqual(['Listening on :5173', ''])
@@ -90,12 +89,8 @@ describe('filter / ownership', () => {
 
   it('canControl allows same project or owner, denies other folder', () => {
     const other = proc({ runId: 'x', command: 'x', ownerId: 's2', projectPath: 'D:/x' })
-    expect(
-      canControlCodingProcess(other, { ownerId: 's1', projectPath: 'C:/foo' }),
-    ).toBe(false)
-    expect(
-      canControlCodingProcess(other, { ownerId: 's2', projectPath: 'C:/foo' }),
-    ).toBe(true)
+    expect(canControlCodingProcess(other, { ownerId: 's1', projectPath: 'C:/foo' })).toBe(false)
+    expect(canControlCodingProcess(other, { ownerId: 's2', projectPath: 'C:/foo' })).toBe(true)
     expect(
       canControlCodingProcess(
         proc({ runId: 'y', command: 'y', ownerId: 's9', projectPath: 'C:/foo' }),

@@ -37,9 +37,7 @@ export function RemindersOptionsPanel({ reminders, onDelete, onMarkDone }: Props
                           minute: '2-digit',
                         })
                       : 'General'}
-                    {r.tags.length > 0 && (
-                      <span className="ml-2">[{r.tags.join(', ')}]</span>
-                    )}
+                    {r.tags.length > 0 && <span className="ml-2">[{r.tags.join(', ')}]</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">

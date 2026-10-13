@@ -41,9 +41,9 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
   /** False while main reports the native view is parked off-screen (see the warning block). */
   const [painted, setPainted] = useState(true)
   /** Pages open in the browser — the panel only ever paints the active one. */
-  const [pages, setPages] = useState<
-    { id: string; url: string; title: string; active: boolean }[]
-  >([])
+  const [pages, setPages] = useState<{ id: string; url: string; title: string; active: boolean }[]>(
+    [],
+  )
   /** Held HTTP auth request — the panel is the only place the user can answer it. */
   const [auth, setAuth] = useState<{
     id: string
@@ -151,18 +151,21 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
     return () => clearInterval(timer)
   }, [refreshStatus, state])
 
-  const run = useCallback(async (label: string, fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setBusy(true)
-    try {
-      const res = await fn()
-      setMessage(res.ok ? null : `${label}: ${res.error ?? 'failed'}`)
-      await refreshStatus()
-    } catch (e) {
-      setMessage(`${label}: ${e instanceof Error ? e.message : String(e)}`)
-    } finally {
-      setBusy(false)
-    }
-  }, [refreshStatus])
+  const run = useCallback(
+    async (label: string, fn: () => Promise<{ ok: boolean; error?: string }>) => {
+      setBusy(true)
+      try {
+        const res = await fn()
+        setMessage(res.ok ? null : `${label}: ${res.error ?? 'failed'}`)
+        await refreshStatus()
+      } catch (e) {
+        setMessage(`${label}: ${e instanceof Error ? e.message : String(e)}`)
+      } finally {
+        setBusy(false)
+      }
+    },
+    [refreshStatus],
+  )
 
   const onNavigate = useCallback(() => {
     const target = draft.trim()
@@ -222,7 +225,13 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
           ? 'bg-void-dim/60'
           : 'bg-void-dim/40'
   const stateLabel =
-    state === 'ready' ? 'LIVE' : state === 'error' ? 'ERROR' : state === 'offline' ? 'DESKTOP APP ONLY' : 'IDLE'
+    state === 'ready'
+      ? 'LIVE'
+      : state === 'error'
+        ? 'ERROR'
+        : state === 'offline'
+          ? 'DESKTOP APP ONLY'
+          : 'IDLE'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -483,7 +492,8 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
               title="Cancel the request — the site keeps answering 401"
               onClick={() => {
                 const api = browserApi()
-                if (api && auth) void run('Cancel sign-in', () => api.authAnswer({ id: auth.id, cancel: true }))
+                if (api && auth)
+                  void run('Cancel sign-in', () => api.authAnswer({ id: auth.id, cancel: true }))
               }}
             >
               CANCEL
@@ -493,13 +503,17 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
       ) : null}
 
       {notice ? (
-        <div className="shrink-0 pb-1 font-mono text-[10px] text-amber-300/90 break-all">{notice}</div>
+        <div className="shrink-0 pb-1 font-mono text-[10px] text-amber-300/90 break-all">
+          {notice}
+        </div>
       ) : null}
 
       {download ? (
         <div
           className="shrink-0 pb-1 font-mono text-[10px] text-void-dim/80 break-all"
-          title={downloadsDirRef.current ? `Downloads folder: ${downloadsDirRef.current}` : undefined}
+          title={
+            downloadsDirRef.current ? `Downloads folder: ${downloadsDirRef.current}` : undefined
+          }
         >
           {`download ${download.state}: ${download.name}`}
         </div>

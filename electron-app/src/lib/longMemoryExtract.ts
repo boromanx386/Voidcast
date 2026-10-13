@@ -1,5 +1,8 @@
 import { streamOllamaChat, type OllamaModelOptions } from '@/lib/ollama'
-import { isOpenAiCompatibleCloudLlmProvider, resolveCloudLlmChatConfigForProvider } from '@/lib/cloudLlm'
+import {
+  isOpenAiCompatibleCloudLlmProvider,
+  resolveCloudLlmChatConfigForProvider,
+} from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import type { LlmProvider } from '@/lib/settings'
 import type { LongMemoryCandidate, LongMemoryKind } from '@/types/longMemory'
@@ -34,7 +37,13 @@ type ExtractParams = {
   cloudModelOverride?: string
 }
 
-const allowedKinds = new Set<LongMemoryKind>(['preference', 'project', 'fact', 'constraint', 'task'])
+const allowedKinds = new Set<LongMemoryKind>([
+  'preference',
+  'project',
+  'fact',
+  'constraint',
+  'task',
+])
 const lowSignalSecrets = [
   /api[_-]?key/i,
   /token/i,
@@ -70,7 +79,7 @@ export function extractJsonArray(raw: string): unknown[] {
 export function sanitizeCandidate(raw: unknown): LongMemoryCandidate | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
-  const kind = typeof r.kind === 'string' ? r.kind.trim().toLowerCase() as LongMemoryKind : 'fact'
+  const kind = typeof r.kind === 'string' ? (r.kind.trim().toLowerCase() as LongMemoryKind) : 'fact'
   if (!allowedKinds.has(kind)) return null
   const text = typeof r.text === 'string' ? r.text.trim().replace(/\s+/g, ' ') : ''
   if (!text || text.length < 6) return null
@@ -78,7 +87,10 @@ export function sanitizeCandidate(raw: unknown): LongMemoryCandidate | null {
     if (re.test(text)) return null
   }
   const tags = Array.isArray(r.tags)
-    ? r.tags.map((x) => String(x).trim().toLowerCase()).filter(Boolean).slice(0, 12)
+    ? r.tags
+        .map((x) => String(x).trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 12)
     : []
   const importance = Number.isFinite(Number(r.importance)) ? Number(r.importance) : 0.5
   const confidence = Number.isFinite(Number(r.confidence)) ? Number(r.confidence) : 0.7
@@ -92,7 +104,9 @@ export function sanitizeCandidate(raw: unknown): LongMemoryCandidate | null {
   }
 }
 
-export async function extractLongMemoryCandidates(params: ExtractParams): Promise<LongMemoryCandidate[]> {
+export async function extractLongMemoryCandidates(
+  params: ExtractParams,
+): Promise<LongMemoryCandidate[]> {
   const convo = transcript(params.turns)
   if (!convo.trim()) return []
   const system = [

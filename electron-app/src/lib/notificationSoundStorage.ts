@@ -49,14 +49,12 @@ export async function loadNotificationSound(
   kind: NotificationSoundKind,
 ): Promise<StoredNotificationSound | null> {
   const db = await openDb()
-  const row = await new Promise<StoredNotificationSound | undefined>(
-    (resolve, reject) => {
-      const tx = db.transaction(STORE, 'readonly')
-      const req = tx.objectStore(STORE).get(kind)
-      req.onsuccess = () => resolve(req.result as StoredNotificationSound | undefined)
-      req.onerror = () => reject(req.error)
-    },
-  )
+  const row = await new Promise<StoredNotificationSound | undefined>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly')
+    const req = tx.objectStore(STORE).get(kind)
+    req.onsuccess = () => resolve(req.result as StoredNotificationSound | undefined)
+    req.onerror = () => reject(req.error)
+  })
   db.close()
   return row ?? null
 }

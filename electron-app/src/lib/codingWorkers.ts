@@ -9,9 +9,7 @@ import { subAgentConfigForRole, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from '@/lib/se
 import { detectSubAgentProvider } from '@/lib/cloudLlmPresets'
 import type { PlanArtifact } from '@/types/chat'
 import { type SubAgentKeys, type SubAgentUiCallbacks } from '@/lib/subAgent'
-import {
-  CODING_EXPLORE_ALLOWED_TOOLS,
-} from '@/lib/codingSubAgent'
+import { CODING_EXPLORE_ALLOWED_TOOLS } from '@/lib/codingSubAgent'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import { buildToolsList, type AgentToolDefinition } from '@/lib/toolDefinitions'
 import {
@@ -134,10 +132,7 @@ export function workerScopesOverlap(left?: string, right?: string): boolean {
   return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
 }
 
-export function pathFromWorkerToolArgs(
-  tool: string,
-  args: Record<string, unknown>,
-): string | null {
+export function pathFromWorkerToolArgs(tool: string, args: Record<string, unknown>): string | null {
   if (tool !== 'write_file' && tool !== 'edit_code') return null
   const p = typeof args.path === 'string' ? args.path.trim() : ''
   return p || null
@@ -231,25 +226,23 @@ export function parseCodingWorkerTasks(
     const goal = typeof o.goal === 'string' ? o.goal.trim() : ''
     if (!goal) return { ok: false, error: `Error: tasks[${i}].goal is required.` }
     const pathPrefix =
-      typeof o.path_prefix === 'string' && o.path_prefix.trim()
-        ? o.path_prefix.trim()
-        : undefined
+      typeof o.path_prefix === 'string' && o.path_prefix.trim() ? o.path_prefix.trim() : undefined
     const successCriteria =
       typeof o.success_criteria === 'string' && o.success_criteria.trim()
         ? o.success_criteria.trim()
         : undefined
     const focusPaths = Array.isArray(o.focus_paths)
-      ? [...new Set(
-          o.focus_paths
-            .filter((p): p is string => typeof p === 'string')
-            .map((p) => p.trim())
-            .filter(Boolean),
-        )].slice(0, 8)
+      ? [
+          ...new Set(
+            o.focus_paths
+              .filter((p): p is string => typeof p === 'string')
+              .map((p) => p.trim())
+              .filter(Boolean),
+          ),
+        ].slice(0, 8)
       : undefined
     const maxRounds =
-      typeof o.max_rounds === 'number' && Number.isFinite(o.max_rounds)
-        ? o.max_rounds
-        : undefined
+      typeof o.max_rounds === 'number' && Number.isFinite(o.max_rounds) ? o.max_rounds : undefined
     tasks.push({ goal, pathPrefix, successCriteria, focusPaths, maxRounds })
   }
   const dispatchError = validateCodingWorkerDispatch(tasks)
@@ -440,7 +433,9 @@ export function buildWorkerContextPacket(context?: CodingWorkerContext): string 
       lines.push(`Recent searches: ${memo.recentSearches.slice(0, 6).join(' | ')}`)
     }
     if (memo.recentFailures.length > 0) {
-      lines.push(`Recent failures to avoid repeating: ${memo.recentFailures.slice(0, 4).join(' | ')}`)
+      lines.push(
+        `Recent failures to avoid repeating: ${memo.recentFailures.slice(0, 4).join(' | ')}`,
+      )
     }
   }
 
@@ -590,7 +585,9 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
     return { digest, mutations }
   }
 
-  const parseArgs = (raw: string | Record<string, unknown> | undefined): Record<string, unknown> => {
+  const parseArgs = (
+    raw: string | Record<string, unknown> | undefined,
+  ): Record<string, unknown> => {
     if (raw && typeof raw === 'object') return raw
     if (typeof raw !== 'string' || !raw.trim()) return {}
     try {
@@ -671,7 +668,10 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
           for (const dir of candidateDirs) {
             // paths must be relative to the package folder (path_prefix), not the project root.
             const relToPackage = rel.replace(/\\/g, '/').slice(dir.length + 1)
-            const out = await opts.executeTool('check_types', { paths: [relToPackage], path_prefix: dir })
+            const out = await opts.executeTool('check_types', {
+              paths: [relToPackage],
+              path_prefix: dir,
+            })
             if (!/no tsconfig\.json/i.test(out)) {
               check = out
               checkedDir = dir

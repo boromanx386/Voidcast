@@ -22,21 +22,14 @@ export function shouldSoftDenyFullRead(params: {
   const path = normalizeCodingReadPath(params.path)
   if (!path) return false
 
-  const inDigests = (params.digests ?? []).some(
-    (d) => normalizeCodingReadPath(d.path) === path,
-  )
+  const inDigests = (params.digests ?? []).some((d) => normalizeCodingReadPath(d.path) === path)
   if (inDigests) return true
 
-  const inCache = (params.cachedPaths ?? []).some(
-    (p) => normalizeCodingReadPath(p) === path,
-  )
+  const inCache = (params.cachedPaths ?? []).some((p) => normalizeCodingReadPath(p) === path)
   return inCache
 }
 
-export function formatSoftDeniedReadResult(
-  path: string,
-  digest?: string,
-): string {
+export function formatSoftDeniedReadResult(path: string, digest?: string): string {
   const p = normalizeCodingReadPath(path) || path.trim()
   const dig = (digest ?? '').trim()
   const lines = [
@@ -55,9 +48,5 @@ export function formatSoftDeniedReadResult(
 export function formatPlanHandoffUserBlock(context: string): string {
   const body = context.trim()
   if (!body) return ''
-  return [
-    '---',
-    '[Plan handoff — prior agent exploration for this same request]',
-    body,
-  ].join('\n')
+  return ['---', '[Plan handoff — prior agent exploration for this same request]', body].join('\n')
 }

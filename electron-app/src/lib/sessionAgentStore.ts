@@ -12,10 +12,7 @@ import type { AgentToolActivity, AgentToolUiPhase } from '@/lib/agentToolPhase'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import type { UiMessage } from '@/types/chat'
-import {
-  emptySubAgentPanelState,
-  type SubAgentPanelState,
-} from '@/lib/subAgentPanelState'
+import { emptySubAgentPanelState, type SubAgentPanelState } from '@/lib/subAgentPanelState'
 
 /** Runtime key for an unsaved draft chat (no ChatSession id yet). */
 export const DRAFT_RUNTIME_KEY = '__draft__'
@@ -90,9 +87,7 @@ function emptyMedia(): SessionAgentMediaState {
   }
 }
 
-export function createEmptySessionAgentSlot(
-  messages: UiMessage[] = [],
-): SessionAgentSlot {
+export function createEmptySessionAgentSlot(messages: UiMessage[] = []): SessionAgentSlot {
   return {
     messages,
     busy: false,

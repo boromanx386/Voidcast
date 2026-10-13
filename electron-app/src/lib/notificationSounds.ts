@@ -1,7 +1,4 @@
-import {
-  loadNotificationSound,
-  type NotificationSoundKind,
-} from '@/lib/notificationSoundStorage'
+import { loadNotificationSound, type NotificationSoundKind } from '@/lib/notificationSoundStorage'
 
 /** Hard upper limit per sound file. Notification sounds should be short. */
 export const MAX_NOTIFICATION_SOUND_BYTES = 2 * 1024 * 1024
@@ -38,9 +35,7 @@ export function invalidateNotificationSoundCache(kind: NotificationSoundKind): v
   }
 }
 
-async function getOrCreateBlobUrl(
-  kind: NotificationSoundKind,
-): Promise<string | null> {
+async function getOrCreateBlobUrl(kind: NotificationSoundKind): Promise<string | null> {
   const cached = blobUrlCache[kind]
   if (cached) return cached
   const stored = await loadNotificationSound(kind)

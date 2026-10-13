@@ -1,9 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { imageCatalogId } from '../src/lib/imageVisionCache'
-import {
-  indexesFromReferenceIds,
-  parseImageIds,
-} from '../src/lib/toolHandlers/helpers'
+import { indexesFromReferenceIds, parseImageIds } from '../src/lib/toolHandlers/helpers'
 
 describe('parseImageIds', () => {
   test('splits comma/space lists and dedupes', () => {

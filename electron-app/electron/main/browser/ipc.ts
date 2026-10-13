@@ -84,21 +84,27 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     },
   )
 
-  ipcMain.handle('voidcast:browser-set-visible', async (_event, payload: { visible?: boolean } | boolean) => {
-    try {
-      // Tolerate both shapes: a bare boolean coerced to false here, which kept the
-      // native view parked off-screen no matter what the panel asked for.
-      const wanted = typeof payload === 'boolean' ? payload : Boolean(payload?.visible)
-      setBrowserVisible(wanted)
-      return { ok: true as const }
-    } catch (e) {
-      return fail(e)
-    }
-  })
+  ipcMain.handle(
+    'voidcast:browser-set-visible',
+    async (_event, payload: { visible?: boolean } | boolean) => {
+      try {
+        // Tolerate both shapes: a bare boolean coerced to false here, which kept the
+        // native view parked off-screen no matter what the panel asked for.
+        const wanted = typeof payload === 'boolean' ? payload : Boolean(payload?.visible)
+        setBrowserVisible(wanted)
+        return { ok: true as const }
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
 
   ipcMain.handle(
     'voidcast:browser-navigate',
-    async (_event, payload: { url?: string; projectPath?: string; profile?: string; wait?: boolean }) => {
+    async (
+      _event,
+      payload: { url?: string; projectPath?: string; profile?: string; wait?: boolean },
+    ) => {
       try {
         const url = typeof payload?.url === 'string' ? payload.url : ''
         // Default true: only an explicit `wait: false` skips waiting for the load.
@@ -210,7 +216,16 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
 
   ipcMain.handle(
     'voidcast:browser-fill',
-    async (_event, payload: { uid?: string; text?: string; submit?: boolean; projectPath?: string; profile?: string }) => {
+    async (
+      _event,
+      payload: {
+        uid?: string
+        text?: string
+        submit?: boolean
+        projectPath?: string
+        profile?: string
+      },
+    ) => {
       try {
         const uid = typeof payload?.uid === 'string' ? payload.uid.trim() : ''
         if (!uid) throw new Error('Missing uid.')
@@ -382,7 +397,10 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
 
   ipcMain.handle(
     'voidcast:browser-handle-dialog',
-    async (_event, payload: { accept?: boolean; promptText?: string; projectPath?: string; profile?: string }) => {
+    async (
+      _event,
+      payload: { accept?: boolean; promptText?: string; projectPath?: string; profile?: string },
+    ) => {
       try {
         return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const result = await s.cdp.handleDialog({
@@ -404,7 +422,11 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         // Listing never creates a page — an empty browser is a valid answer.
         return {
           ok: true as const,
-          ...(await listBrowserPagesForProject(getWindow(), payload?.projectPath, payload?.profile)),
+          ...(await listBrowserPagesForProject(
+            getWindow(),
+            payload?.projectPath,
+            payload?.profile,
+          )),
         }
       } catch (e) {
         return fail(e)

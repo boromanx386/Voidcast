@@ -15,12 +15,7 @@ export function restoreLineEndings(text: string, eol: FileLineEndings): string {
   return text.replace(/\n/g, '\r\n')
 }
 
-function replaceSnippet(
-  text: string,
-  find: string,
-  replace: string,
-  replaceAll: boolean,
-): string {
+function replaceSnippet(text: string, find: string, replace: string, replaceAll: boolean): string {
   return replaceAll ? text.split(find).join(replace) : text.replace(find, replace)
 }
 
@@ -88,12 +83,20 @@ function firstMatchIndex(text: string, find: string, _replaceAll: boolean): numb
 export function normalizeWhitespaceForMatch(text: string): string {
   return toLf(text)
     .split('\n')
-    .map((line) => line.replace(/^\s+/, '').replace(/[ \t]+/g, ' ').trimEnd())
+    .map((line) =>
+      line
+        .replace(/^\s+/, '')
+        .replace(/[ \t]+/g, ' ')
+        .trimEnd(),
+    )
     .join('\n')
 }
 
 function normalizeLineWs(line: string): string {
-  return line.replace(/^\s+/, '').replace(/[ \t]+/g, ' ').trimEnd()
+  return line
+    .replace(/^\s+/, '')
+    .replace(/[ \t]+/g, ' ')
+    .trimEnd()
 }
 
 function sliceByLineRange(
@@ -278,11 +281,7 @@ export function findClosestSnippetMatch(
       findNorm.length > 400 ? findNorm.slice(0, 400) : findNorm,
       winNorm.length > 400 ? winNorm.slice(0, 400) : winNorm,
     )
-    const cmpLen = Math.max(
-      Math.min(findNorm.length, 400),
-      Math.min(winNorm.length, 400),
-      1,
-    )
+    const cmpLen = Math.max(Math.min(findNorm.length, 400), Math.min(winNorm.length, 400), 1)
     const similarity = Math.max(0, Math.min(100, Math.round((1 - dist / cmpLen) * 100)))
     if (similarity < 40) continue
     if (!best || similarity > best.similarity) {
@@ -332,7 +331,12 @@ export function applySnippetEdit(
   const findLf = toLf(findText)
   const replaceLf = toLf(replaceText)
 
-  const tryExactOn = (haystack: string, findUsed: string, replaceUsed: string, mode: SnippetEditMode) => {
+  const tryExactOn = (
+    haystack: string,
+    findUsed: string,
+    replaceUsed: string,
+    mode: SnippetEditMode,
+  ) => {
     if (!haystack.includes(findUsed)) return null as SnippetEditResult | null
     const matchIndex = firstMatchIndex(haystack, findUsed, replaceAll)
     if (matchIndex < 0) return null
@@ -376,13 +380,7 @@ export function applySnippetEdit(
   // CRLF find against scoped LF already covered by findLf
 
   if (ignoreWhitespace) {
-    const ws = applyWhitespaceNormalizedEdit(
-      scopedFile,
-      findLf,
-      replaceLf,
-      replaceAll,
-      lineOffset,
-    )
+    const ws = applyWhitespaceNormalizedEdit(scopedFile, findLf, replaceLf, replaceAll, lineOffset)
     if (ws.ok) {
       const nextLf = `${prefix}${toLf(ws.next)}${suffix}`
       return {
@@ -423,10 +421,16 @@ export function buildEditUnifiedDiff(
   const oldSpan = Math.max(1, changeEndLine - changeStartLine + 1)
   const newSpanGuess = Math.max(1, oldSpan + (afterLines.length - beforeLines.length))
   const newStart = oldStart
-  const newEnd = Math.min(afterLines.length, newStart + (oldEnd - oldStart) + (newSpanGuess - oldSpan))
+  const newEnd = Math.min(
+    afterLines.length,
+    newStart + (oldEnd - oldStart) + (newSpanGuess - oldSpan),
+  )
 
   const oldSlice = beforeLines.slice(oldStart - 1, oldEnd)
-  const newSlice = afterLines.slice(newStart - 1, Math.max(newEnd, newStart + newSpanGuess + context - 1))
+  const newSlice = afterLines.slice(
+    newStart - 1,
+    Math.max(newEnd, newStart + newSpanGuess + context - 1),
+  )
 
   // Simple LCS-free line diff for the window
   const lines: string[] = [
@@ -473,7 +477,10 @@ export function buildEditUnifiedDiff(
       }
     }
     if (!found) {
-      if (i < oldSlice.length && (j >= newSlice.length || oldSlice.length - i >= newSlice.length - j)) {
+      if (
+        i < oldSlice.length &&
+        (j >= newSlice.length || oldSlice.length - i >= newSlice.length - j)
+      ) {
         lines.push(`-${oldSlice[i]}`)
         i++
       } else if (j < newSlice.length) {
@@ -517,7 +524,12 @@ export function parseEditedLineRangeFromToolResult(result: string): {
   if (!m) return null
   const startLine = Number.parseInt(m[1], 10)
   const endLine = Number.parseInt(m[2], 10)
-  if (!Number.isFinite(startLine) || !Number.isFinite(endLine) || startLine < 1 || endLine < startLine) {
+  if (
+    !Number.isFinite(startLine) ||
+    !Number.isFinite(endLine) ||
+    startLine < 1 ||
+    endLine < startLine
+  ) {
     return null
   }
   return { startLine, endLine }
@@ -533,7 +545,10 @@ const READ_FILE_CRLF_HINT =
   '[line endings: CRLF on disk. Use \\n in edit_code find_text; matching is EOL-aware.]\n'
 
 /** One-line hint for the model when read_file returns a view (not used for internal edit reads). */
-export function readFileToolDisplayPrefix(lineEndings: FileLineEndings, numberedView: boolean): string {
+export function readFileToolDisplayPrefix(
+  lineEndings: FileLineEndings,
+  numberedView: boolean,
+): string {
   if (lineEndings !== 'crlf') return ''
   if (numberedView) {
     return '[line endings: CRLF on disk; numbered lines below use \\n only. edit_code still accepts \\n in find_text.]\n'

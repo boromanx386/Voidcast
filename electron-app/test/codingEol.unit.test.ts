@@ -110,12 +110,7 @@ describe('applySnippetEdit', () => {
   })
 
   it('exact match — multi-line replace line range', () => {
-    const result = applySnippetEdit(
-      'a\nb\nc\nd',
-      'b\nc',
-      'B\nC\nX',
-      false,
-    )
+    const result = applySnippetEdit('a\nb\nc\nd', 'b\nc', 'B\nC\nX', false)
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.next).toBe('a\nB\nC\nX\nd')
@@ -148,7 +143,12 @@ describe('applySnippetEdit', () => {
   // crlf-expanded catches these — LF find_text with CRLF file
   it('crlf-expanded — LF find_text in CRLF file', () => {
     const file = 'const x = 1\r\nconst y = 2\r\n'
-    const result = applySnippetEdit(file, 'const x = 1\nconst y = 2', 'const a = 1\nconst b = 2', false)
+    const result = applySnippetEdit(
+      file,
+      'const x = 1\nconst y = 2',
+      'const a = 1\nconst b = 2',
+      false,
+    )
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.mode).toBe('crlf-expanded')
@@ -217,9 +217,14 @@ describe('applySnippetEdit', () => {
 
   it('ignore_whitespace matches indentation drift', () => {
     const file = 'function x() {\n  return 1\n}'
-    const result = applySnippetEdit(file, 'function x() {\nreturn 1\n}', 'function x() {\n  return 2\n}', {
-      ignoreWhitespace: true,
-    })
+    const result = applySnippetEdit(
+      file,
+      'function x() {\nreturn 1\n}',
+      'function x() {\n  return 2\n}',
+      {
+        ignoreWhitespace: true,
+      },
+    )
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.mode).toBe('whitespace-normalized')
@@ -295,9 +300,7 @@ describe('parseEditedLineRangeFromToolResult', () => {
   })
 
   it('parses with leading/trailing text', () => {
-    const r = parseEditedLineRangeFromToolResult(
-      'OK: src/file.ts (lines 100-150) modified',
-    )
+    const r = parseEditedLineRangeFromToolResult('OK: src/file.ts (lines 100-150) modified')
     expect(r).toEqual({ startLine: 100, endLine: 150 })
   })
 })
@@ -307,13 +310,13 @@ describe('parseEditedLineRangeFromToolResult', () => {
 // ---------------------------------------------------------------------------
 describe('formatEditedFileMemoEntry', () => {
   it('formats with line range when tool result has it', () => {
-    expect(formatEditedFileMemoEntry('src/foo.ts', 'Edited path (lines 5-10, …)'))
-      .toBe('src/foo.ts (edited lines 5-10)')
+    expect(formatEditedFileMemoEntry('src/foo.ts', 'Edited path (lines 5-10, …)')).toBe(
+      'src/foo.ts (edited lines 5-10)',
+    )
   })
 
   it('formats without range when tool result has none', () => {
-    expect(formatEditedFileMemoEntry('src/bar.ts', 'Success'))
-      .toBe('src/bar.ts (edited)')
+    expect(formatEditedFileMemoEntry('src/bar.ts', 'Success')).toBe('src/bar.ts (edited)')
   })
 
   it('handles empty tool result', () => {

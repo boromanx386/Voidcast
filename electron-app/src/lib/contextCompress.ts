@@ -1,6 +1,9 @@
 import type { LlmProvider } from '@/lib/settings'
 import { streamOllamaChat, type OllamaApiMessage, type OllamaModelOptions } from '@/lib/ollama'
-import { isOpenAiCompatibleCloudLlmProvider, resolveCloudLlmChatConfigForProvider } from '@/lib/cloudLlm'
+import {
+  isOpenAiCompatibleCloudLlmProvider,
+  resolveCloudLlmChatConfigForProvider,
+} from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 
 type ContextTurn = { role: 'user' | 'assistant'; content: string }

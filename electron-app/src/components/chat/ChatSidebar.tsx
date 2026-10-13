@@ -2,10 +2,7 @@ import { useMemo } from 'react'
 import { SessionItem } from '@/components/chat/SessionItem'
 import { FolderIcon } from '@/components/icons/FolderIcon'
 import { groupSessionsByProject } from '@/lib/sessionProjectGroups'
-import {
-  useBusySessionMap,
-  useUnreadCompleteSessionMap,
-} from '@/lib/sessionAgentStore'
+import { useBusySessionMap, useUnreadCompleteSessionMap } from '@/lib/sessionAgentStore'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
 type Props = { app: VoidcastApp }
@@ -108,9 +105,7 @@ export function ChatSidebar({ app }: Props) {
               <div className="flex w-full items-center">
                 <button
                   type="button"
-                  onClick={() =>
-                    setSidebarCollapsed((p) => ({ ...p, [group.key]: !p[group.key] }))
-                  }
+                  onClick={() => setSidebarCollapsed((p) => ({ ...p, [group.key]: !p[group.key] }))}
                   className="session-group-toggle"
                   title={group.path || 'General chat — no project folder'}
                   aria-current={isActiveGroup ? 'true' : undefined}

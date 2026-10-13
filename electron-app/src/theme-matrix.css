@@ -51,7 +51,7 @@ html[data-ui-theme='matrix'] {
   --color-glitch-blue: 0 200 80;
   --color-glitch-green: 0 255 65;
 
-  --ui-accent-rgb: 0,255,65;
+  --ui-accent-rgb: 0, 255, 65;
 }
 
 html[data-ui-theme='matrix'] body {
@@ -82,7 +82,9 @@ html[data-ui-theme='matrix'] ::-webkit-scrollbar-thumb:hover {
 html[data-ui-theme='matrix'] textarea:focus,
 html[data-ui-theme='matrix'] input:focus,
 html[data-ui-theme='matrix'] select:focus {
-  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.55), 0 0 12px rgba(0, 255, 65, 0.25);
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 65, 0.55),
+    0 0 12px rgba(0, 255, 65, 0.25);
 }
 
 html[data-ui-theme='matrix'] .voidcast-app {
@@ -160,7 +162,9 @@ html[data-ui-theme='matrix'] .form-select {
 html[data-ui-theme='matrix'] .voidcast-textarea:focus,
 html[data-ui-theme='matrix'] .cyber-input:focus {
   border-color: rgba(0, 255, 65, 0.85);
-  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.4), 0 0 14px rgba(0, 255, 65, 0.2);
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 65, 0.4),
+    0 0 14px rgba(0, 255, 65, 0.2);
 }
 
 html[data-ui-theme='matrix'] .message-user {
@@ -189,7 +193,9 @@ html[data-ui-theme='matrix'] .neon-text-cyan,
 html[data-ui-theme='matrix'] .neon-text-green,
 html[data-ui-theme='matrix'] .text-shadow-neon,
 html[data-ui-theme='matrix'] .text-shadow-glow {
-  text-shadow: 0 0 8px rgba(0, 255, 65, 0.55), 0 0 18px rgba(0, 255, 65, 0.25) !important;
+  text-shadow:
+    0 0 8px rgba(0, 255, 65, 0.55),
+    0 0 18px rgba(0, 255, 65, 0.25) !important;
 }
 
 html[data-ui-theme='matrix'] .hover-glow-cyan:hover,

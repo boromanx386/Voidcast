@@ -1,10 +1,7 @@
 import { buildToolsList } from '@/lib/toolDefinitions'
 import { sniffImageMimeOrNull } from '@/lib/imageMime'
 import { AGENT_MAX_TOOL_ROUNDS_DEFAULT, clampAgentMaxToolRounds } from '@/lib/settings'
-import {
-  type ChatWithToolsCommonParams,
-  buildToolExecutorOptions,
-} from '@/lib/agentParams'
+import { type ChatWithToolsCommonParams, buildToolExecutorOptions } from '@/lib/agentParams'
 import {
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
   CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
@@ -93,9 +90,7 @@ export async function runOpenRouterChatWithTools(
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
     initialMessages,
-    maxToolRounds: clampAgentMaxToolRounds(
-      params.maxToolRounds ?? AGENT_MAX_TOOL_ROUNDS_DEFAULT,
-    ),
+    maxToolRounds: clampAgentMaxToolRounds(params.maxToolRounds ?? AGENT_MAX_TOOL_ROUNDS_DEFAULT),
     maxRequiredToolReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     mustCallTool: false,
     signal: params.signal,
@@ -203,7 +198,10 @@ export async function runOpenRouterChatWithTools(
         role: 'user',
         content: [
           { type: 'text', text: RECALLED_IMAGE_ROUND_MESSAGE },
-          ...recalled.map((x) => ({ type: 'image_url' as const, image_url: { url: toBase64DataImageUri(x.base64, x.mime) } })),
+          ...recalled.map((x) => ({
+            type: 'image_url' as const,
+            image_url: { url: toBase64DataImageUri(x.base64, x.mime) },
+          })),
         ],
       })
     },
@@ -214,7 +212,7 @@ export async function runOpenRouterChatWithTools(
       const argsObj =
         typeof argsRaw === 'string'
           ? parseToolArguments(argsRaw)
-          : (argsRaw as Record<string, unknown>) ?? {}
+          : ((argsRaw as Record<string, unknown>) ?? {})
       const recall = await resolveImageRecallRequest(
         argsObj,
         {

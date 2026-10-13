@@ -18,8 +18,9 @@ export function MediaOptionsPanel({ settings, setSettings }: Props) {
             <span>Image Generation</span>
           </p>
           <p className="mt-1 text-xs text-void-dim">
-            Text-to-image and image edit. Choose <span className="font-mono text-void-light">Runware</span>{' '}
-            or <span className="font-mono text-void-light">OpenRouter</span>; API keys live in General.
+            Text-to-image and image edit. Choose{' '}
+            <span className="font-mono text-void-light">Runware</span> or{' '}
+            <span className="font-mono text-void-light">OpenRouter</span>; API keys live in General.
           </p>
         </div>
         <RunwareOptionsPanel settings={settings} setSettings={setSettings} variant="embedded" />
@@ -32,12 +33,17 @@ export function MediaOptionsPanel({ settings, setSettings }: Props) {
             <span>Music Generation</span>
           </p>
           <p className="mt-1 text-xs text-void-dim">
-            Text-to-audio via <span className="font-mono text-neon-purple">Runware ACE-Step</span> only
-            (Turbo / Base / XL). Uses <span className="font-mono text-neon-purple">RUNWARE_API_KEY</span> from
-            General — no OpenRouter music provider.
+            Text-to-audio via <span className="font-mono text-neon-purple">Runware ACE-Step</span>{' '}
+            only (Turbo / Base / XL). Uses{' '}
+            <span className="font-mono text-neon-purple">RUNWARE_API_KEY</span> from General — no
+            OpenRouter music provider.
           </p>
         </div>
-        <RunwareMusicOptionsPanel settings={settings} setSettings={setSettings} variant="embedded" />
+        <RunwareMusicOptionsPanel
+          settings={settings}
+          setSettings={setSettings}
+          variant="embedded"
+        />
       </div>
     </div>
   )

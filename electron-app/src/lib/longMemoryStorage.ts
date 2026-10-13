@@ -67,11 +67,17 @@ function overlapScore(a: Set<string>, b: Set<string>): number {
 
 export function scoreMemoryForQuery(
   query: string,
-  memory: Pick<LongMemoryItem, 'text' | 'tags' | 'importance' | 'confidence' | 'lastUsedAt' | 'updatedAt'>,
+  memory: Pick<
+    LongMemoryItem,
+    'text' | 'tags' | 'importance' | 'confidence' | 'lastUsedAt' | 'updatedAt'
+  >,
   now = Date.now(),
 ): number {
   const queryTokens = tokens(query || '')
-  const recencyHours = Math.max(1, (now - Math.max(memory.lastUsedAt, memory.updatedAt)) / (1000 * 60 * 60))
+  const recencyHours = Math.max(
+    1,
+    (now - Math.max(memory.lastUsedAt, memory.updatedAt)) / (1000 * 60 * 60),
+  )
   const recency = 1 / Math.log2(recencyHours + 2)
   const textTokens = tokens(`${memory.text} ${memory.tags.join(' ')}`)
   const relevance = overlapScore(queryTokens, textTokens)
@@ -88,9 +94,7 @@ export async function listMemories(limit = 200): Promise<LongMemoryItem[]> {
     req.onerror = () => reject(req.error ?? new Error('IndexedDB read failed'))
   })
   await txDone(tx)
-  return rows
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, Math.max(1, limit))
+  return rows.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, Math.max(1, limit))
 }
 
 export async function upsertMemories(
@@ -157,16 +161,21 @@ export async function touchMemoryUsage(ids: string[]): Promise<void> {
   const tx = db.transaction(STORE, 'readwrite')
   const store = tx.objectStore(STORE)
   const now = Date.now()
-  await Promise.all(unique.map((id) => new Promise<void>((resolve) => {
-    const req = store.get(id)
-    req.onsuccess = () => {
-      const row = req.result as LongMemoryItem | undefined
-      if (!row) return resolve()
-      store.put({ ...row, lastUsedAt: now, updatedAt: now })
-      resolve()
-    }
-    req.onerror = () => resolve()
-  })))
+  await Promise.all(
+    unique.map(
+      (id) =>
+        new Promise<void>((resolve) => {
+          const req = store.get(id)
+          req.onsuccess = () => {
+            const row = req.result as LongMemoryItem | undefined
+            if (!row) return resolve()
+            store.put({ ...row, lastUsedAt: now, updatedAt: now })
+            resolve()
+          }
+          req.onerror = () => resolve()
+        }),
+    ),
+  )
   await txDone(tx)
 }
 

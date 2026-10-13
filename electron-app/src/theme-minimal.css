@@ -50,7 +50,7 @@ html[data-ui-theme='minimal'] {
   --color-glitch-blue: 129 140 248;
   --color-glitch-green: 110 231 183;
 
-  --ui-accent-rgb: 99,102,241;
+  --ui-accent-rgb: 99, 102, 241;
 }
 
 html[data-ui-theme='minimal'] body {
@@ -86,8 +86,7 @@ html[data-ui-theme='minimal'] select:focus {
 
 html[data-ui-theme='minimal'] .voidcast-app {
   background:
-    radial-gradient(1000px 520px at 50% -30%, rgba(99, 102, 241, 0.04), transparent 58%),
-    #09090b;
+    radial-gradient(1000px 520px at 50% -30%, rgba(99, 102, 241, 0.04), transparent 58%), #09090b;
 }
 
 html[data-ui-theme='minimal'] .voidcast-header {

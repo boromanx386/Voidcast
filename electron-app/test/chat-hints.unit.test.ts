@@ -21,9 +21,9 @@ describe('deriveSessionTitle', () => {
   })
 
   test('uses first user content', () => {
-    expect(
-      deriveSessionTitle([{ id: '1', role: 'user', content: 'Hello world' }]),
-    ).toBe('Hello world')
+    expect(deriveSessionTitle([{ id: '1', role: 'user', content: 'Hello world' }])).toBe(
+      'Hello world',
+    )
   })
 
   test('truncates long titles', () => {
@@ -34,9 +34,9 @@ describe('deriveSessionTitle', () => {
   })
 
   test('falls back to [image] for image-only user message', () => {
-    expect(
-      deriveSessionTitle([{ id: '1', role: 'user', content: '', images: ['abc'] }]),
-    ).toBe('[image]')
+    expect(deriveSessionTitle([{ id: '1', role: 'user', content: '', images: ['abc'] }])).toBe(
+      '[image]',
+    )
   })
 })
 
@@ -103,9 +103,7 @@ describe('buildQueuedImagePathHint', () => {
   })
 
   test('lists attached paths', () => {
-    const hint = buildQueuedImagePathHint([
-      { base64: 'x', mime: 'image/png', path: 'C:\\img.png' },
-    ])
+    const hint = buildQueuedImagePathHint([{ base64: 'x', mime: 'image/png', path: 'C:\\img.png' }])
     expect(hint).toContain('C:\\img.png')
   })
 })

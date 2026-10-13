@@ -264,7 +264,9 @@ describe('auto-check progress', () => {
     expect(isPlanProgressToolResult('write_file', 'Saved foo.ts')).toBe(true)
     expect(isPlanProgressToolResult('write_file', 'Error: denied')).toBe(false)
     expect(isPlanProgressToolResult('edit_code', 'Target snippet not found (10 lines)')).toBe(false)
-    expect(isPlanProgressToolResult('edit_code', 'Edited foo.ts (lines 1-2, first match)')).toBe(true)
+    expect(isPlanProgressToolResult('edit_code', 'Edited foo.ts (lines 1-2, first match)')).toBe(
+      true,
+    )
     expect(isPlanProgressToolResult('read_file', 'ok')).toBe(false)
   })
 
@@ -326,7 +328,11 @@ describe('auto-check progress', () => {
     const plan = extractPlanArtifactFromReply(`\`\`\`json plan
 {"title":"T","steps":["One"]}
 \`\`\``)!
-    const reopened = reopenPlanAsDraft({ ...plan, status: 'approved', steps: [{ ...plan.steps[0]!, done: true }] })
+    const reopened = reopenPlanAsDraft({
+      ...plan,
+      status: 'approved',
+      steps: [{ ...plan.steps[0]!, done: true }],
+    })
     expect(reopened.status).toBe('draft')
     expect(reopened.steps[0]?.done).toBe(true)
   })
@@ -376,7 +382,12 @@ describe('plan research harvest + merge', () => {
       { path: 'src/lib/planArtifact.ts' },
       'export function formatPlanForBuildPrompt',
     )
-    harvestPlanToolIntoBuffer(harvest, 'search_files', { query: 'PlanArtifact' }, 'src/types/chat.ts:20')
+    harvestPlanToolIntoBuffer(
+      harvest,
+      'search_files',
+      { query: 'PlanArtifact' },
+      'src/types/chat.ts:20',
+    )
     harvestPlanToolIntoBuffer(
       harvest,
       'coding_explore',
@@ -416,24 +427,14 @@ describe('plan research harvest + merge', () => {
 \`\`\``)!
     expect(plan.research).toBeUndefined()
     const harvest = emptyPlanResearchHarvest()
-    harvestPlanToolIntoBuffer(
-      harvest,
-      'read_file',
-      { path: 'src/a.ts' },
-      'const x = 1',
-    )
+    harvestPlanToolIntoBuffer(harvest, 'read_file', { path: 'src/a.ts' }, 'const x = 1')
     const next = attachResearchToPlan(plan, harvest)
     expect(next.research?.keyFiles).toEqual(['src/a.ts'])
   })
 
   test('skips failed tool results', () => {
     const harvest = emptyPlanResearchHarvest()
-    harvestPlanToolIntoBuffer(
-      harvest,
-      'read_file',
-      { path: 'missing.ts' },
-      'Error: File not found',
-    )
+    harvestPlanToolIntoBuffer(harvest, 'read_file', { path: 'missing.ts' }, 'Error: File not found')
     expect(planResearchFromHarvest(harvest)).toBeUndefined()
   })
 })

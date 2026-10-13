@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 import QRCode from 'qrcode'
 import { isElectron } from '@/lib/platform'
 import { normalizeBaseUrl, type AppSettings } from '@/lib/settings'
@@ -29,7 +36,9 @@ function portFromTtsBaseUrl(ttsBaseUrl: string): number {
 }
 
 function pickPreferredIp(ips: string[]): string {
-  const wifi = ips.find((ip) => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.'))
+  const wifi = ips.find(
+    (ip) => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.'),
+  )
   return wifi ?? ips[0] ?? ''
 }
 
@@ -51,7 +60,8 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
   const baseUrl = selectedIp ? `http://${selectedIp}:${port}/` : ''
   // The shared access token rides in the URL so the phone can authenticate to the
   // proxies/data endpoints; the phone's lanAuth interceptor strips it from the bar.
-  const lanUrl = baseUrl && accessToken ? `${baseUrl}?t=${encodeURIComponent(accessToken)}` : baseUrl
+  const lanUrl =
+    baseUrl && accessToken ? `${baseUrl}?t=${encodeURIComponent(accessToken)}` : baseUrl
 
   const refreshIps = useCallback(async () => {
     if (!isElectron() || !window.voidcast?.getLanNetworkInfo) {
@@ -64,7 +74,9 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
       const info = await window.voidcast.getLanNetworkInfo()
       const list = Array.isArray(info?.ips) ? info.ips.filter(Boolean) : []
       setIps(list)
-      setLanError(list.length === 0 ? 'No LAN address found — check Wi‑Fi or VPN (Tailscale).' : null)
+      setLanError(
+        list.length === 0 ? 'No LAN address found — check Wi‑Fi or VPN (Tailscale).' : null,
+      )
       setSelectedIp((prev) => (prev && list.includes(prev) ? prev : pickPreferredIp(list)))
     } catch (e) {
       setIps([])
@@ -111,7 +123,11 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
       return
     }
     let cancelled = false
-    void QRCode.toDataURL(lanUrl, { width: 200, margin: 1, color: { dark: '#0a0a0a', light: '#ffffff' } })
+    void QRCode.toDataURL(lanUrl, {
+      width: 200,
+      margin: 1,
+      color: { dark: '#0a0a0a', light: '#ffffff' },
+    })
       .then((url) => {
         if (!cancelled) setQrDataUrl(url)
       })
@@ -182,18 +198,16 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
           type="checkbox"
           className="mt-1 h-4 w-4 accent-neon-cyan"
           checked={enabled}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, lanWebAccessEnabled: e.target.checked }))
-          }
+          onChange={(e) => setSettings((s) => ({ ...s, lanWebAccessEnabled: e.target.checked }))}
         />
         <span>
           <span className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
             LAN_WEB_ACCESS
           </span>
           <span className="mt-1 block text-xs text-void-dim leading-relaxed">
-            Allow phone/tablet chat on your home network (or Tailscale). When on, cloud API keys
-            are forwarded to the local server for the proxy — never embedded in the phone
-            browser. Prefer the same Wi‑Fi / VPN; do not port-forward 8765 to the public internet.
+            Allow phone/tablet chat on your home network (or Tailscale). When on, cloud API keys are
+            forwarded to the local server for the proxy — never embedded in the phone browser.
+            Prefer the same Wi‑Fi / VPN; do not port-forward 8765 to the public internet.
           </span>
         </span>
       </label>
@@ -203,8 +217,8 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
           <p className="text-xs text-void-dim leading-relaxed">
             Scan the QR code or open the URL on your phone. Keep this desktop app running so keys
             stay registered on the local server. The URL carries a shared access token the phone
-            sends on every request (then strips from the address bar) so the LAN server only
-            serves authenticated clients.
+            sends on every request (then strips from the address bar) so the LAN server only serves
+            authenticated clients.
           </p>
           <p className="text-[10px] font-mono text-void-dim">
             NOTE: the token is transmitted over plain HTTP on your LAN (no TLS). Anyone already on
@@ -257,10 +271,18 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
                       className="cyber-input flex-1 min-w-[12rem] opacity-90 font-mono text-xs"
                       value={lanUrl}
                     />
-                    <button type="button" className="cyber-btn text-xs" onClick={() => void copyUrl()}>
+                    <button
+                      type="button"
+                      className="cyber-btn text-xs"
+                      onClick={() => void copyUrl()}
+                    >
                       {copied ? 'COPIED' : 'COPY'}
                     </button>
-                    <button type="button" className="cyber-btn text-xs" onClick={() => void refreshIps()}>
+                    <button
+                      type="button"
+                      className="cyber-btn text-xs"
+                      onClick={() => void refreshIps()}
+                    >
                       REFRESH
                     </button>
                   </div>

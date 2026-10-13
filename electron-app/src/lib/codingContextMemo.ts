@@ -80,9 +80,10 @@ export function upsertCodingFileCache(
 ): CodingFileCache {
   const trimmed = path.trim()
   if (!trimmed || !content) return cache
-  const capped = content.length > CODING_FILE_CACHE_MAX_PER_FILE_CHARS
-    ? content.slice(0, CODING_FILE_CACHE_MAX_PER_FILE_CHARS)
-    : content
+  const capped =
+    content.length > CODING_FILE_CACHE_MAX_PER_FILE_CHARS
+      ? content.slice(0, CODING_FILE_CACHE_MAX_PER_FILE_CHARS)
+      : content
   const without = cache.entries.filter((e) => e.path !== trimmed)
   const entry: CodingFileCacheEntry = { path: trimmed, content: capped }
   const next = [entry, ...without].slice(0, CODING_FILE_CACHE_MAX_FILES)
@@ -98,10 +99,7 @@ export function upsertCodingFileCache(
 }
 
 /** Remove a path from cache (on edit code or stale read). */
-export function invalidateCodingFileCache(
-  cache: CodingFileCache,
-  path: string,
-): CodingFileCache {
+export function invalidateCodingFileCache(cache: CodingFileCache, path: string): CodingFileCache {
   return {
     entries: cache.entries.filter((e) => e.path !== path.trim()),
   }
@@ -141,10 +139,7 @@ export function updateCodingFileCacheAfterEdit(
     endLine: options?.endLine,
   })
   // Cached body may be a range slice — full-file line anchors won't match; retry without them.
-  if (
-    !applied.ok &&
-    (options?.startLine != null || options?.endLine != null)
-  ) {
+  if (!applied.ok && (options?.startLine != null || options?.endLine != null)) {
     applied = applySnippetEdit(entry.content, findText, replaceText, baseOpts)
   }
   if (!applied.ok) return invalidateCodingFileCache(cache, trimmed)
@@ -157,9 +152,7 @@ export function buildWorkingSetHint(
   /** Paths currently uncleared in tool-result messages — skip these to avoid duplication. */
   unclearedPaths: string[],
 ): string {
-  const toShow = cache.entries.filter(
-    (e) => !unclearedPaths.includes(e.path) && e.content.trim(),
-  )
+  const toShow = cache.entries.filter((e) => !unclearedPaths.includes(e.path) && e.content.trim())
   if (toShow.length === 0) return ''
   const lines = [
     '[Working memory — files read this turn, still current. Use this instead of re-reading.]',
@@ -290,7 +283,11 @@ export function emptyCodingTurnLog(): CodingTurnLog {
   return { events: [] }
 }
 
-function pushTurnEvent(log: CodingTurnLog, kind: CodingTurnEventKind, detail: string): CodingTurnLog {
+function pushTurnEvent(
+  log: CodingTurnLog,
+  kind: CodingTurnEventKind,
+  detail: string,
+): CodingTurnLog {
   const d = detail.trim()
   if (!d) return log
   const event: CodingTurnEvent = { kind, detail: d.slice(0, 220) }
@@ -312,7 +309,13 @@ export function recordCodingToolInTurnLog(
 
   if (failed) {
     let label = name
-    if (path && (name === 'edit_code' || name === 'write_file' || name === 'read_file' || name === 'find_symbols')) {
+    if (
+      path &&
+      (name === 'edit_code' ||
+        name === 'write_file' ||
+        name === 'read_file' ||
+        name === 'find_symbols')
+    ) {
       label = `${name} (${path})`
     } else if (name === 'execute_command') {
       const c = typeof args?.command === 'string' ? args.command.trim() : ''
@@ -326,7 +329,11 @@ export function recordCodingToolInTurnLog(
       if (!path) return log
       // Lazy import avoided — formatEditedFileMemoEntry lives in codingEol; use result prefix.
       const edited = result.trim().split(/\r?\n/)[0] || `${path} (edited)`
-      return pushTurnEvent(log, 'edit', edited.startsWith('Edited ') ? edited.slice('Edited '.length) : edited)
+      return pushTurnEvent(
+        log,
+        'edit',
+        edited.startsWith('Edited ') ? edited.slice('Edited '.length) : edited,
+      )
     }
     case 'write_file':
       return path ? pushTurnEvent(log, 'write', `${path} (written)`) : log
@@ -373,13 +380,10 @@ export function recordCodingToolInTurnLog(
     case 'git_restore': {
       const p = typeof args?.path === 'string' ? args.path.trim() : ''
       const toHead = args?.to_head === true
-      return p
-        ? pushTurnEvent(log, 'git', `git_restore ${p}${toHead ? ' (HEAD)' : ''}`)
-        : log
+      return p ? pushTurnEvent(log, 'git', `git_restore ${p}${toHead ? ' (HEAD)' : ''}`) : log
     }
     case 'git_stash': {
-      const action =
-        typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+      const action = typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
       const p = typeof args?.path === 'string' ? args.path.trim() : ''
       const label =
         action === 'push'
@@ -405,7 +409,11 @@ export function recordCodingToolInTurnLog(
   }
 }
 
-function uniqueDetails(events: CodingTurnEvent[], kind: CodingTurnEventKind, limit: number): string[] {
+function uniqueDetails(
+  events: CodingTurnEvent[],
+  kind: CodingTurnEventKind,
+  limit: number,
+): string[] {
   const out: string[] = []
   for (const e of events) {
     if (e.kind !== kind) continue
@@ -633,16 +641,14 @@ export function buildPlanHandoffUiDraftContent(params: {
   const digests = params.memo.recentFileDigests ?? []
   const files = params.memo.recentFiles ?? []
   const trail = formatCodingTurnLogTrail(params.toolLog)
-  const hasResearch =
-    digests.length > 0 || files.length > 0 || Boolean(trail) || Boolean(summary)
+  const hasResearch = digests.length > 0 || files.length > 0 || Boolean(trail) || Boolean(summary)
   const keepReply = reply.length >= PLAN_HANDOFF_UI_MIN_REPLY_CHARS
 
   if (!keepReply && !hasResearch) return null
 
   if (keepReply) return reply.slice(0, PLAN_HANDOFF_UI_MAX_CHARS)
 
-  const fileCount =
-    digests.length > 0 ? digests.length : files.filter(Boolean).length
+  const fileCount = digests.length > 0 ? digests.length : files.filter(Boolean).length
   const bits: string[] = []
   if (fileCount > 0) bits.push(`${fileCount} file${fileCount === 1 ? '' : 's'}`)
   if (trail) bits.push('tool trail')
@@ -705,14 +711,20 @@ export function normalizeCodingContextMemo(raw: unknown, projectPath: string): C
       ? dedupeNonEmpty(r.recentFiles.filter((x): x is string => typeof x === 'string')).slice(0, 12)
       : [],
     recentSearches: Array.isArray(r.recentSearches)
-      ? dedupeNonEmpty(r.recentSearches.filter((x): x is string => typeof x === 'string')).slice(0, 8)
+      ? dedupeNonEmpty(r.recentSearches.filter((x): x is string => typeof x === 'string')).slice(
+          0,
+          8,
+        )
       : [],
     recentCommands: commands.slice(0, 8),
     recentGitOps: Array.isArray(r.recentGitOps)
       ? dedupeNonEmpty(r.recentGitOps.filter((x): x is string => typeof x === 'string')).slice(0, 8)
       : [],
     recentFailures: Array.isArray(r.recentFailures)
-      ? dedupeNonEmpty(r.recentFailures.filter((x): x is string => typeof x === 'string')).slice(0, 8)
+      ? dedupeNonEmpty(r.recentFailures.filter((x): x is string => typeof x === 'string')).slice(
+          0,
+          8,
+        )
       : [],
     lastTurnSummary:
       typeof r.lastTurnSummary === 'string'
@@ -914,11 +926,7 @@ export function resolveMemoForSession(
   projectPath: string,
 ): CodingContextMemo {
   const path = projectPath.trim()
-  if (
-    session?.codingContextMemo &&
-    (session.codingProjectPath ?? '').trim() === path &&
-    path
-  ) {
+  if (session?.codingContextMemo && (session.codingProjectPath ?? '').trim() === path && path) {
     return normalizeCodingContextMemo(session.codingContextMemo, path)
   }
   if (path) return loadProjectCodingMemo(path)
@@ -935,9 +943,7 @@ export function resolveMemoForNewChat(projectPath: string): CodingContextMemo {
  * Optional fallback is only used when the session has no bound path (legacy callers).
  */
 export function sessionCodingProjectPath(
-  session:
-    | { codingProjectPath?: string; codingContextMemo?: { projectPath?: string } }
-    | undefined,
+  session: { codingProjectPath?: string; codingContextMemo?: { projectPath?: string } } | undefined,
   fallbackPath = '',
 ): string {
   const fromSession = (session?.codingProjectPath ?? '').trim()
@@ -996,8 +1002,7 @@ export function patchSessionCodingState<T extends SessionCodingPatch>(
   const cur = sessions[idx]
   const pathField = projectPath || undefined
   const samePath = (cur.codingProjectPath ?? '') === (pathField ?? '')
-  const sameMemo =
-    JSON.stringify(cur.codingContextMemo ?? null) === JSON.stringify(normalizedMemo)
+  const sameMemo = JSON.stringify(cur.codingContextMemo ?? null) === JSON.stringify(normalizedMemo)
   if (samePath && sameMemo) return sessions
   const next = [...sessions]
   next[idx] = {

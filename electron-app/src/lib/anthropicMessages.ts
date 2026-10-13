@@ -71,10 +71,7 @@ export type AnthropicToolResultBlock = {
   content: string
 }
 export type AnthropicContentBlock =
-  | AnthropicTextBlock
-  | AnthropicImageBlock
-  | AnthropicToolUseBlock
-  | AnthropicToolResultBlock
+  AnthropicTextBlock | AnthropicImageBlock | AnthropicToolUseBlock | AnthropicToolResultBlock
 
 export type AnthropicMessage = {
   role: 'user' | 'assistant'
@@ -151,9 +148,7 @@ export function openRouterMessagesToAnthropic(messages: OpenRouterMessage[]): {
       continue
     }
     if (m.role === 'tool') {
-      push('user', [
-        { type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content ?? '' },
-      ])
+      push('user', [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content ?? '' }])
       continue
     }
     if (m.role === 'assistant') {
@@ -205,7 +200,9 @@ export function openAiToolsToAnthropic(tools: unknown): AnthropicTool[] | undefi
 }
 
 /** Maps the app think level to output_config.effort for adaptive thinking. null = no thinking. */
-export function anthropicThinkingEffort(thinkLevel: string | undefined): 'low' | 'medium' | 'high' | null {
+export function anthropicThinkingEffort(
+  thinkLevel: string | undefined,
+): 'low' | 'medium' | 'high' | null {
   if (!thinkLevel || thinkLevel === 'off') return null
   if (thinkLevel === 'low') return 'low'
   if (thinkLevel === 'high') return 'high'
@@ -242,9 +239,7 @@ export function buildAnthropicMessagesBody(args: {
   // Mark the system prompt as cacheable. Anthropic caches only when cache_control is set;
   // the cached prefix must be at least ~2048 tokens for Haiku models.
   if (converted.system) {
-    body.system = [
-      { type: 'text', text: converted.system, cache_control: { type: 'ephemeral' } },
-    ]
+    body.system = [{ type: 'text', text: converted.system, cache_control: { type: 'ephemeral' } }]
   }
   const tools = openAiToolsToAnthropic(args.tools)
   if (tools) body.tools = tools
@@ -336,9 +331,7 @@ export function applyAnthropicStreamEvent(
 
   if (type === 'content_block_start') {
     const index = typeof e.index === 'number' ? e.index : -1
-    const block = e.content_block as
-      | { type?: string; id?: string; name?: string }
-      | undefined
+    const block = e.content_block as { type?: string; id?: string; name?: string } | undefined
     if (block?.type === 'text') {
       state.blocks.set(index, { kind: 'text' })
     } else if (block?.type === 'thinking' || block?.type === 'redacted_thinking') {
@@ -359,13 +352,16 @@ export function applyAnthropicStreamEvent(
   if (type === 'content_block_delta') {
     const index = typeof e.index === 'number' ? e.index : -1
     const delta = e.delta as
-      | { type?: string; text?: string; thinking?: string; partial_json?: string }
-      | undefined
+      { type?: string; text?: string; thinking?: string; partial_json?: string } | undefined
     if (!delta) return res
     if (delta.type === 'text_delta' && typeof delta.text === 'string' && delta.text) {
       state.text += delta.text
       res.textChanged = true
-    } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string' && delta.thinking) {
+    } else if (
+      delta.type === 'thinking_delta' &&
+      typeof delta.thinking === 'string' &&
+      delta.thinking
+    ) {
       state.reasoning += delta.thinking
       res.reasoningChanged = true
     } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {

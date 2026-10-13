@@ -84,10 +84,7 @@ export function toConversationTurns(
     )
 }
 
-export function buildImageCatalogHint(
-  catalog: PendingChatImage[],
-  pendingCount = 0,
-): string {
+export function buildImageCatalogHint(catalog: PendingChatImage[], pendingCount = 0): string {
   if (!catalog.length) return ''
   const lines = catalog.map((item, i) => {
     const label = (item.path || item.name || '').trim() || '(unnamed image)'
@@ -170,7 +167,9 @@ export function buildHistoricalImageRecallHint(
           : `- Index ${oneBased} (1-based catalog): ${label}${path ? ` — path: ${path}` : ''}`,
       )
     } else {
-      lines.push(`- ${label} (could not match to current image catalog; try re-attaching if needed)`)
+      lines.push(
+        `- ${label} (could not match to current image catalog; try re-attaching if needed)`,
+      )
     }
   }
   if (!lines.length) return ''

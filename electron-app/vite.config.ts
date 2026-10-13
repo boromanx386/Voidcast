@@ -38,10 +38,7 @@ const CSP_PROD = [
  * preamble, so the dev server needs `'unsafe-inline'`. Vite 5's native-ESM dev server
  * needs no `eval`, so `'unsafe-eval'` stays out even in development.
  */
-const CSP_DEV = CSP_PROD.replace(
-  "script-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-)
+const CSP_DEV = CSP_PROD.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'")
 
 /**
  * Swap the CSP meta for a loosened one on the dev server only. The build keeps the strict
@@ -71,7 +68,7 @@ export default defineConfig(({ command }) => {
   return {
     resolve: {
       alias: {
-        '@': path.join(__dirname, 'src')
+        '@': path.join(__dirname, 'src'),
       },
     },
     plugins: [
@@ -83,7 +80,7 @@ export default defineConfig(({ command }) => {
           entry: 'electron/main/index.ts',
           onstart(args) {
             if (process.env.VSCODE_DEBUG) {
-              console.log(/* For `.vscode/.debug.script.mjs` */'[startup] Electron App')
+              console.log(/* For `.vscode/.debug.script.mjs` */ '[startup] Electron App')
             } else {
               args.startup()
             }
@@ -120,13 +117,15 @@ export default defineConfig(({ command }) => {
         renderer: {},
       }),
     ],
-    server: process.env.VSCODE_DEBUG && (() => {
-      const url = new URL(pkg.debug.env.VITE_DEV_SERVER_URL)
-      return {
-        host: url.hostname,
-        port: +url.port,
-      }
-    })(),
+    server:
+      process.env.VSCODE_DEBUG &&
+      (() => {
+        const url = new URL(pkg.debug.env.VITE_DEV_SERVER_URL)
+        return {
+          host: url.hostname,
+          port: +url.port,
+        }
+      })(),
     clearScreen: false,
   }
 })

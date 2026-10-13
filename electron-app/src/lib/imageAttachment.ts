@@ -10,8 +10,7 @@ export const MAX_IMAGE_BYTES = 4 * 1024 * 1024
  * Ollama vision prihvaća PNG, JPEG, WebP; ostalo (GIF, BMP, TIFF, …) često radi,
  * ali HEIC/RAW može ne proći na serveru — pokušaj export u JPEG/PNG ako ne radi.
  */
-const IMAGE_EXT =
-  /\.(png|jpe?g|gif|webp|bmp|avif|tiff?|ico|heic|heif|svg)$/i
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|tiff?|ico|heic|heif|svg)$/i
 
 /** Android gallery / screenshots often ship with empty `type` or odd names — use in accept + probe. */
 export const CHAT_IMAGE_ACCEPT = 'image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.heic,.heif'

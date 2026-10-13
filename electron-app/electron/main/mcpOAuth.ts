@@ -107,7 +107,10 @@ function parseCallbackUrl(reqUrl: string): URL {
   return new URL(reqUrl, 'http://127.0.0.1')
 }
 
-async function handleOAuthCallback(reqUrl: string, res: import('node:http').ServerResponse): Promise<void> {
+async function handleOAuthCallback(
+  reqUrl: string,
+  res: import('node:http').ServerResponse,
+): Promise<void> {
   const url = parseCallbackUrl(reqUrl)
   const code = url.searchParams.get('code')?.trim()
   const state = url.searchParams.get('state')?.trim()
@@ -226,7 +229,9 @@ class VoidcastMcpOAuthProvider implements OAuthClientProvider {
       redirect_uris: redirect ? [redirect] : [],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      token_endpoint_auth_method: oauthConfig(this.config).clientSecret ? 'client_secret_post' : 'none',
+      token_endpoint_auth_method: oauthConfig(this.config).clientSecret
+        ? 'client_secret_post'
+        : 'none',
       ...(scope ? { scope } : {}),
     }
   }

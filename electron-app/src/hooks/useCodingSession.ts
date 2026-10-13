@@ -26,14 +26,8 @@ import {
   subscribeCodingCommandOutput,
   subscribeCodingProcessUpdate,
 } from '@/lib/codingTools'
-import {
-  normalizeCodingRevealPath,
-  type CodingRevealRequest,
-} from '@/lib/codingReveal'
-import {
-  normalizeImageVisionCache,
-  type ImageVisionCache,
-} from '@/lib/imageVisionCache'
+import { normalizeCodingRevealPath, type CodingRevealRequest } from '@/lib/codingReveal'
+import { normalizeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { isElectron } from '@/lib/platform'
 import { DRAFT_RUNTIME_KEY } from '@/lib/sessionAgentStore'
 import type { AppSettings } from '@/lib/settings'
@@ -127,13 +121,15 @@ export function useCodingSession({
   const codingContextMemoRef = useRef(codingContextMemo)
   codingContextMemoRef.current = codingContextMemo
   /** Sync ref inside the updater so enter_plan_mode handoff sees digests before React re-renders. */
-  const setCodingContextMemo: React.Dispatch<React.SetStateAction<CodingContextMemo>> =
-    useCallback((action) => {
+  const setCodingContextMemo: React.Dispatch<React.SetStateAction<CodingContextMemo>> = useCallback(
+    (action) => {
       const prev = codingContextMemoRef.current
       const next = typeof action === 'function' ? action(prev) : action
       codingContextMemoRef.current = next
       setCodingContextMemoState(next)
-    }, [])
+    },
+    [],
+  )
   const [codingFileCache, setCodingFileCache] = useState<CodingFileCache>(() =>
     emptyCodingFileCache(),
   )
@@ -285,9 +281,7 @@ export function useCodingSession({
       }
 
       if (event.done) {
-        setActiveCodingRunId((cur) =>
-          viewing && cur === event.runId ? null : cur,
-        )
+        setActiveCodingRunId((cur) => (viewing && cur === event.runId ? null : cur))
         setActiveCodingProcesses((prev) => removeActiveProcess(prev, event.runId))
       } else if (viewing) {
         setActiveCodingRunId(event.runId)
@@ -379,9 +373,7 @@ export function useCodingSession({
           if (idx < 0) return patched
           const cur = patched[idx]!
           const nextVisionCache = normalizeImageVisionCache(imageVisionCache)
-          if (
-            JSON.stringify(cur.imageVisionCache ?? null) === JSON.stringify(nextVisionCache)
-          ) {
+          if (JSON.stringify(cur.imageVisionCache ?? null) === JSON.stringify(nextVisionCache)) {
             return patched
           }
           const next = [...patched]

@@ -47,7 +47,9 @@ export function useChatMessageRender(app: Props) {
   const savedChatScrollRef = useRef(0)
   const thinkingScrollRef = useRef<HTMLDivElement | null>(null)
   const [thinkingPinned, setThinkingPinned] = useState(true)
-  const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, LocalImagePreview>>({})
+  const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, LocalImagePreview>>(
+    {},
+  )
   const [localAudioUrls, setLocalAudioUrls] = useState<Record<string, string>>({})
   const localPreviewLoadingRef = useRef<Set<string>>(new Set())
   const localAudioLoadingRef = useRef<Set<string>>(new Set())
@@ -55,45 +57,51 @@ export function useChatMessageRender(app: Props) {
 
   const desktopRuntime = isElectron()
 
-  const downloadImage = useCallback(async (url: string) => {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`Image download failed: HTTP ${res.status}`)
-      const blob = await res.blob()
-      const objUrl = URL.createObjectURL(blob)
-      const fileFromUrl = (() => {
-        try {
-          const p = new URL(url).pathname.split('/').pop() || ''
-          return p.trim()
-        } catch {
-          return ''
-        }
-      })()
-      const safeName = fileFromUrl || `runware-${Date.now()}.jpg`
-      const a = document.createElement('a')
-      a.href = objUrl
-      a.download = safeName
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(objUrl)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }, [setError])
+  const downloadImage = useCallback(
+    async (url: string) => {
+      try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`Image download failed: HTTP ${res.status}`)
+        const blob = await res.blob()
+        const objUrl = URL.createObjectURL(blob)
+        const fileFromUrl = (() => {
+          try {
+            const p = new URL(url).pathname.split('/').pop() || ''
+            return p.trim()
+          } catch {
+            return ''
+          }
+        })()
+        const safeName = fileFromUrl || `runware-${Date.now()}.jpg`
+        const a = document.createElement('a')
+        a.href = objUrl
+        a.download = safeName
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(objUrl)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [setError],
+  )
 
-  const openLocalImage = useCallback(async (filePath: string) => {
-    try {
-      const vc = window.voidcast?.openPath
-      if (!vc) throw new Error('Open file is available only in Electron app.')
-      const r: unknown = await vc(filePath)
-      if (typeof r === 'string') return
-      const obj = r as { ok?: boolean; text?: string }
-      if (obj.ok === false) throw new Error(obj.text || 'Failed to open file.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }, [setError])
+  const openLocalImage = useCallback(
+    async (filePath: string) => {
+      try {
+        const vc = window.voidcast?.openPath
+        if (!vc) throw new Error('Open file is available only in Electron app.')
+        const r: unknown = await vc(filePath)
+        if (typeof r === 'string') return
+        const obj = r as { ok?: boolean; text?: string }
+        if (obj.ok === false) throw new Error(obj.text || 'Failed to open file.')
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [setError],
+  )
 
   const onChatScroll = useCallback((e: ReactUIEvent<HTMLElement>) => {
     savedChatScrollRef.current = e.currentTarget.scrollTop

@@ -47,35 +47,36 @@ export function OptionsScreen({ app }: Props) {
   const uiMatrix = settings.uiTheme === 'matrix'
 
   return (
-      <div className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}>
-        {uiDystopian && (
-          <>
-            <CrtOverlay />
-            <AmbientParticles />
-          </>
-        )}
-        {uiMatrix && <MatrixRain />}
-        
-        {/* Header */}
-        <header className="voidcast-header">
-          <button
-            type="button"
-            onClick={() => setScreen('chat')}
-            className="cyber-btn shrink-0 text-sm"
-          >
-            ← RETURN
-          </button>
+    <div className={`voidcast-app${uiDystopian ? ' grid-bg' : ''}`}>
+      {uiDystopian && (
+        <>
+          <CrtOverlay />
+          <AmbientParticles />
+        </>
+      )}
+      {uiMatrix && <MatrixRain />}
 
-          <GlitchText className="voidcast-logo pointer-events-none flex-1 text-center text-xl">
-            SETTINGS
-          </GlitchText>
+      {/* Header */}
+      <header className="voidcast-header">
+        <button
+          type="button"
+          onClick={() => setScreen('chat')}
+          className="cyber-btn shrink-0 text-sm"
+        >
+          ← RETURN
+        </button>
 
-          <WindowControls />
-        </header>
+        <GlitchText className="voidcast-logo pointer-events-none flex-1 text-center text-xl">
+          SETTINGS
+        </GlitchText>
 
-        {/* Tabs */}
-        <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-          {(['general', 'llm', 'subAgent', 'media', 'tts', 'tools', 'skills'] as OptionsTab[]).map((tab) => (
+        <WindowControls />
+      </header>
+
+      {/* Tabs */}
+      <div className="flex border-b border-void-muted/30 bg-void-dark/50">
+        {(['general', 'llm', 'subAgent', 'media', 'tts', 'tools', 'skills'] as OptionsTab[]).map(
+          (tab) => (
             <button
               key={tab}
               type="button"
@@ -101,78 +102,79 @@ export function OptionsScreen({ app }: Props) {
               {tab === 'tools' && '⬡ TOOLS'}
               {tab === 'skills' && '✦ SKILLS'}
             </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <main className="options-panel flex-1 overflow-y-auto">
-          <div className="cyber-panel p-6 max-w-4xl mx-auto">
-            <div className="corner-tl" />
-            <div className="corner-tr" />
-            <div className="corner-bl" />
-            <div className="corner-br" />
-            
-            {optionsTab === 'general' ? (
-              <GeneralOptionsPanel
-                settings={settings}
-                setSettings={setSettings}
-                useLongMemoryInActiveChat={activeSessionUseLongMemory}
-                onToggleUseLongMemoryInActiveChat={setUseLongMemoryForActiveChat}
-                longMemories={longMemories}
-                onDeleteLongMemory={deleteLongMemoryById}
-                onUpdateLongMemory={updateLongMemoryById}
-                reminders={reminders}
-                onDeleteReminder={(id) => void handleDeleteReminder(id)}
-                onMarkDoneReminder={(id) => void handleMarkDoneReminder(id)}
-              />
-            ) : optionsTab === 'llm' ? (
-              <LlmOptionsPanel
-                settings={settings}
-                setSettings={setSettings}
-                loadModels={loadModels}
-                modelsLoading={modelsLoading}
-                ollamaModels={ollamaModels}
-                modelsError={modelsError}
-              />
-            ) : optionsTab === 'tts' ? (
-              <TtsOptionsPanel
-                settings={settings}
-                setSettings={setSettings}
-                refreshTts={refreshTts}
-                cloneRef={cloneRef}
-                onPickCloneFile={onPickCloneFile}
-                onClearClone={onClearClone}
-                voiceAnchor={voiceAnchor}
-                onBakeVoiceAnchor={onBakeVoiceAnchor}
-                onClearVoiceAnchor={onClearVoiceAnchor}
-              />
-            ) : optionsTab === 'media' ? (
-              <MediaOptionsPanel settings={settings} setSettings={setSettings} />
-            ) : optionsTab === 'subAgent' ? (
-              <SubAgentOptionsPanel
-                settings={settings}
-                setSettings={setSettings}
-                loadModels={loadModels}
-                modelsLoading={modelsLoading}
-                ollamaModels={ollamaModels}
-                modelsError={modelsError}
-              />
-            ) : optionsTab === 'skills' ? (
-              <SkillsOptionsPanel
-                settings={settings}
-                setSettings={setSettings}
-                activeCodingProjectPath={activeCodingProjectPath}
-              />
-            ) : (
-              <ToolsOptionsPanel
-                settings={settings}
-                setSettings={setSettings}
-                activeCodingProjectPath={activeCodingProjectPath}
-                effectivePdfOutputDir={effectivePdfOutputDir}
-              />
-            )}
-          </div>
-        </main>
+          ),
+        )}
       </div>
+
+      {/* Content */}
+      <main className="options-panel flex-1 overflow-y-auto">
+        <div className="cyber-panel p-6 max-w-4xl mx-auto">
+          <div className="corner-tl" />
+          <div className="corner-tr" />
+          <div className="corner-bl" />
+          <div className="corner-br" />
+
+          {optionsTab === 'general' ? (
+            <GeneralOptionsPanel
+              settings={settings}
+              setSettings={setSettings}
+              useLongMemoryInActiveChat={activeSessionUseLongMemory}
+              onToggleUseLongMemoryInActiveChat={setUseLongMemoryForActiveChat}
+              longMemories={longMemories}
+              onDeleteLongMemory={deleteLongMemoryById}
+              onUpdateLongMemory={updateLongMemoryById}
+              reminders={reminders}
+              onDeleteReminder={(id) => void handleDeleteReminder(id)}
+              onMarkDoneReminder={(id) => void handleMarkDoneReminder(id)}
+            />
+          ) : optionsTab === 'llm' ? (
+            <LlmOptionsPanel
+              settings={settings}
+              setSettings={setSettings}
+              loadModels={loadModels}
+              modelsLoading={modelsLoading}
+              ollamaModels={ollamaModels}
+              modelsError={modelsError}
+            />
+          ) : optionsTab === 'tts' ? (
+            <TtsOptionsPanel
+              settings={settings}
+              setSettings={setSettings}
+              refreshTts={refreshTts}
+              cloneRef={cloneRef}
+              onPickCloneFile={onPickCloneFile}
+              onClearClone={onClearClone}
+              voiceAnchor={voiceAnchor}
+              onBakeVoiceAnchor={onBakeVoiceAnchor}
+              onClearVoiceAnchor={onClearVoiceAnchor}
+            />
+          ) : optionsTab === 'media' ? (
+            <MediaOptionsPanel settings={settings} setSettings={setSettings} />
+          ) : optionsTab === 'subAgent' ? (
+            <SubAgentOptionsPanel
+              settings={settings}
+              setSettings={setSettings}
+              loadModels={loadModels}
+              modelsLoading={modelsLoading}
+              ollamaModels={ollamaModels}
+              modelsError={modelsError}
+            />
+          ) : optionsTab === 'skills' ? (
+            <SkillsOptionsPanel
+              settings={settings}
+              setSettings={setSettings}
+              activeCodingProjectPath={activeCodingProjectPath}
+            />
+          ) : (
+            <ToolsOptionsPanel
+              settings={settings}
+              setSettings={setSettings}
+              activeCodingProjectPath={activeCodingProjectPath}
+              effectivePdfOutputDir={effectivePdfOutputDir}
+            />
+          )}
+        </div>
+      </main>
+    </div>
   )
 }

@@ -73,7 +73,8 @@ function quote(raw: string): string {
 
 function formatSnapshotLine(entry: CdpSnapshotNode, node: CdpMessageParams): string {
   const props = new Map<string, unknown>()
-  for (const p of (node.properties as { name?: string; value?: { value?: unknown } }[] | undefined) ?? []) {
+  for (const p of (node.properties as
+    { name?: string; value?: { value?: unknown } }[] | undefined) ?? []) {
     props.set(String(p?.name ?? ''), p?.value?.value)
   }
   const flags: string[] = []
@@ -185,7 +186,9 @@ export class CdpSession {
   private onDebuggerMessage = (_event: unknown, method: string, params: CdpMessageParams): void => {
     switch (method) {
       case 'Runtime.consoleAPICalled': {
-        const args = ((params.args as { value?: unknown; description?: unknown; type?: unknown }[]) ?? [])
+        const args = (
+          (params.args as { value?: unknown; description?: unknown; type?: unknown }[]) ?? []
+        )
           .map((a) => a?.value ?? a?.description ?? a?.type ?? '')
           .join(' ')
         this.pushConsole(`${compact(params.type ?? 'log')}: ${args}`)
@@ -258,12 +261,14 @@ export class CdpSession {
     // Electron injects its own security warnings into every page console.
     if (line.includes('Electron Security Warning')) return
     this.consoleLines.push(line)
-    if (this.consoleLines.length > MAX_BUFFER) this.consoleLines.splice(0, this.consoleLines.length - MAX_BUFFER)
+    if (this.consoleLines.length > MAX_BUFFER)
+      this.consoleLines.splice(0, this.consoleLines.length - MAX_BUFFER)
   }
 
   private pushRequest(line: string): void {
     this.requestLines.push(line)
-    if (this.requestLines.length > MAX_BUFFER) this.requestLines.splice(0, this.requestLines.length - MAX_BUFFER)
+    if (this.requestLines.length > MAX_BUFFER)
+      this.requestLines.splice(0, this.requestLines.length - MAX_BUFFER)
   }
 
   /** `uid role name="..." value="..." [flags]` lines, interactive-first. */
@@ -322,9 +327,11 @@ export class CdpSession {
       // An element below the fold is not hit-testable — dispatching at its off-screen
       // coordinates silently does nothing at all, which reads to the agent as "the
       // click worked but the page did not react".
-      await this.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: backendDOMNodeId }, 5000).catch(
-        () => undefined,
-      )
+      await this.send(
+        'DOM.scrollIntoViewIfNeeded',
+        { backendNodeId: backendDOMNodeId },
+        5000,
+      ).catch(() => undefined)
     }
     const box = await this.send<{ model?: { border?: number[]; content?: number[] } }>(
       'DOM.getBoxModel',

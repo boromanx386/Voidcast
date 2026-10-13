@@ -6,9 +6,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { ChunkThrottle } from './chunkThrottle'
 
 /** Env helpers so piped Python (and similar) don't block-buffer forever. */
-export function codingCommandSpawnEnv(
-  base: NodeJS.ProcessEnv = process.env,
-): NodeJS.ProcessEnv {
+export function codingCommandSpawnEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   return {
     ...base,
     PYTHONUNBUFFERED: base.PYTHONUNBUFFERED || '1',

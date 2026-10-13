@@ -189,9 +189,7 @@ export async function discoverAgentSkills(opts?: {
   skillsCacheKey = cacheKey
   skillsCachePromise = (async () => {
     try {
-      const res = await window.voidcast!.listAgentSkills(
-        projectPath ? { projectPath } : undefined,
-      )
+      const res = await window.voidcast!.listAgentSkills(projectPath ? { projectPath } : undefined)
       if (!res.ok) {
         skillsCache = []
         return skillsCache
@@ -229,18 +227,10 @@ export async function loadProjectAgentInstructions(opts?: {
     projectInstructionsCache = []
     return []
   }
-  if (
-    !opts?.force &&
-    projectInstructionsCache &&
-    projectInstructionsCacheKey === projectPath
-  ) {
+  if (!opts?.force && projectInstructionsCache && projectInstructionsCacheKey === projectPath) {
     return projectInstructionsCache
   }
-  if (
-    !opts?.force &&
-    projectInstructionsPromise &&
-    projectInstructionsCacheKey === projectPath
-  ) {
+  if (!opts?.force && projectInstructionsPromise && projectInstructionsCacheKey === projectPath) {
     return projectInstructionsPromise
   }
   if (

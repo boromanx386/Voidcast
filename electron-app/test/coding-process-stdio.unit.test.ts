@@ -32,11 +32,7 @@ afterEach(async () => {
   await new Promise((r) => setTimeout(r, 50))
 })
 
-function waitFor(
-  pred: () => boolean,
-  timeoutMs = 3_000,
-  stepMs = 50,
-): Promise<void> {
+function waitFor(pred: () => boolean, timeoutMs = 3_000, stepMs = 50): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now()
     const tick = () => {
@@ -80,9 +76,13 @@ describe('codingProcessStdio', () => {
     })
     children.push(child)
 
-    const stdio = attachCodingProcessStdio(child, (_stream, text) => {
-      state = appendProcessOutputBuffer(state, text)
-    }, 30)
+    const stdio = attachCodingProcessStdio(
+      child,
+      (_stream, text) => {
+        state = appendProcessOutputBuffer(state, text)
+      },
+      30,
+    )
 
     await waitFor(() => state.buffer.includes('tick'), 4_000)
     stdio.flush()

@@ -6,13 +6,7 @@ import {
   _electron as electron,
 } from 'playwright'
 import type { BrowserWindow } from 'electron'
-import {
-  beforeAll,
-  afterAll,
-  describe,
-  expect,
-  test,
-} from 'vitest'
+import { beforeAll, afterAll, describe, expect, test } from 'vitest'
 
 const root = path.join(__dirname, '..')
 let electronApp: ElectronApplication

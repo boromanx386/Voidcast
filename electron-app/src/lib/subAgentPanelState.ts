@@ -66,10 +66,7 @@ function pushEvent(
   level: SubAgentPanelLevel = 'info',
   workerId?: string,
 ): SubAgentPanelEvent[] {
-  const next = [
-    ...events,
-    { id: nextEventId(), at: Date.now(), text, level, workerId },
-  ]
+  const next = [...events, { id: nextEventId(), at: Date.now(), text, level, workerId }]
   return next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next
 }
 
@@ -126,10 +123,7 @@ export function parseCodingStartLabel(label: string): ParsedCodingLabel {
   }
 }
 
-export function applyVisionStart(
-  prev: SubAgentPanelState,
-  imageCount: number,
-): SubAgentPanelState {
+export function applyVisionStart(prev: SubAgentPanelState, imageCount: number): SubAgentPanelState {
   const text = `Analyzing ${imageCount} image(s)…`
   return {
     ...prev,
@@ -140,11 +134,7 @@ export function applyVisionStart(
     title: 'VISION',
     progress: `0/${imageCount}`,
     text,
-    events: pushEvent(
-      prev.kind === 'vision' && prev.busy ? prev.events : [],
-      text,
-      'info',
-    ),
+    events: pushEvent(prev.kind === 'vision' && prev.busy ? prev.events : [], text, 'info'),
     workers: [],
   }
 }
@@ -167,10 +157,7 @@ export function applyVisionProgress(
   }
 }
 
-export function applyVisionDone(
-  prev: SubAgentPanelState,
-  formatted: string,
-): SubAgentPanelState {
+export function applyVisionDone(prev: SubAgentPanelState, formatted: string): SubAgentPanelState {
   const text = formatted.trim() || '[Sub-agent returned no descriptions.]'
   const level: SubAgentPanelLevel = /error/i.test(text) ? 'err' : 'ok'
   return {
@@ -186,23 +173,14 @@ export function applyVisionDone(
   }
 }
 
-export function applyCodingStart(
-  prev: SubAgentPanelState,
-  label: string,
-): SubAgentPanelState {
+export function applyCodingStart(prev: SubAgentPanelState, label: string): SubAgentPanelState {
   const parsed = parseCodingStartLabel(label)
   const isNewBatch =
-    parsed.kind === 'workers' &&
-    !parsed.workerId &&
-    /1\s*[–-]\s*2|starting/i.test(parsed.raw)
-  const isNewExplore =
-    parsed.kind === 'explore' &&
-    (!prev.busy || prev.kind !== 'explore')
+    parsed.kind === 'workers' && !parsed.workerId && /1\s*[–-]\s*2|starting/i.test(parsed.raw)
+  const isNewExplore = parsed.kind === 'explore' && (!prev.busy || prev.kind !== 'explore')
   const isNewWorkerPass =
     isNewBatch ||
-    (parsed.kind === 'workers' &&
-      parsed.workerId &&
-      (!prev.busy || prev.kind !== 'workers'))
+    (parsed.kind === 'workers' && parsed.workerId && (!prev.busy || prev.kind !== 'workers'))
 
   let workers = prev.workers
   let events = prev.events
@@ -250,10 +228,7 @@ export function applyCodingStart(
 }
 
 /** Apply final coding digest; extract per-worker blocks when present. */
-export function applyCodingDone(
-  prev: SubAgentPanelState,
-  formatted: string,
-): SubAgentPanelState {
+export function applyCodingDone(prev: SubAgentPanelState, formatted: string): SubAgentPanelState {
   const text = formatted.trim() || '[Sub-agent returned no digest.]'
   const isErr = /^\s*error\b/i.test(text) || /\berror\s*:/i.test(text)
   const isPartial = /round budget|max rounds|without done|synthesized|stopped at/i.test(text)
@@ -264,7 +239,10 @@ export function applyCodingDone(
   }))
 
   // "---\nWORKER 1:\n..." or "WORKER 1:\n"
-  const blocks = text.split(/\n---\n|\n---\s*\n/).map((b) => b.trim()).filter(Boolean)
+  const blocks = text
+    .split(/\n---\n|\n---\s*\n/)
+    .map((b) => b.trim())
+    .filter(Boolean)
   const workerUpdates: SubAgentWorkerSlot[] = []
   for (const block of blocks) {
     const m = block.match(/^WORKER\s+(\d+)\s*:?\s*([\s\S]*)$/i)
@@ -302,12 +280,7 @@ export function applyCodingDone(
     busy: false,
     collapsed: true,
     kind: prev.kind === 'idle' ? (workers.length ? 'workers' : 'explore') : prev.kind,
-    title:
-      prev.kind === 'explore'
-        ? 'EXPLORE'
-        : workers.length
-          ? 'WORKERS'
-          : prev.title,
+    title: prev.kind === 'explore' ? 'EXPLORE' : workers.length ? 'WORKERS' : prev.title,
     progress: isErr ? 'error' : isPartial ? 'partial' : 'done',
     text,
     events: pushEvent(prev.events, summary, level),
@@ -350,7 +323,9 @@ export function normalizeSubAgentActivity(raw: unknown): SubAgentPanelState | un
       : 'idle'
   const events = Array.isArray(o.events)
     ? o.events
-        .filter((e) => e && typeof e === 'object' && typeof (e as SubAgentPanelEvent).text === 'string')
+        .filter(
+          (e) => e && typeof e === 'object' && typeof (e as SubAgentPanelEvent).text === 'string',
+        )
         .slice(-MAX_EVENTS)
         .map((e) => {
           const ev = e as SubAgentPanelEvent
@@ -368,7 +343,9 @@ export function normalizeSubAgentActivity(raw: unknown): SubAgentPanelState | un
     : []
   const workers = Array.isArray(o.workers)
     ? o.workers
-        .filter((w) => w && typeof w === 'object' && typeof (w as SubAgentWorkerSlot).id === 'string')
+        .filter(
+          (w) => w && typeof w === 'object' && typeof (w as SubAgentWorkerSlot).id === 'string',
+        )
         .slice(0, 4)
         .map((w) => {
           const slot = w as SubAgentWorkerSlot
@@ -379,17 +356,12 @@ export function normalizeSubAgentActivity(raw: unknown): SubAgentPanelState | un
               slot.status === 'done' || slot.status === 'error' || slot.status === 'running'
                 ? slot.status
                 : 'done',
-            ...(typeof slot.progress === 'string'
-              ? { progress: slot.progress.slice(0, 40) }
-              : {}),
-            ...(typeof slot.lastLine === 'string'
-              ? { lastLine: slot.lastLine.slice(0, 160) }
-              : {}),
+            ...(typeof slot.progress === 'string' ? { progress: slot.progress.slice(0, 40) } : {}),
+            ...(typeof slot.lastLine === 'string' ? { lastLine: slot.lastLine.slice(0, 160) } : {}),
           }
         })
     : []
-  const text =
-    typeof o.text === 'string' ? o.text.slice(0, 12_000) : ''
+  const text = typeof o.text === 'string' ? o.text.slice(0, 12_000) : ''
   return {
     open: true,
     busy: false,

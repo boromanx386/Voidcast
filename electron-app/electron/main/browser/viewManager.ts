@@ -209,7 +209,10 @@ function parkedRect(): BrowserRect {
  * close the user's pages each time.
  */
 function sanitizePartitionKey(projectPath?: string): string {
-  const raw = (projectPath ?? '').trim().replace(/[\\/]+$/, '').toLowerCase()
+  const raw = (projectPath ?? '')
+    .trim()
+    .replace(/[\\/]+$/, '')
+    .toLowerCase()
   if (!raw) return 'default'
   let hash = 0
   for (let i = 0; i < raw.length; i++) {
@@ -537,7 +540,13 @@ function firstPendingAuth(): PendingAuth | null {
 function authPrompt(): BrowserAuthPrompt | null {
   const entry = firstPendingAuth()
   if (!entry) return null
-  return { id: entry.id, host: entry.host, realm: entry.realm, url: entry.url, pageId: entry.pageId }
+  return {
+    id: entry.id,
+    host: entry.host,
+    realm: entry.realm,
+    url: entry.url,
+    pageId: entry.pageId,
+  }
 }
 
 /** Why a page is stuck, in words the agent can act on (and the panel can show). */
@@ -679,7 +688,8 @@ async function loadInto(page: BrowserPage, url: string): Promise<string> {
 
 function findPage(id: string): BrowserPage {
   const page = pages.find((p) => p.id === id)
-  if (!page) throw new Error(`Unknown page "${id}" — call browser_list_pages to see the open pages.`)
+  if (!page)
+    throw new Error(`Unknown page "${id}" — call browser_list_pages to see the open pages.`)
   return page
 }
 
@@ -784,11 +794,7 @@ async function ensureBrowser(
   authoritative = false,
 ): Promise<BrowserWindow> {
   const target =
-    win && !win.isDestroyed()
-      ? win
-      : ownerWindow && !ownerWindow.isDestroyed()
-        ? ownerWindow
-        : null
+    win && !win.isDestroyed() ? win : ownerWindow && !ownerWindow.isDestroyed() ? ownerWindow : null
   if (!target) {
     throw new Error(
       'Main window is not available — the Voidcast browser needs the desktop app window.',
@@ -1218,7 +1224,8 @@ export function setBrowserVisible(visible: boolean): void {
 
 export async function navigateTo(url: string, wait = true): Promise<string> {
   const page = activeBrowserPage()
-  if (!page) throw new Error('Browser page is not running yet — open the coding panel WEB view first.')
+  if (!page)
+    throw new Error('Browser page is not running yet — open the coding panel WEB view first.')
   if (wait) return loadInto(page, url)
   // wait:false — the URL is still validated synchronously (a blocked scheme must stay an
   // error, not a silent no-op), then the navigation runs in the background and the reply

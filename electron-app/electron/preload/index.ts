@@ -30,12 +30,21 @@ contextBridge.exposeInMainWorld('voidcast', {
       ipcRenderer.invoke('voidcast:browser-snapshot', payload),
     click: (payload: { uid: string; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-click', payload),
-    fill: (payload: { uid: string; text: string; submit?: boolean; projectPath?: string; profile?: string }) =>
-      ipcRenderer.invoke('voidcast:browser-fill', payload),
+    fill: (payload: {
+      uid: string
+      text: string
+      submit?: boolean
+      projectPath?: string
+      profile?: string
+    }) => ipcRenderer.invoke('voidcast:browser-fill', payload),
     pressKey: (payload: { key: string; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-press-key', payload),
-    screenshot: (payload?: { projectPath?: string; profile?: string; uid?: string; fullPage?: boolean }) =>
-      ipcRenderer.invoke('voidcast:browser-screenshot', payload),
+    screenshot: (payload?: {
+      projectPath?: string
+      profile?: string
+      uid?: string
+      fullPage?: boolean
+    }) => ipcRenderer.invoke('voidcast:browser-screenshot', payload),
     emulate: (payload: {
       width?: number
       height?: number
@@ -70,13 +79,21 @@ contextBridge.exposeInMainWorld('voidcast', {
       projectPath?: string
       profile?: string
     }) => ipcRenderer.invoke('voidcast:browser-wait-for', payload),
-    handleDialog: (payload: { accept?: boolean; promptText?: string; projectPath?: string; profile?: string }) =>
-      ipcRenderer.invoke('voidcast:browser-handle-dialog', payload),
+    handleDialog: (payload: {
+      accept?: boolean
+      promptText?: string
+      projectPath?: string
+      profile?: string
+    }) => ipcRenderer.invoke('voidcast:browser-handle-dialog', payload),
     status: () => ipcRenderer.invoke('voidcast:browser-status'),
     listPages: (payload?: { projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-list-pages', payload),
-    newPage: (payload: { url: string; background?: boolean; projectPath?: string; profile?: string }) =>
-      ipcRenderer.invoke('voidcast:browser-new-page', payload),
+    newPage: (payload: {
+      url: string
+      background?: boolean
+      projectPath?: string
+      profile?: string
+    }) => ipcRenderer.invoke('voidcast:browser-new-page', payload),
     selectPage: (payload: { pageId: string; projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-select-page', payload),
     closePage: (payload: { pageId: string; projectPath?: string; profile?: string }) =>
@@ -84,16 +101,10 @@ contextBridge.exposeInMainWorld('voidcast', {
     openExternal: (payload: { url: string }) =>
       ipcRenderer.invoke('voidcast:browser-open-external', payload),
   },
-  saveImageFromUrl: (payload: {
-    imageUrl: string
-    outputDir: string
-    filename?: string
-  }) => ipcRenderer.invoke('voidcast:save-image-from-url', payload),
-  saveAudioFromUrl: (payload: {
-    audioUrl: string
-    outputDir: string
-    filename?: string
-  }) => ipcRenderer.invoke('voidcast:save-audio-from-url', payload),
+  saveImageFromUrl: (payload: { imageUrl: string; outputDir: string; filename?: string }) =>
+    ipcRenderer.invoke('voidcast:save-image-from-url', payload),
+  saveAudioFromUrl: (payload: { audioUrl: string; outputDir: string; filename?: string }) =>
+    ipcRenderer.invoke('voidcast:save-audio-from-url', payload),
   saveAudioBytes: (payload: {
     bytes: ArrayBuffer
     mime?: string
@@ -104,23 +115,13 @@ contextBridge.exposeInMainWorld('voidcast', {
   }) => ipcRenderer.invoke('voidcast:save-audio-bytes', payload),
   readAudioFile: (payload: { path: string }) =>
     ipcRenderer.invoke('voidcast:read-audio-file', payload),
-  runwareProxy: (payload: {
-    api_base_url: string
-    api_key: string
-    tasks: unknown[]
-  }) =>
+  runwareProxy: (payload: { api_base_url: string; api_key: string; tasks: unknown[] }) =>
     ipcRenderer.invoke('voidcast:runware-proxy', payload) as Promise<
-      | { ok: true; data: unknown }
-      | { ok: false; detail: string }
+      { ok: true; data: unknown } | { ok: false; detail: string }
     >,
-  llmChatProxy: (payload: {
-    api_base_url: string
-    api_key: string
-    body: unknown
-  }) =>
+  llmChatProxy: (payload: { api_base_url: string; api_key: string; body: unknown }) =>
     ipcRenderer.invoke('voidcast:llm-chat-proxy', payload) as Promise<
-      | { ok: true; data: unknown; status: number }
-      | { ok: false; detail: string; status?: number }
+      { ok: true; data: unknown; status: number } | { ok: false; detail: string; status?: number }
     >,
   getAppVersion: () => ipcRenderer.invoke('voidcast:get-app-version') as Promise<string>,
   listAgentSkills: (payload?: { projectPath?: string }) =>
@@ -149,8 +150,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     >,
   readAgentSkill: (payload: { name: string; projectPath?: string }) =>
     ipcRenderer.invoke('voidcast:read-agent-skill', payload) as Promise<
-      | { ok: true; name: string; content: string; dirPath: string }
-      | { ok: false; error?: string }
+      { ok: true; name: string; content: string; dirPath: string } | { ok: false; error?: string }
     >,
   readProjectAgentInstructions: (payload: { projectPath: string }) =>
     ipcRenderer.invoke('voidcast:read-project-agent-instructions', payload) as Promise<
@@ -198,8 +198,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     ownerId?: string
   }) =>
     ipcRenderer.invoke('voidcast:mcp-execute-tool', payload) as Promise<
-      | { ok: true; result: string; qualifiedName?: string }
-      | { ok: false; result: string }
+      { ok: true; result: string; qualifiedName?: string } | { ok: false; result: string }
     >,
   mcpReadResult: (payload: {
     path: string
@@ -274,8 +273,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:mcp-open-config') as Promise<
       { ok: true; path: string } | { ok: false; path?: string; error?: string }
     >,
-  mcpStopAll: () =>
-    ipcRenderer.invoke('voidcast:mcp-stop-all') as Promise<{ ok: true }>,
+  mcpStopAll: () => ipcRenderer.invoke('voidcast:mcp-stop-all') as Promise<{ ok: true }>,
   mcpCancelActiveCalls: (payload?: { ownerId?: string }) =>
     ipcRenderer.invoke('voidcast:mcp-cancel-active-calls', payload) as Promise<{ ok: true }>,
   mcpProjectConfigPreview: (payload?: { projectPath?: string }) =>
@@ -327,7 +325,11 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:coding-pick-directory') as Promise<
       { ok: true; path: string } | { ok: false }
     >,
-  codingListDirectory: (payload: { projectPath: string; path?: string; includeIgnored?: boolean }) =>
+  codingListDirectory: (payload: {
+    projectPath: string
+    path?: string
+    includeIgnored?: boolean
+  }) =>
     ipcRenderer.invoke('voidcast:coding-list-directory', payload) as Promise<
       | {
           ok: true
@@ -428,13 +430,11 @@ contextBridge.exposeInMainWorld('voidcast', {
     allowLargeRead?: boolean
   }) =>
     ipcRenderer.invoke('voidcast:coding-read-file', payload) as Promise<
-      | { ok: true; content: string; lineEndings: 'crlf' | 'lf' }
-      | { ok: false; error?: string }
+      { ok: true; content: string; lineEndings: 'crlf' | 'lf' } | { ok: false; error?: string }
     >,
   codingWriteFile: (payload: { projectPath: string; path: string; content: string }) =>
     ipcRenderer.invoke('voidcast:coding-write-file', payload) as Promise<
-      | { ok: true; path: string }
-      | { ok: false; error?: string }
+      { ok: true; path: string } | { ok: false; error?: string }
     >,
   /**
    * Delete a file inside the project: OS trash by default (reversible), hard
@@ -462,8 +462,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     maxResults?: number
   }) =>
     ipcRenderer.invoke('voidcast:coding-glob-files', payload) as Promise<
-      | { ok: true; paths: string[] }
-      | { ok: false; error?: string }
+      { ok: true; paths: string[] } | { ok: false; error?: string }
     >,
   codingFindSymbols: (payload: {
     projectPath: string
@@ -509,17 +508,11 @@ contextBridge.exposeInMainWorld('voidcast', {
     stashIncludeUntracked?: boolean
   }) =>
     ipcRenderer.invoke('voidcast:coding-git', payload) as Promise<
-      | { ok: true; text: string }
-      | { ok: false; error?: string }
+      { ok: true; text: string } | { ok: false; error?: string }
     >,
-  codingCheckTypes: (payload: {
-    projectPath: string
-    pathPrefix?: string
-    paths?: string[]
-  }) =>
+  codingCheckTypes: (payload: { projectPath: string; pathPrefix?: string; paths?: string[] }) =>
     ipcRenderer.invoke('voidcast:coding-check-types', payload) as Promise<
-      | { ok: true; text: string }
-      | { ok: false; error?: string }
+      { ok: true; text: string } | { ok: false; error?: string }
     >,
   codingExecuteCommand: (payload: {
     projectPath: string
@@ -573,9 +566,10 @@ contextBridge.exposeInMainWorld('voidcast', {
       | { ok: false; error?: string }
     >,
   codingKillAllActiveProcesses: () =>
-    ipcRenderer.invoke('voidcast:coding-kill-all-active-processes') as Promise<
-      { ok: true; count: number }
-    >,
+    ipcRenderer.invoke('voidcast:coding-kill-all-active-processes') as Promise<{
+      ok: true
+      count: number
+    }>,
   pickChatAttachments: () =>
     ipcRenderer.invoke('voidcast:pick-chat-attachments') as Promise<
       | {
@@ -593,17 +587,9 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
-  parseChatAttachmentBuffer: (payload: {
-    name: string
-    ext: string
-    bytes: ArrayBuffer
-  }) =>
-    ipcRenderer.invoke(
-      'voidcast:parse-chat-attachment-buffer',
-      payload,
-    ) as Promise<
-      | { ok: true; content?: string; truncated?: boolean }
-      | { ok: false; error?: string }
+  parseChatAttachmentBuffer: (payload: { name: string; ext: string; bytes: ArrayBuffer }) =>
+    ipcRenderer.invoke('voidcast:parse-chat-attachment-buffer', payload) as Promise<
+      { ok: true; content?: string; truncated?: boolean } | { ok: false; error?: string }
     >,
   readImageFile: (payload: { path: string }) =>
     ipcRenderer.invoke('voidcast:read-image-file', payload) as Promise<
@@ -625,8 +611,7 @@ contextBridge.exposeInMainWorld('voidcast', {
   windowToggleMaximize: () =>
     ipcRenderer.invoke('voidcast:window-toggle-maximize') as Promise<boolean>,
   windowClose: () => ipcRenderer.invoke('voidcast:window-close'),
-  windowIsMaximized: () =>
-    ipcRenderer.invoke('voidcast:window-is-maximized') as Promise<boolean>,
+  windowIsMaximized: () => ipcRenderer.invoke('voidcast:window-is-maximized') as Promise<boolean>,
   /** Authoritative focused/minimized/visible state (document.hasFocus() lies when minimized). */
   windowFocusState: () =>
     ipcRenderer.invoke('voidcast:window-focus-state') as Promise<{
@@ -657,9 +642,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.on('update-can-available', listener)
     return () => ipcRenderer.removeListener('update-can-available', listener)
   },
-  onUpdateError: (
-    callback: (payload: { message?: string; error?: unknown }) => void,
-  ) => {
+  onUpdateError: (callback: (payload: { message?: string; error?: unknown }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) =>
       callback((payload ?? {}) as { message?: string; error?: unknown })
     ipcRenderer.on('update-error', listener)
@@ -689,7 +672,7 @@ contextBridge.exposeInMainWorld('voidcast', {
 
 // --------- Preload scripts loading ---------
 function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     if (condition.includes(document.readyState)) {
       resolve(true)
     } else {
@@ -704,12 +687,12 @@ function domReady(condition: DocumentReadyState[] = ['complete', 'interactive'])
 
 const safeDOM = {
   append(parent: HTMLElement, child: HTMLElement) {
-    if (!Array.from(parent.children).find(e => e === child)) {
+    if (!Array.from(parent.children).find((e) => e === child)) {
       return parent.appendChild(child)
     }
   },
   remove(parent: HTMLElement, child: HTMLElement) {
-    if (Array.from(parent.children).find(e => e === child)) {
+    if (Array.from(parent.children).find((e) => e === child)) {
       return parent.removeChild(child)
     }
   },

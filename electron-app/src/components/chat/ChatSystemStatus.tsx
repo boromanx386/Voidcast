@@ -79,7 +79,9 @@ export function ChatSystemStatus({ app }: Props) {
   }
 
   const canCompress =
-    !busy && !contextCompressBusy && messages.some((m) => m.role === 'user' || m.role === 'assistant')
+    !busy &&
+    !contextCompressBusy &&
+    messages.some((m) => m.role === 'user' || m.role === 'assistant')
 
   useEffect(() => {
     if (!showCtxPopup) return
@@ -185,9 +187,7 @@ export function ChatSystemStatus({ app }: Props) {
                 <span className="ml-1.5 text-void-dim/70">
                   {Math.round(contextUsageInfo.ratio * 100)}%
                 </span>
-                {contextCompressBusy ? (
-                  <span className="ml-1.5 text-neon-cyan/80">…</span>
-                ) : null}
+                {contextCompressBusy ? <span className="ml-1.5 text-neon-cyan/80">…</span> : null}
               </span>
               <span className="text-[10px] tabular-nums leading-tight text-void-dim/70">
                 <span className="text-void-dim/50">OUT </span>

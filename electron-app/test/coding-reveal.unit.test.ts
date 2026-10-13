@@ -14,10 +14,7 @@ describe('normalizeCodingRevealPath', () => {
 
 describe('codingRevealParentDirs', () => {
   it('returns ancestors root → parent', () => {
-    expect(codingRevealParentDirs('src/hooks/useCodingSession.ts')).toEqual([
-      'src',
-      'src/hooks',
-    ])
+    expect(codingRevealParentDirs('src/hooks/useCodingSession.ts')).toEqual(['src', 'src/hooks'])
     expect(codingRevealParentDirs('README.md')).toEqual([])
   })
 })
@@ -37,9 +34,7 @@ describe('codingRevealPathFromToolResult', () => {
   })
 
   it('skips read_file, failures, and unrelated tools', () => {
-    expect(
-      codingRevealPathFromToolResult('read_file', '1| hello', { path: 'src/a.ts' }),
-    ).toBeNull()
+    expect(codingRevealPathFromToolResult('read_file', '1| hello', { path: 'src/a.ts' })).toBeNull()
     expect(
       codingRevealPathFromToolResult('edit_code', 'Target snippet not found (3 lines).', {
         path: 'x.ts',

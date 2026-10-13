@@ -18,7 +18,7 @@ html[data-ui-theme='blood-moon'] {
   --color-neon-purple: 180 50 80;
   --color-neon-orange: 255 100 60;
 
-  --ui-accent-rgb: 220,40,60;
+  --ui-accent-rgb: 220, 40, 60;
 
   /* Coding panel keeps functional green/red distinction despite crimson neon remap. */
   --coding-accent-fg: 220 40 60;

@@ -52,10 +52,7 @@ describe('subAgentPanel reducers', () => {
     s = applyCodingStart(s, 'WORKER 2 · 1/50')
     expect(s.workers.find((w) => w.id === 'worker-1')?.progress).toBe('4/50')
     expect(s.workers.find((w) => w.id === 'worker-2')?.status).toBe('running')
-    s = applyCodingDone(
-      s,
-      'WORKER 1:\nDone A\n\n---\nWORKER 2:\nDone B',
-    )
+    s = applyCodingDone(s, 'WORKER 1:\nDone A\n\n---\nWORKER 2:\nDone B')
     expect(s.busy).toBe(false)
     expect(s.workers.every((w) => w.status === 'done')).toBe(true)
   })

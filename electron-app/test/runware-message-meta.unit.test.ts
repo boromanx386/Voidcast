@@ -40,14 +40,10 @@ describe('extractRunwareAudioUrls', () => {
 
 describe('extractAudioPaths', () => {
   test('extracts audio_path and Saved audio lines', () => {
-    const text = [
-      'audio_path: C:\\out\\voice.mp3',
-      'Saved audio: D:\\proj\\public\\a.wav',
-    ].join('\n')
-    expect(extractAudioPaths(text)).toEqual([
-      'C:\\out\\voice.mp3',
-      'D:\\proj\\public\\a.wav',
-    ])
+    const text = ['audio_path: C:\\out\\voice.mp3', 'Saved audio: D:\\proj\\public\\a.wav'].join(
+      '\n',
+    )
+    expect(extractAudioPaths(text)).toEqual(['C:\\out\\voice.mp3', 'D:\\proj\\public\\a.wav'])
   })
 })
 

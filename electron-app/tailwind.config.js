@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    './index.html',
-    './src/**/*.{js,ts,jsx,tsx}',
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -33,7 +30,7 @@ export default {
           red: 'rgb(var(--color-glitch-red) / <alpha-value>)',
           blue: 'rgb(var(--color-glitch-blue) / <alpha-value>)',
           green: 'rgb(var(--color-glitch-green) / <alpha-value>)',
-        }
+        },
       },
       fontFamily: {
         mono: ['var(--font-mono)', 'JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
@@ -41,13 +38,13 @@ export default {
         body: ['var(--font-body)', 'IBM Plex Sans', 'system-ui', 'sans-serif'],
       },
       animation: {
-        'scanline': 'scanline 8s linear infinite',
-        'flicker': 'flicker 0.15s infinite',
-        'glitch': 'glitch 3s infinite',
+        scanline: 'scanline 8s linear infinite',
+        flicker: 'flicker 0.15s infinite',
+        glitch: 'glitch 3s infinite',
         'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
-        'float': 'float 6s ease-in-out infinite',
-        'noise': 'noise 0.5s steps(10) infinite',
-        'typing': 'typing 1.2s ease-in-out infinite',
+        float: 'float 6s ease-in-out infinite',
+        noise: 'noise 0.5s steps(10) infinite',
+        typing: 'typing 1.2s ease-in-out infinite',
         'border-flow': 'border-flow 3s linear infinite',
         'data-stream': 'data-stream 20s linear infinite',
         'warning-blink': 'warning-blink 0.5s ease-in-out infinite',
@@ -74,13 +71,13 @@ export default {
           '98%': { transform: 'translate(1px, -2px)' },
         },
         'glow-pulse': {
-          '0%, 100%': { 
+          '0%, 100%': {
             boxShadow: '0 0 5px currentColor, 0 0 10px currentColor, 0 0 20px currentColor',
-            opacity: '1'
+            opacity: '1',
           },
-          '50%': { 
+          '50%': {
             boxShadow: '0 0 10px currentColor, 0 0 20px currentColor, 0 0 40px currentColor',
-            opacity: '0.9'
+            opacity: '0.9',
           },
         },
         float: {
@@ -145,7 +142,7 @@ export default {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'grid-pattern': `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='rgba(0,245,255,0.08)' stroke-width='1'/%3E%3C/svg%3E")`,
-        'noise': `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+        noise: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
         'cyber-gradient': 'linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%)',
         'neon-border': 'linear-gradient(90deg, transparent, #00f5ff, transparent)',
         'danger-gradient': 'linear-gradient(90deg, #ff3366, #ff00aa, #ff3366)',
@@ -159,8 +156,8 @@ export default {
         )`,
       },
       spacing: {
-        '18': '4.5rem',
-        '88': '22rem',
+        18: '4.5rem',
+        88: '22rem',
       },
     },
   },

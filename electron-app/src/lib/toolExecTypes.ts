@@ -1,120 +1,112 @@
-import type { McpToolInfo } from "@/lib/mcpTools";
-import type { RunwareImageConfig } from "@/lib/runware";
-import type { ImageVisionCache } from "@/lib/imageVisionCache";
-import type {
-  SubAgentConfig,
-  ToolsEnabled,
-  TtsProvider,
-  VoiceMode,
-} from "@/lib/settings";
-import type { SubAgentUiCallbacks } from "@/lib/subAgent";
-import type { AgentChatMode, PlanArtifact } from "@/types/chat";
-import type { CodingContextMemo, CodingFileCache } from "@/lib/codingContextMemo";
-import type { StoredVoiceAnchor } from "@/lib/voiceAnchorStorage";
+import type { McpToolInfo } from '@/lib/mcpTools'
+import type { RunwareImageConfig } from '@/lib/runware'
+import type { ImageVisionCache } from '@/lib/imageVisionCache'
+import type { SubAgentConfig, ToolsEnabled, TtsProvider, VoiceMode } from '@/lib/settings'
+import type { SubAgentUiCallbacks } from '@/lib/subAgent'
+import type { AgentChatMode, PlanArtifact } from '@/types/chat'
+import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
+import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
 
 /** Frozen TTS settings for generate_tts (turn snapshot). */
 export type AgentTtsConfig = {
-  ttsBaseUrl: string;
-  ttsProvider: TtsProvider;
-  openrouterApiKey?: string;
-  openrouterTtsModel?: string;
-  openrouterTtsVoice?: string;
-  runwareApiBaseUrl?: string;
-  runwareApiKey?: string;
-  runwareTtsModel?: string;
-  runwareXaiVoice?: string;
-  runwareXaiLanguage?: string;
-  runwarePositivePrompt?: string;
-  runwareTtsSpeed?: number;
-  voiceMode: VoiceMode;
-  voiceInstruct?: string;
-  ttsSpeed?: number;
-  ttsNumStep?: number;
-  ttsDurationSec?: number | null;
-  cloneRef?: { blob: Blob; fileName?: string } | null;
-  cloneRefText?: string | null;
-  voiceAnchor?: StoredVoiceAnchor | null;
-};
+  ttsBaseUrl: string
+  ttsProvider: TtsProvider
+  openrouterApiKey?: string
+  openrouterTtsModel?: string
+  openrouterTtsVoice?: string
+  runwareApiBaseUrl?: string
+  runwareApiKey?: string
+  runwareTtsModel?: string
+  runwareXaiVoice?: string
+  runwareXaiLanguage?: string
+  runwarePositivePrompt?: string
+  runwareTtsSpeed?: number
+  voiceMode: VoiceMode
+  voiceInstruct?: string
+  ttsSpeed?: number
+  ttsNumStep?: number
+  ttsDurationSec?: number | null
+  cloneRef?: { blob: Blob; fileName?: string } | null
+  cloneRefText?: string | null
+  voiceAnchor?: StoredVoiceAnchor | null
+}
 
 /**
  * Shared execution context passed to every tool handler / executeToolCall.
  */
 export interface ExecCtx {
-  ttsBaseUrl: string;
-  signal?: AbortSignal;
+  ttsBaseUrl: string
+  signal?: AbortSignal
   /** Required for save_pdf when the tool is enabled. */
-  pdfOutputDir?: string;
-  runware?: RunwareImageConfig;
+  pdfOutputDir?: string
+  runware?: RunwareImageConfig
   /** Active TTS provider snapshot for generate_tts. */
-  tts?: AgentTtsConfig;
-  userImages?: string[];
-  userImageMimes?: string[];
-  userImagePaths?: string[];
+  tts?: AgentTtsConfig
+  userImages?: string[]
+  userImageMimes?: string[]
+  userImagePaths?: string[]
   /** Coding project path — coding tools + project skill resolution for read_skill. */
-  codingProjectPath?: string;
+  codingProjectPath?: string
   /** Built-in browser profile selected in Settings for this agent turn. */
-  browserProfile?: string;
+  browserProfile?: string
   /** Recently touched files from coding session memo (boosts search ranking). */
-  codingRecentFiles?: string[];
+  codingRecentFiles?: string[]
   /** Session coding memo (digests for soft-deny full re-reads). Live ref. */
-  codingContextMemoRef?: { current: CodingContextMemo };
+  codingContextMemoRef?: { current: CodingContextMemo }
   /** Per-turn working-set file cache (soft-deny full re-reads). Live ref. */
-  codingFileCacheRef?: { current: CodingFileCache };
+  codingFileCacheRef?: { current: CodingFileCache }
   /** Latest user message text for override-policy checks. */
-  userText?: string;
+  userText?: string
   /** When true, read_skill is allowed. */
-  skillsEnabled?: boolean;
+  skillsEnabled?: boolean
   /** When true, MCP tools (mcp__*) may be executed. */
-  mcpEnabled?: boolean;
+  mcpEnabled?: boolean
   /** Catalog for mcp_list_tools progressive disclosure. */
-  mcpTools?: McpToolInfo[];
+  mcpTools?: McpToolInfo[]
   /** Per-server enable map (missing id = enabled). */
-  mcpServerEnabled?: Record<string, boolean>;
-  mcpTrustedProjectPaths?: string[];
+  mcpServerEnabled?: Record<string, boolean>
+  mcpTrustedProjectPaths?: string[]
   /**
    * Chat runtime key owning this tool loop. MCP cancel is scoped to this id
    * so Stop on chat A does not abort MCP tools for chat B.
    */
-  mcpOwnerId?: string;
+  mcpOwnerId?: string
   /** Stable per-chat session id for OpenCode Go sub-agent request routing. */
-  opencodeSessionId?: string;
+  opencodeSessionId?: string
   /** Plan mode blocks mutating tools even if registered. */
-  agentMode?: AgentChatMode;
+  agentMode?: AgentChatMode
   /**
    * Nest depth of coding workers / explore nested runs (0 = main loop).
    * Workers set this ≥ 1 so run_coding_workers cannot recurse.
    */
-  codingWorkerDepth?: number;
+  codingWorkerDepth?: number
   /** Live approved plan during Approve & Build (for update_plan_progress). */
-  getActiveBuildPlan?: () => PlanArtifact | undefined;
+  getActiveBuildPlan?: () => PlanArtifact | undefined
   /** Sub-agent config for image_recall delegation. */
-  subAgent?: SubAgentConfig;
+  subAgent?: SubAgentConfig
   /** Keys for sub-agent API calls (from main app settings). */
-  ollamaBaseUrl?: string;
-  openrouterBaseUrl?: string;
-  openrouterApiKey?: string;
-  deepseekBaseUrl?: string;
-  deepseekApiKey?: string;
-  openaiBaseUrl?: string;
-  openaiApiKey?: string;
-  nvidiaBaseUrl?: string;
-  nvidiaApiKey?: string;
-  opencodeGoApiKey?: string;
+  ollamaBaseUrl?: string
+  openrouterBaseUrl?: string
+  openrouterApiKey?: string
+  deepseekBaseUrl?: string
+  deepseekApiKey?: string
+  openaiBaseUrl?: string
+  openaiApiKey?: string
+  nvidiaBaseUrl?: string
+  nvidiaApiKey?: string
+  opencodeGoApiKey?: string
   /** UI hooks while sub-agent describes images (header-style panel in App). */
-  subAgentUi?: SubAgentUiCallbacks;
+  subAgentUi?: SubAgentUiCallbacks
   /** Persist sub-agent descriptions onto the session (for later history context). */
-  onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void;
+  onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   /** Session vision cache — skip sub-agent API when a description already exists. */
-  imageVisionCache?: ImageVisionCache;
+  imageVisionCache?: ImageVisionCache
   /** Tool enable flags — set by executeToolCall before dispatch. */
-  toolsEnabled: ToolsEnabled;
+  toolsEnabled: ToolsEnabled
 }
 
 /** A tool handler: parsed args + execution context → result string. */
-export type ToolHandlerFn = (
-  args: Record<string, unknown>,
-  ctx: ExecCtx,
-) => Promise<string>;
+export type ToolHandlerFn = (args: Record<string, unknown>, ctx: ExecCtx) => Promise<string>
 
 /** Registry mapping tool names to their handler functions. */
-export type ToolHandlerRegistry = Record<string, ToolHandlerFn>;
+export type ToolHandlerRegistry = Record<string, ToolHandlerFn>

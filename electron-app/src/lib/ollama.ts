@@ -123,9 +123,7 @@ export async function fetchOllamaWithRetry(
       await sleepWithAbort(backoffSec * 1000 + jitterMs, signal)
     }
   }
-  throw lastErr instanceof Error
-    ? lastErr
-    : new Error('Ollama request failed after retries')
+  throw lastErr instanceof Error ? lastErr : new Error('Ollama request failed after retries')
 }
 
 export async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
@@ -133,14 +131,10 @@ export async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   const res = await fetchOllamaWithRetry(`${root}/api/tags`, {})
   if (!res.ok) {
     const errBody = await res.text().catch(() => '')
-    throw new Error(
-      `Ollama GET /api/tags ${res.status}: ${errBody || res.statusText}`,
-    )
+    throw new Error(`Ollama GET /api/tags ${res.status}: ${errBody || res.statusText}`)
   }
   const data = (await res.json()) as { models?: OllamaModelTag[] }
-  const names = (data.models ?? [])
-    .map((m) => (m.name ?? m.model ?? '').trim())
-    .filter(Boolean)
+  const names = (data.models ?? []).map((m) => (m.name ?? m.model ?? '').trim()).filter(Boolean)
   return [...new Set(names)].sort((a, b) => a.localeCompare(b))
 }
 
@@ -310,10 +304,7 @@ export function mergeOllamaUsage(
   if (!prev) return next
   if (!next) return prev
   return {
-    prompt_eval_count: choosePreferredNumber(
-      prev.prompt_eval_count,
-      next.prompt_eval_count,
-    ),
+    prompt_eval_count: choosePreferredNumber(prev.prompt_eval_count, next.prompt_eval_count),
     cached_prompt_tokens: choosePreferredNumber(
       prev.cached_prompt_tokens,
       next.cached_prompt_tokens,

@@ -30,11 +30,7 @@ import {
   normalizeImageVisionCache,
   type ImageVisionCache,
 } from '@/lib/imageVisionCache'
-import {
-  loadSettings,
-  normalizeSystemPromptPreset,
-  type AppSettings,
-} from '@/lib/settings'
+import { loadSettings, normalizeSystemPromptPreset, type AppSettings } from '@/lib/settings'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import {
@@ -43,11 +39,7 @@ import {
   rekeyComposerDraft,
   stashComposerDraft,
 } from '@/lib/chatComposerDrafts'
-import {
-  DRAFT_RUNTIME_KEY,
-  runtimeKeyForSession,
-  sessionAgentStore,
-} from '@/lib/sessionAgentStore'
+import { DRAFT_RUNTIME_KEY, runtimeKeyForSession, sessionAgentStore } from '@/lib/sessionAgentStore'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
 import type {
   AgentChatMode,
@@ -259,9 +251,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         const prevMsgs = prev[idx].messages
         const lengthChanged = prevMsgs.length !== nextMessages.length
         const placeholderTitle =
-          !prev[idx].title ||
-          prev[idx].title === 'New chat' ||
-          prev[idx].title === 'Unsaved'
+          !prev[idx].title || prev[idx].title === 'New chat' || prev[idx].title === 'Unsaved'
         const nextTitle = placeholderTitle
           ? deriveSessionTitle(nextMessages) || prev[idx].title
           : prev[idx].title
@@ -421,11 +411,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const activeUnsaved = Boolean(
     activeSessionId && sessions.find((s) => s.id === activeSessionId)?.unsaved,
   )
-  const canSaveSession =
-    !settings.autoSaveChat &&
-    messages.length > 0 &&
-    !busy &&
-    activeUnsaved
+  const canSaveSession = !settings.autoSaveChat && messages.length > 0 && !busy && activeUnsaved
 
   const applyComposerDraft = (key: string) => {
     const draft = loadComposerDraft(key)
@@ -509,26 +495,23 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   )
 
   /** Merge vision-cache entries into a background (non-visible) session. */
-  const patchSessionImageVision = useCallback(
-    (sessionId: string, entries: ImageVisionCache) => {
-      setSessions((prev) => {
-        const idx = prev.findIndex((s) => s.id === sessionId)
-        if (idx < 0) return prev
-        const current = prev[idx]
-        const next = [...prev]
-        next[idx] = {
-          ...current,
-          imageVisionCache: mergeImageVisionCache(
-            normalizeImageVisionCache(current.imageVisionCache),
-            entries,
-          ),
-          updatedAt: Date.now(),
-        }
-        return next
-      })
-    },
-    [],
-  )
+  const patchSessionImageVision = useCallback((sessionId: string, entries: ImageVisionCache) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === sessionId)
+      if (idx < 0) return prev
+      const current = prev[idx]
+      const next = [...prev]
+      next[idx] = {
+        ...current,
+        imageVisionCache: mergeImageVisionCache(
+          normalizeImageVisionCache(current.imageVisionCache),
+          entries,
+        ),
+        updatedAt: Date.now(),
+      }
+      return next
+    })
+  }, [])
 
   /** Reset the active view for a brand-new chat bound to `projectPath` ('' = General). */
   const resetForNewChat = (projectPath: string) => {
@@ -581,8 +564,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     // Do NOT abort the previous session's agent — background multi-chat.
     cancelMessageEdit?.()
     stashActiveComposer()
-    const flushId =
-      activeSessionId && activeSessionId !== session.id ? activeSessionId : null
+    const flushId = activeSessionId && activeSessionId !== session.id ? activeSessionId : null
     restoreCodingContextForSession(session, { flushActiveSessionId: flushId })
 
     const live = sessionAgentStore.get(session.id)
@@ -631,8 +613,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     cancelMessageEdit?.()
     stashActiveComposer()
     const now = Date.now()
-    const sourceMessages =
-      sessionAgentStore.get(session.id)?.messages ?? session.messages
+    const sourceMessages = sessionAgentStore.get(session.id)?.messages ?? session.messages
     const forked: ChatSession = {
       id: uid(),
       title: `${session.title} (fork)`,
@@ -735,7 +716,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }
 
   const activeSystemPromptPreset: SystemPromptPreset = activeSessionId
-    ? sessions.find((s) => s.id === activeSessionId)?.systemPromptPreset ?? 'default'
+    ? (sessions.find((s) => s.id === activeSessionId)?.systemPromptPreset ?? 'default')
     : pendingNewSessionPreset
 
   /**
@@ -746,26 +727,23 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     ? normalizeAgentChatMode(
         sessions.find((s) => s.id === activeSessionId)?.agentMode ?? settings.agentMode,
       )
-    : pendingNewSessionAgentMode ?? normalizeAgentChatMode(settings.agentMode)
+    : (pendingNewSessionAgentMode ?? normalizeAgentChatMode(settings.agentMode))
 
   /**
    * Write agent mode onto one chat by id. Safe for background chats: the session is the
    * source of truth, so a plan escalation in chat A can never retarget the viewed chat.
    */
-  const setAgentModeForSession = useCallback(
-    (sessionId: string, mode: AgentChatMode) => {
-      setSessions((prev) => {
-        const idx = prev.findIndex((s) => s.id === sessionId)
-        if (idx < 0) return prev
-        const current = prev[idx]
-        if (current.agentMode === mode) return prev
-        const next = [...prev]
-        next[idx] = { ...current, agentMode: mode }
-        return next
-      })
-    },
-    [],
-  )
+  const setAgentModeForSession = useCallback((sessionId: string, mode: AgentChatMode) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === sessionId)
+      if (idx < 0) return prev
+      const current = prev[idx]
+      if (current.agentMode === mode) return prev
+      const next = [...prev]
+      next[idx] = { ...current, agentMode: mode }
+      return next
+    })
+  }, [])
 
   /** Per-chat agent mode picker: applies from the next message, like the preset picker. */
   const setAgentModeForActiveChat = (mode: AgentChatMode) => {

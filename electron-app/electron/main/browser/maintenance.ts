@@ -55,7 +55,9 @@ function loadRegistry(): Promise<Registry> {
     registryPromise = (async () => {
       const loaded: Registry = { version: 1, keys: {} }
       try {
-        const parsed = JSON.parse(await readFile(profileRegistryFile(), 'utf8')) as Partial<Registry>
+        const parsed = JSON.parse(
+          await readFile(profileRegistryFile(), 'utf8'),
+        ) as Partial<Registry>
         if (parsed?.keys && typeof parsed.keys === 'object') loaded.keys = parsed.keys
       } catch {
         /* first run since this feature exists — the registry starts empty */

@@ -335,7 +335,10 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
                 max={openRouterImageMaxSide}
                 value={openRouterImageProfile.width}
                 onCommit={(width) =>
-                  updateOpenRouterProfile(openRouterImageModel, (current) => ({ ...current, width }))
+                  updateOpenRouterProfile(openRouterImageModel, (current) => ({
+                    ...current,
+                    width,
+                  }))
                 }
               />
             </div>
@@ -348,7 +351,10 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
                 max={openRouterImageMaxSide}
                 value={openRouterImageProfile.height}
                 onCommit={(height) =>
-                  updateOpenRouterProfile(openRouterImageModel, (current) => ({ ...current, height }))
+                  updateOpenRouterProfile(openRouterImageModel, (current) => ({
+                    ...current,
+                    height,
+                  }))
                 }
               />
             </div>
@@ -361,240 +367,250 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
             {configuredLabelById.get(selectedImageModel) ?? selectedImageModel}.
           </p>
 
-      <div className="form-group">
-        <label className="form-label mb-2">
-          <span className="mr-2 text-neon-cyan">◈</span> IMAGE_MODEL
-        </label>
-        <select
-          className="form-select mb-3"
-          value={selectedImageModel}
-          onChange={(e) => {
-            const v = e.target.value
-            if (!configuredModelIdSet.has(v)) return
-            setSettings((s) => ({ ...s, runwareImageModel: v }))
-          }}
-        >
-          {configuredModels.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-void-dim mt-2">
-          Used by <code className="text-neon-green">generate_image</code>.
-        </p>
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="form-group">
-          <label className="form-label">IMAGE_WIDTH ({imageMinSide}–{imageMaxSide})</label>
-          <NumericSettingInput
-            min={imageMinSide}
-            max={imageMaxSide}
-            value={activeImageProfile.width}
-            onCommit={(width) =>
-              updateProfile(selectedImageModel, (current) => ({ ...current, width }))
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">IMAGE_HEIGHT ({imageMinSide}–{imageMaxSide})</label>
-          <NumericSettingInput
-            min={imageMinSide}
-            max={imageMaxSide}
-            value={activeImageProfile.height}
-            onCommit={(height) =>
-              updateProfile(selectedImageModel, (current) => ({ ...current, height }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-4">
-        {!isGptImage2Selected ? (
-          <>
-            <div className="form-group">
-              <label className="form-label">IMAGE_STEPS (1–80)</label>
-              <NumericSettingInput
-                min={1}
-                max={80}
-                value={activeImageProfile.steps}
-                onCommit={(steps) =>
-                  updateProfile(selectedImageModel, (current) => ({ ...current, steps }))
-                }
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">IMAGE_CFG_SCALE (0–30)</label>
-              <NumericSettingInput
-                integer={false}
-                min={0}
-                max={30}
-                value={activeImageProfile.cfgScale}
-                onCommit={(cfgScale) =>
-                  updateProfile(selectedImageModel, (current) => ({ ...current, cfgScale }))
-                }
-              />
-            </div>
-          </>
-        ) : (
-          <div className="form-group sm:col-span-2">
-            <label className="form-label">IMAGE_QUALITY</label>
-            <select
-              className="form-select"
-              value={activeImageProfile.gptQuality || 'auto'}
-              onChange={(e) =>
-                updateProfile(selectedImageModel, (current) => ({
-                  ...current,
-                  gptQuality: isGptImageQuality(e.target.value) ? e.target.value : 'auto',
-                }))
-              }
-            >
-              <option value="auto">auto</option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-              <option value="xhigh">xhigh</option>
-              <option value="max">max</option>
-            </select>
-            <label className="mt-3 flex items-center gap-2 text-xs font-mono text-void-dim">
-              <input
-                type="checkbox"
-                checked={activeImageProfile.transparentBackground ?? false}
-                onChange={(e) =>
-                  updateProfile(selectedImageModel, (current) => ({
-                    ...current,
-                    transparentBackground: e.target.checked,
-                  }))
-                }
-              />
-              TRANSPARENT_BACKGROUND (alpha PNG)
+          <div className="form-group">
+            <label className="form-label mb-2">
+              <span className="mr-2 text-neon-cyan">◈</span> IMAGE_MODEL
             </label>
-          </div>
-        )}
-      </div>
-      {isGptImage2Selected && <p className="text-xs text-neon-yellow/80 -mt-2">GPT Image 2 uses size + quality.</p>}
-
-      <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-cyan mr-2">◈</span> EDIT_MODEL
-        </label>
-        <select
-          className="form-select mb-3"
-          value={selectedEditModel}
-          onChange={(e) => {
-            const v = e.target.value
-            if (!configuredModelIdSet.has(v)) return
-            setSettings((s) => ({ ...s, runwareEditModel: v }))
-          }}
-        >
-          {configuredModels.map((model) => (
-            <option key={`edit-${model.id}`} value={model.id}>
-              {model.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-void-dim mt-2">
-          Used by <code className="text-neon-green">edit_image_runware</code>.
-        </p>
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="form-group">
-          <label className="form-label">EDIT_WIDTH ({editMinSide}–{editMaxSide})</label>
-          <NumericSettingInput
-            min={editMinSide}
-            max={editMaxSide}
-            value={activeEditProfile.width}
-            onCommit={(width) =>
-              updateProfile(selectedEditModel, (current) => ({ ...current, width }))
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">EDIT_HEIGHT ({editMinSide}–{editMaxSide})</label>
-          <NumericSettingInput
-            min={editMinSide}
-            max={editMaxSide}
-            value={activeEditProfile.height}
-            onCommit={(height) =>
-              updateProfile(selectedEditModel, (current) => ({ ...current, height }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-4">
-        {!isGptImage2EditSelected ? (
-          <>
-            <div className="form-group">
-              <label className="form-label">EDIT_STEPS (1–80)</label>
-              <NumericSettingInput
-                min={1}
-                max={80}
-                value={activeEditProfile.steps}
-                onCommit={(steps) =>
-                  updateProfile(selectedEditModel, (current) => ({ ...current, steps }))
-                }
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">EDIT_CFG_SCALE (0–30)</label>
-              <NumericSettingInput
-                integer={false}
-                min={0}
-                max={30}
-                value={activeEditProfile.cfgScale}
-                onCommit={(cfgScale) =>
-                  updateProfile(selectedEditModel, (current) => ({ ...current, cfgScale }))
-                }
-              />
-            </div>
-          </>
-        ) : (
-          <div className="form-group sm:col-span-2">
-            <label className="form-label">EDIT_QUALITY</label>
             <select
-              className="form-select"
-              value={activeEditProfile.gptQuality || 'auto'}
-              onChange={(e) =>
-                updateProfile(selectedEditModel, (current) => ({
-                  ...current,
-                  gptQuality:
-                    e.target.value === 'low' ||
-                    e.target.value === 'medium' ||
-                    e.target.value === 'high'
-                      ? e.target.value
-                      : 'auto',
-                }))
-              }
+              className="form-select mb-3"
+              value={selectedImageModel}
+              onChange={(e) => {
+                const v = e.target.value
+                if (!configuredModelIdSet.has(v)) return
+                setSettings((s) => ({ ...s, runwareImageModel: v }))
+              }}
             >
-              <option value="auto">auto</option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
+              {configuredModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
             </select>
+            <p className="text-xs text-void-dim mt-2">
+              Used by <code className="text-neon-green">generate_image</code>.
+            </p>
           </div>
-        )}
-      </div>
-      {isGptImage2EditSelected && (
-        <p className="text-xs text-neon-yellow/80 -mt-2">
-          GPT Image 2 edit uses size + quality + reference images.
-        </p>
-      )}
 
-      <div className="form-group">
-        <label className="form-label">NEGATIVE_PROMPT (optional)</label>
-        <textarea
-          rows={3}
-          className="cyber-input resize-y"
-          value={settings.runwareNegativePrompt}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, runwareNegativePrompt: e.target.value }))
-          }
-          placeholder="blurry, low quality, artifacts..."
-        />
-      </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="form-group">
+              <label className="form-label">
+                IMAGE_WIDTH ({imageMinSide}–{imageMaxSide})
+              </label>
+              <NumericSettingInput
+                min={imageMinSide}
+                max={imageMaxSide}
+                value={activeImageProfile.width}
+                onCommit={(width) =>
+                  updateProfile(selectedImageModel, (current) => ({ ...current, width }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">
+                IMAGE_HEIGHT ({imageMinSide}–{imageMaxSide})
+              </label>
+              <NumericSettingInput
+                min={imageMinSide}
+                max={imageMaxSide}
+                value={activeImageProfile.height}
+                onCommit={(height) =>
+                  updateProfile(selectedImageModel, (current) => ({ ...current, height }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            {!isGptImage2Selected ? (
+              <>
+                <div className="form-group">
+                  <label className="form-label">IMAGE_STEPS (1–80)</label>
+                  <NumericSettingInput
+                    min={1}
+                    max={80}
+                    value={activeImageProfile.steps}
+                    onCommit={(steps) =>
+                      updateProfile(selectedImageModel, (current) => ({ ...current, steps }))
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">IMAGE_CFG_SCALE (0–30)</label>
+                  <NumericSettingInput
+                    integer={false}
+                    min={0}
+                    max={30}
+                    value={activeImageProfile.cfgScale}
+                    onCommit={(cfgScale) =>
+                      updateProfile(selectedImageModel, (current) => ({ ...current, cfgScale }))
+                    }
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="form-group sm:col-span-2">
+                <label className="form-label">IMAGE_QUALITY</label>
+                <select
+                  className="form-select"
+                  value={activeImageProfile.gptQuality || 'auto'}
+                  onChange={(e) =>
+                    updateProfile(selectedImageModel, (current) => ({
+                      ...current,
+                      gptQuality: isGptImageQuality(e.target.value) ? e.target.value : 'auto',
+                    }))
+                  }
+                >
+                  <option value="auto">auto</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="xhigh">xhigh</option>
+                  <option value="max">max</option>
+                </select>
+                <label className="mt-3 flex items-center gap-2 text-xs font-mono text-void-dim">
+                  <input
+                    type="checkbox"
+                    checked={activeImageProfile.transparentBackground ?? false}
+                    onChange={(e) =>
+                      updateProfile(selectedImageModel, (current) => ({
+                        ...current,
+                        transparentBackground: e.target.checked,
+                      }))
+                    }
+                  />
+                  TRANSPARENT_BACKGROUND (alpha PNG)
+                </label>
+              </div>
+            )}
+          </div>
+          {isGptImage2Selected && (
+            <p className="text-xs text-neon-yellow/80 -mt-2">GPT Image 2 uses size + quality.</p>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-cyan mr-2">◈</span> EDIT_MODEL
+            </label>
+            <select
+              className="form-select mb-3"
+              value={selectedEditModel}
+              onChange={(e) => {
+                const v = e.target.value
+                if (!configuredModelIdSet.has(v)) return
+                setSettings((s) => ({ ...s, runwareEditModel: v }))
+              }}
+            >
+              {configuredModels.map((model) => (
+                <option key={`edit-${model.id}`} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-void-dim mt-2">
+              Used by <code className="text-neon-green">edit_image_runware</code>.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="form-group">
+              <label className="form-label">
+                EDIT_WIDTH ({editMinSide}–{editMaxSide})
+              </label>
+              <NumericSettingInput
+                min={editMinSide}
+                max={editMaxSide}
+                value={activeEditProfile.width}
+                onCommit={(width) =>
+                  updateProfile(selectedEditModel, (current) => ({ ...current, width }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">
+                EDIT_HEIGHT ({editMinSide}–{editMaxSide})
+              </label>
+              <NumericSettingInput
+                min={editMinSide}
+                max={editMaxSide}
+                value={activeEditProfile.height}
+                onCommit={(height) =>
+                  updateProfile(selectedEditModel, (current) => ({ ...current, height }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            {!isGptImage2EditSelected ? (
+              <>
+                <div className="form-group">
+                  <label className="form-label">EDIT_STEPS (1–80)</label>
+                  <NumericSettingInput
+                    min={1}
+                    max={80}
+                    value={activeEditProfile.steps}
+                    onCommit={(steps) =>
+                      updateProfile(selectedEditModel, (current) => ({ ...current, steps }))
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">EDIT_CFG_SCALE (0–30)</label>
+                  <NumericSettingInput
+                    integer={false}
+                    min={0}
+                    max={30}
+                    value={activeEditProfile.cfgScale}
+                    onCommit={(cfgScale) =>
+                      updateProfile(selectedEditModel, (current) => ({ ...current, cfgScale }))
+                    }
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="form-group sm:col-span-2">
+                <label className="form-label">EDIT_QUALITY</label>
+                <select
+                  className="form-select"
+                  value={activeEditProfile.gptQuality || 'auto'}
+                  onChange={(e) =>
+                    updateProfile(selectedEditModel, (current) => ({
+                      ...current,
+                      gptQuality:
+                        e.target.value === 'low' ||
+                        e.target.value === 'medium' ||
+                        e.target.value === 'high'
+                          ? e.target.value
+                          : 'auto',
+                    }))
+                  }
+                >
+                  <option value="auto">auto</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </div>
+            )}
+          </div>
+          {isGptImage2EditSelected && (
+            <p className="text-xs text-neon-yellow/80 -mt-2">
+              GPT Image 2 edit uses size + quality + reference images.
+            </p>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">NEGATIVE_PROMPT (optional)</label>
+            <textarea
+              rows={3}
+              className="cyber-input resize-y"
+              value={settings.runwareNegativePrompt}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, runwareNegativePrompt: e.target.value }))
+              }
+              placeholder="blurry, low quality, artifacts..."
+            />
+          </div>
         </>
       )}
     </div>

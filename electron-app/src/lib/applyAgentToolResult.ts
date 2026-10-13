@@ -22,7 +22,12 @@ import { codingRevealPathFromToolResult } from '@/lib/codingReveal'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
 import { MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
 import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
-import { invokeSaveImageFromUrl, dataUrlToBlobUrl, isDataImageUrl, resolveGeneratedImageOutputDir } from '@/lib/saveImage'
+import {
+  invokeSaveImageFromUrl,
+  dataUrlToBlobUrl,
+  isDataImageUrl,
+  resolveGeneratedImageOutputDir,
+} from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { loadSettings, type AppSettings } from '@/lib/settings'
 import { scheduleUserDataSync } from '@/lib/userDataSync'
@@ -188,18 +193,10 @@ export function applyAgentToolResult(
         replaceText,
         { replaceAll, ignoreWhitespace, startLine, endLine },
       )
-    } else if (
-      name === 'git_restore' &&
-      filePath &&
-      !isCodingToolFailure('git_restore', result)
-    ) {
-      codingFileCacheRef.current = invalidateCodingFileCache(
-        codingFileCacheRef.current,
-        filePath,
-      )
+    } else if (name === 'git_restore' && filePath && !isCodingToolFailure('git_restore', result)) {
+      codingFileCacheRef.current = invalidateCodingFileCache(codingFileCacheRef.current, filePath)
     } else if (name === 'git_stash' && !isCodingToolFailure('git_stash', result)) {
-      const action =
-        typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+      const action = typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
       if (action === 'push' || action === 'pop') {
         codingFileCacheRef.current = emptyCodingFileCache()
       }
@@ -261,9 +258,7 @@ export function applyAgentToolResult(
         } else if (name === 'git_restore') {
           const p = typeof args?.path === 'string' ? args.path : ''
           const toHead = args?.to_head === true
-          label = p
-            ? `git_restore ${p}${toHead ? ' --HEAD' : ''}`
-            : 'git_restore'
+          label = p ? `git_restore ${p}${toHead ? ' --HEAD' : ''}` : 'git_restore'
         } else if (name === 'git_stash') {
           const action =
             typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
@@ -335,12 +330,8 @@ export function applyAgentToolResult(
           next.recentFileDigests = removeFileDigest(next.recentFileDigests ?? [], filePath)
         }
       }
-      if (
-        name === 'git_stash' &&
-        !isCodingToolFailure('git_stash', result)
-      ) {
-        const action =
-          typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
+      if (name === 'git_stash' && !isCodingToolFailure('git_stash', result)) {
+        const action = typeof args?.action === 'string' ? args.action.trim().toLowerCase() : 'list'
         if (action === 'push' || action === 'pop') {
           next.recentFileDigests = []
         }
@@ -400,12 +391,7 @@ export function applyAgentToolResult(
   if (revealPath && revealCodingFile) {
     revealCodingFile(revealPath)
   }
-  if (
-    name === 'git_status' ||
-    name === 'git_diff' ||
-    name === 'git_log' ||
-    name === 'git_show'
-  ) {
+  if (name === 'git_status' || name === 'git_diff' || name === 'git_log' || name === 'git_show') {
     setCodingGitNonce((n) => n + 1)
   }
   if (name === 'save_pdf') {
@@ -453,10 +439,7 @@ export function applyAgentToolResult(
           if (m.id !== asstId) return m
           return {
             ...m,
-            generatedImagePaths: dedupeNonEmpty([
-              ...(m.generatedImagePaths || []),
-              ...savedPaths,
-            ]),
+            generatedImagePaths: dedupeNonEmpty([...(m.generatedImagePaths || []), ...savedPaths]),
           }
         }),
       )
@@ -477,7 +460,12 @@ export function applyAgentToolResult(
 
     attachRemoteUrls(remoteUrls)
 
-    if (dataUrls.length > 0 || (remoteUrls.length > 0 && settings.runwareAutoSaveImages && settings.runwareImageOutputDir.trim())) {
+    if (
+      dataUrls.length > 0 ||
+      (remoteUrls.length > 0 &&
+        settings.runwareAutoSaveImages &&
+        settings.runwareImageOutputDir.trim())
+    ) {
       void (async () => {
         const saved: string[] = []
         const outputDir = resolveGeneratedImageOutputDir(settings)
@@ -548,10 +536,7 @@ export function applyAgentToolResult(
           if (m.id !== asstId) return m
           return {
             ...m,
-            generatedAudioPaths: dedupeNonEmpty([
-              ...(m.generatedAudioPaths || []),
-              ...savedPaths,
-            ]),
+            generatedAudioPaths: dedupeNonEmpty([...(m.generatedAudioPaths || []), ...savedPaths]),
           }
         }),
       )

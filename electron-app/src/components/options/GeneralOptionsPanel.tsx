@@ -42,12 +42,7 @@ type Props = {
 }
 
 type CloudKeyProviderId =
-  | 'runware'
-  | 'openrouter'
-  | 'nvidia'
-  | 'deepseek'
-  | 'openai'
-  | 'opencode-go'
+  'runware' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'
 
 type CloudKeyProvider = {
   id: CloudKeyProviderId
@@ -130,9 +125,7 @@ function CloudApiKeysSection({
   )
     ? (settings.llmProvider as CloudKeyProviderId)
     : null
-  const [selected, setSelected] = useState<CloudKeyProviderId>(
-    llmCloudId ?? 'openrouter',
-  )
+  const [selected, setSelected] = useState<CloudKeyProviderId>(llmCloudId ?? 'openrouter')
   const provider = CLOUD_KEY_PROVIDERS.find((p) => p.id === selected)!
 
   return (
@@ -184,9 +177,7 @@ function CloudApiKeysSection({
           type="password"
           className="cyber-input"
           value={settings[provider.field]}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, [provider.field]: e.target.value }))
-          }
+          onChange={(e) => setSettings((s) => ({ ...s, [provider.field]: e.target.value }))}
           placeholder={provider.placeholder}
           autoComplete="off"
         />
@@ -410,7 +401,8 @@ export function GeneralOptionsPanel({
           <option value="terminal">Terminal (amber phosphor)</option>
         </select>
         <p className="text-xs text-void-dim mt-1">
-          Dystopian uses CRT/particles. Matrix uses green phosphor + digital rain. Obsidian stays neutral. Terminal strips all decoration for a pure amber-CLI feel.
+          Dystopian uses CRT/particles. Matrix uses green phosphor + digital rain. Obsidian stays
+          neutral. Terminal strips all decoration for a pure amber-CLI feel.
         </p>
       </div>
 
@@ -420,9 +412,7 @@ export function GeneralOptionsPanel({
             type="checkbox"
             className="mt-1 h-4 w-4 accent-neon-cyan"
             checked={settings.autoSaveChat}
-            onChange={(e) =>
-              setSettings((s) => ({ ...s, autoSaveChat: e.target.checked }))
-            }
+            onChange={(e) => setSettings((s) => ({ ...s, autoSaveChat: e.target.checked }))}
           />
           <span>
             <span className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
@@ -456,7 +446,8 @@ export function GeneralOptionsPanel({
               ENABLE_CHAT_SOUNDS
             </span>
             <span className="mt-1 block text-xs text-void-dim">
-              Play your selected local audio when an assistant reply finishes or when a chat error occurs.
+              Play your selected local audio when an assistant reply finishes or when a chat error
+              occurs.
             </span>
           </span>
         </label>
@@ -489,13 +480,19 @@ export function GeneralOptionsPanel({
           const accent = kind === 'reply' ? 'text-neon-cyan' : 'text-neon-red'
           const inputRef = kind === 'reply' ? replyFileInputRef : errorFileInputRef
           return (
-            <div key={kind} className="rounded border border-void-muted/30 bg-void-black/30 p-3 space-y-2">
+            <div
+              key={kind}
+              className="rounded border border-void-muted/30 bg-void-black/30 p-3 space-y-2"
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className={`text-xs font-mono uppercase tracking-wider ${accent}`}>
                   {kind === 'reply' ? '✓ ON_REPLY_DONE' : '✗ ON_CHAT_ERROR'}
                 </span>
                 {name && (
-                  <span className="text-[10px] font-mono text-void-dim truncate max-w-[55%]" title={name}>
+                  <span
+                    className="text-[10px] font-mono text-void-dim truncate max-w-[55%]"
+                    title={name}
+                  >
                     {name}
                   </span>
                 )}
@@ -543,11 +540,10 @@ export function GeneralOptionsPanel({
           )
         })}
 
-        {soundError && (
-          <p className="text-xs text-neon-red">{soundError}</p>
-        )}
+        {soundError && <p className="text-xs text-neon-red">{soundError}</p>}
         <p className="text-[10px] text-void-dim">
-          Max {Math.round(MAX_NOTIFICATION_SOUND_BYTES / (1024 * 1024))} MB per file. Stored locally in IndexedDB on this device.
+          Max {Math.round(MAX_NOTIFICATION_SOUND_BYTES / (1024 * 1024))} MB per file. Stored locally
+          in IndexedDB on this device.
         </p>
       </div>
 
@@ -557,16 +553,16 @@ export function GeneralOptionsPanel({
             CLOUD_API_KEYS
           </p>
           <p className="text-xs text-void-dim leading-relaxed">
-            API keys are configured only in the desktop Voidcast app (General options). This
-            browser session uses the local server proxy — keys never appear on your phone.
+            API keys are configured only in the desktop Voidcast app (General options). This browser
+            session uses the local server proxy — keys never appear on your phone.
           </p>
         </div>
       ) : (
         <>
-      {isElectron() && <LanWebAccessPanel settings={settings} setSettings={setSettings} />}
+          {isElectron() && <LanWebAccessPanel settings={settings} setSettings={setSettings} />}
 
-      <CloudApiKeysSection settings={settings} setSettings={setSettings} />
-      </>
+          <CloudApiKeysSection settings={settings} setSettings={setSettings} />
+        </>
       )}
 
       {isElectron() && (
@@ -576,9 +572,7 @@ export function GeneralOptionsPanel({
               type="checkbox"
               className="mt-1 h-4 w-4 accent-neon-cyan"
               checked={settings.autoUpdate}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, autoUpdate: e.target.checked }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, autoUpdate: e.target.checked }))}
             />
             <span>
               <span className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
@@ -600,9 +594,7 @@ export function GeneralOptionsPanel({
               >
                 {updateChecking ? 'CHECKING…' : 'CHECK FOR UPDATE'}
               </button>
-              {updateStatus && (
-                <p className="text-xs text-void-dim mt-2">{updateStatus}</p>
-              )}
+              {updateStatus && <p className="text-xs text-void-dim mt-2">{updateStatus}</p>}
             </div>
           )}
         </div>
@@ -638,7 +630,10 @@ export function GeneralOptionsPanel({
             <p className="text-xs text-void-dim">No saved long memory items yet.</p>
           ) : (
             longMemories.map((m) => (
-              <div key={m.id} className="rounded border border-void-muted/30 bg-void-black/30 px-2 py-1.5">
+              <div
+                key={m.id}
+                className="rounded border border-void-muted/30 bg-void-black/30 px-2 py-1.5"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[10px] font-mono text-neon-green/80 uppercase">{m.kind}</div>
                   <div className="flex items-center gap-1">
@@ -722,7 +717,8 @@ export function GeneralOptionsPanel({
               DESKTOP_NOTIFICATIONS
             </span>
             <span className="mt-1 block text-xs text-void-dim">
-              Show a Windows toast when a scheduled reminder is due (requires the app to be running).
+              Show a Windows toast when a scheduled reminder is due (requires the app to be
+              running).
             </span>
             {notifPermission !== 'granted' && (
               <span className="mt-2 flex flex-wrap items-center gap-2">
@@ -787,7 +783,9 @@ export function GeneralOptionsPanel({
                     </button>
                   </div>
                 </div>
-                <div className={`text-xs text-void-light ${r.status === 'done' ? 'line-through' : ''}`}>
+                <div
+                  className={`text-xs text-void-light ${r.status === 'done' ? 'line-through' : ''}`}
+                >
                   {r.text}
                 </div>
                 {r.tags.length > 0 && (
@@ -798,7 +796,6 @@ export function GeneralOptionsPanel({
           )}
         </div>
       </div>
-
     </div>
   )
 }

@@ -55,9 +55,7 @@ function DiffLines({ content }: { content: string }) {
             <span className="w-8 shrink-0 select-none text-right tabular-nums text-void-dim/60">
               {i + 1}
             </span>
-            <span className="whitespace-pre">
-              {line.length === 0 ? '\u00a0' : line}
-            </span>
+            <span className="whitespace-pre">{line.length === 0 ? '\u00a0' : line}</span>
           </div>
         )
       })}
@@ -86,9 +84,7 @@ function FileLines({ content, filePath }: { content: string; filePath: string | 
               dangerouslySetInnerHTML={{ __html: highlighted[i] }}
             />
           ) : (
-            <span className="whitespace-pre">
-              {line.length === 0 ? '\u00a0' : line}
-            </span>
+            <span className="whitespace-pre">{line.length === 0 ? '\u00a0' : line}</span>
           )}
         </div>
       ))}
@@ -227,11 +223,7 @@ export function FilePreview({
       </div>
       <div
         className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
-          mode === 'image' && !editing
-            ? ''
-            : showMdPreview
-              ? 'text-sm'
-              : 'font-mono text-xs'
+          mode === 'image' && !editing ? '' : showMdPreview ? 'text-sm' : 'font-mono text-xs'
         }`}
       >
         {editing && onEditDraftChange && onSaveEdit && onCancelEdit ? (
@@ -255,9 +247,7 @@ export function FilePreview({
                 />
               </div>
             ) : (
-              <div className="px-1 text-xs text-void-dim">
-                {content || 'Loading image…'}
-              </div>
+              <div className="px-1 text-xs text-void-dim">{content || 'Loading image…'}</div>
             )}
           </div>
         ) : !content ? (

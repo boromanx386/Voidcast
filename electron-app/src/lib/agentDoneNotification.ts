@@ -24,9 +24,7 @@ export function agentDoneNotificationBody(replyText: string): string {
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .trim()
   if (!plain) return 'Reply ready.'
-  return plain.length > MAX_BODY_CHARS
-    ? `${plain.slice(0, MAX_BODY_CHARS - 1).trimEnd()}…`
-    : plain
+  return plain.length > MAX_BODY_CHARS ? `${plain.slice(0, MAX_BODY_CHARS - 1).trimEnd()}…` : plain
 }
 
 /**

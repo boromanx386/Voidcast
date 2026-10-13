@@ -4,10 +4,7 @@
  */
 const DEFAULT_MAX = 300
 
-export function splitIntoTtsChunks(
-  text: string,
-  maxChars: number = DEFAULT_MAX,
-): string[] {
+export function splitIntoTtsChunks(text: string, maxChars: number = DEFAULT_MAX): string[] {
   const t = text.trim()
   if (!t) return []
   if (t.length <= maxChars) return [t]

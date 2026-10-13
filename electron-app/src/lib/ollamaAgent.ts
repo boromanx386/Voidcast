@@ -5,10 +5,7 @@ import {
   type LlmThinkLevel,
 } from '@/lib/settings'
 import { buildToolsList } from '@/lib/toolDefinitions'
-import {
-  type ChatWithToolsCommonParams,
-  buildToolExecutorOptions,
-} from '@/lib/agentParams'
+import { type ChatWithToolsCommonParams, buildToolExecutorOptions } from '@/lib/agentParams'
 import {
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
   CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
@@ -61,16 +58,10 @@ function compactModelOptions(
 }
 
 /** Merge streaming tool_call fragments (by index) into accumulated array */
-function mergeToolCallDeltas(
-  acc: OllamaToolCall[],
-  incoming: OllamaToolCall[] | undefined,
-): void {
+function mergeToolCallDeltas(acc: OllamaToolCall[], incoming: OllamaToolCall[] | undefined): void {
   if (!incoming?.length) return
   for (const delta of incoming) {
-    const idx =
-      typeof delta.index === 'number'
-        ? delta.index
-        : Math.max(0, acc.length - 1)
+    const idx = typeof delta.index === 'number' ? delta.index : Math.max(0, acc.length - 1)
     while (acc.length <= idx) {
       acc.push({ function: {} })
     }
@@ -83,8 +74,7 @@ function mergeToolCallDeltas(
         cur.function.arguments = JSON.stringify(arg)
       } else {
         cur.function.arguments =
-          (typeof cur.function.arguments === 'string' ? cur.function.arguments : '') +
-          String(arg)
+          (typeof cur.function.arguments === 'string' ? cur.function.arguments : '') + String(arg)
       }
     }
     if (delta.id) cur.id = delta.id
@@ -299,9 +289,7 @@ export async function runOllamaChatWithTools(
     isImplementAgentMode(params.agentMode)
   return runSharedToolLoop<OllamaApiMessage, OllamaToolCall>({
     initialMessages: [...params.initialMessages],
-    maxToolRounds: clampAgentMaxToolRounds(
-      params.maxToolRounds ?? AGENT_MAX_TOOL_ROUNDS_DEFAULT,
-    ),
+    maxToolRounds: clampAgentMaxToolRounds(params.maxToolRounds ?? AGENT_MAX_TOOL_ROUNDS_DEFAULT),
     maxRequiredToolReprompts: MAX_REQUIRED_TOOL_REPROMPTS,
     mustCallTool: false,
     signal: params.signal,
@@ -315,9 +303,8 @@ export async function runOllamaChatWithTools(
         signal,
         thinkLevel: params.thinkLevel,
         onDelta,
-        onThinkingDelta: params.thinkLevel && isThinkingUiEnabled(params.thinkLevel)
-          ? onThinkingDelta
-          : undefined,
+        onThinkingDelta:
+          params.thinkLevel && isThinkingUiEnabled(params.thinkLevel) ? onThinkingDelta : undefined,
       })
       return {
         content: out.content,
@@ -329,10 +316,13 @@ export async function runOllamaChatWithTools(
     toSharedToolCalls: (calls) =>
       calls
         .filter((t) => t.function?.name)
-        .map((call) => ({ name: call.function!.name!, argsRaw: call.function!.arguments, raw: call })),
+        .map((call) => ({
+          name: call.function!.name!,
+          argsRaw: call.function!.arguments,
+          raw: call,
+        })),
     appendAssistantWithToolCalls: ({ messages, content, thinking, toolCalls }) => {
-      const includeThinking =
-        params.thinkLevel != null && isThinkingUiEnabled(params.thinkLevel)
+      const includeThinking = params.thinkLevel != null && isThinkingUiEnabled(params.thinkLevel)
       messages.push({
         role: 'assistant',
         content: content ?? '',
@@ -434,17 +424,13 @@ export async function runOllamaChatWithTools(
       ) {
         forcedScrapeDone = true
         params.onToolPhase?.('scrape')
-        await runSyntheticTool(
-          'scrape_url',
-          { url: originalUserUrl, max_chars: 40000 },
-          () => ({
-            type: 'function',
-            function: {
-              name: 'scrape_url',
-              arguments: { url: originalUserUrl, max_chars: 40000 },
-            },
-          }),
-        )
+        await runSyntheticTool('scrape_url', { url: originalUserUrl, max_chars: 40000 }, () => ({
+          type: 'function',
+          function: {
+            name: 'scrape_url',
+            arguments: { url: originalUserUrl, max_chars: 40000 },
+          },
+        }))
         params.onToolPhase?.(null)
         return true
       }
@@ -453,17 +439,13 @@ export async function runOllamaChatWithTools(
         if (forcedQuery) {
           forcedWebDone = true
           params.onToolPhase?.('search')
-          await runSyntheticTool(
-            'web_search',
-            { query: forcedQuery },
-            () => ({
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: { query: forcedQuery },
-              },
-            }),
-          )
+          await runSyntheticTool('web_search', { query: forcedQuery }, () => ({
+            type: 'function',
+            function: {
+              name: 'web_search',
+              arguments: { query: forcedQuery },
+            },
+          }))
           params.onToolPhase?.(null)
           return true
         }

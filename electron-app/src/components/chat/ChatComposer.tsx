@@ -192,9 +192,7 @@ export function ChatComposer({ app }: Props) {
           ref={chatAttachmentInputRef as RefObject<HTMLInputElement>}
           type="file"
           accept={
-            isWebStandalone()
-              ? CHAT_IMAGE_ACCEPT
-              : `${CHAT_IMAGE_ACCEPT},${chatFileAcceptList()}`
+            isWebStandalone() ? CHAT_IMAGE_ACCEPT : `${CHAT_IMAGE_ACCEPT},${chatFileAcceptList()}`
           }
           multiple
           className={isWebStandalone() ? 'sr-only' : 'hidden'}
@@ -278,8 +276,8 @@ export function ChatComposer({ app }: Props) {
             <div className="composer-team-banner" role="status">
               <span className="composer-team-banner__title">Team mode</span>
               <p className="composer-team-banner__text">
-                Prefer parallel coding workers (up to 2) via run_coding_workers. Agent mode can
-                also call workers as an option; Team pushes them as the default for multi-area work.
+                Prefer parallel coding workers (up to 2) via run_coding_workers. Agent mode can also
+                call workers as an option; Team pushes them as the default for multi-area work.
                 Requires Options → SUB → coding sub-agent.
               </p>
             </div>
@@ -438,62 +436,66 @@ export function ChatComposer({ app }: Props) {
 
             {(settings.sttProvider === 'openrouter' || settings.sttProvider === 'whistle') &&
               !isWebStandalone() && (
-              <button
-                type="button"
-                disabled={busy || sttPending}
-                onClick={() => void toggleSttRecording()}
-                className={`composer-toolbar-btn ${
-                  isRecording
-                    ? 'border-neon-red bg-neon-red/10 text-neon-red animate-pulse'
-                    : 'text-neon-green hover:border-neon-green/50 hover:bg-neon-green/5'
-                }`}
-                title={
-                  isRecording
-                    ? `Recording ${recordingDuration}s (click to stop)`
-                    : sttPending
-                      ? 'Transcribing...'
-                      : 'Voice input'
-                }
-                aria-label={
-                  isRecording ? 'Stop recording' : sttPending ? 'Transcribing' : 'Start voice input'
-                }
-              >
-                {sttPending ? (
-                  <svg
-                    className="h-3.5 w-3.5 animate-spin"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                  </svg>
-                ) : isRecording ? (
-                  <svg
-                    className="h-3.5 w-3.5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                  </svg>
-                ) : (
-                  <svg
-                    className="h-3.5 w-3.5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
-                  </svg>
-                )}
-              </button>
-            )}
+                <button
+                  type="button"
+                  disabled={busy || sttPending}
+                  onClick={() => void toggleSttRecording()}
+                  className={`composer-toolbar-btn ${
+                    isRecording
+                      ? 'border-neon-red bg-neon-red/10 text-neon-red animate-pulse'
+                      : 'text-neon-green hover:border-neon-green/50 hover:bg-neon-green/5'
+                  }`}
+                  title={
+                    isRecording
+                      ? `Recording ${recordingDuration}s (click to stop)`
+                      : sttPending
+                        ? 'Transcribing...'
+                        : 'Voice input'
+                  }
+                  aria-label={
+                    isRecording
+                      ? 'Stop recording'
+                      : sttPending
+                        ? 'Transcribing'
+                        : 'Start voice input'
+                  }
+                >
+                  {sttPending ? (
+                    <svg
+                      className="h-3.5 w-3.5 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                  ) : isRecording ? (
+                    <svg
+                      className="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <rect x="6" y="6" width="12" height="12" rx="2" />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                  )}
+                </button>
+              )}
 
             {/* Per-chat system prompt preset — chip like pinned LLM models, opens upward */}
             <div
@@ -559,9 +561,7 @@ export function ChatComposer({ app }: Props) {
               onClick={() => void extractLongMemoryNow()}
               className="ml-1.5 inline-flex cursor-pointer items-center text-neon-cyan/80 transition-colors hover:text-neon-cyan disabled:cursor-not-allowed disabled:opacity-40"
               title="Pick long-term memories from this chat"
-              aria-label={
-                longMemoryBusy ? 'Extracting long-term memories…' : 'Long memory picker'
-              }
+              aria-label={longMemoryBusy ? 'Extracting long-term memories…' : 'Long memory picker'}
             >
               {longMemoryBusy ? (
                 <span

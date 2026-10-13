@@ -12,11 +12,7 @@ import {
 } from '@/lib/cloudLlmPresets'
 import type { AppSettings, LlmProvider } from '@/lib/settings'
 
-export type ContextLimitSource =
-  | 'ollama_num_ctx'
-  | 'preset'
-  | 'heuristic'
-  | 'provider_default'
+export type ContextLimitSource = 'ollama_num_ctx' | 'preset' | 'heuristic' | 'provider_default'
 
 export type ResolvedContextLimit = {
   maxTokens: number

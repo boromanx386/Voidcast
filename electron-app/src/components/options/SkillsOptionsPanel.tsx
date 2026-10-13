@@ -71,12 +71,11 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
         <code className="text-void-light">~/.agents/skills</code>,{' '}
         <code className="text-void-light">~/.claude/skills</code>,{' '}
         <code className="text-void-light">~/.cursor/skills</code>) and, when a coding project is
-        open, from the repo (
-        <code className="text-void-light">.cursor/skills</code>,{' '}
+        open, from the repo (<code className="text-void-light">.cursor/skills</code>,{' '}
         <code className="text-void-light">skills/</code>, etc.). The model sees a catalog of names
         and descriptions; full <code className="text-void-light">SKILL.md</code> bodies load via{' '}
-        <code className="text-neon-cyan">read_skill</code>. Project skills override globals with
-        the same name.
+        <code className="text-neon-cyan">read_skill</code>. Project skills override globals with the
+        same name.
       </p>
 
       <p className="text-sm text-void-dim leading-relaxed">
@@ -157,8 +156,8 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
         </p>
       ) : (
         <p className="text-xs text-void-dim">
-          This chat has no coding folder. Bind one in the chat header (or the coding panel) to
-          load project skills and AGENTS.md / CLAUDE.md.
+          This chat has no coding folder. Bind one in the chat header (or the coding panel) to load
+          project skills and AGENTS.md / CLAUDE.md.
         </p>
       )}
 

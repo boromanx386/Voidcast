@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { buildFindHighlightHtml } from '@/lib/filePreviewFindHighlight'
-import {
-  findAllMatchRanges,
-  replaceAllInText,
-  type TextRange,
-} from '@/lib/filePreviewFindReplace'
+import { findAllMatchRanges, replaceAllInText, type TextRange } from '@/lib/filePreviewFindReplace'
 import { focusTextareaMatch, revealTextareaMatch } from '@/lib/textareaFindScroll'
 import { isWindowForeground } from '@/lib/windowFocus'
 
@@ -98,8 +94,7 @@ export function FilePreviewEdit({ draft, busy = false, onDraftChange, onSave, on
         return
       }
       keepFindFocusRef.current = !options?.focusCode
-      const wrapped =
-        ((nextIndex % matchRanges.length) + matchRanges.length) % matchRanges.length
+      const wrapped = ((nextIndex % matchRanges.length) + matchRanges.length) % matchRanges.length
       lastRevealedIndexRef.current = -2
       setMatchIndex(wrapped)
       setFindStatus(null)

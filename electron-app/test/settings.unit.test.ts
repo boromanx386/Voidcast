@@ -169,17 +169,19 @@ describe('normalizeSubAgent', () => {
   })
 
   test('full config: endpoint fields preserved; token budgets stay defaults', () => {
-    const s = normalizeSubAgent(makeSubAgent({
-      enabled: true,
-      codingEnabled: true,
-      model: 'gpt-4o',
-      provider: 'openrouter',
-      codingModel: 'deepseek-v4-flash',
-      codingProvider: 'deepseek',
-      outputTokens: 9999,
-      contextTokens: 32768,
-      showAnalysisWindow: false,
-    }))
+    const s = normalizeSubAgent(
+      makeSubAgent({
+        enabled: true,
+        codingEnabled: true,
+        model: 'gpt-4o',
+        provider: 'openrouter',
+        codingModel: 'deepseek-v4-flash',
+        codingProvider: 'deepseek',
+        outputTokens: 9999,
+        contextTokens: 32768,
+        showAnalysisWindow: false,
+      }),
+    )
     expect(s.subAgent).toEqual({
       enabled: true,
       codingEnabled: true,
@@ -348,10 +350,7 @@ describe('openrouter provider by model', () => {
       openrouterProviderOnly: 'openai',
       openrouterProviderByModel: { 'openai/gpt-4o-mini': 'openai' },
     })
-    const cleared = withOpenRouterProviderOnly(
-      { ...base, ...set },
-      '  ',
-    )
+    const cleared = withOpenRouterProviderOnly({ ...base, ...set }, '  ')
     expect(cleared.openrouterProviderOnly).toBe('')
     expect(cleared.openrouterProviderByModel).toEqual({})
   })

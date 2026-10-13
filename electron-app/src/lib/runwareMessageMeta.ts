@@ -160,7 +160,10 @@ export function extractSavedAudioPaths(text: string): string[] {
 
 export function parseRunwareImageToolMeta(text: string): RunwareImageToolMeta | null {
   const out: RunwareImageToolMeta = {}
-  const lines = text.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+  const lines = text
+    .split(/\r?\n/)
+    .map((x) => x.trim())
+    .filter(Boolean)
   for (const line of lines) {
     const idx = line.indexOf(':')
     if (idx <= 0) continue
@@ -194,7 +197,10 @@ export function parseRunwareImageToolMeta(text: string): RunwareImageToolMeta | 
 
 export function parseRunwareAudioToolMeta(text: string): RunwareAudioToolMeta | null {
   const out: RunwareAudioToolMeta = {}
-  const lines = text.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+  const lines = text
+    .split(/\r?\n/)
+    .map((x) => x.trim())
+    .filter(Boolean)
   for (const line of lines) {
     const idx = line.indexOf(':')
     if (idx <= 0) continue

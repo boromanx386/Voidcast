@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CodingPanel } from '@/components/CodingPanel'
-import {
-  AmbientParticles,
-  CrtOverlay,
-  MatrixRain,
-} from '@/components/chat/ChatChrome'
+import { AmbientParticles, CrtOverlay, MatrixRain } from '@/components/chat/ChatChrome'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatDragOverlay } from '@/components/chat/ChatDragOverlay'
 import { ChatErrorBanner } from '@/components/chat/ChatErrorBanner'
@@ -16,7 +12,11 @@ import { ChatToolResultBanner } from '@/components/chat/ChatToolResultBanner'
 import { ContextWarningBanner } from '@/components/chat/ContextWarningBanner'
 import { MemoryPreviewModal } from '@/components/chat/MemoryPreviewModal'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
-import { clampCodingPanelWidth, CODING_PANEL_WIDTH_MAX, CODING_PANEL_WIDTH_MIN } from '@/lib/settings'
+import {
+  clampCodingPanelWidth,
+  CODING_PANEL_WIDTH_MAX,
+  CODING_PANEL_WIDTH_MIN,
+} from '@/lib/settings'
 
 type Props = { app: VoidcastApp }
 
@@ -42,9 +42,7 @@ export function ChatScreen({ app }: Props) {
     if (!(containerWidth > 0)) return
     const ratio = widthRatioRef.current
     const raw =
-      typeof ratio === 'number' && Number.isFinite(ratio)
-        ? ratio * containerWidth
-        : preferredPx
+      typeof ratio === 'number' && Number.isFinite(ratio) ? ratio * containerWidth : preferredPx
     const next = clampCodingPanelWidth(raw, containerWidth)
     if (widthRatioRef.current == null) {
       widthRatioRef.current = next / containerWidth
@@ -157,74 +155,73 @@ export function ChatScreen({ app }: Props) {
             <ChatComposer app={app} />
           </div>
           {showCoding && (
-          <>
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize coding panel"
-              aria-valuenow={panelWidth}
-              aria-valuemin={CODING_PANEL_WIDTH_MIN}
-              aria-valuemax={CODING_PANEL_WIDTH_MAX}
-              tabIndex={0}
-              onPointerDown={onResizePointerDown}
-              onKeyDown={(e) => {
-                const step = e.shiftKey ? 32 : 16
-                if (e.key === 'ArrowLeft') {
-                  e.preventDefault()
-                  persistWidth(panelWidth + step)
-                } else if (e.key === 'ArrowRight') {
-                  e.preventDefault()
-                  persistWidth(panelWidth - step)
-                } else if (e.key === 'Home') {
-                  e.preventDefault()
-                  persistWidth(CODING_PANEL_WIDTH_MAX)
-                } else if (e.key === 'End') {
-                  e.preventDefault()
-                  persistWidth(CODING_PANEL_WIDTH_MIN)
+            <>
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize coding panel"
+                aria-valuenow={panelWidth}
+                aria-valuemin={CODING_PANEL_WIDTH_MIN}
+                aria-valuemax={CODING_PANEL_WIDTH_MAX}
+                tabIndex={0}
+                onPointerDown={onResizePointerDown}
+                onKeyDown={(e) => {
+                  const step = e.shiftKey ? 32 : 16
+                  if (e.key === 'ArrowLeft') {
+                    e.preventDefault()
+                    persistWidth(panelWidth + step)
+                  } else if (e.key === 'ArrowRight') {
+                    e.preventDefault()
+                    persistWidth(panelWidth - step)
+                  } else if (e.key === 'Home') {
+                    e.preventDefault()
+                    persistWidth(CODING_PANEL_WIDTH_MAX)
+                  } else if (e.key === 'End') {
+                    e.preventDefault()
+                    persistWidth(CODING_PANEL_WIDTH_MIN)
+                  }
+                }}
+                className="panel-splitter panel-splitter--vertical"
+              ></div>
+              <CodingPanel
+                settings={app.settings}
+                projectPath={app.activeCodingProjectPath}
+                widthPx={panelWidth}
+                fileTreeRevision={app.codingFileTreeNonce}
+                gitRevision={app.codingGitNonce}
+                agentShellFeed={app.codingTerminalFeed}
+                agentShellEpoch={app.codingTerminalEpoch}
+                revealRequest={app.codingRevealRequest}
+                commandRunning={Boolean(app.activeCodingRunId)}
+                onStopCommand={() => void app.stopCodingCommand()}
+                onCodingUiChange={(patch) =>
+                  app.setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
                 }
-              }}
-              className="panel-splitter panel-splitter--vertical"
-            >
-            </div>
-            <CodingPanel
-              settings={app.settings}
-              projectPath={app.activeCodingProjectPath}
-              widthPx={panelWidth}
-              fileTreeRevision={app.codingFileTreeNonce}
-              gitRevision={app.codingGitNonce}
-              agentShellFeed={app.codingTerminalFeed}
-              agentShellEpoch={app.codingTerminalEpoch}
-              revealRequest={app.codingRevealRequest}
-              commandRunning={Boolean(app.activeCodingRunId)}
-              onStopCommand={() => void app.stopCodingCommand()}
-              onCodingUiChange={(patch) =>
-                app.setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
-              }
-              onUpdateProjectPath={app.applyCodingProjectPath}
-              onReferencePath={(relPath) => {
-                // Point the agent at a file/folder: add a reference chip to the
-                // composer. Only the path reaches the model — never file content —
-                // and it reads the file itself with read_file when it needs to.
-                app.setPendingFiles((prev) => {
-                  if (prev.some((f) => f.path === relPath)) return prev
-                  const name = relPath.split(/[\\/]/).pop() || relPath
-                  return [
-                    ...prev,
-                    {
-                      id: `ref-${relPath}`,
-                      name,
-                      path: relPath,
-                      mime: '',
-                      size: 0,
-                      ext: '',
-                      content: '',
-                      referenceOnly: true,
-                    },
-                  ].slice(0, 8)
-                })
-              }}
-              codingOwnerId={app.viewRuntimeKey}
-            />
+                onUpdateProjectPath={app.applyCodingProjectPath}
+                onReferencePath={(relPath) => {
+                  // Point the agent at a file/folder: add a reference chip to the
+                  // composer. Only the path reaches the model — never file content —
+                  // and it reads the file itself with read_file when it needs to.
+                  app.setPendingFiles((prev) => {
+                    if (prev.some((f) => f.path === relPath)) return prev
+                    const name = relPath.split(/[\\/]/).pop() || relPath
+                    return [
+                      ...prev,
+                      {
+                        id: `ref-${relPath}`,
+                        name,
+                        path: relPath,
+                        mime: '',
+                        size: 0,
+                        ext: '',
+                        content: '',
+                        referenceOnly: true,
+                      },
+                    ].slice(0, 8)
+                  })
+                }}
+                codingOwnerId={app.viewRuntimeKey}
+              />
             </>
           )}
         </div>

@@ -10,7 +10,11 @@
  * tool result is returned to the main agent loop.
  */
 
-import { normalizeBaseUrl, SUB_AGENT_DEFAULT_CONTEXT_TOKENS, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from './settings'
+import {
+  normalizeBaseUrl,
+  SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
+  SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+} from './settings'
 import type { SubAgentConfig } from './settings'
 import {
   deepseekApiBaseForRuntime,
@@ -99,7 +103,8 @@ export function buildPrompt(userQuery: string | undefined, focus?: string): stri
     const userLine = q ? `\n\nOriginal user message: "${q}"` : ''
     return `${DEFAULT_DESCRIBE_PROMPT}\n\nThe assistant needs from this image: "${f}"${userLine}\nTailor your description to what the assistant needs.`
   }
-  if (q) return `${DEFAULT_DESCRIBE_PROMPT}\n\nThe user asked: "${q}"\nTailor your description to answer the user's question.`
+  if (q)
+    return `${DEFAULT_DESCRIBE_PROMPT}\n\nThe user asked: "${q}"\nTailor your description to answer the user's question.`
   return DEFAULT_DESCRIBE_PROMPT
 }
 
@@ -646,44 +651,69 @@ async function describeSingleImage(
 
   if (provider === 'openrouter') {
     return describeWithOpenRouter(
-      img, config.model, maxTokens,
-      keys.openrouterBaseUrl, keys.openrouterApiKey,
-      prompt, signal,
+      img,
+      config.model,
+      maxTokens,
+      keys.openrouterBaseUrl,
+      keys.openrouterApiKey,
+      prompt,
+      signal,
       config.openrouterProviderOnly,
     )
   }
   if (provider === 'deepseek') {
     return describeWithDeepSeek(
-      img, config.model, maxTokens,
-      keys.deepseekBaseUrl, keys.deepseekApiKey,
-      prompt, signal,
+      img,
+      config.model,
+      maxTokens,
+      keys.deepseekBaseUrl,
+      keys.deepseekApiKey,
+      prompt,
+      signal,
     )
   }
   if (provider === 'openai') {
     return describeWithOpenAi(
-      img, config.model, maxTokens,
-      keys.openaiBaseUrl, keys.openaiApiKey,
-      prompt, signal,
+      img,
+      config.model,
+      maxTokens,
+      keys.openaiBaseUrl,
+      keys.openaiApiKey,
+      prompt,
+      signal,
     )
   }
   if (provider === 'nvidia') {
     return describeWithNvidia(
-      img, config.model, maxTokens,
-      keys.nvidiaBaseUrl, keys.nvidiaApiKey,
-      prompt, signal,
+      img,
+      config.model,
+      maxTokens,
+      keys.nvidiaBaseUrl,
+      keys.nvidiaApiKey,
+      prompt,
+      signal,
     )
   }
   if (provider === 'opencode-go') {
     return describeWithOpenCodeGo(
-      img, config.model, maxTokens,
-      keys.ttsBaseUrl, keys.opencodeGoApiKey,
-      prompt, signal, keys.opencodeSessionId,
+      img,
+      config.model,
+      maxTokens,
+      keys.ttsBaseUrl,
+      keys.opencodeGoApiKey,
+      prompt,
+      signal,
+      keys.opencodeSessionId,
     )
   }
   return describeWithOllama(
-    img, config.model, maxTokens, ctxTokens,
+    img,
+    config.model,
+    maxTokens,
+    ctxTokens,
     keys.ollamaBaseUrl,
-    prompt, signal,
+    prompt,
+    signal,
   )
 }
 
@@ -735,14 +765,7 @@ export async function describeImagesWithSubAgent(
       continue
     }
     try {
-      const description = await describeSingleImage(
-        img,
-        config,
-        keys,
-        userQuery,
-        focus,
-        signal,
-      )
+      const description = await describeSingleImage(img, config, keys, userQuery, focus, signal)
       results.push({
         index: img.index,
         path: img.path,
@@ -765,16 +788,12 @@ export async function describeImagesWithSubAgent(
 /**
  * Format sub-agent descriptions into a compact text block for the main agent.
  */
-export function formatSubAgentResultsForAgent(
-  results: SubAgentDescribeResult[],
-): string {
+export function formatSubAgentResultsForAgent(results: SubAgentDescribeResult[]): string {
   if (!results.length) return ''
 
   const lines: string[] = ['[Sub-agent analysis]', '']
   for (const r of results) {
-    const label = r.path
-      ? `Image ${r.index} (${r.path})`
-      : `Image ${r.index}`
+    const label = r.path ? `Image ${r.index} (${r.path})` : `Image ${r.index}`
     if (r.error) {
       lines.push(`**${label}**: [Error: ${r.error}]`)
     } else {

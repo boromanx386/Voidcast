@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { buildPrompt, detectSubAgentProvider, describeImagesWithSubAgent } from '../src/lib/subAgent'
+import {
+  buildPrompt,
+  detectSubAgentProvider,
+  describeImagesWithSubAgent,
+} from '../src/lib/subAgent'
 import { imageCatalogKey, visionCacheKey } from '../src/lib/imageVisionCache'
 
 // ── buildPrompt ──────────────────────────────────────────────────────────
@@ -24,7 +28,7 @@ describe('buildPrompt', () => {
   it('appends user query when provided', () => {
     const result = buildPrompt('describe the UI')
     expect(result).toContain('The user asked: "describe the UI"')
-    expect(result).toContain('Tailor your description to answer the user\'s question.')
+    expect(result).toContain("Tailor your description to answer the user's question.")
   })
 
   it('includes the default prompt before the user query', () => {
@@ -70,7 +74,9 @@ describe('buildPrompt', () => {
 
   it('uses focus when provided by the main agent', () => {
     const result = buildPrompt('look at this', 'read the error text in the status bar')
-    expect(result).toContain('The assistant needs from this image: "read the error text in the status bar"')
+    expect(result).toContain(
+      'The assistant needs from this image: "read the error text in the status bar"',
+    )
     expect(result).toContain('Original user message: "look at this"')
     expect(result).toContain('Tailor your description to what the assistant needs.')
   })
@@ -183,9 +189,7 @@ describe('describeImagesWithSubAgent vision cache', () => {
       cache,
     )
 
-    expect(results).toEqual([
-      { index: 1, path: 'a.png', description: 'cached blue button' },
-    ])
+    expect(results).toEqual([{ index: 1, path: 'a.png', description: 'cached blue button' }])
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 

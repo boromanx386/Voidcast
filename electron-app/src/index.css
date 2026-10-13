@@ -36,7 +36,7 @@
     --color-glitch-green: 0 255 0;
 
     /* Comma-separated RGB for rgba() usages in arbitrary shadow values. */
-    --ui-accent-rgb: 0,245,255;
+    --ui-accent-rgb: 0, 245, 255;
 
     /* Coding panel — functional diff/git colors (independent of theme neon remap). */
     --coding-accent-fg: 0 245 255;
@@ -120,7 +120,9 @@
   input:focus,
   select:focus {
     @apply outline-none;
-    box-shadow: 0 0 0 1px rgb(var(--color-neon-cyan)), 0 0 15px rgb(var(--color-neon-cyan) / 0.3);
+    box-shadow:
+      0 0 0 1px rgb(var(--color-neon-cyan)),
+      0 0 15px rgb(var(--color-neon-cyan) / 0.3);
   }
 
   /* Button base reset */
@@ -135,7 +137,7 @@
 
 @layer components {
   /* ============ CRT & EFFECTS ============ */
-  
+
   /* Main CRT overlay */
   .crt-overlay {
     @apply pointer-events-none fixed inset-0 z-50;
@@ -160,8 +162,13 @@
   }
 
   @keyframes crt-flicker {
-    0%, 100% { opacity: 0.97; }
-    50% { opacity: 0.99; }
+    0%,
+    100% {
+      opacity: 0.97;
+    }
+    50% {
+      opacity: 0.99;
+    }
   }
 
   /* Glitch text effect */
@@ -189,33 +196,67 @@
   }
 
   @keyframes glitch-text {
-    0%, 90%, 100% { transform: translate(0); }
-    92% { transform: translate(-2px, 1px); }
-    94% { transform: translate(2px, -1px); }
-    96% { transform: translate(-1px, 2px); }
-    98% { transform: translate(1px, -2px); }
+    0%,
+    90%,
+    100% {
+      transform: translate(0);
+    }
+    92% {
+      transform: translate(-2px, 1px);
+    }
+    94% {
+      transform: translate(2px, -1px);
+    }
+    96% {
+      transform: translate(-1px, 2px);
+    }
+    98% {
+      transform: translate(1px, -2px);
+    }
   }
 
   @keyframes glitch-shift-1 {
-    0%, 100% { transform: translate(0); }
-    20% { transform: translate(-3px, 2px); }
-    40% { transform: translate(3px, -2px); }
-    60% { transform: translate(-2px, 3px); }
-    80% { transform: translate(2px, -3px); }
+    0%,
+    100% {
+      transform: translate(0);
+    }
+    20% {
+      transform: translate(-3px, 2px);
+    }
+    40% {
+      transform: translate(3px, -2px);
+    }
+    60% {
+      transform: translate(-2px, 3px);
+    }
+    80% {
+      transform: translate(2px, -3px);
+    }
   }
 
   @keyframes glitch-shift-2 {
-    0%, 100% { transform: translate(0); }
-    20% { transform: translate(3px, -2px); }
-    40% { transform: translate(-3px, 2px); }
-    60% { transform: translate(2px, -3px); }
-    80% { transform: translate(-2px, 3px); }
+    0%,
+    100% {
+      transform: translate(0);
+    }
+    20% {
+      transform: translate(3px, -2px);
+    }
+    40% {
+      transform: translate(-3px, 2px);
+    }
+    60% {
+      transform: translate(2px, -3px);
+    }
+    80% {
+      transform: translate(-2px, 3px);
+    }
   }
 
   /* Neon glow text */
   .neon-text-cyan {
     @apply text-neon-cyan;
-    text-shadow: 
+    text-shadow:
       0 0 5px rgb(var(--color-neon-cyan)),
       0 0 10px rgb(var(--color-neon-cyan)),
       0 0 20px rgb(var(--color-neon-cyan)),
@@ -224,7 +265,7 @@
 
   .neon-text-magenta {
     @apply text-neon-magenta;
-    text-shadow: 
+    text-shadow:
       0 0 5px rgb(var(--color-neon-magenta)),
       0 0 10px rgb(var(--color-neon-magenta)),
       0 0 20px rgb(var(--color-neon-magenta)),
@@ -233,7 +274,7 @@
 
   .neon-text-green {
     @apply text-neon-green;
-    text-shadow: 
+    text-shadow:
       0 0 5px rgb(var(--color-neon-green)),
       0 0 10px rgb(var(--color-neon-green)),
       0 0 20px rgb(var(--color-neon-green));
@@ -246,14 +287,7 @@
     @apply relative px-6 py-2.5 font-mono font-semibold text-sm uppercase tracking-wider;
     @apply border border-neon-cyan/50 bg-void-dark;
     @apply transition-all duration-200 ease-out;
-    clip-path: polygon(
-      0 0,
-      calc(100% - 8px) 0,
-      100% 8px,
-      100% 100%,
-      8px 100%,
-      0 calc(100% - 8px)
-    );
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
   }
 
   .cyber-btn::before {
@@ -268,7 +302,7 @@
 
   .cyber-btn:hover {
     @apply border-neon-cyan text-neon-cyan;
-    box-shadow: 
+    box-shadow:
       0 0 10px rgb(var(--color-neon-cyan) / 0.5),
       inset 0 0 10px rgb(var(--color-neon-cyan) / 0.1);
     transform: translateY(-2px);
@@ -276,7 +310,7 @@
 
   .cyber-btn:active {
     @apply translate-y-0;
-    box-shadow: 
+    box-shadow:
       0 0 5px rgb(var(--color-neon-cyan) / 0.3),
       inset 0 0 5px rgb(var(--color-neon-cyan) / 0.2);
   }
@@ -284,19 +318,12 @@
   /* Danger button variant */
   .cyber-btn-danger {
     @apply border-neon-red/50;
-    clip-path: polygon(
-      0 8px,
-      8px 0,
-      100% 0,
-      100% calc(100% - 8px),
-      calc(100% - 8px) 100%,
-      0 100%
-    );
+    clip-path: polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
   }
 
   .cyber-btn-danger:hover {
     @apply border-neon-red text-neon-red;
-    box-shadow: 
+    box-shadow:
       0 0 10px rgb(var(--color-neon-red) / 0.5),
       inset 0 0 10px rgb(var(--color-neon-red) / 0.1);
   }
@@ -307,14 +334,7 @@
     @apply bg-void-black border border-void-muted;
     @apply text-void-white placeholder:text-void-dim;
     @apply transition-all duration-200;
-    clip-path: polygon(
-      0 4px,
-      4px 0,
-      100% 0,
-      100% calc(100% - 4px),
-      calc(100% - 4px) 100%,
-      0 100%
-    );
+    clip-path: polygon(0 4px, 4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
   }
 
   .cyber-input:hover {
@@ -323,7 +343,7 @@
 
   .cyber-input:focus {
     @apply border-neon-cyan;
-    box-shadow: 
+    box-shadow:
       0 0 0 1px rgb(var(--color-neon-cyan)),
       0 0 20px rgb(var(--color-neon-cyan) / 0.2),
       inset 0 0 20px rgb(var(--color-neon-cyan) / 0.05);
@@ -399,7 +419,9 @@
 
   .status-dot.online {
     @apply bg-neon-green;
-    box-shadow: 0 0 10px rgb(var(--color-neon-green)), 0 0 20px rgb(var(--color-neon-green));
+    box-shadow:
+      0 0 10px rgb(var(--color-neon-green)),
+      0 0 20px rgb(var(--color-neon-green));
   }
 
   .status-dot.offline {
@@ -414,8 +436,15 @@
   }
 
   @keyframes status-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(0.9); }
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(0.9);
+    }
   }
 
   /* Typing indicator */
@@ -428,16 +457,24 @@
     animation: typing-bounce 1.4s ease-in-out infinite;
   }
 
-  .typing-dots span:nth-child(1) { animation-delay: 0s; }
-  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  .typing-dots span:nth-child(1) {
+    animation-delay: 0s;
+  }
+  .typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
 
   @keyframes typing-bounce {
-    0%, 80%, 100% { 
+    0%,
+    80%,
+    100% {
       transform: translateY(0);
       opacity: 0.4;
     }
-    40% { 
+    40% {
       transform: translateY(-6px);
       opacity: 1;
     }
@@ -448,7 +485,7 @@
   /* Grid background */
   .grid-bg {
     background-color: rgb(var(--color-void-black));
-    background-image: 
+    background-image:
       linear-gradient(rgb(var(--color-neon-cyan) / 0.03) 1px, transparent 1px),
       linear-gradient(90deg, rgb(var(--color-neon-cyan) / 0.03) 1px, transparent 1px);
     background-size: 50px 50px;
@@ -478,15 +515,23 @@
     background-size: 300% 100%;
     animation: border-gradient 3s linear infinite;
     padding: 2px;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
     mask-composite: xor;
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
   }
 
   @keyframes border-gradient {
-    0% { background-position: 0% 50%; }
-    100% { background-position: 300% 50%; }
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 300% 50%;
+    }
   }
 
   /* Scanline animation */
@@ -501,8 +546,12 @@
   }
 
   @keyframes scanline-move {
-    0% { top: -10%; }
-    100% { top: 110%; }
+    0% {
+      top: -10%;
+    }
+    100% {
+      top: 110%;
+    }
   }
 
   /* Data stream background */
@@ -522,8 +571,12 @@
   }
 
   @keyframes data-stream {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100%); }
+    0% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(100%);
+    }
   }
 
   /* ============ MESSAGE STYLES ============ */
@@ -583,8 +636,12 @@
   }
 
   @keyframes cyber-spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
   }
 
   .cyber-spinner-multi {
@@ -638,7 +695,7 @@
   }
 
   .chromatic-hover:hover {
-    text-shadow: 
+    text-shadow:
       -1px 0 rgb(var(--color-neon-magenta)),
       1px 0 rgb(var(--color-neon-cyan));
   }
@@ -653,7 +710,10 @@
 @layer utilities {
   /* Text shadows */
   .text-shadow-neon {
-    text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 20px currentColor;
+    text-shadow:
+      0 0 5px currentColor,
+      0 0 10px currentColor,
+      0 0 20px currentColor;
   }
 
   .text-shadow-glow {
@@ -688,7 +748,14 @@
   }
 
   .clip-arrow-right {
-    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
+    clip-path: polygon(
+      0 0,
+      calc(100% - 10px) 0,
+      100% 50%,
+      calc(100% - 10px) 100%,
+      0 100%,
+      10px 50%
+    );
   }
 
   /* Glass morphism */
@@ -703,7 +770,9 @@
   }
 
   .hover-glow-cyan:hover {
-    box-shadow: 0 0 20px rgb(var(--color-neon-cyan) / 0.4), 0 0 40px rgb(var(--color-neon-cyan) / 0.2);
+    box-shadow:
+      0 0 20px rgb(var(--color-neon-cyan) / 0.4),
+      0 0 40px rgb(var(--color-neon-cyan) / 0.2);
   }
 
   .hover-glow-magenta {
@@ -711,7 +780,9 @@
   }
 
   .hover-glow-magenta:hover {
-    box-shadow: 0 0 20px rgb(var(--color-neon-magenta) / 0.4), 0 0 40px rgb(var(--color-neon-magenta) / 0.2);
+    box-shadow:
+      0 0 20px rgb(var(--color-neon-magenta) / 0.4),
+      0 0 40px rgb(var(--color-neon-magenta) / 0.2);
   }
 
   /* Gradient text */
@@ -735,7 +806,7 @@
   }
 
   /* ============ ANIMATIONS ============ */
-  
+
   /* Fade in up animation */
   .animate-fade-in-up {
     animation: fadeInUp 0.5s ease-out forwards;
@@ -790,11 +861,17 @@
   }
 
   @keyframes pulseGlow {
-    0%, 100% {
-      box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+    0%,
+    100% {
+      box-shadow:
+        0 0 5px currentColor,
+        0 0 10px currentColor;
     }
     50% {
-      box-shadow: 0 0 15px currentColor, 0 0 30px currentColor, 0 0 45px currentColor;
+      box-shadow:
+        0 0 15px currentColor,
+        0 0 30px currentColor,
+        0 0 45px currentColor;
     }
   }
 
@@ -804,8 +881,13 @@
   }
 
   @keyframes cursorBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
   }
 
   /* Message appear */
@@ -830,11 +912,21 @@
     animation: fadeInUp 0.4s ease-out forwards;
   }
 
-  .stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
-  .stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
-  .stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
-  .stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
-  .stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
+  .stagger-children > *:nth-child(1) {
+    animation-delay: 0.1s;
+  }
+  .stagger-children > *:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .stagger-children > *:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  .stagger-children > *:nth-child(4) {
+    animation-delay: 0.4s;
+  }
+  .stagger-children > *:nth-child(5) {
+    animation-delay: 0.5s;
+  }
 
   /* Loading spinner dots */
   .animate-loading-dots {
@@ -842,14 +934,30 @@
   }
 
   @keyframes loadingDots {
-    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-    40% { transform: scale(1); opacity: 1; }
+    0%,
+    80%,
+    100% {
+      transform: scale(0.6);
+      opacity: 0.4;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 
   @keyframes planStepDonePop {
-    0% { transform: scale(0.6); opacity: 0.4; }
-    60% { transform: scale(1.25); }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+      transform: scale(0.6);
+      opacity: 0.4;
+    }
+    60% {
+      transform: scale(1.25);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 
   .plan-step-done-pop {
@@ -858,8 +966,13 @@
   }
 
   @keyframes planStepActivePulse {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
+    0%,
+    100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
   }
 
   .plan-step-active {

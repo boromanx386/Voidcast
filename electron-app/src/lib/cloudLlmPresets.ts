@@ -40,7 +40,10 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'nvidia/nemotron-3.5-lightning:free', label: 'Nemotron 3.5 Lightning (Free)' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron 3 Ultra (Free)' },
   { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (Free)' },
-  { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', label: 'Nemotron 3 Nano Omni 30B (Free)' },
+  {
+    id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+    label: 'Nemotron 3 Nano Omni 30B (Free)',
+  },
   { id: 'cohere/north-mini-code:free', label: 'Cohere North Mini Code (Free)' },
   { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B IT (Free)' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash (1M ctx)' },
@@ -250,7 +253,9 @@ export function isDeepSeekModelId(model: string): boolean {
   const trimmed = model.trim().toLowerCase()
   if (!trimmed) return false
   if (trimmed.startsWith('deepseek-')) return true
-  return trimmed in DEEPSEEK_MODEL_ALIASES || DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === trimmed)
+  return (
+    trimmed in DEEPSEEK_MODEL_ALIASES || DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === trimmed)
+  )
 }
 
 const OPENAI_MODEL_ALIASES: Record<string, string> = {
@@ -266,7 +271,10 @@ export function normalizeOpenAiModelId(model: string): string {
   const trimmed = model.trim()
   if (!trimmed) return OPENAI_LLM_PRESET_MODELS[0]?.id ?? 'gpt-5.6-sol'
   if (OPENAI_MODEL_ALIASES[trimmed]) return OPENAI_MODEL_ALIASES[trimmed]
-  if (trimmed.startsWith('openai/')) return trimmed.slice('openai/'.length).trim() || OPENAI_LLM_PRESET_MODELS[0]?.id || 'gpt-5.6-sol'
+  if (trimmed.startsWith('openai/'))
+    return (
+      trimmed.slice('openai/'.length).trim() || OPENAI_LLM_PRESET_MODELS[0]?.id || 'gpt-5.6-sol'
+    )
   return trimmed
 }
 
@@ -274,7 +282,12 @@ export function isOpenAiModelId(model: string): boolean {
   const trimmed = model.trim().toLowerCase()
   if (!trimmed) return false
   if (trimmed.startsWith('openai/')) return true
-  if (trimmed.startsWith('gpt-') || trimmed.startsWith('o1') || trimmed.startsWith('o3') || trimmed.startsWith('o4')) {
+  if (
+    trimmed.startsWith('gpt-') ||
+    trimmed.startsWith('o1') ||
+    trimmed.startsWith('o3') ||
+    trimmed.startsWith('o4')
+  ) {
     return true
   }
   return OPENAI_LLM_PRESET_MODELS.some((m) => m.id === trimmed)
@@ -310,21 +323,10 @@ export function normalizeOpenCodeGoModelId(model: string): string {
 }
 
 /** OpenRouter route suffixes after `provider/model:` (not Ollama tags). */
-const OPENROUTER_ROUTE_VARIANTS = new Set([
-  'free',
-  'nitro',
-  'floor',
-  'exacto',
-  'extended',
-])
+const OPENROUTER_ROUTE_VARIANTS = new Set(['free', 'nitro', 'floor', 'exacto', 'extended'])
 
 export type SubAgentProviderId =
-  | 'ollama'
-  | 'openrouter'
-  | 'deepseek'
-  | 'openai'
-  | 'nvidia'
-  | 'opencode-go'
+  'ollama' | 'openrouter' | 'deepseek' | 'openai' | 'nvidia' | 'opencode-go'
 
 const SUB_AGENT_PROVIDERS: ReadonlySet<SubAgentProviderId> = new Set([
   'ollama',
@@ -335,7 +337,9 @@ const SUB_AGENT_PROVIDERS: ReadonlySet<SubAgentProviderId> = new Set([
   'opencode-go',
 ])
 
-export function isSubAgentProviderId(value: string | null | undefined): value is SubAgentProviderId {
+export function isSubAgentProviderId(
+  value: string | null | undefined,
+): value is SubAgentProviderId {
   return typeof value === 'string' && SUB_AGENT_PROVIDERS.has(value as SubAgentProviderId)
 }
 

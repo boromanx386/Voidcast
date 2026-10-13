@@ -70,9 +70,7 @@ describe('cacheEntriesFromDescribeResults', () => {
   it('skips errors', () => {
     const recalled = [{ index: 1, base64: 'xyz' }]
     expect(
-      cacheEntriesFromDescribeResults(recalled, [
-        { index: 1, description: '', error: 'fail' },
-      ]),
+      cacheEntriesFromDescribeResults(recalled, [{ index: 1, description: '', error: 'fail' }]),
     ).toEqual({})
   })
 

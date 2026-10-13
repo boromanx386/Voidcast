@@ -59,7 +59,10 @@ export function validateProjectRelativeAudioPath(
   if (!raw) return { ok: false, error: 'output_path is empty.' }
   if (hasNul(raw)) return { ok: false, error: 'output_path contains invalid characters.' }
   if (isAbsoluteFilesystemPath(raw)) {
-    return { ok: false, error: 'output_path must be project-relative (absolute paths are rejected).' }
+    return {
+      ok: false,
+      error: 'output_path must be project-relative (absolute paths are rejected).',
+    }
   }
 
   const normalized = normalizeSlashes(raw).replace(/^(\.\/)+/, '')

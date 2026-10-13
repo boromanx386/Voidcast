@@ -30,10 +30,7 @@ import {
   summarizeCodingTurnEvidence,
 } from '@/lib/codingContextMemo'
 import { isImplementAgentMode } from '@/lib/agentToolUtils'
-import {
-  filterProcessesForAgent,
-  type ActiveCodingProcess,
-} from '@/lib/codingActiveProcesses'
+import { filterProcessesForAgent, type ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
@@ -62,11 +59,7 @@ import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { playNotificationSound } from '@/lib/notificationSounds'
 import { notifyAgentDone } from '@/lib/agentDoneNotification'
-import {
-  getOpenRouterImageProfile,
-  loadSettings,
-  type AppSettings,
-} from '@/lib/settings'
+import { getOpenRouterImageProfile, loadSettings, type AppSettings } from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
   applyCodingDone,
@@ -142,10 +135,7 @@ export type UseChatAgentDeps = {
    * Persist coding memo for a non-visible session (background agent).
    * Visible session still uses setCodingContextMemo.
    */
-  patchSessionCodingMemo?: (
-    sessionId: string,
-    action: SetStateAction<CodingContextMemo>,
-  ) => void
+  patchSessionCodingMemo?: (sessionId: string, action: SetStateAction<CodingContextMemo>) => void
   /**
    * Auto-save: allocate a session id for the draft and rekey the runtime before
    * the first message turns into a mid-run draft → id transition race.
@@ -281,7 +271,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     systemPromptPresetRef,
     activeAgentModeRef,
     activeModelIdRef,
-  codingProjectPathForRuntimeKey,
+    codingProjectPathForRuntimeKey,
     onContextCompressed,
     patchSessionCodingMemo,
     claimSessionIdForDraft,
@@ -329,8 +319,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     [runtimeKey],
   )
   const setToolPhase = useCallback(
-    (toolPhase: AgentToolUiPhase | null) =>
-      sessionAgentStore.update(runtimeKey, { toolPhase }),
+    (toolPhase: AgentToolUiPhase | null) => sessionAgentStore.update(runtimeKey, { toolPhase }),
     [runtimeKey],
   )
   const setContextUsageInfo = useCallback<
@@ -354,8 +343,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     [runtimeKey],
   )
   const setContextCompressBusy = useCallback(
-    (contextCompressBusy: boolean) =>
-      sessionAgentStore.update(runtimeKey, { contextCompressBusy }),
+    (contextCompressBusy: boolean) => sessionAgentStore.update(runtimeKey, { contextCompressBusy }),
     [runtimeKey],
   )
   const setToolResultBanner = useCallback<
@@ -389,8 +377,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     [patchSubAgentPanel],
   )
   const setSubAgentPanelCollapsed = useCallback(
-    (collapsed: boolean) =>
-      patchSubAgentPanel((p) => setSubAgentPanelCollapsedState(p, collapsed)),
+    (collapsed: boolean) => patchSubAgentPanel((p) => setSubAgentPanelCollapsedState(p, collapsed)),
     [patchSubAgentPanel],
   )
   const setMessageSubAgentActivity = useCallback(
@@ -456,11 +443,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     const turns = toConversationTurns(messages)
     if (turns.length === 0) return
     const previousTurns = toConversationTurns(
-      sliceUiHistoryForContext(
-        messages,
-        hiddenContextSummary,
-        contextCompressedThroughIndex,
-      ),
+      sliceUiHistoryForContext(messages, hiddenContextSummary, contextCompressedThroughIndex),
     )
 
     setContextCompressBusy(true)
@@ -601,9 +584,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       // so it must never be used to re-route a run that started elsewhere.
       const explicitKey = opts?.sessionKey?.trim() ?? ''
       const claimedId = explicitKey ? null : claimSessionIdForDraft?.()
-      const startKey =
-        explicitKey ||
-        (claimedId && claimedId.trim() ? claimedId : runtimeKey)
+      const startKey = explicitKey || (claimedId && claimedId.trim() ? claimedId : runtimeKey)
 
       const bind: SessionAgentKeyHandle = sessionAgentStore.createKeyHandle(startKey)
       if (claimedId && runtimeKey === DRAFT_RUNTIME_KEY) {
@@ -617,17 +598,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const setPhase = (toolPhase: AgentToolUiPhase | null) =>
         sessionAgentStore.update(keyOf(), { toolPhase })
       const setErr = (error: string | null) => sessionAgentStore.update(keyOf(), { error })
-      const setBanner: Dispatch<SetStateAction<(typeof slot)['toolResultBanner']>> = (
-        action,
-      ) => {
+      const setBanner: Dispatch<SetStateAction<(typeof slot)['toolResultBanner']>> = (action) => {
         const prev = slotNow().toolResultBanner
         sessionAgentStore.update(keyOf(), {
           toolResultBanner: resolveAction(prev, action),
         })
       }
-      const setUsage: Dispatch<SetStateAction<(typeof slot)['contextUsageInfo']>> = (
-        action,
-      ) => {
+      const setUsage: Dispatch<SetStateAction<(typeof slot)['contextUsageInfo']>> = (action) => {
         const prev = slotNow().contextUsageInfo
         sessionAgentStore.update(keyOf(), {
           contextUsageInfo: resolveAction(prev, action),
@@ -637,9 +614,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         sessionAgentStore.update(keyOf(), { contextWarnDismissed })
       const mediaRun = sessionAgentStore.mediaSetters(bind)
 
-      const patchPanel = (
-        reducer: (prev: SubAgentPanelState) => SubAgentPanelState,
-      ) => {
+      const patchPanel = (reducer: (prev: SubAgentPanelState) => SubAgentPanelState) => {
         sessionAgentStore.update(keyOf(), (prev) => {
           const nextPanel = reducer(prev.subAgentPanel)
           return {
@@ -679,7 +654,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const isSteer = Boolean(opts?.steer) && !isEdit
       const activeHistory = opts?.history ?? slotNow().messages
       const plainText = isEdit
-        ? (opts?.text ?? (isPlanHandoff ? lastUserMessage(activeHistory)?.content ?? '' : '')).trim()
+        ? (
+            opts?.text ?? (isPlanHandoff ? (lastUserMessage(activeHistory)?.content ?? '') : '')
+          ).trim()
         : (opts?.text ?? input).trim()
       // Model-facing text (steer wraps a course-correction header around the user body).
       const text = isSteer ? buildSteerCourseCorrectionText(plainText) : plainText
@@ -693,10 +670,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           queuedFiles = recovered.queuedFiles
         }
       }
-      if (
-        (!plainText && queued.length === 0 && queuedFiles.length === 0) ||
-        slotNow().busy
-      ) {
+      if ((!plainText && queued.length === 0 && queuedFiles.length === 0) || slotNow().busy) {
         sessionAgentStore.releaseKeyHandle(bind)
         return
       }
@@ -781,7 +755,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       // the SAME folder is a real hazard (shared files), and that stays a non-blocking hint.
       const codingConcurrencyAdvisory =
         turnSettings.toolsEnabled.coding && turnCodingProjectPath
-          ? sessionAgentStore.codingSameProjectBusyAdvisory(keyOf(), turnCodingProjectPath) ?? ''
+          ? (sessionAgentStore.codingSameProjectBusyAdvisory(keyOf(), turnCodingProjectPath) ?? '')
           : ''
 
       // Reserve the run slot BEFORE the first await so the concurrency cap
@@ -937,11 +911,10 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         | { prompt_eval_count?: number; cached_prompt_tokens?: number; eval_count?: number }
         | undefined
       let escalatedToPlan = false
-      let liveBuildPlan: PlanArtifact | undefined =
-        opts?.buildFromPlanMessageId
-          ? slotNow().messages.find((m) => m.id === opts.buildFromPlanMessageId)?.plan ??
-            activeHistory.find((m) => m.id === opts.buildFromPlanMessageId)?.plan
-          : undefined
+      let liveBuildPlan: PlanArtifact | undefined = opts?.buildFromPlanMessageId
+        ? (slotNow().messages.find((m) => m.id === opts.buildFromPlanMessageId)?.plan ??
+          activeHistory.find((m) => m.id === opts.buildFromPlanMessageId)?.plan)
+        : undefined
       const planResearchHarvest: PlanResearchHarvest = emptyPlanResearchHarvest()
       const harvestingPlanResearch = turnAgentMode === 'plan'
       let turnLogMutable = emptyCodingTurnLog()
@@ -1080,17 +1053,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             onThinkingDelta: isThinkingUiEnabled(turnSettings.llmThinkLevel)
               ? (thinking: string) => {
                   if (!isRunActive()) return
-                  setMsgs((prev) =>
-                    prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                  )
+                  setMsgs((prev) => prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)))
                 }
               : undefined,
             onDelta: (full: string) => {
               if (!isRunActive()) return
               if (!full) return
-              setMsgs((prev) =>
-                prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)),
-              )
+              setMsgs((prev) => prev.map((m) => (m.id === asstId ? { ...m, content: full } : m)))
             },
             onToolPhase: (phase: AgentToolUiPhase | null) => {
               if (!isRunActive()) return
@@ -1270,9 +1239,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 onThinkingDelta: isThinkingUiEnabled(turnSettings.llmThinkLevel)
                   ? (thinking) => {
                       if (!isRunActive()) return
-                      setMsgs((prev) =>
-                        prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                      )
+                      setMsgs((prev) => prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)))
                     }
                   : undefined,
                 onDelta: (full) => {
@@ -1295,9 +1262,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 onThinkingDelta: isThinkingUiEnabled(turnSettings.llmThinkLevel)
                   ? (thinking) => {
                       if (!isRunActive()) return
-                      setMsgs((prev) =>
-                        prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)),
-                      )
+                      setMsgs((prev) => prev.map((m) => (m.id === asstId ? { ...m, thinking } : m)))
                     }
                   : undefined,
                 onDelta: (full) => {
@@ -1327,9 +1292,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
         if (turnAgentMode === 'plan' && replyText.trim()) {
           const extracted = extractPlanArtifactFromReply(replyText)
-          const plan = extracted
-            ? attachResearchToPlan(extracted, planResearchHarvest)
-            : null
+          const plan = extracted ? attachResearchToPlan(extracted, planResearchHarvest) : null
           const stripped = stripPlanJsonFenceFromContent(replyText)
           const displayContent = stripped.trim() ? stripped : plan ? '' : replyText
           setMsgs((prev) =>
@@ -1350,9 +1313,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           const planMsgId = opts.buildFromPlanMessageId
           setMsgs((prev) =>
             prev.map((m) =>
-              m.id === planMsgId && m.plan
-                ? { ...m, plan: finalizePlanAfterBuild(m.plan) }
-                : m,
+              m.id === planMsgId && m.plan ? { ...m, plan: finalizePlanAfterBuild(m.plan) } : m,
             ),
           )
           applySessionAgentMode('agent')
@@ -1594,8 +1555,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
    * Use when thinking/tools go the wrong way — steers without waiting for the turn to finish.
    */
   const onSteer = useCallback(() => {
-    const hasPayload =
-      !!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0
+    const hasPayload = !!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0
     if (!hasPayload) return
     if (busy) {
       onStop()
@@ -1641,9 +1601,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
   const updateMessagePlan = useCallback(
     (messageId: string, plan: PlanArtifact | undefined) => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, plan } : m)),
-      )
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, plan } : m)))
       onSessionDirty()
     },
     [onSessionDirty, setMessages],
@@ -1653,9 +1611,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     (messageId: string, plan: PlanArtifact) => {
       if (busy) return
       const approved: PlanArtifact = { ...plan, status: 'approved' }
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, plan: approved } : m)),
-      )
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, plan: approved } : m)))
       onSessionDirty()
       // Respect composer mode: Team stays Team (workers available). Plan alone → Agent for writes.
       const composerMode = normalizeAgentChatMode(activeAgentModeRef.current ?? settings.agentMode)

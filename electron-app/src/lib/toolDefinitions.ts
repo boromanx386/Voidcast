@@ -217,8 +217,7 @@ const BROWSER_PRESS_KEY_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_press_key',
-    description:
-      'Press a single keyboard key in the page (e.g. Enter, Escape, Tab, ArrowDown, a).',
+    description: 'Press a single keyboard key in the page (e.g. Enter, Escape, Tab, ArrowDown, a).',
     parameters: {
       type: 'object',
       properties: {
@@ -270,7 +269,10 @@ const BROWSER_EMULATE_TOOL: AgentToolDefinition = {
           type: 'number',
           description: 'Device pixel ratio, default 1 (e.g. 3 for a phone).',
         },
-        mobile: { type: 'boolean', description: 'Emulate a mobile device (mobile layout metrics).' },
+        mobile: {
+          type: 'boolean',
+          description: 'Emulate a mobile device (mobile layout metrics).',
+        },
         dark_mode: {
           type: 'boolean',
           description: 'Force prefers-color-scheme to dark (true) or light (false).',
@@ -305,8 +307,7 @@ const BROWSER_LIST_NETWORK_REQUESTS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_list_network_requests',
-    description:
-      'Recent network requests (method, status, url) from the Voidcast browser.',
+    description: 'Recent network requests (method, status, url) from the Voidcast browser.',
     parameters: {
       type: 'object',
       properties: {
@@ -618,7 +619,8 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
       properties: {
         prompt: {
           type: 'string',
-          description: 'Instruction for how the referenced image(s) should be edited or transformed.',
+          description:
+            'Instruction for how the referenced image(s) should be edited or transformed.',
         },
         reference_image_indexes: {
           type: 'string',
@@ -723,7 +725,8 @@ const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
       properties: {
         prompt: {
           type: 'string',
-          description: 'Primary music prompt describing style, mood, instruments, vocals, and structure.',
+          description:
+            'Primary music prompt describing style, mood, instruments, vocals, and structure.',
         },
         negative_prompt: {
           type: 'string',
@@ -735,7 +738,8 @@ const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
         },
         duration_sec: {
           type: 'number',
-          description: 'Optional duration in seconds (6-300). Only set when the user explicitly asks for a specific length.',
+          description:
+            'Optional duration in seconds (6-300). Only set when the user explicitly asks for a specific length.',
         },
         bpm: {
           type: 'number',
@@ -760,7 +764,7 @@ const GENERATE_TTS_TOOL: AgentToolDefinition = {
   function: {
     name: 'generate_tts',
     description:
-      'MANDATORY: Synthesize speech audio with the user\'s active TTS provider (Local OmniVoice, Runware TTS, or OpenRouter TTS) and save a real audio file. CRITICAL: When the user asks to create/make/generate a voiceover, narration, TTS clip, spoken audio asset, or to save speech into the project, you MUST call this tool BEFORE responding with any text. Do NOT claim a voiceover/file was created without calling this tool first. Pass the exact text to speak. To place the file inside the coding project, pass output_path as a project-relative path (e.g. public/audio/intro.mp3). Absolute paths and .. traversal are rejected. If output_path is omitted, the app saves into its generated-audio folder. Voice/provider settings come from Options → TTS — never pass API keys. After success, give a short caption only; do NOT paste audio_path lines or fake links in chat (the app shows the player).',
+      "MANDATORY: Synthesize speech audio with the user's active TTS provider (Local OmniVoice, Runware TTS, or OpenRouter TTS) and save a real audio file. CRITICAL: When the user asks to create/make/generate a voiceover, narration, TTS clip, spoken audio asset, or to save speech into the project, you MUST call this tool BEFORE responding with any text. Do NOT claim a voiceover/file was created without calling this tool first. Pass the exact text to speak. To place the file inside the coding project, pass output_path as a project-relative path (e.g. public/audio/intro.mp3). Absolute paths and .. traversal are rejected. If output_path is omitted, the app saves into its generated-audio folder. Voice/provider settings come from Options → TTS — never pass API keys. After success, give a short caption only; do NOT paste audio_path lines or fake links in chat (the app shows the player).",
     parameters: {
       type: 'object',
       properties: {
@@ -826,8 +830,7 @@ const CODING_LIST_DIRECTORY_TOOL: AgentToolDefinition = {
       properties: {
         path: {
           type: 'string',
-          description:
-            'Optional relative path inside coding project. Empty means project root.',
+          description: 'Optional relative path inside coding project. Empty means project root.',
         },
         include_ignored: {
           type: 'boolean',
@@ -844,7 +847,7 @@ const CODING_READ_FILE_TOOL: AgentToolDefinition = {
   function: {
     name: 'read_file',
     description:
-      'Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. For large or unfamiliar files, prefer find_symbols first, then read with start_line/end_line (whole-file reads above ~220k characters are rejected unless you use a range). Whole-file re-reads of a path already in session digests or this turn\'s working set are soft-denied (returns a short digest reminder) — use start_line/end_line, or force:true only when you truly need the full file again. Lines are returned as N|text with 1-based line numbers.',
+      "Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. For large or unfamiliar files, prefer find_symbols first, then read with start_line/end_line (whole-file reads above ~220k characters are rejected unless you use a range). Whole-file re-reads of a path already in session digests or this turn's working set are soft-denied (returns a short digest reminder) — use start_line/end_line, or force:true only when you truly need the full file again. Lines are returned as N|text with 1-based line numbers.",
     parameters: {
       type: 'object',
       properties: {
@@ -854,7 +857,8 @@ const CODING_READ_FILE_TOOL: AgentToolDefinition = {
         },
         start_line: {
           type: 'number',
-          description: 'Optional 1-based start line. Use with end_line or alone (then up to ~400 lines are returned).',
+          description:
+            'Optional 1-based start line. Use with end_line or alone (then up to ~400 lines are returned).',
         },
         end_line: {
           type: 'number',
@@ -1053,7 +1057,8 @@ const CODING_GIT_DIFF_TOOL: AgentToolDefinition = {
         },
         staged: {
           type: 'boolean',
-          description: 'If true, show staged changes (git diff --cached). Default false (working tree vs index).',
+          description:
+            'If true, show staged changes (git diff --cached). Default false (working tree vs index).',
         },
       },
     },
@@ -1204,7 +1209,8 @@ const CODING_EXECUTE_COMMAND_TOOL: AgentToolDefinition = {
         },
         timeout_sec: {
           type: 'number',
-          description: 'Optional timeout in seconds (default 20, max 120). Ignored when run_in_background is true.',
+          description:
+            'Optional timeout in seconds (default 20, max 120). Ignored when run_in_background is true.',
         },
         run_in_background: {
           type: 'boolean',
@@ -1324,7 +1330,8 @@ const CODING_RUN_WORKERS_TOOL: AgentToolDefinition = {
             properties: {
               goal: {
                 type: 'string',
-                description: 'What this worker should implement or change (concrete files/behavior).',
+                description:
+                  'What this worker should implement or change (concrete files/behavior).',
               },
               success_criteria: {
                 type: 'string',
@@ -1568,7 +1575,8 @@ const MCP_GET_TOOL_TOOL: AgentToolDefinition = {
       properties: {
         name: {
           type: 'string',
-          description: 'Qualified MCP tool name from mcp_list_tools, e.g. mcp__runware__list_models',
+          description:
+            'Qualified MCP tool name from mcp_list_tools, e.g. mcp__runware__list_models',
         },
       },
       required: ['name'],

@@ -62,7 +62,9 @@ interface VoidcastBridge {
     api_base_url: string
     api_key: string
     body: unknown
-  }) => Promise<{ ok: true; data: unknown; status: number } | { ok: false; detail: string; status?: number }>
+  }) => Promise<
+    { ok: true; data: unknown; status: number } | { ok: false; detail: string; status?: number }
+  >
 
   getAppVersion: () => Promise<string>
 
@@ -90,12 +92,16 @@ interface VoidcastBridge {
       }
   >
 
-  readAgentSkill: (payload: { name: string; projectPath?: string }) => Promise<
-    | { ok: true; name: string; content: string; dirPath: string }
-    | { ok: false; error?: string }
+  readAgentSkill: (payload: {
+    name: string
+    projectPath?: string
+  }) => Promise<
+    { ok: true; name: string; content: string; dirPath: string } | { ok: false; error?: string }
   >
 
-  readProjectAgentInstructions: (payload: { projectPath: string }) => Promise<
+  readProjectAgentInstructions: (payload: {
+    projectPath: string
+  }) => Promise<
     | { ok: true; files: { fileName: string; content: string }[] }
     | { ok: false; error?: string; files: { fileName: string; content: string }[] }
   >
@@ -140,7 +146,9 @@ interface VoidcastBridge {
     trustedProjectPaths?: string[]
     /** Chat runtime key — cancel only cancels this owner's MCP calls. */
     ownerId?: string
-  }) => Promise<{ ok: true; result: string; qualifiedName?: string } | { ok: false; result: string }>
+  }) => Promise<
+    { ok: true; result: string; qualifiedName?: string } | { ok: false; result: string }
+  >
 
   mcpReadResult: (payload: {
     path: string
@@ -218,7 +226,9 @@ interface VoidcastBridge {
       }
   >
 
-  mcpOpenConfig: () => Promise<{ ok: true; path: string } | { ok: false; path?: string; error?: string }>
+  mcpOpenConfig: () => Promise<
+    { ok: true; path: string } | { ok: false; path?: string; error?: string }
+  >
 
   mcpStopAll: () => Promise<{ ok: true }>
 
@@ -366,7 +376,9 @@ interface VoidcastBridge {
     endLine?: number
     maxChars?: number
     allowLargeRead?: boolean
-  }) => Promise<{ ok: true; content: string; lineEndings: 'crlf' | 'lf' } | { ok: false; error?: string }>
+  }) => Promise<
+    { ok: true; content: string; lineEndings: 'crlf' | 'lf' } | { ok: false; error?: string }
+  >
 
   /** Delete a project file: OS trash by default, permanent when `permanent` is true. */
   codingDeletePath: (payload: {
@@ -477,9 +489,9 @@ interface VoidcastBridge {
     | { ok: false; error?: string; runId?: string; streamed?: boolean }
   >
 
-  codingKillCommand: (payload: { runId: string }) => Promise<
-    { ok: true } | { ok: false; error?: string }
-  >
+  codingKillCommand: (payload: {
+    runId: string
+  }) => Promise<{ ok: true } | { ok: false; error?: string }>
 
   codingListActiveProcesses: () => Promise<{
     processes: {
@@ -494,10 +506,7 @@ interface VoidcastBridge {
     }[]
   }>
 
-  codingReadProcessOutput: (payload: {
-    runId: string
-    offset?: number
-  }) => Promise<
+  codingReadProcessOutput: (payload: { runId: string; offset?: number }) => Promise<
     | {
         ok: true
         text: string
@@ -533,12 +542,11 @@ interface VoidcastBridge {
     name: string
     ext: string
     bytes: ArrayBuffer
-  }) => Promise<
-    | { ok: true; content?: string; truncated?: boolean }
-    | { ok: false; error?: string }
-  >
+  }) => Promise<{ ok: true; content?: string; truncated?: boolean } | { ok: false; error?: string }>
 
-  readImageFile: (payload: { path: string }) => Promise<
+  readImageFile: (payload: {
+    path: string
+  }) => Promise<
     | { ok: true; file: { base64: string; mime: string; name: string; path: string } }
     | { ok: false; error?: string }
   >
@@ -605,21 +613,22 @@ interface VoidcastBridge {
       profile?: string
       /** false replies as soon as the navigation starts instead of waiting for the load. */
       wait?: boolean
-    }) => Promise<
-      { ok: true; url: string; waited?: boolean } | { ok: false; error?: string }
-    >
+    }) => Promise<{ ok: true; url: string; waited?: boolean } | { ok: false; error?: string }>
 
-    back: (payload?: { projectPath?: string; profile?: string }) => Promise<
-      { ok: true; url: string } | { ok: false; error?: string }
-    >
+    back: (payload?: {
+      projectPath?: string
+      profile?: string
+    }) => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
 
-    forward: (payload?: { projectPath?: string; profile?: string }) => Promise<
-      { ok: true; url: string } | { ok: false; error?: string }
-    >
+    forward: (payload?: {
+      projectPath?: string
+      profile?: string
+    }) => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
 
-    reload: (payload?: { projectPath?: string; profile?: string }) => Promise<
-      { ok: true; url: string } | { ok: false; error?: string }
-    >
+    reload: (payload?: {
+      projectPath?: string
+      profile?: string
+    }) => Promise<{ ok: true; url: string } | { ok: false; error?: string }>
 
     /** Every agent call carries the project path so the profile follows the project. */
     snapshot: (payload?: {
@@ -648,7 +657,12 @@ interface VoidcastBridge {
       profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
-    screenshot: (payload?: { projectPath?: string; profile?: string; uid?: string; fullPage?: boolean }) => Promise<
+    screenshot: (payload?: {
+      projectPath?: string
+      profile?: string
+      uid?: string
+      fullPage?: boolean
+    }) => Promise<
       | {
           ok: true
           path: string
@@ -673,14 +687,16 @@ interface VoidcastBridge {
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
     /** Tell main which profile this panel wants before any page is created. */
-    configure: (payload: { projectPath?: string; profile?: string }) => Promise<
-      { ok: true; profile: string; changed: boolean } | { ok: false; error?: string }
-    >
+    configure: (payload: {
+      projectPath?: string
+      profile?: string
+    }) => Promise<{ ok: true; profile: string; changed: boolean } | { ok: false; error?: string }>
 
     /** Wipe cookies/storage/cache for the active browser profile. */
-    clearData: (payload?: { projectPath?: string; profile?: string }) => Promise<
-      { ok: true; text: string } | { ok: false; error?: string }
-    >
+    clearData: (payload?: {
+      projectPath?: string
+      profile?: string
+    }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
     /** Answer a held HTTP auth request (the WEB panel's sign-in bar — never the agent). */
     authAnswer: (payload: {
@@ -773,15 +789,26 @@ interface VoidcastBridge {
       | { ok: false; error?: string }
     >
 
-    newPage: (payload: { url: string; background?: boolean; projectPath?: string; profile?: string }) => Promise<
+    newPage: (payload: {
+      url: string
+      background?: boolean
+      projectPath?: string
+      profile?: string
+    }) => Promise<
       { ok: true; pageId: string; url: string; text: string } | { ok: false; error?: string }
     >
 
-    selectPage: (payload: { pageId: string; projectPath?: string; profile?: string }) => Promise<
-      { ok: true; url: string; text: string } | { ok: false; error?: string }
-    >
+    selectPage: (payload: {
+      pageId: string
+      projectPath?: string
+      profile?: string
+    }) => Promise<{ ok: true; url: string; text: string } | { ok: false; error?: string }>
 
-    closePage: (payload: { pageId: string; projectPath?: string; profile?: string }) => Promise<
+    closePage: (payload: {
+      pageId: string
+      projectPath?: string
+      profile?: string
+    }) => Promise<
       { ok: true; text: string; activeId: string | null } | { ok: false; error?: string }
     >
 

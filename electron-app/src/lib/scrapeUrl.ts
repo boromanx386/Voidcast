@@ -2,15 +2,10 @@ import { normalizeBaseUrl } from '@/lib/settings'
 
 export type ScrapeUrlResult = { ok: boolean; text: string }
 
-async function invokeScrapeUrlIpc(
-  url: string,
-  maxChars?: number,
-): Promise<string> {
+async function invokeScrapeUrlIpc(url: string, maxChars?: number): Promise<string> {
   const vc = window.voidcast
   if (!vc?.scrapeUrl) {
-    throw new Error(
-      'Run Voidcast in Electron to use scrape_url without the TTS server tool.',
-    )
+    throw new Error('Run Voidcast in Electron to use scrape_url without the TTS server tool.')
   }
   const r: unknown = await vc.scrapeUrl({ url, max_chars: maxChars })
   if (typeof r === 'string') return r

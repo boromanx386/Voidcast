@@ -16,11 +16,7 @@ type Props = {
   variant?: 'standalone' | 'embedded'
 }
 
-export function RunwareMusicOptionsPanel({
-  settings,
-  setSettings,
-  variant = 'standalone',
-}: Props) {
+export function RunwareMusicOptionsPanel({ settings, setSettings, variant = 'standalone' }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
 
   const browseAudioFolder = useCallback(async () => {
@@ -71,18 +67,17 @@ export function RunwareMusicOptionsPanel({
         <div className="border-b border-void-muted/30 pb-3">
           <p className="text-xs font-mono text-void-dim">
             <span className="mr-2 text-neon-green">♫</span>
-            Active model:{' '}
-            <code className="text-neon-green">{activeLabel}</code>{' '}
-            (<code className="text-void-light">{activeModelId}</code>). Uses Runware API key
+            Active model: <code className="text-neon-green">{activeLabel}</code> (
+            <code className="text-void-light">{activeModelId}</code>). Uses Runware API key
             (General).
           </p>
         </div>
       ) : (
         <div className="rounded border border-neon-purple/25 bg-void-black/40 p-3">
           <p className="text-xs text-void-dim">
-            <span className="font-mono text-neon-purple">Runware ACE-Step</span> models only. Active:{' '}
-            <code className="text-neon-purple">{activeLabel}</code>{' '}
-            (<code className="text-void-light">{activeModelId}</code>).
+            <span className="font-mono text-neon-purple">Runware ACE-Step</span> models only.
+            Active: <code className="text-neon-purple">{activeLabel}</code> (
+            <code className="text-void-light">{activeModelId}</code>).
           </p>
         </div>
       )}
@@ -117,7 +112,8 @@ export function RunwareMusicOptionsPanel({
           ))}
         </select>
         <p className="mt-2 text-xs text-void-dim">
-          ACE-Step v1.5 on Runware. Each variant keeps its own steps, CFG, duration, format, and seed.
+          ACE-Step v1.5 on Runware. Each variant keeps its own steps, CFG, duration, format, and
+          seed.
         </p>
       </div>
 
@@ -273,8 +269,8 @@ export function RunwareMusicOptionsPanel({
       </label>
 
       <p className="text-xs text-void-dim -mt-2">
-        Default vocal language <code className="text-neon-green">en</code>.
-        Tool args can still provide optional fields like lyrics, bpm, key/scale, and language when needed.
+        Default vocal language <code className="text-neon-green">en</code>. Tool args can still
+        provide optional fields like lyrics, bpm, key/scale, and language when needed.
       </p>
     </div>
   )

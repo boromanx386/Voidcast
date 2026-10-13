@@ -38,11 +38,7 @@ describe('upsertFileDigest', () => {
   })
 
   it('removeFileDigest drops a path', () => {
-    const digests = upsertFileDigest(
-      upsertFileDigest([], 'a.ts', 'A'),
-      'b.ts',
-      'B',
-    )
+    const digests = upsertFileDigest(upsertFileDigest([], 'a.ts', 'A'), 'b.ts', 'B')
     expect(removeFileDigest(digests, 'a.ts').map((d) => d.path)).toEqual(['b.ts'])
   })
 })

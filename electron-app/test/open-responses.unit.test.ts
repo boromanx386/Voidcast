@@ -86,7 +86,11 @@ describe('openRouterMessagesToResponses', () => {
         role: 'assistant',
         content: null,
         tool_calls: [
-          { id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"p":"a"}' } },
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'read_file', arguments: '{"p":"a"}' },
+          },
         ],
       },
     ])
@@ -176,7 +180,10 @@ describe('responsesMaxTokensFallback', () => {
 describe('applyResponsesStreamEvent', () => {
   it('accumulates output text and reports the change', () => {
     const state = createResponsesStreamState()
-    const first = applyResponsesStreamEvent(state, { type: 'response.output_text.delta', delta: 'he' })
+    const first = applyResponsesStreamEvent(state, {
+      type: 'response.output_text.delta',
+      delta: 'he',
+    })
     applyResponsesStreamEvent(state, { type: 'response.output_text.delta', delta: 'llo' })
     expect(state.text).toBe('hello')
     expect(first.textChanged).toBe(true)

@@ -133,9 +133,7 @@ describe('parseGitStatusText', () => {
 
 describe('formatGitBranchBadge', () => {
   test('formats ahead behind', () => {
-    expect(
-      formatGitBranchBadge({ branch: 'main', ahead: 1, behind: 2 }),
-    ).toBe('main ↑1 ↓2')
+    expect(formatGitBranchBadge({ branch: 'main', ahead: 1, behind: 2 })).toBe('main ↑1 ↓2')
   })
 
   test('null is dash', () => {
@@ -145,9 +143,7 @@ describe('formatGitBranchBadge', () => {
 
 describe('buildGitStatusByPath / dirHasGitChanges', () => {
   test('maps paths and detects dirty dirs', () => {
-    const parsed = parseGitStatusText(
-      ['## main', ' M src/lib/a.ts', '?? assets/x.png'].join('\n'),
-    )
+    const parsed = parseGitStatusText(['## main', ' M src/lib/a.ts', '?? assets/x.png'].join('\n'))
     const map = buildGitStatusByPath(parsed)
     expect(map.get('src/lib/a.ts')?.letter).toBe('M')
     expect(map.get('assets/x.png')?.untracked).toBe(true)

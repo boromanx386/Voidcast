@@ -63,9 +63,7 @@ export function SubAgentActivityCard({
 }: SubAgentActivityCardProps) {
   const eventsNewestFirst = [...panel.events].reverse()
   const showWorkers = panel.kind === 'workers' && panel.workers.length > 0
-  const summaryLine =
-    panel.progress ||
-    (panel.busy ? panel.text : 'Done — expand for digest')
+  const summaryLine = panel.progress || (panel.busy ? panel.text : 'Done — expand for digest')
 
   const body = (
     <>
@@ -135,9 +133,7 @@ export function SubAgentActivityCard({
                         aria-hidden
                       />
                     ) : (
-                      <span className="shrink-0 uppercase opacity-80">
-                        {w.status}
-                      </span>
+                      <span className="shrink-0 uppercase opacity-80">{w.status}</span>
                     )}
                   </div>
                   {w.progress ? (
@@ -163,12 +159,8 @@ export function SubAgentActivityCard({
                     key={ev.id}
                     className={`flex gap-2 px-2 py-1 text-[10px] font-mono ${levelClass(ev.level)}`}
                   >
-                    <span className="shrink-0 text-void-dim/80">
-                      {formatSubAgentTime(ev.at)}
-                    </span>
-                    <span className="min-w-0 break-words text-void-light/80">
-                      {ev.text}
-                    </span>
+                    <span className="shrink-0 text-void-dim/80">{formatSubAgentTime(ev.at)}</span>
+                    <span className="min-w-0 break-words text-void-light/80">{ev.text}</span>
                   </li>
                 ))}
               </ul>

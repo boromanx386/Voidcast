@@ -61,7 +61,8 @@ export default function ModelSwitcherPopup({
   useEffect(() => {
     if (ollamaFetched) return
     const needsOllama =
-      settings.llmProvider === 'ollama' || pinned.some((id) => parsePinnedId(id)?.provider === 'ollama')
+      settings.llmProvider === 'ollama' ||
+      pinned.some((id) => parsePinnedId(id)?.provider === 'ollama')
     if (!needsOllama) return
     let cancelled = false
     fetchOllamaModels(settings.ollamaBaseUrl || 'http://127.0.0.1:11434')
@@ -212,7 +213,9 @@ export default function ModelSwitcherPopup({
             >
               <span className="w-3.5 shrink-0 text-center">{active ? '✓' : ''}</span>
               <span className="truncate">{item.label}</span>
-              <span className="ml-auto shrink-0 text-void-dim">({providerLabel(item.provider)})</span>
+              <span className="ml-auto shrink-0 text-void-dim">
+                ({providerLabel(item.provider)})
+              </span>
             </button>
           )
         })}

@@ -80,11 +80,13 @@ function tailAfter(line: string, name: string, openParenIdx?: number): string {
   return cap(line.slice(idx))
 }
 
-function tsJsSymbol(line: string, indent: number): { kind: SymbolKind; name: string; signature?: string } | null {
+function tsJsSymbol(
+  line: string,
+  indent: number,
+): { kind: SymbolKind; name: string; signature?: string } | null {
   // Block-level (low indent) declarations.
   if (indent <= 1) {
-    let m =
-      /^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+([\w$]+)/.exec(line)
+    let m = /^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+([\w$]+)/.exec(line)
     if (m) {
       const async = /async\s+function/.test(line)
       return { kind: async ? 'async_function' : 'function', name: m[1], signature: cap(line) }
@@ -140,9 +142,13 @@ function goSymbol(line: string): { kind: SymbolKind; name: string; signature?: s
 }
 
 function rsSymbol(line: string): { kind: SymbolKind; name: string; signature?: string } | null {
-  let m =
-    /(?:pub\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+(\w+)\s*(?:<[^>]*>)?\s*\(/.exec(line)
-  if (m) return { kind: m[0].includes('async') ? 'async_function' : 'function', name: m[1], signature: cap(line) }
+  let m = /(?:pub\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+(\w+)\s*(?:<[^>]*>)?\s*\(/.exec(line)
+  if (m)
+    return {
+      kind: m[0].includes('async') ? 'async_function' : 'function',
+      name: m[1],
+      signature: cap(line),
+    }
   m = /(?:pub\s+)?struct\s+(\w+)/.exec(line)
   if (m) return { kind: 'struct', name: m[1], signature: cap(line) }
   m = /(?:pub\s+)?enum\s+(\w+)/.exec(line)
@@ -154,7 +160,10 @@ function rsSymbol(line: string): { kind: SymbolKind; name: string; signature?: s
   return null
 }
 
-function mdSymbol(line: string, lineNo: number): { kind: SymbolKind; name: string; signature?: string } | null {
+function mdSymbol(
+  line: string,
+  lineNo: number,
+): { kind: SymbolKind; name: string; signature?: string } | null {
   const m = /^(#{1,6})\s+(.*)$/.exec(line)
   if (m) return { kind: 'heading', name: m[2].trim(), signature: `h${m[1].length}` }
   // Front-matter fence line numbers also useful but skip; headings only.

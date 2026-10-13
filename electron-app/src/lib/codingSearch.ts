@@ -150,9 +150,7 @@ export function rankSearchMatches(
     score: scoreSearchMatch(match.path, match.line, match.text, query, recentFiles),
   }))
 
-  scored.sort(
-    (a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.line - b.line,
-  )
+  scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.line - b.line)
 
   const perFileCount = new Map<string, number>()
   const selected: ScoredSearchMatch[] = []

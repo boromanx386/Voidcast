@@ -11,8 +11,18 @@ import {
 describe('scoreSearchMatch', () => {
   it('boosts filename matches over random paths', () => {
     const query = 'useChatAgent'
-    const fileHit = scoreSearchMatch('src/hooks/useChatAgent.ts', 10, 'export function useChatAgent()', query)
-    const noiseHit = scoreSearchMatch('src/lib/utils.ts', 10, 'import { useChatAgent } from "../hooks/useChatAgent"', query)
+    const fileHit = scoreSearchMatch(
+      'src/hooks/useChatAgent.ts',
+      10,
+      'export function useChatAgent()',
+      query,
+    )
+    const noiseHit = scoreSearchMatch(
+      'src/lib/utils.ts',
+      10,
+      'import { useChatAgent } from "../hooks/useChatAgent"',
+      query,
+    )
     expect(fileHit).toBeGreaterThan(noiseHit)
   })
 

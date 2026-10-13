@@ -69,7 +69,10 @@ function fitOpenRouterDefaultDimensions(
   const h = clamp(Math.round(rawHeight), MIN, MAX)
   const adjusted = w !== Math.round(rawWidth) || h !== Math.round(rawHeight)
   const notes: string[] = []
-  if (adjusted) notes.push(`size_adjusted_for_model: ${Math.round(rawWidth)}x${Math.round(rawHeight)} -> ${w}x${h}`)
+  if (adjusted)
+    notes.push(
+      `size_adjusted_for_model: ${Math.round(rawWidth)}x${Math.round(rawHeight)} -> ${w}x${h}`,
+    )
   return { width: w, height: h, adjusted, notes }
 }
 
@@ -330,8 +333,7 @@ export async function invokeOpenRouterGenerateImage(
     ? `size_adjusted_for_model: ${Math.round(wantWidth)}x${Math.round(wantHeight)} -> ${dims.width}x${dims.height}`
     : undefined
 
-  const transparentBackground =
-    req.transparentBackground ?? config.transparentBackground ?? false
+  const transparentBackground = req.transparentBackground ?? config.transparentBackground ?? false
   const { imageUrl, elapsedMs } = usesOpenRouterDedicatedImageApi(model)
     ? await postOpenRouterDedicatedImage(
         config,
@@ -404,8 +406,7 @@ export async function invokeOpenRouterEditImage(
     ...refs.slice(0, 8).map((url) => ({ type: 'image_url', image_url: { url } })),
   ]
 
-  const transparentBackground =
-    req.transparentBackground ?? config.transparentBackground ?? false
+  const transparentBackground = req.transparentBackground ?? config.transparentBackground ?? false
   const { imageUrl, elapsedMs } = usesOpenRouterDedicatedImageApi(model)
     ? await postOpenRouterDedicatedImage(
         config,
@@ -450,7 +451,10 @@ export async function invokeOpenRouterEditImage(
 export function sanitizeImageToolResultForLlm(name: string, result: string): string {
   if (name !== 'generate_image' && name !== 'edit_image_runware') return result
   return result
-    .replace(/^\s*image_url:\s*data:image\/[^\n]*$/gim, 'image_url: [inline image shown in chat UI]')
+    .replace(
+      /^\s*image_url:\s*data:image\/[^\n]*$/gim,
+      'image_url: [inline image shown in chat UI]',
+    )
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

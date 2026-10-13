@@ -180,10 +180,7 @@ export async function searchRemindersByText(query: string): Promise<Reminder[]> 
 export async function listDueUnnotifiedReminders(nowMs: number): Promise<Reminder[]> {
   const pending = await listReminders({ status: 'pending' })
   return pending.filter(
-    (r) =>
-      r.when != null &&
-      r.when <= nowMs &&
-      (r.notifiedAt == null || r.notifiedAt === 0),
+    (r) => r.when != null && r.when <= nowMs && (r.notifiedAt == null || r.notifiedAt === 0),
   )
 }
 

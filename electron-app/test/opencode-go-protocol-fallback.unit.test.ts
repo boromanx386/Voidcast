@@ -28,9 +28,13 @@ describe('isOpenCodeGoProtocolUnsupportedError', () => {
 
   it('ignores unrelated failures', () => {
     expect(
-      isOpenCodeGoProtocolUnsupportedError(new Error('OpenCode Go /chat/completions 429: slow down')),
+      isOpenCodeGoProtocolUnsupportedError(
+        new Error('OpenCode Go /chat/completions 429: slow down'),
+      ),
     ).toBe(false)
-    expect(isOpenCodeGoProtocolUnsupportedError(new Error('max_output_tokens too large'))).toBe(false)
+    expect(isOpenCodeGoProtocolUnsupportedError(new Error('max_output_tokens too large'))).toBe(
+      false,
+    )
     expect(isOpenCodeGoProtocolUnsupportedError(undefined)).toBe(false)
     expect(isOpenCodeGoProtocolUnsupportedError(42)).toBe(false)
   })

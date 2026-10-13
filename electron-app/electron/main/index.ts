@@ -39,10 +39,7 @@ import {
   readPersistedMcpResult,
 } from './mcpManager'
 import { buildMcpProjectServerPreviews } from '../../src/lib/mcpProjectTrust'
-import {
-  attachCodingProcessStdio,
-  codingCommandSpawnEnv,
-} from '../../src/lib/codingProcessStdio'
+import { attachCodingProcessStdio, codingCommandSpawnEnv } from '../../src/lib/codingProcessStdio'
 import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
@@ -82,10 +79,7 @@ import {
   parseTscDiagnostics,
   PYTHON_PROJECT_MARKER_FILES,
 } from '../../src/lib/codingTypecheck'
-import {
-  detectLanguageFromExt,
-  extractSymbols,
-} from '../../src/lib/codingOutline'
+import { detectLanguageFromExt, extractSymbols } from '../../src/lib/codingOutline'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -184,9 +178,7 @@ function listActiveCodingProcesses(): ActiveCodingProcess[] {
 
 function sendCodingProcessUpdate(
   sender: WebContents,
-  payload:
-    | { action: 'upsert'; process: ActiveCodingProcess }
-    | { action: 'remove'; runId: string },
+  payload: { action: 'upsert'; process: ActiveCodingProcess } | { action: 'remove'; runId: string },
 ): void {
   try {
     sender.send('voidcast:coding-process-update', payload)
@@ -293,9 +285,7 @@ function createZoomedTrayIcon(iconPath: string): NativeImage | null {
   const x = Math.max(0, Math.floor((width - cropWidth) / 2))
   const y = Math.max(0, Math.floor((height - cropHeight) / 2))
 
-  return src
-    .crop({ x, y, width: cropWidth, height: cropHeight })
-    .resize({ width: 18, height: 18 })
+  return src.crop({ x, y, width: cropWidth, height: cropHeight }).resize({ width: 18, height: 18 })
 }
 
 function createZoomedWindowIcon(iconPath: string): NativeImage | null {
@@ -324,7 +314,8 @@ function getToolsServerDir(): string {
 
 function getBundledToolsExePath(): string {
   // Windows ships `voidcast-tools-server.exe`; Linux/macOS ship a plain binary.
-  const binName = process.platform === 'win32' ? 'voidcast-tools-server.exe' : 'voidcast-tools-server'
+  const binName =
+    process.platform === 'win32' ? 'voidcast-tools-server.exe' : 'voidcast-tools-server'
   return app.isPackaged
     ? path.join(process.resourcesPath, 'tools', binName)
     : path.join(process.env.APP_ROOT, '..', 'tts-server', 'dist', binName)
@@ -339,8 +330,7 @@ const WIN_CHROME_BACKGROUND = '#0a0a0f'
 const TOOLS_SERVER_HEALTH_URL = `http://127.0.0.1:${TOOLS_SERVER_PORT}`
 
 type CapturedCommandResult =
-  | { ok: true; stdout: string; stderr: string; code: number }
-  | { ok: false; error: string }
+  { ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }
 
 function captureSpawnCommand(params: {
   command: string
@@ -375,7 +365,10 @@ function captureSpawnCommand(params: {
       } catch {
         /* ignore */
       }
-      resolve({ ok: false, error: `${timeoutLabel} timed out after ${Math.round(timeoutMs / 1000)}s.` })
+      resolve({
+        ok: false,
+        error: `${timeoutLabel} timed out after ${Math.round(timeoutMs / 1000)}s.`,
+      })
     }, timeoutMs)
     child.stdout?.on('data', (chunk) => {
       stdout += String(chunk)
@@ -650,10 +643,10 @@ function createTray() {
       },
     },
   ])
-  
+
   tray.setToolTip('Voidcast')
   tray.setContextMenu(contextMenu)
-  
+
   // Double-click to show window
   tray.on('double-click', () => {
     if (win) {
@@ -668,41 +661,41 @@ function createDefaultIcon(): NativeImage {
   // Create a 16x16 PNG icon
   const size = 16
   const canvas = Buffer.alloc(size * size * 4)
-  
+
   // Fill with transparent and draw a cyan triangle
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const idx = (y * size + x) * 4
-      
+
       // Calculate if pixel is inside triangle
       const cx = size / 2
       const cy = size / 2
       const margin = 2
       const height = size - margin * 2
-      
+
       // Triangle: top center to bottom left and bottom right
       const topY = margin
       const bottomY = size - margin
       const leftX = margin
       const rightX = size - margin
-      
+
       // Check if inside triangle
       const relY = (y - topY) / (bottomY - topY)
       if (relY < 0 || relY > 1) {
-        canvas[idx] = 0     // R
+        canvas[idx] = 0 // R
         canvas[idx + 1] = 0 // G
         canvas[idx + 2] = 0 // B
         canvas[idx + 3] = 0 // A (transparent)
         continue
       }
-      
+
       const halfWidth = (leftX + (rightX - leftX) * relY) / 2
       const leftEdge = cx - halfWidth
       const rightEdge = cx + halfWidth
-      
+
       if (x >= leftEdge && x <= rightEdge) {
         // Cyan color #00f5ff
-        canvas[idx] = 0       // R
+        canvas[idx] = 0 // R
         canvas[idx + 1] = 245 // G
         canvas[idx + 2] = 255 // B
         canvas[idx + 3] = 255 // A
@@ -714,7 +707,7 @@ function createDefaultIcon(): NativeImage {
       }
     }
   }
-  
+
   return nativeImage.createFromBuffer(canvas, {
     width: size,
     height: size,
@@ -731,9 +724,10 @@ async function createWindow() {
     nativeTheme.themeSource = 'dark'
   }
 
-  const windowIcon = process.platform === 'win32'
-    ? (createZoomedWindowIcon(appIconPath) ?? appIconPath)
-    : appIconPath
+  const windowIcon =
+    process.platform === 'win32'
+      ? (createZoomedWindowIcon(appIconPath) ?? appIconPath)
+      : appIconPath
 
   // Electron supports titleBarStyle 'hidden' on Windows and Linux: the renderer draws the
   // caption buttons and owns the drag region there. macOS keeps its native traffic lights.
@@ -761,7 +755,8 @@ async function createWindow() {
     },
   })
 
-  if (VITE_DEV_SERVER_URL) { // #298
+  if (VITE_DEV_SERVER_URL) {
+    // #298
     win.loadURL(VITE_DEV_SERVER_URL)
     // Open devTool if the app is not packaged
     win.webContents.openDevTools()
@@ -845,9 +840,7 @@ async function createWindow() {
       win.webContents.send('voidcast:read-clipboard-tts', text)
     })
     if (!ok) {
-      console.warn(
-        `Voidcast: could not register global shortcut ${readClipboardTtsShortcut}`,
-      )
+      console.warn(`Voidcast: could not register global shortcut ${readClipboardTtsShortcut}`)
     }
   })
 }
@@ -901,51 +894,44 @@ app.on('before-quit', () => {
   void mcpManager.stopAll()
 })
 
-ipcMain.handle(
-  'voidcast:web-search',
-  async (_evt, query: string) => {
-    try {
-      const q = String(query ?? '').trim()
-      if (!q) return { ok: false, text: 'Empty query' }
-      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
-      // Hard cap so this IPC fallback can never hang the main process forever.
-      const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
-      if (!res.ok) return { ok: false, text: `HTTP ${res.status}` }
-      const data = (await res.json()) as {
-        AbstractText?: string
-        AbstractURL?: string
-        Answer?: string
-        RelatedTopics?: { Text?: string }[]
-      }
-      const parts: string[] = []
-      if (data.Answer) parts.push(data.Answer)
-      if (data.AbstractText) parts.push(data.AbstractText)
-      if (data.AbstractURL) parts.push(`Source: ${data.AbstractURL}`)
-      const topics = (data.RelatedTopics ?? [])
-        .slice(0, 5)
-        .map((t) => t.Text)
-        .filter(Boolean) as string[]
-      if (topics.length) parts.push(`Related: ${topics.join('; ')}`)
-      if (parts.length === 0) {
-        return {
-          ok: true,
-          text: 'No instant results from DuckDuckGo. Try rephrasing the query.',
-        }
-      }
-      return { ok: true, text: parts.join('\n\n') }
-    } catch (e) {
-      const aborted = e instanceof Error && e.name === 'AbortError'
+ipcMain.handle('voidcast:web-search', async (_evt, query: string) => {
+  try {
+    const q = String(query ?? '').trim()
+    if (!q) return { ok: false, text: 'Empty query' }
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
+    // Hard cap so this IPC fallback can never hang the main process forever.
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    if (!res.ok) return { ok: false, text: `HTTP ${res.status}` }
+    const data = (await res.json()) as {
+      AbstractText?: string
+      AbstractURL?: string
+      Answer?: string
+      RelatedTopics?: { Text?: string }[]
+    }
+    const parts: string[] = []
+    if (data.Answer) parts.push(data.Answer)
+    if (data.AbstractText) parts.push(data.AbstractText)
+    if (data.AbstractURL) parts.push(`Source: ${data.AbstractURL}`)
+    const topics = (data.RelatedTopics ?? [])
+      .slice(0, 5)
+      .map((t) => t.Text)
+      .filter(Boolean) as string[]
+    if (topics.length) parts.push(`Related: ${topics.join('; ')}`)
+    if (parts.length === 0) {
       return {
-        ok: false,
-        text: aborted
-          ? 'Search fallback timed out'
-          : e instanceof Error
-            ? e.message
-            : String(e),
+        ok: true,
+        text: 'No instant results from DuckDuckGo. Try rephrasing the query.',
       }
     }
-  },
-)
+    return { ok: true, text: parts.join('\n\n') }
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === 'AbortError'
+    return {
+      ok: false,
+      text: aborted ? 'Search fallback timed out' : e instanceof Error ? e.message : String(e),
+    }
+  }
+})
 
 type WttrJson = {
   current_condition?: Array<{
@@ -1009,13 +995,18 @@ function extFromContentType(contentType: string): string {
 function extFromAudioContentType(contentType: string): string {
   const ct = contentType.toLowerCase()
   if (ct.includes('audio/mpeg') || ct.includes('audio/mp3')) return '.mp3'
-  if (ct.includes('audio/wav') || ct.includes('audio/wave') || ct.includes('audio/x-wav')) return '.wav'
+  if (ct.includes('audio/wav') || ct.includes('audio/wave') || ct.includes('audio/x-wav'))
+    return '.wav'
   if (ct.includes('audio/flac')) return '.flac'
   if (ct.includes('audio/ogg')) return '.ogg'
   return '.mp3'
 }
 
-async function nextAvailablePath(outputDir: string, baseName: string, ext: string): Promise<string> {
+async function nextAvailablePath(
+  outputDir: string,
+  baseName: string,
+  ext: string,
+): Promise<string> {
   for (let i = 0; i < 500; i++) {
     const suffix = i === 0 ? '' : `-${i + 1}`
     const candidate = path.join(outputDir, `${baseName}${suffix}${ext}`)
@@ -1212,8 +1203,7 @@ ipcMain.handle(
         }
         relativeOut = path.relative(root, outPath).split(path.sep).join('/')
       } else {
-        const outputDir =
-          outputDirRaw || path.join(app.getPath('userData'), 'generated-audio')
+        const outputDir = outputDirRaw || path.join(app.getPath('userData'), 'generated-audio')
         await mkdir(outputDir, { recursive: true })
         const ext = extensionFromAudioMime(mime)
         const base = sanitizeAudioBaseName(
@@ -1233,39 +1223,36 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle(
-  'voidcast:read-audio-file',
-  async (_evt, payload: { path?: string }) => {
-    try {
-      const filePath = String(payload?.path ?? '').trim()
-      if (!filePath) return { ok: false, error: 'Missing path' }
-      const abs = path.resolve(filePath)
-      const bytes = await readFile(abs)
-      const ext = path.extname(abs).toLowerCase()
-      const mime =
-        ext === '.wav'
-          ? 'audio/wav'
-          : ext === '.flac'
-            ? 'audio/flac'
-            : ext === '.ogg'
-              ? 'audio/ogg'
-              : ext === '.m4a'
-                ? 'audio/mp4'
-                : 'audio/mpeg'
-      return {
-        ok: true,
-        file: {
-          base64: bytes.toString('base64'),
-          mime,
-          name: path.basename(abs),
-          path: abs,
-        },
-      }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+ipcMain.handle('voidcast:read-audio-file', async (_evt, payload: { path?: string }) => {
+  try {
+    const filePath = String(payload?.path ?? '').trim()
+    if (!filePath) return { ok: false, error: 'Missing path' }
+    const abs = path.resolve(filePath)
+    const bytes = await readFile(abs)
+    const ext = path.extname(abs).toLowerCase()
+    const mime =
+      ext === '.wav'
+        ? 'audio/wav'
+        : ext === '.flac'
+          ? 'audio/flac'
+          : ext === '.ogg'
+            ? 'audio/ogg'
+            : ext === '.m4a'
+              ? 'audio/mp4'
+              : 'audio/mpeg'
+    return {
+      ok: true,
+      file: {
+        base64: bytes.toString('base64'),
+        mime,
+        name: path.basename(abs),
+        path: abs,
+      },
     }
-  },
-)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+})
 
 ipcMain.handle(
   'voidcast:runware-proxy',
@@ -1278,7 +1265,9 @@ ipcMain.handle(
     },
   ) => {
     try {
-      const base = String(payload?.api_base_url ?? '').trim().replace(/\/+$/, '')
+      const base = String(payload?.api_base_url ?? '')
+        .trim()
+        .replace(/\/+$/, '')
       const key = String(payload?.api_key ?? '').trim()
       const tasks = Array.isArray(payload?.tasks) ? payload.tasks : []
       if (!base) return { ok: false, detail: 'api_base_url is required' }
@@ -1303,10 +1292,7 @@ ipcMain.handle(
       }
       if (!res.ok) {
         const detail =
-          data?.errors?.[0]?.message ||
-          data?.message ||
-          data?.error ||
-          `Runware HTTP ${res.status}`
+          data?.errors?.[0]?.message || data?.message || data?.error || `Runware HTTP ${res.status}`
         return { ok: false, detail }
       }
       return { ok: true, data }
@@ -1330,7 +1316,9 @@ ipcMain.handle(
     },
   ) => {
     try {
-      const base = String(payload?.api_base_url ?? '').trim().replace(/\/+$/, '')
+      const base = String(payload?.api_base_url ?? '')
+        .trim()
+        .replace(/\/+$/, '')
       const key = String(payload?.api_key ?? '').trim()
       if (!base) return { ok: false, detail: 'api_base_url is required' }
       if (!base.startsWith('https://')) {
@@ -1373,7 +1361,11 @@ ipcMain.handle(
           detail.startsWith('LLM HTTP ') || detail.startsWith('HTTP ')
             ? detail
             : `HTTP ${res.status}: ${detail}`
-        return { ok: false, detail: `${normalizedDetail}${modelSuffix}${urlSuffix}`, status: res.status }
+        return {
+          ok: false,
+          detail: `${normalizedDetail}${modelSuffix}${urlSuffix}`,
+          status: res.status,
+        }
       }
       return { ok: true, data, status: res.status }
     } catch (e) {
@@ -1390,9 +1382,7 @@ ipcMain.handle('voidcast:pick-directory', async () => {
     title: 'Choose folder for PDFs',
     properties: ['openDirectory'],
   }
-  const result = win
-    ? await dialog.showOpenDialog(win, opts)
-    : await dialog.showOpenDialog(opts)
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
   if (result.canceled || !result.filePaths?.[0]) {
     return { ok: false as const }
   }
@@ -1479,10 +1469,7 @@ const CODING_BINARY_SCAN_BYTES = 65_536
 // packed path inside `app.asar` — and spawn() cannot execute from inside the archive (ENOTDIR).
 // Anchor on the path segment only: replace('app.asar', …) would also rewrite an earlier,
 // unrelated occurrence (e.g. a checkout folder literally named `app.asar`).
-const bundledRgPath = rawBundledRgPath?.replace(
-  /([\\/])app\.asar([\\/])/,
-  '$1app.asar.unpacked$2',
-)
+const bundledRgPath = rawBundledRgPath?.replace(/([\\/])app\.asar([\\/])/, '$1app.asar.unpacked$2')
 
 let cachedRipgrepCommand: string | undefined
 
@@ -1562,7 +1549,10 @@ async function searchProjectWithRipgrep(
   const matches: CodingSearchRawMatch[] = []
   for (const line of r.stdout.split(/\r?\n/)) {
     if (!line.trim() || matches.length >= maxMatches) break
-    let msg: { type?: string; data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number } }
+    let msg: {
+      type?: string
+      data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number }
+    }
     try {
       msg = JSON.parse(line) as typeof msg
     } catch {
@@ -1840,10 +1830,7 @@ ipcMain.handle(
 
 ipcMain.handle(
   'voidcast:coding-delete-path',
-  async (
-    _evt,
-    payload: { projectPath?: string; path?: string; permanent?: boolean },
-  ) => {
+  async (_evt, payload: { projectPath?: string; path?: string; permanent?: boolean }) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
       const relPath = String(payload?.path ?? '').trim()
@@ -1915,8 +1902,7 @@ ipcMain.handle(
           ? Math.min(500_000, Math.max(1, Math.floor(payload.maxChars)))
           : undefined
 
-      const hasPartial =
-        startLine !== undefined || endLine !== undefined || maxChars !== undefined
+      const hasPartial = startLine !== undefined || endLine !== undefined || maxChars !== undefined
 
       if (!allowLarge && !hasPartial && content.length > CODING_READ_SOFT_CHAR_LIMIT) {
         return {
@@ -1933,7 +1919,11 @@ ipcMain.handle(
         const total = lines.length
         const from = startLine !== undefined ? startLine - 1 : 0
         let to =
-          endLine !== undefined ? endLine - 1 : startLine !== undefined ? startLine - 1 + 399 : total - 1
+          endLine !== undefined
+            ? endLine - 1
+            : startLine !== undefined
+              ? startLine - 1 + 399
+              : total - 1
         if (endLine === undefined && startLine !== undefined) {
           to = Math.min(startLine - 1 + 399, total - 1)
         }
@@ -2232,19 +2222,11 @@ ipcMain.handle(
             return {
               ok: false as const,
               error:
-                add.stderr.trim() ||
-                add.stdout.trim() ||
-                `git add -A failed (exit ${add.code}).`,
+                add.stderr.trim() || add.stdout.trim() || `git add -A failed (exit ${add.code}).`,
             }
           }
         }
-        const r = await runGitCapture(root, [
-          '-c',
-          'core.quotepath=false',
-          'commit',
-          '-m',
-          message,
-        ])
+        const r = await runGitCapture(root, ['-c', 'core.quotepath=false', 'commit', '-m', message])
         if (!r.ok) return { ok: false as const, error: r.error }
         if (r.code !== 0) {
           return {
@@ -2269,12 +2251,7 @@ ipcMain.handle(
         ])
         if (!restore.ok) return { ok: false as const, error: restore.error }
         // restore may fail on empty index edge cases; still try clean
-        const clean = await runGitCapture(root, [
-          '-c',
-          'core.quotepath=false',
-          'clean',
-          '-fd',
-        ])
+        const clean = await runGitCapture(root, ['-c', 'core.quotepath=false', 'clean', '-fd'])
         if (!clean.ok) return { ok: false as const, error: clean.error }
         if (clean.code !== 0) {
           return {
@@ -2339,10 +2316,7 @@ ipcMain.handle(
         if (r.code !== 0) {
           return {
             ok: false as const,
-            error:
-              r.stderr.trim() ||
-              r.stdout.trim() ||
-              `git ${mode} failed (exit ${r.code}).`,
+            error: r.stderr.trim() || r.stdout.trim() || `git ${mode} failed (exit ${r.code}).`,
           }
         }
         const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
@@ -2393,10 +2367,7 @@ ipcMain.handle(
         if (r.code !== 0) {
           return {
             ok: false as const,
-            error:
-              r.stderr.trim() ||
-              r.stdout.trim() ||
-              `git stash push failed (exit ${r.code}).`,
+            error: r.stderr.trim() || r.stdout.trim() || `git stash push failed (exit ${r.code}).`,
           }
         }
         const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
@@ -2428,10 +2399,7 @@ ipcMain.handle(
         if (r.code !== 0) {
           return {
             ok: false as const,
-            error:
-              r.stderr.trim() ||
-              r.stdout.trim() ||
-              `git stash pop failed (exit ${r.code}).`,
+            error: r.stderr.trim() || r.stdout.trim() || `git stash pop failed (exit ${r.code}).`,
           }
         }
         const combined = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
@@ -2620,10 +2588,7 @@ function relativizeDiagnosticFiles(
 
 ipcMain.handle(
   'voidcast:coding-check-types',
-  async (
-    _evt,
-    payload: { projectPath?: string; pathPrefix?: string; paths?: string[] },
-  ) => {
+  async (_evt, payload: { projectPath?: string; pathPrefix?: string; paths?: string[] }) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
       if (!projectPath) return { ok: false as const, error: 'Missing projectPath.' }
@@ -2878,7 +2843,10 @@ ipcMain.handle(
           }
           const rawOutput = [r.stdout, r.stderr].filter(Boolean).join('\n')
           // ruff exit 1 = findings; still parse stdout JSON
-          const parsed = relativizeDiagnosticFiles(parseRuffJsonDiagnostics(r.stdout || rawOutput), checkCwd)
+          const parsed = relativizeDiagnosticFiles(
+            parseRuffJsonDiagnostics(r.stdout || rawOutput),
+            checkCwd,
+          )
           const diagnostics = filterTscDiagnostics(parsed, filterPaths, pathPrefix)
           return {
             ok: true as const,
@@ -3029,10 +2997,14 @@ ipcMain.handle(
 
       if (runInBackground) {
         sendOutput({ stream: 'system', text: `$ ${command}  (background)` })
-        const stdio = attachCodingProcessStdio(child, (stream, text) => {
-          sendOutput({ stream, text })
-          appendCodingProcessOutput(runId, text)
-        }, 50)
+        const stdio = attachCodingProcessStdio(
+          child,
+          (stream, text) => {
+            sendOutput({ stream, text })
+            appendCodingProcessOutput(runId, text)
+          },
+          50,
+        )
         child.on('error', (err) => {
           sendOutput({ stream: 'stderr', text: err.message })
           stdio.flush()
@@ -3093,13 +3065,17 @@ ipcMain.handle(
         }, IDLE_PROMOTE_MS)
       }
 
-      const stdio = attachCodingProcessStdio(child, (stream, text) => {
-        if (stream === 'stdout') stdout += text
-        else stderr += text
-        sendOutput({ stream, text })
-        appendCodingProcessOutput(runId, text)
-        bumpIdlePromote()
-      }, 50)
+      const stdio = attachCodingProcessStdio(
+        child,
+        (stream, text) => {
+          if (stream === 'stdout') stdout += text
+          else stderr += text
+          sendOutput({ stream, text })
+          appendCodingProcessOutput(runId, text)
+          bumpIdlePromote()
+        },
+        50,
+      )
 
       const finish = (result: OkResult | ErrResult) => {
         if (settled) return
@@ -3215,22 +3191,19 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle(
-  'voidcast:coding-kill-command',
-  async (_evt, payload: { runId?: string }) => {
-    const runId = String(payload?.runId ?? '').trim()
-    if (!runId) return { ok: false as const, error: 'Missing runId.' }
-    const entry = activeCodingProcesses.get(runId)
-    if (!entry) return { ok: false as const, error: 'No running command for that runId.' }
-    entry.killed = true
-    try {
-      await killProcessTree(entry.pid)
-      return { ok: true as const }
-    } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
-    }
-  },
-)
+ipcMain.handle('voidcast:coding-kill-command', async (_evt, payload: { runId?: string }) => {
+  const runId = String(payload?.runId ?? '').trim()
+  if (!runId) return { ok: false as const, error: 'Missing runId.' }
+  const entry = activeCodingProcesses.get(runId)
+  if (!entry) return { ok: false as const, error: 'No running command for that runId.' }
+  entry.killed = true
+  try {
+    await killProcessTree(entry.pid)
+    return { ok: true as const }
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+  }
+})
 
 ipcMain.handle('voidcast:coding-list-active-processes', async () => {
   return { processes: listActiveCodingProcesses() }
@@ -3417,10 +3390,14 @@ async function extractTextFromBuffer(
 ): Promise<{ content?: string; truncated?: boolean }> {
   if (ext === 'pdf') {
     const pdfParseMod = await import('pdf-parse')
-    const PDFParseCtor = (pdfParseMod as { PDFParse: new (args: { data: Buffer }) => {
-      getText: () => Promise<{ text?: string }>
-      destroy: () => Promise<void>
-    } }).PDFParse
+    const PDFParseCtor = (
+      pdfParseMod as {
+        PDFParse: new (args: { data: Buffer }) => {
+          getText: () => Promise<{ text?: string }>
+          destroy: () => Promise<void>
+        }
+      }
+    ).PDFParse
     const parser = new PDFParseCtor({ data: buf })
     try {
       const parsed = await parser.getText()
@@ -3466,17 +3443,22 @@ ipcMain.handle('voidcast:pick-chat-attachments', async () => {
     title: 'Choose attachment(s) for chat',
     properties: ['openFile', 'multiSelections'],
     filters: [
-      { name: 'Supported attachments', extensions: [...CHAT_IMAGE_EXTENSIONS, ...Array.from(CHAT_FILE_EXTENSIONS)] },
+      {
+        name: 'Supported attachments',
+        extensions: [...CHAT_IMAGE_EXTENSIONS, ...Array.from(CHAT_FILE_EXTENSIONS)],
+      },
     ],
   }
-  const result = win
-    ? await dialog.showOpenDialog(win, opts)
-    : await dialog.showOpenDialog(opts)
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
   if (result.canceled || !result.filePaths?.length) {
     return { ok: false as const }
   }
-  const imagePaths = result.filePaths.filter((fp) => CHAT_IMAGE_EXTENSION_SET.has(extFromPath(fp))).slice(0, MAX_CHAT_IMAGE_FILES)
-  const filePaths = result.filePaths.filter((fp) => !CHAT_IMAGE_EXTENSION_SET.has(extFromPath(fp))).slice(0, MAX_CHAT_FILE_COUNT)
+  const imagePaths = result.filePaths
+    .filter((fp) => CHAT_IMAGE_EXTENSION_SET.has(extFromPath(fp)))
+    .slice(0, MAX_CHAT_IMAGE_FILES)
+  const filePaths = result.filePaths
+    .filter((fp) => !CHAT_IMAGE_EXTENSION_SET.has(extFromPath(fp)))
+    .slice(0, MAX_CHAT_FILE_COUNT)
   const images: { base64: string; mime: string; name: string; path: string }[] = []
   for (const fp of imagePaths) {
     const st = await stat(fp)
@@ -3517,8 +3499,7 @@ ipcMain.handle(
     _evt,
     payload: { name?: string; ext?: string; bytes?: ArrayBuffer },
   ): Promise<
-    | { ok: true; content?: string; truncated?: boolean }
-    | { ok: false; error?: string }
+    { ok: true; content?: string; truncated?: boolean } | { ok: false; error?: string }
   > => {
     try {
       const name = String(payload?.name ?? '')
@@ -3603,8 +3584,7 @@ ipcMain.handle('voidcast:notify-agent-done', (_event, payload: unknown) => {
   if (!win.isMinimized() && win.isVisible()) return false
   if (!Notification.isSupported()) return false
   const src = (payload ?? {}) as { title?: unknown; body?: unknown }
-  const title =
-    typeof src.title === 'string' && src.title.trim() ? src.title.trim() : 'Voidcast'
+  const title = typeof src.title === 'string' && src.title.trim() ? src.title.trim() : 'Voidcast'
   const body = typeof src.body === 'string' ? src.body.trim().slice(0, 400) : ''
   try {
     const toast = new Notification({ title, body, silent: true })
@@ -3672,9 +3652,9 @@ ipcMain.handle('voidcast:open-path', async (_evt, filePath: string) => {
 
 // ── MCP (stdio servers from ~/.voidcast/mcp.json + project .mcp.json) ────────
 
-function mcpEnabledMapFromPayload(
-  payload?: { enabledServers?: Record<string, boolean> },
-): Record<string, boolean> {
+function mcpEnabledMapFromPayload(payload?: {
+  enabledServers?: Record<string, boolean>
+}): Record<string, boolean> {
   const raw = payload?.enabledServers
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   const out: Record<string, boolean> = {}
@@ -3697,7 +3677,9 @@ function mcpProjectPathFromPayload(payload?: McpIpcPayload): string {
 function mcpTrustedPathsFromPayload(payload?: McpIpcPayload): string[] {
   const raw = payload?.trustedProjectPaths
   if (!Array.isArray(raw)) return []
-  return raw.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+  return raw.filter(
+    (entry): entry is string => typeof entry === 'string' && entry.trim().length > 0,
+  )
 }
 
 function mcpConnectionOpts(payload?: McpIpcPayload): { allowProjectConfig: boolean } {
@@ -3713,23 +3695,24 @@ function mcpConnectionOpts(payload?: McpIpcPayload): { allowProjectConfig: boole
   }
 }
 
-ipcMain.handle(
-  'voidcast:mcp-list-tools',
-  async (_evt, payload?: McpIpcPayload) => {
-    try {
-      const projectPath = mcpProjectPathFromPayload(payload)
-      const enabledServers = mcpEnabledMapFromPayload(payload)
-      await mcpManager.ensureConnected(projectPath || undefined, enabledServers, mcpConnectionOpts(payload))
-      return { ok: true as const, tools: mcpManager.listTools() }
-    } catch (e) {
-      return {
-        ok: false as const,
-        tools: [] as ReturnType<typeof mcpManager.listTools>,
-        error: e instanceof Error ? e.message : String(e),
-      }
+ipcMain.handle('voidcast:mcp-list-tools', async (_evt, payload?: McpIpcPayload) => {
+  try {
+    const projectPath = mcpProjectPathFromPayload(payload)
+    const enabledServers = mcpEnabledMapFromPayload(payload)
+    await mcpManager.ensureConnected(
+      projectPath || undefined,
+      enabledServers,
+      mcpConnectionOpts(payload),
+    )
+    return { ok: true as const, tools: mcpManager.listTools() }
+  } catch (e) {
+    return {
+      ok: false as const,
+      tools: [] as ReturnType<typeof mcpManager.listTools>,
+      error: e instanceof Error ? e.message : String(e),
     }
-  },
-)
+  }
+})
 
 ipcMain.handle(
   'voidcast:mcp-execute-tool',
@@ -3832,26 +3815,23 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle(
-  'voidcast:mcp-reload',
-  async (_evt, payload?: McpIpcPayload) => {
-    try {
-      const projectPath = mcpProjectPathFromPayload(payload)
-      const enabledServers = mcpEnabledMapFromPayload(payload)
-      return await mcpManager.reload(
-        projectPath || undefined,
-        enabledServers,
-        mcpConnectionOpts(payload),
-      )
-    } catch (e) {
-      return {
-        ok: false as const,
-        status: [] as ReturnType<typeof mcpManager.getStatus>,
-        error: e instanceof Error ? e.message : String(e),
-      }
+ipcMain.handle('voidcast:mcp-reload', async (_evt, payload?: McpIpcPayload) => {
+  try {
+    const projectPath = mcpProjectPathFromPayload(payload)
+    const enabledServers = mcpEnabledMapFromPayload(payload)
+    return await mcpManager.reload(
+      projectPath || undefined,
+      enabledServers,
+      mcpConnectionOpts(payload),
+    )
+  } catch (e) {
+    return {
+      ok: false as const,
+      status: [] as ReturnType<typeof mcpManager.getStatus>,
+      error: e instanceof Error ? e.message : String(e),
     }
-  },
-)
+  }
+})
 
 ipcMain.handle(
   'voidcast:mcp-status',
@@ -3869,11 +3849,7 @@ ipcMain.handle(
       const enabledServers = mcpEnabledMapFromPayload(payload)
       const connectionOpts = mcpConnectionOpts(payload)
       if (payload?.ensure) {
-        await mcpManager.ensureConnected(
-          projectPath || undefined,
-          enabledServers,
-          connectionOpts,
-        )
+        await mcpManager.ensureConnected(projectPath || undefined, enabledServers, connectionOpts)
       }
       const pendingProjectTrust =
         Boolean(projectPath) &&
@@ -3918,9 +3894,7 @@ ipcMain.handle('voidcast:mcp-stop-all', async () => {
 })
 
 ipcMain.handle('voidcast:mcp-cancel-active-calls', async (_evt, payload?: { ownerId?: string }) => {
-  mcpManager.cancelActiveCalls(
-    typeof payload?.ownerId === 'string' ? payload.ownerId : undefined,
-  )
+  mcpManager.cancelActiveCalls(typeof payload?.ownerId === 'string' ? payload.ownerId : undefined)
   return { ok: true as const }
 })
 
@@ -4190,22 +4164,19 @@ async function readProjectAgentInstructionFiles(
   return out
 }
 
-ipcMain.handle(
-  'voidcast:list-agent-skills',
-  async (_evt, payload?: { projectPath?: string }) => {
-    try {
-      const projectPath = String(payload?.projectPath ?? '').trim() || undefined
-      const skills = await discoverAgentSkillsFromDisk(projectPath)
-      return { ok: true as const, skills }
-    } catch (e) {
-      return {
-        ok: false as const,
-        error: e instanceof Error ? e.message : String(e),
-        skills: [] as AgentSkillMeta[],
-      }
+ipcMain.handle('voidcast:list-agent-skills', async (_evt, payload?: { projectPath?: string }) => {
+  try {
+    const projectPath = String(payload?.projectPath ?? '').trim() || undefined
+    const skills = await discoverAgentSkillsFromDisk(projectPath)
+    return { ok: true as const, skills }
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+      skills: [] as AgentSkillMeta[],
     }
-  },
-)
+  }
+})
 
 ipcMain.handle(
   'voidcast:read-agent-skill',
@@ -4240,7 +4211,11 @@ ipcMain.handle(
   async (_evt, payload: { projectPath?: string }) => {
     const projectPath = String(payload?.projectPath ?? '').trim()
     if (!projectPath) {
-      return { ok: false as const, error: 'Missing project path.', files: [] as { fileName: string; content: string }[] }
+      return {
+        ok: false as const,
+        error: 'Missing project path.',
+        files: [] as { fileName: string; content: string }[],
+      }
     }
     try {
       const files = await readProjectAgentInstructionFiles(projectPath)

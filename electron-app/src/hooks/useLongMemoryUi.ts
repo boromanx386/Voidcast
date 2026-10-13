@@ -14,11 +14,7 @@ import {
   type Reminder,
 } from '@/lib/reminderStorage'
 import { fetchHostToolConfig } from '@/lib/hostToolConfig'
-import {
-  recordMemoryDeleted,
-  scheduleUserDataSync,
-  syncUserDataNow,
-} from '@/lib/userDataSync'
+import { recordMemoryDeleted, scheduleUserDataSync, syncUserDataNow } from '@/lib/userDataSync'
 import { isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
 import { toConversationTurns } from '@/lib/chatHints'
@@ -226,20 +222,32 @@ export function useLongMemoryUi({
       cancelled = true
       if (timer != null) window.clearInterval(timer)
     }
-  }, [settings.reminderNotificationsEnabled, settings.ttsBaseUrl, refreshReminders, setOptionsTab, setScreen])
+  }, [
+    settings.reminderNotificationsEnabled,
+    settings.ttsBaseUrl,
+    refreshReminders,
+    setOptionsTab,
+    setScreen,
+  ])
 
-  const deleteLongMemoryById = useCallback(async (id: string) => {
-    await deleteMemory(id)
-    recordMemoryDeleted(id)
-    scheduleUserDataSync(settings.ttsBaseUrl)
-    await refreshLongMemories()
-  }, [refreshLongMemories, settings.ttsBaseUrl])
+  const deleteLongMemoryById = useCallback(
+    async (id: string) => {
+      await deleteMemory(id)
+      recordMemoryDeleted(id)
+      scheduleUserDataSync(settings.ttsBaseUrl)
+      await refreshLongMemories()
+    },
+    [refreshLongMemories, settings.ttsBaseUrl],
+  )
 
-  const updateLongMemoryById = useCallback(async (id: string, text: string) => {
-    await updateMemoryText(id, text)
-    scheduleUserDataSync(settings.ttsBaseUrl)
-    await refreshLongMemories()
-  }, [refreshLongMemories, settings.ttsBaseUrl])
+  const updateLongMemoryById = useCallback(
+    async (id: string, text: string) => {
+      await updateMemoryText(id, text)
+      scheduleUserDataSync(settings.ttsBaseUrl)
+      await refreshLongMemories()
+    },
+    [refreshLongMemories, settings.ttsBaseUrl],
+  )
 
   useEffect(() => {
     if (screen === 'options' && optionsTab === 'general') {

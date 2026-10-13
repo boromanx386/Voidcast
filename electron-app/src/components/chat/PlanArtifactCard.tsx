@@ -315,9 +315,7 @@ export function PlanArtifactCard({
           type="button"
           className="plan-artifact-card__approve"
           disabled={
-            busy ||
-            plan.steps.every((s) => !s.text.trim()) ||
-            (hasApproaches && !selectedId)
+            busy || plan.steps.every((s) => !s.text.trim()) || (hasApproaches && !selectedId)
           }
           onClick={() =>
             onApproveAndBuild(messageId, {

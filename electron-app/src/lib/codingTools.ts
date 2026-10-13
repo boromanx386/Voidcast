@@ -19,7 +19,9 @@ function missingBridgeResult(action: string): CodingToolResult {
   return { ok: false, text: `${action} is available only in Electron desktop.` }
 }
 
-export async function invokePickCodingDirectory(): Promise<{ ok: true; path: string } | { ok: false }> {
+export async function invokePickCodingDirectory(): Promise<
+  { ok: true; path: string } | { ok: false }
+> {
   const fn = window.voidcast?.pickCodingDirectory
   if (!fn) return { ok: false }
   return fn()
@@ -161,13 +163,15 @@ export async function invokeReadCodingFile(
   const lineEndings: FileLineEndings = res.lineEndings ?? 'lf'
   const numberedView = options?.startLine !== undefined || options?.endLine !== undefined
   const prefix =
-    options?.forToolDisplay === true
-      ? readFileToolDisplayPrefix(lineEndings, numberedView)
-      : ''
+    options?.forToolDisplay === true ? readFileToolDisplayPrefix(lineEndings, numberedView) : ''
   return { ok: true, text: `${prefix}${res.content}` }
 }
 
-export async function invokeWriteCodingFile(projectPath: string, path: string, content: string): Promise<CodingToolResult> {
+export async function invokeWriteCodingFile(
+  projectPath: string,
+  path: string,
+  content: string,
+): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingWriteFile
   if (!fn) return missingBridgeResult('Write file')
   const res = await fn({ projectPath, path, content })
@@ -216,13 +220,7 @@ export async function invokeEditCodingFile(
         ? `whitespace-normalized ${replaceAll ? 'all matches' : 'first match'}`
         : `${applied.mode === 'crlf-expanded' ? 'CRLF-adjusted' : 'EOL-normalized'} ${replaceAll ? 'all matches' : 'first match'}`
   const lineNote = `lines ${applied.startLine}-${applied.endLine}`
-  const diff = buildEditUnifiedDiff(
-    before,
-    applied.next,
-    path,
-    applied.startLine,
-    applied.endLine,
-  )
+  const diff = buildEditUnifiedDiff(before, applied.next, path, applied.startLine, applied.endLine)
   return {
     ok: true,
     text: `Edited ${path} (${lineNote}, ${modeNote})\n${diff}`,

@@ -52,9 +52,15 @@ const KEY_TABLE: Record<string, KeySpec> = {
 const CODE_ALIASES = new Map<string, KeySpec>()
 for (let d = 0; d <= 9; d++) {
   CODE_ALIASES.set(`Digit${d}`, { key: String(d), code: `Digit${d}`, vk: 48 + d, text: String(d) })
-  CODE_ALIASES.set(`Numpad${d}`, { key: String(d), code: `Numpad${d}`, vk: 96 + d, text: String(d) })
+  CODE_ALIASES.set(`Numpad${d}`, {
+    key: String(d),
+    code: `Numpad${d}`,
+    vk: 96 + d,
+    text: String(d),
+  })
 }
-for (let f = 1; f <= 12; f++) CODE_ALIASES.set(`F${f}`, { key: `F${f}`, code: `F${f}`, vk: 111 + f })
+for (let f = 1; f <= 12; f++)
+  CODE_ALIASES.set(`F${f}`, { key: `F${f}`, code: `F${f}`, vk: 111 + f })
 for (let i = 0; i < 26; i++) {
   const upper = String.fromCharCode(65 + i)
   CODE_ALIASES.set(`Key${upper}`, {
@@ -86,7 +92,7 @@ const SHIFTED_CHARS: Record<string, string> = {
   '!': '1',
   '@': '2',
   '#': '3',
-  '$': '4',
+  $: '4',
   '%': '5',
   '^': '6',
   '&': '7',

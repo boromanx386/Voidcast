@@ -83,9 +83,9 @@ describe('resolveContextLimit', () => {
     )
     expect(limit.maxTokens).toBe(1_050_000)
     expect(limit.source).toBe('preset')
-    expect(activeLlmModelId(baseSettings({ llmProvider: 'openai', openaiModel: 'openai/gpt-5.6-sol' }))).toBe(
-      'gpt-5.6-sol',
-    )
+    expect(
+      activeLlmModelId(baseSettings({ llmProvider: 'openai', openaiModel: 'openai/gpt-5.6-sol' })),
+    ).toBe('gpt-5.6-sol')
   })
 
   test('unknown cloud model falls back to provider default', () => {
@@ -161,6 +161,10 @@ describe('estimateContextUsage with resolved limit', () => {
     const usage = estimateContextUsage({ prompt_eval_count: 500_000, eval_count: 500 }, limit)
     expect(usage?.maxTokens).toBe(1_000_000)
     expect(usage?.ratio).toBe(0.5)
-    expect(usage?.modelId).toBe(activeLlmModelId(baseSettings({ llmProvider: 'openrouter', openrouterModel: 'anthropic/claude-sonnet-5' })))
+    expect(usage?.modelId).toBe(
+      activeLlmModelId(
+        baseSettings({ llmProvider: 'openrouter', openrouterModel: 'anthropic/claude-sonnet-5' }),
+      ),
+    )
   })
 })

@@ -45,9 +45,7 @@
     {
       "from": "../tts-server/dist",
       "to": "tools",
-      "filter": [
-        "voidcast-tools-server*"
-      ]
+      "filter": ["voidcast-tools-server*"]
     }
   ],
   "win": {
@@ -55,19 +53,14 @@
     "target": [
       {
         "target": "nsis",
-        "arch": [
-          "x64"
-        ]
+        "arch": ["x64"]
       }
     ],
     "artifactName": "${productName}_${version}_Setup.${ext}"
   },
   "linux": {
     "icon": "../logo_app_nobg.png",
-    "target": [
-      "AppImage",
-      "deb"
-    ],
+    "target": ["AppImage", "deb"],
     "category": "Utility",
     "maintainer": "Boroman <mr.borivoj@gmail.com>",
     "artifactName": "${productName}_${version}.${ext}"

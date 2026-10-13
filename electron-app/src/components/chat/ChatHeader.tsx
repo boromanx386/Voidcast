@@ -18,7 +18,14 @@ function SessionsToggleIcon({ collapsed }: { collapsed: boolean }) {
       strokeLinejoin="round"
       aria-hidden
     >
-      <rect x="3" y="4" width="6" height="16" rx="1" className={collapsed ? 'opacity-40' : undefined} />
+      <rect
+        x="3"
+        y="4"
+        width="6"
+        height="16"
+        rx="1"
+        className={collapsed ? 'opacity-40' : undefined}
+      />
       <rect x="11" y="4" width="10" height="16" rx="1" />
     </svg>
   )

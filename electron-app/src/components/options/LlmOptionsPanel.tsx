@@ -11,10 +11,7 @@ import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import { pinnedIdLabel, pinsForProvider, toScopedPinnedId } from '@/lib/pinnedModels'
 import { useCallback, useState } from 'react'
-import {
-  fetchOpenRouterModelEndpoints,
-  type OpenRouterModelEndpoint,
-} from '@/lib/openrouter'
+import { fetchOpenRouterModelEndpoints, type OpenRouterModelEndpoint } from '@/lib/openrouter'
 import type { Dispatch, SetStateAction } from 'react'
 import type { CloudLlmPreset } from '@/lib/cloudLlmPresets'
 
@@ -56,13 +53,7 @@ function pinnedChips(
   )
 }
 
-function PinToggleButton({
-  pinned,
-  onToggle,
-}: {
-  pinned: boolean
-  onToggle: () => void
-}) {
+function PinToggleButton({ pinned, onToggle }: { pinned: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
@@ -169,7 +160,7 @@ export function LlmOptionsPanel({
                         ? 'openai'
                         : e.target.value === 'opencode-go'
                           ? 'opencode-go'
-                            : 'ollama',
+                          : 'ollama',
             }))
           }
         >
@@ -183,132 +174,128 @@ export function LlmOptionsPanel({
       </div>
 
       {/* Ollama URL */}
-      {settings.llmProvider === 'ollama' && <div className="form-group">
-        <label className="form-label">
-          <span className="text-neon-purple mr-2">◇</span> OLLAMA_BASE_URL
-        </label>
-        <input
-          className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
-          readOnly={isWebStandalone()}
-          value={settings.ollamaBaseUrl}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, ollamaBaseUrl: e.target.value }))
-          }
-        />
-        {isWebStandalone() && (
-          <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-            Proxied through the local server at <code className="text-neon-purple">/api/ollama/*</code> to the
-            desktop&apos;s Ollama. Same LAN as the phone browser.
-          </p>
-        )}
-      </div>}
+      {settings.llmProvider === 'ollama' && (
+        <div className="form-group">
+          <label className="form-label">
+            <span className="text-neon-purple mr-2">◇</span> OLLAMA_BASE_URL
+          </label>
+          <input
+            className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
+            readOnly={isWebStandalone()}
+            value={settings.ollamaBaseUrl}
+            onChange={(e) => setSettings((s) => ({ ...s, ollamaBaseUrl: e.target.value }))}
+          />
+          {isWebStandalone() && (
+            <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+              Proxied through the local server at{' '}
+              <code className="text-neon-purple">/api/ollama/*</code> to the desktop&apos;s Ollama.
+              Same LAN as the phone browser.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Model Selection */}
-      {settings.llmProvider === 'ollama' && <div className="form-group">
-        <div className="flex items-center justify-between mb-2">
-          <label
-            className="form-label mb-0 cursor-help"
-            title="Suggested on Ollama: Qwen 3.5, Gemma 4, MiniMax 2.7 (exact tag names vary — use REFRESH and your library)."
-          >
-            <span className="text-neon-cyan mr-2">◈</span> MODEL_SELECTION
-          </label>
-          <button
-            type="button"
-            className="cyber-btn text-xs py-1.5"
-            disabled={modelsLoading}
-            onClick={() => void loadModels()}
-          >
-            {modelsLoading ? (
-              <span className="flex items-center gap-2">
-                <span className="cyber-spinner w-3 h-3" />
-                SCANNING
-              </span>
-            ) : (
-              '↻ REFRESH'
-            )}
-          </button>
-        </div>
-
-        {/* Status Badge */}
-        {!modelsError && ollamaModels.length > 0 && (
-          <div className="cyber-badge success mb-3 inline-flex">
-            <span className="status-dot online mr-2" />
-            {ollamaModels.length} MODELS_DETECTED
+      {settings.llmProvider === 'ollama' && (
+        <div className="form-group">
+          <div className="flex items-center justify-between mb-2">
+            <label
+              className="form-label mb-0 cursor-help"
+              title="Suggested on Ollama: Qwen 3.5, Gemma 4, MiniMax 2.7 (exact tag names vary — use REFRESH and your library)."
+            >
+              <span className="text-neon-cyan mr-2">◈</span> MODEL_SELECTION
+            </label>
+            <button
+              type="button"
+              className="cyber-btn text-xs py-1.5"
+              disabled={modelsLoading}
+              onClick={() => void loadModels()}
+            >
+              {modelsLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="cyber-spinner w-3 h-3" />
+                  SCANNING
+                </span>
+              ) : (
+                '↻ REFRESH'
+              )}
+            </button>
           </div>
-        )}
 
-        {modelsError && (
-          <div className="cyber-badge danger mb-3 inline-flex">
-            <span className="mr-2">⚠</span>
-            CONNECTION_FAILED
-          </div>
-        )}
-
-        {/* Pinned chips for Ollama */}
-        {pinnedChips(
-          pinsForProvider(pinned, 'ollama'),
-          pinsForProvider(pinned, 'ollama').map((id) => ({
-            id,
-            label: pinnedIdLabel(id),
-          })),
-          toScopedPinnedId('ollama', settings.ollamaModel),
-          handleTogglePin,
-        )}
-
-        {/* Model Dropdown */}
-        <div className="flex items-center gap-2">
-        <select
-          className="form-select flex-1"
-          value={
-            ollamaModels.includes(settings.ollamaModel)
-              ? settings.ollamaModel
-              : settings.ollamaModel
-                ? `__custom__${settings.ollamaModel}`
-                : ''
-          }
-          disabled={modelsLoading}
-          onChange={(e) => {
-            const v = e.target.value
-            if (!v || v.startsWith('__custom__')) return
-            setSettings((s) => ({ ...s, ollamaModel: v }))
-          }}
-        >
-          {modelsLoading && <option value="">Loading models...</option>}
-          {!modelsLoading && ollamaModels.length === 0 && (
-            <option value="">No models found</option>
+          {/* Status Badge */}
+          {!modelsError && ollamaModels.length > 0 && (
+            <div className="cyber-badge success mb-3 inline-flex">
+              <span className="status-dot online mr-2" />
+              {ollamaModels.length} MODELS_DETECTED
+            </div>
           )}
-          {ollamaModels.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-          {settings.ollamaModel &&
-            !ollamaModels.includes(settings.ollamaModel) && (
-              <option value={`__custom__${settings.ollamaModel}`}>
-                {settings.ollamaModel} (manual)
-              </option>
-            )}
-        </select>
-        <PinToggleButton
-          pinned={pinned.includes(toScopedPinnedId('ollama', settings.ollamaModel))}
-          onToggle={() => handleTogglePin(toScopedPinnedId('ollama', settings.ollamaModel))}
-        />
-        </div>
 
-        {/* Manual Model Input */}
-        <input
-          className="cyber-input mt-2"
-          placeholder="Enter model name manually..."
-          value={
-            ollamaModels.includes(settings.ollamaModel)
-              ? ''
-              : settings.ollamaModel
-          }
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, ollamaModel: e.target.value }))
-          }
-        />
-      </div>}
+          {modelsError && (
+            <div className="cyber-badge danger mb-3 inline-flex">
+              <span className="mr-2">⚠</span>
+              CONNECTION_FAILED
+            </div>
+          )}
+
+          {/* Pinned chips for Ollama */}
+          {pinnedChips(
+            pinsForProvider(pinned, 'ollama'),
+            pinsForProvider(pinned, 'ollama').map((id) => ({
+              id,
+              label: pinnedIdLabel(id),
+            })),
+            toScopedPinnedId('ollama', settings.ollamaModel),
+            handleTogglePin,
+          )}
+
+          {/* Model Dropdown */}
+          <div className="flex items-center gap-2">
+            <select
+              className="form-select flex-1"
+              value={
+                ollamaModels.includes(settings.ollamaModel)
+                  ? settings.ollamaModel
+                  : settings.ollamaModel
+                    ? `__custom__${settings.ollamaModel}`
+                    : ''
+              }
+              disabled={modelsLoading}
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v || v.startsWith('__custom__')) return
+                setSettings((s) => ({ ...s, ollamaModel: v }))
+              }}
+            >
+              {modelsLoading && <option value="">Loading models...</option>}
+              {!modelsLoading && ollamaModels.length === 0 && (
+                <option value="">No models found</option>
+              )}
+              {ollamaModels.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              {settings.ollamaModel && !ollamaModels.includes(settings.ollamaModel) && (
+                <option value={`__custom__${settings.ollamaModel}`}>
+                  {settings.ollamaModel} (manual)
+                </option>
+              )}
+            </select>
+            <PinToggleButton
+              pinned={pinned.includes(toScopedPinnedId('ollama', settings.ollamaModel))}
+              onToggle={() => handleTogglePin(toScopedPinnedId('ollama', settings.ollamaModel))}
+            />
+          </div>
+
+          {/* Manual Model Input */}
+          <input
+            className="cyber-input mt-2"
+            placeholder="Enter model name manually..."
+            value={ollamaModels.includes(settings.ollamaModel) ? '' : settings.ollamaModel}
+            onChange={(e) => setSettings((s) => ({ ...s, ollamaModel: e.target.value }))}
+          />
+        </div>
+      )}
 
       {settings.llmProvider === 'openrouter' && (
         <>
@@ -320,9 +307,7 @@ export function LlmOptionsPanel({
               className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
               readOnly={isWebStandalone()}
               value={settings.openrouterBaseUrl}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, openrouterBaseUrl: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, openrouterBaseUrl: e.target.value }))}
               placeholder="https://openrouter.ai/api/v1"
             />
             {isWebStandalone() && (
@@ -347,39 +332,39 @@ export function LlmOptionsPanel({
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
-            <select
-              className="form-select flex-1"
-              value={
-                OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel)
-                  ? settings.openrouterModel
-                  : settings.openrouterModel
-                    ? `__custom__${settings.openrouterModel}`
-                    : ''
-              }
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v || v.startsWith('__custom__')) return
-                setSettings((s) => ({ ...s, ...withOpenRouterModel(s, v) }))
-              }}
-            >
-              {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-              {settings.openrouterModel &&
-                !OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel) && (
-                  <option value={`__custom__${settings.openrouterModel}`}>
-                    {settings.openrouterModel} (manual)
+              <select
+                className="form-select flex-1"
+                value={
+                  OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel)
+                    ? settings.openrouterModel
+                    : settings.openrouterModel
+                      ? `__custom__${settings.openrouterModel}`
+                      : ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (!v || v.startsWith('__custom__')) return
+                  setSettings((s) => ({ ...s, ...withOpenRouterModel(s, v) }))
+                }}
+              >
+                {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
                   </option>
-                )}
-            </select>
-            <PinToggleButton
-              pinned={pinned.includes(toScopedPinnedId('openrouter', settings.openrouterModel))}
-              onToggle={() =>
-                handleTogglePin(toScopedPinnedId('openrouter', settings.openrouterModel))
-              }
-            />
+                ))}
+                {settings.openrouterModel &&
+                  !OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel) && (
+                    <option value={`__custom__${settings.openrouterModel}`}>
+                      {settings.openrouterModel} (manual)
+                    </option>
+                  )}
+              </select>
+              <PinToggleButton
+                pinned={pinned.includes(toScopedPinnedId('openrouter', settings.openrouterModel))}
+                onToggle={() =>
+                  handleTogglePin(toScopedPinnedId('openrouter', settings.openrouterModel))
+                }
+              />
             </div>
             <input
               className="cyber-input mt-2"
@@ -470,8 +455,7 @@ export function LlmOptionsPanel({
                         typeof ep.uptime_last_30m === 'number'
                           ? `${ep.uptime_last_30m.toFixed(1)}%`
                           : '—'
-                      const isCurrent =
-                        (settings.openrouterProviderOnly || '').trim() === ep.tag
+                      const isCurrent = (settings.openrouterProviderOnly || '').trim() === ep.tag
                       return (
                         <tr
                           key={ep.tag}
@@ -528,9 +512,7 @@ export function LlmOptionsPanel({
               className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
               readOnly={isWebStandalone()}
               value={settings.nvidiaBaseUrl}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, nvidiaBaseUrl: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, nvidiaBaseUrl: e.target.value }))}
               placeholder="https://integrate.api.nvidia.com/v1"
             />
             {isWebStandalone() && (
@@ -555,44 +537,42 @@ export function LlmOptionsPanel({
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
-            <select
-              className="form-select flex-1"
-              value={
-                NVIDIA_LLM_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel)
-                  ? settings.nvidiaModel
-                  : settings.nvidiaModel
-                    ? `__custom__${settings.nvidiaModel}`
-                    : ''
-              }
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v || v.startsWith('__custom__')) return
-                setSettings((s) => ({ ...s, nvidiaModel: v }))
-              }}
-            >
-              {NVIDIA_LLM_PRESET_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-              {settings.nvidiaModel &&
-                !NVIDIA_LLM_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel) && (
-                  <option value={`__custom__${settings.nvidiaModel}`}>
-                    {settings.nvidiaModel} (manual)
+              <select
+                className="form-select flex-1"
+                value={
+                  NVIDIA_LLM_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel)
+                    ? settings.nvidiaModel
+                    : settings.nvidiaModel
+                      ? `__custom__${settings.nvidiaModel}`
+                      : ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (!v || v.startsWith('__custom__')) return
+                  setSettings((s) => ({ ...s, nvidiaModel: v }))
+                }}
+              >
+                {NVIDIA_LLM_PRESET_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
                   </option>
-                )}
-            </select>
-            <PinToggleButton
-              pinned={pinned.includes(toScopedPinnedId('nvidia', settings.nvidiaModel))}
-              onToggle={() => handleTogglePin(toScopedPinnedId('nvidia', settings.nvidiaModel))}
-            />
+                ))}
+                {settings.nvidiaModel &&
+                  !NVIDIA_LLM_PRESET_MODELS.some((m) => m.id === settings.nvidiaModel) && (
+                    <option value={`__custom__${settings.nvidiaModel}`}>
+                      {settings.nvidiaModel} (manual)
+                    </option>
+                  )}
+              </select>
+              <PinToggleButton
+                pinned={pinned.includes(toScopedPinnedId('nvidia', settings.nvidiaModel))}
+                onToggle={() => handleTogglePin(toScopedPinnedId('nvidia', settings.nvidiaModel))}
+              />
             </div>
             <input
               className="cyber-input mt-2"
               value={settings.nvidiaModel}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, nvidiaModel: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, nvidiaModel: e.target.value }))}
               placeholder="nvidia/nemotron-3-super-120b-a12b"
             />
           </div>
@@ -609,16 +589,14 @@ export function LlmOptionsPanel({
               className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
               readOnly={isWebStandalone()}
               value={settings.deepseekBaseUrl}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, deepseekBaseUrl: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, deepseekBaseUrl: e.target.value }))}
               placeholder="https://api.deepseek.com"
             />
             {isWebStandalone() && (
               <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
                 Proxied through the local server at{' '}
-                <code className="text-neon-purple">/api/deepseek/*</code> using keys from the desktop
-                app.
+                <code className="text-neon-purple">/api/deepseek/*</code> using keys from the
+                desktop app.
               </p>
             )}
           </div>
@@ -636,46 +614,44 @@ export function LlmOptionsPanel({
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
-            <select
-              className="form-select flex-1"
-              value={
-                DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === settings.deepseekModel)
-                  ? settings.deepseekModel
-                  : settings.deepseekModel
-                    ? `__custom__${settings.deepseekModel}`
-                    : ''
-              }
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v || v.startsWith('__custom__')) return
-                setSettings((s) => ({ ...s, deepseekModel: v }))
-              }}
-            >
-              {DEEPSEEK_LLM_PRESET_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-              {settings.deepseekModel &&
-                !DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === settings.deepseekModel) && (
-                  <option value={`__custom__${settings.deepseekModel}`}>
-                    {settings.deepseekModel} (manual)
+              <select
+                className="form-select flex-1"
+                value={
+                  DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === settings.deepseekModel)
+                    ? settings.deepseekModel
+                    : settings.deepseekModel
+                      ? `__custom__${settings.deepseekModel}`
+                      : ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (!v || v.startsWith('__custom__')) return
+                  setSettings((s) => ({ ...s, deepseekModel: v }))
+                }}
+              >
+                {DEEPSEEK_LLM_PRESET_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
                   </option>
-                )}
-            </select>
-            <PinToggleButton
-              pinned={pinned.includes(toScopedPinnedId('deepseek', settings.deepseekModel))}
-              onToggle={() =>
-                handleTogglePin(toScopedPinnedId('deepseek', settings.deepseekModel))
-              }
-            />
+                ))}
+                {settings.deepseekModel &&
+                  !DEEPSEEK_LLM_PRESET_MODELS.some((m) => m.id === settings.deepseekModel) && (
+                    <option value={`__custom__${settings.deepseekModel}`}>
+                      {settings.deepseekModel} (manual)
+                    </option>
+                  )}
+              </select>
+              <PinToggleButton
+                pinned={pinned.includes(toScopedPinnedId('deepseek', settings.deepseekModel))}
+                onToggle={() =>
+                  handleTogglePin(toScopedPinnedId('deepseek', settings.deepseekModel))
+                }
+              />
             </div>
             <input
               className="cyber-input mt-2"
               value={settings.deepseekModel}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, deepseekModel: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, deepseekModel: e.target.value }))}
               placeholder="deepseek-v4-pro"
             />
           </div>
@@ -692,9 +668,7 @@ export function LlmOptionsPanel({
               className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
               readOnly={isWebStandalone()}
               value={settings.openaiBaseUrl}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, openaiBaseUrl: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, openaiBaseUrl: e.target.value }))}
               placeholder="https://api.openai.com/v1"
             />
             {isWebStandalone() && (
@@ -719,46 +693,42 @@ export function LlmOptionsPanel({
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
-            <select
-              className="form-select flex-1"
-              value={
-                OPENAI_LLM_PRESET_MODELS.some((m) => m.id === settings.openaiModel)
-                  ? settings.openaiModel
-                  : settings.openaiModel
-                    ? `__custom__${settings.openaiModel}`
-                    : ''
-              }
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v || v.startsWith('__custom__')) return
-                setSettings((s) => ({ ...s, openaiModel: v }))
-              }}
-            >
-              {OPENAI_LLM_PRESET_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-              {settings.openaiModel &&
-                !OPENAI_LLM_PRESET_MODELS.some((m) => m.id === settings.openaiModel) && (
-                  <option value={`__custom__${settings.openaiModel}`}>
-                    {settings.openaiModel} (manual)
+              <select
+                className="form-select flex-1"
+                value={
+                  OPENAI_LLM_PRESET_MODELS.some((m) => m.id === settings.openaiModel)
+                    ? settings.openaiModel
+                    : settings.openaiModel
+                      ? `__custom__${settings.openaiModel}`
+                      : ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (!v || v.startsWith('__custom__')) return
+                  setSettings((s) => ({ ...s, openaiModel: v }))
+                }}
+              >
+                {OPENAI_LLM_PRESET_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
                   </option>
-                )}
-            </select>
-            <PinToggleButton
-              pinned={pinned.includes(toScopedPinnedId('openai', settings.openaiModel))}
-              onToggle={() =>
-                handleTogglePin(toScopedPinnedId('openai', settings.openaiModel))
-              }
-            />
+                ))}
+                {settings.openaiModel &&
+                  !OPENAI_LLM_PRESET_MODELS.some((m) => m.id === settings.openaiModel) && (
+                    <option value={`__custom__${settings.openaiModel}`}>
+                      {settings.openaiModel} (manual)
+                    </option>
+                  )}
+              </select>
+              <PinToggleButton
+                pinned={pinned.includes(toScopedPinnedId('openai', settings.openaiModel))}
+                onToggle={() => handleTogglePin(toScopedPinnedId('openai', settings.openaiModel))}
+              />
             </div>
             <input
               className="cyber-input mt-2"
               value={settings.openaiModel}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, openaiModel: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, openaiModel: e.target.value }))}
               placeholder="gpt-5.6-sol"
             />
           </div>
@@ -775,15 +745,13 @@ export function LlmOptionsPanel({
               type="text"
               className="cyber-input"
               value={settings.opencodeGoBaseUrl}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, opencodeGoBaseUrl: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, opencodeGoBaseUrl: e.target.value }))}
               placeholder="https://opencode.ai/zen/go/v1"
               autoComplete="off"
             />
             <p className="mt-1 text-xs text-void-dim font-mono">
-              Upstream has no CORS — requests go through your local TTS server proxy
-              (<code className="text-void-light/90">/api/opencode-go</code>). Keep the local server
+              Upstream has no CORS — requests go through your local TTS server proxy (
+              <code className="text-void-light/90">/api/opencode-go</code>). Keep the local server
               running. OpenAI-compatible models only (not MiniMax/Qwen).
             </p>
           </div>
@@ -801,47 +769,45 @@ export function LlmOptionsPanel({
               handleTogglePin,
             )}
             <div className="flex items-center gap-2">
-            <select
-              className="form-select flex-1"
-              value={
-                OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel)
-                  ? settings.opencodeGoModel
-                  : settings.opencodeGoModel
-                    ? `__custom__${settings.opencodeGoModel}`
-                    : OPENCODE_GO_LLM_PRESET_MODELS[0]?.id
-              }
-              onChange={(e) => {
-                const raw = e.target.value
-                const v = raw.startsWith('__custom__') ? raw.slice('__custom__'.length) : raw
-                if (raw === '__custom__') return
-                setSettings((s) => ({ ...s, opencodeGoModel: v }))
-              }}
-            >
-              {OPENCODE_GO_LLM_PRESET_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-              {settings.opencodeGoModel &&
-                !OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel) && (
-                  <option value={`__custom__${settings.opencodeGoModel}`}>
-                    {settings.opencodeGoModel} (manual)
+              <select
+                className="form-select flex-1"
+                value={
+                  OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel)
+                    ? settings.opencodeGoModel
+                    : settings.opencodeGoModel
+                      ? `__custom__${settings.opencodeGoModel}`
+                      : OPENCODE_GO_LLM_PRESET_MODELS[0]?.id
+                }
+                onChange={(e) => {
+                  const raw = e.target.value
+                  const v = raw.startsWith('__custom__') ? raw.slice('__custom__'.length) : raw
+                  if (raw === '__custom__') return
+                  setSettings((s) => ({ ...s, opencodeGoModel: v }))
+                }}
+              >
+                {OPENCODE_GO_LLM_PRESET_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
                   </option>
-                )}
-            </select>
-            <PinToggleButton
-              pinned={pinned.includes(toScopedPinnedId('opencode-go', settings.opencodeGoModel))}
-              onToggle={() =>
-                handleTogglePin(toScopedPinnedId('opencode-go', settings.opencodeGoModel))
-              }
-            />
+                ))}
+                {settings.opencodeGoModel &&
+                  !OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel) && (
+                    <option value={`__custom__${settings.opencodeGoModel}`}>
+                      {settings.opencodeGoModel} (manual)
+                    </option>
+                  )}
+              </select>
+              <PinToggleButton
+                pinned={pinned.includes(toScopedPinnedId('opencode-go', settings.opencodeGoModel))}
+                onToggle={() =>
+                  handleTogglePin(toScopedPinnedId('opencode-go', settings.opencodeGoModel))
+                }
+              />
             </div>
             <input
               className="cyber-input mt-2"
               value={settings.opencodeGoModel}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, opencodeGoModel: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, opencodeGoModel: e.target.value }))}
               placeholder="deepseek-v4-pro"
             />
           </div>
@@ -903,8 +869,9 @@ export function LlmOptionsPanel({
           <option value="on">ON — think: true</option>
         </select>
         <p className="text-xs text-void-dim mt-1">
-          Thinking models default to reasoning unless <code className="text-neon-purple/90">think: false</code> is sent.
-          Qwen/DeepSeek use ON/OFF; GPT-OSS uses low/medium/high. DeepSeek maps to reasoning_effort when enabled.
+          Thinking models default to reasoning unless{' '}
+          <code className="text-neon-purple/90">think: false</code> is sent. Qwen/DeepSeek use
+          ON/OFF; GPT-OSS uses low/medium/high. DeepSeek maps to reasoning_effort when enabled.
         </p>
       </div>
 
@@ -925,8 +892,8 @@ export function LlmOptionsPanel({
           />
           <p className="text-xs text-void-dim mt-1">
             Sent to Ollama as <code className="text-void-light">options.num_ctx</code>. Cloud
-            providers (OpenRouter / DeepSeek / NVIDIA / OpenCode Go) ignore this — CTX meter uses each
-            model&apos;s native window.
+            providers (OpenRouter / DeepSeek / NVIDIA / OpenCode Go) ignore this — CTX meter uses
+            each model&apos;s native window.
           </p>
         </div>
       )}
@@ -937,9 +904,7 @@ export function LlmOptionsPanel({
             type="checkbox"
             className="accent-neon-cyan"
             checked={settings.contextAutoCompress}
-            onChange={(e) =>
-              setSettings((s) => ({ ...s, contextAutoCompress: e.target.checked }))
-            }
+            onChange={(e) => setSettings((s) => ({ ...s, contextAutoCompress: e.target.checked }))}
           />
           <span className="text-neon-yellow mr-1">◐</span>
           AUTO_COMPRESS at 90% context usage
@@ -961,9 +926,7 @@ export function LlmOptionsPanel({
           rows={5}
           className="cyber-input resize-y"
           value={settings.llmSystemPrompt}
-          onChange={(e) =>
-            setSettings((s) => ({ ...s, llmSystemPrompt: e.target.value }))
-          }
+          onChange={(e) => setSettings((s) => ({ ...s, llmSystemPrompt: e.target.value }))}
           placeholder="e.g. Answer concisely. Do not invent facts."
         />
         <p className="text-xs text-void-dim mt-1">
@@ -987,32 +950,35 @@ export function LlmOptionsPanel({
                   ? 'OPENAI_NOTES'
                   : settings.llmProvider === 'opencode-go'
                     ? 'OPENCODE_GO_NOTES'
-                      : 'RECOMMENDED_MODELS'}
+                    : 'RECOMMENDED_MODELS'}
         </p>
-        {settings.llmProvider === 'ollama' && <ul className="text-xs font-mono text-void-dim space-y-1">
-          <li className="flex items-center gap-2">
-            <span className="text-neon-green">✓</span>
-            Qwen 3.5 (e.g. <code className="text-void-light/90">qwen3</code> family — add{' '}
-            <code className="text-void-light/90">-vl</code> for vision)
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="text-neon-green">✓</span>
-            Gemma 4 (multimodal / tools-capable tags on Ollama)
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="text-neon-green">✓</span>
-            MiniMax 2.7 (when available in your Ollama library)
-          </li>
-          <li className="flex items-center gap-2 opacity-50">
-            <span className="text-neon-red">✗</span>
-            Old or tiny models without tool / multimodal support
-          </li>
-        </ul>}
+        {settings.llmProvider === 'ollama' && (
+          <ul className="text-xs font-mono text-void-dim space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Qwen 3.5 (e.g. <code className="text-void-light/90">qwen3</code> family — add{' '}
+              <code className="text-void-light/90">-vl</code> for vision)
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              Gemma 4 (multimodal / tools-capable tags on Ollama)
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-neon-green">✓</span>
+              MiniMax 2.7 (when available in your Ollama library)
+            </li>
+            <li className="flex items-center gap-2 opacity-50">
+              <span className="text-neon-red">✗</span>
+              Old or tiny models without tool / multimodal support
+            </li>
+          </ul>
+        )}
         {settings.llmProvider === 'openrouter' && (
           <ul className="text-xs font-mono text-void-dim space-y-1">
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Use full model IDs, e.g. <code className="text-void-light/90">openai/gpt-4o-mini</code>
+              Use full model IDs, e.g.{' '}
+              <code className="text-void-light/90">openai/gpt-4o-mini</code>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
@@ -1036,7 +1002,8 @@ export function LlmOptionsPanel({
           <ul className="text-xs font-mono text-void-dim space-y-1">
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Use OpenAI-compatible endpoint at <code className="text-void-light/90">/chat/completions</code>
+              Use OpenAI-compatible endpoint at{' '}
+              <code className="text-void-light/90">/chat/completions</code>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
@@ -1069,7 +1036,8 @@ export function LlmOptionsPanel({
           <ul className="text-xs font-mono text-void-dim space-y-1">
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Native Chat Completions at <code className="text-void-light/90">api.openai.com/v1</code>
+              Native Chat Completions at{' '}
+              <code className="text-void-light/90">api.openai.com/v1</code>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>

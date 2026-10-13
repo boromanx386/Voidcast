@@ -1,12 +1,6 @@
 import { isCodingToolFailure } from '@/lib/codingContextMemo'
 import { digestFindSymbols, digestReadFile } from '@/lib/codingSubAgent'
-import type {
-  PlanApproach,
-  PlanArtifact,
-  PlanResearch,
-  PlanStep,
-  UiMessage,
-} from '@/types/chat'
+import type { PlanApproach, PlanArtifact, PlanResearch, PlanStep, UiMessage } from '@/types/chat'
 
 let planStepSeq = 0
 
@@ -45,14 +39,16 @@ function dedupePush(values: string[], next: string, limit: number): string[] {
 
 /** Strip line-range / written suffixes from coding memo-style path entries. */
 export function stripPlanResearchPathEntry(entry: string): string {
-  return entry
-    // e.g. "(215 lines; spaces must match)", "(lines 12-18)", "(12 lines)"
-    .replace(/\s*\(\d+\s+lines?(?:\s*[-–]\s*\d+)?\s*(?:;\s*[^)]*)?\)\s*$/i, '')
-    .replace(/\s*\([^)]*lines?\b[^)]*\)\s*$/i, '')
-    .replace(/\s*\(from line \d+\)\s*$/i, '')
-    .replace(/\s*\(to line \d+\)\s*$/i, '')
-    .replace(/\s*\(written\)\s*$/i, '')
-    .trim()
+  return (
+    entry
+      // e.g. "(215 lines; spaces must match)", "(lines 12-18)", "(12 lines)"
+      .replace(/\s*\(\d+\s+lines?(?:\s*[-–]\s*\d+)?\s*(?:;\s*[^)]*)?\)\s*$/i, '')
+      .replace(/\s*\([^)]*lines?\b[^)]*\)\s*$/i, '')
+      .replace(/\s*\(from line \d+\)\s*$/i, '')
+      .replace(/\s*\(to line \d+\)\s*$/i, '')
+      .replace(/\s*\(written\)\s*$/i, '')
+      .trim()
+  )
 }
 
 export function normalizePlanResearch(raw: unknown): PlanResearch | undefined {
@@ -139,9 +135,12 @@ export function harvestPlanToolIntoBuffer(
   if (name === 'read_file' || name === 'glob_files' || name === 'find_symbols') {
     const p = typeof args?.path === 'string' ? args.path.trim() : ''
     if (p && (name === 'read_file' || name === 'find_symbols')) {
-      harvest.keyFiles = dedupePush(harvest.keyFiles, stripPlanResearchPathEntry(p), PLAN_RESEARCH_KEY_FILES_MAX)
-      const digest =
-        name === 'read_file' ? digestReadFile(result) : digestFindSymbols(result)
+      harvest.keyFiles = dedupePush(
+        harvest.keyFiles,
+        stripPlanResearchPathEntry(p),
+        PLAN_RESEARCH_KEY_FILES_MAX,
+      )
+      const digest = name === 'read_file' ? digestReadFile(result) : digestFindSymbols(result)
       const entry = `${stripPlanResearchPathEntry(p)}: ${digest}`.slice(
         0,
         PLAN_RESEARCH_DIGEST_ENTRY_MAX,
@@ -163,13 +162,19 @@ export function harvestPlanToolIntoBuffer(
 
   if (name === 'list_directory') {
     const p = typeof args?.path === 'string' ? args.path.trim() : ''
-    if (p) harvest.searches = dedupePush(harvest.searches, `list:${p || '.'}`, PLAN_RESEARCH_SEARCHES_MAX)
+    if (p)
+      harvest.searches = dedupePush(
+        harvest.searches,
+        `list:${p || '.'}`,
+        PLAN_RESEARCH_SEARCHES_MAX,
+      )
     return
   }
 
   if (name === 'coding_explore') {
     const goal = typeof args?.goal === 'string' ? args.goal.trim() : ''
-    if (goal) harvest.searches = dedupePush(harvest.searches, `explore:${goal}`, PLAN_RESEARCH_SEARCHES_MAX)
+    if (goal)
+      harvest.searches = dedupePush(harvest.searches, `explore:${goal}`, PLAN_RESEARCH_SEARCHES_MAX)
     const digest = result
       .replace(/^\[Coding explore\]\s*/i, '')
       .trim()
@@ -177,9 +182,7 @@ export function harvestPlanToolIntoBuffer(
     if (digest && !/^Error:/i.test(digest) && !/^Aborted/i.test(digest)) {
       harvest.digests = dedupePush(harvest.digests, digest, 4)
       // Pull path-like tokens from digest into keyFiles (best-effort).
-      const pathHits = digest.match(
-        /(?:^|[\s`"'(])((?:[\w.-]+\/)+[\w.-]+\.[a-zA-Z0-9]{1,8})/g,
-      )
+      const pathHits = digest.match(/(?:^|[\s`"'(])((?:[\w.-]+\/)+[\w.-]+\.[a-zA-Z0-9]{1,8})/g)
       if (pathHits) {
         for (const hit of pathHits) {
           const path = hit.replace(/^[\s`"'(]+/, '').trim()
@@ -336,17 +339,14 @@ function approachesFromUnknown(raw: unknown): PlanApproach[] {
     if (!item || typeof item !== 'object') continue
     const o = item as Record<string, unknown>
     const idRaw = typeof o.id === 'string' ? o.id.trim().toUpperCase() : ''
-    const id = /^[A-D]$/.test(idRaw)
-      ? idRaw
-      : String.fromCharCode(65 + out.length) // A, B, C…
+    const id = /^[A-D]$/.test(idRaw) ? idRaw : String.fromCharCode(65 + out.length) // A, B, C…
     if (id < 'A' || id > 'D') continue
     if (out.some((a) => a.id === id)) continue
     const label =
       (typeof o.label === 'string' && o.label.trim()) ||
       (typeof o.name === 'string' && o.name.trim()) ||
       `Approach ${id}`
-    const summary =
-      typeof o.summary === 'string' && o.summary.trim() ? o.summary.trim() : undefined
+    const summary = typeof o.summary === 'string' && o.summary.trim() ? o.summary.trim() : undefined
     const stepTexts = stepsFromUnknown(o.steps)
     if (stepTexts.length === 0) continue
     out.push({
@@ -416,9 +416,7 @@ export function parsePlanJsonFromText(text: string): PlanArtifact | null {
       if (approaches.length === 0 && stepTexts.length === 0) continue
 
       const title =
-        typeof parsed.title === 'string' && parsed.title.trim()
-          ? parsed.title.trim()
-          : 'Plan'
+        typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : 'Plan'
       const summary =
         typeof parsed.summary === 'string' && parsed.summary.trim()
           ? parsed.summary.trim()
@@ -428,8 +426,7 @@ export function parsePlanJsonFromText(text: string): PlanArtifact | null {
       if (approaches.length > 0) {
         const recommendedRaw =
           typeof parsed.recommended === 'string' ? parsed.recommended.trim().toUpperCase() : ''
-        const recommended =
-          approaches.find((a) => a.id === recommendedRaw)?.id ?? approaches[0]?.id
+        const recommended = approaches.find((a) => a.id === recommendedRaw)?.id ?? approaches[0]?.id
         const selected = approaches.find((a) => a.id === recommended) ?? approaches[0]!
         return {
           title,
@@ -442,7 +439,15 @@ export function parsePlanJsonFromText(text: string): PlanArtifact | null {
         }
       }
 
-      return planArtifactFromParts(title, stepTexts, summary, 'draft', undefined, undefined, research)
+      return planArtifactFromParts(
+        title,
+        stepTexts,
+        summary,
+        'draft',
+        undefined,
+        undefined,
+        research,
+      )
     } catch {
       // try next
     }
@@ -501,9 +506,7 @@ export function extractPlanArtifactFromReply(reply: string): PlanArtifact | null
 
 /** Strip the trailing json plan fence from display content (card shows the structure). */
 export function stripPlanJsonFenceFromContent(text: string): string {
-  return text
-    .replace(/```(?:json\s*plan|plan\s*json|json)\s*\r?\n[\s\S]*?```\s*$/i, '')
-    .trimEnd()
+  return text.replace(/```(?:json\s*plan|plan\s*json|json)\s*\r?\n[\s\S]*?```\s*$/i, '').trimEnd()
 }
 
 export function formatPlanForBuildPrompt(
@@ -606,11 +609,7 @@ export function formatPlanForRevisePrompt(plan: PlanArtifact, customNote: string
 }
 
 /** Tools that used to auto-advance steps heuristically (kept for tests / legacy). Prefer update_plan_progress. */
-export const PLAN_PROGRESS_TOOLS = new Set([
-  'write_file',
-  'edit_code',
-  'execute_command',
-])
+export const PLAN_PROGRESS_TOOLS = new Set(['write_file', 'edit_code', 'execute_command'])
 
 export function isPlanProgressToolResult(name: string, result: string): boolean {
   if (!PLAN_PROGRESS_TOOLS.has(name)) return false
@@ -628,9 +627,7 @@ function collectNumberList(raw: unknown): number[] {
 function collectStringList(raw: unknown): string[] {
   if (typeof raw === 'string' && raw.trim()) return [raw.trim()]
   if (!Array.isArray(raw)) return []
-  return raw
-    .map((s) => (typeof s === 'string' ? s.trim() : ''))
-    .filter(Boolean)
+  return raw.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
 }
 
 /** Apply update_plan_progress tool args onto a plan checklist. */
@@ -780,7 +777,8 @@ export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {
       if (!a || typeof a !== 'object') continue
       const id = typeof a.id === 'string' ? a.id.trim().toUpperCase() : ''
       if (!/^[A-D]$/.test(id)) continue
-      const label = typeof a.label === 'string' && a.label.trim() ? a.label.trim() : `Approach ${id}`
+      const label =
+        typeof a.label === 'string' && a.label.trim() ? a.label.trim() : `Approach ${id}`
       const aSteps: PlanStep[] = []
       if (Array.isArray(a.steps)) {
         for (const s of a.steps) {
@@ -798,9 +796,7 @@ export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {
       approaches.push({
         id,
         label,
-        ...(typeof a.summary === 'string' && a.summary.trim()
-          ? { summary: a.summary.trim() }
-          : {}),
+        ...(typeof a.summary === 'string' && a.summary.trim() ? { summary: a.summary.trim() } : {}),
         steps: aSteps,
       })
     }
@@ -808,17 +804,13 @@ export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {
 
   const selectedRaw =
     typeof p.selectedApproachId === 'string' ? p.selectedApproachId.trim().toUpperCase() : ''
-  const selectedApproachId = approaches.some((a) => a.id === selectedRaw)
-    ? selectedRaw
-    : undefined
+  const selectedApproachId = approaches.some((a) => a.id === selectedRaw) ? selectedRaw : undefined
 
   const research = normalizePlanResearch(p.research)
 
   return {
     title: p.title.trim() || 'Plan',
-    ...(typeof p.summary === 'string' && p.summary.trim()
-      ? { summary: p.summary.trim() }
-      : {}),
+    ...(typeof p.summary === 'string' && p.summary.trim() ? { summary: p.summary.trim() } : {}),
     steps,
     status,
     ...(approaches.length > 0 ? { approaches } : {}),

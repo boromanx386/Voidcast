@@ -70,21 +70,14 @@ export function estimateContextUsageAfterCompression(
   if (!previousUsage || !maxTokens || !summary) return null
 
   const previousConversation = [
-    existingSummary?.trim()
-      ? `${COMPRESSED_SUMMARY_LABEL}\n${existingSummary.trim()}`
-      : '',
+    existingSummary?.trim() ? `${COMPRESSED_SUMMARY_LABEL}\n${existingSummary.trim()}` : '',
     ...previousTurns.map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`),
   ]
     .filter(Boolean)
     .join('\n\n')
   const previousConversationTokens = approximateTokenCount(previousConversation)
-  const fixedOverhead = Math.max(
-    0,
-    previousUsage.promptTokens - previousConversationTokens,
-  )
-  const nextSummaryTokens = approximateTokenCount(
-    `${COMPRESSED_SUMMARY_LABEL}\n${summary}`,
-  )
+  const fixedOverhead = Math.max(0, previousUsage.promptTokens - previousConversationTokens)
+  const nextSummaryTokens = approximateTokenCount(`${COMPRESSED_SUMMARY_LABEL}\n${summary}`)
   const promptTokens = Math.max(1, fixedOverhead + nextSummaryTokens)
   const ratio = promptTokens / maxTokens
 

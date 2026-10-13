@@ -92,11 +92,7 @@ describe('invalidateCodingFileCache', () => {
 
 describe('updateCodingFileCacheAfterEdit', () => {
   it('patches cached content after a successful in-memory edit', () => {
-    let c = upsertCodingFileCache(
-      emptyCodingFileCache(),
-      'src/a.ts',
-      'const x = 1\nconst y = 2\n',
-    )
+    let c = upsertCodingFileCache(emptyCodingFileCache(), 'src/a.ts', 'const x = 1\nconst y = 2\n')
     c = updateCodingFileCacheAfterEdit(c, 'src/a.ts', 'const x = 1', 'const x = 99')
     expect(c.entries[0]?.content).toContain('const x = 99')
     expect(c.entries[0]?.content).toContain('const y = 2')

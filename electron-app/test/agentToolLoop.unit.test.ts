@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runSharedToolLoop } from '../src/lib/agentToolLoop'
-import {
-  TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY,
-} from '../src/lib/agentToolUtils'
+import { TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY } from '../src/lib/agentToolUtils'
 
 type Message = { role: string; content: string }
 type ProviderCall = { id: string; name: string; args: Record<string, unknown> }
@@ -77,8 +75,7 @@ describe('runSharedToolLoop parallel tool execution', () => {
     )
 
     expect(maxActive).toBe(2)
-    expect(result.committedResults)
-      .toEqual(['read_file:a', 'read_file:b'])
+    expect(result.committedResults).toEqual(['read_file:a', 'read_file:b'])
     expect(result.content).toBe('done')
   })
 
@@ -151,12 +148,9 @@ describe('runSharedToolLoop parallel tool execution', () => {
     abortError.name = 'AbortError'
 
     await expect(
-      runToolRound(
-        [{ id: 'a', name: 'write_file', args: { id: 'a' } }],
-        async () => {
-          throw abortError
-        },
-      ),
+      runToolRound([{ id: 'a', name: 'write_file', args: { id: 'a' } }], async () => {
+        throw abortError
+      }),
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
@@ -181,8 +175,7 @@ describe('runSharedToolLoop parallel tool execution', () => {
     )
 
     expect(maxActive).toBe(2)
-    expect(result.committedResults)
-      .toEqual(['read_file:a', 'read_file:b', 'read_file:c'])
+    expect(result.committedResults).toEqual(['read_file:a', 'read_file:b', 'read_file:c'])
   })
 
   it('commits successful results and converts a failed sibling into a tool error', async () => {
@@ -233,8 +226,7 @@ describe('runSharedToolLoop parallel tool execution', () => {
           toolCalls: [],
         }
       },
-      toSharedToolCalls: (calls) =>
-        calls.map((c) => ({ name: c.name, argsRaw: c.args, raw: c })),
+      toSharedToolCalls: (calls) => calls.map((c) => ({ name: c.name, argsRaw: c.args, raw: c })),
       appendAssistantWithToolCalls: ({ messages, content }) => {
         messages.push({ role: 'assistant', content })
       },

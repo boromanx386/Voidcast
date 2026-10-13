@@ -343,10 +343,7 @@ function safeToolFileStem(label: string): string {
  * Claude/Cursor pattern: keep full payload on disk; model gets path + short preview.
  * Nothing is discarded — use mcp_read_result (or filters) to inspect the rest.
  */
-export async function persistIfLargeMcpResult(
-  text: string,
-  toolLabel: string,
-): Promise<string> {
+export async function persistIfLargeMcpResult(text: string, toolLabel: string): Promise<string> {
   const raw = String(text ?? '')
   if (raw.startsWith('Error:') || raw.length <= MCP_RESULT_INLINE_MAX_CHARS) {
     return raw
@@ -511,7 +508,9 @@ export async function readPersistedMcpResult(opts: McpReadResultOpts): Promise<s
     const to = (endLine ?? Math.min(from + 80, total)) - 1
     const safeFrom = Math.max(0, Math.min(from, Math.max(0, total - 1)))
     const safeTo = Math.max(safeFrom, Math.min(to, Math.max(0, total - 1)))
-    const numbered = lines.slice(safeFrom, safeTo + 1).map((line, i) => `${safeFrom + i + 1}| ${line}`)
+    const numbered = lines
+      .slice(safeFrom, safeTo + 1)
+      .map((line, i) => `${safeFrom + i + 1}| ${line}`)
     return `${numbered.join('\n')}\n\n(lines ${safeFrom + 1}-${safeTo + 1} of ${total} in ${abs})`
   }
 
@@ -540,18 +539,14 @@ function looksLikePlaceholderPath(p: string): boolean {
   return (
     n.includes('/path/to/') ||
     n === 'c:/path/to/allowed' ||
-    n.endsWith('/allowed') && n.includes('path/to')
+    (n.endsWith('/allowed') && n.includes('path/to'))
   )
 }
 
 function formatError(e: unknown): string {
   if (e instanceof Error) {
     const cause =
-      e.cause instanceof Error
-        ? e.cause.message
-        : e.cause != null
-          ? String(e.cause)
-          : ''
+      e.cause instanceof Error ? e.cause.message : e.cause != null ? String(e.cause) : ''
     return cause ? `${e.message} (${cause})` : e.message
   }
   return String(e)
@@ -618,12 +613,7 @@ async function connectClient(
   tools: McpToolInfo[]
 }> {
   const client = new Client({ name: 'voidcast', version: '1.0.0' }, { capabilities: {} })
-  await withMcpTimeout(
-    client.connect(transport),
-    MCP_CONNECT_TIMEOUT_MS,
-    'MCP connect',
-    signal,
-  )
+  await withMcpTimeout(client.connect(transport), MCP_CONNECT_TIMEOUT_MS, 'MCP connect', signal)
   const listed = await withMcpTimeout(
     client.listTools(),
     MCP_CONNECT_TIMEOUT_MS,
@@ -717,8 +707,7 @@ export class McpManager {
 
   getStatus(): McpServerStatus[] {
     const out: McpServerStatus[] = []
-    const ids =
-      this.lastConfigIds.length > 0 ? this.lastConfigIds : [...this.servers.keys()]
+    const ids = this.lastConfigIds.length > 0 ? this.lastConfigIds : [...this.servers.keys()]
     for (const id of ids) {
       const oauthEnabled = isMcpOAuthEnabled(this.lastServerConfigs[id])
       if (!isServerEnabled(id, this.lastEnabledMap)) {
@@ -915,7 +904,10 @@ export class McpManager {
       return { ok: false, error: `MCP server "${serverId}" is not a remote OAuth server.` }
     }
     if (!isMcpOAuthEnabled(cfg)) {
-      return { ok: false, error: `MCP server "${serverId}" does not have OAuth enabled in mcp.json.` }
+      return {
+        ok: false,
+        error: `MCP server "${serverId}" does not have OAuth enabled in mcp.json.`,
+      }
     }
     this.lastProjectPath = project
     this.lastEnabledMap = { ...map }
@@ -961,7 +953,9 @@ export class McpManager {
     }
   }
 
-  async ensureGlobalConfigExists(): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  async ensureGlobalConfigExists(): Promise<
+    { ok: true; path: string } | { ok: false; error: string }
+  > {
     const configPath = getGlobalMcpConfigPath()
     try {
       const dir = path.dirname(configPath)
@@ -1051,7 +1045,11 @@ export class McpManager {
     })
   }
 
-  private async startServer(id: string, config: McpServerConfig, signal?: AbortSignal): Promise<void> {
+  private async startServer(
+    id: string,
+    config: McpServerConfig,
+    signal?: AbortSignal,
+  ): Promise<void> {
     try {
       if (config.url) {
         await this.startUrlServer(id, config, signal)
@@ -1121,7 +1119,9 @@ export class McpManager {
     })
 
     const stderrChunks: string[] = []
-    const stderr = transport.stderr as { on?: (event: string, cb: (buf: Buffer | string) => void) => void } | null
+    const stderr = transport.stderr as {
+      on?: (event: string, cb: (buf: Buffer | string) => void) => void
+    } | null
     if (stderr?.on) {
       stderr.on('data', (buf: Buffer | string) => {
         stderrChunks.push(typeof buf === 'string' ? buf : buf.toString('utf8'))
@@ -1193,10 +1193,7 @@ export class McpManager {
           ? { requestInit: staticRequestInit }
           : undefined
 
-    const tryTransport = async (
-      label: string,
-      make: () => Transport,
-    ): Promise<boolean> => {
+    const tryTransport = async (label: string, make: () => Transport): Promise<boolean> => {
       const transport = make()
       let client: Client | null = null
       try {
@@ -1226,9 +1223,7 @@ export class McpManager {
     }
 
     if (preferSse) {
-      if (
-        await tryTransport('sse', () => new SSEClientTransport(url, makeTransportOpts()))
-      ) {
+      if (await tryTransport('sse', () => new SSEClientTransport(url, makeTransportOpts()))) {
         return
       }
       if (
@@ -1248,9 +1243,7 @@ export class McpManager {
       ) {
         return
       }
-      if (
-        await tryTransport('sse', () => new SSEClientTransport(url, makeTransportOpts()))
-      ) {
+      if (await tryTransport('sse', () => new SSEClientTransport(url, makeTransportOpts()))) {
         return
       }
     }

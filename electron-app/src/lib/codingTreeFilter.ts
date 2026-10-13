@@ -12,8 +12,6 @@ export function shouldSkipCodingTreeDirName(name: string): boolean {
  */
 export function filterCodingTreeEntries(entries: CodingFileNode[]): CodingFileNode[] {
   return entries.map((e) =>
-    e.type === 'directory' && shouldSkipCodingTreeDirName(e.name)
-      ? { ...e, ignored: true }
-      : e,
+    e.type === 'directory' && shouldSkipCodingTreeDirName(e.name) ? { ...e, ignored: true } : e,
   )
 }

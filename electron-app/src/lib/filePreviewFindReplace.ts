@@ -109,11 +109,7 @@ export function replaceAllInText(
 }
 
 /** All non-overlapping match ranges in document order. */
-export function findAllMatchRanges(
-  text: string,
-  query: string,
-  matchCase = false,
-): TextRange[] {
+export function findAllMatchRanges(text: string, query: string, matchCase = false): TextRange[] {
   if (!query) return []
   const ranges: TextRange[] = []
   let i = 0

@@ -39,7 +39,10 @@ export async function fetchCatalogImageFromUrl(
   try {
     const res = await fetch(u, { signal: AbortSignal.timeout(20_000) })
     if (!res.ok) return null
-    const mimeRaw = (res.headers.get('content-type') || 'image/png').split(';')[0].trim().toLowerCase()
+    const mimeRaw = (res.headers.get('content-type') || 'image/png')
+      .split(';')[0]
+      .trim()
+      .toLowerCase()
     const mime = mimeRaw.startsWith('image/') ? mimeRaw : 'image/png'
     const buf = await res.arrayBuffer()
     if (buf.byteLength < 16) return null

@@ -263,9 +263,7 @@ export function buildOllamaMessages(
   // the beginning"). It stays the last thing in the payload — prepended to the
   // user text so the actual request still ends the prompt — while the stable
   // system+tools block and the whole history stay cacheable.
-  const nextUserContent = volatileTail
-    ? `${volatileTail}\n\n${newUserContent}`
-    : newUserContent
+  const nextUserContent = volatileTail ? `${volatileTail}\n\n${newUserContent}` : newUserContent
   const nextUser: OllamaApiMessage =
     opts.newUserImages && opts.newUserImages.length > 0
       ? { role: 'user', content: nextUserContent, images: opts.newUserImages }

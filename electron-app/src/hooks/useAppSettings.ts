@@ -1,9 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { mergeExternalSettings } from '@/lib/externalSettingsSync'
-import {
-  clearCloudSecretsFromServer,
-  pushCloudSecretsToServer,
-} from '@/lib/cloudSecrets'
+import { clearCloudSecretsFromServer, pushCloudSecretsToServer } from '@/lib/cloudSecrets'
 import {
   clearHostToolConfigFromServer,
   pushHostToolConfigToServer,

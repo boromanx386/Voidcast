@@ -269,13 +269,18 @@ html[data-ui-theme='terminal'] .voidcast-textarea::after {
 }
 
 @keyframes terminal-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* ═══ Send button ═══ */
 html[data-ui-theme='terminal'] .send-btn,
-html[data-ui-theme='terminal'] [class*="send-btn"]:not(.send-btn-tooltip) {
+html[data-ui-theme='terminal'] [class*='send-btn']:not(.send-btn-tooltip) {
   background: transparent !important;
   border: 1px solid rgb(var(--color-void-muted)) !important;
   border-radius: 0 !important;
@@ -288,7 +293,7 @@ html[data-ui-theme='terminal'] [class*="send-btn"]:not(.send-btn-tooltip) {
 }
 
 html[data-ui-theme='terminal'] .send-btn:hover,
-html[data-ui-theme='terminal'] [class*="send-btn"]:hover {
+html[data-ui-theme='terminal'] [class*='send-btn']:hover {
   background: rgba(214, 160, 72, 0.1) !important;
   border-color: rgb(var(--color-neon-cyan)) !important;
 }

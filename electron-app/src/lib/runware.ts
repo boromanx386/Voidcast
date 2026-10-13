@@ -365,11 +365,7 @@ async function postRunwareTasks(args: {
     }
     if (!proxyRes.ok || !proxyBody.ok || !proxyBody.data) {
       const detail = proxyBody.detail || `Runware proxy HTTP ${proxyRes.status}`
-      if (
-        viaProxy &&
-        (proxyRes.status === 503 ||
-          /not configured|api key/i.test(String(detail)))
-      ) {
+      if (viaProxy && (proxyRes.status === 503 || /not configured|api key/i.test(String(detail)))) {
         throw new Error(cloudProxySetupHint())
       }
       throw new Error(detail)
@@ -455,22 +451,16 @@ async function postRunwareTasks(args: {
 
 function extractModelIdsFromRunwareBody(body: RunwareApiBody): string[] {
   const dataItems = Array.isArray(body.data) ? body.data : []
-  const nestedResults = dataItems.flatMap((d) =>
-    Array.isArray(d.results) ? d.results : [],
-  )
+  const nestedResults = dataItems.flatMap((d) => (Array.isArray(d.results) ? d.results : []))
   const directResults = dataItems as RunwareModelSearchResult[]
   const allCandidates = [...nestedResults, ...directResults].filter(isDesiredImageBaseModel)
-  const ids = allCandidates
-    .map((x) => (x.air || x.model || '').trim())
-    .filter((x) => x.length > 0)
+  const ids = allCandidates.map((x) => (x.air || x.model || '').trim()).filter((x) => x.length > 0)
   return Array.from(new Set(ids))
 }
 
 function extractModelOptionsFromRunwareBody(body: RunwareApiBody): RunwareModelOption[] {
   const dataItems = Array.isArray(body.data) ? body.data : []
-  const nestedResults = dataItems.flatMap((d) =>
-    Array.isArray(d.results) ? d.results : [],
-  )
+  const nestedResults = dataItems.flatMap((d) => (Array.isArray(d.results) ? d.results : []))
   const directResults = dataItems as RunwareModelSearchResult[]
   const allCandidates = [...nestedResults, ...directResults].filter(isDesiredImageBaseModel)
   const byId = new Map<string, RunwareModelOption>()
@@ -769,7 +759,10 @@ export function fitModelDimensions(
   return { width: w, height: h, adjusted, notes }
 }
 
-export function fitGptImage2Dimensions(width: number, height: number): {
+export function fitGptImage2Dimensions(
+  width: number,
+  height: number,
+): {
   width: number
   height: number
   adjusted: boolean
@@ -860,8 +853,7 @@ export async function invokeRunwareGenerateImage(
   const steps = clamp(Math.round(asFiniteNumber(req.steps) ?? config.steps), 1, 80)
   const cfgScale = clamp(asFiniteNumber(req.cfgScale) ?? config.cfgScale, 0, 30)
   const gptQuality = normalizeGptQuality(config.gptQuality) ?? 'auto'
-  const transparentBackground =
-    req.transparentBackground ?? config.transparentBackground ?? false
+  const transparentBackground = req.transparentBackground ?? config.transparentBackground ?? false
   const negativePrompt = (req.negativePrompt ?? config.negativePrompt ?? '').trim()
   const taskUUID = makeTaskUuid()
 
@@ -936,9 +928,7 @@ export async function invokeRunwareEditImage(
     throw new Error('Runware API key is not set. Configure it in Options -> General (desktop).')
   }
 
-  const refs = (req.referenceImages || [])
-    .map((x) => toDataImageUri(x))
-    .filter((x) => x.length > 0)
+  const refs = (req.referenceImages || []).map((x) => toDataImageUri(x)).filter((x) => x.length > 0)
   if (refs.length === 0) {
     throw new Error('Runware edit_image_runware requires at least one reference image.')
   }
@@ -1042,9 +1032,7 @@ export async function invokeRunwareEditImage(
   return out
 }
 
-function normalizeRunwareAudioOutputFormat(
-  v: unknown,
-): 'MP3' | 'WAV' | 'FLAC' | 'OGG' {
+function normalizeRunwareAudioOutputFormat(v: unknown): 'MP3' | 'WAV' | 'FLAC' | 'OGG' {
   const x = typeof v === 'string' ? v.trim().toUpperCase() : ''
   if (x === 'WAV' || x === 'FLAC' || x === 'OGG') return x
   return 'MP3'
@@ -1079,21 +1067,13 @@ export async function invokeRunwareGenerateMusic(
     : RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID
   const stepsMax = maxStepsForMusicModel(model)
   const outputFormat = normalizeRunwareAudioOutputFormat(req.outputFormat ?? defaults?.outputFormat)
-  const durationSec = clamp(
-    asFiniteNumber(req.durationSec) ?? defaults?.durationSec ?? 60,
-    6,
-    300,
-  )
+  const durationSec = clamp(asFiniteNumber(req.durationSec) ?? defaults?.durationSec ?? 60, 6, 300)
   const steps = clamp(
     Math.round(asFiniteNumber(req.steps) ?? defaults?.steps ?? defaultStepsForMusicModel(model)),
     1,
     stepsMax,
   )
-  const cfgScale = clamp(
-    asFiniteNumber(req.cfgScale) ?? defaults?.cfgScale ?? 10,
-    1,
-    30,
-  )
+  const cfgScale = clamp(asFiniteNumber(req.cfgScale) ?? defaults?.cfgScale ?? 10, 1, 30)
   const guidanceType = normalizeGuidanceType(req.guidanceType ?? defaults?.guidanceType)
   const vocalLanguage = normalizeVocalLanguage(req.vocalLanguage ?? defaults?.vocalLanguage)
   const seedRaw = asFiniteNumber(req.seed) ?? asFiniteNumber(defaults?.seed ?? null)
@@ -1115,7 +1095,12 @@ export async function invokeRunwareGenerateMusic(
   if (typeof req.bpm === 'number' && Number.isFinite(req.bpm)) {
     settings.bpm = clamp(Math.round(req.bpm), 30, 300)
   }
-  if (req.timeSignature === '2' || req.timeSignature === '3' || req.timeSignature === '4' || req.timeSignature === '6') {
+  if (
+    req.timeSignature === '2' ||
+    req.timeSignature === '3' ||
+    req.timeSignature === '4' ||
+    req.timeSignature === '6'
+  ) {
     settings.timeSignature = req.timeSignature
   }
 

@@ -22,25 +22,25 @@ describe('buildAnthropicMessagesBody', () => {
   })
 
   it('honors an explicit maxTokens', () => {
-    expect(
-      buildAnthropicMessagesBody({ model: 'm', messages, maxTokens: 4096 }).max_tokens,
-    ).toBe(4096)
+    expect(buildAnthropicMessagesBody({ model: 'm', messages, maxTokens: 4096 }).max_tokens).toBe(
+      4096,
+    )
   })
 
   it('falls back to the default for a non-positive maxTokens', () => {
     for (const bad of [0, -1, undefined]) {
-      expect(
-        buildAnthropicMessagesBody({ model: 'm', messages, maxTokens: bad }).max_tokens,
-      ).toBe(ANTHROPIC_DEFAULT_MAX_TOKENS)
+      expect(buildAnthropicMessagesBody({ model: 'm', messages, maxTokens: bad }).max_tokens).toBe(
+        ANTHROPIC_DEFAULT_MAX_TOKENS,
+      )
     }
   })
 })
 
 describe('anthropicMaxTokensFallback', () => {
   it('uses the first rung of the ladder', () => {
-    expect(
-      anthropicMaxTokensFallback(400, 'max_tokens: 16384 > 8192', 16384, 0),
-    ).toBe(ANTHROPIC_MAX_TOKENS_FALLBACKS[0])
+    expect(anthropicMaxTokensFallback(400, 'max_tokens: 16384 > 8192', 16384, 0)).toBe(
+      ANTHROPIC_MAX_TOKENS_FALLBACKS[0],
+    )
   })
 
   it('walks one rung per rejection', () => {
@@ -65,9 +65,7 @@ describe('anthropicMaxTokensFallback', () => {
   })
 
   it('ignores a negative step', () => {
-    expect(
-      anthropicMaxTokensFallback(400, 'max_tokens: 16384 > 8192', 16384, -1),
-    ).toBeNull()
+    expect(anthropicMaxTokensFallback(400, 'max_tokens: 16384 > 8192', 16384, -1)).toBeNull()
   })
 
   it('does not retry a non-400 status', () => {
@@ -77,9 +75,7 @@ describe('anthropicMaxTokensFallback', () => {
   })
 
   it('does not retry a 400 that is not about max_tokens', () => {
-    expect(
-      anthropicMaxTokensFallback(400, 'invalid_request_error: messages', 16384, 0),
-    ).toBeNull()
+    expect(anthropicMaxTokensFallback(400, 'invalid_request_error: messages', 16384, 0)).toBeNull()
   })
 })
 
@@ -107,7 +103,10 @@ describe('applyAnthropicStreamEvent', () => {
       delta: {},
       usage: { output_tokens: 1 },
     })
-    applyAnthropicStreamEvent(state, { type: 'message_stop', message: { stop_reason: 'max_tokens' } })
+    applyAnthropicStreamEvent(state, {
+      type: 'message_stop',
+      message: { stop_reason: 'max_tokens' },
+    })
     expect(state.stopReason).toBe('max_tokens')
   })
 

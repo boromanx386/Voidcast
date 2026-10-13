@@ -25,8 +25,7 @@ export function AmbientParticles() {
   )
 }
 
-const MATRIX_GLYPHS =
-  'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEF<>*+#='
+const MATRIX_GLYPHS = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEF<>*+#='
 
 /** Classic falling green code rain for the Matrix UI theme. */
 export function MatrixRain() {
@@ -124,39 +123,37 @@ export function GlitchText({
   )
 }
 
-const TOOL_PHASE_UI: Record<
-  AgentToolUiPhase,
-  { icon: string; label: string; className: string }
-> = {
-  search: { icon: '⌕', label: 'SEARCHING_NET', className: 'search' },
-  youtube: { icon: '▶', label: 'YOUTUBE_PROC', className: 'youtube' },
-  weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
-  scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrap' },
-  browser: { icon: '⬡', label: 'BROWSER', className: 'scrap' },
-  pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
-  image: { icon: '◌', label: 'IMAGE_GEN', className: 'image' },
-  vision: { icon: '◎', label: 'IMAGE_RECALL', className: 'vision' },
-  music: { icon: '♫', label: 'MUSIC_GEN', className: 'music' },
-  tts: { icon: '◈', label: 'TTS_GEN', className: 'tts' },
-  coding_list: { icon: '⊢', label: 'CODING_FILES', className: 'coding' },
-  coding_read: { icon: '◊', label: 'CODING_READ', className: 'coding' },
-  coding_write: { icon: '▹', label: 'CODING_WRITE', className: 'coding' },
-  coding_edit: { icon: '✎', label: 'CODING_EDIT', className: 'coding' },
-  coding_search: { icon: '◇', label: 'CODING_FIND', className: 'coding' },
-  coding_glob: { icon: '◎', label: 'CODING_GLOB', className: 'coding' },
-  coding_outline: { icon: '⎘', label: 'CODING_OUTLINE', className: 'coding' },
-  coding_git: { icon: '⎇', label: 'CODING_GIT', className: 'coding' },
-  coding_typecheck: { icon: 'τ', label: 'TYPECHECK', className: 'coding' },
-  coding_shell: { icon: '$', label: 'CODING_SHELL', className: 'coding' },
-  coding_explore: { icon: '◎', label: 'CODING_EXPLORE', className: 'coding' },
-  settings: { icon: '⚙', label: 'APP_SETTINGS', className: 'settings' },
-  reminder: { icon: '⧗', label: 'REMINDER', className: 'reminder' },
-  skill: { icon: '✦', label: 'READ_SKILL', className: 'skill' },
-  plan: { icon: '✎', label: 'PLAN_MODE', className: 'plan' },
-  plan_progress: { icon: '✓', label: 'PLAN_PROGRESS', className: 'plan' },
-  mcp: { icon: '⬡', label: 'MCP', className: 'other' },
-  other: { icon: '◈', label: 'TOOL', className: 'other' },
-}
+const TOOL_PHASE_UI: Record<AgentToolUiPhase, { icon: string; label: string; className: string }> =
+  {
+    search: { icon: '⌕', label: 'SEARCHING_NET', className: 'search' },
+    youtube: { icon: '▶', label: 'YOUTUBE_PROC', className: 'youtube' },
+    weather: { icon: '◐', label: 'WEATHER_API', className: 'weather' },
+    scrape: { icon: '⬡', label: 'SCRAPING', className: 'scrap' },
+    browser: { icon: '⬡', label: 'BROWSER', className: 'scrap' },
+    pdf: { icon: '⬡', label: 'PDF_EXPORT', className: 'pdf' },
+    image: { icon: '◌', label: 'IMAGE_GEN', className: 'image' },
+    vision: { icon: '◎', label: 'IMAGE_RECALL', className: 'vision' },
+    music: { icon: '♫', label: 'MUSIC_GEN', className: 'music' },
+    tts: { icon: '◈', label: 'TTS_GEN', className: 'tts' },
+    coding_list: { icon: '⊢', label: 'CODING_FILES', className: 'coding' },
+    coding_read: { icon: '◊', label: 'CODING_READ', className: 'coding' },
+    coding_write: { icon: '▹', label: 'CODING_WRITE', className: 'coding' },
+    coding_edit: { icon: '✎', label: 'CODING_EDIT', className: 'coding' },
+    coding_search: { icon: '◇', label: 'CODING_FIND', className: 'coding' },
+    coding_glob: { icon: '◎', label: 'CODING_GLOB', className: 'coding' },
+    coding_outline: { icon: '⎘', label: 'CODING_OUTLINE', className: 'coding' },
+    coding_git: { icon: '⎇', label: 'CODING_GIT', className: 'coding' },
+    coding_typecheck: { icon: 'τ', label: 'TYPECHECK', className: 'coding' },
+    coding_shell: { icon: '$', label: 'CODING_SHELL', className: 'coding' },
+    coding_explore: { icon: '◎', label: 'CODING_EXPLORE', className: 'coding' },
+    settings: { icon: '⚙', label: 'APP_SETTINGS', className: 'settings' },
+    reminder: { icon: '⧗', label: 'REMINDER', className: 'reminder' },
+    skill: { icon: '✦', label: 'READ_SKILL', className: 'skill' },
+    plan: { icon: '✎', label: 'PLAN_MODE', className: 'plan' },
+    plan_progress: { icon: '✓', label: 'PLAN_PROGRESS', className: 'plan' },
+    mcp: { icon: '⬡', label: 'MCP', className: 'other' },
+    other: { icon: '◈', label: 'TOOL', className: 'other' },
+  }
 
 /** One running tool with a live elapsed timer (countdown when the timeout is known). */
 function ToolActivityRow({ activity }: { activity: AgentToolActivity }) {

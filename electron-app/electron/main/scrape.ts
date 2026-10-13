@@ -8,10 +8,7 @@ const FETCH_TIMEOUT_MS = 20_000
 
 function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split('.').map(Number)
-  if (
-    parts.length !== 4 ||
-    parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)
-  ) {
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) {
     return true
   }
   const [a, b] = parts
@@ -104,10 +101,7 @@ function htmlToPlainText(html: string): string {
 function looksLikeHtml(s: string): boolean {
   const t = s.slice(0, 512).toLowerCase()
   return (
-    t.includes('<html') ||
-    t.includes('<!doctype') ||
-    t.includes('<head') ||
-    t.includes('<body')
+    t.includes('<html') || t.includes('<!doctype') || t.includes('<head') || t.includes('<body')
   )
 }
 
@@ -173,8 +167,7 @@ export async function scrapePublicUrlToText(
         signal: ac.signal,
         headers: {
           'User-Agent': 'Voidcast/1.0 (scrape_url tool)',
-          Accept:
-            'text/html,application/xhtml+xml,text/plain,application/json;q=0.8,*/*;q=0.5',
+          Accept: 'text/html,application/xhtml+xml,text/plain,application/json;q=0.8,*/*;q=0.5',
         },
       })
 

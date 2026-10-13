@@ -188,10 +188,7 @@ describe('old tool result clearing helpers', () => {
     ).toBe(false)
 
     // Seventh older read falls outside pin → evict
-    const withExtra = [
-      { index: 0, round: -1, name: 'read_file' },
-      ...records,
-    ]
+    const withExtra = [{ index: 0, round: -1, name: 'read_file' }, ...records]
     expect(
       shouldEvictOldToolResult({
         rec: withExtra[0]!,

@@ -1,9 +1,13 @@
 /* Voidcast - Dystopian Theme */
 /* Main app shell */
 .voidcast-app-shell {
-  background: 
+  background:
     radial-gradient(1200px 600px at 50% -20%, rgb(var(--color-neon-cyan) / 0.08), transparent 55%),
-    radial-gradient(800px 400px at 100% 100%, rgb(var(--color-neon-magenta) / 0.06), transparent 50%),
+    radial-gradient(
+      800px 400px at 100% 100%,
+      rgb(var(--color-neon-magenta) / 0.06),
+      transparent 50%
+    ),
     rgb(var(--color-void-black));
 }
 
@@ -31,7 +35,7 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 /* Main app container */
 .voidcast-app {
   @apply h-full flex flex-col relative overflow-hidden;
-  background: 
+  background:
     radial-gradient(ellipse at 20% 0%, rgb(var(--color-neon-cyan) / 0.08) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 100%, rgb(var(--color-neon-magenta) / 0.06) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 50%, rgb(var(--color-neon-purple) / 0.04) 0%, transparent 70%),
@@ -81,7 +85,9 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .voidcast-logo span {
   @apply text-neon-cyan;
-  text-shadow: 0 0 10px rgb(var(--color-neon-cyan)), 0 0 20px rgb(var(--color-neon-cyan));
+  text-shadow:
+    0 0 10px rgb(var(--color-neon-cyan)),
+    0 0 20px rgb(var(--color-neon-cyan));
 }
 
 /* Main content area */
@@ -884,7 +890,7 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .voidcast-textarea:focus {
   @apply border-neon-cyan;
-  box-shadow: 
+  box-shadow:
     0 0 0 1px rgb(var(--color-neon-cyan)),
     0 0 30px rgb(var(--color-neon-cyan) / 0.15),
     inset 0 0 20px rgb(var(--color-neon-cyan) / 0.03);
@@ -926,20 +932,45 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 @keyframes tool-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
-.tool-indicator.search { @apply text-neon-cyan border-neon-cyan/30; }
-.tool-indicator.youtube { @apply text-neon-red border-neon-red/30; }
-.tool-indicator.weather { @apply text-neon-yellow border-neon-yellow/30; }
-.tool-indicator.scrape { @apply text-neon-green border-neon-green/30; }
-.tool-indicator.pdf { @apply text-neon-purple border-neon-purple/30; }
-.tool-indicator.image { @apply text-neon-magenta border-neon-magenta/30; }
-.tool-indicator.vision { @apply text-sky-400 border-sky-400/35; }
-.tool-indicator.music { @apply text-neon-green border-neon-green/30; }
-.tool-indicator.tts { @apply text-neon-cyan border-neon-cyan/30; }
-.tool-indicator.coding { @apply text-neon-cyan border-neon-cyan/30; }
+.tool-indicator.search {
+  @apply text-neon-cyan border-neon-cyan/30;
+}
+.tool-indicator.youtube {
+  @apply text-neon-red border-neon-red/30;
+}
+.tool-indicator.weather {
+  @apply text-neon-yellow border-neon-yellow/30;
+}
+.tool-indicator.scrape {
+  @apply text-neon-green border-neon-green/30;
+}
+.tool-indicator.pdf {
+  @apply text-neon-purple border-neon-purple/30;
+}
+.tool-indicator.image {
+  @apply text-neon-magenta border-neon-magenta/30;
+}
+.tool-indicator.vision {
+  @apply text-sky-400 border-sky-400/35;
+}
+.tool-indicator.music {
+  @apply text-neon-green border-neon-green/30;
+}
+.tool-indicator.tts {
+  @apply text-neon-cyan border-neon-cyan/30;
+}
+.tool-indicator.coding {
+  @apply text-neon-cyan border-neon-cyan/30;
+}
 
 /* Compact chat audio (music URL + local TTS) — sits in one row with OPEN */
 .chat-audio-player {
@@ -958,13 +989,23 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   max-height: 28px;
   border-radius: 4px;
 }
-.tool-indicator.settings { @apply text-neon-yellow border-neon-yellow/30; }
-.tool-indicator.reminder { @apply text-neon-orange border-neon-orange/30; }
-.tool-indicator.skill { @apply text-neon-purple border-neon-purple/30; }
-.tool-indicator.other { @apply text-void-dim border-void-muted/50; }
+.tool-indicator.settings {
+  @apply text-neon-yellow border-neon-yellow/30;
+}
+.tool-indicator.reminder {
+  @apply text-neon-orange border-neon-orange/30;
+}
+.tool-indicator.skill {
+  @apply text-neon-purple border-neon-purple/30;
+}
+.tool-indicator.other {
+  @apply text-void-dim border-void-muted/50;
+}
 
 /* A tool that has already run past its configured timeout turns red. */
-.tool-indicator--overtime { @apply text-neon-red border-neon-red/40; }
+.tool-indicator--overtime {
+  @apply text-neon-red border-neon-red/40;
+}
 
 /* Per-turn duration chip at the bottom of an assistant bubble. */
 .turn-timer {
@@ -1017,7 +1058,9 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .form-input:focus {
   @apply border-neon-cyan outline-none;
-  box-shadow: 0 0 0 1px rgb(var(--color-neon-cyan)), 0 0 20px rgb(var(--color-neon-cyan) / 0.1);
+  box-shadow:
+    0 0 0 1px rgb(var(--color-neon-cyan)),
+    0 0 20px rgb(var(--color-neon-cyan) / 0.1);
 }
 
 .form-select {
@@ -1041,16 +1084,14 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .form-slider::-webkit-slider-thumb {
   @apply w-4 h-4 appearance-none cursor-pointer;
-  background: linear-gradient(
-    135deg,
-    rgb(var(--color-neon-cyan)),
-    rgb(var(--color-neon-cyan-dim))
-  );
+  background: linear-gradient(135deg, rgb(var(--color-neon-cyan)), rgb(var(--color-neon-cyan-dim)));
   box-shadow: 0 0 10px rgb(var(--color-neon-cyan));
 }
 
 .form-slider::-webkit-slider-thumb:hover {
-  box-shadow: 0 0 15px rgb(var(--color-neon-cyan)), 0 0 25px rgb(var(--color-neon-cyan));
+  box-shadow:
+    0 0 15px rgb(var(--color-neon-cyan)),
+    0 0 25px rgb(var(--color-neon-cyan));
 }
 
 /* Toggle switch */
@@ -1065,7 +1106,16 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 .toggle-track {
   @apply absolute inset-0 bg-void-dark border border-void-muted;
   @apply transition-all duration-300;
-  clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    0 calc(100% - 2px),
+    0 2px
+  );
 }
 
 .toggle-switch input:checked + .toggle-track {
@@ -1076,7 +1126,16 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 .toggle-thumb {
   @apply absolute top-0.5 left-0.5 w-5 h-5;
   @apply bg-void-dim transition-all duration-300;
-  clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    0 calc(100% - 2px),
+    0 2px
+  );
 }
 
 .toggle-switch input:checked ~ .toggle-thumb {
@@ -1103,8 +1162,12 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 @keyframes context-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .context-fill.warning {
@@ -1166,15 +1229,34 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   animation: waveform 0.5s ease-in-out infinite alternate;
 }
 
-.clone-waveform span:nth-child(1) { animation-delay: 0ms; height: 30%; }
-.clone-waveform span:nth-child(2) { animation-delay: 100ms; height: 60%; }
-.clone-waveform span:nth-child(3) { animation-delay: 200ms; height: 100%; }
-.clone-waveform span:nth-child(4) { animation-delay: 300ms; height: 70%; }
-.clone-waveform span:nth-child(5) { animation-delay: 400ms; height: 40%; }
+.clone-waveform span:nth-child(1) {
+  animation-delay: 0ms;
+  height: 30%;
+}
+.clone-waveform span:nth-child(2) {
+  animation-delay: 100ms;
+  height: 60%;
+}
+.clone-waveform span:nth-child(3) {
+  animation-delay: 200ms;
+  height: 100%;
+}
+.clone-waveform span:nth-child(4) {
+  animation-delay: 300ms;
+  height: 70%;
+}
+.clone-waveform span:nth-child(5) {
+  animation-delay: 400ms;
+  height: 40%;
+}
 
 @keyframes waveform {
-  0% { transform: scaleY(0.3); }
-  100% { transform: scaleY(1); }
+  0% {
+    transform: scaleY(0.3);
+  }
+  100% {
+    transform: scaleY(1);
+  }
 }
 
 /* Settings save indicator */
@@ -1186,8 +1268,16 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 @keyframes fade-in-out {
-  0%, 100% { opacity: 0; transform: translateY(-10px); }
-  20%, 80% { opacity: 1; transform: translateY(0); }
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  20%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Decorative corner brackets */
@@ -1235,8 +1325,12 @@ html[data-win-chrome] .voidcast-header [role='button'] {
     transform: translateY(100vh) rotate(0deg);
     opacity: 0;
   }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
   100% {
     transform: translateY(-100vh) rotate(720deg);
     opacity: 0;
@@ -1335,8 +1429,12 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 @keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Mobile / touch (web client on phone) */

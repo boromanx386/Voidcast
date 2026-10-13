@@ -25,9 +25,7 @@ export function composerKeyForSession(sessionId: string | null | undefined): str
 export function stashComposerDraft(key: string, draft: ComposerDraft): void {
   const k = key.trim() || DRAFT_RUNTIME_KEY
   const hasContent =
-    draft.input.trim().length > 0 ||
-    draft.pendingImages.length > 0 ||
-    draft.pendingFiles.length > 0
+    draft.input.trim().length > 0 || draft.pendingImages.length > 0 || draft.pendingFiles.length > 0
   if (!hasContent) {
     drafts.delete(k)
     return

@@ -40,10 +40,7 @@ export function normalizeVisionFocus(focus: string | undefined): string {
  * Cache key for a vision description. Generic recalls (no focus) use the image key only.
  * Focused recalls are stored separately so repeat calls with different focus re-analyze.
  */
-export function visionCacheKey(
-  item: { path?: string; base64: string },
-  focus?: string,
-): string {
+export function visionCacheKey(item: { path?: string; base64: string }, focus?: string): string {
   const base = imageCatalogKey(item)
   const f = normalizeVisionFocus(focus)
   if (!f) return base

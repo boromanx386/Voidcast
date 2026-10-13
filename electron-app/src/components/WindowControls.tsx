@@ -3,7 +3,14 @@ import { usesCustomWindowChrome } from '@/lib/platform'
 
 function MinimizeIcon() {
   return (
-    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path d="M5 12h14" strokeLinecap="round" />
     </svg>
   )
@@ -11,7 +18,14 @@ function MinimizeIcon() {
 
 function MaximizeIcon() {
   return (
-    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <rect x="5" y="5" width="14" height="14" rx="1" />
     </svg>
   )
@@ -19,7 +33,14 @@ function MaximizeIcon() {
 
 function RestoreIcon() {
   return (
-    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path d="M8 8h10v10H8z" />
       <path d="M6 16V6h10" />
     </svg>
@@ -28,14 +49,20 @@ function RestoreIcon() {
 
 function CloseIcon() {
   return (
-    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
     </svg>
   )
 }
 
-const btnClass =
-  'cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0'
+const btnClass = 'cyber-btn flex h-8 w-8 shrink-0 items-center justify-center p-0'
 
 /** Custom caption buttons (Windows + Linux) styled like other header cyber-btn icons. */
 export function WindowControls() {

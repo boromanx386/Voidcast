@@ -8,9 +8,7 @@ export async function invokeSaveAudioFromUrl(opts: {
   filename?: string
 }): Promise<string> {
   if (!isElectron()) {
-    throw new Error(
-      'Auto-save music is only available in the desktop app (Electron).',
-    )
+    throw new Error('Auto-save music is only available in the desktop app (Electron).')
   }
   const vc = window.voidcast?.saveAudioFromUrl
   if (!vc) {

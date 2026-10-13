@@ -120,13 +120,13 @@ export function formatMcpToolsListResult(
   const blocks: string[] = [
     `MCP catalog (${sliced.length}${total > sliced.length ? ` of ${total}` : ''} matches; summary only — no schemas):`,
   ]
-  for (const [serverId, list] of [...byServer.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0]),
-  )) {
+  for (const [serverId, list] of [...byServer.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     blocks.push(`[${serverId}]`)
     for (const t of list) {
       const desc = t.description.replace(/\s+/g, ' ').trim().slice(0, DESC_MAX_CHARS)
-      blocks.push(`- ${t.qualifiedName}: ${desc}${t.description.length > DESC_MAX_CHARS ? '…' : ''}`)
+      blocks.push(
+        `- ${t.qualifiedName}: ${desc}${t.description.length > DESC_MAX_CHARS ? '…' : ''}`,
+      )
     }
   }
   if (total > sliced.length) {
@@ -232,10 +232,7 @@ export type McpClientOpts = {
   ownerId?: string
 }
 
-function enabledCacheKey(
-  projectPath: string,
-  enabledServers?: Record<string, boolean>,
-): string {
+function enabledCacheKey(projectPath: string, enabledServers?: Record<string, boolean>): string {
   const off = Object.entries(enabledServers ?? {})
     .filter(([, v]) => v === false)
     .map(([k]) => k)
@@ -332,7 +329,12 @@ export async function getMcpStatus(
   error?: string
 }> {
   if (!isElectron() || !window.voidcast?.mcpStatus) {
-    return { ok: false, status: [], configPath: '', error: 'MCP is only available in the desktop app.' }
+    return {
+      ok: false,
+      status: [],
+      configPath: '',
+      error: 'MCP is only available in the desktop app.',
+    }
   }
   const project = (projectPath || '').trim()
   const res = await window.voidcast.mcpStatus({
@@ -384,7 +386,12 @@ export async function signInMcpOAuthServer(
   opts?: McpClientOpts,
 ): Promise<{ ok: boolean; status: McpServerStatus[]; tools: McpToolInfo[]; error?: string }> {
   if (!isElectron() || !window.voidcast?.mcpOAuthSignIn) {
-    return { ok: false, status: [], tools: [], error: 'MCP OAuth is only available in the desktop app.' }
+    return {
+      ok: false,
+      status: [],
+      tools: [],
+      error: 'MCP OAuth is only available in the desktop app.',
+    }
   }
   const res = await window.voidcast.mcpOAuthSignIn({
     serverId,
@@ -404,7 +411,12 @@ export async function signOutMcpOAuthServer(
   opts?: McpClientOpts,
 ): Promise<{ ok: boolean; status: McpServerStatus[]; tools: McpToolInfo[]; error?: string }> {
   if (!isElectron() || !window.voidcast?.mcpOAuthSignOut) {
-    return { ok: false, status: [], tools: [], error: 'MCP OAuth is only available in the desktop app.' }
+    return {
+      ok: false,
+      status: [],
+      tools: [],
+      error: 'MCP OAuth is only available in the desktop app.',
+    }
   }
   const res = await window.voidcast.mcpOAuthSignOut({
     serverId,

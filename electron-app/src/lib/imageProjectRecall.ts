@@ -60,7 +60,10 @@ export function resolveInsideCodingProject(projectRoot: string, inputPath: strin
   return abs
 }
 
-export function resolveCodingProjectImagePath(projectRoot: string, inputPath: string): string | null {
+export function resolveCodingProjectImagePath(
+  projectRoot: string,
+  inputPath: string,
+): string | null {
   const abs = resolveInsideCodingProject(projectRoot, inputPath)
   if (!abs || !isImageRecallExtension(abs)) return null
   return abs

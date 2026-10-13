@@ -102,9 +102,7 @@ describe('isSuccessfulRepoActionTool', () => {
   it('execute_command success requires shell echo line', () => {
     expect(isSuccessfulExecuteCommandResult('$ npm test\nok')).toBe(true)
     expect(isSuccessfulExecuteCommandResult('Error: failed')).toBe(false)
-    expect(
-      isSuccessfulRepoActionTool('execute_command', '$ git commit -m x\nok'),
-    ).toBe(true)
+    expect(isSuccessfulRepoActionTool('execute_command', '$ git commit -m x\nok')).toBe(true)
     expect(isSuccessfulRepoActionTool('execute_command', 'Error: denied')).toBe(false)
   })
 })

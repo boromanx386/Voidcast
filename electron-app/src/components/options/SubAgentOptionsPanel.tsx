@@ -92,13 +92,7 @@ function pinnedChips(
   )
 }
 
-function PinToggleButton({
-  pinned,
-  onToggle,
-}: {
-  pinned: boolean
-  onToggle: () => void
-}) {
+function PinToggleButton({ pinned, onToggle }: { pinned: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
@@ -154,7 +148,7 @@ function SubAgentEndpointPicker({
             ? NVIDIA_LLM_PRESET_MODELS
             : provider === 'opencode-go'
               ? OPENCODE_GO_LLM_PRESET_MODELS
-                : null
+              : null
 
   const ollamaInList = ollamaModels.includes(model)
   const presetInList = Boolean(presets?.some((m) => m.id === model))
@@ -211,9 +205,7 @@ function SubAgentEndpointPicker({
     setModel(v, nextProvider)
   }
 
-  const scopedPinId = model.trim()
-    ? toScopedPinnedId(llmProv, model)
-    : ''
+  const scopedPinId = model.trim() ? toScopedPinnedId(llmProv, model) : ''
 
   const cloudManualPlaceholder =
     provider === 'openrouter'
@@ -307,9 +299,7 @@ function SubAgentEndpointPicker({
                   {name}
                 </option>
               ))}
-              {model && !inList && (
-                <option value={`__custom__${model}`}>{model} (manual)</option>
-              )}
+              {model && !inList && <option value={`__custom__${model}`}>{model} (manual)</option>}
             </select>
             <PinToggleButton
               pinned={Boolean(scopedPinId && pinned.includes(scopedPinId))}
@@ -351,9 +341,7 @@ function SubAgentEndpointPicker({
                     {m.label}
                   </option>
                 ))}
-                {model && !inList && (
-                  <option value={`__custom__${model}`}>{model} (manual)</option>
-                )}
+                {model && !inList && <option value={`__custom__${model}`}>{model} (manual)</option>}
               </select>
               <PinToggleButton
                 pinned={Boolean(scopedPinId && pinned.includes(scopedPinId))}
@@ -398,8 +386,8 @@ function SubAgentEndpointPicker({
               }}
             />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-              Uses Options → LLM OpenRouter base URL and API key. Same curated presets as
-              the main model picker.
+              Uses Options → LLM OpenRouter base URL and API key. Same curated presets as the main
+              model picker.
             </p>
           </div>
           <div className="form-group mb-0">
@@ -421,8 +409,8 @@ function SubAgentEndpointPicker({
             <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
               Force routing to one OpenRouter provider slug (e.g.{' '}
               <code className="text-void-light/90">anthropic</code>,{' '}
-              <code className="text-void-light/90">openai</code>). Remembered per model —
-              shared with LLM tab. Leave empty for default load balancing.
+              <code className="text-void-light/90">openai</code>). Remembered per model — shared
+              with LLM tab. Leave empty for default load balancing.
             </p>
           </div>
         </>
@@ -437,12 +425,7 @@ function SubAgentEndpointPicker({
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
             </label>
-            {pinnedChips(
-              pinsForProvider(pinned, llmProv),
-              presets,
-              scopedPinId,
-              handleTogglePin,
-            )}
+            {pinnedChips(pinsForProvider(pinned, llmProv), presets, scopedPinId, handleTogglePin)}
             <div className="flex items-center gap-2">
               <select
                 className="form-select mb-0 flex-1"
@@ -454,9 +437,7 @@ function SubAgentEndpointPicker({
                     {m.label}
                   </option>
                 ))}
-                {model && !inList && (
-                  <option value={`__custom__${model}`}>{model} (manual)</option>
-                )}
+                {model && !inList && <option value={`__custom__${model}`}>{model} (manual)</option>}
               </select>
               <PinToggleButton
                 pinned={Boolean(scopedPinId && pinned.includes(scopedPinId))}
@@ -472,12 +453,9 @@ function SubAgentEndpointPicker({
               onChange={(e) => setModel(e.target.value, provider)}
             />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-              {provider === 'deepseek' &&
-                'Uses Options → LLM DeepSeek base URL and API key.'}
-              {provider === 'openai' &&
-                'Uses Options → LLM OpenAI base URL and API key.'}
-              {provider === 'nvidia' &&
-                'Uses Options → LLM NVIDIA base URL and API key.'}
+              {provider === 'deepseek' && 'Uses Options → LLM DeepSeek base URL and API key.'}
+              {provider === 'openai' && 'Uses Options → LLM OpenAI base URL and API key.'}
+              {provider === 'nvidia' && 'Uses Options → LLM NVIDIA base URL and API key.'}
               {provider === 'opencode-go' &&
                 'Uses Options → LLM OpenCode Go key (local reverse proxy).'}
             </p>
@@ -515,8 +493,8 @@ export function SubAgentOptionsPanel({
           <span className="text-neon-cyan">⬡ ENABLE_VISION_SUB_AGENT</span>
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-          When enabled, image_recall delegates vision analysis to the vision model below.
-          The main agent receives text descriptions instead of raw image bytes.
+          When enabled, image_recall delegates vision analysis to the vision model below. The main
+          agent receives text descriptions instead of raw image bytes.
         </p>
       </div>
 
@@ -548,9 +526,9 @@ export function SubAgentOptionsPanel({
           <span className="text-neon-cyan">⬡ ENABLE_CODING_SUB_AGENT</span>
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-          Coding context management, coding_explore, and Team-mode workers (run_coding_workers)
-          — all run on the coding model below (prefer text-capable, not vision-only). Same
-          provider list and pins as the main LLM picker.
+          Coding context management, coding_explore, and Team-mode workers (run_coding_workers) —
+          all run on the coding model below (prefer text-capable, not vision-only). Same provider
+          list and pins as the main LLM picker.
         </p>
       </div>
 
@@ -577,15 +555,13 @@ export function SubAgentOptionsPanel({
               type="checkbox"
               className="cyber-checkbox"
               checked={sub.showAnalysisWindow !== false}
-              onChange={(e) =>
-                patchSubAgent(setSettings, { showAnalysisWindow: e.target.checked })
-              }
+              onChange={(e) => patchSubAgent(setSettings, { showAnalysisWindow: e.target.checked })}
             />
             <span className="text-neon-cyan">⬡ SHOW_ANALYSIS_IN_CHAT</span>
           </label>
           <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-            Collapsible card in the chat stream while vision / explore / workers
-            run (progress and digests). Off = same behavior, no chat card.
+            Collapsible card in the chat stream while vision / explore / workers run (progress and
+            digests). Off = same behavior, no chat card.
           </p>
         </div>
       )}

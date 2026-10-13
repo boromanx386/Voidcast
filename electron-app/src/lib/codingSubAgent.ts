@@ -10,11 +10,7 @@
 
 import type { SubAgentConfig } from '@/lib/settings'
 import { subAgentConfigForRole, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from '@/lib/settings'
-import {
-  callSubAgentChat,
-  type SubAgentKeys,
-  type SubAgentUiCallbacks,
-} from '@/lib/subAgent'
+import { callSubAgentChat, type SubAgentKeys, type SubAgentUiCallbacks } from '@/lib/subAgent'
 
 // ── Layer 1: deterministic trim of noisy outputs (current turn) ──────────
 
@@ -49,11 +45,7 @@ export const CODING_EXPLORE_DEFAULT_ROUNDS = 8
 export const CODING_EXPLORE_MAX_ROUNDS = 12
 export const CODING_EXPLORE_READ_BUDGET = 48_000
 
-export function shouldTrimCodingResult(
-  name: string,
-  raw: string,
-  enabled: boolean,
-): boolean {
+export function shouldTrimCodingResult(name: string, raw: string, enabled: boolean): boolean {
   if (!enabled) return false
   if (!CODING_TRIM_TOOLS.has(name)) return false
   return raw.length > CODING_TRIM_THRESHOLD
@@ -126,8 +118,7 @@ export function shouldEvictOldToolResult(params: {
   pinRecentByTool?: Record<string, number>
   allRecords: Array<{ index: number; round: number; name: string }>
 }): boolean {
-  const keepRounds =
-    params.keepRecentRoundsByTool?.[params.rec.name] ?? params.keepRecentRounds
+  const keepRounds = params.keepRecentRoundsByTool?.[params.rec.name] ?? params.keepRecentRounds
   if (params.rec.round >= params.currentRound - keepRounds) return false
 
   const pinN = params.pinRecentByTool?.[params.rec.name] ?? 0
@@ -185,7 +176,10 @@ function digestPathList(content: string, label: string, maxPaths = 40): string {
 }
 
 function digestSearchFiles(content: string): string {
-  const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const lines = content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
   const files: string[] = []
   for (const line of lines) {
     // Blocks often start with path:line or "## path" / bare path headers
@@ -334,11 +328,7 @@ export function parseCodingExploreAction(raw: string): CodingExploreModelAction 
     const o = parsed as Record<string, unknown>
     // Prefer tool calls over digest — models sometimes include both fields.
     const tool =
-      typeof o.tool === 'string'
-        ? o.tool.trim()
-        : typeof o.name === 'string'
-          ? o.name.trim()
-          : ''
+      typeof o.tool === 'string' ? o.tool.trim() : typeof o.name === 'string' ? o.name.trim() : ''
     if (tool) {
       const args =
         o.args && typeof o.args === 'object' && !Array.isArray(o.args)
@@ -576,9 +566,7 @@ export async function runCodingExplore(opts: {
     const isAbort =
       opts.signal?.aborted ||
       (e instanceof Error && (e.name === 'AbortError' || /abort/i.test(e.message)))
-    const formatted = isAbort
-      ? `[Coding explore]\nAborted.`
-      : `[Coding explore]\nError: ${msg}`
+    const formatted = isAbort ? `[Coding explore]\nAborted.` : `[Coding explore]\nError: ${msg}`
     opts.ui?.onCodingDone?.(formatted)
     return formatted
   }

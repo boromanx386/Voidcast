@@ -25,9 +25,7 @@ export function ChatToolResultBanner({ app }: Props) {
     <div
       className={`tool-result-banner mx-4 my-2${isTimeout ? ' tool-result-banner--timeout' : ''}`}
     >
-      <div
-        className={`flex justify-between gap-3 ${isTimeout ? 'items-baseline' : 'items-start'}`}
-      >
+      <div className={`flex justify-between gap-3 ${isTimeout ? 'items-baseline' : 'items-start'}`}>
         {isTimeout ? (
           // One line only: the countdown already told the story, this just records
           // which tool was stopped. Full text stays reachable via the tooltip.

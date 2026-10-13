@@ -146,9 +146,7 @@ export async function synthesizeSpeech(options: {
     if (!viaProxy && !apiKey) {
       throw new Error('OpenRouter API key is missing. Set it in Options -> General.')
     }
-    const model =
-      options.openrouterTtsModel?.trim() ||
-      OPENROUTER_TTS_MODEL_DEFAULT
+    const model = options.openrouterTtsModel?.trim() || OPENROUTER_TTS_MODEL_DEFAULT
     const root = viaProxy
       ? `${normalizeBaseUrl(options.ttsBaseUrl || '')}/api/openrouter/api/v1`
       : 'https://openrouter.ai/api/v1'
@@ -178,9 +176,7 @@ export async function synthesizeSpeech(options: {
       })
       if (!res.ok) {
         const errText = await res.text().catch(() => '')
-        throw new Error(
-          `OpenRouter TTS ${res.status}: ${errText || res.statusText}`,
-        )
+        throw new Error(`OpenRouter TTS ${res.status}: ${errText || res.statusText}`)
       }
       const blob = await res.blob()
       if (!blob || blob.size === 0) {
@@ -322,9 +318,11 @@ export async function synthesizeSpeech(options: {
         tasks: [payload],
       })
       if (!res.ok) throw new Error(res.detail || 'Electron Runware proxy failed')
-      return decodeRunwareAudioBody((res.data || {}) as {
-        data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>
-      })
+      return decodeRunwareAudioBody(
+        (res.data || {}) as {
+          data?: Array<{ audioBase64Data?: string; audioDataURI?: string }>
+        },
+      )
     }
 
     if (isElectron() && window.voidcast?.runwareProxy) {
@@ -366,9 +364,7 @@ export async function synthesizeSpeech(options: {
   const numStep = options.numStep ?? 32
 
   const useAnchor =
-    (options.voiceMode === 'design') &&
-    options.voiceAnchor?.blob &&
-    options.voiceAnchor.blob.size > 0
+    options.voiceMode === 'design' && options.voiceAnchor?.blob && options.voiceAnchor.blob.size > 0
 
   if (useAnchor && options.voiceAnchor) {
     const ref_audio_base64 = await blobToBase64(options.voiceAnchor.blob)
@@ -402,11 +398,7 @@ export async function synthesizeSpeech(options: {
     return await res.blob()
   }
 
-  if (
-    options.voiceMode === 'clone' &&
-    options.cloneRef?.blob &&
-    options.cloneRef.blob.size > 0
-  ) {
+  if (options.voiceMode === 'clone' && options.cloneRef?.blob && options.cloneRef.blob.size > 0) {
     const ref_audio_base64 = await blobToBase64(options.cloneRef.blob)
     const payload: Record<string, unknown> = {
       text: options.text,
@@ -485,9 +477,7 @@ async function checkServerCloudSecret(
       runware?: boolean
     }
     const ready = slot === 'openrouter' ? Boolean(body.openrouter) : Boolean(body.runware)
-    return ready
-      ? { ok: true }
-      : { ok: false, detail: cloudProxySetupHint() }
+    return ready ? { ok: true } : { ok: false, detail: cloudProxySetupHint() }
   } catch (e) {
     return {
       ok: false,
@@ -510,18 +500,14 @@ export async function checkTtsHealth(options: {
       return checkServerCloudSecret(options.ttsBaseUrl, 'runware')
     }
     const hasKey = Boolean((options.runwareApiKey || '').trim())
-    return hasKey
-      ? { ok: true }
-      : { ok: false, detail: 'Runware API key missing' }
+    return hasKey ? { ok: true } : { ok: false, detail: 'Runware API key missing' }
   }
   if (options.ttsProvider === 'openrouter-tts') {
     if (usesServerCloudProxy()) {
       return checkServerCloudSecret(options.ttsBaseUrl, 'openrouter')
     }
     const hasKey = Boolean((options.openrouterApiKey || '').trim())
-    return hasKey
-      ? { ok: true }
-      : { ok: false, detail: 'OpenRouter API key missing' }
+    return hasKey ? { ok: true } : { ok: false, detail: 'OpenRouter API key missing' }
   }
   try {
     const root = normalizeBaseUrl(options.ttsBaseUrl)

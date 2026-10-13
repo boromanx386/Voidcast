@@ -20,11 +20,7 @@ export type ActiveCodingProcess = {
 
 /** Normalize paths for ownership compare (Windows-safe, no trailing slash). */
 export function normalizeCodingPathKey(path: string): string {
-  return path
-    .trim()
-    .toLowerCase()
-    .replace(/\\/g, '/')
-    .replace(/\/+$/, '')
+  return path.trim().toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 /**
@@ -119,7 +115,10 @@ export function sliceProcessOutputBuffer(
   state: { buffer: string; startOffset: number },
   offset?: number,
 ): { text: string; nextOffset: number; truncatedFromStart: boolean; startOffset: number } {
-  const req = typeof offset === 'number' && Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : state.startOffset
+  const req =
+    typeof offset === 'number' && Number.isFinite(offset)
+      ? Math.max(0, Math.floor(offset))
+      : state.startOffset
   const truncatedFromStart = req < state.startOffset
   const localStart = Math.max(0, req - state.startOffset)
   const text = state.buffer.slice(localStart)

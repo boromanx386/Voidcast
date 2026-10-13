@@ -19,7 +19,9 @@ const Update = () => {
     onOk?: () => void
   }>({
     onCancel: () => setModalOpen(false),
-    onOk: () => { void bridge?.startUpdateDownload() },
+    onOk: () => {
+      void bridge?.startUpdateDownload()
+    },
   })
 
   const checkUpdate = async () => {
@@ -39,22 +41,27 @@ const Update = () => {
     }
   }
 
-  const onUpdateCanAvailable = useCallback((arg1: VersionInfo) => {
-    setVersionInfo(arg1)
-    setUpdateError(undefined)
-    // Can be update
-    if (arg1.update) {
-      setModalBtn(state => ({
-        ...state,
-        cancelText: 'Cancel',
-        okText: 'Update',
-        onOk: () => { void bridge?.startUpdateDownload() },
-      }))
-      setUpdateAvailable(true)
-    } else {
-      setUpdateAvailable(false)
-    }
-  }, [bridge])
+  const onUpdateCanAvailable = useCallback(
+    (arg1: VersionInfo) => {
+      setVersionInfo(arg1)
+      setUpdateError(undefined)
+      // Can be update
+      if (arg1.update) {
+        setModalBtn((state) => ({
+          ...state,
+          cancelText: 'Cancel',
+          okText: 'Update',
+          onOk: () => {
+            void bridge?.startUpdateDownload()
+          },
+        }))
+        setUpdateAvailable(true)
+      } else {
+        setUpdateAvailable(false)
+      }
+    },
+    [bridge],
+  )
 
   const onUpdateError = useCallback((arg1: ErrorType) => {
     setUpdateAvailable(false)
@@ -67,11 +74,13 @@ const Update = () => {
 
   const onUpdateDownloaded = useCallback(() => {
     setProgressInfo({ percent: 100 })
-    setModalBtn(state => ({
+    setModalBtn((state) => ({
       ...state,
       cancelText: 'Later',
       okText: 'Install now',
-      onOk: () => { void bridge?.quitAndInstallUpdate() },
+      onOk: () => {
+        void bridge?.quitAndInstallUpdate()
+      },
     }))
   }, [bridge])
 
@@ -105,31 +114,30 @@ const Update = () => {
         okText={modalBtn?.okText}
         onCancel={modalBtn?.onCancel}
         onOk={modalBtn?.onOk}
-        footer={updateAvailable ? /* hide footer */null : undefined}
+        footer={updateAvailable ? /* hide footer */ null : undefined}
       >
-        <div className='modal-slot'>
-          {updateError
-            ? (
-              <div>
-                <p>Error downloading the latest version.</p>
-                <p>{updateError.message}</p>
+        <div className="modal-slot">
+          {updateError ? (
+            <div>
+              <p>Error downloading the latest version.</p>
+              <p>{updateError.message}</p>
+            </div>
+          ) : updateAvailable ? (
+            <div>
+              <div>The last version is: v{versionInfo?.newVersion}</div>
+              <div className="new-version__target">
+                v{versionInfo?.version} -&gt; v{versionInfo?.newVersion}
               </div>
-            ) : updateAvailable
-              ? (
-                <div>
-                  <div>The last version is: v{versionInfo?.newVersion}</div>
-                  <div className='new-version__target'>v{versionInfo?.version} -&gt; v{versionInfo?.newVersion}</div>
-                  <div className='update__progress'>
-                    <div className='progress__title'>Update progress:</div>
-                    <div className='progress__bar'>
-                      <Progress percent={progressInfo?.percent} ></Progress>
-                    </div>
-                  </div>
+              <div className="update__progress">
+                <div className="progress__title">Update progress:</div>
+                <div className="progress__bar">
+                  <Progress percent={progressInfo?.percent}></Progress>
                 </div>
-              )
-              : (
-                <div className='can-not-available'>{JSON.stringify(versionInfo ?? {}, null, 2)}</div>
-              )}
+              </div>
+            </div>
+          ) : (
+            <div className="can-not-available">{JSON.stringify(versionInfo ?? {}, null, 2)}</div>
+          )}
         </div>
       </Modal>
       <button disabled={checking} onClick={checkUpdate}>

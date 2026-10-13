@@ -13,15 +13,10 @@ import {
 } from '@/lib/runwareMessageMeta'
 import type { ChatMessageRenderContext } from '@/hooks/useChatMessageRender'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
-import {
-  emptyCodingTurnEvidence,
-  formatCodingTurnEvidenceLabel,
-} from '@/lib/codingContextMemo'
+import { emptyCodingTurnEvidence, formatCodingTurnEvidenceLabel } from '@/lib/codingContextMemo'
 import type { UiMessage } from '@/types/chat'
 
-function codingTurnEvidenceLabel(
-  ev: NonNullable<UiMessage['codingTurnEvidence']>,
-): string {
+function codingTurnEvidenceLabel(ev: NonNullable<UiMessage['codingTurnEvidence']>): string {
   return formatCodingTurnEvidenceLabel({
     ...emptyCodingTurnEvidence(),
     filesChanged: ev.filesChanged,
@@ -71,12 +66,7 @@ type Props = {
   >
 }
 
-export function ChatMessage({
-  message: m,
-  index,
-  render,
-  app,
-}: Props) {
+export function ChatMessage({ message: m, index, render, app }: Props) {
   const {
     settings,
     busy,
@@ -116,14 +106,16 @@ export function ChatMessage({
   } = render
 
   return (
-    <div 
+    <div
       className={`message-container ${m.role === 'user' ? 'user' : 'assistant'} animate-message-in group`}
       style={{ animationDelay: `${index * 0.05}s` }}
     >
       <div className={`message-bubble ${m.role === 'user' ? 'message-user' : 'message-assistant'}`}>
         {/* Role indicator */}
         <div className="message-meta">
-          <span className={`message-role ${m.role === 'user' ? 'text-neon-purple' : 'text-neon-cyan'}`}>
+          <span
+            className={`message-role ${m.role === 'user' ? 'text-neon-purple' : 'text-neon-cyan'}`}
+          >
             {m.role === 'user' ? 'USER' : 'Void Agent'}
           </span>
           {m.role === 'user' && m.steered ? (
@@ -135,38 +127,38 @@ export function ChatMessage({
             </span>
           ) : null}
         </div>
-        
+
         {/* Content */}
         {m.role === 'assistant' ? (
           <div className="min-w-0 space-y-3">
             {(() => {
               const cached = assistantRenderCache[m.id]
               const trustedAudio = dedupeNonEmpty([...(assistantGeneratedAudios[m.id] || [])])
-              const markdownContent = cached?.markdownContent || stripGeneratedAudioLinkArtifacts(
-                stripRunwareAudioUrlLines(m.content),
-                trustedAudio,
-              )
+              const markdownContent =
+                cached?.markdownContent ||
+                stripGeneratedAudioLinkArtifacts(stripRunwareAudioUrlLines(m.content), trustedAudio)
               const inlineImageUrls = cached?.inlineImageUrls || []
               const localImagePaths = cached?.localImagePaths || []
-              const renderItems = localImagePaths.length > 0
-                ? localImagePaths.map((p, i) => ({
-                    key: `${m.id}-local-${i}`,
-                    src: localImagePreviews[p]
-                      ? imageDataUrl(localImagePreviews[p].base64, localImagePreviews[p].mime)
-                      : '',
-                    url: inlineImageUrls[i] || '',
-                    localPath: p,
-                    hasPreview: Boolean(localImagePreviews[p]),
-                  }))
-                : desktopRuntime
-                  ? []
-                  : inlineImageUrls.map((url, i) => ({
-                      key: `${m.id}-url-${i}`,
-                      src: url,
-                      url,
-                      localPath: '',
-                      hasPreview: true,
+              const renderItems =
+                localImagePaths.length > 0
+                  ? localImagePaths.map((p, i) => ({
+                      key: `${m.id}-local-${i}`,
+                      src: localImagePreviews[p]
+                        ? imageDataUrl(localImagePreviews[p].base64, localImagePreviews[p].mime)
+                        : '',
+                      url: inlineImageUrls[i] || '',
+                      localPath: p,
+                      hasPreview: Boolean(localImagePreviews[p]),
                     }))
+                  : desktopRuntime
+                    ? []
+                    : inlineImageUrls.map((url, i) => ({
+                        key: `${m.id}-url-${i}`,
+                        src: url,
+                        url,
+                        localPath: '',
+                        hasPreview: true,
+                      }))
               return (
                 <>
                   {m.planHandoffDraft ? (
@@ -203,49 +195,49 @@ export function ChatMessage({
                       </div>
                     </details>
                   ) : null}
-                  {m.agentProgress && m.agentProgress.length > 0 ? (
-                    (() => {
-                      const rounds = m.agentProgress
-                      // While a tool round runs (no next draft yet) the newest draft stays pinned
-                      // visible. Once the next draft starts streaming — or the final answer is
-                      // done — the last intermediate folds into the single collapsible group too.
-                      const hasFinal = Boolean(markdownContent && markdownContent.trim())
-                      const pinned = hasFinal ? null : rounds[rounds.length - 1]
-                      const grouped = pinned ? rounds.slice(0, -1) : rounds
-                      return (
-                        <div className="rounded border border-void-muted/30 bg-void-black/40">
-                          {grouped.length > 0 ? (
-                            <details>
-                              <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-void-dim hover:text-void-light flex items-center gap-2">
+                  {m.agentProgress && m.agentProgress.length > 0
+                    ? (() => {
+                        const rounds = m.agentProgress
+                        // While a tool round runs (no next draft yet) the newest draft stays pinned
+                        // visible. Once the next draft starts streaming — or the final answer is
+                        // done — the last intermediate folds into the single collapsible group too.
+                        const hasFinal = Boolean(markdownContent && markdownContent.trim())
+                        const pinned = hasFinal ? null : rounds[rounds.length - 1]
+                        const grouped = pinned ? rounds.slice(0, -1) : rounds
+                        return (
+                          <div className="rounded border border-void-muted/30 bg-void-black/40">
+                            {grouped.length > 0 ? (
+                              <details>
+                                <summary className="cursor-pointer px-3 py-2 text-[11px] font-mono text-void-dim hover:text-void-light flex items-center gap-2">
+                                  <span>AGENT ROUNDS · {rounds.length}</span>
+                                  <span className="text-[10px] opacity-50">BEFORE TOOLS</span>
+                                </summary>
+                                <div className="divide-y divide-void-muted/20 border-t border-void-muted/30">
+                                  {grouped.map((progress) => (
+                                    <div
+                                      key={`${m.id}-agent-progress-${progress.round}`}
+                                      className="px-3 py-2 text-sm"
+                                    >
+                                      <ChatMarkdown content={progress.content} />
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            ) : (
+                              <div className="px-3 py-2 text-[11px] font-mono text-void-dim flex items-center gap-2">
                                 <span>AGENT ROUNDS · {rounds.length}</span>
                                 <span className="text-[10px] opacity-50">BEFORE TOOLS</span>
-                              </summary>
-                              <div className="divide-y divide-void-muted/20 border-t border-void-muted/30">
-                                {grouped.map((progress) => (
-                                  <div
-                                    key={`${m.id}-agent-progress-${progress.round}`}
-                                    className="px-3 py-2 text-sm"
-                                  >
-                                    <ChatMarkdown content={progress.content} />
-                                  </div>
-                                ))}
                               </div>
-                            </details>
-                          ) : (
-                            <div className="px-3 py-2 text-[11px] font-mono text-void-dim flex items-center gap-2">
-                              <span>AGENT ROUNDS · {rounds.length}</span>
-                              <span className="text-[10px] opacity-50">BEFORE TOOLS</span>
-                            </div>
-                          )}
-                          {pinned ? (
-                            <div className="border-t border-void-muted/30 px-3 py-2 text-sm">
-                              <ChatMarkdown content={pinned.content} />
-                            </div>
-                          ) : null}
-                        </div>
-                      )
-                    })()
-                  ) : null}
+                            )}
+                            {pinned ? (
+                              <div className="border-t border-void-muted/30 px-3 py-2 text-sm">
+                                <ChatMarkdown content={pinned.content} />
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      })()
+                    : null}
                   {m.subAgentActivity?.open &&
                   (settings.subAgent.enabled || settings.subAgent.codingEnabled) &&
                   settings.subAgent.showAnalysisWindow !== false ? (
@@ -292,10 +284,14 @@ export function ChatMessage({
                             target={item.localPath ? undefined : '_blank'}
                             rel={item.localPath ? undefined : 'noreferrer'}
                             className="block"
-                            onClick={item.localPath ? (e) => {
-                              e.preventDefault()
-                              void openLocalImage(item.localPath)
-                            } : undefined}
+                            onClick={
+                              item.localPath
+                                ? (e) => {
+                                    e.preventDefault()
+                                    void openLocalImage(item.localPath)
+                                  }
+                                : undefined
+                            }
                           >
                             {item.hasPreview ? (
                               <img
@@ -330,59 +326,70 @@ export function ChatMessage({
                             ) : null}
                           </div>
                           {assistantImageToolMeta[m.id]?.[item.localPath || item.url] ? (
-                          <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
-                            <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
-                              IMAGE_INFO
-                            </summary>
-                            <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
-                              {(() => {
-                                const meta =
-                                  assistantImageToolMeta[m.id]?.[item.localPath || item.url]
-                                  || assistantImageMessageMeta[m.id]
-                                  || parseRunwareImageToolMeta(m.content)
-                                if (!meta) return ''
-                                const lines: string[] = []
-                                if (meta.model) lines.push(`model: ${meta.model}`)
-                                if (meta.size) lines.push(`size: ${meta.size}`)
-                                if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
-                                if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
-                                if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
-                                if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
-                                if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
-                                if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
-                                if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
-                                if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
-                                return lines.join('\n')
-                              })()}
-                            </div>
-                          </details>
-                        ) : (
-                          assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
-                        ) ? (
-                          <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
-                            <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
-                              IMAGE_INFO
-                            </summary>
-                            <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
-                              {(() => {
-                                const meta = assistantImageMessageMeta[m.id] || parseRunwareImageToolMeta(m.content)
-                                if (!meta) return ''
-                                const lines: string[] = []
-                                if (meta.model) lines.push(`model: ${meta.model}`)
-                                if (meta.size) lines.push(`size: ${meta.size}`)
-                                if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
-                                if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
-                                if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
-                                if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
-                                if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
-                                if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
-                                if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
-                                if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
-                                return lines.join('\n')
-                              })()}
-                            </div>
-                          </details>
-                        ) : null}
+                            <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
+                              <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
+                                IMAGE_INFO
+                              </summary>
+                              <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                                {(() => {
+                                  const meta =
+                                    assistantImageToolMeta[m.id]?.[item.localPath || item.url] ||
+                                    assistantImageMessageMeta[m.id] ||
+                                    parseRunwareImageToolMeta(m.content)
+                                  if (!meta) return ''
+                                  const lines: string[] = []
+                                  if (meta.model) lines.push(`model: ${meta.model}`)
+                                  if (meta.size) lines.push(`size: ${meta.size}`)
+                                  if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
+                                  if (typeof meta.steps === 'number')
+                                    lines.push(`steps: ${meta.steps}`)
+                                  if (typeof meta.cfgScale === 'number')
+                                    lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                  if (typeof meta.seed === 'number')
+                                    lines.push(`seed: ${meta.seed}`)
+                                  if (typeof meta.costUsd === 'number')
+                                    lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                  if (typeof meta.elapsedMs === 'number')
+                                    lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                  if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
+                                  if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
+                                  return lines.join('\n')
+                                })()}
+                              </div>
+                            </details>
+                          ) : assistantImageMessageMeta[m.id] ||
+                            parseRunwareImageToolMeta(m.content) ? (
+                            <details className="mt-2 border border-void-muted/30 rounded bg-void-black/30">
+                              <summary className="cursor-pointer px-2 py-1 text-[11px] font-mono text-neon-cyan/80 hover:text-neon-cyan">
+                                IMAGE_INFO
+                              </summary>
+                              <div className="px-2 pb-2 pt-1 text-[11px] font-mono text-void-dim whitespace-pre-wrap break-all">
+                                {(() => {
+                                  const meta =
+                                    assistantImageMessageMeta[m.id] ||
+                                    parseRunwareImageToolMeta(m.content)
+                                  if (!meta) return ''
+                                  const lines: string[] = []
+                                  if (meta.model) lines.push(`model: ${meta.model}`)
+                                  if (meta.size) lines.push(`size: ${meta.size}`)
+                                  if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
+                                  if (typeof meta.steps === 'number')
+                                    lines.push(`steps: ${meta.steps}`)
+                                  if (typeof meta.cfgScale === 'number')
+                                    lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                  if (typeof meta.seed === 'number')
+                                    lines.push(`seed: ${meta.seed}`)
+                                  if (typeof meta.costUsd === 'number')
+                                    lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                  if (typeof meta.elapsedMs === 'number')
+                                    lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                  if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
+                                  if (meta.imageUuid) lines.push(`image_uuid: ${meta.imageUuid}`)
+                                  return lines.join('\n')
+                                })()}
+                              </div>
+                            </details>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -427,10 +434,8 @@ export function ChatMessage({
                 <div className="space-y-1.5">
                   {items.map((item, i) => {
                     const savedPath = item.kind === 'url' ? item.savedPath : item.path
-                    const playSrc =
-                      item.kind === 'url' ? item.url : item.playUrl || ''
-                    const metaKey =
-                      item.kind === 'url' ? item.url : item.path
+                    const playSrc = item.kind === 'url' ? item.url : item.playUrl || ''
+                    const metaKey = item.kind === 'url' ? item.url : item.path
                     return (
                       <div
                         key={item.key}
@@ -450,9 +455,7 @@ export function ChatMessage({
                                 className="chat-audio-player"
                               />
                             ) : savedPath ? (
-                              <span className="text-[10px] font-mono text-void-dim">
-                                Loading…
-                              </span>
+                              <span className="text-[10px] font-mono text-void-dim">Loading…</span>
                             ) : (
                               <span className="text-[10px] font-mono text-void-dim">
                                 No playable source
@@ -473,9 +476,9 @@ export function ChatMessage({
                             </button>
                           ) : null}
                         </div>
-                        {(assistantAudioToolMeta[m.id]?.[metaKey] ||
-                          assistantAudioMessageMeta[m.id] ||
-                          parseRunwareAudioToolMeta(m.content)) ? (
+                        {assistantAudioToolMeta[m.id]?.[metaKey] ||
+                        assistantAudioMessageMeta[m.id] ||
+                        parseRunwareAudioToolMeta(m.content) ? (
                           <details className="border-t border-void-muted/25 pt-1">
                             <summary className="cursor-pointer px-0.5 text-[10px] font-mono text-neon-cyan/70 hover:text-neon-cyan">
                               INFO
@@ -483,23 +486,31 @@ export function ChatMessage({
                             <div className="px-0.5 pb-0.5 pt-1 text-[10px] font-mono text-void-dim whitespace-pre-wrap break-all">
                               {(() => {
                                 const meta =
-                                  assistantAudioToolMeta[m.id]?.[metaKey]
-                                  || assistantAudioMessageMeta[m.id]
-                                  || parseRunwareAudioToolMeta(m.content)
+                                  assistantAudioToolMeta[m.id]?.[metaKey] ||
+                                  assistantAudioMessageMeta[m.id] ||
+                                  parseRunwareAudioToolMeta(m.content)
                                 if (!meta) return ''
                                 const lines: string[] = []
                                 if (meta.provider) lines.push(`provider: ${meta.provider}`)
                                 if (meta.model) lines.push(`model: ${meta.model}`)
                                 if (meta.prompt) lines.push(`prompt: ${meta.prompt}`)
-                                if (meta.outputFormat) lines.push(`output_format: ${meta.outputFormat}`)
-                                if (typeof meta.durationSec === 'number') lines.push(`duration_sec: ${meta.durationSec}`)
-                                if (typeof meta.steps === 'number') lines.push(`steps: ${meta.steps}`)
-                                if (typeof meta.cfgScale === 'number') lines.push(`cfg_scale: ${meta.cfgScale}`)
-                                if (meta.guidanceType) lines.push(`guidance_type: ${meta.guidanceType}`)
-                                if (meta.vocalLanguage) lines.push(`vocal_language: ${meta.vocalLanguage}`)
+                                if (meta.outputFormat)
+                                  lines.push(`output_format: ${meta.outputFormat}`)
+                                if (typeof meta.durationSec === 'number')
+                                  lines.push(`duration_sec: ${meta.durationSec}`)
+                                if (typeof meta.steps === 'number')
+                                  lines.push(`steps: ${meta.steps}`)
+                                if (typeof meta.cfgScale === 'number')
+                                  lines.push(`cfg_scale: ${meta.cfgScale}`)
+                                if (meta.guidanceType)
+                                  lines.push(`guidance_type: ${meta.guidanceType}`)
+                                if (meta.vocalLanguage)
+                                  lines.push(`vocal_language: ${meta.vocalLanguage}`)
                                 if (typeof meta.seed === 'number') lines.push(`seed: ${meta.seed}`)
-                                if (typeof meta.costUsd === 'number') lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
-                                if (typeof meta.elapsedMs === 'number') lines.push(`elapsed_ms: ${meta.elapsedMs}`)
+                                if (typeof meta.costUsd === 'number')
+                                  lines.push(`cost_usd: ${meta.costUsd.toFixed(6)}`)
+                                if (typeof meta.elapsedMs === 'number')
+                                  lines.push(`elapsed_ms: ${meta.elapsedMs}`)
                                 if (meta.taskUuid) lines.push(`task_uuid: ${meta.taskUuid}`)
                                 if (meta.audioUuid) lines.push(`audio_uuid: ${meta.audioUuid}`)
                                 if (savedPath) lines.push(`path: ${savedPath}`)
@@ -533,11 +544,7 @@ export function ChatMessage({
               autoFocus
             />
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => commitEdit(m.id)}
-                className="cyber-btn text-xs"
-              >
+              <button type="button" onClick={() => commitEdit(m.id)} className="cyber-btn text-xs">
                 RESEND
               </button>
               <button
@@ -550,9 +557,7 @@ export function ChatMessage({
             </div>
           </div>
         ) : (
-          <div
-            className="min-w-0 max-w-full overflow-hidden text-void-white whitespace-pre-wrap break-words space-y-2 rounded px-1 -mx-1"
-          >
+          <div className="min-w-0 max-w-full overflow-hidden text-void-white whitespace-pre-wrap break-words space-y-2 rounded px-1 -mx-1">
             {m.images && m.images.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {m.images.map((b64, i) => (
@@ -582,13 +587,11 @@ export function ChatMessage({
             ) : m.fileAttachments?.length ? (
               <span className="text-void-dim text-xs font-mono">(file attached)</span>
             ) : (
-              <span className="text-void-dim text-xs font-mono">
-                (no text content)
-              </span>
+              <span className="text-void-dim text-xs font-mono">(no text content)</span>
             )}
           </div>
         )}
-        
+
         {/* Actions for user */}
         {m.role === 'user' && !editingMessageId && (
           <div className="mt-2 flex flex-wrap gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -604,7 +607,7 @@ export function ChatMessage({
             </button>
           </div>
         )}
-        
+
         {/* Actions for assistant */}
         {m.role === 'assistant' && m.content.trim().length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-void-muted/30 pt-3">
@@ -629,7 +632,10 @@ export function ChatMessage({
               </span>
               {playingId === m.id ? 'STOP' : 'SPEAK'}
             </button>
-            {dedupeNonEmpty([...(m.generatedImagePaths || []), ...(assistantSavedImagePaths[m.id] || [])]).length > 0 ? (
+            {dedupeNonEmpty([
+              ...(m.generatedImagePaths || []),
+              ...(assistantSavedImagePaths[m.id] || []),
+            ]).length > 0 ? (
               <button
                 type="button"
                 onClick={() =>

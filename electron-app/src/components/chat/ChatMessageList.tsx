@@ -69,9 +69,7 @@ export function ChatMessageList({ app }: Props) {
             className={`relative overflow-hidden rounded-lg p-8 text-center animate-fade-in-up ${
               agentMode === 'plan'
                 ? `chat-empty-state--plan border bg-void-mid/70 ${
-                    uiDystopian
-                      ? 'border-neon-purple/25 bg-void-dark/80'
-                      : 'border-void-muted/50'
+                    uiDystopian ? 'border-neon-purple/25 bg-void-dark/80' : 'border-void-muted/50'
                   }`
                 : uiDystopian
                   ? 'border border-neon-cyan/20 bg-void-dark/80'
@@ -81,15 +79,23 @@ export function ChatMessageList({ app }: Props) {
             {uiDystopian && (
               <>
                 {/* Decorative glow */}
-                <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-neon-cyan/10 blur-3xl" aria-hidden />
-                <div className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-neon-magenta/10 blur-3xl" aria-hidden />
+                <div
+                  className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-neon-cyan/10 blur-3xl"
+                  aria-hidden
+                />
+                <div
+                  className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-neon-magenta/10 blur-3xl"
+                  aria-hidden
+                />
               </>
             )}
-            
+
             <div className="relative">
               <p
                 className={`mb-6 text-sm animate-fade-in-up ${
-                  agentMode === 'plan' ? 'text-void-light leading-relaxed' : 'text-void-text font-mono'
+                  agentMode === 'plan'
+                    ? 'text-void-light leading-relaxed'
+                    : 'text-void-text font-mono'
                 }`}
                 style={{ animationDelay: '0.2s' }}
               >
@@ -104,13 +110,7 @@ export function ChatMessageList({ app }: Props) {
 
         {/* Messages */}
         {messages.map((m, index) => (
-          <ChatMessage
-            key={m.id}
-            message={m}
-            index={index}
-            render={render}
-            app={app}
-          />
+          <ChatMessage key={m.id} message={m} index={index} render={render} app={app} />
         ))}
 
         {/* Busy Indicator */}

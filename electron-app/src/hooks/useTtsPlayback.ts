@@ -1,20 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type RefObject,
-} from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
 import { isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
-import {
-  clearCloneRef,
-  loadCloneRef,
-  saveCloneRef,
-} from '@/lib/cloneRefStorage'
+import { clearCloneRef, loadCloneRef, saveCloneRef } from '@/lib/cloneRefStorage'
 import {
   clearVoiceAnchor,
   loadVoiceAnchor,
@@ -46,10 +35,7 @@ export type UseTtsPlaybackResult = {
   abortTts: () => void
 }
 
-export function useTtsPlayback({
-  settings,
-  setError,
-}: UseTtsPlaybackParams): UseTtsPlaybackResult {
+export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): UseTtsPlaybackResult {
   const [ttsOk, setTtsOk] = useState<boolean | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -87,15 +73,21 @@ export function useTtsPlayback({
   }, [refreshTts])
 
   useEffect(() => {
-    void loadCloneRef().then((r) => { if (r) setCloneRef(r) })
+    void loadCloneRef().then((r) => {
+      if (r) setCloneRef(r)
+    })
   }, [])
 
   useEffect(() => {
-    void loadVoiceAnchor().then((r) => { if (r) setVoiceAnchor(r) })
+    void loadVoiceAnchor().then((r) => {
+      if (r) setVoiceAnchor(r)
+    })
   }, [])
 
   useEffect(() => {
-    return () => { if (audioUrl) URL.revokeObjectURL(audioUrl) }
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl)
+    }
   }, [audioUrl])
 
   const playBlobUrl = (url: string, signal: AbortSignal): Promise<void> => {
@@ -106,13 +98,30 @@ export function useTtsPlayback({
         return
       }
       const cleanup = () => signal.removeEventListener('abort', onAbort)
-      const onAbort = () => { el.pause(); el.removeAttribute('src'); cleanup(); resolve() }
-      if (signal.aborted) { resolve(); return }
+      const onAbort = () => {
+        el.pause()
+        el.removeAttribute('src')
+        cleanup()
+        resolve()
+      }
+      if (signal.aborted) {
+        resolve()
+        return
+      }
       signal.addEventListener('abort', onAbort)
-      el.onended = () => { cleanup(); resolve() }
-      el.onerror = () => { cleanup(); reject(new Error('Audio playback failed')) }
+      el.onended = () => {
+        cleanup()
+        resolve()
+      }
+      el.onerror = () => {
+        cleanup()
+        reject(new Error('Audio playback failed'))
+      }
       el.src = url
-      void el.play().catch((e) => { cleanup(); reject(e) })
+      void el.play().catch((e) => {
+        cleanup()
+        reject(e)
+      })
     })
   }
 
@@ -122,7 +131,9 @@ export function useTtsPlayback({
     if (!spoken) return
     const ttsVoiceMode =
       settings.ttsProvider === 'local'
-        ? (isWebStandalone() ? 'design' : settings.voiceMode)
+        ? isWebStandalone()
+          ? 'design'
+          : settings.voiceMode
         : 'design'
     if (ttsVoiceMode === 'clone' && (!cloneRef?.blob || cloneRef.blob.size === 0)) {
       setError('VOICE_CLONE: Load reference audio in Settings → TTS/STT')
@@ -194,7 +205,7 @@ export function useTtsPlayback({
           speed: settings.ttsSpeed,
           numStep: settings.ttsNumStep,
           durationSec: durationForChunk,
-          cloneRef: isWebStandalone() ? null : cloneRef ?? null,
+          cloneRef: isWebStandalone() ? null : (cloneRef ?? null),
           cloneRefText: isWebStandalone() ? null : settings.cloneRefText || null,
           voiceAnchor: voiceAnchor ?? null,
           signal,
@@ -214,14 +225,25 @@ export function useTtsPlayback({
       let pending = synth(chunks[0])
       for (let i = 0; i < chunks.length; i++) {
         let blob: Blob
-        try { blob = await pending }
-        catch (e) { if ((e as Error).name === 'AbortError' || signal.aborted) break; throw e }
+        try {
+          blob = await pending
+        } catch (e) {
+          if ((e as Error).name === 'AbortError' || signal.aborted) break
+          throw e
+        }
         if (signal.aborted) break
         if (i + 1 < chunks.length) pending = synth(chunks[i + 1])
         const url = URL.createObjectURL(blob)
-        setAudioUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url })
-        try { await playBlobUrl(url, signal) }
-        catch (e) { if (signal.aborted) break; throw e }
+        setAudioUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev)
+          return url
+        })
+        try {
+          await playBlobUrl(url, signal)
+        } catch (e) {
+          if (signal.aborted) break
+          throw e
+        }
         if (signal.aborted) break
       }
     } catch (e) {
@@ -250,14 +272,20 @@ export function useTtsPlayback({
     if (!f) return
     const data = { blob: f, fileName: f.name }
     setCloneRef(data)
-    try { await saveCloneRef(data) }
-    catch { setError('Failed to save reference sample (IndexedDB)') }
+    try {
+      await saveCloneRef(data)
+    } catch {
+      setError('Failed to save reference sample (IndexedDB)')
+    }
   }
 
   const onClearClone = async () => {
     setCloneRef(null)
-    try { await clearCloneRef() }
-    catch { /* ignore */ }
+    try {
+      await clearCloneRef()
+    } catch {
+      /* ignore */
+    }
   }
 
   const onBakeVoiceAnchor = async () => {
@@ -298,8 +326,11 @@ export function useTtsPlayback({
 
   const onClearVoiceAnchor = async () => {
     setVoiceAnchor(null)
-    try { await clearVoiceAnchor() }
-    catch { /* ignore */ }
+    try {
+      await clearVoiceAnchor()
+    } catch {
+      /* ignore */
+    }
   }
 
   const abortTts = useCallback(() => {

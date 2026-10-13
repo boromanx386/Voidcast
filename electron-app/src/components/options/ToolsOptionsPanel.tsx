@@ -51,8 +51,8 @@ export function ToolsOptionsPanel({
       <div className="border-b border-void-muted/30 pb-3">
         <p className="text-xs font-mono text-void-dim">
           <span className="text-neon-yellow mr-2">⬡</span>
-          Enable tools for the model to use during conversation.
-          Requires a tool-capable model (e.g. Qwen 3.5, Gemma 4, MiniMax 2.7 — check Ollama library tags).
+          Enable tools for the model to use during conversation. Requires a tool-capable model (e.g.
+          Qwen 3.5, Gemma 4, MiniMax 2.7 — check Ollama library tags).
         </p>
       </div>
 
@@ -61,8 +61,9 @@ export function ToolsOptionsPanel({
           <span className="mr-2 text-neon-cyan">▸</span>MAX_TOOL_ROUNDS
         </label>
         <p className="mb-2 text-xs text-void-dim">
-          Max agent↔tool loop rounds per reply (default {AGENT_MAX_TOOL_ROUNDS_DEFAULT}). Near the end the
-          model is nudged to wrap up; after the limit it must finish with a text answer (no more tools).
+          Max agent↔tool loop rounds per reply (default {AGENT_MAX_TOOL_ROUNDS_DEFAULT}). Near the
+          end the model is nudged to wrap up; after the limit it must finish with a text answer (no
+          more tools).
         </p>
         <NumericSettingInput
           className="cyber-input w-28"
@@ -113,10 +114,10 @@ export function ToolsOptionsPanel({
         description={
           <>
             Agent can drive the built-in Voidcast browser (the coding panel{' '}
-            <code className="text-neon-cyan">WEB</code> view) — navigate, accessibility
-            snapshot, trusted click/type, screenshots and console/network logs. The agent
-            and you share the same view, so you can watch it or take over anytime. No
-            external Chrome or browser skill is required.
+            <code className="text-neon-cyan">WEB</code> view) — navigate, accessibility snapshot,
+            trusted click/type, screenshots and console/network logs. The agent and you share the
+            same view, so you can watch it or take over anytime. No external Chrome or browser skill
+            is required.
           </>
         }
       />
@@ -141,10 +142,9 @@ export function ToolsOptionsPanel({
           <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-void-dim">
             Cookies and logins of the built-in browser. Empty = a separate profile per coding
             project (recommended — the agent reads untrusted pages, so keeping logins apart limits
-            the blast radius).{' '}
-            <code className="text-neon-cyan">shared</code> = one profile for the whole app. Any
-            other value = a named profile you can reuse across projects. Changing it closes the
-            open browser pages.
+            the blast radius). <code className="text-neon-cyan">shared</code> = one profile for the
+            whole app. Any other value = a named profile you can reuse across projects. Changing it
+            closes the open browser pages.
           </p>
         </div>
       ) : null}
@@ -185,8 +185,8 @@ export function ToolsOptionsPanel({
         iconColor="text-neon-red"
         description={
           <>
-            <code className="text-neon-red">search_youtube</code> via local server.
-            Requires <code className="text-void-light">yt-dlp</code> and{' '}
+            <code className="text-neon-red">search_youtube</code> via local server. Requires{' '}
+            <code className="text-void-light">yt-dlp</code> and{' '}
             <code className="text-void-light">youtube-transcript-api</code>.
           </>
         }
@@ -206,8 +206,8 @@ export function ToolsOptionsPanel({
         iconColor="text-neon-green"
         description={
           <>
-            Fetch public pages via TTS <code className="text-neon-green">POST /tools/scrape</code> or
-            Electron; strip HTML to text (~2MB). Blocks SSRF to local/private hosts.
+            Fetch public pages via TTS <code className="text-neon-green">POST /tools/scrape</code>{' '}
+            or Electron; strip HTML to text (~2MB). Blocks SSRF to local/private hosts.
           </>
         }
       />
@@ -229,8 +229,8 @@ export function ToolsOptionsPanel({
             <>
               <code className="text-neon-purple">POST /tools/pdf</code> on local server (ReportLab):
               headings, bullet/numbered lists (with hanging indent), tables,{' '}
-              <code className="text-void-light">**bold**</code>, and optional embedded chat
-              images (PNG/JPEG). The file is written by the server into the configured folder.
+              <code className="text-void-light">**bold**</code>, and optional embedded chat images
+              (PNG/JPEG). The file is written by the server into the configured folder.
             </>
           }
           noBorder
@@ -245,8 +245,8 @@ export function ToolsOptionsPanel({
               <>
                 <p className="text-xs text-void-dim mt-1">
                   PDFs are saved on your PC (where Voidcast desktop and the local server run), not
-                  on the phone. Set the folder in the desktop app:
-                  Options → Tools → Save as PDF → BROWSE. Keep the desktop app open so the path syncs here.
+                  on the phone. Set the folder in the desktop app: Options → Tools → Save as PDF →
+                  BROWSE. Keep the desktop app open so the path syncs here.
                 </p>
                 <input
                   type="text"
@@ -266,9 +266,7 @@ export function ToolsOptionsPanel({
                     className="cyber-input flex-1 min-w-[12rem]"
                     placeholder="C:\Users\...\Documents\VoidcastPDF"
                     value={settings.pdfOutputDir}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, pdfOutputDir: e.target.value }))
-                    }
+                    onChange={(e) => setSettings((s) => ({ ...s, pdfOutputDir: e.target.value }))}
                   />
                   {isElectron() && (
                     <button
@@ -304,8 +302,9 @@ export function ToolsOptionsPanel({
         iconColor="text-neon-yellow"
         description={
           <>
-            <code className="text-neon-yellow">POST /tools/weather</code> on local server or Electron →{' '}
-            <code className="text-void-light">wttr.in</code>. Includes 3-day forecast when enabled.
+            <code className="text-neon-yellow">POST /tools/weather</code> on local server or
+            Electron → <code className="text-void-light">wttr.in</code>. Includes 3-day forecast
+            when enabled.
           </>
         }
       />
@@ -326,17 +325,19 @@ export function ToolsOptionsPanel({
           disabled={isWebStandalone()}
           description={
             <>
-              Enable LLM coding tools:{' '}
-              <code className="text-void-light">
-                list_directory
-              </code>
-              , <code className="text-void-light">read_file</code>,{' '}
-              <code className="text-void-light">write_file</code>, <code className="text-void-light">edit_code</code>,{' '}
-              <code className="text-void-light">search_files</code>, <code className="text-void-light">glob_files</code>,{' '}
+              Enable LLM coding tools: <code className="text-void-light">list_directory</code>,{' '}
+              <code className="text-void-light">read_file</code>,{' '}
+              <code className="text-void-light">write_file</code>,{' '}
+              <code className="text-void-light">edit_code</code>,{' '}
+              <code className="text-void-light">search_files</code>,{' '}
+              <code className="text-void-light">glob_files</code>,{' '}
               <code className="text-void-light">find_symbols</code>,{' '}
-              <code className="text-void-light">git_status</code>, <code className="text-void-light">git_diff</code>,{' '}
-              <code className="text-void-light">git_log</code>, <code className="text-void-light">git_show</code>,{' '}
-              <code className="text-void-light">git_restore</code>, <code className="text-void-light">git_stash</code>,{' '}
+              <code className="text-void-light">git_status</code>,{' '}
+              <code className="text-void-light">git_diff</code>,{' '}
+              <code className="text-void-light">git_log</code>,{' '}
+              <code className="text-void-light">git_show</code>,{' '}
+              <code className="text-void-light">git_restore</code>,{' '}
+              <code className="text-void-light">git_stash</code>,{' '}
               <code className="text-void-light">check_types</code>,{' '}
               <code className="text-void-light">execute_command</code>.
             </>
@@ -588,8 +589,7 @@ function McpServersSection({
         noBorder
         description={
           <>
-            Connect MCP servers from{' '}
-            <code className="text-void-light">~/.voidcast/mcp.json</code>
+            Connect MCP servers from <code className="text-void-light">~/.voidcast/mcp.json</code>
             {projectPath ? (
               <>
                 {' '}
@@ -597,8 +597,8 @@ function McpServersSection({
               </>
             ) : null}
             . Toggle each server below. Remote servers can use{' '}
-            <code className="text-void-light">"oauth": true</code> for browser sign-in. Tools appear as{' '}
-            <code className="text-void-light">mcp__server__tool</code>. Blocked in Plan mode.
+            <code className="text-void-light">"oauth": true</code> for browser sign-in. Tools appear
+            as <code className="text-void-light">mcp__server__tool</code>. Blocked in Plan mode.
           </>
         }
       />
@@ -628,8 +628,8 @@ function McpServersSection({
           {pendingProjectTrust && projectPath ? (
             <div className="rounded border border-neon-yellow/40 bg-neon-yellow/5 px-3 py-3 space-y-2">
               <p className="text-xs text-neon-yellow font-mono">
-                Untrusted project <code className="text-void-light">.mcp.json</code> — review servers
-                before enabling.
+                Untrusted project <code className="text-void-light">.mcp.json</code> — review
+                servers before enabling.
               </p>
               {projectPreviewServers.length > 0 ? (
                 <ul className="space-y-1 text-xs font-mono text-void-dim">
@@ -656,8 +656,8 @@ function McpServersSection({
           ) : null}
           {status.length === 0 ? (
             <p className="text-xs text-void-dim">
-              No servers in config. Add entries under <code className="text-void-light">mcpServers</code>{' '}
-              then Reload.
+              No servers in config. Add entries under{' '}
+              <code className="text-void-light">mcpServers</code> then Reload.
             </p>
           ) : (
             <ul className="space-y-2">

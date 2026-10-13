@@ -15,8 +15,7 @@ const NEWS_FRESHNESS_RE =
 const TIME_SENSITIVE_RE =
   /\b(what(?:'s|\s+is)\s+(?:happening|new)\s+(?:today|now)|danas\s+(?:najnovije|vesti)|trenutno\s+stanje)\b/i
 
-const SOFT_FRESHNESS_RE =
-  /\b(check\s+online|na\s+internetu|danas|najnovije|trenutno|vesti)\b/i
+const SOFT_FRESHNESS_RE = /\b(check\s+online|na\s+internetu|danas|najnovije|trenutno|vesti)\b/i
 
 /** Typical coding turn — do not auto-inject web_search on round 0 unless user asked for web/news. */
 const CODING_TASK_RE =
@@ -36,7 +35,9 @@ export function parseToolArguments(
   }
 }
 
-export function getLastUserText<T extends { role?: string; content?: unknown }>(messages: T[]): string {
+export function getLastUserText<T extends { role?: string; content?: unknown }>(
+  messages: T[],
+): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     if (m?.role === 'user') return String(m.content ?? '').trim()
@@ -95,11 +96,7 @@ export function shouldForceWebSearchOnRoundZero(
 }
 
 /** File mutations on disk (includes parallel workers). */
-export const CODING_FILE_MUTATION_TOOLS = new Set([
-  'write_file',
-  'edit_code',
-  'run_coding_workers',
-])
+export const CODING_FILE_MUTATION_TOOLS = new Set(['write_file', 'edit_code', 'run_coding_workers'])
 
 /** Shell tools that can change repo state (commit, build, etc.). */
 export const CODING_SHELL_TOOLS = new Set(['execute_command', 'stop_process'])

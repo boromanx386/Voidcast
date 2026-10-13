@@ -2,15 +2,10 @@ import { normalizeBaseUrl } from '@/lib/settings'
 
 export type WeatherResult = { ok: boolean; text: string }
 
-async function invokeGetWeatherIpc(
-  city: string,
-  forecast: boolean,
-): Promise<string> {
+async function invokeGetWeatherIpc(city: string, forecast: boolean): Promise<string> {
   const vc = window.voidcast
   if (!vc?.getWeather) {
-    throw new Error(
-      'Run Voidcast in Electron for get_weather without the TTS server tool.',
-    )
+    throw new Error('Run Voidcast in Electron for get_weather without the TTS server tool.')
   }
   const r: unknown = await vc.getWeather({ city, forecast })
   if (typeof r === 'string') return r

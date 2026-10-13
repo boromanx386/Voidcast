@@ -95,15 +95,13 @@ describe('detectCheckKind', () => {
   })
 
   it('prefers tsconfig when no paths', () => {
-    expect(
-      detectCheckKind({ hasTsconfig: true, hasPythonProject: true, hasGoMod: true }),
-    ).toBe('typescript')
+    expect(detectCheckKind({ hasTsconfig: true, hasPythonProject: true, hasGoMod: true })).toBe(
+      'typescript',
+    )
   })
 
   it('falls back to python markers', () => {
-    expect(
-      detectCheckKind({ hasTsconfig: false, hasPythonProject: true }),
-    ).toBe('python')
+    expect(detectCheckKind({ hasTsconfig: false, hasPythonProject: true })).toBe('python')
   })
 
   it('falls back to go.mod', () => {

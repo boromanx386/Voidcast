@@ -1,8 +1,4 @@
-import {
-  applyMemoryDeletes,
-  importMemoryItems,
-  listMemories,
-} from '@/lib/longMemoryStorage'
+import { applyMemoryDeletes, importMemoryItems, listMemories } from '@/lib/longMemoryStorage'
 import { defaultTtsBaseUrlForRuntime } from '@/lib/platform'
 import {
   applyReminderDeletes,
@@ -162,7 +158,9 @@ function parseSnapshot(data: unknown): UserDataSnapshot | null {
     ? d.deletedReminderIds.filter((x): x is string => typeof x === 'string')
     : []
   const deletedMemoryAt =
-    d.deletedMemoryAt && typeof d.deletedMemoryAt === 'object' ? sanitizeDeleteAtMap(d.deletedMemoryAt) : {}
+    d.deletedMemoryAt && typeof d.deletedMemoryAt === 'object'
+      ? sanitizeDeleteAtMap(d.deletedMemoryAt)
+      : {}
   const deletedReminderAt =
     d.deletedReminderAt && typeof d.deletedReminderAt === 'object'
       ? sanitizeDeleteAtMap(d.deletedReminderAt)

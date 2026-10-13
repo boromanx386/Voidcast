@@ -13,10 +13,7 @@ import {
   readImageFileAsBase64,
   splitChatAttachmentFiles,
 } from '@/lib/imageAttachment'
-import {
-  extFromName,
-  isSupportedChatFileName,
-} from '@/lib/fileAttachment'
+import { extFromName, isSupportedChatFileName } from '@/lib/fileAttachment'
 import { isWebStandalone } from '@/lib/platform'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import type { FileAttachmentSnapshot } from '@/types/chat'
@@ -73,109 +70,122 @@ export function useChatAttachments({
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const processChatAttachmentFiles = useCallback(async (rawList: File[]) => {
-    if (rawList.length === 0) return
-    const { imageFiles, nonImageFiles } = await splitChatAttachmentFiles(rawList)
-    const newImages: PendingChatImage[] = []
-    const newFiles: PendingChatFile[] = []
+  const processChatAttachmentFiles = useCallback(
+    async (rawList: File[]) => {
+      if (rawList.length === 0) return
+      const { imageFiles, nonImageFiles } = await splitChatAttachmentFiles(rawList)
+      const newImages: PendingChatImage[] = []
+      const newFiles: PendingChatFile[] = []
 
-    for (const file of imageFiles) {
-      if (file.size > MAX_IMAGE_BYTES) {
-        setError(`Image too large (max ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB): ${file.name || 'image'}`)
-        continue
-      }
-      try {
-        const { base64, mime } = await readImageFileAsBase64(file)
-        if (!base64.trim()) {
-          setError(`Could not read image: ${file.name || 'attachment'}`)
+      for (const file of imageFiles) {
+        if (file.size > MAX_IMAGE_BYTES) {
+          setError(
+            `Image too large (max ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB): ${file.name || 'image'}`,
+          )
           continue
         }
-        newImages.push({ base64, mime, name: file.name || 'image' })
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
-      }
-    }
-    for (const file of nonImageFiles) {
-      if (!isSupportedChatFileName(file.name)) {
-        setError(`Unsupported file type: ${file.name}`)
-        continue
-      }
-      const ext = extFromName(file.name)
-      const isText =
-        ext === 'txt' || ext === 'md' || ext === 'csv' || ext === 'json' ||
-        ext === 'js' || ext === 'ts' || ext === 'py' || ext === 'java' ||
-        ext === 'cs' || ext === 'html' || ext === 'css'
-      let content: string | undefined
-      let truncated = false
-      if (isText) {
-        const raw = await file.text()
-        if (raw.length > 400 * 1024) {
-          content = raw.slice(0, 400 * 1024)
-          truncated = true
-        } else {
-          content = raw
-        }
-      } else if (
-        (ext === 'pdf' || ext === 'docx') &&
-        typeof window !== 'undefined' &&
-        window.voidcast?.parseChatAttachmentBuffer
-      ) {
-        // Binary document formats go through the main process (pdf-parse /
-        // mammoth) via IPC so drag-and-drop gets the same extraction as the
-        // native file picker. In web-standalone mode (no bridge) this is a
-        // no-op and content stays undefined.
         try {
-          const bytes = await file.arrayBuffer()
-          const res = await window.voidcast.parseChatAttachmentBuffer({
-            name: file.name,
-            ext,
-            bytes,
-          })
-          if (res?.ok) {
-            content = res.content
-            truncated = !!res.truncated
-          } else {
-            setError(res?.error || `Could not parse .${ext}: ${file.name}`)
+          const { base64, mime } = await readImageFileAsBase64(file)
+          if (!base64.trim()) {
+            setError(`Could not read image: ${file.name || 'attachment'}`)
             continue
           }
+          newImages.push({ base64, mime, name: file.name || 'image' })
         } catch (err) {
           setError(err instanceof Error ? err.message : String(err))
+        }
+      }
+      for (const file of nonImageFiles) {
+        if (!isSupportedChatFileName(file.name)) {
+          setError(`Unsupported file type: ${file.name}`)
           continue
         }
-      }
-      newFiles.push({
-        id: uid(),
-        name: file.name,
-        path: file.name,
-        mime: file.type || 'application/octet-stream',
-        size: file.size,
-        ext,
-        content,
-        truncated,
-      })
-    }
-
-    if (newImages.length === 0 && newFiles.length === 0) {
-      if (rawList.length > 0) {
-        setError('Could not load attachment. On phone use Gallery and JPEG/PNG screenshots.')
-      }
-      return
-    }
-    setError(null)
-    if (newImages.length > 0) {
-      setPendingImages((prev) => {
-        const merged = [...prev]
-        for (const item of newImages) {
-          if (merged.length >= MAX_CHAT_IMAGES) break
-          merged.push(item)
+        const ext = extFromName(file.name)
+        const isText =
+          ext === 'txt' ||
+          ext === 'md' ||
+          ext === 'csv' ||
+          ext === 'json' ||
+          ext === 'js' ||
+          ext === 'ts' ||
+          ext === 'py' ||
+          ext === 'java' ||
+          ext === 'cs' ||
+          ext === 'html' ||
+          ext === 'css'
+        let content: string | undefined
+        let truncated = false
+        if (isText) {
+          const raw = await file.text()
+          if (raw.length > 400 * 1024) {
+            content = raw.slice(0, 400 * 1024)
+            truncated = true
+          } else {
+            content = raw
+          }
+        } else if (
+          (ext === 'pdf' || ext === 'docx') &&
+          typeof window !== 'undefined' &&
+          window.voidcast?.parseChatAttachmentBuffer
+        ) {
+          // Binary document formats go through the main process (pdf-parse /
+          // mammoth) via IPC so drag-and-drop gets the same extraction as the
+          // native file picker. In web-standalone mode (no bridge) this is a
+          // no-op and content stays undefined.
+          try {
+            const bytes = await file.arrayBuffer()
+            const res = await window.voidcast.parseChatAttachmentBuffer({
+              name: file.name,
+              ext,
+              bytes,
+            })
+            if (res?.ok) {
+              content = res.content
+              truncated = !!res.truncated
+            } else {
+              setError(res?.error || `Could not parse .${ext}: ${file.name}`)
+              continue
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err))
+            continue
+          }
         }
-        return merged
-      })
-    }
-    if (newFiles.length > 0) {
-      setPendingFiles((prev) => [...prev, ...newFiles].slice(0, 8))
-    }
-  }, [setError])
+        newFiles.push({
+          id: uid(),
+          name: file.name,
+          path: file.name,
+          mime: file.type || 'application/octet-stream',
+          size: file.size,
+          ext,
+          content,
+          truncated,
+        })
+      }
+
+      if (newImages.length === 0 && newFiles.length === 0) {
+        if (rawList.length > 0) {
+          setError('Could not load attachment. On phone use Gallery and JPEG/PNG screenshots.')
+        }
+        return
+      }
+      setError(null)
+      if (newImages.length > 0) {
+        setPendingImages((prev) => {
+          const merged = [...prev]
+          for (const item of newImages) {
+            if (merged.length >= MAX_CHAT_IMAGES) break
+            merged.push(item)
+          }
+          return merged
+        })
+      }
+      if (newFiles.length > 0) {
+        setPendingFiles((prev) => [...prev, ...newFiles].slice(0, 8))
+      }
+    },
+    [setError],
+  )
 
   const onPickChatAttachments = async (e: ChangeEvent<HTMLInputElement>) => {
     const input = e.target
@@ -186,8 +196,7 @@ export function useChatAttachments({
       const f = picked[i]!
       const name = f.name?.trim() || `attachment-${Date.now()}`
       const type =
-        f.type?.trim() ||
-        (looksLikeImageFile(f) ? 'image/png' : 'application/octet-stream')
+        f.type?.trim() || (looksLikeImageFile(f) ? 'image/png' : 'application/octet-stream')
       try {
         const buf = await f.arrayBuffer()
         files.push(new File([buf], name, { type, lastModified: f.lastModified }))

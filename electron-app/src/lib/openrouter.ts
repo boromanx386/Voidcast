@@ -1,4 +1,9 @@
-import type { OllamaApiMessage, OllamaChatUsage, OllamaModelOptions, OllamaToolCall } from './ollama'
+import type {
+  OllamaApiMessage,
+  OllamaChatUsage,
+  OllamaModelOptions,
+  OllamaToolCall,
+} from './ollama'
 import { logPromptCache } from './ollama'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from './platform'
@@ -23,8 +28,7 @@ import {
 } from './openResponses'
 
 export type OpenRouterContentPart =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string } }
+  { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
 
 export type OpenRouterMessage =
   | { role: 'system' | 'assistant'; content: string }
@@ -210,7 +214,9 @@ function mergeToolCallDeltas(
   }
 }
 
-export function mapOpenRouterUsageToOllama(usage: OpenRouterUsage | undefined): OllamaChatUsage | undefined {
+export function mapOpenRouterUsageToOllama(
+  usage: OpenRouterUsage | undefined,
+): OllamaChatUsage | undefined {
   if (!usage) return undefined
   const prompt = usage.prompt_tokens
   const completion = usage.completion_tokens
@@ -261,11 +267,7 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
       reasoning_content?: string | null
       tool_calls?: OpenRouterToolCall[]
     }
-    return Boolean(
-      raw.tool_calls?.length ||
-        raw.reasoning?.trim() ||
-        raw.reasoning_content?.trim(),
-    )
+    return Boolean(raw.tool_calls?.length || raw.reasoning?.trim() || raw.reasoning_content?.trim())
   })
 
   return messages.map((m) => {
@@ -323,7 +325,8 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
 function apiLabelForBaseUrl(baseUrl: string): string {
   if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
   if (baseUrl.includes('api.openai.com') || baseUrl.includes('/api/openai')) return 'OpenAI'
-  if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia')) return 'NVIDIA'
+  if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia'))
+    return 'NVIDIA'
   if (isOpenCodeGoApi(baseUrl)) return 'OpenCode Go'
   return 'OpenRouter'
 }
@@ -385,7 +388,11 @@ function throwAbortError(): never {
   throw Object.assign(new Error('Aborted'), { name: 'AbortError' })
 }
 
-async function fetchWithHardAbort(input: RequestInfo | URL, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+async function fetchWithHardAbort(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  signal?: AbortSignal,
+): Promise<Response> {
   if (!signal) return fetch(input, init)
   if (signal.aborted) throwAbortError()
   return await new Promise<Response>((resolve, reject) => {
@@ -459,7 +466,10 @@ export function ollamaMessagesToOpenRouter(messages: OllamaApiMessage[]): OpenRo
     if (m.role === 'assistant') {
       const toolCalls: OpenRouterToolCall[] | undefined = m.tool_calls?.length
         ? m.tool_calls
-            .filter((t): t is OllamaToolCall & { function: NonNullable<OllamaToolCall['function']> } => Boolean(t.function?.name))
+            .filter(
+              (t): t is OllamaToolCall & { function: NonNullable<OllamaToolCall['function']> } =>
+                Boolean(t.function?.name),
+            )
             .map((t, idx) => ({
               id: t.id || `tool_call_${idx + 1}`,
               type: 'function',
@@ -490,7 +500,10 @@ export function ollamaMessagesToOpenRouter(messages: OllamaApiMessage[]): OpenRo
         role: 'user',
         content: [
           { type: 'text', text: m.content || '' },
-          ...m.images.map((img) => ({ type: 'image_url' as const, image_url: { url: toDataImageUri(img) } })),
+          ...m.images.map((img) => ({
+            type: 'image_url' as const,
+            image_url: { url: toDataImageUri(img) },
+          })),
         ],
       })
       continue
@@ -801,9 +814,7 @@ export function openCodeGoProtocolFallback(
  * turn is replayed on `/responses`, and the format is remembered so later turns route
  * straight there — the probe costs one extra request per model per app run, not per turn.
  */
-export async function streamOpenRouterChat(
-  options: StreamOpenRouterChatParams,
-): Promise<{
+export async function streamOpenRouterChat(options: StreamOpenRouterChatParams): Promise<{
   content: string
   reasoning: string
   tool_calls: OpenRouterToolCall[]
@@ -832,9 +843,7 @@ export async function streamOpenRouterChat(
   }
 }
 
-async function streamOpenRouterChatInner(
-  options: StreamOpenRouterChatParams,
-): Promise<{
+async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): Promise<{
   content: string
   reasoning: string
   tool_calls: OpenRouterToolCall[]
@@ -843,9 +852,7 @@ async function streamOpenRouterChatInner(
   const root = resolveOpenRouterRoot(options.baseUrl)
   const isNvidia = root.includes('integrate.api.nvidia.com')
   const canUseElectronNvidiaProxy =
-    isElectron() &&
-    isNvidia &&
-    Boolean(window.voidcast?.llmChatProxy)
+    isElectron() && isNvidia && Boolean(window.voidcast?.llmChatProxy)
 
   // OpenCode Go models served only on Anthropic `/messages` (e.g. claude-haiku-5-5).
   if (isOpenCodeGoApi(root) && openCodeGoApiStyle(options.model) === 'anthropic-messages') {
@@ -877,10 +884,9 @@ async function streamOpenRouterChatInner(
 
   for (const model of models) {
     for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
-      const messages =
-        isOpenCodeGo
-          ? sanitizeMessagesForOpenCodeGo(options.messages)
-          : options.messages
+      const messages = isOpenCodeGo
+        ? sanitizeMessagesForOpenCodeGo(options.messages)
+        : options.messages
       const body: Record<string, unknown> = {
         model,
         messages,
@@ -927,12 +933,16 @@ async function streamOpenRouterChatInner(
       }
 
       try {
-        res = await fetchWithHardAbort(`${root}/chat/completions`, {
-          method: 'POST',
-          headers,
-          signal: options.signal,
-          body: JSON.stringify(body),
-        }, options.signal)
+        res = await fetchWithHardAbort(
+          `${root}/chat/completions`,
+          {
+            method: 'POST',
+            headers,
+            signal: options.signal,
+            body: JSON.stringify(body),
+          },
+          options.signal,
+        )
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') throw e
         if (!canUseElectronNvidiaProxy || model !== options.model) throw e
@@ -942,7 +952,9 @@ async function streamOpenRouterChatInner(
           body: { ...body, stream: false },
         })
         if (!proxyRes.ok) {
-          throw new Error(`NVIDIA /chat/completions ${proxyRes.status ?? ''}: ${proxyRes.detail}`.trim())
+          throw new Error(
+            `NVIDIA /chat/completions ${proxyRes.status ?? ''}: ${proxyRes.detail}`.trim(),
+          )
         }
         const data = proxyRes.data as {
           choices?: Array<{
@@ -979,9 +991,10 @@ async function streamOpenRouterChatInner(
 
       const isLastAttempt = attempt >= MAX_RETRIES_PER_MODEL - 1
       if (isLastAttempt) break
-      const retrySec = typeof err.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0
-        ? err.retryAfterSeconds
-        : 2 ** attempt
+      const retrySec =
+        typeof err.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0
+          ? err.retryAfterSeconds
+          : 2 ** attempt
       await sleepMs(retrySec * 1000, options.signal)
     }
     if (res?.ok) break
@@ -1030,8 +1043,7 @@ async function streamOpenRouterChatInner(
       const errMsg =
         typeof chunk.error === 'string'
           ? chunk.error
-          : chunk.error?.message ||
-            chunk.choices?.[0]?.error?.message
+          : chunk.error?.message || chunk.choices?.[0]?.error?.message
       if (errMsg) throw new Error(errMsg)
       if (chunk.usage) usage = chunk.usage
       const choice = chunk.choices?.[0]

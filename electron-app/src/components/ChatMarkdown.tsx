@@ -47,19 +47,11 @@ function CodeBlock({ children }: { children: ReactNode }) {
 }
 
 const components: Components = {
-  p: ({ children }) => (
-    <p className="mb-3 last:mb-0 min-w-0 break-words">{children}</p>
-  ),
-  strong: ({ children }) => (
-    <strong className="font-semibold text-neon-cyan">{children}</strong>
-  ),
+  p: ({ children }) => <p className="mb-3 last:mb-0 min-w-0 break-words">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-neon-cyan">{children}</strong>,
   em: ({ children }) => <em className="italic text-void-light">{children}</em>,
-  hr: () => (
-    <hr className="my-4 border-void-muted/50" />
-  ),
-  ul: ({ children }) => (
-    <ul className="mb-3 list-none space-y-1.5 last:mb-0 pl-0">{children}</ul>
-  ),
+  hr: () => <hr className="my-4 border-void-muted/50" />,
+  ul: ({ children }) => <ul className="mb-3 list-none space-y-1.5 last:mb-0 pl-0">{children}</ul>,
   ol: ({ children }) => (
     <ol className="mb-3 list-decimal space-y-1.5 pl-5 last:mb-0">{children}</ol>
   ),
@@ -128,9 +120,7 @@ const components: Components = {
       <table className="w-full border-collapse text-left text-xs">{children}</table>
     </div>
   ),
-  thead: ({ children }) => (
-    <thead className="bg-void-mid/50">{children}</thead>
-  ),
+  thead: ({ children }) => <thead className="bg-void-mid/50">{children}</thead>,
   th: ({ children }) => (
     <th className="border-b border-void-dim/30 px-3 py-2 font-mono font-semibold text-neon-cyan uppercase tracking-wider text-xs">
       {children}
@@ -161,9 +151,7 @@ const components: Components = {
     }
     return <input type={type} {...props} />
   },
-  del: ({ children }) => (
-    <del className="text-void-dim line-through">{children}</del>
-  ),
+  del: ({ children }) => <del className="text-void-dim line-through">{children}</del>,
 }
 
 type Props = {
@@ -176,10 +164,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({ content, className }: P
     <div
       className={`min-w-0 max-w-full break-words text-[15px] leading-[1.7] text-void-light font-body ${className ?? ''}`}
     >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        components={components}
-      >
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
         {content}
       </ReactMarkdown>
     </div>

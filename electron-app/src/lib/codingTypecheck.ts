@@ -76,10 +76,8 @@ export function detectCheckKind(params: {
   return null
 }
 
-const TSC_ERROR_PAREN_RE =
-  /^(.+?)\((\d+),(\d+)\):\s*error\s+(TS\d+):\s*(.+)$/i
-const TSC_ERROR_COLON_RE =
-  /^(.+?):(\d+):(\d+)\s*-\s*error\s+(TS\d+):\s*(.+)$/i
+const TSC_ERROR_PAREN_RE = /^(.+?)\((\d+),(\d+)\):\s*error\s+(TS\d+):\s*(.+)$/i
+const TSC_ERROR_COLON_RE = /^(.+?):(\d+):(\d+)\s*-\s*error\s+(TS\d+):\s*(.+)$/i
 
 export function parseTscDiagnostics(output: string): CheckDiagnostic[] {
   const diags: CheckDiagnostic[] = []
@@ -298,7 +296,9 @@ export function filterTscDiagnostics(
   filterPaths: string[],
   pathPrefix = '',
 ): CheckDiagnostic[] {
-  const filters = filterPaths.map((p) => normalizeTypecheckPath(p.trim()).toLowerCase()).filter(Boolean)
+  const filters = filterPaths
+    .map((p) => normalizeTypecheckPath(p.trim()).toLowerCase())
+    .filter(Boolean)
   if (filters.length === 0) return diags
   const prefix = normalizeTypecheckPath(pathPrefix.trim())
   return diags.filter((diag) => {
@@ -357,9 +357,7 @@ export function formatTypecheckReport(params: {
   const lines = [
     `${checker} (${checkRootLabel}): ${diagnostics.length} error${diagnostics.length === 1 ? '' : 's'}${truncated ? ` (showing first ${capped.length})` : ''}.`,
     '',
-    ...capped.map(
-      (d) => `${d.file}:${d.line}:${d.column} — ${d.code}: ${d.message}`,
-    ),
+    ...capped.map((d) => `${d.file}:${d.line}:${d.column} — ${d.code}: ${d.message}`),
   ]
   return lines.join('\n')
 }

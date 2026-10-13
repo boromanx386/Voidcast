@@ -40,9 +40,15 @@ export function MemoryPreviewModal({ app }: Props) {
         </div>
         <div className="max-h-[50vh] overflow-y-auto space-y-2">
           {memoryCandidates.map((m, idx) => (
-            <div key={`${m.kind}-${idx}`} className="rounded border border-void-muted/30 bg-void-black/30 p-2">
+            <div
+              key={`${m.kind}-${idx}`}
+              className="rounded border border-void-muted/30 bg-void-black/30 p-2"
+            >
               <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-neon-green/80">
-                <span>{m.kind.toUpperCase()} · conf {(m.confidence ?? 0).toFixed(2)} · imp {(m.importance ?? 0).toFixed(2)}</span>
+                <span>
+                  {m.kind.toUpperCase()} · conf {(m.confidence ?? 0).toFixed(2)} · imp{' '}
+                  {(m.importance ?? 0).toFixed(2)}
+                </span>
                 <button
                   type="button"
                   className="px-2 py-0.5 text-[10px] text-neon-red/80 hover:text-neon-red"

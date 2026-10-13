@@ -1,5 +1,4 @@
-const UUID_V4_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /** RFC-4122 UUID v4. Works without `crypto.randomUUID` (plain HTTP / LAN). */
 export function makeUuidV4(): string {
@@ -34,9 +33,7 @@ export function normalizeRunwareTasks(tasks: unknown[]): unknown[] {
           ? task.task_uuid
           : ''
     const trimmed = raw.trim()
-    task.taskUUID = isValidRunwareTaskUuid(trimmed)
-      ? trimmed.toLowerCase()
-      : makeUuidV4()
+    task.taskUUID = isValidRunwareTaskUuid(trimmed) ? trimmed.toLowerCase() : makeUuidV4()
     delete task.task_uuid
     return task
   })

@@ -101,10 +101,7 @@ const SECTION_META: Record<(typeof SECTION_KEYS)[number], { label: string; title
 /** Header mode switch: the pane stack, or the browser taking over the whole body. */
 const PANEL_MODES = ['coding', 'web'] as const
 
-const PANEL_MODE_META: Record<
-  (typeof PANEL_MODES)[number],
-  { label: string; title: string }
-> = {
+const PANEL_MODE_META: Record<(typeof PANEL_MODES)[number], { label: string; title: string }> = {
   coding: { label: '◆ CODING', title: 'Coding panel: file tree, preview and terminal' },
   web: {
     label: '● WEB',
@@ -396,9 +393,7 @@ export function CodingPanel({
       const cur = settings.coding[key]
       // Never leave the body empty: the last visible pane stays on.
       if (cur) {
-        const othersOn = SECTION_KEYS.filter((k) => k !== key).some(
-          (k) => settings.coding[k],
-        )
+        const othersOn = SECTION_KEYS.filter((k) => k !== key).some((k) => settings.coding[k])
         if (!othersOn) return
       }
       onCodingUiChange({ [key]: !cur })
@@ -820,9 +815,7 @@ export function CodingPanel({
 
   const dirtyCount = gitStatusByPath.size
 
-  const selectedGit = selectedPath
-    ? gitStatusByPath.get(normalizeGitPath(selectedPath))
-    : undefined
+  const selectedGit = selectedPath ? gitStatusByPath.get(normalizeGitPath(selectedPath)) : undefined
 
   const onCommit = useCallback(
     async (all: boolean) => {
@@ -1269,8 +1262,7 @@ export function CodingPanel({
                         }
                       }}
                       className="panel-splitter panel-splitter--horizontal"
-                    >
-                    </div>
+                    ></div>
                   )}
                 </>
               )}
@@ -1295,9 +1287,9 @@ export function CodingPanel({
                         editSessionKey={editSessionKey}
                         canEdit={Boolean(
                           projectPath &&
-                            selectedPath &&
-                            !isCodingPreviewImage(selectedPath) &&
-                            !editing,
+                          selectedPath &&
+                          !isCodingPreviewImage(selectedPath) &&
+                          !editing,
                         )}
                         onStartEdit={() => void onStartEdit()}
                         onEditDraftChange={setEditDraft}
@@ -1310,9 +1302,7 @@ export function CodingPanel({
                         canDiscard={Boolean(
                           selectedGit && selectedGit.unstaged && !selectedGit.untracked,
                         )}
-                        onStage={
-                          selectedPath ? () => void onStageFile(selectedPath) : undefined
-                        }
+                        onStage={selectedPath ? () => void onStageFile(selectedPath) : undefined}
                         onUnstage={
                           selectedPath ? () => void onUnstageFile(selectedPath) : undefined
                         }
@@ -1349,8 +1339,7 @@ export function CodingPanel({
                         }
                       }}
                       className="panel-splitter panel-splitter--horizontal"
-                    >
-                    </div>
+                    ></div>
                   )}
                   {/* Commit alone (terminal off): natural height — no dead 200px zone. */}
                   {showCommitBar && !showTerminal ? commitPanel : null}
@@ -1380,57 +1369,57 @@ export function CodingPanel({
         })()}
       </div>
       {!showWeb && (
-      <div className="flex shrink-0 gap-2">
-        <input
-          type="text"
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              void onRunCommand()
-              return
-            }
-            if (e.key === 'ArrowUp') {
-              if (commandHistory.length === 0) return
-              e.preventDefault()
-              if (historyFromEnd === null) {
-                commandHistoryDraftRef.current = command
-                setHistoryFromEnd(0)
-                setCommand(commandHistory[commandHistory.length - 1])
+        <div className="flex shrink-0 gap-2">
+          <input
+            type="text"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                void onRunCommand()
                 return
               }
-              const next = historyFromEnd + 1
-              if (next >= commandHistory.length) return
-              setHistoryFromEnd(next)
-              setCommand(commandHistory[commandHistory.length - 1 - next])
-              return
-            }
-            if (e.key === 'ArrowDown') {
-              if (historyFromEnd === null) return
-              e.preventDefault()
-              if (historyFromEnd === 0) {
-                setCommand(commandHistoryDraftRef.current)
-                setHistoryFromEnd(null)
+              if (e.key === 'ArrowUp') {
+                if (commandHistory.length === 0) return
+                e.preventDefault()
+                if (historyFromEnd === null) {
+                  commandHistoryDraftRef.current = command
+                  setHistoryFromEnd(0)
+                  setCommand(commandHistory[commandHistory.length - 1])
+                  return
+                }
+                const next = historyFromEnd + 1
+                if (next >= commandHistory.length) return
+                setHistoryFromEnd(next)
+                setCommand(commandHistory[commandHistory.length - 1 - next])
                 return
               }
-              const next = historyFromEnd - 1
-              setHistoryFromEnd(next)
-              setCommand(commandHistory[commandHistory.length - 1 - next])
-            }
-          }}
-          placeholder="npm test"
-          title="Enter: run · ↑ / ↓: command history"
-          className="cyber-input flex-1 text-xs"
-        />
-        <button
-          type="button"
-          className="cyber-btn text-xs disabled:opacity-40"
-          disabled={commandRunning || !command.trim()}
-          onClick={() => void onRunCommand()}
-        >
-          RUN
-        </button>
-      </div>
+              if (e.key === 'ArrowDown') {
+                if (historyFromEnd === null) return
+                e.preventDefault()
+                if (historyFromEnd === 0) {
+                  setCommand(commandHistoryDraftRef.current)
+                  setHistoryFromEnd(null)
+                  return
+                }
+                const next = historyFromEnd - 1
+                setHistoryFromEnd(next)
+                setCommand(commandHistory[commandHistory.length - 1 - next])
+              }
+            }}
+            placeholder="npm test"
+            title="Enter: run · ↑ / ↓: command history"
+            className="cyber-input flex-1 text-xs"
+          />
+          <button
+            type="button"
+            className="cyber-btn text-xs disabled:opacity-40"
+            disabled={commandRunning || !command.trim()}
+            onClick={() => void onRunCommand()}
+          >
+            RUN
+          </button>
+        </div>
       )}
     </aside>
   )
