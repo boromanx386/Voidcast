@@ -732,7 +732,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       // Freeze coding root + agent mode + model for the whole turn so a session switch
       // (or a model switch in another chat) cannot retarget live tool calls. The root
       // comes from the chat that owns the run — background runs included.
-      const turnCodingProjectPath = codingProjectPathForRuntimeKey(keyOf())
+      // A draft send claims its id just above, but `sessions` is a render behind: the shell
+      // row the claim created is not visible yet, so resolving the folder by that fresh id
+      // would come back empty and the first turn would run without the chat's folder. The
+      // claim copies the folder straight from the draft, so read it from the draft instead.
+      const turnCodingProjectPath = codingProjectPathForRuntimeKey(
+        claimedId && runtimeKey === DRAFT_RUNTIME_KEY ? DRAFT_RUNTIME_KEY : keyOf(),
+      )
       const turnModelId = (opts?.forceModel ?? activeModelIdRef.current ?? '').trim()
       // The coding root is NOT folded into settings any more: settings has no coding
       // folder field, and the turn passes `turnCodingProjectPath` around explicitly.
