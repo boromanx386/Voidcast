@@ -50,7 +50,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'openai/gpt-5.6-luna-pro': 1_050_000,
   'gpt-5.6-sol': 1_050_000,
   'gpt-5.6-terra': 1_050_000,
-  'gpt-5.6-luna': 1_050_000,
+  'gpt-5.6-luna': 1050000,
   'gpt-5.6-sol-pro': 1_050_000,
   'gpt-5.6-terra-pro': 1_050_000,
   'gpt-5.6-luna-pro': 1_050_000,
@@ -131,6 +131,10 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'qwen3.8-flash': 1000000,
   'qwen3.8-max': 1000000,
   'step-5-preview-free': 1000000,
+  'space-bunny': 1048576,
+  'gpt-6-luna': 1050000,
+  'muse-spark-1.2-contributor': 1048576,
+  'muse-spark-1.3-contributor': 1048576,
 }
 
 function buildPresetLookup(

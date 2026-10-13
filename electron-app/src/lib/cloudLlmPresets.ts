@@ -133,6 +133,13 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'qwen3.8-flash', label: 'Qwen3 8 Flash (1M ctx · Anthropic Messages)' },
   { id: 'qwen3.8-max', label: 'Qwen3 8 Max (1M ctx · Anthropic Messages)' },
   { id: 'step-5-preview-free', label: 'Step 5 Preview Free (1M ctx)' },
+  { id: 'cat-jam-free', label: 'Cat Jam Free' },
+  { id: 'omen-alpha', label: 'Omen Alpha' },
+  { id: 'space-bunny', label: 'Space Bunny (1M ctx)' },
+  { id: 'gpt-5.6-luna', label: 'GPT 5 6 Luna (1.1M ctx · Responses)' },
+  { id: 'gpt-6-luna', label: 'GPT 6 Luna (1.1M ctx · Responses)' },
+  { id: 'muse-spark-1.2-contributor', label: 'Muse Spark 1 2 Contributor (1M ctx · Responses)' },
+  { id: 'muse-spark-1.3-contributor', label: 'Muse Spark 1 3 Contributor (1M ctx · Responses)' },
 ]
 
 /**
