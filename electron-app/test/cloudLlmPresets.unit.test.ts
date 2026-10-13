@@ -8,11 +8,15 @@ describe('openCodeGoApiStyle', () => {
     }
   })
 
-  it('routes the Contributor tier to the Responses API', () => {
+  it('routes the Responses-only families to /v1/responses', () => {
+    // Exactly the six the live catalog puts on that endpoint.
     for (const id of [
+      'grok-4.6',
+      'grok-4.7',
       'muse-spark-1.2-contributor',
       'muse-spark-1.3-contributor',
-      'muse-spark-2.0-contributor-free',
+      'gpt-5.6-luna',
+      'gpt-6-luna',
     ]) {
       expect(openCodeGoApiStyle(id)).toBe('opencode-responses')
     }
@@ -32,17 +36,24 @@ describe('openCodeGoApiStyle', () => {
     expect(openCodeGoApiStyle('')).toBe('openai-chat')
   })
 
-  it('prefers Anthropic Messages when a model matches both shapes', () => {
-    // Guard: an explicit /messages membership must win over the Responses pattern.
+  it('lets an explicit /messages membership win over the family rules', () => {
     expect(openCodeGoApiStyle('claude-haiku-5-5')).toBe('anthropic-messages')
   })
 })
 
 describe('isOpenCodeGoResponsesModel', () => {
-  it('matches on the contributor boundary, not a bare substring', () => {
+  it('matches the Grok, Muse Spark and *-luna families', () => {
+    expect(isOpenCodeGoResponsesModel('grok-4.7')).toBe(true)
     expect(isOpenCodeGoResponsesModel('muse-spark-1.2-contributor')).toBe(true)
-    expect(isOpenCodeGoResponsesModel('contributor')).toBe(true)
-    expect(isOpenCodeGoResponsesModel('notcontributor')).toBe(false)
-    expect(isOpenCodeGoResponsesModel('muse-spark-1.2-contributors')).toBe(false)
+    expect(isOpenCodeGoResponsesModel('gpt-5.6-luna')).toBe(true)
+    expect(isOpenCodeGoResponsesModel('gpt-6-luna')).toBe(true)
+  })
+
+  it('does not over-reach into neighbouring families', () => {
+    // Patterns are anchored: a containing substring or a sibling gpt model is not enough.
+    expect(isOpenCodeGoResponsesModel('notgrok')).toBe(false)
+    expect(isOpenCodeGoResponsesModel('gpt-5.6-sol')).toBe(false)
+    expect(isOpenCodeGoResponsesModel('deepseek-v4-pro')).toBe(false)
+    expect(isOpenCodeGoResponsesModel('qwen3.8-max')).toBe(false)
   })
 })

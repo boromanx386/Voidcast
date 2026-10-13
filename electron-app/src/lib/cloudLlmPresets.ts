@@ -152,24 +152,31 @@ const OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * OpenCode Go models served only on the Responses API (`{base}/responses`).
+ * OpenCode Go families served only on the Responses API (`{base}/responses`).
  *
- * The docs do not publish these ids, so this is only the *statically known* set: the
- * Contributor tier plus a shape test for its bare slugs. Everything else is discovered at
- * runtime — see `discoveredOpenCodeGoStyles` below.
+ * Mirrors `OPENCODE_RESPONSES_FAMILIES` in scripts/check-models.mjs, which resolves the
+ * endpoint from models.dev (`provider.npm === '@ai-sdk/openai'`) and falls back to the
+ * families the Go docs pin to that endpoint. Against the live catalog (39 models) it is
+ * exactly six: grok-4.6, grok-4.7, muse-spark-1.2-contributor, muse-spark-1.3-contributor,
+ * gpt-5.6-luna, gpt-6-luna.
  */
-const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set([
-  'muse-spark-1.2-contributor',
-  'muse-spark-1.3-contributor',
-])
+const OPENCODE_GO_RESPONSES_FAMILIES: readonly RegExp[] = [
+  /^grok/i,
+  /^muse-spark/i,
+  /^gpt-[0-9.]+-luna/i,
+]
 
-const OPENCODE_GO_RESPONSES_MODEL_PATTERN = /(^|[-_/])contributor([-_/]|$)/i
+/**
+ * Per-id pins for a Responses-only model that matches none of the families above.
+ * `npm run check:models --apply` writes here; empty while the families cover the catalog.
+ */
+const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set<string>([])
 
 /**
  * Wire formats learned at runtime. OpenCode Go answers `/chat/completions` with a
  * `ModelProtocolUnsupported` 400 for models it only serves elsewhere; the caller replays
- * the turn on the format that worked and records it here. Without this, a Responses-only
- * model we have no id for would burn a failed request on every single turn.
+ * the turn on the format that worked and records it here. That keeps a model the static
+ * rules do not know from burning a failed request on every single turn.
  *
  * In-memory on purpose: the probe is one extra request per model per app run, and a stale
  * hint never survives a restart.
@@ -185,7 +192,8 @@ export function rememberOpenCodeGoApiStyle(model: string, style: CloudLlmApiStyl
 /** True when an OpenCode Go model is *statically* known to speak the Responses API. */
 export function isOpenCodeGoResponsesModel(model: string): boolean {
   const id = normalizeOpenCodeGoModelId(model)
-  return OPENCODE_GO_RESPONSES_MODELS.has(id) || OPENCODE_GO_RESPONSES_MODEL_PATTERN.test(id)
+  if (OPENCODE_GO_RESPONSES_MODELS.has(id)) return true
+  return OPENCODE_GO_RESPONSES_FAMILIES.some((re) => re.test(id))
 }
 
 export function openCodeGoApiStyle(model: string): CloudLlmApiStyle {
