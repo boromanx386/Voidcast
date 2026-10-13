@@ -14,31 +14,9 @@ Everything that lives in the repo is **English**:
 - commit messages, tags, branch names
 - docs, README, CHANGELOG
 
-No Serbian anywhere in tracked files — not in comments, not in `echo`/`info`/`warn`/`die`
-messages, not in log strings. The owner speaks Serbian, but the codebase stays uniform
-English. When adding a message or a comment, write it in English first.
-
-## 2. Never commit generated output
-
-These are build artifacts and stay out of git:
-
-```
-electron-app/release/     electron-app/dist/      electron-app/node_modules/
-tts-server/dist/          tts-server/web-ui/      tts-server/__pycache__/
-.venv/                    .ruff_cache/            .voidcast/
-```
-
-If one of them shows up in `git status`, fix `.gitignore` — do not `git add` it.
-
-## 3. Line endings
-
-`.gitattributes` forces **LF** for `*.sh` and `*.py`.
-Never save a shell script or Python file as CRLF — `start-dev.sh` / `build-linux.sh`
-must stay runnable on Linux.
-
 ---
 
-## 4. Layout
+## 2. Layout
 
 | Path | What it is |
 |---|---|
@@ -51,7 +29,7 @@ must stay runnable on Linux.
 | `site/` | GitHub Pages marketing site |
 | `docs/` | documentation |
 
-## 5. Commands
+## 3. Commands
 
 Repo root:
 
@@ -72,27 +50,14 @@ npm run lint          npm run lint:fix
 npm run format        npm run format:check
 ```
 
-## 6. Before saying "done"
-
-Actually run these and read the output — never claim a check passed without seeing it:
-
-```bash
-node --check scripts/release.mjs
-bash -n start-dev.sh && bash -n build-linux.sh
-cd electron-app && npx tsc --noEmit     # after touching .ts/.tsx
-cd electron-app && npm run lint
-```
-
-After editing a version string, verify **all four** places:
-`electron-app/package.json`, `electron-app/package-lock.json` (root `version` **and**
-`packages[""].version`), and the default `appVersion` in
-`electron-app/src/hooks/useAppSettings.ts`.
-
 ---
 
-## 7. Versioning & release
+## 4. Versioning & release
 
-- Single source of truth: `version` in `electron-app/package.json`.
+- Single source of truth: `version` in `electron-app/package.json`. A bump must keep
+  **all four** spots in sync: that file, `electron-app/package-lock.json` (root `version`
+  **and** `packages[""].version`), and the default `appVersion` in
+  `electron-app/src/hooks/useAppSettings.ts`.
 - The git tag **must** equal it (`vX.Y.Z`) — `release.yml` fails the build on a mismatch.
 - `npm run release -- --bump patch|minor|major` bumps all four spots, commits, tags and
   pushes. CI then runs a matrix (`windows-latest` + `ubuntu-latest`), each OS builds its
@@ -105,7 +70,7 @@ After editing a version string, verify **all four** places:
 - The publish job uses `fail_on_unmatched_files: true` on purpose — an empty release must
   fail loudly rather than publish with zero assets.
 
-## 8. Auto-update
+## 5. Auto-update
 
 - Windows (NSIS) and Linux **AppImage** update themselves via `electron-updater`,
   reading `latest.yml` / `latest-linux.yml`.
@@ -113,7 +78,7 @@ After editing a version string, verify **all four** places:
 - A release is only usable if it contains: the installer, its `.blockmap`, and the
   matching `latest*.yml`.
 
-## 9. Platform-specific things
+## 6. Platform-specific things
 
 - Tools-server binary resolution is platform-aware in `electron/main/index.ts`:
   `voidcast-tools-server.exe` on Windows vs `voidcast-tools-server` on Linux/macOS,
@@ -129,7 +94,7 @@ After editing a version string, verify **all four** places:
 
 ---
 
-## 10. Style
+## 7. Style
 
 - Follow the existing ESLint + Prettier config in `electron-app/`; run
   `npm run format` before committing.

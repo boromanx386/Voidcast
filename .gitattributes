@@ -1,3 +1,13 @@
+# Default: every text file is normalized to LF, both in the repo and in the
+# worktree. Without this, core.autocrlf=true on Windows checks .ts/.tsx/.md/.json
+# out as CRLF and every tool report shows EOL churn.
+* text=auto eol=lf
+
+# Windows-only launchers must keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Native binaries / LFS payloads must never go through the eol machinery.
 tts-server/vendor/cactus/whistle.cact filter=lfs diff=lfs merge=lfs -text
 tts-server/vendor/cactus/libneedle.dll filter=lfs diff=lfs merge=lfs -text
 
