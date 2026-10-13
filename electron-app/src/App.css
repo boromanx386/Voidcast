@@ -1131,6 +1131,11 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply text-neon-green text-sm font-mono;
 }
 
+/* A stopped tool is not a success — the timeout notice must never render green. */
+.tool-result-banner--timeout {
+  @apply bg-neon-red/10 border-neon-red/40 text-neon-red;
+}
+
 /* Empty state */
 .empty-state {
   @apply flex flex-col items-center justify-center h-full;
