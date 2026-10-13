@@ -57,7 +57,7 @@ import type {
   UiMessage,
 } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
-import { currentPinnedModelId } from '@/lib/pinnedModels'
+import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 
 function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
   return typeof action === 'function' ? (action as (p: T) => T)(prev) : action
@@ -641,6 +641,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       messages: sourceMessages,
       systemPromptPreset: session.systemPromptPreset,
       agentMode: session.agentMode ?? normalizeAgentChatMode(settings.agentMode),
+      // A fork continues the same chat, so it stays locked to the same model.
+      model: session.model,
       hiddenContextSummary: session.hiddenContextSummary,
       contextCompressedThroughIndex: session.contextCompressedThroughIndex,
       codingContextMemo: session.codingContextMemo,
@@ -773,35 +775,50 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }
 
   /**
-   * Scoped LLM pin of the chat on screen. `ChatSession.model` wins; otherwise the chat
-   * follows the app-level model from Options — which the chat-header switcher no longer
-   * writes, so picking a model in one chat cannot retarget another.
+   * Scoped LLM id this chat is locked to, '' while it follows the app-level model. The
+   * presence of `ChatSession.model` IS the lock: the padlock writes it and clears it.
    */
-  const activeModelId: string = activeSessionId
-    ? sessions.find((s) => s.id === activeSessionId)?.model?.trim() ||
-      currentPinnedModelId(settings)
-    : currentPinnedModelId(settings)
+  const activeChatModelId: string = activeSessionId
+    ? sessions.find((s) => s.id === activeSessionId)?.model?.trim() || ''
+    : ''
+
+  /** Id the next turn runs with: the chat's own model when it has one, else the Options one. */
+  const activeModelId: string = activeChatModelId || currentPinnedModelId(settings)
 
   /**
-   * Write the scoped model pin onto one chat by id. Safe for background chats: the
+   * Write the model lock of one chat by id; `''` clears it. Safe for background chats: the
    * session owns the model, so a switch elsewhere never retargets a running turn.
    */
   const setModelForSession = useCallback((sessionId: string, scopedId: string) => {
+    const value = scopedId.trim() || undefined
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === sessionId)
       if (idx < 0) return prev
       const current = prev[idx]
-      if ((current.model ?? '') === scopedId) return prev
+      if (current.model === value) return prev
       const next = [...prev]
-      next[idx] = { ...current, model: scopedId }
+      next[idx] = { ...current, model: value }
       return next
     })
   }, [])
 
-  /** Chat-header model switcher: pins the model to this chat only. */
+  /**
+   * Chat-header model switcher. A locked chat keeps its own model, so the pick lands on that
+   * chat; an unlocked one follows Options, so the pick is the global change the switcher made
+   * before the per-chat lock — which is why it also works in a chat with no session id yet.
+   */
   const setModelForActiveChat = (scopedId: string) => {
+    if (activeSessionId && activeChatModelId) {
+      setModelForSession(activeSessionId, scopedId)
+      return
+    }
+    setSettings((prev) => applyScopedModelToSettings(prev, scopedId))
+  }
+
+  /** Chat-header padlock: lock this chat to the model it resolves to now, or release it. */
+  const toggleModelLockForActiveChat = () => {
     if (!activeSessionId) return
-    setModelForSession(activeSessionId, scopedId)
+    setModelForSession(activeSessionId, activeChatModelId ? '' : activeModelId)
   }
 
   const saveOrUpdateSession = () => {
@@ -838,6 +855,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         (existing ? sessionCodingProjectPath(existing) : draftCodingProjectPathRef.current) ||
         undefined,
       imageVisionCache: normalizeImageVisionCache(imageVisionCache),
+      // Explicit Save must not drop the model lock: upsertSession replaces the whole row.
+      model: existing?.model,
       // Explicit Save promotes sticky draft into durable storage.
     }
     const nextState = upsertSession({ sessions, activeSessionId }, next)
@@ -989,7 +1008,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setAgentModeForSession,
     patchSessionImageVision,
     activeModelId,
+    activeChatModelId,
     setModelForActiveChat,
+    toggleModelLockForActiveChat,
     activeCodingProjectPath,
     setCodingPathForActiveChat,
     codingProjectPathForRuntimeKey,

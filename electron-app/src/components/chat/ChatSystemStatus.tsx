@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { LockIcon } from '@/components/icons/LockIcon'
 import { RobotIcon } from '@/components/icons/RobotIcon'
 import ModelSwitcherPopup from '@/components/chat/ModelSwitcherPopup'
 import { contextLimitSourceLabel } from '@/lib/contextLimit'
@@ -39,8 +40,11 @@ type Props = {
     | 'contextCompressBusy'
     | 'summarizeContextNow'
     | 'messages'
+    | 'activeSessionId'
     | 'activeModelId'
+    | 'activeChatModelId'
     | 'setModelForActiveChat'
+    | 'toggleModelLockForActiveChat'
   >
 }
 
@@ -55,8 +59,11 @@ export function ChatSystemStatus({ app }: Props) {
     contextCompressBusy,
     summarizeContextNow,
     messages,
+    activeSessionId,
     activeModelId,
+    activeChatModelId,
     setModelForActiveChat,
+    toggleModelLockForActiveChat,
   } = app
   const [showModelSwitcher, setShowModelSwitcher] = useState(false)
   const [showCtxPopup, setShowCtxPopup] = useState(false)
@@ -131,6 +138,21 @@ export function ChatSystemStatus({ app }: Props) {
             />
           )}
         </div>
+        {activeSessionId && (
+          <button
+            type="button"
+            className={`lock${activeChatModelId ? ' is-locked' : ''}`}
+            aria-pressed={!!activeChatModelId}
+            title={
+              activeChatModelId
+                ? 'Locked: this chat keeps the model above, so Options does not change it. Click to unlock'
+                : 'This chat follows the model set in Options. Click to lock it to the model above'
+            }
+            onClick={toggleModelLockForActiveChat}
+          >
+            <LockIcon />
+          </button>
+        )}
         <span className="select-none text-void-dim/30">|</span>
         <span className="text-[10px] text-void-dim/60">
           {isWebStandalone() ? 'TTS' : 'TTS/STT'}

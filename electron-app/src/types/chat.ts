@@ -170,9 +170,9 @@ export type ChatSession = {
    */
   agentMode?: AgentChatMode
   /**
-   * Scoped LLM pin (`provider:modelId`, same format as `pinnedModels`) chosen for this
-   * chat. Optional: when absent the chat follows the app-level model from Options, so
-   * switching the model in another chat never retargets a chat that picked its own.
+   * Scoped LLM pin (`provider:modelId`, same format as `pinnedModels`) this chat is locked
+   * to — written and cleared by the chat-header padlock. Absent means the chat follows the
+   * app-level model from Options, live.
    */
   model?: string
   /**

@@ -1269,6 +1269,25 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   animation: pulse 1s ease-in-out infinite;
 }
 
+/* Chat-header model lock toggle: muted while the chat follows the model from Options,
+   glowing while the chat keeps its own, so a click either locks or releases it. */
+.status-item .lock {
+  @apply flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-void-dim/60;
+}
+
+.status-item .lock:hover {
+  @apply text-void-dim;
+}
+
+.status-item .lock svg {
+  @apply h-3 w-3;
+}
+
+.status-item .lock.is-locked {
+  @apply text-neon-cyan;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
 /* Modal overlay */
 .modal-overlay {
   @apply fixed inset-0 z-50 flex items-center justify-center;
