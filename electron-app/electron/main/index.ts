@@ -1803,7 +1803,7 @@ ipcMain.handle(
       const mapped = await Promise.all(
         entries
           .filter((e) => {
-            if (e.name.startsWith('.git')) return false
+            if (e.isDirectory() && e.name === '.git') return false
             if (!includeIgnored && e.isDirectory() && shouldSkipCodingWalkDir(e.name)) return false
             return true
           })
