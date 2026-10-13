@@ -140,10 +140,10 @@ describe('buildPlanHandoffUiDraftContent', () => {
       memo: emptyCodingContextMemo('/proj'),
     })
     expect(body).toContain('OpenAI tool loop')
-    expect(body).not.toContain('Entering Plan mode with prior')
+    expect(body).not.toContain('earlier agent-mode research')
   })
 
-  it('replaces a short stub with explored files + digests', () => {
+  it('replaces a short stub with a one-line notice, not the raw dump', () => {
     let memo = emptyCodingContextMemo('/proj')
     memo = {
       ...memo,
@@ -158,10 +158,13 @@ describe('buildPlanHandoffUiDraftContent', () => {
       memo,
       turnSummary: 'Last coding turn:\nGoal: finish agent loop',
     })
-    expect(body).toContain('Entering Plan mode with prior')
-    expect(body).toContain('openrouterAgent.ts')
-    expect(body).toContain('multi-round loop')
-    expect(body).toContain('finish agent loop')
+    expect(body).toContain('Plan mode')
+    expect(body).toContain('earlier agent-mode research')
+    expect(body).toContain('(1 file)')
     expect(body).not.toContain('Sada imam punu sliku')
+    // the research dump reaches the planner via buildPlanHandoffContextHint(), not the chat body
+    expect(body).not.toContain('openrouterAgent.ts')
+    expect(body).not.toContain('multi-round loop')
+    expect(body).not.toContain('finish agent loop')
   })
 })
