@@ -136,7 +136,7 @@ export function buildSkillsCatalogHint(skills: AgentSkillMeta[]): string {
   const lines = skills.map((s) => {
     const desc = s.description.trim() || '(no description)'
     const src = s.source === 'project' ? ' [project]' : ''
-    return `- ${s.name}${src}: ${desc}`
+    return `- ${s.name}${src}: ${desc} (${s.dirPath})`
   })
   return [
     'Agent skills (progressive disclosure): a catalog of specialized instruction packs is available.',
