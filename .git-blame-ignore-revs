@@ -1,0 +1,4 @@
+# Formatting-only commits. Git blame skips these when the file is enabled.
+# Enable once per clone:  git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub's blame view honours this file automatically.
+b789bd305948c84d4e6301e5387ed770c45e6c50
