@@ -33,9 +33,9 @@
  *                 @ai-sdk/openai = /v1/responses, @ai-sdk/openai-compatible = /v1/chat/completions)
  *   NVIDIA      GET https://integrate.api.nvidia.com/v1/models
  *
- * OpenCode Go endpoints handled: `/v1/chat/completions` and `/v1/messages` (both are first-class
- * app presets — the app routes per model via openCodeGoApiStyle()). `/v1/responses` is not
- * implemented by the app, so those models are skipped rather than suggested.
+ * OpenCode Go endpoints handled: `/v1/chat/completions`, `/v1/messages` and `/v1/responses`.
+ * All three are first-class app presets — the app routes per model via openCodeGoApiStyle(),
+ * so a model on any of the three is a normal preset candidate.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -96,8 +96,8 @@ function extractPresetIds(source, constName) {
 }
 
 /**
- * Extract the quoted entries of a `new Set([...])` block, e.g.
- * OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS (the app's per-model /v1/messages routing set).
+ * Extract the quoted entries of a `new Set([...])` block — the app's per-model routing
+ * sets (OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS, OPENCODE_GO_RESPONSES_MODELS).
  */
 function extractSetEntries(source, constName) {
   const block = source.match(setBlockRe(constName))
@@ -110,7 +110,10 @@ function extractSetEntries(source, constName) {
 }
 
 function setBlockRe(constName) {
-  return new RegExp(`((?:export )?const ${constName}\\s*(?::[^=]+)?=\\s*new Set\\(\\[)([\\s\\S]*?)(\\]\\))`)
+  // Tolerates an explicit type argument: `new Set([...])` and `new Set<string>([...])`.
+  return new RegExp(
+    `((?:export )?const ${constName}\\s*(?::[^=]+)?=\\s*new Set\\s*(?:<[^>]*>)?\\(\\[)([\\s\\S]*?)(\\]\\))`,
+  )
 }
 
 /** Extract MODEL_CONTEXT_OVERRIDES as { id: number }. */
@@ -181,16 +184,19 @@ function upsertContextOverride(source, id, value) {
 }
 
 /**
- * Insert a quoted id into a `new Set([...])` block — used to pin a newly added
- * /v1/messages model in OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS so the app routes it
- * to `{base}/messages` instead of /v1/chat/completions.
+ * Insert a quoted id into a `new Set([...])` block — used to pin a newly added model in
+ * OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS (`{base}/messages`) or OPENCODE_GO_RESPONSES_MODELS
+ * (`{base}/responses`), so the app stops POSTing it to /v1/chat/completions.
  */
 function addSetEntry(source, constName, id) {
   if (extractSetEntries(source, constName).has(id)) return source
   const m = source.match(setBlockRe(constName))
   if (!m) return source
   const insertAt = m.index + m[1].length + m[2].length
-  return source.slice(0, insertAt) + `  '${id}',\n` + source.slice(insertAt)
+  // An empty `new Set([])` needs its own line breaks, or the first pin lands as
+  // `new Set([  'id',` on one line.
+  const entry = m[2].trim() === '' ? `\n  '${id}',\n` : `  '${id}',\n`
+  return source.slice(0, insertAt) + entry + source.slice(insertAt)
 }
 
 /** Remove a quoted id line from a `new Set([...])` block. */
@@ -337,20 +343,27 @@ async function checkOpenRouter(curated, overrides) {
 }
 
 // OpenCode Go serves three wire formats (https://opencode.ai/docs/go/, Endpoints table).
-// The app implements two of them — see CloudLlmApiStyle in cloudLlmPresets.ts:
+// The app implements all three — see CloudLlmApiStyle in cloudLlmPresets.ts:
 //   /v1/chat/completions → 'openai-chat'
 //   /v1/messages         → 'anthropic-messages'   (MiniMax, Qwen, Claude Haiku 5.5)
-//   /v1/responses        → not implemented, so those models are never suggested.
+//   /v1/responses        → 'opencode-responses'   (Grok, Muse Spark, *-luna)
 //
-// The app already knows per model which endpoint to use: openCodeGoApiStyle() consults
-// OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS. This checker mirrors that set, so a
-// /v1/messages model is a normal preset candidate — and when applied, the id is also
-// pinned into that routing set (addSetEntry), otherwise the app would POST it to
-// /v1/chat/completions and get a 404.
+// The app knows per model which endpoint to use: openCodeGoApiStyle() consults
+// OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS and the OPENCODE_GO_RESPONSES_FAMILIES. This
+// checker mirrors those rules, so a model on any of the three is a normal preset
+// candidate. When applied, a /v1/messages id is pinned into the app's routing set and a
+// /v1/responses id is pinned only when no family matches it — either way the app stops
+// POSTing it to /v1/chat/completions and failing.
 const OPENCODE_ENDPOINT_LABEL = {
   'openai-chat': '/v1/chat/completions',
   'anthropic-messages': '/v1/messages',
   'openai-responses': '/v1/responses',
+}
+
+const OPENCODE_ENDPOINT_NAME = {
+  'openai-chat': 'Chat Completions',
+  'anthropic-messages': 'Anthropic Messages',
+  'openai-responses': 'Responses',
 }
 
 // models.dev carries the AI SDK package per model (`provider.npm`) and it maps 1:1 to
@@ -384,6 +397,11 @@ function openCodeEndpoint(id, npm) {
   return { style: 'openai-chat', verified: true }
 }
 
+/** True when the app's family rules already route this id to /v1/responses. */
+function matchesResponsesFamily(id) {
+  return OPENCODE_RESPONSES_FAMILIES.some((re) => re.test(id))
+}
+
 // Legacy ids still returned by /v1/models but absent from the official Go model list
 // (https://opencode.ai/docs/go/) — no docs row and no models.dev entry, so their
 // endpoint cannot be verified. Don't suggest:
@@ -393,7 +411,7 @@ function openCodeEndpoint(id, npm) {
 //   qwen3.5-plus   → superseded by qwen3.7-plus
 const OPENCODE_LEGACY_IDS = new Set(['deepseek-flash', 'grok-4.5', 'minimax-m2.5', 'qwen3.5-plus'])
 
-async function checkOpenCodeGo(curated, overrides, appMessages) {
+async function checkOpenCodeGo(curated, overrides, appMessages, appResponses) {
   console.log('=== OPENCODE GO ===')
 
   // Live catalog. NOTE: this feed is chat/completions-first and omits /v1/messages-only
@@ -423,12 +441,14 @@ async function checkOpenCodeGo(curated, overrides, appMessages) {
   const mdIds = new Set(Object.keys(md))
   const curatedSet = new Set(curated)
   const messagesSet = appMessages instanceof Set ? appMessages : new Set(appMessages || [])
+  const responsesSet = appResponses instanceof Set ? appResponses : new Set(appResponses || [])
   const result = { provider: 'opencode-go', newModels: [], removed: [], ctx: [] }
 
   const endpointOf = (id) => openCodeEndpoint(id, md[id]?.provider?.npm)
-  const exists = (id) => live.has(id) || mdIds.has(id) || messagesSet.has(id)
+  const exists = (id) =>
+    live.has(id) || mdIds.has(id) || messagesSet.has(id) || responsesSet.has(id)
 
-  // REMOVED — in app, gone from every source (live feed, models.dev, app routing set)
+  // REMOVED — in app, gone from every source (live feed, models.dev, app routing sets)
   const removed = curated.filter((id) => !exists(id))
   result.removed = removed
   if (removed.length) {
@@ -436,22 +456,39 @@ async function checkOpenCodeGo(curated, overrides, appMessages) {
     for (const id of removed) console.log(`    [-] ${id}`)
   }
 
-  // STALE ROUTING — the app pins a model to /v1/messages that nothing upstream lists
+  // STALE ROUTING — the app pins a model to a non-chat endpoint that nothing upstream lists
   const staleMessages = [...messagesSet].filter((id) => !live.has(id) && !mdIds.has(id))
   if (staleMessages.length) {
     console.log(`  STALE ROUTING (${staleMessages.length}) — in OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS, not upstream:`)
     for (const id of staleMessages) console.log(`    [!] ${id}`)
   }
+  const staleResponses = [...responsesSet].filter((id) => !live.has(id) && !mdIds.has(id))
+  if (staleResponses.length) {
+    console.log(`  STALE ROUTING (${staleResponses.length}) — in OPENCODE_GO_RESPONSES_MODELS, not upstream:`)
+    for (const id of staleResponses) console.log(`    [!] ${id}`)
+  }
 
-  // MISROUTED — upstream serves it on /v1/messages but the app does not pin it, so it
-  // would POST to /v1/chat/completions and fail.
-  const misrouted = curated.filter(
+  // MISROUTED — upstream serves it on a non-chat endpoint but the app does not route it
+  // there, so it would POST to /v1/chat/completions and fail.
+  const misroutedMessages = curated.filter(
     (id) => endpointOf(id).style === 'anthropic-messages' && !messagesSet.has(id),
   )
-  if (misrouted.length) {
-    console.log(`  MISROUTED (${misrouted.length}) — /v1/messages model missing from the app routing set:`)
-    for (const id of misrouted) {
+  if (misroutedMessages.length) {
+    console.log(`  MISROUTED (${misroutedMessages.length}) — /v1/messages model missing from the app routing set:`)
+    for (const id of misroutedMessages) {
       console.log(`    [!] ${id} — app would POST /v1/chat/completions; add it to OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS`)
+    }
+  }
+  // Family-matched /v1/responses models are already routed by the app; only a model
+  // models.dev marks as responses without a matching family needs an explicit pin.
+  const misroutedResponses = curated.filter((id) => {
+    const ep = endpointOf(id)
+    return ep.style === 'openai-responses' && ep.verified && !matchesResponsesFamily(id)
+  })
+  if (misroutedResponses.length) {
+    console.log(`  MISROUTED (${misroutedResponses.length}) — /v1/responses model matching no family:`)
+    for (const id of misroutedResponses) {
+      console.log(`    [!] ${id} — app would POST /v1/chat/completions; add it to OPENCODE_GO_RESPONSES_MODELS`)
     }
   }
 
@@ -470,23 +507,17 @@ async function checkOpenCodeGo(curated, overrides, appMessages) {
     for (const [id, ov, lv] of ctx) console.log(`    [~] ${id}: ${fmtNum(ov)} -> ${fmtNum(lv)}`)
   }
 
-  // NEW — reachable by the app, not curated. `/v1/messages` models count: the app
-  // routes them via openCodeGoApiStyle(), so they are normal presets.
-  const candidates = [...new Set([...liveIds, ...messagesSet])].sort()
+  // NEW — reachable by the app, not curated. Models on all three endpoints count: the app
+  // routes each via openCodeGoApiStyle(), so they are normal preset candidates.
+  const candidates = [...new Set([...liveIds, ...messagesSet, ...responsesSet])].sort()
   const allFresh = candidates.filter((id) => !curatedSet.has(id))
-  const fresh = allFresh.filter((id) => endpointOf(id).style !== 'openai-responses' && !OPENCODE_LEGACY_IDS.has(id))
-  const skipped = allFresh.filter((id) => endpointOf(id).style === 'openai-responses')
-  const legacy = allFresh.filter((id) => endpointOf(id).style !== 'openai-responses' && OPENCODE_LEGACY_IDS.has(id))
+  const fresh = allFresh.filter((id) => !OPENCODE_LEGACY_IDS.has(id))
+  const legacy = allFresh.filter((id) => OPENCODE_LEGACY_IDS.has(id))
   result.newModels = fresh.map((id) => ({
     id,
     ctx: md[id]?.limit?.context,
     apiStyle: endpointOf(id).style,
   }))
-  if (skipped.length) {
-    console.log(
-      `  (skipped ${skipped.length} /v1/responses-only model${skipped.length === 1 ? '' : 's'} — app speaks chat/completions + messages: ${skipped.join(', ')})`,
-    )
-  }
   if (legacy.length) {
     console.log(
       `  (ignored ${legacy.length} legacy model${legacy.length === 1 ? '' : 's'} not in Go docs: ${legacy.join(', ')})`,
@@ -498,9 +529,9 @@ async function checkOpenCodeGo(curated, overrides, appMessages) {
       const m = md[it.id]
       const ep = endpointOf(it.id)
       const tag =
-        it.apiStyle === 'anthropic-messages'
-          ? `  →  ${OPENCODE_ENDPOINT_LABEL[it.apiStyle]} (Anthropic Messages)${ep.verified ? '' : ' — endpoint unverified, not in models.dev'}`
-          : ''
+        it.apiStyle === 'openai-chat'
+          ? ''
+          : `  →  ${OPENCODE_ENDPOINT_LABEL[it.apiStyle]} (${OPENCODE_ENDPOINT_NAME[it.apiStyle]})${ep.verified ? '' : ' — endpoint unverified, not in models.dev'}`
       if (m?.limit?.context != null) {
         console.log(`    [+] ${it.id}${tag}`)
         console.log(`        ctx ${fmtNum(m.limit.context)}  ${money(m.cost?.input)} in · ${money(m.cost?.output)} out`)
@@ -510,10 +541,18 @@ async function checkOpenCodeGo(curated, overrides, appMessages) {
     }
   }
 
-  if (!removed.length && !ctx.length && !fresh.length && !misrouted.length && !staleMessages.length) {
+  if (
+    !removed.length &&
+    !ctx.length &&
+    !fresh.length &&
+    !misroutedMessages.length &&
+    !misroutedResponses.length &&
+    !staleMessages.length &&
+    !staleResponses.length
+  ) {
     console.log('  (no changes — curated list is up to date).')
   }
-  console.log('  note: /v1/chat/completions and /v1/messages models are both suggested; adding a /v1/messages model also pins it in OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS. /v1/responses-only models (Grok, Muse Spark, *-luna) are skipped.')
+  console.log('  note: all three endpoints are suggested. A /v1/messages model is pinned in OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS; /v1/responses models are routed by family (Grok, Muse Spark, *-luna) and pinned in OPENCODE_GO_RESPONSES_MODELS only when no family matches.')
   console.log('')
   return result
 }
@@ -611,14 +650,17 @@ async function interactiveApply(or, oc, nv, presetsSource, contextSource) {
   const state = { presets: presetsSource, context: contextSource, added: 0, removed: 0, changed: 0 }
 
   const groups = []
-  const ocChat = (oc?.newModels || []).filter((m) => m.apiStyle !== 'anthropic-messages')
+  const ocChat = (oc?.newModels || []).filter((m) => m.apiStyle === 'openai-chat')
   const ocMessages = (oc?.newModels || []).filter((m) => m.apiStyle === 'anthropic-messages')
+  const ocResponses = (oc?.newModels || []).filter((m) => m.apiStyle === 'openai-responses')
   if (or?.newModels.length)
     groups.push({ title: 'ADD — OpenRouter', items: or.newModels, kind: 'add', preset: 'OPENROUTER_LLM_PRESET_MODELS' })
   if (ocChat.length)
     groups.push({ title: 'ADD — OpenCode Go (/v1/chat/completions)', items: ocChat, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
   if (ocMessages.length)
     groups.push({ title: 'ADD — OpenCode Go (/v1/messages · Anthropic)', items: ocMessages, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
+  if (ocResponses.length)
+    groups.push({ title: 'ADD — OpenCode Go (/v1/responses)', items: ocResponses, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
   if (nv?.newModels.length)
     groups.push({ title: 'ADD — NVIDIA', items: nv.newModels, kind: 'add', preset: 'NVIDIA_LLM_PRESET_MODELS' })
   if (or?.removed.length)
@@ -672,24 +714,35 @@ async function interactiveApply(or, oc, nv, presetsSource, contextSource) {
 
 function applyOne(g, index, state) {
   const it = g.items[index]
-  const isMessagesModel = it.apiStyle === 'anthropic-messages' && g.preset === 'OPENCODE_GO_LLM_PRESET_MODELS'
+  const isGoPreset = g.preset === 'OPENCODE_GO_LLM_PRESET_MODELS'
+  const isMessagesModel = it.apiStyle === 'anthropic-messages' && isGoPreset
+  // A /v1/responses model gets the label either way, but only a pin when the app's family
+  // rules do not route it already — those are covered by openCodeGoApiStyle().
+  const isResponsesModel = it.apiStyle === 'openai-responses' && isGoPreset
+  const needsResponsesPin = isResponsesModel && !matchesResponsesFamily(it.id)
   if (g.kind === 'add') {
     let label = makeLabel(it.id, it.ctx)
     if (isMessagesModel) {
       label = label.endsWith(')') ? label.slice(0, -1) + ' · Anthropic Messages)' : `${label} (Anthropic Messages)`
+    } else if (isResponsesModel) {
+      label = label.endsWith(')') ? label.slice(0, -1) + ' · Responses)' : `${label} (Responses)`
     }
     state.presets = addPresetToArray(state.presets, g.preset, it.id, label)
     if (isMessagesModel) {
       // Routing: the app must POST this id to `{base}/messages`, not /v1/chat/completions.
       state.presets = addSetEntry(state.presets, 'OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS', it.id)
+    } else if (needsResponsesPin) {
+      // Routing: the app must POST this id to `{base}/responses`.
+      state.presets = addSetEntry(state.presets, 'OPENCODE_GO_RESPONSES_MODELS', it.id)
     }
     if (it.ctx != null) state.context = upsertContextOverride(state.context, it.id, it.ctx)
     state.added++
     console.log(`    + added ${it.id}  (${label})`)
   } else if (g.kind === 'remove') {
     state.presets = removePresetFromArray(state.presets, g.preset, it.id)
-    if (g.preset === 'OPENCODE_GO_LLM_PRESET_MODELS') {
+    if (isGoPreset) {
       state.presets = removeSetEntry(state.presets, 'OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS', it.id)
+      state.presets = removeSetEntry(state.presets, 'OPENCODE_GO_RESPONSES_MODELS', it.id)
     }
     state.context = removeContextOverride(state.context, it.id)
     state.removed++
@@ -711,15 +764,16 @@ async function main() {
   const curatedOpenCode = extractPresetIds(presetsSource, 'OPENCODE_GO_LLM_PRESET_MODELS')
   const curatedNvidia = extractPresetIds(presetsSource, 'NVIDIA_LLM_PRESET_MODELS')
   const overrides = extractContextOverrides(contextSource)
-  // The app's per-model /v1/messages routing set (config, not just metadata).
+  // The app's per-model non-chat routing sets (config, not just metadata).
   const openCodeMessages = extractSetEntries(presetsSource, 'OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS')
+  const openCodeResponses = extractSetEntries(presetsSource, 'OPENCODE_GO_RESPONSES_MODELS')
 
   console.log('Voidcast — cloud model preset checker')
   console.log('')
 
   const or = !OPENCODE_ONLY && !NVIDIA_ONLY ? await checkOpenRouter(curatedOpenRouter, overrides) : null
   const oc = !OPENROUTER_ONLY && !NVIDIA_ONLY
-    ? await checkOpenCodeGo(curatedOpenCode, overrides, openCodeMessages)
+    ? await checkOpenCodeGo(curatedOpenCode, overrides, openCodeMessages, openCodeResponses)
     : null
   const nv = !OPENROUTER_ONLY && !OPENCODE_ONLY ? await checkOpenAICompat({ title: 'NVIDIA', url: NVIDIA_URL, preset: 'NVIDIA_LLM_PRESET_MODELS', curated: curatedNvidia, overrides, filter: isNvidiaChatModel }) : null
 
