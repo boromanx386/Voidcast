@@ -48,7 +48,8 @@ function CodeBlock({ children }: { children: ReactNode }) {
 
 const components: Components = {
   p: ({ children }) => <p className="mb-3 last:mb-0 min-w-0 break-words">{children}</p>,
-  strong: ({ children }) => <strong className="font-semibold text-neon-cyan">{children}</strong>,
+  // Body text stays monochrome — emphasis comes from weight, not accent hue.
+  strong: ({ children }) => <strong className="font-semibold text-void-white">{children}</strong>,
   em: ({ children }) => <em className="italic text-void-light">{children}</em>,
   hr: () => <hr className="my-4 border-void-muted/50" />,
   ul: ({ children }) => <ul className="mb-3 list-none space-y-1.5 last:mb-0 pl-0">{children}</ul>,
@@ -62,7 +63,7 @@ const components: Components = {
     </li>
   ),
   h1: ({ children }) => (
-    <h1 className="mb-3 mt-4 text-xl font-body font-semibold tracking-tight text-neon-cyan first:mt-0">
+    <h1 className="mb-3 mt-4 text-xl font-body font-semibold tracking-tight text-void-white first:mt-0">
       {children}
     </h1>
   ),
@@ -108,7 +109,7 @@ const components: Components = {
     }
     return (
       <code
-        className="rounded bg-void-mid/80 px-1.5 py-0.5 font-mono text-[0.88em] text-neon-cyan"
+        className="rounded bg-void-mid/80 px-1.5 py-0.5 font-mono text-[0.88em] text-void-light"
         {...props}
       >
         {children}
@@ -122,7 +123,7 @@ const components: Components = {
   ),
   thead: ({ children }) => <thead className="bg-void-mid/50">{children}</thead>,
   th: ({ children }) => (
-    <th className="border-b border-void-dim/30 px-3 py-2 font-mono font-semibold text-neon-cyan uppercase tracking-wider text-xs">
+    <th className="border-b border-void-dim/30 px-3 py-2 font-mono font-semibold text-void-light uppercase tracking-wider text-xs">
       {children}
     </th>
   ),
