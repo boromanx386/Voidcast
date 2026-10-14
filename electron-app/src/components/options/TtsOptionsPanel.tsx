@@ -1,5 +1,6 @@
 import type { AppSettings } from '@/lib/settings'
 import {
+  FISH_AUDIO_VOICE_LABELS,
   OPENROUTER_TTS_MODEL_DEFAULT,
   OPENROUTER_TTS_MODEL_PRESETS,
   openRouterTtsUsesReferenceVoice,
@@ -513,9 +514,10 @@ export function TtsOptionsPanel({
                       }
                       placeholder="Fish Audio reference_id (default applied when blank)"
                     />
+                    {/* `label` is what Chromium shows in the datalist; the value stays the raw id. */}
                     <datalist id="openrouter-tts-voice-refs">
                       {openRouterTtsVoicesForModel(settings.openrouterTtsModel).map((v) => (
-                        <option key={v} value={v} />
+                        <option key={v} value={v} label={FISH_AUDIO_VOICE_LABELS[v] || v} />
                       ))}
                     </datalist>
                   </>

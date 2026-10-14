@@ -282,11 +282,32 @@ export const OPENROUTER_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> =
  * rather than a fixed catalog, and they publish none on OpenRouter. Omitting `voice`
  * makes every request come back with a *different* random voice, so we ship one stable
  * public default to keep batches consistent. The field stays free-form so any reference_id
- * can be pasted in. Default source: "DL" (Male/Old/Narration)
+ * can be pasted in. The same reference_id works for the paid Runware Fish Audio model and
+ * for the free OpenRouter one.
+ *
+ * Free character voices (first entry = default):
+ * https://fish.audio/m/d75c270eaee14c8aa1e9e980cc37cf1b/ "Peter Griffin"
+ * https://fish.audio/m/d7c74eccec0c4382bdc56c3a3b63d21f/ "Rick Sanchez"
+ * Neutral fallback: "DL" (Male/Old/Narration)
  * https://fish.audio/m/1936333080804be19655c6749b2ae7b2/
  */
-export const FISH_AUDIO_DEFAULT_VOICE = '1936333080804be19655c6749b2ae7b2'
-export const FISH_AUDIO_TTS_VOICES: readonly string[] = [FISH_AUDIO_DEFAULT_VOICE]
+export const FISH_AUDIO_PETER_VOICE = 'd75c270eaee14c8aa1e9e980cc37cf1b'
+export const FISH_AUDIO_RICK_VOICE = 'd7c74eccec0c4382bdc56c3a3b63d21f'
+export const FISH_AUDIO_NEUTRAL_VOICE = '1936333080804be19655c6749b2ae7b2'
+
+/** Fish Audio `reference_id` → display name (free OpenRouter picker; Runware has its own map). */
+export const FISH_AUDIO_VOICE_LABELS: Record<string, string> = {
+  [FISH_AUDIO_PETER_VOICE]: 'Peter Griffin',
+  [FISH_AUDIO_RICK_VOICE]: 'Rick Sanchez',
+  [FISH_AUDIO_NEUTRAL_VOICE]: 'DL (Male/Old/Narration)',
+}
+
+export const FISH_AUDIO_DEFAULT_VOICE = FISH_AUDIO_PETER_VOICE
+export const FISH_AUDIO_TTS_VOICES: readonly string[] = [
+  FISH_AUDIO_PETER_VOICE,
+  FISH_AUDIO_RICK_VOICE,
+  FISH_AUDIO_NEUTRAL_VOICE,
+]
 
 /** True for models whose `voice` is a free-form reference_id (Fish Audio), not a fixed catalog. */
 export function openRouterTtsUsesReferenceVoice(model: string): boolean {
@@ -822,6 +843,9 @@ export const RUNWARE_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
     'uncle_fu',
   ],
   'fishaudio:s2.1@pro': [
+    // Free fish.audio models (Peter Griffin, Rick Sanchez) — Peter is listed first so he is the model default voice.
+    'd75c270eaee14c8aa1e9e980cc37cf1b',
+    'd7c74eccec0c4382bdc56c3a3b63d21f',
     'b347db033a6549378b48d00acb0d06cd',
     'bf322df2096a46f18c579d0baa36f41d',
     '933563129e564b19a115bedd57b7406a',
@@ -834,6 +858,8 @@ export const RUNWARE_TTS_VOICES_BY_MODEL: Record<string, readonly string[]> = {
 }
 
 export const RUNWARE_TTS_VOICE_LABELS: Record<string, string> = {
+  d75c270eaee14c8aa1e9e980cc37cf1b: 'Peter Griffin',
+  d7c74eccec0c4382bdc56c3a3b63d21f: 'Rick Sanchez',
   b347db033a6549378b48d00acb0d06cd: 'Selene',
   bf322df2096a46f18c579d0baa36f41d: 'Adrian',
   '933563129e564b19a115bedd57b7406a': 'Sarah',
