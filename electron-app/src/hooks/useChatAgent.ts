@@ -593,6 +593,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       }
       const keyOf = () => bind.key
       const slotNow = () => sessionAgentStore.getSnapshot(keyOf())
+
+      // Context compression is a hard gate: a turn started mid-compression would
+      // race the summary write (hiddenContextSummary / contextCompressedThroughIndex)
+      // and run against a half-updated history. The composer locks the UI; this is
+      // the programmatic backstop for steer / plan re-entry and any direct caller.
+      if (slotNow().contextCompressBusy) return
+
       const setMsgs: Dispatch<SetStateAction<UiMessage[]>> = (action) =>
         sessionAgentStore.setMessages(keyOf(), action)
       const setPhase = (toolPhase: AgentToolUiPhase | null) =>

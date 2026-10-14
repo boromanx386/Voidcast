@@ -511,6 +511,39 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply text-void-dim leading-snug;
 }
 
+/* Composer lock while context compression runs — see summarizeContextNow. */
+.composer-compress-banner {
+  @apply mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-neon-cyan/40 bg-neon-cyan/5 px-3 py-2 text-xs leading-relaxed;
+}
+
+.composer-compress-banner__spinner {
+  @apply inline-block h-2.5 w-2.5 shrink-0 animate-spin rounded-full border-2 border-void-dim border-t-neon-cyan;
+}
+
+.composer-compress-banner__title {
+  @apply text-[11px] font-semibold uppercase tracking-wider text-neon-cyan;
+}
+
+.composer-compress-banner__text {
+  @apply w-full text-void-dim leading-snug;
+}
+
+.composer-compress-banner__bar {
+  @apply mt-1 h-0.5 w-full animate-pulse rounded-full bg-neon-cyan/50;
+}
+
+.input-wrapper--compressing .voidcast-textarea {
+  @apply cursor-not-allowed opacity-50;
+}
+
+.composer-send-btn--compress {
+  @apply border-neon-cyan/40 text-neon-cyan/80;
+}
+
+.composer-send-spinner {
+  @apply inline-block h-3 w-3 animate-spin rounded-full border-2 border-void-dim border-t-neon-cyan;
+}
+
 .plan-artifact-card {
   @apply mt-3 rounded border border-neon-purple/35 bg-void-black/60 p-3;
 }

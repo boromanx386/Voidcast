@@ -16,6 +16,7 @@ type Props = {
     | 'input'
     | 'setInput'
     | 'busy'
+    | 'contextCompressBusy'
     | 'onSend'
     | 'onStop'
     | 'onSteer'
@@ -48,6 +49,7 @@ export function ChatComposer({ app }: Props) {
     input,
     setInput,
     busy,
+    contextCompressBusy,
     onSend,
     onStop,
     onSteer,
@@ -72,9 +74,17 @@ export function ChatComposer({ app }: Props) {
     extractLongMemoryNow,
   } = app
 
+  // Context compression is a hard lock: typing/sending while the summary is being
+  // written would race the history write (see summarizeContextNow). Everything in
+  // the composer is frozen until it finishes.
+  const compressing = contextCompressBusy
+
   const canSend = useMemo(
-    () => (!!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0) && !busy,
-    [input, pendingImages.length, pendingFiles.length, busy],
+    () =>
+      (!!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0) &&
+      !busy &&
+      !compressing,
+    [input, pendingImages.length, pendingFiles.length, busy, compressing],
   )
 
   // True while the agent is busy and the user has typed (or attached) a next
@@ -253,7 +263,17 @@ export function ChatComposer({ app }: Props) {
             ))}
           </div>
         )}
-        <div className="input-wrapper">
+        <div className={`input-wrapper${compressing ? ' input-wrapper--compressing' : ''}`}>
+          {compressing && (
+            <div className="composer-compress-banner" role="status" aria-live="polite">
+              <span className="composer-compress-banner__spinner" aria-hidden />
+              <span className="composer-compress-banner__title">Compressing context</span>
+              <p className="composer-compress-banner__text">
+                Summarizing older turns. The prompt is locked until this finishes.
+              </p>
+              <span className="composer-compress-banner__bar" aria-hidden />
+            </div>
+          )}
           {agentMode === 'plan' && (
             <div className="composer-plan-banner" role="status">
               <span className="composer-plan-banner__title">Plan mode</span>
@@ -285,10 +305,17 @@ export function ChatComposer({ app }: Props) {
           <textarea
             className="voidcast-textarea"
             rows={2}
-            placeholder={chatPlaceholder}
+            placeholder={compressing ? 'Compressing context…' : chatPlaceholder}
             value={input}
+            disabled={compressing}
+            aria-busy={compressing}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
+              // Hard lock — no send, no steer, while compression owns the history.
+              if (compressing) {
+                e.preventDefault()
+                return
+              }
               if (e.key === 'Tab' && e.shiftKey) {
                 e.preventDefault()
                 toggleAgentMode()
@@ -326,7 +353,7 @@ export function ChatComposer({ app }: Props) {
             <div ref={modeMenuRef} className="composer-mode-menu">
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || compressing}
                 aria-haspopup="menu"
                 aria-expanded={modeMenuOpen}
                 aria-label={`Mode: ${modeLabel}`}
@@ -414,7 +441,7 @@ export function ChatComposer({ app }: Props) {
               <label
                 htmlFor="voidcast-chat-attach-input"
                 className={`composer-toolbar-btn text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5 cursor-pointer ${
-                  busy ? 'opacity-40 pointer-events-none' : ''
+                  busy || compressing ? 'opacity-40 pointer-events-none' : ''
                 }`}
                 title="Attach image from gallery"
                 aria-label="Attach image from gallery"
@@ -424,7 +451,7 @@ export function ChatComposer({ app }: Props) {
             ) : (
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || compressing}
                 onClick={() => void openChatAttachmentPicker()}
                 className="composer-toolbar-btn text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5"
                 title="Attach image or file"
@@ -438,7 +465,7 @@ export function ChatComposer({ app }: Props) {
               !isWebStandalone() && (
                 <button
                   type="button"
-                  disabled={busy || sttPending}
+                  disabled={busy || compressing || sttPending}
                   onClick={() => void toggleSttRecording()}
                   className={`composer-toolbar-btn ${
                     isRecording
@@ -557,7 +584,7 @@ export function ChatComposer({ app }: Props) {
 
             <button
               type="button"
-              disabled={busy || longMemoryBusy || messages.length === 0}
+              disabled={busy || compressing || longMemoryBusy || messages.length === 0}
               onClick={() => void extractLongMemoryNow()}
               className="ml-1.5 inline-flex cursor-pointer items-center text-neon-cyan/80 transition-colors hover:text-neon-cyan disabled:cursor-not-allowed disabled:opacity-40"
               title="Pick long-term memories from this chat"
@@ -573,7 +600,17 @@ export function ChatComposer({ app }: Props) {
               )}
             </button>
 
-            {busy ? (
+            {compressing ? (
+              <button
+                type="button"
+                disabled
+                className="composer-send-btn composer-send-btn--compress"
+                title="Compressing context — sending locked"
+                aria-label="Compressing context, sending locked"
+              >
+                <span className="composer-send-spinner" aria-hidden />
+              </button>
+            ) : busy ? (
               <div className="composer-send-group">
                 {canSteer ? (
                   <button
