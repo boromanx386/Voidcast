@@ -919,7 +919,7 @@ const CODING_EDIT_CODE_TOOL: AgentToolDefinition = {
         find_text: {
           type: 'string',
           description:
-            'Text snippet to find. Use \\n for line breaks even on CRLF (Windows) files — matching is EOL-aware.',
+            'Text snippet to find. Use \\n for line breaks even on CRLF (Windows) files — matching is EOL-aware. Matching is exact: keep invisible characters identical (em dash vs hyphen, middle dot vs bullet, non-breaking space).',
         },
         replace_text: {
           type: 'string',
@@ -941,7 +941,7 @@ const CODING_EDIT_CODE_TOOL: AgentToolDefinition = {
         ignore_whitespace: {
           type: 'boolean',
           description:
-            'If true, match ignoring indentation and runs of spaces (useful after reformats). Default false.',
+            'If true, match ignoring indentation and runs of spaces (useful after reformats). Does NOT cover Unicode look-alikes (em dash vs hyphen, middle dot vs bullet, non-breaking space). Default false.',
         },
       },
       required: ['path', 'find_text', 'replace_text'],

@@ -7,6 +7,7 @@ import {
   buildEditUnifiedDiff,
   parseEditedLineRangeFromToolResult,
   formatEditedFileMemoEntry,
+  formatClosestMatchFailure,
   readFileToolDisplayPrefix,
 } from '../src/lib/codingEol'
 
@@ -240,6 +241,30 @@ describe('applySnippetEdit', () => {
       expect(result.closest).toBeTruthy()
       expect(result.closest!.similarity).toBeGreaterThanOrEqual(40)
       expect(result.closest!.startLine).toBeGreaterThanOrEqual(1)
+    }
+  })
+
+  it('firstDifference pinpoints a look-alike character mismatch', () => {
+    const result = applySnippetEdit('a \u2014 b', 'a - b', 'x', false)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      const diff = result.closest?.firstDifference
+      expect(diff).toBeTruthy()
+      expect(diff?.findChar).toBe('-')
+      expect(diff?.fileChar).toBe('\u2014')
+      const message = formatClosestMatchFailure(result.closest)
+      expect(message).toContain('First difference')
+      expect(message).toContain('U+2014')
+      expect(message).toContain('look-alike')
+    }
+  })
+
+  it('firstDifference is absent when only whitespace differs', () => {
+    const result = applySnippetEdit('  keep\n  me', 'keep\nme', 'x', false)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.closest?.similarity).toBeGreaterThanOrEqual(40)
+      expect(result.closest?.firstDifference).toBeUndefined()
     }
   })
 

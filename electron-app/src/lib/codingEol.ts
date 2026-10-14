@@ -39,11 +39,77 @@ export type SnippetEditSuccess = {
   endLine: number
 }
 
+/** First character that differs between find_text and the closest file region (whitespace ignored). */
+export type FirstSnippetDifference = {
+  /** 0-based index within the whitespace-normalized text where the two first differ. */
+  offset: number
+  /** Character in find_text at that index ('' when find_text ends first). */
+  findChar: string
+  /** Character in the file at that index ('' when the file window ends first). */
+  fileChar: string
+}
+
 export type ClosestSnippetMatch = {
   startLine: number
   endLine: number
   similarity: number
   excerpt: string
+  /** Pinpoints invisible mismatches (em dash vs hyphen, middle dot vs bullet, NBSP) that break exact matching. */
+  firstDifference?: FirstSnippetDifference
+}
+
+/** Character groups that render near-identically but differ in code unit. */
+const CONFUSABLE_GROUPS: { label: string; chars: string }[] = [
+  { label: 'hyphen/dash/minus', chars: '-\u2010\u2011\u2012\u2013\u2014\u2015\u2212' },
+  { label: 'dot/bullet', chars: '.\u00b7\u2022\u2027\u2219\u22c5\u25e6' },
+  { label: 'space', chars: ' \u00a0\u2007\u2009\u200a\u202f\u2002\u2003' },
+  { label: 'quote', chars: "'\u2018\u2019\u2032\u201c\u201d\u2033" },
+]
+
+function confusableNote(a: string, b: string): string {
+  for (const { label, chars } of CONFUSABLE_GROUPS) {
+    if (chars.includes(a) && chars.includes(b)) {
+      return ` Both are look-alike ${label} characters.`
+    }
+  }
+  return ''
+}
+
+function formatCharForHint(ch: string): string {
+  if (!ch) return '(end of text)'
+  const cp = ch.codePointAt(0) ?? 0
+  const hex = cp.toString(16).toUpperCase().padStart(4, '0')
+  const invisible =
+    cp <= 0x20 ||
+    cp === 0x7f ||
+    cp === 0xa0 ||
+    cp === 0xfeff ||
+    (cp >= 0x2000 && cp <= 0x200f) ||
+    (cp >= 0x2028 && cp <= 0x202f)
+  return `"${ch}" (U+${hex}${invisible ? ', invisible' : ''})`
+}
+
+/** First code unit where `a` and `b` differ, or null when they are equal. */
+function firstCharDifference(a: string, b: string): FirstSnippetDifference | null {
+  const min = Math.min(a.length, b.length)
+  for (let i = 0; i < min; i++) {
+    if (a.charCodeAt(i) !== b.charCodeAt(i)) {
+      return { offset: i, findChar: a.charAt(i), fileChar: b.charAt(i) }
+    }
+  }
+  if (a.length === b.length) return null
+  return { offset: min, findChar: a.charAt(min), fileChar: b.charAt(min) }
+}
+
+/** One-line explanation of the first differing character (with a trailing newline), or '' when there is none. */
+function formatFirstDifference(diff?: FirstSnippetDifference): string {
+  if (!diff) return ''
+  const note = confusableNote(diff.findChar, diff.fileChar)
+  return (
+    `First difference (whitespace ignored) at ~char ${diff.offset + 1}: ` +
+    `find_text has ${formatCharForHint(diff.findChar)}, the file has ${formatCharForHint(diff.fileChar)}.` +
+    `${note}\n`
+  )
 }
 
 export type SnippetEditFailure = {
@@ -292,7 +358,13 @@ export function findClosestSnippetMatch(
         .slice(0, 6)
         .map((l) => (l.length > 100 ? `${l.slice(0, 99)}…` : l))
         .join('\n')
-      best = { startLine, endLine, similarity, excerpt }
+      best = {
+        startLine,
+        endLine,
+        similarity,
+        excerpt,
+        firstDifference: firstCharDifference(findNorm, winNorm) ?? undefined,
+      }
     }
   }
   return best
@@ -501,7 +573,7 @@ export function formatClosestMatchFailure(closest?: ClosestSnippetMatch): string
   if (!closest) {
     return (
       'Spaces must match. On Windows/CRLF files you can use \\n in find_text — matching is EOL-aware. ' +
-      'Prefer edit_code over rewriting the whole file. Tip: pass start_line/end_line or ignore_whitespace=true.'
+      'Matching is exact: keep invisible characters identical (em dash vs hyphen, middle dot vs bullet, non-breaking space). Prefer edit_code over rewriting the whole file. Tip: pass start_line/end_line or ignore_whitespace=true.'
     )
   }
   const excerpt = closest.excerpt
@@ -509,8 +581,9 @@ export function formatClosestMatchFailure(closest?: ClosestSnippetMatch): string
     .map((l) => `  ${l}`)
     .join('\n')
   return (
+    formatFirstDifference(closest.firstDifference) +
     `Closest match at L${closest.startLine}-L${closest.endLine}, ` +
-    `~${closest.similarity}% similar (often whitespace/indentation). Excerpt:\n${excerpt}\n` +
+    `~${closest.similarity}% similar (often whitespace/indentation, or an invisible character). Excerpt:\n${excerpt}\n` +
     `Retry with a tighter find_text, start_line/end_line, or ignore_whitespace=true.`
   )
 }
