@@ -63,7 +63,12 @@ export function responsesMaxTokensFallback(
 
 export type ResponsesInputTextPart = { type: 'input_text'; text: string }
 export type ResponsesOutputTextPart = { type: 'output_text'; text: string }
-export type ResponsesInputImagePart = { type: 'input_image'; image_url: string }
+export type ResponsesInputImagePart = {
+  type: 'input_image'
+  image_url: string
+  /** Carried over from the OpenRouter-style part; optional on the Responses API. */
+  detail?: 'low' | 'high' | 'auto'
+}
 export type ResponsesContentPart =
   ResponsesInputTextPart | ResponsesOutputTextPart | ResponsesInputImagePart
 
@@ -107,9 +112,17 @@ function toResponseContent(
       if (part.text) out.push({ type: 'input_text', text: part.text })
       continue
     }
-    // `input_image` accepts a data URI, which is exactly what the OpenRouter path
-    // already builds via toDataImageUri.
-    if (part.image_url.url) out.push({ type: 'input_image', image_url: part.image_url.url })
+    // `input_image` accepts a data URI, which is exactly what the OpenRouter path already builds
+    // via toDataImageUri. Part order (images before text) and the optional `detail` hint carry
+    // over unchanged.
+    if (part.image_url.url) {
+      const detail = part.image_url.detail
+      out.push({
+        type: 'input_image',
+        image_url: part.image_url.url,
+        ...(detail ? { detail } : {}),
+      })
+    }
   }
   return out
 }

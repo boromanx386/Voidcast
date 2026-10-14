@@ -859,6 +859,7 @@ app.on('will-quit', () => {
 
 app.whenReady().then(() => {
   void ensureToolsServerRunning()
+  void pruneChatAttachments()
   createWindow()
   createTray()
 })
@@ -3530,9 +3531,51 @@ function extFromImageNameOrMime(name: string, mime: string): string {
   return extFromContentType(mime)
 }
 
+const CHAT_ATTACHMENT_TTL_MS = 14 * 24 * 60 * 60 * 1000
+
+/**
+ * Where materialized copies of path-less chat attachments live. These are scratch
+ * data — the agent only needs them while a session is open — and userData sits
+ * under Roaming on Windows, which Electron documents as possibly backed up to
+ * cloud storage. Use the per-OS cache dir instead, falling back to userData when
+ * no absolute cache root is available.
+ */
+function chatAttachmentsDir(): string {
+  const home = app.getPath('home')
+  const cacheRoot =
+    process.platform === 'win32'
+      ? process.env.LOCALAPPDATA
+      : process.platform === 'darwin'
+        ? path.join(home, 'Library', 'Caches')
+        : process.env.XDG_CACHE_HOME || path.join(home, '.cache')
+  if (cacheRoot && path.isAbsolute(cacheRoot)) {
+    return path.join(cacheRoot, app.getName(), 'chat-attachments')
+  }
+  return path.join(app.getPath('userData'), 'chat-attachments')
+}
+
+/** Drop materialized attachments past the TTL; nothing else ever prunes them. */
+async function pruneChatAttachments(): Promise<void> {
+  const dir = chatAttachmentsDir()
+  const cutoff = Date.now() - CHAT_ATTACHMENT_TTL_MS
+  try {
+    for (const name of await readdir(dir)) {
+      const full = path.join(dir, name)
+      try {
+        const st = await stat(full)
+        if (st.isFile() && st.mtimeMs < cutoff) await unlink(full)
+      } catch {
+        // Vanished or unreadable — nothing to do.
+      }
+    }
+  } catch {
+    // Directory does not exist yet.
+  }
+}
+
 /**
  * Persist a chat image that arrived without an on-disk path (paste, web <input>,
- * or a drag source outside the file system) into userData/chat-attachments, so
+ * or a drag source outside the file system) into the per-OS cache dir, so
  * the agent always receives a real path it can read or copy. Native-picker
  * attachments keep their original path and never reach this handler.
  */
@@ -3556,7 +3599,7 @@ ipcMain.handle(
         .toLowerCase()
       const ext = extFromImageNameOrMime(name, mime)
       const base = sanitizeBaseName(path.basename(name, path.extname(name)) || 'image')
-      const dir = path.join(app.getPath('userData'), 'chat-attachments')
+      const dir = chatAttachmentsDir()
       await mkdir(dir, { recursive: true })
       const outPath = await nextAvailablePath(dir, base, ext)
       await writeFile(outPath, buf)
@@ -3587,8 +3630,8 @@ function extFromChatFileNameOrMime(name: string, mime: string): string {
 }
 
 /**
- * Persist a chat file that arrived without an on-disk path (drag-drop, paste, or
- * the web <input>) into userData/chat-attachments, mirroring
+ * Persist a chat file that arrived without an on-disk path (paste or the web
+ * <input>) into the per-OS cache dir, mirroring
  * voidcast:materialize-chat-image so the agent always receives a real path it can
  * read or copy instead of a bare file name. Native-picker attachments keep their
  * original path and never reach this handler.
@@ -3611,7 +3654,7 @@ ipcMain.handle(
         .toLowerCase()
       const ext = extFromChatFileNameOrMime(name, mime)
       const base = sanitizeBaseName(path.basename(name, path.extname(name)) || 'attachment')
-      const dir = path.join(app.getPath('userData'), 'chat-attachments')
+      const dir = chatAttachmentsDir()
       await mkdir(dir, { recursive: true })
       const outPath = await nextAvailablePath(dir, base, ext)
       await writeFile(outPath, Buffer.from(raw))

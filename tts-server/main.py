@@ -191,7 +191,10 @@ class PdfImageItem(BaseModel):
     """Single attached image (PNG/JPEG) for `save_pdf`."""
 
     mime: str | None = Field(default=None, max_length=200)
-    base64: str = Field(..., min_length=1, max_length=70_000_000)
+    # 16 MB of base64 is ~12 MB of pixels: generous for a screenshot or a generated image, and in
+    # line with every provider limit (Anthropic 10 MB base64, OpenAI 20 MB). The old 70 MB cap let
+    # a single caller pin that much memory per image for no benefit.
+    base64: str = Field(..., min_length=1, max_length=16_000_000)
 
 
 class PdfRequest(BaseModel):
@@ -201,7 +204,9 @@ class PdfRequest(BaseModel):
     title: str | None = Field(default=None, max_length=300)
     filename: str | None = Field(default=None, max_length=300)
     output_dir: str = Field(..., min_length=1, max_length=4096)
-    images: list[PdfImageItem] | None = None
+    # Matches the sibling image_urls / image_paths caps, so one call cannot carry an unbounded
+    # number of 16 MB payloads.
+    images: list[PdfImageItem] | None = Field(default=None, max_length=16)
     # Public http(s) image URLs (PNG/JPEG/WebP). Used to embed AI-generated
     # images (e.g. Runware `image_url` from a prior `generate_image` call).
     image_urls: list[str] | None = Field(default=None, max_length=16)

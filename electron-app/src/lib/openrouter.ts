@@ -11,7 +11,7 @@ import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
 import type { CloudLlmApiStyle } from './cloudLlmPresets'
 import { openCodeGoApiStyle, rememberOpenCodeGoApiStyle } from './cloudLlmPresets'
-import { toDataImageUri } from './imageMime'
+import { imageDetailForPrompt, resolveSendableImageMime, toDataImageUri } from './imageMime'
 import {
   anthropicMaxTokensFallback,
   anthropicMessagesHeaders,
@@ -27,8 +27,12 @@ import {
   responsesMaxTokensFallback,
 } from './openResponses'
 
+/** `detail` hint on an image part; servers that do not know the field ignore it. */
+export type OpenRouterImageDetail = 'low' | 'high' | 'auto'
+
 export type OpenRouterContentPart =
-  { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string; detail?: OpenRouterImageDetail } }
 
 export type OpenRouterMessage =
   | { role: 'system' | 'assistant'; content: string }
@@ -496,21 +500,55 @@ export function ollamaMessagesToOpenRouter(messages: OllamaApiMessage[]): OpenRo
       continue
     }
     if (m.role === 'user' && m.images?.length) {
-      out.push({
-        role: 'user',
-        content: [
-          { type: 'text', text: m.content || '' },
-          ...m.images.map((img) => ({
-            type: 'image_url' as const,
-            image_url: { url: toDataImageUri(img) },
-          })),
-        ],
+      // Images first, then the text: Anthropic documents better results in that order, and a
+      // label per image keeps multi-image requests unambiguous. The same part shape travels on
+      // to the Responses and Anthropic converters, so the ordering is set once, here.
+      const detail = imageDetailForPrompt(typeof m.content === 'string' ? m.content : '')
+      const parts: OpenRouterContentPart[] = []
+      const labelled = m.images.length > 1
+      m.images.forEach((img, i) => {
+        const part = toImagePartOrNote(img, detail)
+        if (labelled && part.type === 'image_url') {
+          parts.push({ type: 'text', text: `Image ${i + 1}:` })
+        }
+        parts.push(part)
       })
+      if (typeof m.content === 'string' && m.content.trim()) {
+        parts.push({ type: 'text', text: m.content })
+      }
+      out.push({ role: 'user', content: parts })
       continue
     }
     out.push({ role: m.role, content: m.content })
   }
   return out
+}
+
+/**
+ * Build one `image_url` part — or a text note when the payload is a format no hosted vision API
+ * accepts (HEIC, TIFF, SVG, …). Without the note the whole request dies as a provider 400 that
+ * never says which attachment was the problem.
+ */
+function toImagePartOrNote(img: string, detail?: OpenRouterImageDetail): OpenRouterContentPart {
+  const raw = (img || '').trim()
+  if (!raw) return { type: 'text', text: '[image omitted: empty payload]' }
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    return { type: 'image_url', image_url: { url: raw, ...(detail ? { detail } : {}) } }
+  }
+  const isDataUri = raw.startsWith('data:')
+  const sep = raw.indexOf(';')
+  const base64 = isDataUri ? raw.slice(raw.indexOf(',') + 1) : raw
+  const declared = isDataUri && sep > 5 ? raw.slice(5, sep) : ''
+  if (!resolveSendableImageMime(base64, declared)) {
+    return {
+      type: 'text',
+      text: '[image omitted: this format is not supported by vision models — convert it to PNG, JPEG or WebP and attach it again]',
+    }
+  }
+  return {
+    type: 'image_url',
+    image_url: { url: toDataImageUri(raw), ...(detail ? { detail } : {}) },
+  }
 }
 
 function pickReasoningDelta(d: unknown): string {

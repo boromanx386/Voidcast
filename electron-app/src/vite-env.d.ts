@@ -538,6 +538,9 @@ interface VoidcastBridge {
     | { ok: false; error?: string }
   >
 
+  /** Original on-disk path of a File; '' when it is not backed by a file on disk. */
+  getPathForFile: (file: File) => string
+
   materializeChatImage: (payload: {
     base64: string
     mime?: string

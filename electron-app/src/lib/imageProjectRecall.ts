@@ -1,7 +1,16 @@
 /** Vision recall for PNG/JPEG/WebP/GIF/BMP inside the configured coding project folder. */
 
+import { prepareBase64ImageForUpload } from './imageAttachment'
+
 const IMAGE_RECALL_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'])
-const MAX_PROJECT_IMAGE_BYTES = 8 * 1024 * 1024
+
+/**
+ * Cap the **base64 string**, not the decoded byte count. Providers limit the encoded size
+ * (Anthropic rejects a single image above 10 MB of base64), so an 8 MB file — ~10.9 MB once
+ * encoded — would 400 on the request. 8 MB of base64 is ~6 MB of pixels: still generous and
+ * safely under every provider limit.
+ */
+const MAX_PROJECT_IMAGE_B64_CHARS = 8 * 1024 * 1024
 
 export type ProjectRecalledImage = {
   index: number
@@ -69,24 +78,29 @@ export function resolveCodingProjectImagePath(
   return abs
 }
 
+export type ProjectImageReadResult =
+  { ok: true; mime: string; base64: string } | { ok: false; reason: 'unreadable' | 'too-large' }
+
 export async function readCodingProjectImageForRecall(
   absPath: string,
-): Promise<{ mime: string; base64: string } | null> {
+): Promise<ProjectImageReadResult> {
   const fn = window.voidcast?.readImageFile
-  if (!fn) return null
+  if (!fn) return { ok: false, reason: 'unreadable' }
   try {
     const res = await fn({ path: absPath })
-    if (!res.ok || !res.file?.base64?.trim()) return null
-    const base64 = res.file.base64.replace(/\s+/g, '')
-    const bytes = Math.ceil((base64.length * 3) / 4)
-    if (bytes > MAX_PROJECT_IMAGE_BYTES) return null
-    const mime = (res.file.mime || mimeFromImagePath(absPath)).trim().toLowerCase()
-    return {
-      mime: /^image\/[a-z0-9.+-]+$/.test(mime) ? mime : mimeFromImagePath(absPath),
-      base64,
+    if (!res.ok || !res.file?.base64?.trim()) return { ok: false, reason: 'unreadable' }
+    const declared = (res.file.mime || mimeFromImagePath(absPath)).trim().toLowerCase()
+    const mime = /^image\/[a-z0-9.+-]+$/.test(declared) ? declared : mimeFromImagePath(absPath)
+    // Shrink before the size check, not after: a 12 MP phone photo or a 4K screenshot is exactly
+    // what the cap used to reject, while the provider would have downscaled it server-side anyway.
+    // The cap then only guards the formats the browser cannot re-encode (TIFF, HEIC).
+    const prepared = await prepareBase64ImageForUpload(res.file.base64, mime)
+    if (prepared.base64.length > MAX_PROJECT_IMAGE_B64_CHARS) {
+      return { ok: false, reason: 'too-large' }
     }
+    return { ok: true, mime: prepared.mime, base64: prepared.base64 }
   } catch {
-    return null
+    return { ok: false, reason: 'unreadable' }
   }
 }
 
@@ -107,8 +121,12 @@ export async function loadProjectImageRecalls(
       continue
     }
     const loaded = await readCodingProjectImageForRecall(abs)
-    if (!loaded) {
-      errors.push(`could not read project image: ${abs}`)
+    if (!loaded.ok) {
+      errors.push(
+        loaded.reason === 'too-large'
+          ? `project image still over the ${MAX_PROJECT_IMAGE_B64_CHARS / (1024 * 1024)} MB base64 limit after downscaling (unsupported format?): ${abs}`
+          : `could not read project image: ${abs}`,
+      )
       continue
     }
     recalled.push({

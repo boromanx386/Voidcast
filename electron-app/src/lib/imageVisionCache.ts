@@ -5,11 +5,51 @@ export type ImageVisionCache = Record<string, string>
 
 const MAX_CACHE_ENTRIES = 64
 
+/** Width of one sampled window inside a base64 payload. */
+const FINGERPRINT_WINDOW = 128
+
+/**
+ * 64-bit content fingerprint: payload length plus five 128-char windows spread across the
+ * whole base64 string (head, quarters, tail).
+ *
+ * The old key hashed only the first 96 chars — 72 header bytes, which are byte-identical
+ * across same-encoder images of equal size. Two different screenshots could therefore share a
+ * key, so a cached description (and the `img_` id derived from it) pointed at the wrong
+ * pixels. Sampling the whole payload removes that while staying O(1) per call: a real SHA-256
+ * over multi-megabyte payloads is async (`crypto.subtle`) and these keys are built
+ * synchronously while formatting history and digests.
+ *
+ * Not cryptographic — a crafted collision is possible. The threat model is a local,
+ * session-scoped cache over the user's own files, where length plus spread windows is enough.
+ */
+function contentFingerprintHex(input: string): string {
+  const len = input.length
+  const middle = FINGERPRINT_WINDOW >> 1
+  const starts = [
+    0,
+    Math.max(0, (len >> 2) - middle),
+    Math.max(0, (len >> 1) - middle),
+    Math.max(0, ((len * 3) >> 2) - middle),
+    Math.max(0, len - FINGERPRINT_WINDOW),
+  ]
+  let h1 = (0x811c9dc5 ^ len) >>> 0
+  let h2 = (0x7f4a7c15 ^ (len * 31)) >>> 0
+  for (const start of starts) {
+    const end = Math.min(len, start + FINGERPRINT_WINDOW)
+    for (let i = start; i < end; i++) {
+      const c = input.charCodeAt(i)
+      h1 = Math.imul(h1 ^ c, 0x01000193)
+      h2 = Math.imul(h2 ^ c, 0x85ebca6b)
+    }
+  }
+  return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0')
+}
+
 export function imageCatalogKey(item: { path?: string; base64: string }): string {
   const path = item.path?.trim()
   if (path) return `path:${path.toLowerCase()}`
   const b64 = item.base64.replace(/\s+/g, '')
-  return `b64:${b64.slice(0, 96)}`
+  return `b64:${contentFingerprintHex(b64)}`
 }
 
 /** Deterministic 32-bit FNV-1a hash rendered as 8 lowercase hex digits. */

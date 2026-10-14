@@ -58,6 +58,8 @@ export type AnthropicTextBlock = { type: 'text'; text: string }
 export type AnthropicImageBlock = {
   type: 'image'
   source: { type: 'base64'; media_type: string; data: string }
+  /** Prompt-cache breakpoint; the pixels are the expensive part of a replayed history. */
+  cache_control?: { type: 'ephemeral' }
 }
 export type AnthropicToolUseBlock = {
   type: 'tool_use'
@@ -99,6 +101,27 @@ function parseToolArgs(raw: string | Record<string, unknown> | undefined): Recor
     return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
   } catch {
     return {}
+  }
+}
+
+/**
+ * Mark the last image block in the request as a cache breakpoint.
+ *
+ * Anthropic bills every image in the request on every turn. With cache_control behind the
+ * pixels the cached prefix runs up to and including the image, so the rounds of an agent loop
+ * pay the cache-read rate instead of re-encoding the screenshot. The API allows four
+ * breakpoints per request; the system prompt plus this one leaves room to spare.
+ */
+export function markLastImageBlockCacheable(messages: AnthropicMessage[]): void {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (!msg) continue
+    for (let j = msg.content.length - 1; j >= 0; j--) {
+      const block = msg.content[j]
+      if (block?.type !== 'image') continue
+      msg.content[j] = { ...block, cache_control: { type: 'ephemeral' } }
+      return
+    }
   }
 }
 
@@ -217,6 +240,9 @@ export function buildAnthropicMessagesBody(args: {
   thinkLevel?: string
 }): Record<string, unknown> {
   const converted = openRouterMessagesToAnthropic(args.messages)
+  // Cache the pixels, not just the prompt: one user message replays the same history on every
+  // round of the agent loop, and each round would otherwise re-bill the whole screenshot.
+  markLastImageBlockCacheable(converted.messages)
   const effort = anthropicThinkingEffort(args.thinkLevel)
   const maxTokens =
     typeof args.maxTokens === 'number' && args.maxTokens > 0

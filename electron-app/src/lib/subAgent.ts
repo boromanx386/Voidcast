@@ -27,7 +27,13 @@ import {
   detectSubAgentProvider as detectSubAgentProviderId,
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
-import { openRouterProviderRoutingBody } from '@/lib/openrouter'
+import { openRouterProviderRoutingBody, type OpenRouterImageDetail } from '@/lib/openrouter'
+import { prepareBase64ImageForUpload } from '@/lib/imageAttachment'
+import {
+  imageDetailForPrompt,
+  resolveSendableImageMime,
+  sniffImageMimeOrNull,
+} from '@/lib/imageMime'
 import {
   lookupVisionCacheDescription,
   normalizeVisionFocus,
@@ -88,9 +94,68 @@ function errorMessage(e: unknown): string {
   return String(e)
 }
 
-function toDataUri(base64: string, mime: string): string {
-  const safeMime = /^image\/[a-z0-9.+-]+$/i.test(mime) ? mime : 'image/png'
-  return `data:${safeMime};base64,${base64.replace(/\s+/g, '')}`
+/**
+ * Shrink each payload at most once per session: the provider chain below retries the same image
+ * on the next backend, and re-running the decode/re-encode for every attempt would eat the
+ * saving. Keyed by the payload itself (or its path) so two different images can never share an
+ * entry — the map only ever holds a handful of entries and is cleared when it grows.
+ */
+const visionShrinkMemo = new Map<string, Promise<{ base64: string; mime: string }>>()
+const VISION_SHRINK_MEMO_MAX = 12
+
+function shrinkForVision(img: SubAgentImageInput): Promise<{ base64: string; mime: string }> {
+  const path = img.path?.trim()
+  const key = path ? `path:${path}` : `b64:${img.base64}`
+  const hit = visionShrinkMemo.get(key)
+  if (hit) return hit
+  if (visionShrinkMemo.size >= VISION_SHRINK_MEMO_MAX) visionShrinkMemo.clear()
+  const pending = prepareBase64ImageForUpload(img.base64, img.mime)
+  visionShrinkMemo.set(key, pending)
+  return pending
+}
+
+/**
+ * Build the `data:` URI for a vision request, capping the pixels on the way out.
+ *
+ * Images that were not attached this turn (generated Runware output, anything read back off
+ * disk through the catalog) arrive at full resolution, and every provider downscales them
+ * anyway — so what travels is shrunk to the long-edge cap first.
+ *
+ * The magic prefix wins over the declared type: attachments read off disk can carry an empty
+ * `file.type` (Windows "Save as", Android gallery) and the reader falls back to a PNG label —
+ * a PNG label on WebP bytes is an outright 400 on Anthropic's /messages. Throws instead of
+ * sending a payload no hosted vision API accepts (HEIC, TIFF, SVG, …), because the provider's
+ * own 400 never says which attachment was the problem.
+ */
+async function requireDataUri(img: SubAgentImageInput): Promise<string> {
+  const prepared = await shrinkForVision(img)
+  const sendable = resolveSendableImageMime(prepared.base64, prepared.mime)
+  if (!sendable) {
+    const effective =
+      sniffImageMimeOrNull(prepared.base64) || (prepared.mime || '').trim() || 'unknown'
+    throw new Error(
+      `Unsupported image format for vision (${effective}). Convert it to PNG, JPEG or WebP.`,
+    )
+  }
+  return `data:${sendable};base64,${prepared.base64.replace(/\s+/g, '')}`
+}
+
+/**
+ * Vision request content: the image first, then the instruction. Anthropic documents better
+ * results with media before text, and the OpenAI-compatible servers accept the same order.
+ */
+function imageFirstContent(
+  dataUri: string,
+  prompt: string,
+  detail?: OpenRouterImageDetail,
+): Array<
+  | { type: 'image_url'; image_url: { url: string; detail?: OpenRouterImageDetail } }
+  | { type: 'text'; text: string }
+> {
+  return [
+    { type: 'image_url', image_url: { url: dataUri, ...(detail ? { detail } : {}) } },
+    { type: 'text', text: prompt },
+  ]
 }
 
 const DEFAULT_DESCRIBE_PROMPT =
@@ -120,8 +185,10 @@ async function describeWithOllama(
   signal?: AbortSignal,
 ): Promise<string> {
   const baseUrl = normalizeBaseUrl(ollamaBaseUrl || 'http://localhost:11434')
-  // Ollama expects raw base64, NOT data URI
-  const rawBase64 = img.base64.replace(/\s+/g, '')
+  // Ollama expects raw base64, NOT data URI. Shrink first: the local model pays for every pixel
+  // at prompt-processing time, and nothing downscales server-side here.
+  const prepared = await shrinkForVision(img)
+  const rawBase64 = prepared.base64.replace(/\s+/g, '')
 
   const body = {
     model,
@@ -180,7 +247,7 @@ async function describeWithOpenRouter(
     headers.Authorization = `Bearer ${openrouterApiKey.trim()}`
   }
 
-  const dataUri = toDataUri(img.base64, img.mime)
+  const dataUri = await requireDataUri(img)
   const provider = openRouterProviderRoutingBody(providerOnly)
 
   const body = {
@@ -188,10 +255,7 @@ async function describeWithOpenRouter(
     messages: [
       {
         role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUri } },
-        ],
+        content: imageFirstContent(dataUri, prompt, imageDetailForPrompt(prompt)),
       },
     ],
     max_tokens: maxTokens,
@@ -241,17 +305,14 @@ async function describeWithDeepSeek(
     headers.Authorization = `Bearer ${deepseekApiKey.trim()}`
   }
 
-  const dataUri = toDataUri(img.base64, img.mime)
+  const dataUri = await requireDataUri(img)
 
   const body = {
     model,
     messages: [
       {
         role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUri } },
-        ],
+        content: imageFirstContent(dataUri, prompt),
       },
     ],
     max_tokens: maxTokens,
@@ -301,17 +362,14 @@ async function describeWithOpenAi(
     headers.Authorization = `Bearer ${openaiApiKey.trim()}`
   }
 
-  const dataUri = toDataUri(img.base64, img.mime)
+  const dataUri = await requireDataUri(img)
 
   const body = {
     model,
     messages: [
       {
         role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUri } },
-        ],
+        content: imageFirstContent(dataUri, prompt, imageDetailForPrompt(prompt)),
       },
     ],
     max_tokens: maxTokens,
@@ -359,17 +417,14 @@ async function describeWithNvidia(
     headers.Authorization = `Bearer ${nvidiaApiKey.trim()}`
   }
 
-  const dataUri = toDataUri(img.base64, img.mime)
+  const dataUri = await requireDataUri(img)
 
   const body = {
     model,
     messages: [
       {
         role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUri } },
-        ],
+        content: imageFirstContent(dataUri, prompt),
       },
     ],
     max_tokens: maxTokens,
@@ -408,7 +463,7 @@ async function describeWithOpenCodeGo(
   opencodeSessionId?: string,
 ): Promise<string> {
   const baseUrl = opencodeGoApiBaseForRuntime(undefined, ttsBaseUrl)
-  const dataUri = toDataUri(img.base64, img.mime)
+  const dataUri = await requireDataUri(img)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
@@ -429,10 +484,7 @@ async function describeWithOpenCodeGo(
       messages: [
         {
           role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUri } },
-          ],
+          content: imageFirstContent(dataUri, prompt),
         },
       ],
       max_tokens: maxTokens,

@@ -10,6 +10,7 @@ import {
   MAX_CHAT_IMAGES,
   MAX_IMAGE_BYTES,
   looksLikeImageFile,
+  prepareBase64ImageForUpload,
   readImageFileAsBase64,
   splitChatAttachmentFiles,
 } from '@/lib/imageAttachment'
@@ -22,6 +23,20 @@ type PendingChatFile = FileAttachmentSnapshot
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/**
+ * Original on-disk path of a File, when Electron can recover one (drag & drop
+ * from the file system, or the native picker). '' for clipboard paste and in-app
+ * blobs — those have no file on disk and must be materialized instead.
+ */
+function originPathOf(file: File): string {
+  try {
+    const api = typeof window === 'undefined' ? undefined : window.voidcast
+    return api?.getPathForFile?.(file) || ''
+  } catch {
+    return ''
+  }
 }
 
 export type UseChatAttachmentsParams = {
@@ -90,22 +105,24 @@ export function useChatAttachments({
             setError(`Could not read image: ${file.name || 'attachment'}`)
             continue
           }
-          // The native picker already carries a real path; drag-drop and paste do
-          // not (the DOM File hides it), so persist the bytes to a real file over
-          // IPC — the agent needs a path to read or copy the image.
-          let path: string | undefined
-          try {
-            const api = typeof window === 'undefined' ? undefined : window.voidcast
-            if (api?.materializeChatImage) {
-              const res = await api.materializeChatImage({
-                base64,
-                mime,
-                name: file.name || 'image.png',
-              })
-              if (res && res.ok) path = res.path
+          // A file dragged from the file system still has its origin path, so no
+          // copy is needed. Clipboard paste has none (the DOM File hides it), so
+          // persist the bytes — the agent needs a path to read or copy the image.
+          let path = originPathOf(file) || undefined
+          if (!path) {
+            try {
+              const api = typeof window === 'undefined' ? undefined : window.voidcast
+              if (api?.materializeChatImage) {
+                const res = await api.materializeChatImage({
+                  base64,
+                  mime,
+                  name: file.name || 'image.png',
+                })
+                if (res && res.ok) path = res.path
+              }
+            } catch {
+              // Keep the image even if persisting fails — it just won't have a path.
             }
-          } catch {
-            // Keep the image even if persisting fails — it just won't have a path.
           }
           newImages.push({ base64, mime, name: file.name || 'image', path })
         } catch (err) {
@@ -171,22 +188,25 @@ export function useChatAttachments({
             continue
           }
         }
-        // The DOM File hides its origin path for drag-drop and the web <input>,
-        // so persist the bytes to a real file — the agent needs a path to read or
-        // copy. Native-picker files keep their real path and never get here.
-        let path = file.name
-        try {
-          const api = typeof window === 'undefined' ? undefined : window.voidcast
-          if (api?.materializeChatAttachment) {
-            const res = await api.materializeChatAttachment({
-              bytes: await readBytes(),
-              name: file.name,
-              mime: file.type || '',
-            })
-            if (res && res.ok) path = res.path
+        // A file dragged from the file system still has its origin path, so no
+        // copy is needed; clipboard, the web <input> and in-app blobs have none
+        // and must be persisted — the agent needs a path to read or copy.
+        const originPath = originPathOf(file)
+        let path = originPath || file.name
+        if (!originPath) {
+          try {
+            const api = typeof window === 'undefined' ? undefined : window.voidcast
+            if (api?.materializeChatAttachment) {
+              const res = await api.materializeChatAttachment({
+                bytes: await readBytes(),
+                name: file.name,
+                mime: file.type || '',
+              })
+              if (res && res.ok) path = res.path
+            }
+          } catch {
+            // Keep the attachment even if persisting fails — it just won't have a path.
           }
-        } catch {
-          // Keep the attachment even if persisting fails — it just won't have a path.
         }
         newFiles.push({
           id: uid(),
@@ -314,12 +334,20 @@ export function useChatAttachments({
           return
         }
         if (res.images?.length) {
-          const addedImages: PendingChatImage[] = res.images.map((f) => ({
-            base64: f.base64.replace(/\s+/g, ''),
-            mime: f.mime,
-            name: f.name,
-            path: f.path,
-          }))
+          // Main reads the picked file at full size — it has no canvas to re-encode with — so cap
+          // the payload here, the same way drag-drop and the web <input> already are. `path` stays
+          // the original file: nothing is copied or overwritten, only what we send is smaller.
+          const addedImages: PendingChatImage[] = await Promise.all(
+            res.images.map(async (f) => {
+              const prepared = await prepareBase64ImageForUpload(f.base64, f.mime)
+              return {
+                base64: prepared.base64,
+                mime: prepared.mime,
+                name: f.name,
+                path: f.path,
+              }
+            }),
+          )
           setPendingImages((prev) => [...prev, ...addedImages].slice(0, MAX_CHAT_IMAGES))
         }
         if (res.files?.length) {

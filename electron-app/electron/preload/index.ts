@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge } from 'electron'
+import { ipcRenderer, contextBridge, webUtils } from 'electron'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('voidcast', {
@@ -587,6 +587,18 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
+  /**
+   * Original on-disk path of a File picked or dragged from the file system. The
+   * DOM File hides it; webUtils recovers it, so drag-drop needs no byte copy.
+   * Returns '' for clipboard and in-app blobs that have no file on disk.
+   */
+  getPathForFile: (file: File) => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
+  },
   materializeChatImage: (payload: { base64: string; mime?: string; name?: string }) =>
     ipcRenderer.invoke('voidcast:materialize-chat-image', payload) as Promise<
       { ok: true; path: string } | { ok: false; error?: string }
