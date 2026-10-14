@@ -42,8 +42,8 @@ export type SessionAgentSlot = {
   contextCompressBusy: boolean
   /** Prevents context-auto-compress from re-firing until usage drops. */
   contextOverflowLatch: boolean
-  /** Transient banner above the composer: PDF export confirmation or a tool timeout notice. */
-  toolResultBanner: { kind: 'pdf' | 'timeout'; text: string } | null
+  /** Transient banner above the composer: PDF export confirmation. */
+  toolResultBanner: { text: string } | null
   /** Floating sub-agent analysis panel (legacy ephemeral slot; live UI anchors on messages). */
   subAgentPanel: SubAgentPanelState
   media: SessionAgentMediaState

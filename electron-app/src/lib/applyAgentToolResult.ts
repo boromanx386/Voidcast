@@ -66,7 +66,7 @@ export type AgentToolResultHandlerDeps = {
   setCodingGitNonce: Dispatch<SetStateAction<number>>
   /** Open coding panel + focus a project-relative path after write/edit. */
   revealCodingFile?: (path: string) => void
-  setToolResultBanner: Dispatch<SetStateAction<{ kind: 'pdf' | 'timeout'; text: string } | null>>
+  setToolResultBanner: Dispatch<SetStateAction<{ text: string } | null>>
   setMessages: Dispatch<SetStateAction<UiMessage[]>>
   setAssistantGeneratedImages: Dispatch<SetStateAction<Record<string, string[]>>>
   setAssistantSavedImagePaths: Dispatch<SetStateAction<Record<string, string[]>>>
@@ -395,7 +395,7 @@ export function applyAgentToolResult(
     setCodingGitNonce((n) => n + 1)
   }
   if (name === 'save_pdf') {
-    setToolResultBanner({ kind: 'pdf', text: result })
+    setToolResultBanner({ text: result })
   }
   if (name === 'generate_image' || name === 'edit_image_runware') {
     const urls = extractRunwareImageUrls(result)
