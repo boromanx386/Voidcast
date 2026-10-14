@@ -25,11 +25,14 @@ The active provider determines which provider-specific group of fields is shown 
 - `openrouterBaseUrl` — default `https://openrouter.ai/api/v1`
 - `openrouterApiKey` — stored locally (hidden from the agent)
 - `openrouterModel` — default `'openrouter/free'`
-- **Provider-only lock** — `openrouterProviderOnly` (string, e.g. `'openai'`). When set, OpenRouter requests use `provider.only` and never fall back to other providers. Kept in sync with `openrouterProviderByModel[openrouterModel]`.
-- **Per-model provider mapping** — `openrouterProviderByModel` (`Record<string, string>`). Maps each OpenRouter model id to a provider slug lock. If a model has a lock, requests for that model go only to that provider; otherwise OpenRouter default routing is used. Editing the lock for the current model updates `openrouterProviderOnly` too.
+
+One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus optional image models and TTS. OpenRouter can also serve the same model from several upstream providers, and Voidcast exposes that routing directly:
+
+- **Pin the provider per model** — `openrouterProviderOnly` (string slug, e.g. `'anthropic'`, `'openai'`, `'deepinfra'`) is the lock for the **currently selected model**. When set, requests use `provider.only` and never fall back to another provider; leave it empty for OpenRouter's default load balancing.
+- **Remembered per model** — `openrouterProviderByModel` (`Record<string, string>`) stores a lock **per model id**. Selecting a model that has a saved lock restores it into `openrouterProviderOnly`; editing the lock updates both.
+- **LIST ALL** — queries OpenRouter for every provider serving the selected model and renders a table: **provider · CTX · IN/OUT price (per 1M) · recent uptime**. Click a row to apply that provider as the current model's lock. Desktop requests hit OpenRouter directly; LAN web requests use the local proxy.
+- **Sticky routing for upstream cache** — each chat sends a stable `session_id`, so OpenRouter keeps routing the conversation to the same upstream provider and that provider's prompt cache stays warm. Cache-friendly prompt ordering (a byte-identical system prompt + history prefix, with volatile context on the final user turn) is **not** OpenRouter-specific: it holds for **every** provider, and cached-token counts are read back from Ollama, OpenAI, DeepSeek and OpenRouter alike. See [../chat.md](../chat.md).
 - **Pinned models** — `pinnedModels` (`string[]`). Provider-specific ids like `'openrouter:anthropic/claude-sonnet-5'` or `'openrouter:openai/gpt-5.6-sol'`. Pinned models appear as quick-select chips in the panel (and in the chat model picker); toggle a pin on/off per candidate model.
-- **Provider listing** — **LIST ALL** queries OpenRouter for every provider serving the selected model and shows provider name, context length, input/output price, and recent uptime. Click a row to apply that provider as the current model's `OPENROUTER_PROVIDER` lock. Desktop requests go directly to OpenRouter; LAN web requests use the local proxy.
-- **Sticky routing for prompt cache** — each chat sends a stable `session_id` so OpenRouter keeps routing the conversation to the same provider and its prompt cache keeps hitting. Volatile per-turn context (clock, coding memo, live processes, summary, long-term memory) is attached to the final user turn rather than a trailing system message, keeping the cached prefix byte-identical.
 
 ### NVIDIA
 - `nvidiaBaseUrl` — default `https://integrate.api.nvidia.com/v1`

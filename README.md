@@ -2,44 +2,77 @@
 
 ![Voidcast](logo.jpg)
 
-**Voidcast** is a desktop AI agent (Electron + React + Python) that combines chat, coding, web tools, and generative models in a single window. It runs on your own choice of LLM provider — local **Ollama** or a cloud provider you already have a key for — and ships with built-in tools for web search, scraping, YouTube, weather, PDF export, reminders, TTS/STT, image generation, and music generation. A full coding toolset (read/write/search/git/execute) operates on your local project, and desktop builds can connect **MCP servers** (stdio or remote URL, including OAuth). Everything runs locally — the Python tools server on port 8765 exposes an HTTP API and a LAN web UI for mobile access. No cloud lock-in, no telemetry, no motivational posters.
+<p align="center">
+  <a href="https://github.com/boromanx386/Voidcast/releases/latest"><img src="https://img.shields.io/github/v/release/boromanx386/Voidcast?label=release&color=6f42c1" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/boromanx386/Voidcast?color=blue" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-2b6cb0" alt="Platforms: Windows and Linux">
+  <a href="https://github.com/boromanx386/Voidcast/releases"><img src="https://img.shields.io/github/downloads/boromanx386/Voidcast/total?color=2ea043" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/status-beta-orange" alt="Status: beta">
+</p>
 
-Providers: **Ollama** · **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenAI** · **OpenCode Go** — see [Runs on Free Cloud APIs](#runs-on-free-cloud-apis).
+**One window for chat, code and creation.** Voidcast is a desktop AI agent (Electron + React + Python) that puts a multi-provider chat, a real coding agent, a browser it drives for you, and generative media tools in a single app. It runs on **your** models — local **Ollama**, or a cloud provider you already have a key for. No cloud lock-in, no telemetry, no motivational posters.
 
-*Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. If you use it and find it useful, that’s real motivation to keep improving it. Issues, ideas, and PRs are welcome.*
+Providers: **Ollama** · **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenAI** · **OpenCode Go** — plus **Runware** for image and music. See [Providers](#providers).
+
+> **Status: beta and early.** Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. Expect rough edges; issues, ideas and PRs are genuinely welcome.
 
 <p align="center">
   <img src="demos/voidcast-hero.jpg" width="1000" alt="Voidcast — sessions sidebar, chat and the coding panel"/>
 </p>
 <p align="center"><em>Sessions on the left, the agent running parallel tools and workers in chat, and the coding panel with file tree, diff, commit bar and terminal.</em></p>
 
-### Quick demo (~39s) — sound on!
+<details>
+<summary><strong>Table of contents</strong></summary>
+
+- [Main features](#main-features)
+- [Quick demo (~39s)](#quick-demo-39s)
+- [Get started (one click)](#get-started-one-click)
+- [Updates (desktop)](#updates-desktop)
+- [The agent & tools](#the-agent--tools)
+  - [Music (Runware)](#music-runware) · [PDF export](#pdf-export) · [Agent skills](#agent-skills) · [MCP servers](#mcp-servers-desktop) · [Built-in browser](#built-in-browser) · [Chat modes](#chat-modes)
+- [Coding tools](#coding-tools)
+- [Providers](#providers)
+- [OpenRouter support](#openrouter-support-per-model-provider-routing)
+- [Context compression](#context-compression)
+- [Long-term memory](#long-term-memory)
+- [Image-aware chat](#image-aware-chat)
+- [Themes & UI](#themes--ui)
+- [Speech & audio](#speech--audio)
+- [LAN web UI — chat from your phone](#lan-web-ui--chat-from-your-phone)
+- [Tech stack](#tech-stack)
+- [Development & building](#development--building)
+- [Repository layout](#repository-layout)
+- [License & third-party](#license--third-party)
+
+</details>
+
+---
+
+## Main features
+
+- **Everything in one window** — chat, coding, web tools and generative models together. The agent invokes search, YouTube, weather, image generation/edit, music and PDF, and **results appear inline** in the conversation. No tab juggling.
+
+- **Run several agents at once** — start work in one session, open another, keep both running (up to **3 concurrent agent turns**). Each chat keeps its own messages, project and tool loop, and Stop cancels only the active session. **Team** mode adds up to **2 parallel coding workers**. See [Multi-chat & Team](docs/multi-chat-and-team.md).
+
+- **A real coding agent** — point it at a project folder and it reads, edits, searches and greps your code, runs **git** and **shell** commands, and drives an integrated IDE panel (file tree, diff, commit bar, terminal). Modes cover full implement (**Agent**), read-only Q&A (**Ask**), explore-then-**Approve & Build** (**Plan**), and multi-file orchestration with workers (**Team**). Project context persists per repo. See [Coding tools](#coding-tools).
+
+- **A browser it actually drives, that you can take over** — Voidcast ships its **own Chromium** (the coding panel **WEB** tab). You and the agent share the same view: navigate, click, type, snapshot, screenshot, emulate devices. Clicks are real CDP input, so React apps and canvas games react as to a real user. See [Built-in browser](#built-in-browser).
+
+- **Your models, your keys** — local **Ollama** for full offline, or bring a key for OpenRouter, NVIDIA NIM, DeepSeek, OpenAI or OpenCode Go. **OpenRouter** alone unlocks 300+ models from a single key — and you can **pin the upstream provider per model** (price, context and uptime shown inline), so routing stays predictable and prompt caches stay warm. Keys and settings stay on your machine; Voidcast has no cloud account and never receives your keys. See [Providers](#providers) and [OpenRouter support](#openrouter-support-per-model-provider-routing).
+
+- **Tools that do things** — web search, YouTube search + transcripts, weather, web scraping, PDF export, image generation and edit, music generation, TTS/STT, reminders, settings control, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
+
+- **Watch it think** — adjacent read-only tool calls run in parallel (up to four) while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts in collapsible round blocks.
+
+- **Chat from your phone** — an opt-in **LAN web UI** served from your PC, so your own phone or tablet can use the same agent, models and memory. See [LAN web UI](#lan-web-ui--chat-from-your-phone).
+
+---
+
+## Quick demo (~39s) — sound on!
 
 https://github.com/user-attachments/assets/e7700e45-ca2c-40a0-b3d0-ffbdd3cf1c1c
 
 <p align="center"><em>User: switch theme to Blood Moon and turn voice on — the agent replies with TTS and changes the UI live.</em></p>
-
----
-
-## What You Can Do
-
-**Browse and create without leaving chat**  
-Agent invokes search, YouTube, weather, image generation and edit, music generation, PDF — results appear inline.
-
-**See what the agent is doing**
-Adjacent read-only tool calls can run in parallel (up to four), while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts available in collapsible round blocks.
-
-**Control the app from chat**  
-Change themes, toggle voice, or update settings directly via natural commands in the conversation.
-
-**Work with your code**  
-The agent reads your project, edits files, runs git commands, and executes shell commands — all from the integrated IDE panel. Coding context (recent files, directories, searches, git ops, command results, tool failures) is stored per project and restored when you reopen a repo. Composer modes cover full implement (**Agent**), read-only Q&A (**Ask**), structured plan then **Approve & Build** (**Plan**), and multi-file orchestration with coding workers (**Team**). Details under [Chat modes](#chat-modes) and [Multi-chat & Team](docs/multi-chat-and-team.md).
-
-**Several chats at once**  
-Start work in one session, open another, keep both running (up to **3** concurrent agent turns). Each chat keeps its own messages, project, and tool loop — Stop cancels only the active session. See [Multi-chat & Team](docs/multi-chat-and-team.md).
-
-**Facts & memory**  
-Facts, reminders, and preferences persist across sessions — stored locally in IndexedDB. 
 
 ---
 
@@ -55,9 +88,9 @@ Facts, reminders, and preferences persist across sessions — stored locally in 
 3. Add your API keys in **Options → General → CLOUD_API_KEYS** (stored only on your PC).
 4. Start the agent.
 
-> 💡 **First launch to first chat: under 60 seconds.**
+> 💡 **Already have a key? First launch to first chat is under a minute.** The packaged app bundles the Python tools server, so there is no Python/pip setup — just add keys and go.
 
-Requires Windows 10/11 or a 64-bit Linux desktop (X11/Wayland). Both packages bundle the Python tools server — no manual Python setup needed.
+Requires Windows 10/11 or a 64-bit Linux desktop (X11/Wayland).
 
 ---
 
@@ -98,15 +131,12 @@ Available tools:
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 - **MCP Servers (desktop)** — connect external MCP tools from `~/.voidcast/mcp.json` (see below)
 
-All providers share the same tool catalog and executor. See [Runs on Free Cloud APIs](#runs-on-free-cloud-apis) for the list and what each gives you.
+All providers share the same tool catalog and executor. See [Providers](#providers) for the list and what each gives you.
 
 <p align="center">
   <img src="demos/voidcast-options-all.png" width="900" alt="Voidcast Options tabs"/>
 </p>
 <p align="center"><em>Options — General, LLM, Media, TTS/STT, Tools, Skills and Sub-Agent in one composite. Every tab is documented in <a href="docs/options/README.md">docs/options</a>.</em></p>
-
-
-
 
 ### Music (Runware)
 
@@ -236,27 +266,45 @@ Full detail: [docs/coding.md](docs/coding.md).
 
 ---
 
-## Runs on Free Cloud APIs
+## Providers
 
-Voidcast does not charge anything. It connects to free tiers of providers you can sign up for:
+Voidcast does not charge anything and has no cloud account. It connects you to providers you choose — a **local** model for full offline, a **subscription**, or **pay-as-you-go** clouds with your own keys:
 
-| Provider | What You Get |
-|----------|-------------|
-| **OpenRouter** | Claude, GPT-4o, DeepSeek, Gemini + 100 others |
-| **DeepSeek** | Direct API — V4 Pro / Flash; billed from your DeepSeek balance |
-| **OpenAI** | Official Chat Completions API — GPT, o-series (free trial credit) |
-| **OpenCode Go** | OpenAI-compatible chat models via [OpenCode Go](https://opencode.ai/docs/go) |
-| **Ollama** | Open-source models (Qwen, Gemma, GLM, Mistral...) |
-| **NVIDIA NIM** | Enterprise-grade inference for open models |
-| **Runware** | Image generation, image edit, and AI music (pay-per-use, typically pennies) |
-| **OpenRouter** | Optional image generation (Gemini Flash Image, GPT Image 2) via the same API key as chat/TTS |
+| Provider | What you get | Cost |
+|----------|--------------|------|
+| **Ollama** | Open-source models (Qwen, Gemma, GLM, Mistral…) on your own machine — or Ollama's hosted models | Local: free · [Ollama Cloud](https://ollama.com/pricing): free tier, Pro from $20/mo |
+| **OpenRouter** ⭐ | Claude, GPT, Gemini, DeepSeek + 300 more from one key — chat, **per-model provider routing**, TTS, and optional image models (Gemini Flash Image, GPT Image 2) | Free tiers + pay-as-you-go |
+| **NVIDIA NIM** | Enterprise-grade inference for open models | Free credits |
+| **DeepSeek** | Direct API — V4 Pro / Flash | Pay-as-you-go (prepaid balance) |
+| **OpenAI** | Official Chat Completions API — GPT, o-series | Pay-as-you-go, prepaid credits — no free API tier |
+| **OpenCode Go** | OpenAI-compatible chat models via [OpenCode](https://opencode.ai/docs/go) | Subscription (from $10/mo) |
+| **Runware** | Image generation, image edit, and AI music (ACE-Step) | Pay-per-use (typically pennies) |
 
-All you need are free accounts and API keys. Chat LLMs can stay on free tiers; **TTS, STT, and image/music runs are very cheap** — usually cents per session, not dollars.
+All you need are the accounts and API keys. Run models locally (Ollama) for free or use cloud keys on low-cost tiers; **TTS, STT, and image/music runs are very cheap** — usually cents per session, not dollars.
 
-**Multimodal pricing:** OpenRouter Whisper (STT), TTS, and image models bill per request or token at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
+**Pricing:** OpenRouter Whisper (STT), TTS, and image models bill per request or token at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 
 **Privacy:** API keys and app settings stay on your machine (local app storage). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go, Runware, or Ollama from your PC (OpenCode Go via the local tools proxy). With **LAN_WEB_ACCESS** enabled, keys are registered on the local tools host for phone proxying — not baked into the phone browser build.
 
+---
+
+## OpenRouter support (per-model provider routing)
+
+OpenRouter is a first-class provider in Voidcast: **one key, 300+ models** (Claude, GPT, Gemini, DeepSeek, Llama, Qwen…), plus optional image models and TTS. What most tools don't expose, Voidcast does — OpenRouter's **provider routing** is right in **Options → LLM**:
+
+- **Pin the provider per model** — set `OPENROUTER_PROVIDER` to a slug (`anthropic`, `openai`, `deepinfra`, `deepseek`, …). Requests then go **only** to that provider (`provider.only`, no fallbacks), so latency, price and behaviour stop moving under you.
+- **Remembered per model** — the lock is stored per model id (`openrouterProviderByModel`). Switch to another model and Voidcast restores *that* model's provider; switch back and it comes with it.
+- **LIST ALL** — lists every provider currently serving the selected model, with **context length, input/output price (per 1M tokens) and recent uptime**. Click a row to apply it as the lock — the field fills in and saves instantly.
+- **Sticky routing for upstream cache** — each chat sends a stable `session_id`, so OpenRouter keeps routing the conversation to the same **upstream** provider, keeping that provider's prompt cache warm. Note this is an OpenRouter routing aid, not the cache itself: Voidcast's cache-friendly prompt ordering (stable system prompt + history prefix, volatile context on the final turn) applies to **every** provider, and cache-hit tokens are tracked for Ollama, OpenAI, DeepSeek and OpenRouter alike — see [Context Compression](#context-compression).
+
+Leave `OPENROUTER_PROVIDER` empty for OpenRouter's default load balancing across providers.
+
+<p align="center">
+  <img src="demos/voidcast-options-llm.png" width="820" alt="Options → LLM: OpenRouter model, provider lock and the LIST ALL provider table"/>
+</p>
+<p align="center"><em>Options → LLM — OpenRouter model picker, the optional <code>OPENROUTER_PROVIDER</code> lock, and the <strong>LIST ALL</strong> table (provider · ctx · price · uptime). Click a row to pin it.</em></p>
+
+Full field reference: [docs/options/llm.md](docs/options/llm.md).
 
 ---
 
@@ -278,8 +326,6 @@ Cross-chat memory is stored locally in IndexedDB:
 - **Desktop ↔ LAN sync** — when phone and PC use the same tools host, entries can merge via the user-data API (see **LAN web UI** below)
 
 **Reminders** also live locally, with optional **desktop notifications** (Windows toast when due). Reminders participate in the same LAN sync as long memory.
-
-
 
 ---
 
@@ -325,7 +371,7 @@ Other UX features:
 - **Text-to-Speech** — Local OmniVoice (free on your PC; requires `.venv` setup, see `LOCAL_TTS_SETUP.md`), or cloud via Runware / OpenRouter TTS (very low cost per reply)
 - **Speech-to-Text** — local **Whistle** via the bundled `cactus-needle` engine (fully offline, no API key; ~16.9 MB, 7 languages) or OpenRouter Whisper (push-to-talk; inexpensive per recording)
 
-Cloud voice options are pay-per-use; see **Runs on Free Cloud APIs** above for typical costs.
+Cloud voice options are pay-per-use; see [Providers](#providers) above for typical costs.
 
 ---
 
@@ -466,7 +512,6 @@ This approach ensures all users get the same environment without manual Python s
 ├── demos/                           # Screenshots & demo assets used in this README
 ├── scripts/                         # Build/release helpers (tools exe, web UI copy…)
 ├── site/                            # Landing page (static site)
-├── videos/                          # Promo/demo video sources
 ├── CHANGELOG.md                     # Release history
 ├── LICENSE                          # MIT
 ├── THIRD_PARTY_NOTICES.md           # Bundled third-party licenses
@@ -490,4 +535,4 @@ Voidcast uses:
 
 ---
 
-Maintained by one developer. [Open an issue](https://github.com/boromanx386/Voidcast/issues) anytime.
+Maintained by one developer. If Voidcast is useful to you, a ⭐ helps others find it — and [open an issue](https://github.com/boromanx386/Voidcast/issues) anytime with bugs or ideas.
