@@ -202,6 +202,12 @@ export function ChatSidebar({ app }: Props) {
           const storedCollapsed = toggled ?? !isActiveGroup
           // While filtering, every folder stays open so matches can't hide.
           const collapsed = query ? false : storedCollapsed
+          // Rolls the row status dots up to the folder header: a collapsed folder hides its
+          // sessions, so a background run in another project would otherwise be invisible.
+          const busyCount = group.sessions.filter((s) => busyBySession[s.id]).length
+          const hasUnread = group.sessions.some(
+            (s) => unreadCompleteBySession[s.id] && !busyBySession[s.id],
+          )
           return (
             <div
               key={group.key}
@@ -223,6 +229,19 @@ export function ChatSidebar({ app }: Props) {
                     {group.path ? <FolderIcon className="h-3.5 w-3.5 shrink-0" /> : null}
                     <span className="truncate">{group.label}</span>
                     <span className="shrink-0 opacity-70">({group.sessions.length})</span>
+                    {busyCount > 0 ? (
+                      <span
+                        className="session-group-status-dot is-busy"
+                        title={`Agent running in this folder${busyCount > 1 ? ` (${busyCount})` : ''}`}
+                        aria-label={`Agent running${busyCount > 1 ? ` (${busyCount})` : ''}`}
+                      />
+                    ) : hasUnread ? (
+                      <span
+                        className="session-group-status-dot is-unread"
+                        title="Agent finished in this folder — open to dismiss"
+                        aria-label="Agent finished"
+                      />
+                    ) : null}
                     {isActiveGroup ? (
                       <span
                         className="session-group-active-dot"

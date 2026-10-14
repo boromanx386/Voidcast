@@ -235,6 +235,21 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   box-shadow: 0 0 6px rgb(var(--color-neon-cyan) / 0.8);
 }
 
+/* Aggregate of the rows inside — the only status a collapsed folder can show. */
+.session-group-status-dot {
+  @apply h-1.5 w-1.5 shrink-0 rounded-full;
+}
+
+.session-group-status-dot.is-busy {
+  @apply bg-neon-green animate-pulse;
+  box-shadow: 0 0 6px rgb(var(--color-neon-green) / 0.8);
+}
+
+.session-group-status-dot.is-unread {
+  @apply bg-neon-cyan;
+  box-shadow: 0 0 6px rgb(var(--color-neon-cyan) / 0.6);
+}
+
 .session-group-path {
   @apply -mt-1 truncate px-4 pb-1 text-[10px] font-mono text-neon-cyan/70;
 }
