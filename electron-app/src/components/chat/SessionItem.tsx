@@ -22,6 +22,30 @@ type SessionItemProps = {
   onExport: () => void
 }
 
+const ICON_ATTRS = {
+  viewBox: '0 0 16 16',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.5,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+} as const
+
+/** Row tooltip stamp: "14.10. 18:03" (year only when it is not the current one). */
+function formatStamp(ts: number): string {
+  const date = new Date(ts)
+  const sameYear = date.getFullYear() === new Date().getFullYear()
+  const day = date.toLocaleDateString(
+    [],
+    sameYear
+      ? { day: '2-digit', month: '2-digit' }
+      : { day: '2-digit', month: '2-digit', year: 'numeric' },
+  )
+  const clock = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return `${day} ${clock}`
+}
+
 export function SessionItem({
   session,
   isActive,
@@ -41,10 +65,21 @@ export function SessionItem({
   onFork,
   onExport,
 }: SessionItemProps) {
+  const stamp = formatStamp(session.updatedAt)
+  const hasStatus = isBusy || isUnreadComplete
+  const tooltip = `${session.title} · ${stamp}`
+
+  // Chromium keeps a native title tooltip open after the click that opened the chat, so the
+  // stamp hangs over the list until the pointer moves away. Drop it on press, restore on leave.
+  const dismissTooltip = (el: HTMLElement) => el.removeAttribute('title')
+  const restoreTooltip = (el: HTMLElement) => {
+    if (!el.hasAttribute('title')) el.setAttribute('title', tooltip)
+  }
+
   return (
     <div className={`session-item ${isActive ? 'active' : ''}`}>
       {isRenaming ? (
-        <div className="space-y-2">
+        <div className="w-full space-y-2 px-3 py-2">
           <input
             type="text"
             value={renameValue}
@@ -72,7 +107,7 @@ export function SessionItem({
           </div>
         </div>
       ) : isPendingDelete ? (
-        <div className="space-y-1">
+        <div className="w-full space-y-1 px-3 py-2">
           <div className="text-xs text-neon-red font-mono">CONFIRM_DELETE?</div>
           <div className="flex gap-1">
             <button
@@ -91,81 +126,88 @@ export function SessionItem({
         </div>
       ) : (
         <>
-          <button type="button" className="w-full text-left" onClick={onOpen}>
-            <div className="flex min-w-0 items-center gap-1.5">
-              {isUnreadComplete && (
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-neon-cyan"
-                  title="Agent finished"
-                  aria-label="Agent finished"
-                />
-              )}
-              <div
-                className={`min-w-0 flex-1 truncate font-mono text-xs ${
-                  isUnreadComplete ? 'text-void-white' : 'text-void-light'
-                }`}
+          <button
+            type="button"
+            className="session-item-open"
+            onClick={onOpen}
+            onPointerDown={(e) => dismissTooltip(e.currentTarget)}
+            onMouseLeave={(e) => restoreTooltip(e.currentTarget)}
+            title={tooltip}
+          >
+            {hasStatus && (
+              <span
+                className={`session-item-dot ${isBusy ? 'bg-neon-green animate-pulse' : 'bg-neon-cyan'}`}
+                title={isBusy ? 'Agent running' : 'Agent finished — open to dismiss'}
+                aria-label={isBusy ? 'Agent running' : 'Agent finished'}
+              />
+            )}
+            <span
+              className={`session-item-title${
+                isUnreadComplete && !isBusy ? ' text-void-white' : ''
+              }`}
+            >
+              {session.title}
+            </span>
+            {session.unsaved ? (
+              <span
+                className="session-item-flag text-void-dim"
+                title="Not saved to disk — click Save in the chat header"
+                aria-label="Unsaved"
               >
-                {session.title}
-              </div>
-              {session.unsaved ? (
-                <span
-                  className="shrink-0 font-mono text-[9px] tracking-wide text-void-dim"
-                  title="Not saved to disk — click Save in the chat header"
-                  aria-label="Unsaved"
-                >
-                  DRAFT
-                </span>
-              ) : null}
-              {isBusy ? (
-                <span
-                  className="shrink-0 font-mono text-[9px] tracking-wide text-neon-green"
-                  title="Agent running"
-                  aria-label="Agent running"
-                >
-                  ● RUN
-                </span>
-              ) : isUnreadComplete ? (
-                <span
-                  className="shrink-0 font-mono text-[9px] tracking-wide text-neon-cyan"
-                  title="Finished — open to dismiss"
-                  aria-label="Agent finished"
-                >
-                  DONE
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-0.5 text-[10px] text-void-dim">
-              {new Date(session.updatedAt).toLocaleDateString()}{' '}
-              {new Date(session.updatedAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </div>
+                DRAFT
+              </span>
+            ) : null}
           </button>
-          <div className="mt-1 flex gap-1">
+
+          <div className="session-item-actions">
             <button
+              type="button"
+              className="session-act"
               onClick={onFork}
-              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-green"
+              title="Fork session"
+              aria-label="Fork session"
             >
-              FORK
+              <svg className="h-3 w-3" {...ICON_ATTRS}>
+                <rect x="2.5" y="2.5" width="7" height="7" rx="1.2" />
+                <rect x="6.5" y="6.5" width="7" height="7" rx="1.2" />
+              </svg>
             </button>
             <button
+              type="button"
+              className="session-act"
               onClick={onExport}
-              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-cyan"
+              title="Export as Markdown"
+              aria-label="Export session as Markdown"
             >
-              EXP
+              <svg className="h-3 w-3" {...ICON_ATTRS}>
+                <path d="M8 2.5v7" />
+                <path d="M4.75 6.5 8 9.75l3.25-3.25" />
+                <path d="M2.75 12.5h10.5" />
+              </svg>
             </button>
             <button
+              type="button"
+              className="session-act"
               onClick={onStartRename}
-              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-cyan"
+              title="Rename session"
+              aria-label="Rename session"
             >
-              REN
+              <svg className="h-3 w-3" {...ICON_ATTRS}>
+                <path d="M10.9 2.9l2.2 2.2-7.6 7.6-2.7.6.6-2.7z" />
+                <path d="M9.7 4.1l2.2 2.2" />
+              </svg>
             </button>
             <button
+              type="button"
+              className="session-act session-act-danger"
               onClick={onStartDelete}
-              className="border border-transparent px-1.5 py-0.5 text-[10px] text-void-dim hover:border-void-dim/30 hover:text-neon-red"
+              title="Delete session"
+              aria-label="Delete session"
             >
-              DEL
+              <svg className="h-3 w-3" {...ICON_ATTRS}>
+                <path d="M4 4l8 8" />
+                <path d="M12 4l-8 8" />
+              </svg>
             </button>
           </div>
         </>

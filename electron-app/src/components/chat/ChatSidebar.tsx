@@ -1,11 +1,28 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { SessionItem } from '@/components/chat/SessionItem'
 import { FolderIcon } from '@/components/icons/FolderIcon'
-import { groupSessionsByProject } from '@/lib/sessionProjectGroups'
+import { groupSessionsByProject, sessionBoundProjectPath } from '@/lib/sessionProjectGroups'
 import { useBusySessionMap, useUnreadCompleteSessionMap } from '@/lib/sessionAgentStore'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 
 type Props = { app: VoidcastApp }
+
+const SIDEBAR_WIDTH_KEY = 'voidcast.sidebarWidth'
+const SIDEBAR_WIDTH_DEFAULT = 288
+const SIDEBAR_WIDTH_MIN = 220
+const SIDEBAR_WIDTH_MAX = 460
+
+function clampSidebarWidth(width: number): number {
+  return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, width))
+}
+
+/** Persisted drag width; falls back to the default when unset or out of range. */
+function readStoredSidebarWidth(): number {
+  const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY))
+  if (!Number.isFinite(saved) || saved <= 0) return SIDEBAR_WIDTH_DEFAULT
+  return clampSidebarWidth(saved)
+}
 
 export function ChatSidebar({ app }: Props) {
   const {
@@ -33,7 +50,36 @@ export function ChatSidebar({ app }: Props) {
     commitRenameSession,
   } = app
 
-  const projectGroups = useMemo(() => groupSessionsByProject(sessions), [sessions])
+  const [filter, setFilter] = useState('')
+  const query = filter.trim().toLowerCase()
+
+  /** Drag-resizable width — chat titles truncate fast at the CSS default. */
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth)
+  const sidebarRef = useRef<HTMLElement>(null)
+
+  const resizeFromPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const left = sidebarRef.current?.getBoundingClientRect().left ?? 0
+    setSidebarWidth(clampSidebarWidth(event.clientX - left))
+  }
+
+  const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(sidebarWidth)))
+  }
+
+  /** Filter matches chat title or bound project path, so "vst" finds both. */
+  const filteredSessions = useMemo(() => {
+    if (!query) return sessions
+    return sessions.filter(
+      (s) =>
+        s.title.toLowerCase().includes(query) ||
+        sessionBoundProjectPath(s).toLowerCase().includes(query),
+    )
+  }, [sessions, query])
+
+  const projectGroups = useMemo(() => groupSessionsByProject(filteredSessions), [filteredSessions])
   /** Folder group that holds the open chat — highlighted in the list. */
   const activeGroupKey = useMemo(() => {
     if (!activeSessionId) return null
@@ -48,7 +94,29 @@ export function ChatSidebar({ app }: Props) {
   if (sessionsSidebarCollapsed) return null
 
   return (
-    <aside className="voidcast-sidebar shrink-0 min-h-0">
+    <aside
+      ref={sidebarRef}
+      className="voidcast-sidebar shrink-0 min-h-0"
+      style={{ width: sidebarWidth }}
+    >
+      {/* Drag to resize; double-click restores the default. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sessions sidebar"
+        title="Drag to resize · double-click to reset"
+        className="sidebar-resizer"
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          resizeFromPointer(e)
+        }}
+        onPointerMove={(e) => {
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) resizeFromPointer(e)
+        }}
+        onPointerUp={endResize}
+        onDoubleClick={() => setSidebarWidth(SIDEBAR_WIDTH_DEFAULT)}
+      />
+
       <div className="sidebar-header gap-2">
         <span className="min-w-0 truncate text-sm font-medium text-void-light">Sessions</span>
         <button
@@ -85,16 +153,57 @@ export function ChatSidebar({ app }: Props) {
         </button>
       </div>
 
+      <div className="shrink-0 border-b border-void-muted/30 px-2 py-2">
+        <div className="relative flex items-center">
+          <input
+            type="text"
+            role="searchbox"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setFilter('')
+            }}
+            placeholder="Filter chats…"
+            aria-label="Filter chats by title or project"
+            spellCheck={false}
+            className="w-full rounded border border-void-muted/40 bg-void-black/40 py-1.5 pl-3 pr-11 font-mono text-[11px] text-void-light placeholder:text-void-dim/70 focus:border-neon-cyan/60 focus:outline-none"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setFilter('')}
+              className="absolute right-1 rounded px-1.5 py-0.5 font-mono text-[10px] text-void-dim transition-colors hover:text-void-light"
+              title="Clear filter (Esc)"
+              aria-label="Clear filter"
+            >
+              ESC
+            </button>
+          ) : null}
+        </div>
+        {query ? (
+          <div className="mt-1 px-1 font-mono text-[10px] text-void-dim/80">
+            {filteredSessions.length} / {sessions.length} chats
+          </div>
+        ) : null}
+      </div>
+
       <div className="sidebar-section min-h-0">
         {projectGroups.length === 0 && (
-          <div className="px-4 py-2 text-xs text-void-dim/60">No sessions yet</div>
+          <div className="px-4 py-2 text-xs text-void-dim/60">
+            {query ? 'No chats match the filter' : 'No sessions yet'}
+          </div>
         )}
         {projectGroups.map((group, index) => {
           const isActiveGroup = activeGroupKey !== null && group.key === activeGroupKey
           const toggled = sidebarCollapsed[group.key]
           // Folder holding the open chat shows its chats by default,
           // so the active session stays visible without a click.
-          const collapsed = toggled === undefined ? !isActiveGroup : toggled !== true
+          // While filtering, every folder stays open so matches can't hide.
+          const collapsed = query
+            ? false
+            : toggled === undefined
+              ? !isActiveGroup
+              : toggled !== true
           return (
             <div
               key={group.key}

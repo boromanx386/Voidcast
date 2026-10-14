@@ -95,10 +95,21 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply flex-1 flex overflow-hidden;
 }
 
-/* Sidebar */
+/* Sidebar — default 288px (w-72); ChatSidebar sets an inline width once the user drags. */
 .voidcast-sidebar {
-  @apply w-64 flex flex-col border-r border-void-muted/50;
+  @apply relative w-72 flex flex-col border-r border-void-muted/50;
   @apply bg-void-dark/50 backdrop-blur-sm;
+}
+
+/* Drag handle on the sidebar's right edge; double-click resets the width. */
+.sidebar-resizer {
+  @apply absolute right-0 top-0 bottom-0 z-10 w-1.5 cursor-col-resize touch-none;
+  @apply bg-transparent transition-colors duration-150;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer:active {
+  @apply bg-neon-cyan/40;
 }
 
 .sidebar-header {
@@ -110,10 +121,11 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply flex-1 overflow-y-auto py-2;
 }
 
+/* One row per chat: title + stamp, with row actions revealed on hover/focus. */
 .session-item {
-  @apply relative px-4 py-2 mx-2 mb-1 rounded cursor-pointer;
-  @apply text-void-text hover:text-void-white hover:bg-void-mid/50;
-  @apply transition-all duration-200;
+  @apply relative mx-2 mb-0.5 flex items-center rounded cursor-pointer;
+  @apply text-void-text hover:text-void-white;
+  @apply transition-colors duration-150;
   border-left: 2px solid transparent;
 }
 
@@ -129,12 +141,53 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .session-item::before {
   content: '>';
-  @apply absolute left-1 opacity-0 text-neon-cyan transition-opacity duration-200;
+  @apply pointer-events-none absolute left-1 opacity-0 text-neon-cyan transition-opacity duration-150;
 }
 
 .session-item:hover::before,
 .session-item.active::before {
   @apply opacity-100;
+}
+
+.session-item-open {
+  @apply flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pl-4 pr-1 text-left font-mono text-xs;
+}
+
+.session-item-title {
+  @apply min-w-0 truncate;
+}
+
+.session-item-dot {
+  @apply h-1.5 w-1.5 shrink-0 rounded-full;
+}
+
+.session-item-flag {
+  @apply shrink-0 font-mono text-[9px] tracking-wide;
+}
+
+/* Actions sit over the title's tail on hover; the gradient masks the text underneath. */
+.session-item-actions {
+  @apply pointer-events-none absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded pl-5 opacity-0;
+  @apply transition-opacity duration-150;
+  background: linear-gradient(90deg, transparent 0%, rgb(var(--color-void-black) / 0.85) 30%);
+}
+
+.session-item:hover .session-item-actions,
+.session-item:focus-within .session-item-actions {
+  @apply pointer-events-auto opacity-100;
+}
+
+.session-act {
+  @apply flex h-5 w-5 items-center justify-center rounded text-void-dim transition-colors;
+  @apply hover:bg-void-mid/60 hover:text-void-light;
+}
+
+.session-act-danger {
+  @apply hover:bg-neon-red/15 hover:text-neon-red;
+}
+
+.session-act:focus-visible {
+  @apply outline-none text-neon-cyan ring-1 ring-neon-cyan/60;
 }
 
 /* Sidebar project-folder group (one row per folder that holds chats) */
