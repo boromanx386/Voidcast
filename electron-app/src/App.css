@@ -172,8 +172,11 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   background: linear-gradient(90deg, transparent 0%, rgb(var(--color-void-black) / 0.85) 30%);
 }
 
+/* Hover reveals the actions, keyboard focus too — but NOT a click: a clicked row keeps
+   focus, so `:focus-within` here would pin the icons open until the next click elsewhere. */
 .session-item:hover .session-item-actions,
-.session-item:focus-within .session-item-actions {
+.session-item:has(:focus-visible) .session-item-actions,
+.session-item-actions:focus-within {
   @apply pointer-events-auto opacity-100;
 }
 
