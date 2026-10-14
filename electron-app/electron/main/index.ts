@@ -3523,6 +3523,105 @@ ipcMain.handle(
   },
 )
 
+/** Extension for a materialized chat image: prefer the source file name, else the MIME. */
+function extFromImageNameOrMime(name: string, mime: string): string {
+  const fromName = path.extname(name).replace(/^\./, '').toLowerCase()
+  if (fromName && CHAT_IMAGE_EXTENSION_SET.has(fromName)) return `.${fromName}`
+  return extFromContentType(mime)
+}
+
+/**
+ * Persist a chat image that arrived without an on-disk path (paste, web <input>,
+ * or a drag source outside the file system) into userData/chat-attachments, so
+ * the agent always receives a real path it can read or copy. Native-picker
+ * attachments keep their original path and never reach this handler.
+ */
+ipcMain.handle(
+  'voidcast:materialize-chat-image',
+  async (
+    _evt,
+    payload: { base64?: string; mime?: string; name?: string },
+  ): Promise<{ ok: true; path: string } | { ok: false; error?: string }> => {
+    try {
+      const base64 = String(payload?.base64 ?? '').replace(/\s+/g, '')
+      if (!base64) return { ok: false, error: 'Missing image data' }
+      const buf = Buffer.from(base64, 'base64')
+      if (!buf.length) return { ok: false, error: 'Empty image data' }
+      if (buf.length > MAX_CHAT_IMAGE_BYTES) {
+        return { ok: false, error: 'Too large (max 4 MB)' }
+      }
+      const name = String(payload?.name ?? '').trim()
+      const mime = String(payload?.mime ?? '')
+        .trim()
+        .toLowerCase()
+      const ext = extFromImageNameOrMime(name, mime)
+      const base = sanitizeBaseName(path.basename(name, path.extname(name)) || 'image')
+      const dir = path.join(app.getPath('userData'), 'chat-attachments')
+      await mkdir(dir, { recursive: true })
+      const outPath = await nextAvailablePath(dir, base, ext)
+      await writeFile(outPath, buf)
+      return { ok: true as const, path: outPath }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
+/** Extension for a materialized chat file: validated source-name ext, else the MIME. */
+function extFromChatFileNameOrMime(name: string, mime: string): string {
+  const fromName = path.extname(name).replace(/^\./, '').toLowerCase()
+  if (fromName && CHAT_FILE_EXTENSIONS.has(fromName)) return `.${fromName}`
+  const ct = mime.toLowerCase()
+  if (ct.includes('pdf')) return '.pdf'
+  if (ct.includes('wordprocessingml') || ct.includes('msword')) return '.docx'
+  if (ct.includes('json')) return '.json'
+  if (ct.includes('csv')) return '.csv'
+  if (ct.includes('markdown')) return '.md'
+  if (ct.includes('html')) return '.html'
+  if (ct.includes('css')) return '.css'
+  if (ct.includes('javascript')) return '.js'
+  if (ct.includes('typescript')) return '.ts'
+  if (ct.includes('python')) return '.py'
+  if (ct.includes('java')) return '.java'
+  return '.txt'
+}
+
+/**
+ * Persist a chat file that arrived without an on-disk path (drag-drop, paste, or
+ * the web <input>) into userData/chat-attachments, mirroring
+ * voidcast:materialize-chat-image so the agent always receives a real path it can
+ * read or copy instead of a bare file name. Native-picker attachments keep their
+ * original path and never reach this handler.
+ */
+ipcMain.handle(
+  'voidcast:materialize-chat-attachment',
+  async (
+    _evt,
+    payload: { bytes?: ArrayBuffer; name?: string; mime?: string },
+  ): Promise<{ ok: true; path: string } | { ok: false; error?: string }> => {
+    try {
+      const raw = payload?.bytes
+      if (!raw || raw.byteLength <= 0) return { ok: false, error: 'Empty file buffer' }
+      if (raw.byteLength > MAX_CHAT_FILE_BYTES) {
+        return { ok: false, error: 'Too large (max 5 MB)' }
+      }
+      const name = String(payload?.name ?? '').trim()
+      const mime = String(payload?.mime ?? '')
+        .trim()
+        .toLowerCase()
+      const ext = extFromChatFileNameOrMime(name, mime)
+      const base = sanitizeBaseName(path.basename(name, path.extname(name)) || 'attachment')
+      const dir = path.join(app.getPath('userData'), 'chat-attachments')
+      await mkdir(dir, { recursive: true })
+      const outPath = await nextAvailablePath(dir, base, ext)
+      await writeFile(outPath, Buffer.from(raw))
+      return { ok: true as const, path: outPath }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
 ipcMain.handle(
   'voidcast:get-weather',
   async (_evt, payload: { city?: string; forecast?: boolean }) => {

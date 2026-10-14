@@ -587,6 +587,14 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
+  materializeChatImage: (payload: { base64: string; mime?: string; name?: string }) =>
+    ipcRenderer.invoke('voidcast:materialize-chat-image', payload) as Promise<
+      { ok: true; path: string } | { ok: false; error?: string }
+    >,
+  materializeChatAttachment: (payload: { bytes: ArrayBuffer; name?: string; mime?: string }) =>
+    ipcRenderer.invoke('voidcast:materialize-chat-attachment', payload) as Promise<
+      { ok: true; path: string } | { ok: false; error?: string }
+    >,
   parseChatAttachmentBuffer: (payload: { name: string; ext: string; bytes: ArrayBuffer }) =>
     ipcRenderer.invoke('voidcast:parse-chat-attachment-buffer', payload) as Promise<
       { ok: true; content?: string; truncated?: boolean } | { ok: false; error?: string }

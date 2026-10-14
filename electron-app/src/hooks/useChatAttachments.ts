@@ -90,7 +90,24 @@ export function useChatAttachments({
             setError(`Could not read image: ${file.name || 'attachment'}`)
             continue
           }
-          newImages.push({ base64, mime, name: file.name || 'image' })
+          // The native picker already carries a real path; drag-drop and paste do
+          // not (the DOM File hides it), so persist the bytes to a real file over
+          // IPC — the agent needs a path to read or copy the image.
+          let path: string | undefined
+          try {
+            const api = typeof window === 'undefined' ? undefined : window.voidcast
+            if (api?.materializeChatImage) {
+              const res = await api.materializeChatImage({
+                base64,
+                mime,
+                name: file.name || 'image.png',
+              })
+              if (res && res.ok) path = res.path
+            }
+          } catch {
+            // Keep the image even if persisting fails — it just won't have a path.
+          }
+          newImages.push({ base64, mime, name: file.name || 'image', path })
         } catch (err) {
           setError(err instanceof Error ? err.message : String(err))
         }
@@ -115,6 +132,10 @@ export function useChatAttachments({
           ext === 'css'
         let content: string | undefined
         let truncated = false
+        // Read the File bytes at most once; reused for document parsing and for
+        // the materialize round-trip below.
+        let bytesPromise: Promise<ArrayBuffer> | null = null
+        const readBytes = () => (bytesPromise ??= file.arrayBuffer())
         if (isText) {
           const raw = await file.text()
           if (raw.length > 400 * 1024) {
@@ -133,11 +154,10 @@ export function useChatAttachments({
           // native file picker. In web-standalone mode (no bridge) this is a
           // no-op and content stays undefined.
           try {
-            const bytes = await file.arrayBuffer()
             const res = await window.voidcast.parseChatAttachmentBuffer({
               name: file.name,
               ext,
-              bytes,
+              bytes: await readBytes(),
             })
             if (res?.ok) {
               content = res.content
@@ -151,10 +171,27 @@ export function useChatAttachments({
             continue
           }
         }
+        // The DOM File hides its origin path for drag-drop and the web <input>,
+        // so persist the bytes to a real file — the agent needs a path to read or
+        // copy. Native-picker files keep their real path and never get here.
+        let path = file.name
+        try {
+          const api = typeof window === 'undefined' ? undefined : window.voidcast
+          if (api?.materializeChatAttachment) {
+            const res = await api.materializeChatAttachment({
+              bytes: await readBytes(),
+              name: file.name,
+              mime: file.type || '',
+            })
+            if (res && res.ok) path = res.path
+          }
+        } catch {
+          // Keep the attachment even if persisting fails — it just won't have a path.
+        }
         newFiles.push({
           id: uid(),
           name: file.name,
-          path: file.name,
+          path,
           mime: file.type || 'application/octet-stream',
           size: file.size,
           ext,

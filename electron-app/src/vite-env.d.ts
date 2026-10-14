@@ -538,6 +538,18 @@ interface VoidcastBridge {
     | { ok: false; error?: string }
   >
 
+  materializeChatImage: (payload: {
+    base64: string
+    mime?: string
+    name?: string
+  }) => Promise<{ ok: true; path: string } | { ok: false; error?: string }>
+
+  materializeChatAttachment: (payload: {
+    bytes: ArrayBuffer
+    name?: string
+    mime?: string
+  }) => Promise<{ ok: true; path: string } | { ok: false; error?: string }>
+
   parseChatAttachmentBuffer: (payload: {
     name: string
     ext: string
