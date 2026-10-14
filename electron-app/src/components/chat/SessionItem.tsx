@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { ChatSession } from '@/types/chat'
 
 type SessionItemProps = {
@@ -31,6 +32,9 @@ const ICON_ATTRS = {
   strokeLinejoin: 'round',
   'aria-hidden': true,
 } as const
+
+/** Popover height (4 rows + padding) — used to decide whether it opens above the row. */
+const MENU_HEIGHT = 132
 
 /** Row tooltip stamp: "14.10. 18:03" (year only when it is not the current one). */
 function formatStamp(ts: number): string {
@@ -68,12 +72,48 @@ export function SessionItem({
   const stamp = formatStamp(session.updatedAt)
   const hasStatus = isBusy || isUnreadComplete
   const tooltip = `${session.title} · ${stamp}`
+  /** null = closed; false = open below the row; true = open above it. */
+  const [menuUp, setMenuUp] = useState<boolean | null>(null)
 
   // Chromium keeps a native title tooltip open after the click that opened the chat, so the
   // stamp hangs over the list until the pointer moves away. Drop it on press, restore on leave.
   const dismissTooltip = (el: HTMLElement) => el.removeAttribute('title')
   const restoreTooltip = (el: HTMLElement) => {
     if (!el.hasAttribute('title')) el.setAttribute('title', tooltip)
+  }
+
+  // A menu left open would follow the list while it scrolls, so close it on Escape or on
+  // any press that lands outside the button and the popover.
+  useEffect(() => {
+    if (menuUp === null) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.session-more, .session-menu')) return
+      setMenuUp(null)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuUp(null)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuUp])
+
+  /** Flip the popover above the row when there is no room below it inside the list. */
+  const openMenu = (button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect()
+    const list = button.closest('.sidebar-section')?.getBoundingClientRect()
+    const spaceBelow = (list?.bottom ?? window.innerHeight) - rect.bottom
+    const spaceAbove = rect.top - (list?.top ?? 0)
+    setMenuUp(spaceBelow < MENU_HEIGHT && spaceAbove > spaceBelow)
+  }
+
+  const runAction = (action: () => void) => () => {
+    setMenuUp(null)
+    action()
   }
 
   return (
@@ -159,57 +199,62 @@ export function SessionItem({
             ) : null}
           </button>
 
-          <div className="session-item-actions">
-            <button
-              type="button"
-              className="session-act"
-              onClick={onFork}
-              title="Fork session"
-              aria-label="Fork session"
+          <button
+            type="button"
+            className="session-more"
+            onClick={(e) => (menuUp === null ? openMenu(e.currentTarget) : setMenuUp(null))}
+            title="Chat actions"
+            aria-label="Chat actions"
+            aria-haspopup="menu"
+            aria-expanded={menuUp !== null}
+          >
+            <svg className="h-3.5 w-3.5" {...ICON_ATTRS}>
+              <circle cx="3.5" cy="8" r="1.1" fill="currentColor" stroke="none" />
+              <circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none" />
+              <circle cx="12.5" cy="8" r="1.1" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+
+          {menuUp !== null && (
+            <div
+              className={`session-menu${menuUp ? ' up' : ''}`}
+              role="menu"
+              aria-label="Chat actions"
             >
-              <svg className="h-3 w-3" {...ICON_ATTRS}>
-                <rect x="2.5" y="2.5" width="7" height="7" rx="1.2" />
-                <rect x="6.5" y="6.5" width="7" height="7" rx="1.2" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="session-act"
-              onClick={onExport}
-              title="Export as Markdown"
-              aria-label="Export session as Markdown"
-            >
-              <svg className="h-3 w-3" {...ICON_ATTRS}>
-                <path d="M8 2.5v7" />
-                <path d="M4.75 6.5 8 9.75l3.25-3.25" />
-                <path d="M2.75 12.5h10.5" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="session-act"
-              onClick={onStartRename}
-              title="Rename session"
-              aria-label="Rename session"
-            >
-              <svg className="h-3 w-3" {...ICON_ATTRS}>
-                <path d="M10.9 2.9l2.2 2.2-7.6 7.6-2.7.6.6-2.7z" />
-                <path d="M9.7 4.1l2.2 2.2" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="session-act session-act-danger"
-              onClick={onStartDelete}
-              title="Delete session"
-              aria-label="Delete session"
-            >
-              <svg className="h-3 w-3" {...ICON_ATTRS}>
-                <path d="M4 4l8 8" />
-                <path d="M12 4l-8 8" />
-              </svg>
-            </button>
-          </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="session-menu-item"
+                onClick={runAction(onFork)}
+              >
+                Fork chat
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="session-menu-item"
+                onClick={runAction(onExport)}
+              >
+                Export .md
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="session-menu-item"
+                onClick={runAction(onStartRename)}
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="session-menu-item session-menu-item-danger"
+                onClick={runAction(onStartDelete)}
+              >
+                Delete
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

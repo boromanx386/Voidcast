@@ -165,32 +165,48 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply shrink-0 font-mono text-[9px] tracking-wide;
 }
 
-/* Actions sit over the title's tail on hover; the gradient masks the text underneath. */
-.session-item-actions {
-  @apply pointer-events-none absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded pl-5 opacity-0;
-  @apply transition-opacity duration-150;
-  background: linear-gradient(90deg, transparent 0%, rgb(var(--color-void-black) / 0.85) 30%);
+/* Single overflow button instead of four icons: the old cluster reached ~100px into the row,
+   so aiming at the end of a label forked the chat by mistake. `⋯` is ~24px at the far right,
+   and a stray click on it only opens a menu — never fork/delete. */
+.session-more {
+  @apply mr-1 flex h-6 w-5 shrink-0 items-center justify-center rounded text-void-dim/40;
+  @apply transition-colors duration-150 hover:bg-void-mid/60 hover:text-void-light;
 }
 
-/* Hover reveals the actions, keyboard focus too — but NOT a click: a clicked row keeps
-   focus, so `:focus-within` here would pin the icons open until the next click elsewhere. */
-.session-item:hover .session-item-actions,
-.session-item:has(:focus-visible) .session-item-actions,
-.session-item-actions:focus-within {
-  @apply pointer-events-auto opacity-100;
+.session-item:hover .session-more,
+.session-item:has(:focus-visible) .session-more {
+  @apply text-void-dim;
 }
 
-.session-act {
-  @apply flex h-5 w-5 items-center justify-center rounded text-void-dim transition-colors;
-  @apply hover:bg-void-mid/60 hover:text-void-light;
+.session-more:focus-visible {
+  @apply text-neon-cyan outline-none;
 }
 
-.session-act-danger {
-  @apply hover:bg-neon-red/15 hover:text-neon-red;
+.session-more[aria-expanded='true'] {
+  @apply bg-void-mid/60 text-void-light;
 }
 
-.session-act:focus-visible {
-  @apply outline-none text-neon-cyan ring-1 ring-neon-cyan/60;
+/* Popover anchored to the row; flips above it when the list bottom is close. */
+.session-menu {
+  @apply absolute right-1 top-full z-30 mt-0.5 flex w-40 flex-col overflow-hidden rounded;
+  @apply border border-void-dim/40 bg-void-black/95 py-1 shadow-lg backdrop-blur-sm;
+}
+
+.session-menu.up {
+  @apply top-auto bottom-full mb-0.5 mt-0;
+}
+
+.session-menu-item {
+  @apply px-3 py-1.5 text-left font-mono text-[11px] text-void-light transition-colors;
+  @apply hover:bg-neon-cyan/10 hover:text-void-white;
+}
+
+.session-menu-item-danger {
+  @apply text-neon-red/80 hover:bg-neon-red/15 hover:text-neon-red;
+}
+
+.session-menu-item:focus-visible {
+  @apply bg-neon-cyan/10 text-void-white outline-none;
 }
 
 /* Sidebar project-folder group (one row per folder that holds chats) */
@@ -203,18 +219,20 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply text-void-dim hover:text-void-light;
 }
 
-/* Folder that holds the OPEN chat — has to be unmistakable in the list */
+/* Folder that holds the OPEN chat — unmistakable even when the folder is collapsed. */
 .session-group.active {
   @apply border-neon-cyan;
-  background: linear-gradient(90deg, rgb(var(--color-neon-cyan) / 0.12) 0%, transparent 100%);
+  background: linear-gradient(90deg, rgb(var(--color-neon-cyan) / 0.16) 0%, transparent 100%);
 }
 
-.session-group.active .session-group-toggle {
-  @apply text-neon-cyan;
-}
-
+.session-group.active .session-group-toggle,
 .session-group.active .session-group-toggle:hover {
-  @apply text-void-white;
+  @apply font-semibold text-neon-cyan;
+}
+
+.session-group-active-dot {
+  @apply h-1.5 w-1.5 shrink-0 rounded-full bg-neon-cyan;
+  box-shadow: 0 0 6px rgb(var(--color-neon-cyan) / 0.8);
 }
 
 .session-group-path {

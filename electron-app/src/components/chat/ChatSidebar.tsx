@@ -196,14 +196,12 @@ export function ChatSidebar({ app }: Props) {
         {projectGroups.map((group, index) => {
           const isActiveGroup = activeGroupKey !== null && group.key === activeGroupKey
           const toggled = sidebarCollapsed[group.key]
-          // Folder holding the open chat shows its chats by default,
-          // so the active session stays visible without a click.
+          // sidebarCollapsed stores the COLLAPSED state; undefined = auto, where only the
+          // folder holding the open chat is open. The old `toggled !== true` read the map
+          // inverted, so the first click on the auto-open folder did nothing at all.
+          const storedCollapsed = toggled ?? !isActiveGroup
           // While filtering, every folder stays open so matches can't hide.
-          const collapsed = query
-            ? false
-            : toggled === undefined
-              ? !isActiveGroup
-              : toggled !== true
+          const collapsed = query ? false : storedCollapsed
           return (
             <div
               key={group.key}
@@ -214,7 +212,9 @@ export function ChatSidebar({ app }: Props) {
               <div className="flex w-full items-center">
                 <button
                   type="button"
-                  onClick={() => setSidebarCollapsed((p) => ({ ...p, [group.key]: !p[group.key] }))}
+                  onClick={() =>
+                    setSidebarCollapsed((p) => ({ ...p, [group.key]: !storedCollapsed }))
+                  }
                   className="session-group-toggle"
                   title={group.path || 'General chat — no project folder'}
                   aria-current={isActiveGroup ? 'true' : undefined}
@@ -223,6 +223,13 @@ export function ChatSidebar({ app }: Props) {
                     {group.path ? <FolderIcon className="h-3.5 w-3.5 shrink-0" /> : null}
                     <span className="truncate">{group.label}</span>
                     <span className="shrink-0 opacity-70">({group.sessions.length})</span>
+                    {isActiveGroup ? (
+                      <span
+                        className="session-group-active-dot"
+                        title="Folder holding the open chat"
+                        aria-hidden
+                      />
+                    ) : null}
                   </span>
                   <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
                 </button>
