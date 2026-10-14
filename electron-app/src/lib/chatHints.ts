@@ -29,8 +29,42 @@ export function isToday(ts: number): boolean {
   )
 }
 
+/** Count `|` characters on one line. */
+function countPipes(line: string): number {
+  let pipes = 0
+  for (const ch of line) if (ch === '|') pipes += 1
+  return pipes
+}
+
+/** GFM alignment row: `---`, `:--:`, `| --- | :--: |` … */
+function isTableSeparator(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed.includes('|') && /^[|:\s-]+$/.test(trimmed) && /-{2,}/.test(trimmed)
+}
+
+/**
+ * Drop whole GFM tables (header row + alignment row + body rows).
+ * A table only starts when a pipe row is followed by an alignment row, so prose
+ * that merely contains a `|` survives. Without this, TTS reads every pipe and
+ * dash out loud.
+ */
+export function stripMarkdownTables(input: string): string {
+  const lines = input.split(/\r?\n/)
+  const kept: string[] = []
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]
+    if (countPipes(line) >= 1 && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      i += 1 // alignment row
+      while (i + 1 < lines.length && countPipes(lines[i + 1]) >= 1) i += 1
+      continue
+    }
+    kept.push(line)
+  }
+  return kept.join('\n')
+}
+
 export function sanitizeForTts(input: string): string {
-  return input
+  return stripMarkdownTables(input)
     .replace(/^\s*Generated image URL\(s\):\s*$/gim, ' ')
     .replace(/^\s*image_url:\s*https?:\/\/\S+\s*$/gim, ' ')
     .replace(/^\s*audio_url:\s*https?:\/\/\S+\s*$/gim, ' ')
