@@ -52,7 +52,7 @@ import {
 } from '@/lib/planArtifact'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
-import { isToolTimeoutResult, readToolTimeoutSec } from '@/lib/turnTimer'
+import { isTimeoutMessage, isToolTimeoutResult, readToolTimeoutSec } from '@/lib/turnTimer'
 import { streamOllamaChat, isThinkingUiEnabled } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
@@ -1388,7 +1388,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         }
         reopenBuildPlan()
         const msg = e instanceof Error ? e.message : String(e)
-        setErr(msg)
+        // A timeout already froze its chip timer; stacking a full-width red banner on
+        // top of that only confuses people. Genuine failures still get the banner.
+        if (!isTimeoutMessage(msg)) setErr(msg)
         setMsgs((prev) =>
           prev.map((m) =>
             m.id === asstId && !m.content.trim() ? { ...m, content: `(ERR: ${msg})` } : m,

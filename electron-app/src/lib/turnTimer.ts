@@ -50,3 +50,12 @@ export function readToolTimeoutSec(args?: Record<string, unknown>): number | und
 export function isToolTimeoutResult(result: string): boolean {
   return /\btimed out\b/i.test(result)
 }
+
+/**
+ * True when a thrown error reads like a timeout. Model/provider failures arrive as
+ * free text ("timed out", "Time-out", ETIMEDOUT, a bare 504) and the chat skips its
+ * full-width red banner for them — the frozen chip timer already told that story.
+ */
+export function isTimeoutMessage(text: string): boolean {
+  return /timed?\s*-?\s*out|ETIMEDOUT|deadline exceeded|\b504\b/i.test(text)
+}
