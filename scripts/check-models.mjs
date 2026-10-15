@@ -18,6 +18,7 @@
  *   node scripts/check-models.mjs                # all providers, filtered
  *   node scripts/check-models.mjs --openrouter   # OpenRouter only
  *   node scripts/check-models.mjs --opencode     # OpenCode Go only
+ *   node scripts/check-models.mjs --deepseek     # DeepSeek only
  *   node scripts/check-models.mjs --nvidia       # NVIDIA only
  *   node scripts/check-models.mjs --days 14      # new-model recency window in days (default 30)
  *   node scripts/check-models.mjs --all          # also include all new OpenRouter models (unfiltered)
@@ -31,6 +32,9 @@
  *               +  https://models.dev/api.json  (ctx/pricing enrichment, and the per-model
  *                 endpoint via `provider.npm`: @ai-sdk/anthropic = /v1/messages,
  *                 @ai-sdk/openai = /v1/responses, @ai-sdk/openai-compatible = /v1/chat/completions)
+ *   DeepSeek    GET https://api.deepseek.com/models  (real catalog; needs DEEPSEEK_API_KEY, so
+ *                 the primary source is models.dev `deepseek` — ctx/pricing/release_date, no key)
+ *               +  https://models.dev/api.json
  *   NVIDIA      GET https://integrate.api.nvidia.com/v1/models
  *
  * OpenCode Go endpoints handled: `/v1/chat/completions`, `/v1/messages` and `/v1/responses`.
@@ -52,6 +56,7 @@ const CONTEXT_PATH = join(ROOT, 'electron-app', 'src', 'lib', 'contextLimit.ts')
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/models'
 const MODELSDEV_URL = 'https://models.dev/api.json'
 const OPENCODE_URL = 'https://opencode.ai/zen/go/v1/models'
+const DEEPSEEK_URL = 'https://api.deepseek.com/models'
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/models'
 
 
@@ -65,6 +70,7 @@ const SYNTHETIC_OPENROUTER_IDS = new Set([
 const ALL_FLAG = process.argv.includes('--all')
 const OPENROUTER_ONLY = process.argv.includes('--openrouter')
 const OPENCODE_ONLY = process.argv.includes('--opencode')
+const DEEPSEEK_ONLY = process.argv.includes('--deepseek')
 const NVIDIA_ONLY = process.argv.includes('--nvidia')
 const APPLY_FLAG = process.argv.includes('--apply')
 
@@ -167,7 +173,9 @@ function addContextOverride(source, id, value) {
 
 /** Remove a single `'id': value,` line from MODEL_CONTEXT_OVERRIDES. */
 function removeContextOverride(source, id) {
-  const re = new RegExp(`\\s*'${escapeRe(id)}':\\s*[\\d_]+,\\n?`)
+  // Match the whole line including its terminator. A leading \s* *and* a trailing \n? each ate
+  // the newline, so the two neighbouring entries got welded onto a single line.
+  const re = new RegExp(`[ \\t]*'${escapeRe(id)}':[ \\t]*[\\d_]+,\\r?\\n`)
   return source.replace(re, '')
 }
 
@@ -248,6 +256,7 @@ function makeLabel(id, ctx) {
     .replace(/\bQwen\b/g, 'Qwen')
     .replace(/\bKimi\b/g, 'Kimi')
     .replace(/\bNemotron\b/g, 'Nemotron')
+    .replace(/\bDeepseek\b/g, 'DeepSeek')
   if (ctx) label += ` (${fmtCtx(ctx)})`
   return label
 }
@@ -557,6 +566,111 @@ async function checkOpenCodeGo(curated, overrides, appMessages, appResponses) {
   return result
 }
 
+// ---- DeepSeek ---------------------------------------------------------------
+
+// DeepSeek's own catalog (GET https://api.deepseek.com/models) needs a key, so models.dev
+// `deepseek` is the primary source — the same enrichment feed the OpenCode check trusts for
+// ctx/pricing. With DEEPSEEK_API_KEY set the live feed is queried too and counts as a second
+// existence source, so an id models.dev has not dropped yet still reports as gone once
+// DeepSeek stops serving it.
+// Retired ids the API keeps *accepting*: the request is served by DeepSeek-V4.1-Flash and
+// billed at the Flash price (https://api-docs.deepseek.com/quick_start/pricing, footnote 1).
+// Never suggested as NEW — the canonical id is.
+const DEEPSEEK_CANONICAL = 'deepseek-flash'
+const DEEPSEEK_LEGACY_IDS = new Set(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'])
+
+async function fetchDeepSeekLive() {
+  const key = process.env.DEEPSEEK_API_KEY
+  if (!key) return null
+  const res = await fetch(DEEPSEEK_URL, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { authorization: `Bearer ${key}`, 'user-agent': 'voidcast-check-models' },
+  })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${DEEPSEEK_URL}`)
+  const d = await res.json()
+  const list = Array.isArray(d) ? d : d.data || []
+  return new Set(list.map((m) => m.id))
+}
+
+async function checkDeepSeek(curated, overrides) {
+  console.log('=== DEEPSEEK ===')
+  let md = {}
+  try {
+    const d = await fetchJson(MODELSDEV_URL)
+    md = d.deepseek?.models || {}
+  } catch (e) {
+    console.log(`  fetch failed (models.dev): ${e.message}`)
+    console.log('')
+    return null
+  }
+
+  let liveIds = null
+  try {
+    liveIds = await fetchDeepSeekLive()
+  } catch (e) {
+    console.log(`  live catalog skipped: ${e.message}`)
+  }
+  if (!liveIds) {
+    console.log('  (no DEEPSEEK_API_KEY — catalog is models.dev only; the real feed needs a key)')
+  }
+
+  const mdIds = new Set(Object.keys(md))
+  const curatedSet = new Set(curated)
+  const result = { provider: 'deepseek', newModels: [], removed: [], ctx: [] }
+
+  // REMOVED — in app, gone from every source we can see
+  const removed = curated.filter((id) => !mdIds.has(id) && !(liveIds && liveIds.has(id)))
+  result.removed = removed
+  if (removed.length) {
+    console.log(`  REMOVED (${removed.length}) — in app, gone from DeepSeek:`)
+    for (const id of removed) console.log(`    [-] ${id}`)
+  }
+
+  // LEGACY — retired upstream but still accepted, so a curated entry keeps working while
+  // silently serving a different model. Worth replacing, not deleting.
+  const legacy = curated.filter((id) => DEEPSEEK_LEGACY_IDS.has(id))
+  if (legacy.length) {
+    console.log(`  LEGACY (${legacy.length}) — retired upstream, still accepted:`)
+    for (const id of legacy) {
+      console.log(`    [>] ${id} — served by ${DEEPSEEK_CANONICAL} at the Flash price`)
+    }
+  }
+
+  // CONTEXT mismatch (app override vs models.dev limit.context)
+  const ctx = []
+  for (const id of curated) {
+    const ov = overrides[id]
+    const lv = md[id]?.limit?.context
+    if (ov != null && lv != null && ov !== lv) ctx.push([id, ov, lv])
+  }
+  result.ctx = ctx
+  if (ctx.length) {
+    console.log(`  CONTEXT mismatch (${ctx.length}) — app override -> live:`)
+    for (const [id, ov, lv] of ctx) console.log(`    [~] ${id}: ${fmtNum(ov)} -> ${fmtNum(lv)}`)
+  }
+
+  // NEW — catalogued and not curated, minus the retired ids the docs say not to use
+  const fresh = [...mdIds]
+    .filter((id) => !curatedSet.has(id) && !DEEPSEEK_LEGACY_IDS.has(id))
+    .sort()
+  result.newModels = fresh.map((id) => ({ id, ctx: md[id]?.limit?.context }))
+  if (fresh.length) {
+    console.log(`  NEW (${fresh.length}):`)
+    for (const id of fresh) {
+      const m = md[id]
+      const cost = `${money(m?.cost?.input)} in · ${money(m?.cost?.output)} out`
+      console.log(`    [+] ${id}`)
+      console.log(`        ctx ${fmtNum(m?.limit?.context)}  ${cost}  (max out ${fmtNum(m?.limit?.output)})`)
+    }
+  }
+
+  if (!removed.length && !ctx.length && !fresh.length && !legacy.length) {
+    console.log('  no changes (curated list is up to date).')
+  }
+  console.log('')
+  return result
+}
+
 // Non-chat / non-LLM families on NVIDIA's catalog that are not useful as chat
 // presets (embeddings, vision encoders, safety guards, reward/rerank, TTS/ASR,
 // image gen, etc.). Kept in a set for fast lookup.
@@ -646,7 +760,7 @@ async function checkOpenAICompat({ title, url, preset, curated, overrides, filte
 
 // ---- interactive apply ------------------------------------------------------
 
-async function interactiveApply(or, oc, nv, presetsSource, contextSource) {
+async function interactiveApply(or, oc, ds, nv, presetsSource, contextSource) {
   const state = { presets: presetsSource, context: contextSource, added: 0, removed: 0, changed: 0 }
 
   const groups = []
@@ -661,18 +775,24 @@ async function interactiveApply(or, oc, nv, presetsSource, contextSource) {
     groups.push({ title: 'ADD — OpenCode Go (/v1/messages · Anthropic)', items: ocMessages, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
   if (ocResponses.length)
     groups.push({ title: 'ADD — OpenCode Go (/v1/responses)', items: ocResponses, kind: 'add', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
+  if (ds?.newModels.length)
+    groups.push({ title: 'ADD — DeepSeek', items: ds.newModels, kind: 'add', preset: 'DEEPSEEK_LLM_PRESET_MODELS' })
   if (nv?.newModels.length)
     groups.push({ title: 'ADD — NVIDIA', items: nv.newModels, kind: 'add', preset: 'NVIDIA_LLM_PRESET_MODELS' })
   if (or?.removed.length)
     groups.push({ title: 'REMOVE — OpenRouter', items: or.removed.map((id) => ({ id })), kind: 'remove', preset: 'OPENROUTER_LLM_PRESET_MODELS' })
   if (oc?.removed.length)
     groups.push({ title: 'REMOVE — OpenCode Go', items: oc.removed.map((id) => ({ id })), kind: 'remove', preset: 'OPENCODE_GO_LLM_PRESET_MODELS' })
+  if (ds?.removed.length)
+    groups.push({ title: 'REMOVE — DeepSeek', items: ds.removed.map((id) => ({ id })), kind: 'remove', preset: 'DEEPSEEK_LLM_PRESET_MODELS' })
   if (nv?.removed.length)
     groups.push({ title: 'REMOVE — NVIDIA', items: nv.removed.map((id) => ({ id })), kind: 'remove', preset: 'NVIDIA_LLM_PRESET_MODELS' })
   if (or?.ctx.length)
     groups.push({ title: 'UPDATE CONTEXT — OpenRouter', items: or.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
   if (oc?.ctx.length)
     groups.push({ title: 'UPDATE CONTEXT — OpenCode Go', items: oc.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
+  if (ds?.ctx.length)
+    groups.push({ title: 'UPDATE CONTEXT — DeepSeek', items: ds.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
   if (nv?.ctx.length)
     groups.push({ title: 'UPDATE CONTEXT — NVIDIA', items: nv.ctx.map(([id, ov, lv]) => ({ id, ov, lv })), kind: 'ctx' })
 
@@ -762,6 +882,7 @@ async function main() {
 
   const curatedOpenRouter = extractPresetIds(presetsSource, 'OPENROUTER_LLM_PRESET_MODELS')
   const curatedOpenCode = extractPresetIds(presetsSource, 'OPENCODE_GO_LLM_PRESET_MODELS')
+  const curatedDeepSeek = extractPresetIds(presetsSource, 'DEEPSEEK_LLM_PRESET_MODELS')
   const curatedNvidia = extractPresetIds(presetsSource, 'NVIDIA_LLM_PRESET_MODELS')
   const overrides = extractContextOverrides(contextSource)
   // The app's per-model non-chat routing sets (config, not just metadata).
@@ -771,14 +892,17 @@ async function main() {
   console.log('Voidcast — cloud model preset checker')
   console.log('')
 
-  const or = !OPENCODE_ONLY && !NVIDIA_ONLY ? await checkOpenRouter(curatedOpenRouter, overrides) : null
-  const oc = !OPENROUTER_ONLY && !NVIDIA_ONLY
+  const or = !OPENCODE_ONLY && !DEEPSEEK_ONLY && !NVIDIA_ONLY ? await checkOpenRouter(curatedOpenRouter, overrides) : null
+  const oc = !OPENROUTER_ONLY && !DEEPSEEK_ONLY && !NVIDIA_ONLY
     ? await checkOpenCodeGo(curatedOpenCode, overrides, openCodeMessages, openCodeResponses)
     : null
-  const nv = !OPENROUTER_ONLY && !OPENCODE_ONLY ? await checkOpenAICompat({ title: 'NVIDIA', url: NVIDIA_URL, preset: 'NVIDIA_LLM_PRESET_MODELS', curated: curatedNvidia, overrides, filter: isNvidiaChatModel }) : null
+  const ds = !OPENROUTER_ONLY && !OPENCODE_ONLY && !NVIDIA_ONLY
+    ? await checkDeepSeek(curatedDeepSeek, overrides)
+    : null
+  const nv = !OPENROUTER_ONLY && !OPENCODE_ONLY && !DEEPSEEK_ONLY ? await checkOpenAICompat({ title: 'NVIDIA', url: NVIDIA_URL, preset: 'NVIDIA_LLM_PRESET_MODELS', curated: curatedNvidia, overrides, filter: isNvidiaChatModel }) : null
 
   if (APPLY_FLAG) {
-    await interactiveApply(or, oc, nv, presetsSource, contextSource)
+    await interactiveApply(or, oc, ds, nv, presetsSource, contextSource)
   } else {
     console.log('To add a model, edit electron-app/src/lib/cloudLlmPresets.ts (+ aliases/context in contextLimit.ts).')
     console.log('Or run: node scripts/check-models.mjs --apply   (pick changes interactively, edits the source files)')

@@ -1024,7 +1024,7 @@ export function LlmOptionsPanel({
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
               Models: <code className="text-void-light/90">deepseek-v4-pro</code>,{' '}
-              <code className="text-void-light/90">deepseek-v4-flash</code>
+              <code className="text-void-light/90">deepseek-flash</code>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>

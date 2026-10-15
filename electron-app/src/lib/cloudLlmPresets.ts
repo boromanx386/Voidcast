@@ -68,12 +68,13 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'openai/gpt-6.1-sol', label: 'GPT 6 1 Sol (1.1M ctx)' },
   { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5 5 (1M ctx)' },
   { id: 'mistralai/mistral-large-4-0', label: 'Mistral Large 4 0 (524K ctx)' },
+  { id: 'google/gemini-4-argon', label: 'Gemini 4 Argon (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
 export const DEEPSEEK_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
-  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (fast)' },
+  { id: 'deepseek-flash', label: 'DeepSeek V4.1 Flash (fast)' },
 ]
 
 /** Curated OpenAI chat models (https://api.openai.com/v1). Bare ids, not OpenRouter `openai/` routes. */
@@ -93,11 +94,11 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
   { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B IT' },
   { id: 'meta/muse-glimmer-30b', label: 'Muse Glimmer 30b' },
-  { id: 'moonshotai/kimi-k3', label: 'Kimi K3' },
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna Xs 2 1' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5 3 Flash' },
   { id: 'deepseek-ai/deepseek-v4.1-flash', label: 'Deepseek V4 1 Flash' },
   { id: 'z-ai/glm-5.3', label: 'GLM 5 3' },
+  { id: 'stepfun-ai/step-5-preview', label: 'Step 5 Preview' },
 ]
 
 /**
@@ -111,11 +112,6 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
  */
 export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
-  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (fast)' },
-  {
-    id: 'deepseek-v4-flash-vision-exp',
-    label: 'DeepSeek V4 Flash Vision Exp (multimodal)',
-  },
   { id: 'longcat-2.0', label: 'LongCat 2.0 (1M ctx)' },
   { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code' },
   { id: 'kimi-k2.6', label: 'Kimi K2.6' },
@@ -143,6 +139,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'gpt-6-luna', label: 'GPT 6 Luna (1.1M ctx · Responses)' },
   { id: 'muse-spark-1.2-contributor', label: 'Muse Spark 1 2 Contributor (1M ctx · Responses)' },
   { id: 'muse-spark-1.3-contributor', label: 'Muse Spark 1 3 Contributor (1M ctx · Responses)' },
+  { id: 'gemini-4-argon-contributor', label: 'Gemini 4 Argon Contributor (1M ctx)' },
 ]
 
 /**
@@ -223,11 +220,15 @@ const OPENROUTER_MODEL_ALIASES: Record<string, string> = {
   'nvidia/nemotron-3-super-120b-a12b': 'nvidia/nemotron-3-super-120b-a12b:free',
 }
 
+// DeepSeek retired the V4 Flash ids (and the legacy chat/reasoner pair): the API still accepts
+// them but serves DeepSeek-V4.1-Flash, so every saved setting lands on the canonical id.
 const DEEPSEEK_MODEL_ALIASES: Record<string, string> = {
-  'deepseek-chat': 'deepseek-v4-flash',
-  'deepseek-reasoner': 'deepseek-v4-flash',
+  'deepseek-chat': 'deepseek-flash',
+  'deepseek-reasoner': 'deepseek-flash',
+  'deepseek-v4-flash': 'deepseek-flash',
+  'deepseek-v4-flash-vision-exp': 'deepseek-flash',
   'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
-  'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
+  'deepseek/deepseek-v4-flash': 'deepseek-flash',
 }
 
 const NVIDIA_MODEL_ALIASES: Record<string, string> = {
@@ -301,8 +302,12 @@ export function normalizeNvidiaModelId(model: string): string {
 
 const OPENCODE_GO_MODEL_ALIASES: Record<string, string> = {
   'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
-  'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
-  'deepseek/deepseek-v4-flash-vision-exp': 'deepseek-v4-flash-vision-exp',
+  // Go dropped the V4 Flash ids and serves V4.1 Flash instead. The bare ids matter most: they
+  // were preset entries, so saved settings still hold them and must not resolve to a dead model.
+  'deepseek-v4-flash': 'deepseek-v4.1-flash',
+  'deepseek-v4-flash-vision-exp': 'deepseek-v4.1-flash',
+  'deepseek/deepseek-v4-flash': 'deepseek-v4.1-flash',
+  'deepseek/deepseek-v4-flash-vision-exp': 'deepseek-v4.1-flash',
   'stealth/ox-alpha': 'ox-alpha-free',
   'meituan/longcat-2.0': 'longcat-2.0',
   'moonshotai/kimi-k2.7-code': 'kimi-k2.7-code',

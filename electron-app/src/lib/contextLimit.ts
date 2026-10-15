@@ -36,7 +36,6 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'openrouter/fusion': 1_000_000,
   'google/gemini-3.6-flash': 1_048_576,
   'meituan/longcat-2.0': 1_048_576,
-  'moonshotai/kimi-k3': 1_048_576,
   'meta/muse-spark-1.1': 1_048_576,
   'openai/gpt-5.6-sol': 1_050_000,
   'openai/gpt-5.6-terra': 1_050_000,
@@ -60,9 +59,8 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'deepseek/deepseek-v4-flash-vision-exp': 1_048_576,
   'deepseek-v4-pro': 1_000_000,
   'deepseek-v4-pro-0813': 1_000_000,
-  'deepseek-v4-flash': 1_000_000,
+  'deepseek-flash': 1_000_000,
   'deepseek-v4-flash-0731': 1_000_000,
-  'deepseek-v4-flash-vision-exp': 1_000_000,
   'deepseek-v3.2': 163_840,
   'longcat-2.0': 1_000_000,
   'z-ai/glm-5.3': 1048576,
@@ -131,6 +129,8 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'gpt-6-luna': 1050000,
   'muse-spark-1.2-contributor': 1048576,
   'muse-spark-1.3-contributor': 1048576,
+  'google/gemini-4-argon': 1048576,
+  'gemini-4-argon-contributor': 1048576,
 }
 
 function buildPresetLookup(

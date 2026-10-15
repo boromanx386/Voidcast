@@ -175,7 +175,7 @@ describe('normalizeSubAgent', () => {
         codingEnabled: true,
         model: 'gpt-4o',
         provider: 'openrouter',
-        codingModel: 'deepseek-v4-flash',
+        codingModel: 'deepseek-v4-pro',
         codingProvider: 'deepseek',
         outputTokens: 9999,
         contextTokens: 32768,
@@ -187,7 +187,7 @@ describe('normalizeSubAgent', () => {
       codingEnabled: true,
       model: 'gpt-4o',
       provider: 'openrouter',
-      codingModel: 'deepseek-v4-flash',
+      codingModel: 'deepseek-v4-pro',
       codingProvider: 'deepseek',
       openrouterProviderOnly: '',
       codingOpenrouterProviderOnly: '',
@@ -195,6 +195,20 @@ describe('normalizeSubAgent', () => {
       contextTokens: defaults.subAgent.contextTokens,
       showAnalysisWindow: false,
     })
+  })
+
+  test('retired DeepSeek flash id canonicalizes to deepseek-flash', () => {
+    // DeepSeek retired deepseek-v4-flash, so a saved sub-agent config still carrying it must
+    // land on the canonical id instead of a name the API no longer serves as its own model.
+    const s = normalizeSubAgent(
+      makeSubAgent({
+        enabled: true,
+        codingEnabled: true,
+        codingModel: 'deepseek-v4-flash',
+        codingProvider: 'deepseek',
+      }),
+    )
+    expect(s.subAgent.codingModel).toBe('deepseek-flash')
   })
 
   test('codingModel migrates from vision model when missing', () => {
