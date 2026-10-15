@@ -4146,9 +4146,7 @@ type AgentSkillMeta = {
 const GLOBAL_AGENT_SKILL_ROOTS: ReadonlyArray<{
   source: Exclude<AgentSkillSource, 'project'>
   segments: string[]
-}> = [
-  { source: 'agents', segments: ['.agents', 'skills'] },
-]
+}> = [{ source: 'agents', segments: ['.agents', 'skills'] }]
 
 /** Project-relative skill roots; scanned first so they override globals. */
 const PROJECT_SKILL_ROOT_SEGMENTS: ReadonlyArray<string[]> = [
