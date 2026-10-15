@@ -94,7 +94,20 @@ npm run format        npm run format:check
 
 ---
 
-## 7. Style
+## 7. Docs, README & CHANGELOG
+
+A user-visible change ships with its paperwork:
+
+- **`CHANGELOG.md`** — features, fixes, removals and behaviour changes go under
+  `## [Unreleased]`. Before a release, diff `git log v<last-tag>..HEAD` against it.
+- **`docs/`** — if a documented surface changed, update that page and fix anything the
+  change makes false (stale defaults, removed UI, renamed fields).
+- **`README.md`** — only when what the project *is* changes, not for internal fixes.
+- Real values come from the code, never invented.
+
+---
+
+## 8. Style
 
 - Follow the existing ESLint + Prettier config in `electron-app/`; run
   `npm run format` before committing.
