@@ -16,6 +16,8 @@ import {
 } from '@/lib/chatSessionsStorage'
 import {
   emptyCodingContextMemo,
+  emptyCodingTurnEvidence,
+  formatCodingTurnEvidenceLabel,
   normalizeCodingContextMemo,
   patchSessionCodingPath,
   resolveMemoForSession,
@@ -50,9 +52,91 @@ import type {
 } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
 import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
+import { formatDurationMs } from '@/lib/turnTimer'
 
 function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
   return typeof action === 'function' ? (action as (p: T) => T)(prev) : action
+}
+
+/**
+ * Full transcript of one chat for the sidebar "Export .md" action. Covers everything the
+ * chat shows — user/assistant turns, streamed reasoning, the intermediate agent rounds that
+ * precede each tool call, sub-agent activity, plan artifacts and tool evidence — not only
+ * the final replies. Thinking and agent rounds fold into `<details>` blocks so a long
+ * export stays readable.
+ */
+function buildSessionMarkdown(session: ChatSession): string {
+  const lines: string[] = []
+  const push = (...rows: string[]) => lines.push(...rows)
+
+  push(`# ${session.title}`, '')
+  push(`_Exported: ${new Date().toLocaleString()}_`, '')
+
+  for (const m of session.messages) {
+    const role = m.role === 'user' ? 'User' : 'Assistant'
+    const duration =
+      m.role === 'assistant' && m.turnStartedAt && m.turnEndedAt
+        ? ` — ${formatDurationMs(m.turnEndedAt - m.turnStartedAt)}`
+        : ''
+    push(`## ${role}${duration}`, '')
+
+    if (m.steered) push('_Steer: this message redirected a running turn._', '')
+    if (m.planHandoffDraft) push('_Kept as a draft before the Plan-mode turn._', '')
+
+    // Reasoning streamed before the reply (Ollama `thinking` / OpenRouter `reasoning`).
+    if (m.thinking?.trim()) {
+      push('<details>', '<summary>Thinking</summary>', '', m.thinking.trim(), '', '</details>', '')
+    }
+
+    // Intermediate drafts the agent wrote before a tool round replaced the bubble reply.
+    if (m.agentProgress?.length) {
+      push('<details>')
+      push(`<summary>Agent rounds · ${m.agentProgress.length} (before tool calls)</summary>`, '')
+      for (const progress of m.agentProgress) {
+        if (!progress.content.trim()) continue
+        push(`**Round ${progress.round}**`, '', progress.content.trim(), '')
+      }
+      push('</details>', '')
+    }
+
+    // Collapsible sub-agent activity card (vision / explore / coding workers) for this turn.
+    if (m.subAgentActivity?.text?.trim()) {
+      const activity = m.subAgentActivity
+      push(`### Sub-agent · ${activity.title || activity.kind}`, '')
+      if (activity.progress.trim()) push(`_${activity.progress.trim()}_`, '')
+      push(activity.text.trim(), '')
+    }
+
+    if (m.content.trim()) push(m.content.trim(), '')
+
+    if (m.plan) {
+      push(`### Plan · ${m.plan.title}`, '')
+      if (m.plan.summary?.trim()) push(m.plan.summary.trim(), '')
+      for (const step of m.plan.steps) {
+        push(`${step.done ? '- [x]' : '- [ ]'} ${step.text}`)
+      }
+      push('', `_Status: ${m.plan.status}_`, '')
+    }
+
+    if (m.codingTurnEvidence) {
+      const evidence = { ...emptyCodingTurnEvidence(), ...m.codingTurnEvidence }
+      push(`_Tools: ${formatCodingTurnEvidenceLabel(evidence)}_`, '')
+    }
+
+    if (m.images?.length) push(`_(${m.images.length} image(s) attached)_`, '')
+    if (m.generatedImageUrls?.length) {
+      push(`_(${m.generatedImageUrls.length} image(s) generated)_`, '')
+    }
+    if (m.generatedAudioPaths?.length) {
+      push(`_(${m.generatedAudioPaths.length} audio clip(s))_`, '')
+    }
+    if (m.fileAttachments?.length) {
+      for (const f of m.fileAttachments) push(`- **File:** ${f.name}`)
+      push('')
+    }
+  }
+
+  return lines.join('\n')
 }
 
 export type ChatSessionsDeps = {
@@ -659,31 +743,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }
 
   const exportSessionToMarkdown = (session: ChatSession) => {
-    const lines: string[] = []
-    lines.push(`# ${session.title}`)
-    lines.push('')
-    lines.push(`_Exported: ${new Date().toLocaleString()}_`)
-    lines.push('')
-    for (const m of session.messages) {
-      const role = m.role === 'user' ? 'User' : 'Assistant'
-      lines.push(`## ${role}`)
-      lines.push('')
-      if (m.content.trim()) {
-        lines.push(m.content)
-        lines.push('')
-      }
-      if (m.images?.length) {
-        lines.push(`_(${m.images.length} image(s) attached)_`)
-        lines.push('')
-      }
-      if (m.fileAttachments?.length) {
-        for (const f of m.fileAttachments) {
-          lines.push(`- **File:** ${f.name}`)
-        }
-        lines.push('')
-      }
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const blob = new Blob([buildSessionMarkdown(session)], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
