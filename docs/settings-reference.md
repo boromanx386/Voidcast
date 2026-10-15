@@ -207,7 +207,7 @@ type ToolsEnabled = {
 | `subAgent.codingEnabled` | `boolean` | Enables coding context management: deterministic trim of noisy tool output, clearing stale tool results from old rounds, and the read-only `coding_explore` tool. |
 | `subAgent.model` | `string` | Vision (+ long-memory) model id (e.g. `llava:13b`, `gpt-4o`). |
 | `subAgent.provider` | `SubAgentProviderId` | Explicit backend for the vision model; inferred via `detectSubAgentProvider` when omitted. |
-| `subAgent.codingModel` | `string` | Coding explore model id (text-capable); migrates from `model` when missing. |
+| `subAgent.codingModel` | `string` | Coding explore model id (text-capable); migrates from `model` when missing. Also the model behind generated chat titles (see [chat.md](chat.md)). |
 | `subAgent.codingProvider` | `SubAgentProviderId` | Explicit backend for the coding model. |
 | `subAgent.openrouterProviderOnly` | `string` | OpenRouter provider slug lock for the vision model (no fallbacks). |
 | `subAgent.codingOpenrouterProviderOnly` | `string` | OpenRouter provider slug lock for the coding model. |

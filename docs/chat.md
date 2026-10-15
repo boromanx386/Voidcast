@@ -24,6 +24,17 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 - `sessionsSidebarCollapsed` hides it (auto on ≤640px).
 - **Multi-chat:** more than one session can have a busy agent at the same time (see [multi-chat-and-team.md](multi-chat-and-team.md)).
 
+### Session titles
+
+A new chat is named immediately from the first prompt (`deriveSessionTitle` in `electron-app/src/lib/chatHints.ts`: the first 60 characters, whitespace collapsed), so the sidebar is never blank and no send waits on the network. After the first reply lands, `useChatSessions` asks the **coding sub-agent** model for a real topic title — one tool-free `callSubAgentChat` call, 32 output tokens (`electron-app/src/lib/chatTitle.ts`). The seed is the first user message plus the head of the first assistant reply, with code blocks and URLs stripped.
+
+Rules that keep it from fighting the user:
+
+- The result replaces the title only while it is still machine-derived. Renaming a chat is final.
+- One attempt per session id, and only chats created during the current app run qualify — a restart titles new chats only, never the stored ones.
+- Titles keep the language of the prompt, capped at 12 words / 60 characters.
+- An empty **Sub-Agent → coding model** turns generation off and the derived title stays.
+
 ## Multi-chat (concurrent agent runs)
 
 Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).

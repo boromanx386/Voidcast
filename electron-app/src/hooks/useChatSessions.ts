@@ -25,6 +25,7 @@ import {
   type CodingContextMemo,
 } from '@/lib/codingContextMemo'
 import { deriveSessionTitle } from '@/lib/chatHints'
+import { generateSessionTitle, isAutoSessionTitle } from '@/lib/chatTitle'
 import { invokePickCodingDirectory } from '@/lib/codingTools'
 import { uid } from '@/lib/chatUid'
 import {
@@ -32,7 +33,13 @@ import {
   normalizeImageVisionCache,
   type ImageVisionCache,
 } from '@/lib/imageVisionCache'
-import { loadSettings, normalizeSystemPromptPreset, type AppSettings } from '@/lib/settings'
+import {
+  loadSettings,
+  normalizeSystemPromptPreset,
+  subAgentConfigForRole,
+  type AppSettings,
+} from '@/lib/settings'
+import type { SubAgentKeys } from '@/lib/subAgent'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import {
@@ -137,6 +144,28 @@ function buildSessionMarkdown(session: ChatSession): string {
   }
 
   return lines.join('\n')
+}
+
+/**
+ * Sub-agent keys for the title call. The title model is whatever Options has set for the
+ * sub-agent coding role, but its endpoints and keys are the same ones the main LLM reads —
+ * no separate credential path exists for a 30-token request.
+ */
+function subAgentKeysFromSettings(settings: AppSettings, sessionId: string): SubAgentKeys {
+  return {
+    ollamaBaseUrl: settings.ollamaBaseUrl,
+    openrouterBaseUrl: settings.openrouterBaseUrl,
+    openrouterApiKey: settings.openrouterApiKey,
+    deepseekBaseUrl: settings.deepseekBaseUrl,
+    deepseekApiKey: settings.deepseekApiKey,
+    openaiBaseUrl: settings.openaiBaseUrl,
+    openaiApiKey: settings.openaiApiKey,
+    nvidiaBaseUrl: settings.nvidiaBaseUrl,
+    nvidiaApiKey: settings.nvidiaApiKey,
+    opencodeGoApiKey: settings.opencodeGoApiKey,
+    ttsBaseUrl: settings.ttsBaseUrl,
+    opencodeSessionId: sessionId,
+  }
 }
 
 export type ChatSessionsDeps = {
@@ -355,6 +384,63 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     })
     return () => sessionAgentStore.setMessageSync(null)
   }, [])
+
+  // One-shot title upgrade: replace the derived placeholder (first 60 chars of the prompt)
+  // with a topic title from the sub-agent model, once the first reply has landed.
+  // Only chats created during this app run qualify (`titleEpochRef`), so restarting never
+  // fires one model call per stored chat. An epoch beats seeding the attempt set on the
+  // first hydrated render: that depended on `sessions` and `sessionsHydrated` landing in
+  // the same batch. Attempted at most once per session id.
+  const titledSessionIdsRef = useRef<Set<string>>(new Set())
+  const titleEpochRef = useRef(Date.now())
+
+  useEffect(() => {
+    if (!sessionsHydrated) return
+    // An empty coding model (or no sub-agent at all) disables title generation.
+    const config = subAgentConfigForRole(settings.subAgent, 'coding')
+    if (!config.model?.trim()) return
+    const candidates = sessions
+      .filter((s) => {
+        if (titledSessionIdsRef.current.has(s.id)) return false
+        if (s.createdAt < titleEpochRef.current) return false
+        // Unsaved rows (autoSaveChat off) qualify too: their title lives in the sidebar like
+        // any other and persists when the chat is explicitly saved. Skipping them here meant
+        // no title was ever generated for anyone running with auto-save off.
+        // A rename wins: only a still-machine-generated title may be overwritten.
+        if (!isAutoSessionTitle(s.title, s.messages)) return false
+        if (!s.messages.some((m) => m.role === 'assistant' && m.content.trim())) return false
+        // Wait out the visible turn so the seed holds a real reply. Background chats are
+        // not tracked here — a partial reply still names the topic well enough.
+        if (s.id === activeSessionId && busy) return false
+        return true
+      })
+      .slice(0, 2)
+    for (const session of candidates) {
+      titledSessionIdsRef.current.add(session.id)
+      void generateSessionTitle({
+        messages: session.messages,
+        config,
+        keys: subAgentKeysFromSettings(settings, session.id),
+      })
+        .then((title) => {
+          if (!title) return
+          setSessions((prev) => {
+            const idx = prev.findIndex((s) => s.id === session.id)
+            // Session deleted while the call was in flight — drop the result silently.
+            if (idx < 0) return prev
+            if (!isAutoSessionTitle(prev[idx].title, prev[idx].messages)) return prev
+            const next = [...prev]
+            next[idx] = { ...prev[idx], title }
+            return next
+          })
+        })
+        .catch((err: unknown) => {
+          // Provider unreachable or rejected: the derived placeholder title stays. Never
+          // swallow this silently — a mute catch is what makes a wired feature look absent.
+          console.warn('[chatTitle] title generation failed:', err)
+        })
+    }
+  }, [sessions, sessionsHydrated, settings, activeSessionId, busy])
 
   // Persist sessions (debounced IndexedDB write)
   useEffect(() => {
