@@ -4148,8 +4148,6 @@ const GLOBAL_AGENT_SKILL_ROOTS: ReadonlyArray<{
   segments: string[]
 }> = [
   { source: 'agents', segments: ['.agents', 'skills'] },
-  { source: 'claude', segments: ['.claude', 'skills'] },
-  { source: 'cursor', segments: ['.cursor', 'skills'] },
 ]
 
 /** Project-relative skill roots; scanned first so they override globals. */

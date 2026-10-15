@@ -17,13 +17,15 @@ When enabled, the app discovers **Agent Skills** from the standard skill directo
 
 ## Discovery directories
 
-Skills are discovered from these per-user directories (desktop app):
+Global skills are discovered from one per-user directory (desktop app):
 
 - `~/.agents/skills`
-- `~/.claude/skills`
-- `~/.cursor/skills`
 
-The panel lists the skills found in those locations (each skill is typically a folder containing a SKILL.md plus supporting files).
+The panel lists the skills found there (each skill is typically a folder containing a SKILL.md plus supporting files).
+
+`~/.claude/skills` and `~/.cursor/skills` are **not** scanned. Skill-pack installers write the same folder into every agent root they detect, so reading all three listed one skill three times while only the first copy in scan order (`.agents`) was reachable — and duplicated skills were silently deduplicated by name. Install (or copy) a skill into `~/.agents/skills` to make it visible here.
+
+Project-relative skills, scanned before the global ones so they win on a name clash, live under the chat's coding folder: `.agents/skills`, `.claude/skills`, `.cursor/skills` and `skills/`.
 
 ## Panel behavior
 
