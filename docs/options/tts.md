@@ -18,9 +18,19 @@ Default: `'openrouter-tts'`
 
 The panel includes a **refresh TTS** button (`refreshTts`) to re-probe the local server.
 
-### Fish Audio reference voices
+### Fish Audio voices (free)
 
-Fish Audio models (`fish-audio/…`) do **not** use a fixed voice catalog: their `voice` is a free-form Fish Audio `reference_id`. If none is set, each request could get a different random voice, so the app falls back to a stable default (`FISH_AUDIO_DEFAULT_VOICE = 7f92f8afb8ec43bf81429cc1c9199cb1`). `openRouterTtsUsesReferenceVoice()` detects these models; there is no per-model voice dropdown — pass the reference id in the voice field.
+Fish Audio models take a **free-form Fish Audio `reference_id`** as their voice, and the app ships a small free catalog (`FISH_AUDIO_TTS_VOICES` in `electron-app/src/lib/settings.ts`) that the voice field offers:
+
+| `reference_id` | Label | Constant |
+| --- | --- | --- |
+| `d75c270eaee14c8aa1e9e980cc37cf1b` | Peter Griffin | `FISH_AUDIO_PETER_VOICE` (default) |
+| `d7c74eccec0c4382bdc56c3a3b63d21f` | Rick Sanchez | `FISH_AUDIO_RICK_VOICE` |
+| `1936333080804be19655c6749b2ae7b2` | DL (Male/Old/Narration) | `FISH_AUDIO_NEUTRAL_VOICE` |
+
+- On **OpenRouter** (`openrouter-tts`) the model is `fish-audio/s2.1-pro-free:free`; `openRouterTtsUsesReferenceVoice()` (prefix `fish-audio/`) decides whether the voice field is a reference id or a fixed catalog id, and returns `FISH_AUDIO_TTS_VOICES` for these models.
+- On **Runware** (`runware-xai`) it is `fishaudio:s2.1@pro`, whose `RUNWARE_TTS_VOICES_BY_MODEL` entry lists the same family of free references with Peter Griffin first, so he is the model's default voice.
+- `FISH_AUDIO_DEFAULT_VOICE = FISH_AUDIO_PETER_VOICE`, so an empty voice field resolves to Peter Griffin instead of a random voice per request. Any other Fish Audio `reference_id` still works — type it into the voice field.
 
 ## Agent TTS (`generate_tts`)
 

@@ -15,9 +15,12 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 
 ## Sessions Sidebar (ChatSidebar.tsx, SessionItem.tsx)
 
-- Sessions grouped by project (`groupSessionsByProject`) with busy/unread indicators.
-- **New chat** `newChat()` (Ctrl+N); new chat for a project: `newChatForProject()`.
-- **Open** `openSession(id)`, **Fork** `forkSession(id)`, **Export to markdown** `exportSessionToMarkdown(id)`, **Delete** `deleteSession(id)` (pending-confirm via `pendingDeleteId`), **Rename** inline (`startRenameSession`/`commitRenameSession`/`cancelRenameSession`).
+- Sessions grouped by project (`groupSessionsByProject`). Rows are **one line** (`SessionItem`, ~28px) showing the title only — the timestamp is in the row tooltip on hover, not persistent.
+- **Folder headers carry the group's state**, so a **collapsed** folder still tells you what is inside: a green pulsing dot while any session in it is busy (count in the tooltip), otherwise a cyan dot for an unread completion; the folder holding the open chat keeps its bold cyan label/edge plus an active dot. A folder is auto-collapsed unless it holds the open chat (`storedCollapsed = toggled ?? !isActiveGroup`), and a filter query expands everything.
+- **Filter** — the search field narrows the list by chat title and project path.
+- **Resizable** — drag the sidebar edge; width is clamped to 220–460 px (default 288), persisted under `SIDEBAR_WIDTH_KEY`, and a double-click on the edge resets it.
+- **Row actions sit behind one `⋯` overflow menu** at the row's right edge (shown on hover or keyboard focus, not after a click; the menu flips above the row near the bottom of the list): **Fork chat** `forkSession(id)`, **Export .md** `exportSessionToMarkdown(id)`, **Rename** inline (`startRenameSession`/`commitRenameSession`/`cancelRenameSession`), **Delete** `deleteSession(id)` (red, pending-confirm via `pendingDeleteId`).
+- **New chat** `newChat()` (Ctrl+N); new chat for a project: `newChatForProject()`; **Open** `openSession(id)`.
 - `sessionsSidebarCollapsed` hides it (auto on ≤640px).
 - **Multi-chat:** more than one session can have a busy agent at the same time (see [multi-chat-and-team.md](multi-chat-and-team.md)).
 
@@ -38,6 +41,7 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
 ## Composer (ChatComposer.tsx)
 
 - Multiline textarea with send/stop, image & file chips, STT record, mode and preset menus. Send enabled with non-empty input or pending attachments and not busy; "pending draft" shown while busy.
+- **Locked during context compression**: while `contextCompressBusy` is set (manual **COMPRESS NOW** in the CTX popup, or auto-compress) the textarea, send button and toolbar are disabled and a spinner banner explains why; Enter does nothing and `onSend` refuses outright, so a prompt cannot race the summary write.
 - **Agent mode toggle**: cycles `Agent → Ask → Plan → Team` (`MODE_CYCLE = ['agent','ask','plan','team']` in ChatComposer.tsx, also `Shift+Tab`). `AgentChatMode = 'agent' | 'ask' | 'plan' | 'team'` in `electron-app/src/types/chat.ts`; normalized by `normalizeAgentChatMode`. The mode is **per chat** (`ChatSession.agentMode`; `settings.agentMode` only seeds new chats), so a chat running in the background cannot change the mode shown on this one.
   - **Agent** — full tool implementation; coding workers optional if SUB coding is on.
   - **Ask** — read-only Q&A (web/research/coding read/explore); no Plan card, no `enter_plan_mode`, no mutations/workers.
@@ -59,7 +63,7 @@ While tools are running, the busy indicator shows each active tool by name. Adja
 
 - Drag shows overlay "DROP FILES TO ATTACH"; images (PNG/JPEG/WebP…) and files (TXT/MD/PDF/DOCX/CSV/JSON/code).
 - Clipboard paste can also queue images as pending attachments.
-- `onChatDrop` reads files into `FileAttachmentSnapshot` (name, path, mime, size, ext, content) → `pendingImages`/`pendingFiles`; picker via `openChatAttachmentPicker`.
+- `onChatDrop` reads files into `FileAttachmentSnapshot` (name, path, mime, size, ext, content) → `pendingImages`/`pendingFiles`; picker via `openChatAttachmentPicker`. Attachments are materialized to real files on disk for the turn, so tools receive an actual path rather than only in-memory bytes.
 
 ## Image Catalog (vision references)
 

@@ -277,7 +277,7 @@ Voidcast does not charge anything and has no cloud account. It connects you to p
 | **NVIDIA NIM** | Enterprise-grade inference for open models | Free credits |
 | **DeepSeek** | Direct API — V4 Pro / Flash | Pay-as-you-go (prepaid balance) |
 | **OpenAI** | Official Chat Completions API — GPT, o-series | Pay-as-you-go, prepaid credits — no free API tier |
-| **OpenCode Go** | OpenAI-compatible chat models via [OpenCode](https://opencode.ai/docs/go) | Subscription (from $10/mo) |
+| **OpenCode Go** | Models via [OpenCode](https://opencode.ai/docs/go) — chat, Anthropic Messages and the Responses API, routed per model | Subscription (from $10/mo) |
 | **Runware** | Image generation, image edit, and AI music (ACE-Step) | Pay-per-use (typically pennies) |
 
 All you need are the accounts and API keys. Run models locally (Ollama) for free or use cloud keys on low-cost tiers; **TTS, STT, and image/music runs are very cheap** — usually cents per session, not dollars.

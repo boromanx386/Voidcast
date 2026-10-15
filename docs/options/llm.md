@@ -55,6 +55,20 @@ One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus op
 - `opencodeGoModel` — default `'deepseek-v4-pro'`
 - Voidcast sends a stable `x-opencode-session` header for each chat so OpenCode Go can route and cache the conversation correctly.
 
+#### Three wire formats (`openCodeGoApiStyle`)
+
+OpenCode Go serves its models over more than one protocol, and `openCodeGoApiStyle(model)` (`electron-app/src/lib/cloudLlmPresets.ts`) picks the endpoint per model — it is derived from the model id, not a setting:
+
+| Style | Endpoint | Models |
+| --- | --- | --- |
+| `openai-chat` | `{base}/chat/completions` | the default — DeepSeek V4, Kimi, GLM, MiMo, LongCat, Step, … |
+| `anthropic-messages` | `{base}/messages` | `claude-haiku-5-5`, `minimax-m3`, `minimax-m2.7`, `qwen3.8-max`, `qwen3.8-flash`, `qwen3.7-plus` |
+| `opencode-responses` | `{base}/responses` | the Contributor tier — `grok-4.6`, `grok-4.7`, `muse-spark-1.2-contributor`, `muse-spark-1.3-contributor`, `gpt-5.6-luna`, `gpt-6-luna` |
+
+- **Responses is a real adapter, not a shim.** `electron-app/src/lib/openResponses.ts` flattens Voidcast's internal OpenAI-shaped history into Responses `input` items: tools are flat (`{type:'function', name, parameters}`), an assistant tool call is its own `function_call` item whose result is a `function_call_output` linked by `call_id` (there is no `role: 'tool'`), the system prompt is `instructions`, and the output cap is `max_output_tokens` — default 16 384, stepping down to 8 192 then 4 096 if a model rejects the cap with a 400. Responses SSE events are folded back into the same tool-call/usage shapes the chat-completions parser produces, so the rest of the app never sees a difference. Only the network loop differs: it lives in `openrouter.ts`.
+- **Routing is by family, with a runtime fallback.** Go publishes no ids for Responses-only models, so the static rules match families (`grok*`, `muse-spark*`, `gpt-<ver>-luna`) plus explicit per-id pins. If a model the rules do not know answers `/chat/completions` with `ModelProtocolUnsupported`, the turn is replayed on the format that worked and `rememberOpenCodeGoApiStyle` caches it for the rest of the session (in-memory on purpose: one extra probe per model per run, never a stale hint across restarts).
+- **Contributor models are paste-in.** They are not preset entries — put the slug from the Go dashboard into the custom model field and the API style routes it to `{base}/responses`. `npm run check:models --apply` resolves the endpoint per model from models.dev, suggests the right ones and can write pins into `OPENCODE_GO_RESPONSES_MODELS`.
+
 
 ## Generation/context defaults
 
