@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs'
+import { realpathSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -57,15 +57,22 @@ function cspMeta(isServe: boolean): Plugin {
   }
 }
 
+// Vite's inline-CSS (html-proxy) cache keys are case-sensitive, but Windows
+// paths are not: a launcher cwd like `q:\...` leaves root lowercase while
+// resolved ids come back realpath-canonical (`Q:\...`), and the inline <style>
+// lookup in index.html misses. Pin the root to the real on-disk casing.
+const ROOT = realpathSync.native(__dirname)
+
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => {
-  rmSync('dist-electron', { recursive: true, force: true })
+  rmSync(path.join(ROOT, 'dist-electron'), { recursive: true, force: true })
 
   const isServe = command === 'serve'
   const isBuild = command === 'build'
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG
 
   return {
+    root: ROOT,
     resolve: {
       alias: {
         '@': path.join(__dirname, 'src'),
