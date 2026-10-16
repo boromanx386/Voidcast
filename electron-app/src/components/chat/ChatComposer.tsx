@@ -40,6 +40,7 @@ type Props = {
     | 'longMemoryBusy'
     | 'messages'
     | 'extractLongMemoryNow'
+    | 'requestHint'
   >
 }
 
@@ -74,6 +75,7 @@ export function ChatComposer({ app }: Props) {
     longMemoryBusy,
     messages,
     extractLongMemoryNow,
+    requestHint,
   } = app
 
   // Context compression is a hard lock: typing/sending while the summary is being
@@ -114,6 +116,40 @@ export function ChatComposer({ app }: Props) {
 
   const [modeMenuOpen, setModeMenuOpen] = useState(false)
   const modeMenuRef = useRef<HTMLDivElement>(null)
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-grow: the field expands with the draft up to the CSS cap (`--grow`), then scrolls.
+  // Resetting to 'auto' first is what makes it shrink again — without it scrollHeight never
+  // decreases and a deleted paragraph leaves a permanently tall box.
+  useEffect(() => {
+    const el = composerTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [input])
+
+  // Hint button state. `hintApplied` remembers the pre-hint draft so it can be restored, and
+  // the undo chip is only shown while the field still holds exactly that result — the moment
+  // the user types, the chip disappears, so clicking it can never clobber newer text.
+  const [hintBusy, setHintBusy] = useState(false)
+  const [hintApplied, setHintApplied] = useState<{ result: string; previous: string } | null>(null)
+
+  const hintEnabled = settings.subAgent.hintEnabled === true
+  const showHintUndo = hintApplied !== null && input === hintApplied.result
+
+  const runHint = async () => {
+    if (hintBusy || busy || compressing || !input.trim()) return
+    setHintBusy(true)
+    try {
+      const next = await requestHint()
+      if (next && next !== input) {
+        setHintApplied({ result: next, previous: input })
+        setInput(next)
+      }
+    } finally {
+      setHintBusy(false)
+    }
+  }
 
   useEffect(() => {
     if (!modeMenuOpen) return
@@ -310,7 +346,8 @@ export function ChatComposer({ app }: Props) {
             </div>
           )}
           <textarea
-            className="voidcast-textarea"
+            ref={composerTextareaRef}
+            className="voidcast-textarea voidcast-textarea--grow"
             rows={2}
             placeholder={compressing ? 'Compressing context…' : chatPlaceholder}
             value={input}
@@ -607,71 +644,120 @@ export function ChatComposer({ app }: Props) {
               )}
             </button>
 
-            {compressing ? (
-              <button
-                type="button"
-                disabled
-                className="composer-send-btn composer-send-btn--compress"
-                title="Compressing context — sending locked"
-                aria-label="Compressing context, sending locked"
-              >
-                <span className="composer-send-spinner" aria-hidden />
-              </button>
-            ) : busy ? (
-              <div className="composer-send-group">
-                {canSteer ? (
-                  <button
-                    type="button"
-                    onClick={() => void onSteer()}
-                    className={`composer-send-btn composer-send-btn--steer${
-                      softSteer ? ' composer-send-btn--steer-soft' : ''
-                    }`}
-                    title={
-                      softSteer
-                        ? 'Steer — hand this to the running workers (applied to their next step)'
-                        : 'Steer — stop and redirect the agent with this message'
-                    }
-                    aria-label={softSteer ? 'Steer workers' : 'Steer agent'}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2v4" />
-                      <path d="M12 18v4" />
-                      <path d="M4.93 4.93l2.83 2.83" />
-                      <path d="M16.24 16.24l2.83 2.83" />
-                      <path d="M2 12h4" />
-                      <path d="M18 12h4" />
-                      <path d="M4.93 19.07l2.83-2.83" />
-                      <path d="M16.24 7.76l2.83-2.83" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                ) : null}
+            {/* Right cluster: `.composer-send-btn` carries `ml-auto`, so several of them as
+                direct toolbar children each eat a share of the free space and float in the
+                middle. One wrapper keeps a single auto-margin and a tight gap. */}
+            <div className="composer-action-group">
+              {hintEnabled ? (
                 <button
                   type="button"
-                  onClick={onStop}
-                  className="composer-send-btn composer-send-btn--stop"
-                  title="Stop generation"
-                  aria-label="Stop generation"
+                  disabled={hintBusy || busy || compressing || !input.trim()}
+                  onClick={() => void runHint()}
+                  className="composer-send-btn composer-send-btn--hint"
+                  title={
+                    busy
+                      ? 'Hint — wait for the running turn to finish'
+                      : !input.trim()
+                        ? 'Hint — type a draft first, then let the sub-agent sharpen it'
+                        : 'Hint — rewrite this draft with the sub-agent model, using the whole chat'
+                  }
+                  aria-label="Improve prompt with the sub-agent"
                 >
-                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  {hintBusy ? (
+                    <span className="composer-send-spinner" aria-hidden />
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3z" />
+                      <path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z" />
+                    </svg>
+                  )}
+                </button>
+              ) : null}
+
+              {showHintUndo && hintApplied ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInput(hintApplied.previous)
+                    setHintApplied(null)
+                  }}
+                  className="composer-send-btn composer-send-btn--hint-undo"
+                  title="Restore the draft you had before the hint"
+                  aria-label="Restore previous draft"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 8h11a5 5 0 0 1 0 10H8" />
+                    <path d="M7 4L3 8l4 4" />
                   </svg>
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={!canSend}
-                onClick={() => void onSend()}
-                className="composer-send-btn"
-                aria-label="Send message"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 2L11 13" />
-                  <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-                </svg>
-              </button>
-            )}
+              ) : null}
+
+              {compressing ? (
+                <button
+                  type="button"
+                  disabled
+                  className="composer-send-btn composer-send-btn--compress"
+                  title="Compressing context — sending locked"
+                  aria-label="Compressing context, sending locked"
+                >
+                  <span className="composer-send-spinner" aria-hidden />
+                </button>
+              ) : busy ? (
+                <div className="composer-send-group">
+                  {canSteer ? (
+                    <button
+                      type="button"
+                      onClick={() => void onSteer()}
+                      className={`composer-send-btn composer-send-btn--steer${
+                        softSteer ? ' composer-send-btn--steer-soft' : ''
+                      }`}
+                      title={
+                        softSteer
+                          ? 'Steer — hand this to the running workers (applied to their next step)'
+                          : 'Steer — stop and redirect the agent with this message'
+                      }
+                      aria-label={softSteer ? 'Steer workers' : 'Steer agent'}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2v4" />
+                        <path d="M12 18v4" />
+                        <path d="M4.93 4.93l2.83 2.83" />
+                        <path d="M16.24 16.24l2.83 2.83" />
+                        <path d="M2 12h4" />
+                        <path d="M18 12h4" />
+                        <path d="M4.93 19.07l2.83-2.83" />
+                        <path d="M16.24 7.76l2.83-2.83" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="composer-send-btn composer-send-btn--stop"
+                    title="Stop generation"
+                    aria-label="Stop generation"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <rect x="6" y="6" width="12" height="12" rx="1" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canSend}
+                  onClick={() => void onSend()}
+                  className="composer-send-btn"
+                  aria-label="Send message"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 2L11 13" />
+                    <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {hasPendingDraft && (

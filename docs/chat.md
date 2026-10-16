@@ -35,6 +35,18 @@ Rules that keep it from fighting the user:
 - Titles keep the language of the prompt, capped at 12 words / 60 characters.
 - An empty **Sub-Agent → coding model** turns generation off and the derived title stays.
 
+### Prompt hints
+
+Options → Sub-Agent → `ENABLE_PROMPT_HINT` adds a hint button to the composer, next to Send. It makes one tool-free call to the **coding sub-agent** model (`electron-app/src/lib/promptHint.ts` → `callSubAgentChat`) that rewrites the current draft against the whole text conversation: every user message and every agent reply between them, in order, capped at 12k characters with the oldest turns dropped first. Tool output is excluded by construction — tool results live in `subAgentActivity` / `codingTurnEvidence` / `agentProgress`, never in message content.
+
+Rules:
+
+- The rewritten prompt replaces the draft. Nothing is sent: you review it, edit it, then send it yourself.
+- While the field still holds exactly the hint result, an undo chip restores the draft you had before it. The chip disappears as soon as you type, so it can never clobber newer text.
+- The button is disabled with an empty draft, while a turn is running, and while context compression holds the composer.
+- A model that hands the draft straight back leaves the composer untouched.
+- Default off, and an empty coding sub-agent model leaves the button inert.
+
 ## Multi-chat (concurrent agent runs)
 
 Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).

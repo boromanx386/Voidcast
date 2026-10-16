@@ -185,6 +185,7 @@ describe('normalizeSubAgent', () => {
     expect(s.subAgent).toEqual({
       enabled: true,
       codingEnabled: true,
+      hintEnabled: false,
       model: 'gpt-4o',
       provider: 'openrouter',
       codingModel: 'deepseek-v4-pro',

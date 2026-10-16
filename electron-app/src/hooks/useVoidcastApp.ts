@@ -14,6 +14,9 @@ import { useTtsPlayback } from '@/hooks/useTtsPlayback'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import { runtimeKeyForSession } from '@/lib/sessionAgentStore'
+import { generatePromptHint } from '@/lib/promptHint'
+import { subAgentConfigForRole } from '@/lib/settings'
+import { subAgentKeysFromSettings } from '@/lib/subAgentKeys'
 import type { AgentChatMode, ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
 import type { OptionsTab, Screen } from '@/types/voidcast'
 
@@ -344,6 +347,30 @@ export function useVoidcastApp() {
     return () => window.removeEventListener('keydown', onKey)
   }, [screen, agent.messages.length, sessions.saveOrUpdateSession, sessions.newChat])
 
+  /**
+   * Composer hint: rewrite the current draft with the coding sub-agent model, using the
+   * whole text conversation as context. Returns the rewritten prompt, or null when the
+   * Options toggle is off, there is no draft, a turn is already running, or the model
+   * changed nothing — the caller keeps the draft in every null case.
+   */
+  const requestHint = useCallback(async (): Promise<string | null> => {
+    if (settings.subAgent.hintEnabled !== true) return null
+    if (agent.busy) return null
+    const draft = input.trim()
+    if (!draft) return null
+    try {
+      return await generatePromptHint({
+        messages: agent.messages,
+        draft,
+        config: subAgentConfigForRole(settings.subAgent, 'coding'),
+        keys: subAgentKeysFromSettings(settings, runtimeKey),
+      })
+    } catch (err) {
+      console.warn('[promptHint] hint generation failed:', err)
+      return null
+    }
+  }, [settings, input, agent.busy, agent.messages, runtimeKey])
+
   const handleDeleteReminder = useCallback(
     async (id: string) => {
       await deleteReminder(id)
@@ -373,6 +400,7 @@ export function useVoidcastApp() {
     optionsTab,
     setOptionsTab,
     input,
+    requestHint,
     ollamaModels,
     modelsLoading,
     modelsError,

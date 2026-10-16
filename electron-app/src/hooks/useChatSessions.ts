@@ -26,6 +26,7 @@ import {
 } from '@/lib/codingContextMemo'
 import { deriveSessionTitle } from '@/lib/chatHints'
 import { generateSessionTitle, isAutoSessionTitle } from '@/lib/chatTitle'
+import { subAgentKeysFromSettings } from '@/lib/subAgentKeys'
 import { invokePickCodingDirectory } from '@/lib/codingTools'
 import { uid } from '@/lib/chatUid'
 import {
@@ -39,7 +40,6 @@ import {
   subAgentConfigForRole,
   type AppSettings,
 } from '@/lib/settings'
-import type { SubAgentKeys } from '@/lib/subAgent'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import {
@@ -146,27 +146,8 @@ function buildSessionMarkdown(session: ChatSession): string {
   return lines.join('\n')
 }
 
-/**
- * Sub-agent keys for the title call. The title model is whatever Options has set for the
- * sub-agent coding role, but its endpoints and keys are the same ones the main LLM reads —
- * no separate credential path exists for a 30-token request.
- */
-function subAgentKeysFromSettings(settings: AppSettings, sessionId: string): SubAgentKeys {
-  return {
-    ollamaBaseUrl: settings.ollamaBaseUrl,
-    openrouterBaseUrl: settings.openrouterBaseUrl,
-    openrouterApiKey: settings.openrouterApiKey,
-    deepseekBaseUrl: settings.deepseekBaseUrl,
-    deepseekApiKey: settings.deepseekApiKey,
-    openaiBaseUrl: settings.openaiBaseUrl,
-    openaiApiKey: settings.openaiApiKey,
-    nvidiaBaseUrl: settings.nvidiaBaseUrl,
-    nvidiaApiKey: settings.nvidiaApiKey,
-    opencodeGoApiKey: settings.opencodeGoApiKey,
-    ttsBaseUrl: settings.ttsBaseUrl,
-    opencodeSessionId: sessionId,
-  }
-}
+// The sub-agent keys builder lives in `@/lib/subAgentKeys` — shared with the prompt-hint
+// path in useVoidcastApp, so both side requests read one set of endpoints.
 
 export type ChatSessionsDeps = {
   settings: AppSettings

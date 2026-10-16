@@ -46,6 +46,7 @@ All fields live under `settings.subAgent`:
 | --- | --- | --- |
 | `enabled` | `boolean`, default `false` | Vision / image sub-agent |
 | `codingEnabled` | `boolean`, default `false` | Explore + coding workers |
+| `hintEnabled` | `boolean`, default `false` | Composer hint button — rewrites the draft with the coding model, whole text conversation as context |
 | `provider` / `model` | vision role | e.g. Ollama `llava:…` or cloud vision model |
 | `codingProvider` / `codingModel` | coding role | Often a strong text model for tool loops |
 | `openrouterProviderOnly` / `codingOpenrouterProviderOnly` | `string` | OpenRouter provider lock per role |

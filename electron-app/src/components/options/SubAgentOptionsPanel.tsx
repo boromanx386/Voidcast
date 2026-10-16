@@ -532,6 +532,25 @@ export function SubAgentOptionsPanel({
         </p>
       </div>
 
+      {/* Hint toggle — same coding model, no coding tooling: the composer asks it to
+          rewrite the draft, one tool-free call per press. */}
+      <div className="form-group">
+        <label className="form-label flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="cyber-checkbox"
+            checked={sub.hintEnabled === true}
+            onChange={(e) => patchSubAgent(setSettings, { hintEnabled: e.target.checked })}
+          />
+          <span className="text-neon-cyan">⬡ ENABLE_PROMPT_HINT</span>
+        </label>
+        <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
+          Adds a hint button to the composer: the coding model rewrites your draft using the whole
+          text conversation (user messages and all agent replies, no tool output). One tool-free
+          call per press; the main turn is never touched.
+        </p>
+      </div>
+
       {codingActive && (
         <SubAgentEndpointPicker
           role="coding"

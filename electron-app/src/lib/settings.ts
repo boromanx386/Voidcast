@@ -1167,6 +1167,12 @@ export type SubAgentConfig = {
    */
   codingEnabled: boolean
   /**
+   * When true, the composer hint button rewrites the draft with the coding sub-agent model:
+   * one tool-free call, whole text conversation as context. Independent of `codingEnabled`.
+   * Default off.
+   */
+  hintEnabled?: boolean
+  /**
    * Vision (+ long-memory) model id (e.g. 'llava:13b', 'gpt-4o').
    * Kept as `model` for backward-compatible settings JSON.
    */
@@ -1817,6 +1823,7 @@ export const defaults: AppSettings = {
   subAgent: {
     enabled: false,
     codingEnabled: false,
+    hintEnabled: false,
     model: 'llava:13b',
     provider: 'ollama',
     codingModel: 'llava:13b',
@@ -2166,6 +2173,7 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   if (!raw || typeof raw !== 'object') return { ...s, subAgent: { ...defaults.subAgent } }
   const enabled = raw.enabled === true
   const codingEnabled = raw.codingEnabled === true
+  const hintEnabled = raw.hintEnabled === true
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
   const rawProvider = isSubAgentProviderId(raw.provider) ? raw.provider : undefined
   const provider = detectSubAgentProvider(rawModel, rawProvider)
@@ -2207,6 +2215,7 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
     subAgent: {
       enabled,
       codingEnabled,
+      hintEnabled,
       model,
       provider,
       codingModel,

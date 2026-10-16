@@ -318,6 +318,14 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply relative flex flex-col gap-1.5;
 }
 
+/* Composer field grows with the draft. JS sets the height; CSS owns the ceiling so a long
+   prompt cannot eat the transcript — past the cap the field scrolls instead. */
+.voidcast-textarea--grow {
+  resize: none;
+  overflow-y: auto;
+  max-height: min(45vh, 22rem);
+}
+
 .composer-toolbar {
   @apply flex items-center gap-1.5;
 }
@@ -647,9 +655,35 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply ml-0;
 }
 
+/* Right cluster: hint + undo + send share ONE auto-margin, so they stay grouped at the
+   right edge instead of splitting the free space into three and floating mid-bar. */
+.composer-action-group {
+  @apply ml-auto flex shrink-0 items-center gap-1.5;
+}
+
+.composer-action-group .composer-send-btn {
+  @apply ml-0;
+}
+
 .composer-send-btn:hover:not(:disabled) {
   @apply bg-neon-cyan/20 border-neon-cyan;
   box-shadow: 0 0 12px rgb(var(--color-neon-cyan) / 0.35);
+}
+
+.composer-send-btn--hint {
+  @apply border-neon-cyan/40 text-neon-cyan/80;
+}
+
+.composer-send-btn--hint:hover:not(:disabled) {
+  @apply bg-neon-cyan/15 border-neon-cyan text-neon-cyan;
+}
+
+.composer-send-btn--hint-undo {
+  @apply border-void-dim/50 text-void-dim;
+}
+
+.composer-send-btn--hint-undo:hover {
+  @apply border-neon-cyan/60 text-neon-cyan;
 }
 
 .composer-send-btn--stop {
