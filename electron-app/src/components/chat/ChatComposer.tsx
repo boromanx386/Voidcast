@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { CHAT_IMAGE_ACCEPT, imageDataUrl } from '@/lib/imageAttachment'
 import { chatFileAcceptList } from '@/lib/fileAttachment'
 import { isWebStandalone } from '@/lib/platform'
+import { resolveHintMode } from '@/lib/promptHint'
 import { getChatComposerPlaceholder } from '@/components/chat/chatEmptyState'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
@@ -136,9 +137,13 @@ export function ChatComposer({ app }: Props) {
 
   const hintEnabled = settings.subAgent.hintEnabled === true
   const showHintUndo = hintApplied !== null && input === hintApplied.result
+  // One source of truth with the engine: a draft is rewritten, an empty field with a
+  // conversation behind it gets a proposed next prompt, and neither means no button at all.
+  const hintMode = resolveHintMode(input, messages)
+  const canHint = hintEnabled && hintMode !== null && !busy && !compressing
 
   const runHint = async () => {
-    if (hintBusy || busy || compressing || !input.trim()) return
+    if (hintBusy || !canHint) return
     setHintBusy(true)
     try {
       const next = await requestHint()
@@ -651,15 +656,19 @@ export function ChatComposer({ app }: Props) {
               {hintEnabled ? (
                 <button
                   type="button"
-                  disabled={hintBusy || busy || compressing || !input.trim()}
+                  disabled={hintBusy || !canHint}
                   onClick={() => void runHint()}
                   className="composer-send-btn composer-send-btn--hint"
                   title={
                     busy
                       ? 'Hint — wait for the running turn to finish'
-                      : !input.trim()
-                        ? 'Hint — type a draft first, then let the sub-agent sharpen it'
-                        : 'Hint — rewrite this draft with the sub-agent model, using the whole chat'
+                      : compressing
+                        ? 'Hint — context compression is running'
+                        : hintMode === 'suggest'
+                          ? 'Hint — ask the sub-agent for the best next prompt from this conversation'
+                          : hintMode === 'rewrite'
+                            ? 'Hint — rewrite this draft with the sub-agent model, using the whole chat'
+                            : 'Hint — type a draft, or come back once there is a conversation'
                   }
                   aria-label="Improve prompt with the sub-agent"
                 >

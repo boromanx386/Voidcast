@@ -205,7 +205,7 @@ type ToolsEnabled = {
 | --- | --- | --- |
 | `subAgent.enabled` | `boolean` | When true, `image_recall` runs a sub-agent instead of returning base64. |
 | `subAgent.codingEnabled` | `boolean` | Enables coding context management: deterministic trim of noisy tool output, clearing stale tool results from old rounds, and the read-only `coding_explore` tool. |
-| `subAgent.hintEnabled` | `boolean`, default `false` | Composer hint button: rewrite the draft with the coding sub-agent model, whole text conversation as context. Independent of `subAgent.codingEnabled`. |
+| `subAgent.hintEnabled` | `boolean`, default `false` | Composer hint button: rewrite the draft with the coding sub-agent model, or propose the next prompt when the field is empty and a conversation exists. Whole text conversation as context. Independent of `subAgent.codingEnabled`. |
 | `subAgent.model` | `string` | Vision (+ long-memory) model id (e.g. `llava:13b`, `gpt-4o`). |
 | `subAgent.provider` | `SubAgentProviderId` | Explicit backend for the vision model; inferred via `detectSubAgentProvider` when omitted. |
 | `subAgent.codingModel` | `string` | Coding explore model id (text-capable); migrates from `model` when missing. Also the model behind generated chat titles (see [chat.md](chat.md)). |

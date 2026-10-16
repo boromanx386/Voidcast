@@ -43,7 +43,8 @@ Rules:
 
 - The rewritten prompt replaces the draft. Nothing is sent: you review it, edit it, then send it yourself.
 - While the field still holds exactly the hint result, an undo chip restores the draft you had before it. The chip disappears as soon as you type, so it can never clobber newer text.
-- The button is disabled with an empty draft, while a turn is running, and while context compression holds the composer.
+- A draft gets **rewritten**. An empty field with a conversation behind it flips the same button into **suggest mode**: the model proposes the next prompt to send, in the conversation's language, as a normal draft you can edit before sending. Which one applies is decided by a pure `resolveHintMode` (`electron-app/src/lib/promptHint.ts`) that the engine and the composer's disabled state both read, so the button cannot promise a mode the call would refuse.
+- The button is disabled when there is neither a draft nor a conversation, while a turn is running, and while context compression holds the composer.
 - A model that hands the draft straight back leaves the composer untouched.
 - Default off, and an empty coding sub-agent model leaves the button inert.
 

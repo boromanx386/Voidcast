@@ -348,20 +348,20 @@ export function useVoidcastApp() {
   }, [screen, agent.messages.length, sessions.saveOrUpdateSession, sessions.newChat])
 
   /**
-   * Composer hint: rewrite the current draft with the coding sub-agent model, using the
-   * whole text conversation as context. Returns the rewritten prompt, or null when the
-   * Options toggle is off, there is no draft, a turn is already running, or the model
-   * changed nothing — the caller keeps the draft in every null case.
+   * Composer hint: rewrite the current draft with the coding sub-agent model, or — when the
+   * field is empty and a conversation exists — ask that model for the best next prompt.
+   * Returns the result, or null when the Options toggle is off, a turn is already running,
+   * there is nothing to act on, or the model changed nothing; the caller keeps the draft in
+   * every null case. Draft-vs-suggest is decided in `generatePromptHint`, so the composer's
+   * enabled state and this call cannot disagree about what is available.
    */
   const requestHint = useCallback(async (): Promise<string | null> => {
     if (settings.subAgent.hintEnabled !== true) return null
     if (agent.busy) return null
-    const draft = input.trim()
-    if (!draft) return null
     try {
       return await generatePromptHint({
         messages: agent.messages,
-        draft,
+        draft: input,
         config: subAgentConfigForRole(settings.subAgent, 'coding'),
         keys: subAgentKeysFromSettings(settings, runtimeKey),
       })

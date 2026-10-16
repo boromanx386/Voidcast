@@ -4,6 +4,7 @@ import {
   buildHintTranscript,
   buildHintUserMessage,
   generatePromptHint,
+  resolveHintMode,
   sanitizePromptHint,
 } from '../src/lib/promptHint'
 import type { UiMessage } from '../src/types/chat'
@@ -75,6 +76,37 @@ describe('buildHintUserMessage', () => {
   test('draft alone when the conversation is empty', () => {
     expect(buildHintUserMessage('', 'do the thing')).toBe('Draft to rewrite:\ndo the thing')
   })
+
+  test('suggest mode asks for the next prompt and carries no draft block', () => {
+    const out = buildHintUserMessage('User: ask', '', 'suggest')
+    expect(out).toBe(
+      'Conversation so far:\nUser: ask\n\nWrite the next prompt the user should send.',
+    )
+  })
+
+  test('suggest mode with nothing to read is empty', () => {
+    expect(buildHintUserMessage('', '', 'suggest')).toBe('')
+  })
+})
+
+describe('resolveHintMode', () => {
+  test('a draft always wins, even with a conversation behind it', () => {
+    expect(resolveHintMode('fix it', [msg('user', 'earlier')])).toBe('rewrite')
+  })
+
+  test('an empty field with a conversation proposes the next prompt', () => {
+    expect(resolveHintMode('', [msg('user', 'ask')])).toBe('suggest')
+    expect(resolveHintMode('   ', [msg('assistant', 'answer')])).toBe('suggest')
+  })
+
+  test('an attachment-only history still counts as a conversation', () => {
+    expect(resolveHintMode('', [msg('user', '', { images: ['b64'] })])).toBe('suggest')
+  })
+
+  test('nothing to act on when both are empty', () => {
+    expect(resolveHintMode('', [])).toBeNull()
+    expect(resolveHintMode('  ', [msg('assistant', '   ')])).toBeNull()
+  })
 })
 
 describe('sanitizePromptHint', () => {
@@ -109,8 +141,18 @@ describe('generatePromptHint gates', () => {
   const config = { enabled: false, codingEnabled: false, model: 'deepseek-v4.1-flash' }
   const keys = { opencodeSessionId: 'rt-1' }
 
-  test('null without a draft (no request made)', async () => {
+  test('null when there is neither a draft nor a conversation (no request made)', async () => {
     expect(await generatePromptHint({ messages: [], draft: '  ', config, keys })).toBeNull()
+  })
+
+  test('null for a suggest without a configured model (no request made)', async () => {
+    const out = await generatePromptHint({
+      messages: [msg('user', 'ask')],
+      draft: '',
+      config: { ...config, model: '' },
+      keys,
+    })
+    expect(out).toBeNull()
   })
 
   test('null without a configured model (no request made)', async () => {
