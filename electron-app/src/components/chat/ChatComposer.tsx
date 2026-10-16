@@ -16,6 +16,7 @@ type Props = {
     | 'input'
     | 'setInput'
     | 'busy'
+    | 'workersRunning'
     | 'contextCompressBusy'
     | 'onSend'
     | 'onStop'
@@ -49,6 +50,7 @@ export function ChatComposer({ app }: Props) {
     input,
     setInput,
     busy,
+    workersRunning,
     contextCompressBusy,
     onSend,
     onStop,
@@ -95,6 +97,11 @@ export function ChatComposer({ app }: Props) {
   )
 
   const canSteer = hasPendingDraft
+
+  // While Team-mode workers run, a text-only steer is queued for them (no abort
+  // and resend) — mirror useChatAgent.onSteer so the button says what it will do.
+  const softSteer =
+    workersRunning && !!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0
 
   // The active chat owns its mode — switching chats, or a background escalation,
   // can no longer retarget this composer.
@@ -616,9 +623,15 @@ export function ChatComposer({ app }: Props) {
                   <button
                     type="button"
                     onClick={() => void onSteer()}
-                    className="composer-send-btn composer-send-btn--steer"
-                    title="Steer — stop and redirect the agent with this message"
-                    aria-label="Steer agent"
+                    className={`composer-send-btn composer-send-btn--steer${
+                      softSteer ? ' composer-send-btn--steer-soft' : ''
+                    }`}
+                    title={
+                      softSteer
+                        ? 'Steer — hand this to the running workers (applied to their next step)'
+                        : 'Steer — stop and redirect the agent with this message'
+                    }
+                    aria-label={softSteer ? 'Steer workers' : 'Steer agent'}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M12 2v4" />

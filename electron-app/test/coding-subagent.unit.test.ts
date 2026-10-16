@@ -80,6 +80,23 @@ describe('old tool result clearing helpers', () => {
     expect(isClearableCodingToolResult('execute_command')).toBe(true)
     expect(isClearableCodingToolResult('git_diff')).toBe(true)
     expect(isClearableCodingToolResult('find_symbols')).toBe(true)
+    expect(isClearableCodingToolResult('run_coding_workers')).toBe(true)
+  })
+
+  it('clears a finished worker report down to its touched-file digest', () => {
+    const content = [
+      'Coding workers finished (2):',
+      'Files touched by workers (2): src/a.ts, src/b.ts',
+      '---',
+      'WORKER 1:',
+      'Long model prose that must not survive.',
+      'Structured worker reports (JSON):',
+    ].join('\n')
+    const p = clearedCodingToolResultPlaceholder('run_coding_workers', content.length, content)
+    expect(p).toContain('Files touched by workers (2): src/a.ts, src/b.ts')
+    expect(p).toContain('Do not re-run the workers')
+    expect(p).not.toContain('Long model prose')
+    expect(p.length).toBeLessThan(CODING_CLEAR_MIN_CHARS)
   })
 
   it('never clears mutations, digests, or non-coding tools', () => {

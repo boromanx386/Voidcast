@@ -1,22 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import {
   acquireWorkerFileLock,
+  buildCodingWorkersReport,
   buildWorkerContextPacket,
+  buildWorkerInjection,
   clampWorkerMaxRounds,
+  CODING_WORKER_ALLOWED_TOOLS,
+  CODING_WORKER_BLOCKER_MAX_CHARS,
   CODING_WORKER_DEFAULT_ROUNDS,
+  CODING_WORKER_DIGEST_MAX_CHARS,
   CODING_WORKER_MAX_ROUNDS,
   CODING_WORKER_MAX_TASKS,
   createWorkerFileLock,
+  formatWorkerDigest,
   isPathInWorkerScope,
+  newSiblingActivityText,
   normalizeWorkerPathKey,
   parseCodingWorkerTasks,
   pathFromWorkerToolArgs,
   releaseWorkerFileLocks,
+  runWorkerTypeCheck,
   shellRedirectConflictsWithLock,
   shellRedirectTargets,
   synthesizeWorkerDigest,
   workerScopesOverlap,
+  workerToolTarget,
+  type WorkerBlackboard,
+  type WorkerBlackboardEntry,
+  type WorkerRunResult,
+  type WorkerTypeCheckResult,
 } from '../src/lib/codingWorkers'
+import { createWorkerSteerQueue, pushWorkerSteer } from '../src/lib/workerSteer'
 import { buildToolsList } from '../src/lib/toolDefinitions'
 import type { ToolsEnabled } from '../src/lib/settings'
 
@@ -328,6 +342,209 @@ describe('shell redirect lock guard', () => {
     const err = shellRedirectConflictsWithLock('echo x > src/a.ts', batch, 'worker-2')
     expect(err).toMatch(/conflicts with worker-1/)
     expect(shellRedirectConflictsWithLock('echo x > src/a.ts', batch, 'worker-1')).toBeNull()
+  })
+})
+
+describe('worker allowed tools', () => {
+  it('lets a worker stop the processes it started', () => {
+    expect(CODING_WORKER_ALLOWED_TOOLS.has('stop_process')).toBe(true)
+    expect(CODING_WORKER_ALLOWED_TOOLS.has('execute_command')).toBe(true)
+    expect(CODING_WORKER_ALLOWED_TOOLS.has('list_processes')).toBe(true)
+  })
+})
+
+describe('newSiblingActivityText', () => {
+  const entries: WorkerBlackboardEntry[] = [
+    { worker: 'WORKER 1', path: 'src/a.ts' },
+    { worker: 'WORKER 2', path: 'src/b.ts' },
+  ]
+
+  it('shows only sibling changes and advances the cursor', () => {
+    const first = newSiblingActivityText(entries, 0, 'WORKER 1')
+    expect(first.text).toContain('WORKER 2 changed src/b.ts')
+    expect(first.text).not.toContain('WORKER 1 changed')
+    expect(first.nextCount).toBe(2)
+  })
+
+  it('returns nothing when there is no new sibling activity', () => {
+    const none = newSiblingActivityText(entries, 2, 'WORKER 1')
+    expect(none.text).toBe('')
+    expect(none.nextCount).toBe(2)
+    const onlyOwn = newSiblingActivityText([{ worker: 'WORKER 1', path: 'x.ts' }], 0, 'WORKER 1')
+    expect(onlyOwn.text).toBe('')
+    expect(onlyOwn.nextCount).toBe(1)
+  })
+})
+
+describe('buildWorkerInjection', () => {
+  const blackboard: WorkerBlackboard = {
+    entries: [
+      { worker: 'WORKER 1', path: 'src/a.ts' },
+      { worker: 'WORKER 2', path: 'src/b.ts' },
+    ],
+  }
+
+  it('combines sibling activity with drained steers and reports them once', () => {
+    const queue = createWorkerSteerQueue()
+    pushWorkerSteer(queue, 'prefer the existing helper')
+    const drained: Array<[string, string]> = []
+    const first = buildWorkerInjection({
+      blackboard,
+      blackboardSeen: 0,
+      workerLabel: 'WORKER 1',
+      steerQueue: queue,
+      onSteerDrained: (label, correction) => drained.push([label, correction]),
+    })
+    expect(first.text).toContain('WORKER 2 changed src/b.ts')
+    expect(first.text).toContain('prefer the existing helper')
+    expect(first.text).toContain('[Steer — user course correction while you work]')
+    expect(first.nextCount).toBe(2)
+    expect(queue.pending).toHaveLength(0)
+    expect(drained).toEqual([['WORKER 1', 'prefer the existing helper']])
+
+    const second = buildWorkerInjection({
+      blackboard,
+      blackboardSeen: first.nextCount,
+      workerLabel: 'WORKER 1',
+      steerQueue: queue,
+    })
+    expect(second.text).toBe('')
+    expect(second.nextCount).toBe(2)
+  })
+
+  it('returns an empty injection when nothing new is available', () => {
+    const none = buildWorkerInjection({ blackboardSeen: 0, workerLabel: 'WORKER 1' })
+    expect(none).toEqual({ text: '', nextCount: 0 })
+  })
+})
+
+describe('workerToolTarget', () => {
+  it('labels a tool call with its file, query, or command', () => {
+    expect(workerToolTarget('edit_code', { path: 'src/lib/x.ts' })).toBe('src/lib/x.ts')
+    expect(workerToolTarget('search_files', { query: 'runCodingWorkers' })).toBe('runCodingWorkers')
+    expect(workerToolTarget('execute_command', { command: 'npm\n  test' })).toBe('npm test')
+    expect(workerToolTarget('list_processes', {})).toBe('')
+  })
+
+  it('truncates long targets to keep the status line compact', () => {
+    const long = 'a'.repeat(200)
+    const target = workerToolTarget('read_file', { path: long })
+    expect(target.length).toBeLessThanOrEqual(80)
+    expect(target.endsWith('…')).toBe(true)
+  })
+})
+
+describe('runWorkerTypeCheck', () => {
+  type Call = { name: string; args: Record<string, unknown> }
+
+  function makeExec(report: (prefix: string | undefined) => string): {
+    exec: (name: string, args: Record<string, unknown>) => Promise<string>
+    calls: Call[]
+  } {
+    const calls: Call[] = []
+    const exec = async (name: string, args: Record<string, unknown>) => {
+      calls.push({ name, args })
+      if (name !== 'check_types') return 'ok'
+      return report(args.path_prefix as string | undefined)
+    }
+    return { exec, calls }
+  }
+
+  it('checks each package once and reports clean', async () => {
+    const { exec, calls } = makeExec((prefix) =>
+      prefix === 'electron-app'
+        ? 'No TypeScript errors found (electron-app).'
+        : 'Error: No tsconfig.json in pkg. Set path_prefix to the package folder.',
+    )
+    const res = await runWorkerTypeCheck(['electron-app/src/lib/x.ts'], exec)
+    expect(res.verified).toContain('check_types: clean (electron-app)')
+    expect(res.failures).toEqual([])
+    const final = calls.at(-1)
+    expect(final?.args.path_prefix).toBe('electron-app')
+    expect(final?.args.paths).toEqual(['src/lib/x.ts'])
+  })
+
+  it('reports errors as failures', async () => {
+    const { exec } = makeExec((prefix) =>
+      prefix === 'electron-app'
+        ? 'TypeScript (electron-app): 2 errors.\n\nsrc/a.ts:1:1 — TS1: bad'
+        : 'Error: No tsconfig.json in pkg.',
+    )
+    const res = await runWorkerTypeCheck(['electron-app/src/a.ts'], exec)
+    expect(res.verified).toEqual([])
+    expect(res.failures).toContain('check_types: 2 error(s) in electron-app')
+  })
+
+  it('marks paths with no check target as skipped', async () => {
+    const { exec } = makeExec(() => 'Error: No check target in repo.')
+    const res = await runWorkerTypeCheck(['src/a.ts'], exec)
+    expect(res.verified).toEqual([])
+    expect(res.failures[0]).toMatch(/check_types skipped for src\/a\.ts/)
+  })
+
+  it('does nothing when no files were written', async () => {
+    const { exec, calls } = makeExec(() => 'No TypeScript errors found (root).')
+    const res = await runWorkerTypeCheck([], exec)
+    expect(res).toEqual({ verified: [], failures: [] })
+    expect(calls).toHaveLength(0)
+  })
+})
+
+describe('worker report shaping', () => {
+  const verificationOf = (verified: string[], failures: string[]): WorkerTypeCheckResult => ({
+    verified,
+    failures,
+  })
+
+  it('caps model prose and keeps typecheck verdicts while dropping raw diagnostics', () => {
+    const digest = formatWorkerDigest({
+      workerLabel: 'WORKER 1',
+      body: 'A'.repeat(CODING_WORKER_DIGEST_MAX_CHARS + 900),
+      verification: verificationOf(['check_types: clean (electron-app)'], []),
+    })
+    expect(digest.startsWith('WORKER 1:')).toBe(true)
+    expect(digest.endsWith('…\nVerification: check_types: clean (electron-app)')).toBe(true)
+    expect(digest.length).toBeLessThan(CODING_WORKER_DIGEST_MAX_CHARS + 200)
+  })
+
+  it('leaves a short digest untouched and omits the verification line when silent', () => {
+    const digest = formatWorkerDigest({
+      workerLabel: 'WORKER 2',
+      body: 'Changed: a.ts\nVerified: tests pass\nBlocked: none',
+      verification: verificationOf([], []),
+    })
+    expect(digest).toBe('WORKER 2:\nChanged: a.ts\nVerified: tests pass\nBlocked: none')
+    expect(digest).not.toContain('…')
+  })
+
+  it('builds a compact report: file list, single-line JSON, clipped blockers', () => {
+    const run: WorkerRunResult = {
+      digest: 'WORKER 1:\nChanged: src/a.ts',
+      mutations: [{ tool: 'write_file', path: 'src/a.ts', args: {}, result: 'Wrote src/a.ts' }],
+      structured: {
+        worker: 'WORKER 1',
+        goal: 'g',
+        changed: ['src/a.ts'],
+        verified: ['check_types: clean (electron-app)'],
+        failed: [],
+        blockers: [`read_file: ${'e'.repeat(400)}`],
+      },
+    }
+    const report = buildCodingWorkersReport([run])
+    expect(report).toContain('Files touched by workers (1): src/a.ts')
+    expect(report).toContain('---\nWORKER 1:\nChanged: src/a.ts')
+    expect(report).toContain('```json\n[{')
+    const fenced = report.match(/```json\n([\s\S]*?)\n```/)?.[1] ?? ''
+    expect(fenced).not.toContain('\n')
+    const parsed = JSON.parse(fenced) as Array<{ blockers: string[] }>
+    expect(parsed[0]!.blockers[0]!.length).toBe(CODING_WORKER_BLOCKER_MAX_CHARS + 1)
+    expect(parsed[0]!.blockers[0]!.endsWith('…')).toBe(true)
+  })
+
+  it('reports no structured block when the workers produced none', () => {
+    const report = buildCodingWorkersReport([{ digest: 'WORKER 1:\nError: boom', mutations: [] }])
+    expect(report).toContain('Files touched by workers: none.')
+    expect(report).not.toContain('```json')
   })
 })
 

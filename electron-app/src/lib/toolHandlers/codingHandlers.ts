@@ -508,6 +508,7 @@ export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
     codingContextMemoRef: ctx.codingContextMemoRef,
     codingFileCacheRef: ctx.codingFileCacheRef,
     codingProjectPath: ctx.codingProjectPath,
+    steerQueue: ctx.workerSteerQueue,
   })
 
   const verification: string[] = []

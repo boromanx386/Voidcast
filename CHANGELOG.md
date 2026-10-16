@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **Steer Team-mode workers mid-run, and watch them work**: while a `run_coding_workers` batch is live, a text-only draft in the composer now goes **into the running workers** instead of aborting the turn — `onSteer` (`electron-app/src/hooks/useChatAgent.ts`) pushes it onto a per-turn `WorkerSteerQueue` (`electron-app/src/lib/workerSteer.ts`, max 4 messages / 600 chars each) stored on the chat's session-agent slot, and every worker drains it at the top of its next round via `buildWorkerInjection` and receives it as a course-correction user message ("[Steer — user course correction while you work]"); the panel logs `WORKER n received steer: …`. Steers with images, files, or no live worker batch keep the old abort-and-resend behaviour, and the steer button switches label/colour (cyan) when it will soft-steer. In the other direction, the analysis card is now truthful live: a new `SubAgentUiCallbacks.onCodingEvent` + `applyCodingEvent` reducer stream per-file writes, tool failures, read-budget warnings and the end-of-run `check_types` verdicts into the event log, and each worker's status line now names the file/query its current tool call targets. Covered by `electron-app/test/workerSteer.unit.test.ts` plus new cases in `coding-workers.unit.test.ts` / `subAgentPanelState.unit.test.ts`.
+
+### Changed
+
+- **Team-mode coding workers got leaner and less blind**: four fixes to `run_coding_workers` (`electron-app/src/lib/codingWorkers.ts`). (1) The per-file `check_types` probe after *every* write is gone — a worker now typechecks **once at the end** over the files it actually wrote, grouped by package folder, so a run no longer pays a full `tsc` per edit. (2) Workers may now call **`stop_process`**, so one that starts a dev server or watcher can clean it up instead of leaking the process. (3) The worker report now carries a **structured JSON block** per worker (`changed` / `verified` / `failed` / `blockers`) alongside the prose digest, so the orchestrator consumes deterministic facts instead of parsing model text. (4) A new in-process **blackboard** broadcasts each worker's successful file writes to its siblings before their next round — an interface change in one scope is no longer invisible to the other worker. The main agent's own post-worker `git_status` / `git_diff` / `check_types` pass is unchanged.
+
+### Fixed
+
+- **A worker batch no longer inflates the main agent's context for the rest of the turn**: the `run_coding_workers` result was one uncapped, never-evicted block — model prose, a raw end-of-run `check_types` dump (up to 2 000 chars per package) and a pretty-printed JSON copy of the same facts, re-sent verbatim in every round after the batch. Now (`electron-app/src/lib/codingWorkers.ts`) per-worker prose digests are capped at 1 500 chars (`CODING_WORKER_DIGEST_MAX_CHARS`) with only the one-line typecheck verdicts appended (main re-runs `check_types` itself when it wants diagnostics), blocker notes are clipped to 160 chars, the structured block is assembled by a pure `buildCodingWorkersReport` as **single-line** JSON, and the report joined the old-result clearing set (`CODING_CLEARABLE_TOOLS` in `codingSubAgent.ts`): after a few rounds it is replaced by a placeholder that keeps the deterministic touched-file list and says not to re-run the workers. Covered by new cases in `electron-app/test/coding-workers.unit.test.ts` and `coding-subagent.unit.test.ts`.
+
+- **A finished coding worker no longer closes the analysis card while its sibling still runs**: `runOneCodingWorker` fired `onCodingDone` when the *first* worker of a batch returned, and `applyCodingDone` marked **every** worker slot done and auto-collapsed the card — mid-batch, then the surviving worker's next round re-opened it. Per-worker completion now travels as a status event on `onCodingEvent` (`status: 'done' | 'error'`), flipping only that worker's slot, and `onCodingDone` is once again the single batch verdict; the panel derives its done/partial/error badge from the slots, so one failed worker no longer marks a clean sibling as errored. The collapsed card also drops the separator line under its title.
+
 ## [2.11.6] — 2026-10-15
 
 ### Added

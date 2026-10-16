@@ -85,7 +85,13 @@ export const CODING_PIN_RECENT_BY_TOOL: Record<string, number> = {
   find_symbols: CODING_PIN_RECENT_OUTLINES,
 }
 
-/** Re-fetchable coding results — safe to clear from old rounds (agent can re-run). */
+/**
+ * Re-fetchable coding results — safe to clear from old rounds (agent can re-run).
+ * `run_coding_workers` is not cheaply re-runnable, but its report is a summary
+ * by definition: the placeholder keeps the deterministic touched-file list, and
+ * by eviction time the orchestrator has acted on the batch (one of the largest
+ * single tool results, re-sent in full every round otherwise).
+ */
 export const CODING_CLEARABLE_TOOLS = new Set([
   'read_file',
   'list_directory',
@@ -100,6 +106,7 @@ export const CODING_CLEARABLE_TOOLS = new Set([
   'execute_command',
   'list_processes',
   'read_process_output',
+  'run_coding_workers',
 ])
 
 export function isClearableCodingToolResult(name: string): boolean {
@@ -232,6 +239,13 @@ export function buildClearedToolDigest(name: string, content: string): string {
   if (!c) return `${name}: (empty)`
   let body: string
   switch (name) {
+    case 'run_coding_workers': {
+      // Keep the deterministic file list only; the per-worker prose and JSON
+      // are noise once the orchestrator has acted on the batch.
+      const touched = c.match(/^Files touched by workers[^\n]*/m)
+      body = touched ? touched[0] : digestHeadTail(name, c)
+      break
+    }
     case 'read_file':
       body = digestReadFile(c)
       break
@@ -274,9 +288,11 @@ export function clearedCodingToolResultPlaceholder(
   const digest = content ? buildClearedToolDigest(name, content) : ''
   const digestLine = digest ? `\nDigest: ${digest}` : ''
   const reuseHint =
-    name === 'read_file' || name === 'find_symbols'
-      ? ' Prefer the Digest below — only re-read if you need exact lines for edit_code or the digest is insufficient.'
-      : ' Call the tool again only if you still need the full result.'
+    name === 'run_coding_workers'
+      ? ' Do not re-run the workers — inspect the touched files with git_diff / read_file if needed.'
+      : name === 'read_file' || name === 'find_symbols'
+        ? ' Prefer the Digest below — only re-read if you need exact lines for edit_code or the digest is insufficient.'
+        : ' Call the tool again only if you still need the full result.'
   return `[Old ${name} result (${chars.toLocaleString()} chars) cleared to save context.${reuseHint}]${digestLine}`
 }
 

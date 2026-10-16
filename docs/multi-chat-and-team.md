@@ -55,7 +55,10 @@ Team and **Ask** do **not** offer `enter_plan_mode` (use Plan in the composer fo
 | Count per call | **1–2** tasks (parallel with each other) |
 | Model | Coding sub-agent model (`codingProvider` / `codingModel`) |
 | Rounds | Default and max **100** tool rounds per worker (ceiling, not a fixed always-use-all budget) |
-| Tools | Read stack + **write_file**, **edit_code**, **execute_command** (no nested workers/explore) |
+| Tools | Read stack + **write_file**, **edit_code**, **execute_command**, **stop_process** (no nested workers/explore) |
+| Sibling coordination | Successful writes are broadcast on an in-process **blackboard**; each worker sees its sibling's changed paths before its next round, so an interface change in one scope is not invisible to the other |
+| Mid-run steering | While the batch is live, a **text-only** steer from the composer is queued for the workers (max 4 × 600 chars) and drained before each worker's next round — the turn is not aborted. A steer with images/files attached still stops and resends, and the analysis card logs `WORKER n received steer: …` |
+| Verification | Workers typecheck **once at the end** over the files they wrote (not per edit). The report carries a **compact JSON block** per worker (changed / verified / failed / blockers, blockers clipped) next to the **capped** prose digest — no raw `check_types` dump. The report is evicted from main's context like other old results after a few rounds (placeholder keeps the touched-file list) |
 | `path_prefix` | Optional. When set: **writes/edits must stay under** that file/folder. **Reads** can still use the whole project (char budget). Soft scoping injects for search/list when missing |
 | Locks | Two workers writing the same path in **one** `run_coding_workers` call: file lock error for the second. Locks do **not** span chats or batches; shell redirects (`>`) that target a locked path are rejected |
 | Main while workers run | Main is **blocked** on that tool call until both digests return (by design — not fire-and-forget) |

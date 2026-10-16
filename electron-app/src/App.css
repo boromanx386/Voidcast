@@ -670,6 +670,16 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   box-shadow: 0 0 12px rgb(var(--color-neon-yellow) / 0.3);
 }
 
+/* Soft steer: message joins the running worker batch instead of aborting it. */
+.composer-send-btn--steer-soft {
+  @apply border-neon-cyan/50 text-neon-cyan;
+}
+
+.composer-send-btn--steer-soft:hover {
+  @apply bg-neon-cyan/15 border-neon-cyan;
+  box-shadow: 0 0 12px rgb(var(--color-neon-cyan) / 0.3);
+}
+
 .composer-send-btn svg {
   @apply h-3.5 w-3.5;
 }

@@ -45,6 +45,21 @@ export type { SubAgentProviderId }
 
 // ── provider auto-detection ──────────────────────────────────────────────
 
+/** One fine-grained activity line from a coding worker/explore run. */
+export type SubAgentCodingEvent = {
+  /** e.g. "worker-1" — matches the slot id the panel builds from the label. */
+  workerId?: string
+  text: string
+  level?: 'info' | 'ok' | 'warn' | 'err'
+  /**
+   * Flip the named worker's slot when the event is a lifecycle transition
+   * (worker finished / failed). The batch as a whole stays busy until the
+   * final `onCodingDone`, so a finished worker never closes the card while a
+   * sibling still runs.
+   */
+  status?: 'running' | 'done' | 'error'
+}
+
 export type SubAgentUiCallbacks = {
   onStart?: (imageCount: number) => void
   onProgress?: (current: number, total: number) => void
@@ -52,6 +67,8 @@ export type SubAgentUiCallbacks = {
   /** Coding explore status line (opens the floating panel). */
   onCodingStart?: (label: string) => void
   onCodingDone?: (formatted: string) => void
+  /** Live per-tool / per-file event line (keeps the panel log truthful). */
+  onCodingEvent?: (event: SubAgentCodingEvent) => void
 }
 
 // ── types ────────────────────────────────────────────────────────────────

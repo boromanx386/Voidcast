@@ -227,6 +227,50 @@ export function applyCodingStart(prev: SubAgentPanelState, label: string): SubAg
   }
 }
 
+/**
+ * Append one live activity line from a running coding sub-agent (worker wrote a
+ * file, typecheck result, steer received, …). Never opens/closes the card and
+ * never flips `busy` — it is purely additive to the event log and, when the
+ * event names a worker, to that worker's slot. A `status` transition (worker
+ * finished / failed) flips only that worker's slot: the batch stays busy until
+ * the final `onCodingDone`, so the card cannot collapse while a sibling runs.
+ */
+export function applyCodingEvent(
+  prev: SubAgentPanelState,
+  event: {
+    workerId?: string
+    text: string
+    level?: SubAgentPanelLevel
+    status?: SubAgentWorkerSlot['status']
+  },
+): SubAgentPanelState {
+  const text = event.text.trim()
+  if (!text) return prev
+  const level = event.level ?? 'info'
+  const workers = event.workerId
+    ? prev.workers.map((w) =>
+        w.id === event.workerId
+          ? {
+              ...w,
+              lastLine: text,
+              ...(event.status
+                ? {
+                    status: event.status,
+                    progress: event.status === 'running' ? w.progress : event.status,
+                  }
+                : {}),
+            }
+          : w,
+      )
+    : prev.workers
+  return {
+    ...prev,
+    text,
+    workers,
+    events: pushEvent(prev.events, text, level, event.workerId),
+  }
+}
+
 /** Apply final coding digest; extract per-worker blocks when present. */
 export function applyCodingDone(prev: SubAgentPanelState, formatted: string): SubAgentPanelState {
   const text = formatted.trim() || '[Sub-agent returned no digest.]'
@@ -266,10 +310,17 @@ export function applyCodingDone(prev: SubAgentPanelState, formatted: string): Su
     workers = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id))
   }
 
-  const level: SubAgentPanelLevel = isErr ? 'err' : isPartial ? 'warn' : 'ok'
+  // With per-worker slots the batch verdict comes from the slots themselves:
+  // one worker's failure must not mark a clean sibling as errored (or vice versa).
+  const hasWorkers = workers.length > 0
+  const anyWorkerErr = hasWorkers && workers.some((w) => w.status === 'error')
+  const panelErr = hasWorkers ? anyWorkerErr : isErr
+  const level: SubAgentPanelLevel = panelErr ? 'err' : isPartial ? 'warn' : 'ok'
   const summary =
     workers.length > 1
-      ? `Workers finished (${workers.length})`
+      ? anyWorkerErr
+        ? `Workers finished with errors (${workers.length})`
+        : `Workers finished (${workers.length})`
       : prev.kind === 'explore'
         ? 'Explore complete'
         : 'Sub-agent complete'
@@ -281,7 +332,7 @@ export function applyCodingDone(prev: SubAgentPanelState, formatted: string): Su
     collapsed: true,
     kind: prev.kind === 'idle' ? (workers.length ? 'workers' : 'explore') : prev.kind,
     title: prev.kind === 'explore' ? 'EXPLORE' : workers.length ? 'WORKERS' : prev.title,
-    progress: isErr ? 'error' : isPartial ? 'partial' : 'done',
+    progress: panelErr ? 'error' : isPartial ? 'partial' : 'done',
     text,
     events: pushEvent(prev.events, summary, level),
     workers,

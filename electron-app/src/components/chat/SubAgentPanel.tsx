@@ -67,7 +67,11 @@ export function SubAgentActivityCard({
 
   const body = (
     <>
-      <div className="flex items-center justify-between gap-2 border-b border-void-muted/25 px-1 pb-2">
+      <div
+        className={`flex items-center justify-between gap-2 px-1 ${
+          panel.collapsed ? '' : 'border-b border-void-muted/25 pb-2'
+        }`}
+      >
         <button
           type="button"
           onClick={() => onCollapse(!panel.collapsed)}

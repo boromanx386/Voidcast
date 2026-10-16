@@ -28,12 +28,13 @@ Sub chat calls hardcode **temperature 0.2** and disable **thinking** where the A
 | | **Explore** (`coding_explore`) | **Workers** (`run_coding_workers`) |
 | --- | --- | --- |
 | Mode | Agent, Team, Plan (read-only tools overall in Plan) | Agent (optional), Team (preferred). **Not** Plan |
-| Tools | Read-only: list/read/search/glob/symbols, git, types, processes | Explore set **+** `write_file`, `edit_code`, `execute_command` |
+| Tools | Read-only: list/read/search/glob/symbols, git, types, processes | Explore set **+** `write_file`, `edit_code`, `execute_command`, `stop_process` |
 | Parallel | 1 nested loop | Up to **2** tasks in parallel |
 | Rounds | Default 8, max 12 (ceiling; may finish early with `done`) | Default **100**, max **100** |
 | Scope | Soft `path_prefix` hints for search/list | **`path_prefix` hard-scopes writes/edits**; reads can use the whole project (read char budget); file locks between workers |
 | Nesting | Cannot nest | Cannot nest workers; cannot call explore/workers again from a worker |
 | Main while running | Main **awaits** tool result (blocked by design) | Same — main is sequential until digests return |
+| Steering while running | — | Composer: a **text-only** steer is queued for the running workers (drained before each worker's next round) instead of aborting the turn; attachments still stop and resend |
 
 Workers among themselves run in parallel (`Promise.all`). Main cannot fire-and-forget workers and keep calling other tools until they finish.
 

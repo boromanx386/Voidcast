@@ -13,6 +13,7 @@ import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { RunwareAudioToolMeta, RunwareImageToolMeta } from '@/lib/runwareMessageMeta'
 import type { UiMessage } from '@/types/chat'
 import { emptySubAgentPanelState, type SubAgentPanelState } from '@/lib/subAgentPanelState'
+import type { WorkerSteerQueue } from '@/lib/workerSteer'
 
 /** Runtime key for an unsaved draft chat (no ChatSession id yet). */
 export const DRAFT_RUNTIME_KEY = '__draft__'
@@ -57,6 +58,11 @@ export type SessionAgentSlot = {
    * grace window so a second chat is warned about a just-stopped peer.
    */
   codingStopGraceUntil?: number
+  /**
+   * Live queue of user course corrections for the workers of the running turn.
+   * Ephemeral — the composer pushes, each worker drains before its next round.
+   */
+  workerSteer?: WorkerSteerQueue
   /** Ephemeral — not serialised. */
   abortController: AbortController | null
   runId: number
@@ -143,6 +149,7 @@ function sessionAgentSlotShallowEqual(a: SessionAgentSlot, b: SessionAgentSlot):
     a.runId === b.runId &&
     a.codingProjectPath === b.codingProjectPath &&
     a.codingStopGraceUntil === b.codingStopGraceUntil &&
+    a.workerSteer === b.workerSteer &&
     sessionAgentMediaEqual(a.media, b.media)
   )
 }

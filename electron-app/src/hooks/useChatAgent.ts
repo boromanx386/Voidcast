@@ -63,6 +63,7 @@ import { getOpenRouterImageProfile, loadSettings, type AppSettings } from '@/lib
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
   applyCodingDone,
+  applyCodingEvent,
   applyCodingStart,
   applyVisionDone,
   applyVisionProgress,
@@ -72,6 +73,7 @@ import {
   setSubAgentPanelCollapsed as setSubAgentPanelCollapsedState,
   type SubAgentPanelState,
 } from '@/lib/subAgentPanelState'
+import { createWorkerSteerQueue, pushWorkerSteer } from '@/lib/workerSteer'
 import { buildSteerCourseCorrectionText, toConversationTurns } from '@/lib/chatHints'
 import { sliceUiHistoryForContext } from '@/lib/chatMessages'
 import {
@@ -572,6 +574,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       onCodingDone: (formatted) => {
         patchSubAgentPanel((p) => applyCodingDone(p, formatted))
       },
+      onCodingEvent: (event) => {
+        patchSubAgentPanel((p) => applyCodingEvent(p, event))
+      },
     }),
     [patchSubAgentPanel],
   )
@@ -593,6 +598,12 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       }
       const keyOf = () => bind.key
       const slotNow = () => sessionAgentStore.getSnapshot(keyOf())
+
+      // Fresh steer queue for this turn: the composer pushes course corrections
+      // while workers run; each worker drains it before its next round. Stored on
+      // the slot so `onSteer` reaches exactly this run (and no other chat).
+      const workerSteer = createWorkerSteerQueue()
+      sessionAgentStore.update(keyOf(), { workerSteer })
 
       // Context compression is a hard gate: a turn started mid-compression would
       // race the summary write (hiddenContextSummary / contextCompressedThroughIndex)
@@ -651,6 +662,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         },
         onCodingDone: (formatted) => {
           patchPanel((p) => applyCodingDone(p, formatted))
+        },
+        onCodingEvent: (event) => {
+          patchPanel((p) => applyCodingEvent(p, event))
         },
       }
 
@@ -1038,6 +1052,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               turnSettings.subAgent.showAnalysisWindow !== false
                 ? runSubAgentUi
                 : undefined,
+            workerSteerQueue: workerSteer,
             onImageVisionCacheUpdate: (entries: ImageVisionCache) => {
               turnVisionCacheRef.current = mergeImageVisionCache(
                 turnVisionCacheRef.current,
@@ -1553,9 +1568,28 @@ export function useChatAgent(deps: UseChatAgentDeps) {
    * Use when thinking/tools go the wrong way — steers without waiting for the turn to finish.
    */
   const onSteer = useCallback(() => {
-    const hasPayload = !!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0
+    const text = input.trim()
+    const hasPayload = !!text || pendingImages.length > 0 || pendingFiles.length > 0
     if (!hasPayload) return
     if (busy) {
+      // Soft steer: while a worker batch is live, a text-only draft goes to the
+      // running workers instead of aborting the turn. Workers pick it up before
+      // their next round and log it on the analysis card. Anything else (images,
+      // attachments, no worker batch) keeps the hard abort-and-resend behaviour.
+      const slot = sessionAgentStore.getSnapshot(runtimeKey)
+      const queue = slot.workerSteer
+      if (
+        queue &&
+        text &&
+        pendingImages.length === 0 &&
+        pendingFiles.length === 0 &&
+        slot.subAgentPanel.busy &&
+        slot.subAgentPanel.kind === 'workers' &&
+        pushWorkerSteer(queue, text)
+      ) {
+        setInput('')
+        return
+      }
       onStop()
       // Stop clears busy synchronously; start the steered turn after any
       // abort handlers scheduled in this tick have a chance to unwind.
@@ -1565,7 +1599,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       return
     }
     void onSend()
-  }, [busy, input, onSend, onStop, pendingFiles.length, pendingImages.length])
+  }, [busy, input, onSend, onStop, runtimeKey, setInput, pendingFiles.length, pendingImages.length])
 
   const startEdit = useCallback(
     (msg: UiMessage) => {
@@ -1669,6 +1703,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     setContextWarnDismissed,
     contextCompressBusy,
     subAgentPanel,
+    /** True while a Team-mode worker batch is live (composer soft-steers instead of aborting). */
+    workersRunning: Boolean(busy && subAgentPanel.busy && subAgentPanel.kind === 'workers'),
     setSubAgentPanelOpen,
     setSubAgentPanelCollapsed,
     setMessageSubAgentActivity,

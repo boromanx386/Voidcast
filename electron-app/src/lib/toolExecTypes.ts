@@ -6,6 +6,7 @@ import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
+import type { WorkerSteerQueue } from '@/lib/workerSteer'
 
 /** Frozen TTS settings for generate_tts (turn snapshot). */
 export type AgentTtsConfig = {
@@ -84,6 +85,8 @@ export interface ExecCtx {
   getActiveBuildPlan?: () => PlanArtifact | undefined
   /** Sub-agent config for image_recall delegation. */
   subAgent?: SubAgentConfig
+  /** Live queue of user steer messages for the running worker batch. */
+  workerSteerQueue?: WorkerSteerQueue
   /** Keys for sub-agent API calls (from main app settings). */
   ollamaBaseUrl?: string
   openrouterBaseUrl?: string

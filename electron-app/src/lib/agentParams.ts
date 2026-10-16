@@ -15,6 +15,7 @@ import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import type { AgentTtsConfig, ExecCtx } from '@/lib/toolExecTypes'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
+import type { WorkerSteerQueue } from '@/lib/workerSteer'
 
 /**
  * Fields shared by both Ollama and OpenRouter chat-with-tools param types.
@@ -81,6 +82,8 @@ export interface ChatWithToolsCommonParams {
   ttsBaseUrlForSubAgent?: string
   thinkLevel?: LlmThinkLevel
   subAgentUi?: SubAgentUiCallbacks
+  /** Live user steer queue for Team-mode workers (composer pushes mid-run). */
+  workerSteerQueue?: WorkerSteerQueue
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   imageVisionCache?: ImageVisionCache
 }
@@ -131,6 +134,7 @@ export function buildToolExecutorOptions(
     nvidiaApiKey: params.nvidiaApiKeyForSubAgent,
     opencodeGoApiKey: params.opencodeGoApiKeyForSubAgent,
     subAgentUi: params.subAgentUi,
+    workerSteerQueue: params.workerSteerQueue,
     onImageVisionCacheUpdate: params.onImageVisionCacheUpdate,
     imageVisionCache: params.imageVisionCache,
   }
