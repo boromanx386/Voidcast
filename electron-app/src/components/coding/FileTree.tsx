@@ -77,10 +77,10 @@ function TreeRows({
                 onClick={() => void onToggleDirectory(node.path)}
                 className={`min-w-0 flex-1 rounded py-1 text-left text-xs font-mono break-all hover:bg-void-mid/40 ${
                   node.ignored
-                    ? 'text-void-dim/70 opacity-70'
+                    ? 'coding-tree-ignored'
                     : byPath && dirHasGitChanges(node.path, byPath)
                       ? 'coding-dir-dirty'
-                      : 'text-void-light'
+                      : 'coding-tree-name'
                 }`}
               >
                 <span className="inline-block w-4 tabular-nums text-void-dim">
@@ -180,7 +180,7 @@ function TreeRows({
                     selected
                       ? 'coding-accent-text'
                       : node.ignored
-                        ? 'text-void-dim/70 opacity-70'
+                        ? 'coding-tree-ignored'
                         : letter
                           ? colorClass
                           : 'text-void-light'

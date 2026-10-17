@@ -98,20 +98,22 @@
     );
   }
 
+  /* Dystopian keeps the neon ramp but at thumb opacity — at full saturation the
+     scrollers were the brightest thing on screen, louder than the content. */
   ::-webkit-scrollbar-thumb {
     @apply rounded-sm;
     background: linear-gradient(
       180deg,
-      rgb(var(--color-neon-cyan)) 0%,
-      rgb(var(--color-neon-magenta)) 100%
+      rgb(var(--color-neon-cyan) / 0.45) 0%,
+      rgb(var(--color-neon-magenta) / 0.45) 100%
     );
   }
 
   ::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(
       180deg,
-      rgb(var(--color-neon-cyan)) 0%,
-      rgb(var(--color-neon-purple)) 100%
+      rgb(var(--color-neon-cyan) / 0.75) 0%,
+      rgb(var(--color-neon-purple) / 0.75) 100%
     );
   }
 
@@ -977,5 +979,37 @@
 
   .plan-step-active {
     animation: planStepActivePulse 1.4s ease-in-out infinite;
+  }
+}
+
+/* Decorative ambient effects stop for anyone whose OS asks for reduced motion.
+   Interaction feedback (plan-step pulses, spinners, the done-pop) is left alone
+   on purpose — it carries state, not atmosphere.
+   The three dials are zeroed so anything later wired to them starts off too;
+   today nothing reads them, so the `animation: none` below is what does the
+   work. light and matrix already disable these per theme — this covers the
+   rest, including the dystopian base. */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  html[data-ui-theme] {
+    --crt-opacity: 0 !important;
+    --digit-rain-opacity: 0 !important;
+    --glitch-intensity: 0 !important;
+  }
+
+  .crt-overlay,
+  .ambient-particles,
+  .matrix-rain,
+  .glitch-text,
+  .glitch-text::before,
+  .glitch-text::after {
+    animation: none !important;
+  }
+
+  /* Static ghost glyphs over the real text read as a rendering bug, so the
+     decorative copies go away rather than freezing in place. */
+  .glitch-text::before,
+  .glitch-text::after {
+    display: none;
   }
 }

@@ -190,19 +190,21 @@ export function ChatSystemStatus({ app }: Props) {
         >
           {contextUsageInfo ? (
             <>
+              {/* Footer readout is live status, not decoration: faint alpha here
+                  made the tokens look disabled. */}
               <span className="text-[11px] tabular-nums leading-tight text-void-dim">
-                <span className="text-void-dim/60">CTX </span>
+                <span className="text-void-dim/85">CTX </span>
                 {contextUsageInfo.estimated ? '~' : ''}
                 <span className="text-void-text">{contextUsageInfo.promptTokens}</span>
-                <span className="text-void-dim/50">/</span>
+                <span className="text-void-dim/70">/</span>
                 <span>{contextUsageInfo.maxTokens}</span>
-                <span className="ml-1.5 text-void-dim/70">
+                <span className="ml-1.5 text-void-dim/85">
                   {Math.round(contextUsageInfo.ratio * 100)}%
                 </span>
                 {contextCompressBusy ? <span className="ml-1.5 text-neon-cyan/80">…</span> : null}
               </span>
-              <span className="text-[10px] tabular-nums leading-tight text-void-dim/70">
-                <span className="text-void-dim/50">OUT </span>
+              <span className="text-[10px] tabular-nums leading-tight text-void-dim/85">
+                <span className="text-void-dim/70">OUT </span>
                 <span>{contextUsageInfo.estimated ? '—' : contextUsageInfo.outputTokens}</span>
               </span>
               <div className="h-1 w-full max-w-[14rem] overflow-hidden rounded-sm bg-void-muted/70">
@@ -221,7 +223,7 @@ export function ChatSystemStatus({ app }: Props) {
               </div>
             </>
           ) : (
-            <span className="text-[11px] tabular-nums text-void-dim/45">CTX —</span>
+            <span className="text-[11px] tabular-nums text-void-dim/85">CTX —</span>
           )}
         </button>
 
@@ -231,18 +233,18 @@ export function ChatSystemStatus({ app }: Props) {
             aria-label="Context compression"
             className="absolute bottom-full right-0 z-40 mb-2 w-[16.5rem] rounded border border-void-muted/50 bg-void-black/95 p-3 shadow-lg backdrop-blur-sm"
           >
-            <div className="mb-2 text-[10px] font-mono uppercase tracking-wide text-void-dim/70">
+            <div className="mb-2 text-[10px] font-mono uppercase tracking-wide text-void-dim/85">
               Context
             </div>
             {contextUsageInfo ? (
               <div className="mb-3 space-y-0.5 text-[11px] font-mono tabular-nums text-void-dim">
                 <div>
-                  <span className="text-void-dim/60">Prompt </span>
+                  <span className="text-void-dim/85">Prompt </span>
                   {contextUsageInfo.estimated ? '~' : ''}
                   <span className="text-void-text">{contextUsageInfo.promptTokens}</span>
-                  <span className="text-void-dim/50"> / </span>
+                  <span className="text-void-dim/70"> / </span>
                   <span>{contextUsageInfo.maxTokens}</span>
-                  <span className="ml-1 text-void-dim/70">
+                  <span className="ml-1 text-void-dim/85">
                     ({Math.round(contextUsageInfo.ratio * 100)}%)
                   </span>
                   {contextUsageInfo.estimated ? (
@@ -250,18 +252,18 @@ export function ChatSystemStatus({ app }: Props) {
                   ) : null}
                 </div>
                 <div>
-                  <span className="text-void-dim/60">Output </span>
+                  <span className="text-void-dim/85">Output </span>
                   <span>{contextUsageInfo.estimated ? '—' : contextUsageInfo.outputTokens}</span>
                 </div>
                 {contextUsageInfo.limitSource ? (
-                  <div className="truncate text-[10px] text-void-dim/55">
+                  <div className="truncate text-[10px] text-void-dim/75">
                     limit · {contextLimitSourceLabel(contextUsageInfo.limitSource)}
                     {contextUsageInfo.modelId ? ` · ${contextUsageInfo.modelId}` : ''}
                   </div>
                 ) : null}
               </div>
             ) : (
-              <p className="mb-3 text-[11px] font-mono text-void-dim/60">
+              <p className="mb-3 text-[11px] font-mono text-void-dim/85">
                 No usage yet — compress after a few turns if you want.
               </p>
             )}
@@ -290,7 +292,7 @@ export function ChatSystemStatus({ app }: Props) {
             >
               {contextCompressBusy ? 'COMPRESSING…' : 'COMPRESS NOW'}
             </button>
-            <p className="mt-2 text-[10px] leading-snug text-void-dim/55">
+            <p className="mt-2 text-[10px] leading-snug text-void-dim/80">
               Summarizes older turns into hidden memory. Chat UI stays full. Works before 90% —
               useful on large-context models.
             </p>

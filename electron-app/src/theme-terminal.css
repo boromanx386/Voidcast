@@ -13,7 +13,9 @@ html[data-ui-theme='terminal'] {
   --color-void-dark: 17 14 10;
   --color-void-mid: 24 20 14;
   --color-void-muted: 52 44 32;
-  --color-void-dim: 100 88 64;
+  /* 100 88 64 sat at ~2.8:1 on the charcoal backdrop — CLEAR/STOP, the empty
+     state and the status bar were guesswork. */
+  --color-void-dim: 122 108 80;
   --color-void-text: 170 158 132;
   --color-void-light: 184 172 146;
   --color-void-white: 198 187 162;
@@ -27,6 +29,39 @@ html[data-ui-theme='terminal'] {
   --color-neon-purple: 164 136 92;
   --color-neon-orange: 188 128 62;
   --ui-accent-rgb: 214 160 72;
+
+  /* Coding panel — the amber ramp owns every status letter, while diffs keep a
+     functional green/red so add/remove survives the monochrome. Without this
+     block the panel inherited the neon defaults (pure yellow, magenta, cyan)
+     from :root and fought the shell. */
+  --coding-accent-fg: 214 160 72;
+  --coding-preview-label-fg: 172 190 120;
+  --coding-edit-label-fg: 214 160 72;
+  --coding-terminal-label-fg: 194 172 90;
+  --coding-md-toggle-fg: 186 156 104;
+  --coding-diff-add-fg: 138 186 116;
+  --coding-diff-del-fg: 206 96 72;
+  --coding-diff-hunk-fg: 214 160 72;
+  --coding-git-modified-fg: 214 160 72;
+  --coding-git-added-fg: 138 186 116;
+  --coding-git-deleted-fg: 206 96 72;
+  --coding-git-renamed-fg: 186 156 104;
+  --coding-git-untracked-fg: 152 140 116;
+  --coding-git-conflict-fg: 226 140 60;
+  --coding-dir-dirty-fg: 214 160 72;
+  --coding-commit-accent-fg: 214 160 72;
+  --coding-action-stage-fg: 138 186 116;
+  --coding-action-unstage-fg: 214 160 72;
+  --coding-action-discard-fg: 206 96 72;
+  --coding-terminal-stderr-fg: 206 96 72;
+  --coding-terminal-system-fg: 214 160 72;
+  --coding-find-mark-fg: 194 172 90;
+  --coding-find-active-fg: 214 160 72;
+  --coding-find-status-fg: 194 172 90;
+
+  /* File tree: plain names sit back so the amber git letters read as signal. */
+  --coding-tree-name-fg: 150 140 118;
+  --coding-tree-ignored-fg: 96 86 66;
 
   /* Everything is monospaced — no exceptions */
   --font-body: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;

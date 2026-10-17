@@ -1413,7 +1413,7 @@ export function CodingPanel({
           />
           <button
             type="button"
-            className="cyber-btn text-xs disabled:opacity-40"
+            className="cyber-btn text-xs disabled:opacity-60"
             disabled={commandRunning || !command.trim()}
             onClick={() => void onRunCommand()}
           >

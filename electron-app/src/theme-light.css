@@ -5,7 +5,9 @@ html[data-ui-theme='light'] {
   --color-void-dark: 238 234 226;
   --color-void-mid: 230 225 216;
   --color-void-muted: 186 176 162;
-  --color-void-dim: 145 136 123;
+  /* Secondary text (placeholders, empty states, status bar) needs ~4.5:1 on
+     paper — 145 136 123 washed out to ~2.9:1 and read as disabled. */
+  --color-void-dim: 116 106 93;
   --color-void-text: 110 100 88;
   --color-void-light: 72 64 55;
   --color-void-white: 41 36 31;

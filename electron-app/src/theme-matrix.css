@@ -6,7 +6,9 @@ html[data-ui-theme='matrix'] {
   --color-void-dark: 1 3 1;
   --color-void-mid: 2 6 2;
   --color-void-muted: 0 42 12;
-  --color-void-dim: 0 80 26;
+  /* 0 80 26 was ~2.2:1 on black — dim labels (ignored tree rows, CLEAR) were
+     effectively invisible under the phosphor glow. */
+  --color-void-dim: 0 140 46;
   --color-void-text: 0 200 70;
   --color-void-light: 120 255 150;
   --color-void-white: 180 255 190;
@@ -29,7 +31,9 @@ html[data-ui-theme='matrix'] {
   --coding-md-toggle-fg: 0 220 70;
   --coding-diff-add-fg: 0 255 65;
   --coding-diff-del-fg: 255 60 60;
-  --coding-diff-hunk-fg: 0 255 65;
+  /* Hunk headers were the exact add-green, so a @@ row read as an insertion.
+     Aqua keeps it a divider in a one-hue theme. */
+  --coding-diff-hunk-fg: 0 255 190;
   --coding-git-modified-fg: 160 255 80;
   --coding-git-added-fg: 0 255 65;
   --coding-git-deleted-fg: 255 60 60;

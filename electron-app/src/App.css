@@ -670,20 +670,15 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   box-shadow: 0 0 12px rgb(var(--color-neon-cyan) / 0.35);
 }
 
+/* Hint + undo define resting styles only, exactly like `--compress`: the shared
+   `.composer-send-btn:hover:not(:disabled)` above owns the hover tint, border and glow, so
+   the whole action row reacts identically instead of each button inventing its own hover. */
 .composer-send-btn--hint {
   @apply border-neon-cyan/40 text-neon-cyan/80;
 }
 
-.composer-send-btn--hint:hover:not(:disabled) {
-  @apply bg-neon-cyan/15 border-neon-cyan text-neon-cyan;
-}
-
 .composer-send-btn--hint-undo {
   @apply border-void-dim/50 text-void-dim;
-}
-
-.composer-send-btn--hint-undo:hover {
-  @apply border-neon-cyan/60 text-neon-cyan;
 }
 
 .composer-send-btn--stop {
@@ -857,8 +852,20 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 }
 
 .coding-diff-line--hunk {
-  color: rgb(var(--coding-diff-hunk-fg) / 0.9);
-  background-color: rgb(var(--coding-diff-hunk-fg) / 0.05);
+  color: rgb(var(--coding-diff-hunk-fg));
+  background-color: rgb(var(--coding-diff-hunk-fg) / 0.12);
+}
+
+/*
+ * File tree names are token-driven so a theme can dim plain rows without
+ * touching the shared markup: the fallback is the theme's own void-light.
+ */
+.coding-tree-name {
+  color: rgb(var(--coding-tree-name-fg, var(--color-void-light)));
+}
+
+.coding-tree-ignored {
+  color: rgb(var(--coding-tree-ignored-fg, var(--color-void-dim)) / 0.8);
 }
 
 .coding-git--modified {

@@ -10,7 +10,7 @@
 ## Interface Theme
 
 - **Field:** `uiTheme`
-- **Type:** `UiTheme` (`'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian' | ...`)
+- **Type:** `UiTheme` (`'dystopian' | 'minimal' | 'matrix' | 'light' | 'blood-moon' | 'obsidian' | 'terminal'`)
 - **Default:** `'obsidian'`
 
 Selects the visual chrome of the app. The `dystopian` and `matrix` themes also enable ambient effects (CRT overlay, particles, or matrix rain) behind the settings screen.
