@@ -32,9 +32,9 @@ Open **Options** (gear icon in the header) → **LLM** tab. `llmProvider` is one
 
 | value | What it is | Setup |
 |---|---|---|
-| `ollama` | Local models via `http://localhost:11434` (default) | Install [Ollama](https://ollama.com), `ollama pull llama3.2`, no API key |
+| `ollama` | Ollama endpoint `http://localhost:11434` (default) — models on your own machine, or Ollama's hosted models | Install [Ollama](https://ollama.com), `ollama pull llama3.2` — no API key for local models |
 | `openrouter` | Cloud routing hub, default `https://openrouter.ai/api/v1`, model `openrouter/free` | OpenRouter API key |
-| `nvidia` | NVIDIA NIM cloud, default `https://integrate.api.nvidia.com/v1` | NVIDIA API key |
+| `nvidia` | NVIDIA NIM cloud, default `https://integrate.api.nvidia.com/v1` | NVIDIA API key — free developer tier at [build.nvidia.com](https://build.nvidia.com), no subscription; free capacity is shared, so it is often slow |
 | `deepseek` | DeepSeek API, default `https://api.deepseek.com`, model `deepseek-v4-pro` | DeepSeek API key |
 | `openai` | Native OpenAI Chat Completions, default `https://api.openai.com/v1`, model `gpt-5.6-sol` | OpenAI API key |
 | `opencode-go` | OpenCode Go (OpenAI-compatible), default `https://opencode.ai/zen/go/v1`, model `deepseek-v4-pro` | OpenCode Go API key |
@@ -51,13 +51,46 @@ Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.t
 
 Cloud API keys are kept in renderer `localStorage`; on LAN web clients `saveSettings` strips them (`stripCloudSecrets`).
 
-## Using Local Ollama
+## Using Ollama
+
+Ollama is one provider among the six, not the identity of the app: Voidcast is BYOK first — the accounts and keys you already pay for come first, and `ollama` is only the default because it needs no key at all. Ollama also serves hosted models on its own Cloud plans; that billing is Ollama's, never Voidcast's.
 
 - Default `ollamaBaseUrl` is `http://localhost:11434`. Desktop also supports a desktop proxy for web clients.
 - **Plain HTTP to a non-loopback host is blocked by CSP**: the renderer's `connect-src` allows `https:`/`wss:` plus loopback `http:`/`ws:` only. A LAN Ollama at `http://192.168.x.x:11434` needs its origin added to `index.html` to work.
 - `ollamaModel` defaults to `llama3.2`. The model list is fetched from `/api/tags` in `electron-app/src/lib/ollama.ts`.
 - Ollama-specific LLM options: `llmTemperature`, `llmNumCtx` (`options.num_ctx`), `llmThinkLevel` (`think`), and `llmSystemPrompt`.
 - OpenRouter/NVIDIA reasoning appears in the UI when `llmThinkLevel` is not `off`.
+
+## Using your own OpenAI-compatible server
+
+The `openai` provider is a plain Chat Completions client and `openaiBaseUrl` is an editable field, so it doubles as the door for anything that speaks the OpenAI API. That is the supported path for self-hosted inference — no gateway, no OpenAI account, no Voidcast account.
+
+| Server | Typical base URL |
+|---|---|
+| vLLM | `http://localhost:8000/v1` |
+| llama.cpp (`llama-server`) | `http://localhost:8080/v1` |
+| Ollama, OpenAI-compatible route | `http://localhost:11434/v1` |
+| TGI / SGLang / LM Studio / llama-cpp-python | their own `/v1` address |
+
+Pick `openai` in **Options → LLM**, paste the URL into **OPENAI_BASE_URL**, and put the model id your server reports into **OPENAI_MODEL** — the preset list is only a preset list, the field accepts any id, so a self-hosted `--served-model-name` works. `OPENAI_BASE_URL` is read-only on LAN web clients, where requests are proxied through `/api/openai/*` on the desktop host.
+
+Two caveats worth knowing: plain HTTP to a **non-loopback** host is blocked by the renderer CSP (see the Ollama note above), and Voidcast sends its volatile per-turn context merged onto the final user turn rather than as a trailing `system` message — which is exactly what local llama.cpp and Llama-3-style Jinja templates require.
+
+## Three wire formats, not one
+
+The `openai` slot is the Chat Completions door. The app itself speaks three protocols, each with a real adapter in `electron-app/src/lib/`, and a turn picks one per model:
+
+| Format | Endpoint | Adapter |
+|---|---|---|
+| OpenAI Chat Completions | `{base}/chat/completions` | `openrouter.ts` |
+| Anthropic Messages | `{base}/messages` — sends `x-api-key` and `anthropic-version: 2023-06-01` | `anthropicMessages.ts` |
+| OpenAI Responses | `{base}/responses` — flat `function_call` items, system prompt as `instructions`, cap via `max_output_tokens` | `openResponses.ts` |
+
+This matters for **OpenCode Go**, whose models are spread across all three formats and which publishes no ids for the Responses-only ones: `openCodeGoApiStyle(model)` (`electron-app/src/lib/cloudLlmPresets.ts`) routes by model id, and when a model it sent to `/chat/completions` answers `ModelProtocolUnsupported`, the turn is replayed on `/responses` and then `/messages`, with the working format remembered for the rest of the session — one extra probe per model per app run, not per turn. Per-model table: [options/llm.md](options/llm.md).
+
+Only the network loop lives in `openrouter.ts`. Anthropic requires `max_tokens` on every request, so that adapter sends 16 384 by default and steps down to 8 192 then 4 096 when a model rejects the cap.
+
+**The limit worth knowing before you point this somewhere else:** the per-model routing activates only for an **OpenCode Go URL** — `isOpenCodeGoApi()` accepts `…/opencode.ai/zen/go…` or the local proxy path `/api/opencode-go`. Set `opencodeGoBaseUrl` to some other host and the app treats it as a plain Chat Completions endpoint. A gateway of your own that must serve all three formats has to sit behind one of those two paths.
 
 ## Where Settings Are Stored
 

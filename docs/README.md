@@ -24,7 +24,7 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 ## Quick Start
 
 1. Install the desktop app (Electron) — Windows installer or Linux AppImage/`.deb` from [Releases](https://github.com/boromanx386/Voidcast/releases/latest). On first launch you land on the chat screen.
-2. Open **Options** and pick an LLM provider: local **Ollama** (no account) or a cloud provider (**OpenRouter, NVIDIA, DeepSeek, OpenAI, OpenCode Go**) — see [getting-started.md](getting-started.md).
+2. Open **Options** and plug in a provider you already pay for (**OpenRouter, OpenAI, NVIDIA NIM, DeepSeek, OpenCode Go**), or stay keyless with **Ollama** — see [getting-started.md](getting-started.md).
 3. Type your first message. Cycle **Agent → Ask → Plan → Team** with the mode chip (or `Shift+Tab`).
 4. **Multi-chat:** start work in one session, open another session, send there — both can run (see [multi-chat-and-team.md](multi-chat-and-team.md)).
 5. **Team workers:** Options → SUB → enable coding sub-agent; set a project path; Team mode; multi-area task.
@@ -34,7 +34,7 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 
 The same UI runs in three environments:
 
-- **Desktop (Electron)** — full experience: cloud API keys stored locally (`localStorage`), local Ollama + TTS server access, coding tools (file read/write/terminal), skills discovery, MCP servers, auto-update (Windows installer and Linux AppImage).
+- **Desktop (Electron)** — full experience: cloud API keys stored locally (`localStorage`), Ollama access (your machine or Ollama's hosted models) + local TTS server, coding tools (file read/write/terminal), skills discovery, MCP servers, auto-update (Windows installer and Linux AppImage).
 - **LAN web client** (phone/tablet browser pointed at the desktop server) — the UI works but `applyWebRuntimeOverrides` in `electron-app/src/lib/settings.ts` strips cloud secrets, forces `voiceMode: 'design'`, disables STT, and routes localhost API URLs through the desktop proxy.
 - **Web standalone** (browser-only) — no Electron preload, no local file access, no skills/MCP/terminal; cloud providers work if you enter keys (they persist only in that browser's `localStorage`).
 

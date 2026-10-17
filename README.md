@@ -10,9 +10,9 @@
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Status: beta">
 </p>
 
-**One window for chat, code and creation.** Voidcast is a desktop AI agent (Electron + React + Python) that puts a multi-provider chat, a real coding agent, a browser it drives for you, and generative media tools in a single app. It runs on **your** models — local **Ollama**, or a cloud provider you already have a key for. No cloud lock-in, no telemetry, no motivational posters.
+**One window for chat, code and creation.** Voidcast is a desktop AI agent (Electron + React + Python) that puts a multi-provider chat, a real coding agent, a browser it drives for you, and generative media tools in a single app. It runs on **your provider** — bring a key you already pay for (**OpenRouter**, **OpenAI**, **NVIDIA NIM**, **DeepSeek**, **OpenCode Go**), or run models on your own hardware with **Ollama**. No account with us, no credits to buy, no markup, no telemetry.
 
-Providers: **Ollama** · **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenAI** · **OpenCode Go** — plus **Runware** for image and music. See [Providers](#providers).
+Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** · **Ollama** — plus **Runware** for image and music. See [Providers](#providers).
 
 > **Status: beta and early.** Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. Expect rough edges; issues, ideas and PRs are genuinely welcome.
 
@@ -58,7 +58,7 @@ Providers: **Ollama** · **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **O
 
 - **A browser it actually drives, that you can take over** — Voidcast ships its **own Chromium** (the coding panel **WEB** tab). You and the agent share the same view: navigate, click, type, snapshot, screenshot, emulate devices. Clicks are real CDP input, so React apps and canvas games react as to a real user. See [Built-in browser](#built-in-browser).
 
-- **Your models, your keys** — local **Ollama** for full offline, or bring a key for OpenRouter, NVIDIA NIM, DeepSeek, OpenAI or OpenCode Go. **OpenRouter** alone unlocks 300+ models from a single key — and you can **pin the upstream provider per model** (price, context and uptime shown inline), so routing stays predictable and prompt caches stay warm. Keys and settings stay on your machine; Voidcast has no cloud account and never receives your keys. See [Providers](#providers) and [OpenRouter support](#openrouter-support-per-model-provider-routing).
+- **BYOK — your providers, your billing** — use the accounts and keys you already pay for (OpenRouter, OpenAI, NVIDIA NIM, DeepSeek, OpenCode Go), or run models on your own hardware with Ollama. Nothing is resold: no credits to buy from us, no markup. **OpenRouter** alone unlocks 300+ models from a single key — and you can **pin the upstream provider per model** (price, context and uptime shown inline), so routing stays predictable and prompt caches stay warm. Keys and settings stay on your machine; Voidcast has no cloud account and never receives your keys. See [Providers](#providers) and [OpenRouter support](#openrouter-support-per-model-provider-routing).
 
 - **Tools that do things** — web search, YouTube search + transcripts, weather, web scraping, PDF export, image generation and edit, music generation, TTS/STT, reminders, settings control, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
 
@@ -268,19 +268,26 @@ Full detail: [docs/coding.md](docs/coding.md).
 
 ## Providers
 
-Voidcast does not charge anything and has no cloud account. It connects you to providers you choose — a **local** model for full offline, a **subscription**, or **pay-as-you-go** clouds with your own keys:
+Voidcast does not charge anything, takes no cut and has no cloud account. It connects you to the providers **you** already pay: a pay-as-you-go cloud, a subscription you already hold, or a model running on your own hardware. Nothing is resold — there are no Voidcast credits to buy, and your key is never proxied through us.
 
 | Provider | What you get | Cost |
 |----------|--------------|------|
-| **Ollama** | Open-source models (Qwen, Gemma, GLM, Mistral…) on your own machine — or Ollama's hosted models | Local: free · [Ollama Cloud](https://ollama.com/pricing): free tier, Pro from $20/mo |
 | **OpenRouter** ⭐ | Claude, GPT, Gemini, DeepSeek + 300 more from one key — chat, **per-model provider routing**, TTS, and optional image models (Gemini Flash Image, GPT Image 2) | Free tiers + pay-as-you-go |
-| **NVIDIA NIM** | Enterprise-grade inference for open models | Free credits |
-| **DeepSeek** | Direct API — V4 Pro / Flash | Pay-as-you-go (prepaid balance) |
 | **OpenAI** | Official Chat Completions API — GPT, o-series | Pay-as-you-go, prepaid credits — no free API tier |
+| **NVIDIA NIM** | Open models (Nemotron, Llama, Mistral, DeepSeek-R1…) on NVIDIA's hosted endpoints | Free — free developer tier, no subscription, no paid plan to buy. Free capacity is shared, so throughput varies and it is often slow |
+| **DeepSeek** | Direct API — V4 Pro / Flash | Pay-as-you-go (prepaid balance) |
 | **OpenCode Go** | Models via [OpenCode](https://opencode.ai/docs/go) — chat, Anthropic Messages and the Responses API, routed per model | Subscription (from $10/mo) |
+| **Ollama** | Open-source models (Qwen, Gemma, GLM, Mistral…) on your own machine — or Ollama's hosted models | Your hardware: free · [Ollama Cloud](https://ollama.com/pricing), Ollama's own plans: free tier, Pro from $20/mo |
+| **Any OpenAI-compatible server** (via the `openai` provider) | vLLM, llama.cpp `llama-server`, LM Studio, TGI, SGLang, llama-cpp-python — anything that speaks `/v1/chat/completions` | Your hardware or your gateway: free |
 | **Runware** | Image generation, image edit, and AI music (ACE-Step) | Pay-per-use (typically pennies) |
 
-All you need are the accounts and API keys. Run models locally (Ollama) for free or use cloud keys on low-cost tiers; **TTS, STT, and image/music runs are very cheap** — usually cents per session, not dollars.
+> **Ollama is not only local.** Ollama Cloud is a paid service of its own, so Voidcast lists Ollama as one provider of six — not as "the local option". It is only the default provider because a fresh install can chat without any key.
+
+> **Bring your own endpoint.** Every provider's base URL is an editable field, so nothing here is a closed door. `openaiBaseUrl` is a plain Chat Completions client — point it at a local server (vLLM `http://localhost:8000/v1`, llama.cpp `llama-server` `http://localhost:8080/v1`, LM Studio, TGI, SGLang) and type the model id in by hand. The same holds for `ollamaBaseUrl`, `openrouterBaseUrl`, `nvidiaBaseUrl`, `deepseekBaseUrl` and `opencodeGoBaseUrl`.
+
+> **Three wire formats, not one.** Voidcast is not a Chat-Completions-only client: it speaks the OpenAI **Chat Completions** API, the **Anthropic Messages** API (`{base}/messages`, with `x-api-key` and `anthropic-version`) and the OpenAI **Responses** API (`{base}/responses`) — and the OpenCode Go provider routes every model to the right one automatically, including a runtime re-probe when Go refuses a format. Real adapters, not shims; details in [docs/options/llm.md](docs/options/llm.md). One honest limit: that per-model routing keys off an OpenCode Go URL (the real `opencode.ai/zen/go` or the local proxy path `/api/opencode-go`), so a custom gateway on another host falls back to Chat Completions only.
+
+All you need are the accounts and API keys you already have — Voidcast never resells model access. Run models on your own hardware for free or use cloud keys on low-cost tiers; **TTS, STT, and image/music runs are very cheap** — usually cents per session, not dollars.
 
 **Pricing:** OpenRouter Whisper (STT), TTS, and image models bill per request or token at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 

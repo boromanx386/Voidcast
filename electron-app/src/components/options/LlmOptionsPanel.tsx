@@ -1074,7 +1074,7 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
-              MiniMax / Qwen on Go use Anthropic Messages — not supported yet
+              MiniMax / Qwen on Go use the Anthropic Messages format — routed automatically
             </li>
           </ul>
         )}
