@@ -609,53 +609,62 @@ export function ChatMessage({ message: m, index, render, app }: Props) {
         )}
 
         {/* Actions for assistant */}
-        {m.role === 'assistant' && m.content.trim().length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2 border-t border-void-muted/30 pt-3">
-            <button
-              type="button"
-              disabled={ttsOk === false}
-              onClick={() => {
-                if (playingId === m.id) {
-                  abortTts()
-                  return
-                }
-                void onRead(m)
-              }}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+        {(settings.ttsProvider !== 'none' ||
+          dedupeNonEmpty([
+            ...(m.generatedImagePaths || []),
+            ...(assistantSavedImagePaths[m.id] || []),
+          ]).length > 0) &&
+          m.role === 'assistant' &&
+          m.content.trim().length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-void-muted/30 pt-3">
+              {/* SPEAK is gone entirely while TTS is disabled (Options -> TTS). */}
+              {settings.ttsProvider !== 'none' && (
+                <button
+                  type="button"
+                  disabled={ttsOk === false}
+                  onClick={() => {
+                    if (playingId === m.id) {
+                      abortTts()
+                      return
+                    }
+                    void onRead(m)
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
                 border border-neon-cyan/30 text-neon-cyan
                 hover:bg-neon-cyan/10 hover:border-neon-cyan/50
                 disabled:opacity-40 disabled:cursor-not-allowed
                 transition-all"
-            >
-              <span className={playingId === m.id ? 'animate-pulse' : ''}>
-                {playingId === m.id ? '◼' : '▶'}
-              </span>
-              {playingId === m.id ? 'STOP' : 'SPEAK'}
-            </button>
-            {dedupeNonEmpty([
-              ...(m.generatedImagePaths || []),
-              ...(assistantSavedImagePaths[m.id] || []),
-            ]).length > 0 ? (
-              <button
-                type="button"
-                onClick={() =>
-                  void openLocalImage(
-                    dedupeNonEmpty([
-                      ...(m.generatedImagePaths || []),
-                      ...(assistantSavedImagePaths[m.id] || []),
-                    ]).slice(-1)[0],
-                  )
-                }
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                >
+                  <span className={playingId === m.id ? 'animate-pulse' : ''}>
+                    {playingId === m.id ? '◼' : '▶'}
+                  </span>
+                  {playingId === m.id ? 'STOP' : 'SPEAK'}
+                </button>
+              )}
+              {dedupeNonEmpty([
+                ...(m.generatedImagePaths || []),
+                ...(assistantSavedImagePaths[m.id] || []),
+              ]).length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void openLocalImage(
+                      dedupeNonEmpty([
+                        ...(m.generatedImagePaths || []),
+                        ...(assistantSavedImagePaths[m.id] || []),
+                      ]).slice(-1)[0],
+                    )
+                  }
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
                   border border-neon-green/30 text-neon-green
                   hover:bg-neon-green/10 hover:border-neon-green/50
                   transition-all"
-              >
-                🖼 OPEN IMG
-              </button>
-            ) : null}
-          </div>
-        )}
+                >
+                  🖼 OPEN IMG
+                </button>
+              ) : null}
+            </div>
+          )}
 
         {/* Per-turn duration: live while the turn runs, frozen once it ends. */}
         {m.role === 'assistant' && m.turnStartedAt != null ? (

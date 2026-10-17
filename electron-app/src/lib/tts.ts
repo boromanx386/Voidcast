@@ -140,6 +140,9 @@ export async function synthesizeSpeech(options: {
   voiceAnchor?: StoredVoiceAnchor | null
   signal?: AbortSignal
 }): Promise<Blob> {
+  if (options.ttsProvider === 'none') {
+    throw new Error('TTS is disabled. Enable it in Options -> TTS.')
+  }
   if (options.ttsProvider === 'openrouter-tts') {
     const viaProxy = usesServerCloudProxy()
     const apiKey = (options.openrouterApiKey || '').trim()
@@ -495,6 +498,7 @@ export async function checkTtsHealth(options: {
   ok: boolean
   detail?: string
 }> {
+  if (options.ttsProvider === 'none') return { ok: false, detail: 'TTS disabled' }
   if (options.ttsProvider === 'runware-xai') {
     if (usesServerCloudProxy()) {
       return checkServerCloudSecret(options.ttsBaseUrl, 'runware')

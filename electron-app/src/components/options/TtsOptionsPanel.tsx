@@ -252,7 +252,7 @@ export function TtsOptionsPanel({
           </p>
         </div>
 
-        {isElectron() && (
+        {isElectron() && settings.ttsProvider !== 'none' && (
           <div className="rounded border border-neon-cyan/20 bg-void-black/40 px-3 py-2">
             <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
               <span className="mr-2">⌘</span>TTS_SHORTCUT
@@ -275,18 +275,28 @@ export function TtsOptionsPanel({
               setSettings((s) => ({
                 ...s,
                 ttsProvider:
-                  e.target.value === 'runware-xai'
-                    ? 'runware-xai'
-                    : e.target.value === 'openrouter-tts'
-                      ? 'openrouter-tts'
-                      : 'local',
+                  e.target.value === 'none'
+                    ? 'none'
+                    : e.target.value === 'runware-xai'
+                      ? 'runware-xai'
+                      : e.target.value === 'openrouter-tts'
+                        ? 'openrouter-tts'
+                        : 'local',
               }))
             }
           >
+            <option value="none">Disabled</option>
             <option value="local">Local OmniVoice (`/tts`)</option>
             <option value="runware-xai">Runware cloud TTS</option>
             <option value="openrouter-tts">OpenRouter cloud TTS</option>
           </select>
+          {settings.ttsProvider === 'none' && (
+            <p className="mt-1 text-xs text-void-dim">
+              Speech output is off: the SPEAK button in chat, AUTO_VOICE and the{' '}
+              <code className="text-neon-cyan">generate_tts</code> tool are disabled. Pick a
+              provider to turn them back on.
+            </p>
+          )}
         </div>
 
         {settings.ttsProvider === 'runware-xai' && (
@@ -588,13 +598,15 @@ export function TtsOptionsPanel({
         )}
 
         {/* Refresh Button */}
-        <button
-          type="button"
-          className="cyber-btn text-sm self-start"
-          onClick={() => void refreshTts()}
-        >
-          <span className="mr-2">↻</span> CHECK_TTS_STATUS
-        </button>
+        {settings.ttsProvider !== 'none' && (
+          <button
+            type="button"
+            className="cyber-btn text-sm self-start"
+            onClick={() => void refreshTts()}
+          >
+            <span className="mr-2">↻</span> CHECK_TTS_STATUS
+          </button>
+        )}
 
         {/* Voice Mode Selection */}
         {settings.ttsProvider === 'local' && (
@@ -889,58 +901,62 @@ export function TtsOptionsPanel({
           </>
         )}
 
-        {/* Auto Voice Toggle */}
-        <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4 accent-neon-cyan"
-            checked={settings.autoVoice}
-            onChange={(e) => setSettings((s) => ({ ...s, autoVoice: e.target.checked }))}
-          />
-          <span>
-            <span className="font-mono text-sm text-neon-green">AUTO_VOICE</span>
-            <span className="mt-1 block text-xs text-void-dim">
-              Play TTS automatically after assistant reply completes
-            </span>
-          </span>
-        </label>
+        {/* Auto voice, agent tool and chunking all depend on an active provider. */}
+        {settings.ttsProvider !== 'none' && (
+          <>
+            <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-neon-cyan"
+                checked={settings.autoVoice}
+                onChange={(e) => setSettings((s) => ({ ...s, autoVoice: e.target.checked }))}
+              />
+              <span>
+                <span className="font-mono text-sm text-neon-green">AUTO_VOICE</span>
+                <span className="mt-1 block text-xs text-void-dim">
+                  Play TTS automatically after assistant reply completes
+                </span>
+              </span>
+            </label>
 
-        <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4 accent-neon-cyan"
-            checked={settings.toolsEnabled.tts}
-            onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                toolsEnabled: { ...s.toolsEnabled, tts: e.target.checked },
-              }))
-            }
-          />
-          <span>
-            <span className="font-mono text-sm text-neon-cyan">ENABLE_TTS_TOOL</span>
-            <span className="mt-1 block text-xs text-void-dim">
-              Lets the agent call <code className="text-neon-cyan">generate_tts</code> to synthesize
-              speech and save an audio file (optionally into the coding project).
-            </span>
-          </span>
-        </label>
+            <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-neon-cyan"
+                checked={settings.toolsEnabled.tts}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    toolsEnabled: { ...s.toolsEnabled, tts: e.target.checked },
+                  }))
+                }
+              />
+              <span>
+                <span className="font-mono text-sm text-neon-cyan">ENABLE_TTS_TOOL</span>
+                <span className="mt-1 block text-xs text-void-dim">
+                  Lets the agent call <code className="text-neon-cyan">generate_tts</code> to
+                  synthesize speech and save an audio file (optionally into the coding project).
+                </span>
+              </span>
+            </label>
 
-        {/* Chunk Size */}
-        <div className="form-group">
-          <label className="form-label">
-            <span className="text-neon-cyan">⬡</span> CHUNK_SIZE (chars)
-          </label>
-          <NumericSettingInput
-            min={80}
-            max={2000}
-            value={settings.ttsChunkMaxChars}
-            onCommit={(ttsChunkMaxChars) => setSettings((s) => ({ ...s, ttsChunkMaxChars }))}
-          />
-          <p className="text-xs text-void-dim mt-1">
-            Long responses split into chunks for streaming playback
-          </p>
-        </div>
+            {/* Chunk Size */}
+            <div className="form-group">
+              <label className="form-label">
+                <span className="text-neon-cyan">⬡</span> CHUNK_SIZE (chars)
+              </label>
+              <NumericSettingInput
+                min={80}
+                max={2000}
+                value={settings.ttsChunkMaxChars}
+                onCommit={(ttsChunkMaxChars) => setSettings((s) => ({ ...s, ttsChunkMaxChars }))}
+              />
+              <p className="text-xs text-void-dim mt-1">
+                Long responses split into chunks for streaming playback
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

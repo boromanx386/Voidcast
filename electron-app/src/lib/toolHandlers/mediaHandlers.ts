@@ -404,6 +404,9 @@ export const handleGenerateTts: ToolHandlerFn = async (args, ctx) => {
   if (!tts) {
     return 'Error: TTS settings are missing for this turn.'
   }
+  if (tts.ttsProvider === 'none') {
+    return 'Error: TTS is disabled in Options -> TTS.'
+  }
   const rawText =
     typeof args.text === 'string' ? args.text : typeof args.prompt === 'string' ? args.prompt : ''
   const spoken = sanitizeForTts(rawText).trim()

@@ -9,14 +9,15 @@
 
 ## TTS provider (`ttsProvider`)
 
-Type: `TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'`
+Type: `TtsProvider = 'none' | 'local' | 'runware-xai' | 'openrouter-tts'`
 Default: `'openrouter-tts'`
 
+- **`none`** — speech output disabled. The **SPEAK** button is not rendered on assistant bubbles (the **OPEN IMG** button and the bubble footer stay), `AUTO_VOICE` does not fire, `onRead` returns early, playback already running is aborted, the 15 s health poll stops, `generate_tts` and `synthesizeSpeech` refuse, the footer dot reads **TTS disabled in Options -> TTS**, and the panel hides the provider fields, the TTS-shortcut box, `CHECK_TTS_STATUS`, `AUTO_VOICE`, `ENABLE_TTS_TOOL` and `CHUNK_SIZE`. Model/voice settings are preserved; pick a provider again to bring everything back.
 - **`local`** — your local OmniVoice HTTP server (default URL `http://127.0.0.1:8765`, field `ttsBaseUrl`). Voice design uses Qwen-style voice design; setup links point to OmniVoice docs.
 - **`runware-xai`** — Runware cloud xAI TTS (`runwareTtsModel`, default `'xai:tts@0'`). Uses xAI/gemini/minimax voices and sends `buildRunwareTtsSpeechPayload`-style options.
 - **`openrouter-tts`** — OpenRouter-hosted TTS (`openrouterTtsModel`, default `'google/gemini-3.1-flash-tts-preview'`, optional `openrouterTtsVoice`). Changing model resets the voice so the UI can re-offer voices valid for that model. The preset list includes `google/gemini-3.8-flash-tts` and `google/gemini-3.8-flash-lite-tts` (both share the full 30-voice Gemini catalog via `GEMINI_TTS_VOICES`, as does the 3.1 default) plus `fish-audio/s2.1-pro-free:free` (Fish Audio S2.1 Pro Free).
 
-The panel includes a **refresh TTS** button (`refreshTts`) to re-probe the local server.
+The panel includes a **refresh TTS** button (`refreshTts`) to re-probe the local server; it is hidden while `ttsProvider === 'none'`.
 
 ### Fish Audio voices (free)
 

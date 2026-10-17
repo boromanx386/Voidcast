@@ -137,7 +137,7 @@ type RunwareMusicModelProfile = {
 
 | Key | Type | What it controls |
 | --- | --- | --- |
-| `ttsProvider` | `TtsProvider` | `'local'` (OmniVoice HTTP server) \| `'runware-xai'` \| `'openrouter-tts'`. |
+| `ttsProvider` | `TtsProvider` | `'none'` (disabled: no SPEAK button, no AUTO_VOICE, no `generate_tts`) \| `'local'` (OmniVoice HTTP server) \| `'runware-xai'` \| `'openrouter-tts'`. |
 | `ttsBaseUrl` | `string` | Base URL for the local TTS server. |
 | `openrouterTtsModel` | `string` | Default OpenRouter TTS model id (`google/gemini-3.1-flash-tts-preview`); presets also include `google/gemini-3.8-flash-tts` and `google/gemini-3.8-flash-lite-tts`. |
 | `openrouterTtsVoice` | `string` | Optional OpenRouter TTS voice id/preset. |

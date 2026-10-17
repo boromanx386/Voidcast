@@ -160,8 +160,20 @@ export function ChatSystemStatus({ app }: Props) {
           {isWebStandalone() ? 'TTS' : 'TTS/STT'}
         </span>
         <span
-          className={`dot ${ttsOk === true ? 'online' : ttsOk === false ? 'offline' : 'busy'}`}
-          title={`TTS service ${ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}`}
+          className={`dot ${
+            settings.ttsProvider === 'none'
+              ? 'offline'
+              : ttsOk === true
+                ? 'online'
+                : ttsOk === false
+                  ? 'offline'
+                  : 'busy'
+          }`}
+          title={
+            settings.ttsProvider === 'none'
+              ? 'TTS disabled in Options -> TTS'
+              : `TTS service ${ttsOk === true ? 'READY' : ttsOk === false ? 'OFFLINE' : 'CHECKING'}`
+          }
         />
       </div>
       <div ref={ctxWrapRef} className="relative">

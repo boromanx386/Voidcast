@@ -1501,7 +1501,9 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       // are covered uniformly. `runStillOwnsSlot` is still used below to gate
       // post-turn side effects (sound, auto-speak) to the owning run.
       if (replyText.trim() && runStillOwnsSlot) {
-        const willAutoSpeak = loadSettings().autoVoice && ttsOk !== false
+        const autoSpeakSettings = loadSettings()
+        const willAutoSpeak =
+          autoSpeakSettings.autoVoice && autoSpeakSettings.ttsProvider !== 'none' && ttsOk !== false
         if (turnSettings.notificationSoundsEnabled && !willAutoSpeak) {
           void playNotificationSound('reply', { volume: turnSettings.notificationSoundVolume })
         }

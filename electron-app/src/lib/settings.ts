@@ -21,7 +21,8 @@ export {
 } from '@/types/chat'
 
 export type VoiceMode = 'design' | 'clone'
-export type TtsProvider = 'local' | 'runware-xai' | 'openrouter-tts'
+/** 'none' disables speech output: no SPEAK button, no AUTO_VOICE, no generate_tts. */
+export type TtsProvider = 'none' | 'local' | 'runware-xai' | 'openrouter-tts'
 export type SttProvider = 'none' | 'openrouter' | 'whistle'
 /** Backend for generate_image / edit_image_runware tools. */
 export type ImageProvider = 'runware' | 'openrouter'
@@ -2117,11 +2118,13 @@ function normalizeLlm(s: AppSettings): AppSettings {
 function normalizeTts(s: AppSettings): AppSettings {
   const providerRaw = typeof s.ttsProvider === 'string' ? s.ttsProvider : ''
   const ttsProvider: TtsProvider =
-    providerRaw === 'runware-xai'
-      ? 'runware-xai'
-      : providerRaw === 'openrouter-tts'
-        ? 'openrouter-tts'
-        : 'local'
+    providerRaw === 'none'
+      ? 'none'
+      : providerRaw === 'runware-xai'
+        ? 'runware-xai'
+        : providerRaw === 'openrouter-tts'
+          ? 'openrouter-tts'
+          : 'local'
   const voiceRaw = typeof s.runwareXaiVoice === 'string' ? s.runwareXaiVoice.trim() : ''
   const previousRunwareModel = typeof s.runwareTtsModel === 'string' ? s.runwareTtsModel.trim() : ''
   const runwareTtsModel = normalizeRunwareTtsModel(previousRunwareModel)

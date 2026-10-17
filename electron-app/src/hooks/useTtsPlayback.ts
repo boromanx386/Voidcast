@@ -50,6 +50,10 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const refreshTts = useCallback(async () => {
+    if (settings.ttsProvider === 'none') {
+      setTtsOk(false)
+      return
+    }
     console.log('[VOIDCAST] Checking TTS at:', settings.ttsBaseUrl)
     try {
       const h = await checkTtsHealth({
@@ -68,9 +72,21 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
 
   useEffect(() => {
     void refreshTts()
+    // No health polling while TTS is disabled.
+    if (settings.ttsProvider === 'none') return
     const t = window.setInterval(() => void refreshTts(), 15000)
     return () => window.clearInterval(t)
-  }, [refreshTts])
+  }, [refreshTts, settings.ttsProvider])
+
+  // Disabling TTS mid-playback must stop the audio element and invalidate the run.
+  useEffect(() => {
+    if (settings.ttsProvider !== 'none') return
+    ttsAbortRef.current?.abort()
+    ttsAbortRef.current = null
+    ttsRunIdRef.current += 1
+    audioRef.current?.pause()
+    setPlayingId(null)
+  }, [settings.ttsProvider])
 
   useEffect(() => {
     void loadCloneRef().then((r) => {
@@ -126,6 +142,7 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
   }
 
   const onRead = async (msg: UiMessage) => {
+    if (settings.ttsProvider === 'none') return
     if (msg.role !== 'assistant' || !msg.content.trim()) return
     const spoken = sanitizeForTts(msg.content)
     if (!spoken) return
