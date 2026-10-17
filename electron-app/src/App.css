@@ -1240,9 +1240,22 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply w-full px-4 py-2.5 appearance-none;
   @apply bg-void-black border border-void-muted cursor-pointer;
   @apply text-void-white font-mono text-sm;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2328afc3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  /* Two gradient tiles clipped into a chevron, instead of a data-URI SVG arrow.
+     An SVG loaded through background-image is its own document: currentColor
+     resolves against itself and no CSS variable reaches it, which is why the
+     fill was baked to %2328afc3 (the dystopian cyan) and every theme inherited
+     it. Same 10x5 footprint, 13-23px from the right edge.
+     --ui-accent-rgb is comma-separated for exact usages like this one. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgb(var(--ui-accent-rgb)) 50%),
+    linear-gradient(135deg, rgb(var(--ui-accent-rgb)) 50%, transparent 50%);
   background-repeat: no-repeat;
-  background-position: right 12px center;
+  background-position:
+    calc(100% - 23px) calc(50% + 1px),
+    calc(100% - 18px) calc(50% + 1px);
+  background-size:
+    5px 5px,
+    5px 5px;
 }
 
 .form-select:focus {
@@ -1257,7 +1270,10 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 
 .form-slider::-webkit-slider-thumb {
   @apply w-4 h-4 appearance-none cursor-pointer;
-  background: linear-gradient(135deg, rgb(var(--color-neon-cyan)), rgb(var(--color-neon-cyan-dim)));
+  /* Accent-driven on purpose: --color-neon-cyan-dim is not declared by
+     blood-moon, obsidian or terminal, so this gradient used to fade into the
+     dystopian cyan in all three. rgba() because the token is comma-separated. */
+  background: linear-gradient(135deg, rgb(var(--ui-accent-rgb)), rgba(var(--ui-accent-rgb), 0.62));
   box-shadow: 0 0 10px rgb(var(--color-neon-cyan));
 }
 

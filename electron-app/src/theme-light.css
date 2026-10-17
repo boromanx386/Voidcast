@@ -8,7 +8,10 @@ html[data-ui-theme='light'] {
   /* Secondary text (placeholders, empty states, status bar) needs ~4.5:1 on
      paper — 145 136 123 washed out to ~2.9:1 and read as disabled. */
   --color-void-dim: 116 106 93;
-  --color-void-text: 110 100 88;
+  /* 110 100 88 cleared paper (6.0:1) but only measured 4.45:1 on the void-mid
+     panels — under AA for body text. Now ~5.9:1 paper, ~5.1:1 panels, and it
+     sits below --color-void-dim as the ramp expects. */
+  --color-void-text: 100 91 79;
   --color-void-light: 72 64 55;
   --color-void-white: 41 36 31;
 

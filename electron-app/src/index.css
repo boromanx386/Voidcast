@@ -15,7 +15,11 @@
     --color-void-dark: 18 18 26;
     --color-void-mid: 26 26 46;
     --color-void-muted: 45 45 68;
-    --color-void-dim: 74 74 106;
+    /* 74 74 106 measured 2.33:1 on void-black. Dim is read by placeholders, the
+       ignored-file rows, empty states and the status bar, so it has to clear AA
+       rather than merely exist. 120 120 168 keeps the violet cast and lands
+       ~5:1 without crowding --color-void-text. */
+    --color-void-dim: 120 120 168;
     --color-void-text: 144 144 176;
     --color-void-light: 192 192 208;
     --color-void-white: 232 232 240;
