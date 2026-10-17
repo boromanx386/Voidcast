@@ -131,6 +131,8 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'muse-spark-1.3-contributor': 1048576,
   'google/gemini-4-argon': 1048576,
   'gemini-4-argon-contributor': 1048576,
+  'deepseek/deepseek-v4.1-flash-1017': 1048576,
+  'beam-free': 1048576,
 }
 
 function buildPresetLookup(

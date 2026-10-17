@@ -69,6 +69,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5 5 (1M ctx)' },
   { id: 'mistralai/mistral-large-4-0', label: 'Mistral Large 4 0 (524K ctx)' },
   { id: 'google/gemini-4-argon', label: 'Gemini 4 Argon (1M ctx)' },
+  { id: 'deepseek/deepseek-v4.1-flash-1017', label: 'DeepSeek V4 1 Flash 1017 (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -140,6 +141,7 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'muse-spark-1.2-contributor', label: 'Muse Spark 1 2 Contributor (1M ctx · Responses)' },
   { id: 'muse-spark-1.3-contributor', label: 'Muse Spark 1 3 Contributor (1M ctx · Responses)' },
   { id: 'gemini-4-argon-contributor', label: 'Gemini 4 Argon Contributor (1M ctx)' },
+  { id: 'beam-free', label: 'Beam Free (1M ctx)' },
 ]
 
 /**
