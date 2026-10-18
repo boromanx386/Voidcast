@@ -1028,6 +1028,13 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
       }
 
       const isLastAttempt = attempt >= MAX_RETRIES_PER_MODEL - 1
+      // Each retry is a fresh HTTP POST, so a provider that only exposes a
+      // per-key request count (no per-request log) reports more calls than the
+      // success lines do. Log every failed attempt so the two reconcile:
+      // provider calls = "prompt cache" lines + "api retry" lines.
+      console.warn(
+        `[voidcast] api retry ${attempt + 1}/${MAX_RETRIES_PER_MODEL} ${apiLabel} ${model} ${res.status}${isLastAttempt ? ' (giving up)' : ''}`,
+      )
       if (isLastAttempt) break
       const retrySec =
         typeof err.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0
