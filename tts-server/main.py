@@ -492,6 +492,9 @@ SEARCH_READ_TOP_DEFAULT = 3
 SEARCH_READ_CHARS_DEFAULT = 6_000
 SEARCH_READ_TOTAL_BUDGET = 24_000
 SEARCH_TIMEOUT_S = 15
+# One ddgs pass can miss every canonical source; below this many distinct
+# boosted domains the collector retries across explicit backends.
+SEARCH_MIN_BOOSTED = 3
 SEARCH_READ_TIMEOUT_S = 15
 SEARCH_READ_CONCURRENCY = 3
 SEARCH_CACHE_TTL_S = 600
@@ -507,25 +510,43 @@ _PAGE_CACHE: dict[str, tuple[float, tuple[str, str]]] = {}
 # authority signal, so these lists are short and hand-maintained. Boost = usually
 # the canonical answer; block = SEO/monetisation farms that outrank real docs.
 _SEARCH_DOMAIN_BOOST = (
+    # Language / runtime / framework docs
     "docs.python.org",
-    "developer.mozilla.org",
-    "docs.rs",
-    "rust-lang.org",
     "python.org",
+    "developer.mozilla.org",
     "nodejs.org",
     "react.dev",
     "fastapi.tiangolo.com",
+    "docs.rs",
+    "rust-lang.org",
+    "go.dev",
+    # Data stores. sqlite.org was the measured gap: the canonical WAL answer
+    # ranked nowhere while content farms took the top slots.
+    "sqlite.org",
     "postgresql.org",
+    "mysql.com",
+    "mariadb.com",
+    "redis.io",
+    "mongodb.com",
+    "elastic.co",
+    # Systems, servers, containers
     "man7.org",
     "kernel.org",
+    "nginx.org",
+    "apache.org",
+    "gnu.org",
+    "openssl.org",
+    "docker.com",
+    "kubernetes.io",
+    "learn.microsoft.com",
+    # Standards, reference, code hosts
     "ietf.org",
     "rfc-editor.org",
     "w3.org",
     "wikipedia.org",
-    "stackoverflow.com",
-    "github.com",
     "arxiv.org",
-    "learn.microsoft.com",
+    "github.com",
+    "stackoverflow.com",
     "europa.eu",
 )
 _SEARCH_DOMAIN_BLOCK = (
@@ -536,6 +557,26 @@ _SEARCH_DOMAIN_BLOCK = (
     "chegg.com",
     "brainly.",
     "answers.yahoo.",
+)
+
+# Auto-reading promotes a result to thousands of characters of confident-looking
+# context. For a content farm that is WORSE than a snippet, because the model
+# cannot tell generated filler from documentation - a measured johal.in page
+# carried fabricated statistics and a fake roadmap. These hosts stay ranked and
+# visible; they are just never promoted to full text. Deeper results backfill the
+# read window. Judgement call: edit the list freely.
+_SEARCH_NO_READ = (
+    "johal.in",
+    "geeksforgeeks.org",
+    "javatpoint.com",
+    "tutorialspoint.com",
+    "guru99.com",
+    "interviewbit.com",
+    "prepbytes.com",
+    "simplilearn.com",
+    "intellipaat.com",
+    "edureka.co",
+    "scaler.com",
 )
 
 _SEARCH_STOPWORDS = frozenset(
@@ -597,6 +638,20 @@ def _host_of(link: str) -> str:
     if not m:
         return ""
     return m.group(1).split("@")[-1].split(":")[0].lower()
+
+
+def _is_boosted(host: str) -> bool:
+    """Canonical-domain check: suffix match, so 'sqlite.org' also covers www."""
+    return any(host == d or host.endswith("." + d) for d in _SEARCH_DOMAIN_BOOST)
+
+
+def _is_no_read(host: str) -> bool:
+    return any(p in host for p in _SEARCH_NO_READ)
+
+
+def _boosted_host_count(rows: list[dict[str, Any]]) -> int:
+    """Distinct boosted hostnames in the candidate set (www and apex count apart)."""
+    return len({r["host"] for r in rows if _is_boosted(r["host"])})
 
 
 def _parse_result_date(raw: str) -> datetime | None:
@@ -734,9 +789,23 @@ def _collect_candidates(
         except Exception as e:  # noqa: BLE001
             logger.warning("ddgs text backend failed for %r: %s", query, e)
 
-    # Sparse result set -> ask explicit backends. Still no time filter: the whole
-    # point is to reach the evergreen pages the recency pass cannot see.
-    if len(rows) < want and time.monotonic() < deadline - 5:
+    # ddgs answers from a non-deterministic engine mix, so a single pass can look
+    # full while carrying no canonical source at all (measured: the same query
+    # returned sqlite.org/wal.html in one call and eight farm pages in the next).
+    # Retry across explicit backends when the set is thin OR lacks canonical
+    # domains - still with no time filter, since the point is to reach the
+    # evergreen pages the recency pass cannot see.
+    if (
+        len(rows) < want or _boosted_host_count(rows) < min(want, SEARCH_MIN_BOOSTED)
+    ) and time.monotonic() < deadline - 5:
+        # Logged on purpose: without this line a widened trigger is silent and the
+        # only way to know whether it fires is to read the code.
+        logger.info(
+            "ddgs multi-backend retry for %r: %d candidates, %d canonical before",
+            query,
+            len(rows),
+            _boosted_host_count(rows),
+        )
         try:
             for r in list(
                 ddgs.text(
@@ -770,7 +839,7 @@ def _rank_candidates(rows: list[dict[str, Any]], query: str) -> None:
                 score += 1.0
         if len(phrase) > 6 and (phrase in title or phrase in body):
             score += 6.0
-        if any(host == d or host.endswith("." + d) for d in _SEARCH_DOMAIN_BOOST):
+        if _is_boosted(host):
             score += 2.5
         if any(b in host for b in _SEARCH_DOMAIN_BLOCK):
             score -= 8.0
@@ -839,10 +908,11 @@ async def _read_top_results(
     per_page_chars: int,
     total_budget: int,
 ) -> int:
-    """Attach full page text to the top rows in place; return how many landed.
+    """Attach full page text to the top ranked rows; return how many landed.
 
-    Never raises: an unreadable page stays snippet-only, which the formatter
-    already knows how to render.
+    Low-trust hosts are skipped rather than promoted, and deeper results backfill
+    the read window. Never raises: an unreadable page stays snippet-only, which
+    the formatter already knows how to render.
     """
     if top_n <= 0 or not rows:
         return 0
@@ -877,7 +947,19 @@ async def _read_top_results(
         row["full_format"] = str(res.get("format") or "text")
         _cache_put(_PAGE_CACHE, page_key, (text, row["full_format"]))
 
-    targets = rows[:top_n]
+    # Walk ranked order and take the first `top_n` rows worth promoting. Farms are
+    # marked and skipped so the window fills with the next real source instead of
+    # injecting generated filler as if it were documentation.
+    targets: list[dict[str, Any]] = []
+    for row in rows:
+        if len(targets) >= top_n:
+            break
+        if _is_no_read(row["host"]):
+            row["read_error"] = "skipped (low-trust source)"
+            continue
+        targets.append(row)
+    if not targets:
+        return 0
     await asyncio.gather(*(read(r) for r in targets), return_exceptions=True)
 
     # Deterministic budget: highest-ranked page wins, the tail gets dropped
@@ -919,9 +1001,11 @@ def _format_results(
         blocks.append(block)
     body = "\n\n---\n\n".join(blocks)
     if read_top > 0 and read_ok > 0:
+        # Count-based, not "the first N": low-trust rows are skipped and deeper
+        # results backfill, so position no longer implies full text.
         note = (
-            f"\n\n---\n\nNote: the first {read_ok} result(s) above include full page "
-            "text. Deeper results are snippets only (~"
+            f"\n\n---\n\nNote: {read_ok} of the results above include their full page "
+            "text (Markdown, marked FULL TEXT). The rest are snippets only (~"
             f"{SEARCH_SNIPPET_CHARS} characters each) - call scrape_url on their "
             "links if you need them before quoting."
         )
