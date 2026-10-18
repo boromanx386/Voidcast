@@ -511,13 +511,28 @@ const WEB_SEARCH_TOOL: AgentToolDefinition = {
   function: {
     name: 'web_search',
     description:
-      'Search the public web (news, facts, URLs, current events). Call this whenever the user wants information that may be online or time-sensitive. Pass a short `query` string.',
+      'Search the public web and read the top results. Returns ranked, dated hits; by default the top few arrive with their full page text (Markdown) already included, so you can answer and quote without another call. Leave `recency` UNSET for how-to, reference, documentation and evergreen questions — setting it restricts results to that window and hides the authoritative older pages. Use `recency` only for recent events, prices, releases or scores.',
     parameters: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
           description: 'Search query in concise natural language',
+        },
+        max_results: {
+          type: 'number',
+          description: 'How many ranked results to return (default 8, max 20).',
+        },
+        recency: {
+          type: 'string',
+          enum: ['d', 'w', 'm', 'y'],
+          description:
+            'Optional recency window: d=day, w=week, m=month, y=year. Omit for evergreen/how-to questions.',
+        },
+        read_top: {
+          type: 'number',
+          description:
+            'How many top results to fetch in full (default 3, max 5). Set 0 for snippets only.',
         },
       },
       required: ['query'],

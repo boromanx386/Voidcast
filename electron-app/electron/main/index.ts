@@ -919,9 +919,11 @@ ipcMain.handle('voidcast:web-search', async (_evt, query: string) => {
       .filter(Boolean) as string[]
     if (topics.length) parts.push(`Related: ${topics.join('; ')}`)
     if (parts.length === 0) {
+      // Report a failure, not a success: the renderer would otherwise hand this
+      // placeholder to the model as if it were a real search result.
       return {
-        ok: true,
-        text: 'No instant results from DuckDuckGo. Try rephrasing the query.',
+        ok: false,
+        text: 'DuckDuckGo Instant Answer returned nothing (fallback path; the ddgs backend is unavailable).',
       }
     }
     return { ok: true, text: parts.join('\n\n') }

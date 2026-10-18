@@ -37,6 +37,7 @@ heavy local TTS stack). Runtime deps referenced for tools mode:
 - youtube-transcript-api
 - reportlab (PDF export for `save_pdf` / `POST /tools/pdf`)
 - pillow (raster image handling for embedded images in PDFs)
+- trafilatura (HTML main-content extraction to Markdown for `scrape_url`)
 - cactus-needle (local speech-to-text engine; see below)
 
 ## Bundled local speech-to-text engine (cactus-needle / Whistle)

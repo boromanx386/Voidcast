@@ -1,3 +1,12 @@
+/**
+ * In-process fallback scraper, used by `electron/main/index.ts` when the tools
+ * server is unreachable.
+ *
+ * Intentionally plain text: the Python path (`tts-server/scrape_tool.py`) is the
+ * one that does main-content extraction into Markdown. Matching it here would
+ * mean a second Markdown dependency plus a second set of heuristics to keep
+ * aligned, for a path that only has to keep working when the server is down.
+ */
 import * as cheerio from 'cheerio'
 import dns from 'node:dns/promises'
 import net from 'node:net'

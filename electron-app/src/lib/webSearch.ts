@@ -18,14 +18,26 @@ async function invokeWebSearchIpc(query: string): Promise<string> {
   return String(r)
 }
 
+export type WebSearchOptions = {
+  maxResults?: number
+  /** Top results to fetch in full (0 = snippets only). */
+  readTop?: number
+  /** d/w/m/y. Omitted = no time filter, which is what evergreen questions want. */
+  recency?: string
+  pageChars?: number
+}
+
 /**
  * Prefer `ddgs` on the TTS server (`POST /tools/search`), then DuckDuckGo Instant
- * Answer API via Electron main (weaker fallback).
+ * Answer API via Electron main (weaker fallback). The server path returns ranked
+ * results and, unless `readTop` is 0, full page text for the top hits; the IPC
+ * fallback is snippets only.
  */
 export async function invokeWebSearch(
   query: string,
   ttsBaseUrl: string,
   signal?: AbortSignal,
+  options?: WebSearchOptions,
 ): Promise<string> {
   const root = normalizeBaseUrl(ttsBaseUrl || 'http://127.0.0.1:8765')
 
@@ -36,7 +48,7 @@ export async function invokeWebSearch(
   const timer = setTimeout(() => {
     timedOut = true
     controller.abort()
-  }, 25000)
+  }, 45000)
   const onAbort = () => controller.abort()
   if (signal) {
     if (signal.aborted) controller.abort()
@@ -47,7 +59,13 @@ export async function invokeWebSearch(
     const res = await fetch(`${root}/tools/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({
+        query,
+        ...(options?.maxResults !== undefined ? { max_results: options.maxResults } : {}),
+        ...(options?.readTop !== undefined ? { read_top: options.readTop } : {}),
+        ...(options?.recency ? { recency: options.recency } : {}),
+        ...(options?.pageChars !== undefined ? { page_chars: options.pageChars } : {}),
+      }),
       signal: controller.signal,
     })
     const data = (await res.json().catch(() => ({}))) as {

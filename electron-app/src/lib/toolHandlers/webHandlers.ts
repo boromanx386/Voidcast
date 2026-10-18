@@ -1,4 +1,12 @@
 import { invokeWebSearch } from '@/lib/webSearch'
+import {
+  SEARCH_READ_TOP_MAX,
+  SEARCH_READ_TOP_MIN,
+  SEARCH_RECENCY_WINDOWS,
+  SEARCH_RESULTS_MAX,
+  SEARCH_RESULTS_MIN,
+  loadSettings,
+} from '@/lib/settings'
 import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
 import { invokeSavePdf } from '@/lib/savePdf'
@@ -10,14 +18,33 @@ import {
 } from '@/lib/toolHandlers/helpers'
 import type { ToolHandlerFn, ToolHandlerRegistry } from '@/lib/toolExecTypes'
 
+/** Coerce a tool arg to an integer inside [lo, hi]; undefined when absent/invalid. */
+function clampIntArg(value: unknown, lo: number, hi: number): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return undefined
+  return Math.min(hi, Math.max(lo, Math.round(n)))
+}
+
 export const handleWebSearch: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.webSearch) {
     return 'Error: web_search tool is disabled in settings.'
   }
   const q = typeof args.query === 'string' ? args.query.trim() : ''
   if (!q) return 'Error: missing query parameter for web_search.'
+  const settings = loadSettings()
+  const maxResults = clampIntArg(args.max_results, SEARCH_RESULTS_MIN, SEARCH_RESULTS_MAX)
+  const readTop =
+    clampIntArg(args.read_top, SEARCH_READ_TOP_MIN, SEARCH_READ_TOP_MAX) ?? settings.searchReadTop
+  const recencyRaw = typeof args.recency === 'string' ? args.recency.trim().toLowerCase() : ''
+  const recency = SEARCH_RECENCY_WINDOWS.includes(recencyRaw) ? recencyRaw : undefined
   try {
-    return await invokeWebSearch(q, ctx.ttsBaseUrl, ctx.signal)
+    return await invokeWebSearch(q, ctx.ttsBaseUrl, ctx.signal, {
+      maxResults,
+      readTop,
+      recency,
+      pageChars: settings.searchReadChars,
+    })
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
   }

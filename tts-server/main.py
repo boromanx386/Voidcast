@@ -166,6 +166,14 @@ else:
 
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000)
+    # Unset = server default (8). Ranking happens before this cut.
+    max_results: int | None = Field(default=None, ge=1, le=20)
+    # Optional freshness window: d/w/m/y. Unset means no time filter at all.
+    recency: str | None = Field(default=None, max_length=4)
+    # How many top results get read in full (0 = snippets only).
+    read_top: int | None = Field(default=None, ge=0, le=5)
+    # Per-page character cap for those full reads.
+    page_chars: int | None = Field(default=None, ge=2000, le=20_000)
 
 
 class YoutubeToolRequest(BaseModel):
@@ -477,95 +485,503 @@ def _run_youtube_tool(
     )
 
 
-def _search_web_ddgs(query: str) -> str:
-    """Search web with freshness bias (news + recent text results)."""
+SEARCH_SNIPPET_CHARS = 1200
+SEARCH_COLLECT_MAX = 30
+SEARCH_DEFAULT_RESULTS = 8
+SEARCH_READ_TOP_DEFAULT = 3
+SEARCH_READ_CHARS_DEFAULT = 6_000
+SEARCH_READ_TOTAL_BUDGET = 24_000
+SEARCH_TIMEOUT_S = 15
+SEARCH_READ_TIMEOUT_S = 15
+SEARCH_READ_CONCURRENCY = 3
+SEARCH_CACHE_TTL_S = 600
+SEARCH_CACHE_MAX = 64
+
+# Page reads are network-bound and independent, so they get their own small
+# semaphore instead of competing with the search slots.
+_READ_SEM = asyncio.Semaphore(SEARCH_READ_CONCURRENCY)
+_SEARCH_CACHE: dict[str, tuple[float, str]] = {}
+_PAGE_CACHE: dict[str, tuple[float, tuple[str, str]]] = {}
+
+# Ranking scraped results is a heuristic by construction: the payload carries no
+# authority signal, so these lists are short and hand-maintained. Boost = usually
+# the canonical answer; block = SEO/monetisation farms that outrank real docs.
+_SEARCH_DOMAIN_BOOST = (
+    "docs.python.org",
+    "developer.mozilla.org",
+    "docs.rs",
+    "rust-lang.org",
+    "python.org",
+    "nodejs.org",
+    "react.dev",
+    "fastapi.tiangolo.com",
+    "postgresql.org",
+    "man7.org",
+    "kernel.org",
+    "ietf.org",
+    "rfc-editor.org",
+    "w3.org",
+    "wikipedia.org",
+    "stackoverflow.com",
+    "github.com",
+    "arxiv.org",
+    "learn.microsoft.com",
+    "europa.eu",
+)
+_SEARCH_DOMAIN_BLOCK = (
+    "pinterest.",
+    "slideshare.",
+    "scribd.com",
+    "coursehero.com",
+    "chegg.com",
+    "brainly.",
+    "answers.yahoo.",
+)
+
+_SEARCH_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "not",
+        "for",
+        "with",
+        "from",
+        "about",
+        "into",
+        "how",
+        "what",
+        "why",
+        "when",
+        "who",
+        "does",
+        "do",
+        "is",
+        "are",
+        "was",
+        "were",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "it",
+        "this",
+        "that",
+        "i",
+        "can",
+        "you",
+        "my",
+        "me",
+        "use",
+        "using",
+        "best",
+        "vs",
+    },
+)
+
+# Only these words justify the news pass and a recency filter. Running them on
+# every query is what buried evergreen how-to answers under last month's blogs.
+_SEARCH_RECENT_QUERY_RE = re.compile(
+    r"\b(news|today|latest|current|currently|now|this (?:week|month|year)|"
+    r"recent|breaking|update[ds]?|release[ds]?|price|stock|score|weather|"
+    r"trending|who won|election)\b",
+    re.IGNORECASE,
+)
+
+
+def _host_of(link: str) -> str:
+    m = re.match(r"https?://([^/?#]+)", link or "", re.IGNORECASE)
+    if not m:
+        return ""
+    return m.group(1).split("@")[-1].split(":")[0].lower()
+
+
+def _parse_result_date(raw: str) -> datetime | None:
+    """ddgs backends report dates in several shapes; normalise to naive local."""
+    s = (raw or "").strip()
+    if not s:
+        return None
+    dt: datetime | None = None
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        m = re.match(r"(\d{4})-(\d{2})-(\d{2})", s)
+        if m:
+            try:
+                dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            except ValueError:
+                dt = None
+    if dt is None:
+        for fmt in ("%d %b %Y", "%b %d, %Y", "%d/%m/%Y", "%m/%d/%Y"):
+            try:
+                dt = datetime.strptime(s[:20].strip(), fmt)
+                break
+            except ValueError:
+                continue
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone().replace(tzinfo=None)
+    return dt
+
+
+def _query_tokens(query: str) -> list[str]:
+    return [
+        t
+        for t in re.findall(r"[a-z0-9]+", query.lower())
+        if len(t) > 1 and t not in _SEARCH_STOPWORDS
+    ]
+
+
+def _norm_query(query: str) -> str:
+    return re.sub(r"\s+", " ", (query or "").strip().lower())
+
+
+def _clamp_int(value: Any, low: int, high: int, default: int) -> int:
+    # bool is an int subclass; True must not read as 1.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    if float(value) != int(value):
+        return default
+    return max(low, min(high, int(value)))
+
+
+def _cache_get(cache: dict[str, tuple[float, Any]], key: str) -> Any | None:
+    hit = cache.get(key)
+    if hit is None:
+        return None
+    ts, value = hit
+    if time.monotonic() - ts > SEARCH_CACHE_TTL_S:
+        cache.pop(key, None)
+        return None
+    return value
+
+
+def _cache_put(cache: dict[str, tuple[float, Any]], key: str, value: Any) -> None:
+    if len(cache) >= SEARCH_CACHE_MAX:
+        oldest = min(cache.items(), key=lambda kv: kv[1][0])[0]
+        cache.pop(oldest, None)
+    cache[key] = (time.monotonic(), value)
+
+
+def _collect_candidates(
+    ddgs: Any,
+    query: str,
+    recency: str | None,
+    want: int,
+) -> list[dict[str, Any]]:
+    """Gather raw hits across ddgs backends. No time filter unless asked for."""
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    want_raw = min(SEARCH_COLLECT_MAX, max(want * 3, want))
+    deadline = time.monotonic() + SEARCH_TIMEOUT_S
+    timelimit = recency if recency in ("d", "w", "m", "y") else None
+    time_sensitive = bool(_SEARCH_RECENT_QUERY_RE.search(query))
+
+    def add(raw: Any, source: str) -> None:
+        if not isinstance(raw, dict):
+            return
+        title = str(raw.get("title") or "").strip()
+        body = str(raw.get("body") or "").strip()
+        link = str(raw.get("href") or raw.get("url") or "").strip()
+        if not link or link.lower() in seen:
+            return
+        # Stub rows (nav-only or title-only) never survive ranking anyway.
+        if len(title) + len(body) < 40:
+            return
+        seen.add(link.lower())
+        rows.append(
+            {
+                "title": title or link,
+                "body": body,
+                "link": link,
+                "host": _host_of(link),
+                "source": source,
+                "date": str(
+                    raw.get("date")
+                    or raw.get("published")
+                    or raw.get("publishedAt")
+                    or raw.get("source_date")
+                    or ""
+                ).strip(),
+            }
+        )
+
+    # The news pass answers time-sensitive asks, and that is independent of which
+    # window the caller picked: "latest X" with recency=m still wants news. The
+    # first probe run showed recency=m silently skipping it.
+    if timelimit in ("d", "w") or time_sensitive:
+        try:
+            for r in list(ddgs.news(query, max_results=want_raw)):
+                add(r, "news")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ddgs news backend failed for %r: %s", query, e)
+
+    if time.monotonic() < deadline:
+        try:
+            for r in list(
+                ddgs.text(
+                    query,
+                    max_results=want_raw,
+                    backend="auto",
+                    timelimit=timelimit,
+                )
+            ):
+                add(r, "text")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ddgs text backend failed for %r: %s", query, e)
+
+    # Sparse result set -> ask explicit backends. Still no time filter: the whole
+    # point is to reach the evergreen pages the recency pass cannot see.
+    if len(rows) < want and time.monotonic() < deadline - 5:
+        try:
+            for r in list(
+                ddgs.text(
+                    query,
+                    max_results=want_raw,
+                    backend="duckduckgo,brave,mojeek",
+                    timelimit=timelimit,
+                )
+            ):
+                add(r, "text")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ddgs multi-backend retry failed for %r: %s", query, e)
+
+    return rows
+
+
+def _rank_candidates(rows: list[dict[str, Any]], query: str) -> None:
+    """Score rows in place: lexical overlap, curated domains, mild date signal."""
+    tokens = _query_tokens(query)
+    phrase = _norm_query(query)
+    now = datetime.now()
+    for r in rows:
+        title = r["title"].lower()
+        body = r["body"].lower()
+        host = r["host"]
+        score = 0.0
+        for t in tokens:
+            if t in title:
+                score += 2.0
+            if t in body:
+                score += 1.0
+        if len(phrase) > 6 and (phrase in title or phrase in body):
+            score += 6.0
+        if any(host == d or host.endswith("." + d) for d in _SEARCH_DOMAIN_BOOST):
+            score += 2.5
+        if any(b in host for b in _SEARCH_DOMAIN_BLOCK):
+            score -= 8.0
+        dt = _parse_result_date(r["date"])
+        if dt is not None:
+            age_days = (now - dt).days
+            r["age_days"] = age_days
+            if age_days <= 30:
+                score += 2.0
+            elif age_days <= 180:
+                score += 1.0
+            elif age_days > 1500:
+                score -= 1.0
+        r["score"] = score
+    rows.sort(key=lambda r: r["score"], reverse=True)
+
+
+def _select_results(
+    rows: list[dict[str, Any]],
+    limit: int,
+    per_host_cap: int = 2,
+) -> list[dict[str, Any]]:
+    """Keep ranked order, but no single host may own more than `per_host_cap`."""
+    picked: list[dict[str, Any]] = []
+    taken: set[int] = set()
+    per_host: dict[str, int] = {}
+    for i, r in enumerate(rows):
+        if len(picked) >= limit:
+            break
+        host = r["host"]
+        if per_host.get(host, 0) >= per_host_cap:
+            continue
+        picked.append(r)
+        taken.add(i)
+        per_host[host] = per_host.get(host, 0) + 1
+    for i, r in enumerate(rows):  # backfill if the diversity cap starved us
+        if len(picked) >= limit:
+            break
+        if i not in taken:
+            picked.append(r)
+    return picked
+
+
+def _search_candidates(
+    query: str,
+    recency: str | None,
+    max_results: int,
+) -> list[dict[str, Any]]:
+    """Blocking collect+rank. Runs on the dedicated tools executor."""
     if not _HAS_DDGS or DDGS is None:
         raise RuntimeError("ddgs is not installed (pip install ddgs)")
-    q = query.strip()
+    q = (query or "").strip()
     if not q:
-        return "Empty query."
-    current_year = datetime.now().year
-    q_norm = re.sub(r"\b(20\d{2})\b", str(current_year), q)
-    q_recent = f"{q_norm} {current_year}"
-    out: list[str] = []
-    seen_links: set[str] = set()
-
-    def _append_result(r: dict[str, Any], source: str) -> None:
-        if len(out) >= 8:
-            return
-        title = str(r.get("title") or "").strip()
-        body = str(r.get("body") or "").strip()
-        link = str(r.get("href") or r.get("url") or "").strip()
-        if not link:
-            return
-        key = link.lower()
-        if key in seen_links:
-            return
-        if len(body) < 15:
-            return
-        seen_links.add(key)
-        date_raw = str(
-            r.get("date")
-            or r.get("published")
-            or r.get("publishedAt")
-            or r.get("source_date")
-            or ""
-        ).strip()
-        stamp = f" [{source}{' | ' + date_raw if date_raw else ''}]"
-        out.append(f"{title}{stamp}\n{body[:450]}\n{link}")
-
-    # Hard wall-clock budget: ddgs retries internally against rate-limited DDG
-    # backends, so without this a single search can stay busy for minutes and pin
-    # a worker thread. Cap the whole thing to ~15s.
-    deadline = time.monotonic() + 15
+        return []
+    # A stale year in the query (the model writing 2024 in 2026) poisons results.
+    q_norm = re.sub(r"\b(20\d{2})\b", str(datetime.now().year), q)
     with DDGS(timeout=10) as ddgs:  # type: ignore[misc]
-        # 1) News endpoint first (usually fresher).
-        try:
-            for r in list(ddgs.news(q_norm, max_results=8)):
-                if isinstance(r, dict):
-                    _append_result(r, "news")
-        except Exception:
-            pass
-        # 2) Recent text results (bail out on budget or enough results).
-        for query_variant in (q_norm, q_recent):
-            if time.monotonic() > deadline or len(out) >= 8:
-                break
-            try:
-                for r in list(ddgs.text(query_variant, max_results=10, timelimit="m")):
-                    if isinstance(r, dict):
-                        _append_result(r, "text:m")
-            except Exception:
-                continue
-        # 3) Fallback broader text only if still sparse AND budget remains.
-        if len(out) < 4 and time.monotonic() < deadline - 5:
-            try:
-                for r in list(ddgs.text(q_norm, max_results=10)):
-                    if isinstance(r, dict):
-                        _append_result(r, "text")
-            except Exception:
-                pass
+        rows = _collect_candidates(ddgs, q_norm, recency, max_results)
+    _rank_candidates(rows, q_norm)
+    return _select_results(rows, max_results)
 
-    if not out:
-        return "No usable fresh text snippets in results."
-    return "\n\n---\n\n".join(out)
+
+async def _read_top_results(
+    rows: list[dict[str, Any]],
+    top_n: int,
+    per_page_chars: int,
+    total_budget: int,
+) -> int:
+    """Attach full page text to the top rows in place; return how many landed.
+
+    Never raises: an unreadable page stays snippet-only, which the formatter
+    already knows how to render.
+    """
+    if top_n <= 0 or not rows:
+        return 0
+
+    async def read(row: dict[str, Any]) -> None:
+        url = row["link"]
+        # Keyed with the cap: a page cached at 6k chars must not silently answer
+        # a 40k request from somewhere else.
+        page_key = f"{url}|{per_page_chars}"
+        cached = _cache_get(_PAGE_CACHE, page_key)
+        if cached is not None:
+            row["full"], row["full_format"] = cached
+            return
+        try:
+            async with _READ_SEM:
+                res = await asyncio.wait_for(
+                    scrape_public_url_to_text(url, per_page_chars),
+                    timeout=SEARCH_READ_TIMEOUT_S,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("search read failed for %s: %s", url, e)
+            row["read_error"] = type(e).__name__
+            return
+        if not res.get("ok"):
+            row["read_error"] = str(res.get("text") or "read failed")[:120]
+            return
+        text = str(res.get("text") or "")
+        if not text.strip():
+            row["read_error"] = "empty page"
+            return
+        row["full"] = text
+        row["full_format"] = str(res.get("format") or "text")
+        _cache_put(_PAGE_CACHE, page_key, (text, row["full_format"]))
+
+    targets = rows[:top_n]
+    await asyncio.gather(*(read(r) for r in targets), return_exceptions=True)
+
+    # Deterministic budget: highest-ranked page wins, the tail gets dropped
+    # rather than blowing the model's context on lower-value content.
+    used = 0
+    kept = 0
+    for row in targets:
+        full = row.get("full")
+        if not full:
+            continue
+        if used + len(full) > total_budget:
+            row.pop("full", None)
+            row.pop("full_format", None)
+            row["read_error"] = "dropped (read budget exhausted)"
+            continue
+        used += len(full)
+        kept += 1
+    return kept
+
+
+def _format_results(
+    rows: list[dict[str, Any]],
+    read_top: int,
+    read_ok: int,
+) -> str:
+    blocks: list[str] = []
+    for n, r in enumerate(rows, start=1):
+        date = f" | {r['date']}" if r.get("date") else ""
+        block = (
+            f"{n}. {r['title']} [{r['source']}{date}]\n"
+            f"{r['body'][:SEARCH_SNIPPET_CHARS]}\n"
+            f"{r['link']}"
+        )
+        if r.get("full"):
+            fmt = r.get("full_format") or "markdown"
+            block += f"\n\n--- FULL TEXT ({fmt}) ---\n{r['full']}\n--- END FULL TEXT ---"
+        elif r.get("read_error"):
+            block += f"\n\n[full text unavailable: {r['read_error']}]"
+        blocks.append(block)
+    body = "\n\n---\n\n".join(blocks)
+    if read_top > 0 and read_ok > 0:
+        note = (
+            f"\n\n---\n\nNote: the first {read_ok} result(s) above include full page "
+            "text. Deeper results are snippets only (~"
+            f"{SEARCH_SNIPPET_CHARS} characters each) - call scrape_url on their "
+            "links if you need them before quoting."
+        )
+    else:
+        note = (
+            f"\n\n---\n\nNote: snippets are truncated to ~{SEARCH_SNIPPET_CHARS} "
+            "characters. Call scrape_url on any result's link to read the full page "
+            "before quoting it or answering detailed questions from it."
+        )
+    return body + note
 
 
 @app.post("/tools/search", dependencies=[Depends(require_lan_access)])
 async def tools_search(req: SearchRequest):
-    """Web search via ddgs (multiple backends); requires `pip install ddgs`."""
+    """Ranked web search (ddgs), optionally reading the top hits as full text."""
+    max_results = _clamp_int(req.max_results, 1, 20, SEARCH_DEFAULT_RESULTS)
+    recency = (req.recency or "").strip().lower()
+    recency = recency if recency in ("d", "w", "m", "y") else None
+    read_top = _clamp_int(req.read_top, 0, 5, SEARCH_READ_TOP_DEFAULT)
+    page_chars = _clamp_int(req.page_chars, 2000, 20_000, SEARCH_READ_CHARS_DEFAULT)
+
+    cache_key = f"{_norm_query(req.query)}|{max_results}|{recency}|{read_top}|{page_chars}"
+    cached = _cache_get(_SEARCH_CACHE, cache_key)
+    if isinstance(cached, str):
+        return {"ok": True, "text": cached, "cached": True}
+
     loop = asyncio.get_running_loop()
     try:
-        # Run on a DEDICATED bounded pool (never the default executor that serves
-        # TTS/proxy/health) and enforce a hard 20s cap so a stalled ddgs search
-        # returns a message instead of hanging the request forever.
+        # Searching blocks (ddgs retries internally against rate-limited backends),
+        # so it runs on the DEDICATED tools pool, never the default executor that
+        # serves TTS/proxy/health. Each stage gets its own cap.
         async with _SEARCH_SEM:
-            text = await asyncio.wait_for(
-                loop.run_in_executor(_TOOLS_EXECUTOR, _search_web_ddgs, req.query),
-                timeout=20,
+            rows = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _TOOLS_EXECUTOR,
+                    _search_candidates,
+                    req.query,
+                    recency,
+                    max_results,
+                ),
+                timeout=SEARCH_TIMEOUT_S,
             )
+            if not rows:
+                return {
+                    "ok": True,
+                    "text": (
+                        "Search returned no results (empty result set or upstream "
+                        "rate limiting). Try a shorter or differently-worded query, "
+                        "or call scrape_url directly on a known URL."
+                    ),
+                }
+            read_ok = await asyncio.wait_for(
+                _read_top_results(rows, read_top, page_chars, SEARCH_READ_TOTAL_BUDGET),
+                timeout=SEARCH_READ_TIMEOUT_S,
+            )
+        text = _format_results(rows, read_top, read_ok)
+        _cache_put(_SEARCH_CACHE, cache_key, text)
         return {"ok": True, "text": text}
     except asyncio.TimeoutError:
-        logger.warning("tools/search timed out after 20s: %r", req.query)
+        logger.warning("tools/search timed out: %r", req.query)
         return {"ok": False, "text": "", "detail": "Web search timed out"}
     except Exception as e:
         logger.exception("tools/search failed: %s", e)
@@ -644,11 +1060,34 @@ def _fetch_wttr_json(city: str) -> dict[str, Any]:
 
 @app.post("/tools/scrape", dependencies=[Depends(require_lan_access)])
 async def tools_scrape(req: ScrapeRequest):
-    """Fetch public http(s) URL, strip HTML → plain text (SSRF-safe)."""
+    """Fetch a public http(s) URL → Markdown (SSRF-safe).
+
+    `format` is "markdown" when main-content extraction ran and "text" when the
+    fallback converter produced the body, so callers can tell upgraded output
+    from degraded output.
+    """
+    # Keyed with the cap so a cached 6k excerpt can never answer a 40k request.
+    page_chars = _clamp_int(req.max_chars, 2000, 120_000, 40_000)
+    page_key = f"{req.url.strip()}|{page_chars}"
+    cached_page = _cache_get(_PAGE_CACHE, page_key)
+    if cached_page is not None:
+        text, fmt = cached_page
+        return {"ok": True, "text": text, "format": fmt, "cached": True}
     try:
         result = await scrape_public_url_to_text(req.url, req.max_chars)
         if result.get("ok"):
-            return {"ok": True, "text": result["text"]}
+            # Same cache the search auto-read fills, so asking for a page the
+            # search already read is free.
+            _cache_put(
+                _PAGE_CACHE,
+                page_key,
+                (str(result["text"]), str(result.get("format", "text"))),
+            )
+            return {
+                "ok": True,
+                "text": result["text"],
+                "format": result.get("format", "text"),
+            }
         return {"ok": False, "text": result.get("text", "Scrape failed")}
     except Exception as e:
         logger.exception("tools/scrape failed: %s", e)

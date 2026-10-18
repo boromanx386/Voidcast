@@ -123,6 +123,7 @@ rm -rf "$TTS/dist" "$TTS/build-linux"
   --workpath "$TTS/build-linux" \
   --specpath "$TTS/build-linux" \
   --paths "$TTS" \
+  --collect-data trafilatura \
   --add-data "$TTS/fonts:fonts" \
   --add-data "$TTS/web-ui:web-ui" \
   --exclude-module torch \

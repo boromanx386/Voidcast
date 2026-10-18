@@ -47,6 +47,7 @@ Write-Host "[tools-exe] Building one-file tools backend..."
   --workpath (Join-Path $ttsDir "build") `
   --specpath $ttsDir `
   --paths $ttsDir `
+  --collect-data trafilatura `
   --add-data "$fontsDir;fonts" `
   --add-data "$webUiDir;web-ui" `
   --exclude-module torch `
