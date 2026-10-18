@@ -811,7 +811,10 @@ def _collect_candidates(
                 ddgs.text(
                     query,
                     max_results=want_raw,
-                    backend="duckduckgo,brave,mojeek",
+                    # Engines that actually answer: brave returns 429 and the
+                    # duckduckgo html endpoint soft-blocks with 202 on every probe,
+                    # which made this retry a no-op right when it was needed.
+                    backend="google,yahoo,mojeek,yandex",
                     timelimit=timelimit,
                 )
             ):
