@@ -26,6 +26,14 @@ export const TOOLS_WEATHER_HINT = `You have a get_weather tool. When the user as
 /** When Scrape URL tool is enabled */
 export const TOOLS_SCRAPE_HINT = `You have a scrape_url tool. If the user message contains a specific public http(s) URL, call scrape_url for that URL before answering (unless they explicitly ask not to). Use returned page text to summarize/quote. Do not use scrape for local or private URLs.`
 
+/** Where the app documents itself. Raw markdown is what the model can actually read;
+ * the Pages site renders the same docs for the user but is JS-only and can lag main. */
+export const APP_DOCS_HINT = `Voidcast docs describe how the app itself works (settings, tools, MCP, skills, coding, release). Read them before answering app-behaviour questions — never guess setting names. Index: https://raw.githubusercontent.com/boromanx386/Voidcast/main/docs/README.md (fetch the matching page with scrape_url). User-facing copy of the same docs: https://boromanx386.github.io/Voidcast/#/docs`
+
+/** App-level MCP knowledge: needed even with zero servers connected, otherwise
+ * "add an MCP server" is unanswerable. */
+export const MCP_CONFIG_HINT = `MCP servers (desktop): config is read from ~/.voidcast/mcp.json (global) and <project>/.mcp.json (project only — requires a trusted project, and project entries win over global). Shape: {"mcpServers":{"<id>":{"url":"http://127.0.0.1:7866/mcp"}}} or {"command":"npx","args":["-y","package"]}. You may create/merge <project>/.mcp.json yourself (ask first); you cannot write ~/.voidcast/mcp.json — give the user the exact path and JSON. After editing: Options → Tools → Reload reloads servers without restarting. mcp_list_tools only sees servers that are already loaded.`
+
 /** When Save PDF tool is enabled */
 export const TOOLS_PDF_HINT = `You have a save_pdf tool. When the user asks to save as PDF or export to PDF, call save_pdf with the full text in content and optional title/filename. The file is written to the folder they configured in app options (no dialog). Content can use Markdown-style structure: blank line between paragraphs, lines starting with # / ## / ### / #### for headings, bullets with "- ", "* ", "• ", or numbered "1. " lines (continuation lines without a marker merge with the previous item), pipe tables, horizontal rules made of --- or ====, **bold** in body text, and single newlines within a block for explicit line breaks.
 

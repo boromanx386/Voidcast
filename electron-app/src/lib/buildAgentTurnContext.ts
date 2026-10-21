@@ -1,6 +1,8 @@
 import {
   buildOllamaMessages,
   sliceUiHistoryForContext,
+  APP_DOCS_HINT,
+  MCP_CONFIG_HINT,
   TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT,
   TOOLS_CODING_NO_FOLDER_HINT,
   buildToolsCodingHint,
@@ -291,6 +293,10 @@ export async function buildAgentTurnContext(
     ]
     toolsHintParts.push(mcpLines.filter(Boolean).join(' '))
   }
+  // App-level knowledge is not tied to a connected server: keep it even when mcpActive
+  // is false, otherwise "add an MCP server" cannot be answered at all.
+  toolsHintParts.push(MCP_CONFIG_HINT)
+  toolsHintParts.push(APP_DOCS_HINT)
   if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
   if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
   if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
