@@ -163,6 +163,15 @@ The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost
 | `POST /tools/user-data-sync` | Merge long memory + reminders (desktop ↔ LAN) |
 | `POST /tts` | Text-to-speech (local OmniVoice setup) |
 
+Web search never runs inside the server. `POST /tools/search` hands the query to a
+separate worker process (`tts-server/search_core.py`, driven by `search_client.py`)
+which owns the `ddgs` client and answers one JSON line per request. `ddgs` talks to
+DuckDuckGo through the native `primp` client, and a wedged call there holds the GIL
+in a way no timeout can interrupt — that used to freeze every route on this server at
+once, so the UI reported `fail to fetch` for search, the OpenCode Go proxy and local
+ASR together. A worker that misses its deadline is killed and respawned on the next
+search; `GET /health` keeps answering throughout.
+
 Coding tools run inside the Electron app (not as separate HTTP routes). Image edit/generation and settings updates go through the desktop agent or the LAN web proxy to the same backends.
 
 ---

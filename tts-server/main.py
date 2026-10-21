@@ -28,7 +28,6 @@ import tempfile
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -148,20 +147,12 @@ _sampling_rate: int = 24000
 _load_error: str | None = None
 _infer_lock = asyncio.Lock()
 
-# Prefer `ddgs` — the `duckduckgo_search` package was renamed and its DDGS often returns no results.
-try:
-    from ddgs import DDGS  # type: ignore
-except ImportError:
-    try:
-        from duckduckgo_search import DDGS  # type: ignore
-
-    except ImportError:
-        DDGS = None  # type: ignore
-        _HAS_DDGS = False
-    else:
-        _HAS_DDGS = True
-else:
-    _HAS_DDGS = True
+# ddgs is NOT imported here. It drives a native client (primp) that can wedge a
+# thread inside a GIL-holding call, which froze this whole server; search now runs
+# in child processes owned by search_client, and this module only ranks results.
+from search_client import SearchError, close_search_pool, search_pool  # noqa: E402
+from search_core import HAS_DDGS as _HAS_DDGS  # noqa: E402
+from search_core import is_no_read as _is_no_read  # noqa: E402
 
 
 class SearchRequest(BaseModel):
@@ -303,7 +294,10 @@ async def lifespan(app: FastAPI):
             "Set OMNIVOICE_ENABLE_TTS=1 and install TTS dependencies."
         )
         logger.info("TTS disabled (OMNIVOICE_ENABLE_TTS != 1). Running tools-only mode.")
-        yield
+        try:
+            yield
+        finally:
+            await asyncio.to_thread(close_search_pool)
         return
     try:
         await asyncio.to_thread(_load_model)
@@ -311,7 +305,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _load_error = str(e)
         logger.exception("Failed to load OmniVoice: %s", e)
-    yield
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(close_search_pool)
 
 
 app = FastAPI(title="OmniVoice TTS", lifespan=lifespan)
@@ -463,10 +460,16 @@ async def health():
 
 
 def _ddgs_text_for_youtube(query: str, max_results: int) -> list:
-    if not _HAS_DDGS or DDGS is None:
+    if not _HAS_DDGS:
         return []
-    with DDGS(timeout=25) as ddgs:  # type: ignore[misc]
-        return list(ddgs.text(query, max_results=max_results))
+    try:
+        return search_pool().request(
+            {"op": "text", "query": query, "max_results": max_results},
+            timeout_s=SEARCH_WORKER_TIMEOUT_S,
+        )
+    except SearchError as e:
+        logger.warning("youtube ddgs lookup failed: %s", e)
+        return []
 
 
 def _run_youtube_tool(
@@ -486,15 +489,10 @@ def _run_youtube_tool(
 
 
 SEARCH_SNIPPET_CHARS = 1200
-SEARCH_COLLECT_MAX = 30
 SEARCH_DEFAULT_RESULTS = 8
 SEARCH_READ_TOP_DEFAULT = 3
 SEARCH_READ_CHARS_DEFAULT = 6_000
 SEARCH_READ_TOTAL_BUDGET = 24_000
-SEARCH_TIMEOUT_S = 15
-# One ddgs pass can miss every canonical source; below this many distinct
-# boosted domains the collector retries across explicit backends.
-SEARCH_MIN_BOOSTED = 3
 SEARCH_READ_TIMEOUT_S = 15
 SEARCH_READ_CONCURRENCY = 3
 SEARCH_CACHE_TTL_S = 600
@@ -506,193 +504,10 @@ _READ_SEM = asyncio.Semaphore(SEARCH_READ_CONCURRENCY)
 _SEARCH_CACHE: dict[str, tuple[float, str]] = {}
 _PAGE_CACHE: dict[str, tuple[float, tuple[str, str]]] = {}
 
-# Ranking scraped results is a heuristic by construction: the payload carries no
-# authority signal, so these lists are short and hand-maintained. Boost = usually
-# the canonical answer; block = SEO/monetisation farms that outrank real docs.
-_SEARCH_DOMAIN_BOOST = (
-    # Language / runtime / framework docs
-    "docs.python.org",
-    "python.org",
-    "developer.mozilla.org",
-    "nodejs.org",
-    "react.dev",
-    "fastapi.tiangolo.com",
-    "docs.rs",
-    "rust-lang.org",
-    "go.dev",
-    # Data stores. sqlite.org was the measured gap: the canonical WAL answer
-    # ranked nowhere while content farms took the top slots.
-    "sqlite.org",
-    "postgresql.org",
-    "mysql.com",
-    "mariadb.com",
-    "redis.io",
-    "mongodb.com",
-    "elastic.co",
-    # Systems, servers, containers
-    "man7.org",
-    "kernel.org",
-    "nginx.org",
-    "apache.org",
-    "gnu.org",
-    "openssl.org",
-    "docker.com",
-    "kubernetes.io",
-    "learn.microsoft.com",
-    # Standards, reference, code hosts
-    "ietf.org",
-    "rfc-editor.org",
-    "w3.org",
-    "wikipedia.org",
-    "arxiv.org",
-    "github.com",
-    "stackoverflow.com",
-    "europa.eu",
-)
-_SEARCH_DOMAIN_BLOCK = (
-    "pinterest.",
-    "slideshare.",
-    "scribd.com",
-    "coursehero.com",
-    "chegg.com",
-    "brainly.",
-    "answers.yahoo.",
-)
-
-# Auto-reading promotes a result to thousands of characters of confident-looking
-# context. For a content farm that is WORSE than a snippet, because the model
-# cannot tell generated filler from documentation - a measured johal.in page
-# carried fabricated statistics and a fake roadmap. These hosts stay ranked and
-# visible; they are just never promoted to full text. Deeper results backfill the
-# read window. Judgement call: edit the list freely.
-_SEARCH_NO_READ = (
-    "johal.in",
-    "geeksforgeeks.org",
-    "javatpoint.com",
-    "tutorialspoint.com",
-    "guru99.com",
-    "interviewbit.com",
-    "prepbytes.com",
-    "simplilearn.com",
-    "intellipaat.com",
-    "edureka.co",
-    "scaler.com",
-)
-
-_SEARCH_STOPWORDS = frozenset(
-    {
-        "a",
-        "an",
-        "the",
-        "and",
-        "or",
-        "not",
-        "for",
-        "with",
-        "from",
-        "about",
-        "into",
-        "how",
-        "what",
-        "why",
-        "when",
-        "who",
-        "does",
-        "do",
-        "is",
-        "are",
-        "was",
-        "were",
-        "of",
-        "to",
-        "in",
-        "on",
-        "at",
-        "it",
-        "this",
-        "that",
-        "i",
-        "can",
-        "you",
-        "my",
-        "me",
-        "use",
-        "using",
-        "best",
-        "vs",
-    },
-)
-
-# Only these words justify the news pass and a recency filter. Running them on
-# every query is what buried evergreen how-to answers under last month's blogs.
-_SEARCH_RECENT_QUERY_RE = re.compile(
-    r"\b(news|today|latest|current|currently|now|this (?:week|month|year)|"
-    r"recent|breaking|update[ds]?|release[ds]?|price|stock|score|weather|"
-    r"trending|who won|election)\b",
-    re.IGNORECASE,
-)
-
-
-def _host_of(link: str) -> str:
-    m = re.match(r"https?://([^/?#]+)", link or "", re.IGNORECASE)
-    if not m:
-        return ""
-    return m.group(1).split("@")[-1].split(":")[0].lower()
-
-
-def _is_boosted(host: str) -> bool:
-    """Canonical-domain check: suffix match, so 'sqlite.org' also covers www."""
-    return any(host == d or host.endswith("." + d) for d in _SEARCH_DOMAIN_BOOST)
-
-
-def _is_no_read(host: str) -> bool:
-    return any(p in host for p in _SEARCH_NO_READ)
-
-
-def _boosted_host_count(rows: list[dict[str, Any]]) -> int:
-    """Distinct boosted hostnames in the candidate set (www and apex count apart)."""
-    return len({r["host"] for r in rows if _is_boosted(r["host"])})
-
-
-def _parse_result_date(raw: str) -> datetime | None:
-    """ddgs backends report dates in several shapes; normalise to naive local."""
-    s = (raw or "").strip()
-    if not s:
-        return None
-    dt: datetime | None = None
-    try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        m = re.match(r"(\d{4})-(\d{2})-(\d{2})", s)
-        if m:
-            try:
-                dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-            except ValueError:
-                dt = None
-    if dt is None:
-        for fmt in ("%d %b %Y", "%b %d, %Y", "%d/%m/%Y", "%m/%d/%Y"):
-            try:
-                dt = datetime.strptime(s[:20].strip(), fmt)
-                break
-            except ValueError:
-                continue
-    if dt is None:
-        return None
-    if dt.tzinfo is not None:
-        dt = dt.astimezone().replace(tzinfo=None)
-    return dt
-
-
-def _query_tokens(query: str) -> list[str]:
-    return [
-        t
-        for t in re.findall(r"[a-z0-9]+", query.lower())
-        if len(t) > 1 and t not in _SEARCH_STOPWORDS
-    ]
-
-
-def _norm_query(query: str) -> str:
-    return re.sub(r"\s+", " ", (query or "").strip().lower())
+SEARCH_WORKER_TIMEOUT_S = 25
+# The worker may run three backend passes; this is a hard deadline backed by a
+# process kill, so a wedged search can never take a request hostage again.
+SEARCH_TIMEOUT_S = SEARCH_WORKER_TIMEOUT_S + 5
 
 
 def _clamp_int(value: Any, low: int, high: int, default: int) -> int:
@@ -722,168 +537,8 @@ def _cache_put(cache: dict[str, tuple[float, Any]], key: str, value: Any) -> Non
     cache[key] = (time.monotonic(), value)
 
 
-def _collect_candidates(
-    ddgs: Any,
-    query: str,
-    recency: str | None,
-    want: int,
-) -> list[dict[str, Any]]:
-    """Gather raw hits across ddgs backends. No time filter unless asked for."""
-    rows: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    want_raw = min(SEARCH_COLLECT_MAX, max(want * 3, want))
-    deadline = time.monotonic() + SEARCH_TIMEOUT_S
-    timelimit = recency if recency in ("d", "w", "m", "y") else None
-    time_sensitive = bool(_SEARCH_RECENT_QUERY_RE.search(query))
-
-    def add(raw: Any, source: str) -> None:
-        if not isinstance(raw, dict):
-            return
-        title = str(raw.get("title") or "").strip()
-        body = str(raw.get("body") or "").strip()
-        link = str(raw.get("href") or raw.get("url") or "").strip()
-        if not link or link.lower() in seen:
-            return
-        # Stub rows (nav-only or title-only) never survive ranking anyway.
-        if len(title) + len(body) < 40:
-            return
-        seen.add(link.lower())
-        rows.append(
-            {
-                "title": title or link,
-                "body": body,
-                "link": link,
-                "host": _host_of(link),
-                "source": source,
-                "date": str(
-                    raw.get("date")
-                    or raw.get("published")
-                    or raw.get("publishedAt")
-                    or raw.get("source_date")
-                    or ""
-                ).strip(),
-            }
-        )
-
-    # The news pass answers time-sensitive asks, and that is independent of which
-    # window the caller picked: "latest X" with recency=m still wants news. The
-    # first probe run showed recency=m silently skipping it.
-    if timelimit in ("d", "w") or time_sensitive:
-        try:
-            for r in list(ddgs.news(query, max_results=want_raw)):
-                add(r, "news")
-        except Exception as e:  # noqa: BLE001
-            logger.warning("ddgs news backend failed for %r: %s", query, e)
-
-    if time.monotonic() < deadline:
-        try:
-            for r in list(
-                ddgs.text(
-                    query,
-                    max_results=want_raw,
-                    backend="auto",
-                    timelimit=timelimit,
-                )
-            ):
-                add(r, "text")
-        except Exception as e:  # noqa: BLE001
-            logger.warning("ddgs text backend failed for %r: %s", query, e)
-
-    # ddgs answers from a non-deterministic engine mix, so a single pass can look
-    # full while carrying no canonical source at all (measured: the same query
-    # returned sqlite.org/wal.html in one call and eight farm pages in the next).
-    # Retry across explicit backends when the set is thin OR lacks canonical
-    # domains - still with no time filter, since the point is to reach the
-    # evergreen pages the recency pass cannot see.
-    if (
-        len(rows) < want or _boosted_host_count(rows) < min(want, SEARCH_MIN_BOOSTED)
-    ) and time.monotonic() < deadline - 5:
-        # Logged on purpose: without this line a widened trigger is silent and the
-        # only way to know whether it fires is to read the code.
-        logger.info(
-            "ddgs multi-backend retry for %r: %d candidates, %d canonical before",
-            query,
-            len(rows),
-            _boosted_host_count(rows),
-        )
-        try:
-            for r in list(
-                ddgs.text(
-                    query,
-                    max_results=want_raw,
-                    # Engines that actually answer: brave returns 429 and the
-                    # duckduckgo html endpoint soft-blocks with 202 on every probe,
-                    # which made this retry a no-op right when it was needed.
-                    backend="google,yahoo,mojeek,yandex",
-                    timelimit=timelimit,
-                )
-            ):
-                add(r, "text")
-        except Exception as e:  # noqa: BLE001
-            logger.warning("ddgs multi-backend retry failed for %r: %s", query, e)
-
-    return rows
-
-
-def _rank_candidates(rows: list[dict[str, Any]], query: str) -> None:
-    """Score rows in place: lexical overlap, curated domains, mild date signal."""
-    tokens = _query_tokens(query)
-    phrase = _norm_query(query)
-    now = datetime.now()
-    for r in rows:
-        title = r["title"].lower()
-        body = r["body"].lower()
-        host = r["host"]
-        score = 0.0
-        for t in tokens:
-            if t in title:
-                score += 2.0
-            if t in body:
-                score += 1.0
-        if len(phrase) > 6 and (phrase in title or phrase in body):
-            score += 6.0
-        if _is_boosted(host):
-            score += 2.5
-        if any(b in host for b in _SEARCH_DOMAIN_BLOCK):
-            score -= 8.0
-        dt = _parse_result_date(r["date"])
-        if dt is not None:
-            age_days = (now - dt).days
-            r["age_days"] = age_days
-            if age_days <= 30:
-                score += 2.0
-            elif age_days <= 180:
-                score += 1.0
-            elif age_days > 1500:
-                score -= 1.0
-        r["score"] = score
-    rows.sort(key=lambda r: r["score"], reverse=True)
-
-
-def _select_results(
-    rows: list[dict[str, Any]],
-    limit: int,
-    per_host_cap: int = 2,
-) -> list[dict[str, Any]]:
-    """Keep ranked order, but no single host may own more than `per_host_cap`."""
-    picked: list[dict[str, Any]] = []
-    taken: set[int] = set()
-    per_host: dict[str, int] = {}
-    for i, r in enumerate(rows):
-        if len(picked) >= limit:
-            break
-        host = r["host"]
-        if per_host.get(host, 0) >= per_host_cap:
-            continue
-        picked.append(r)
-        taken.add(i)
-        per_host[host] = per_host.get(host, 0) + 1
-    for i, r in enumerate(rows):  # backfill if the diversity cap starved us
-        if len(picked) >= limit:
-            break
-        if i not in taken:
-            picked.append(r)
-    return picked
+def _norm_query(query: str) -> str:
+    return re.sub(r"\s+", " ", (query or "").strip().lower())
 
 
 def _search_candidates(
@@ -891,18 +546,21 @@ def _search_candidates(
     recency: str | None,
     max_results: int,
 ) -> list[dict[str, Any]]:
-    """Blocking collect+rank. Runs on the dedicated tools executor."""
-    if not _HAS_DDGS or DDGS is None:
-        raise RuntimeError("ddgs is not installed (pip install ddgs)")
-    q = (query or "").strip()
-    if not q:
-        return []
-    # A stale year in the query (the model writing 2024 in 2026) poisons results.
-    q_norm = re.sub(r"\b(20\d{2})\b", str(datetime.now().year), q)
-    with DDGS(timeout=10) as ddgs:  # type: ignore[misc]
-        rows = _collect_candidates(ddgs, q_norm, recency, max_results)
-    _rank_candidates(rows, q_norm)
-    return _select_results(rows, max_results)
+    """Ask the out-of-process worker for ranked candidates (blocking)."""
+    if not _HAS_DDGS:
+        raise SearchError("ddgs is not installed (pip install ddgs)")
+    rows = search_pool().request(
+        {
+            "op": "search",
+            "query": query,
+            "recency": recency,
+            "max_results": max_results,
+        },
+        timeout_s=SEARCH_WORKER_TIMEOUT_S,
+    )
+    if not isinstance(rows, list):
+        raise SearchError("search worker returned a non-list payload")
+    return rows
 
 
 async def _read_top_results(
@@ -1067,9 +725,15 @@ async def tools_search(req: SearchRequest):
         text = _format_results(rows, read_top, read_ok)
         _cache_put(_SEARCH_CACHE, cache_key, text)
         return {"ok": True, "text": text}
-    except asyncio.TimeoutError:
-        logger.warning("tools/search timed out: %r", req.query)
-        return {"ok": False, "text": "", "detail": "Web search timed out"}
+    except (asyncio.TimeoutError, SearchError) as e:
+        logger.warning("tools/search failed (%s): %r", e, req.query)
+        return {
+            "ok": False,
+            "text": "Web search is unavailable right now (the search worker "
+            "stopped answering and was restarted automatically). Try again in a "
+            "few seconds.",
+            "detail": str(e) or "Web search timed out",
+        }
     except Exception as e:
         logger.exception("tools/search failed: %s", e)
         raise HTTPException(
