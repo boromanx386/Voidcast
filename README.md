@@ -62,7 +62,7 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 
 - **Tools that do things** — web search, YouTube search + transcripts, weather, web scraping, PDF export, image generation and edit, music generation, TTS/STT, reminders, settings control, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
 
-- **Watch it think** — adjacent read-only tool calls run in parallel (up to four) while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts in collapsible round blocks.
+- **Watch it think** — adjacent read-only tool calls run in parallel (up to ten) while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts in collapsible round blocks.
 
 - **Chat from your phone** — an opt-in **LAN web UI** served from your PC, so your own phone or tablet can use the same agent, models and memory. See [LAN web UI](#lan-web-ui--chat-from-your-phone).
 
