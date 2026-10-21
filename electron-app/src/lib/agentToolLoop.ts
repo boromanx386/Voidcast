@@ -267,7 +267,7 @@ export async function runSharedToolLoop<
   let hasExecutedRepoActionInTurn = false
   const maxParallelToolCalls = Number.isFinite(params.maxParallelToolCalls)
     ? Math.max(1, Math.floor(params.maxParallelToolCalls!))
-    : 4
+    : 10
   /** Tool-result message positions per round, for old-result clearing. */
   const toolResultRecords: Array<{ index: number; round: number; name: string; cleared: boolean }> =
     []
