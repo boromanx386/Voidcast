@@ -34,6 +34,10 @@ Project-relative skills, scanned before the global ones so they win on a name cl
 - the discovered skill entries with descriptions,
 - a refresh button to re-scan the directories.
 
+## What the agent sees
+
+The catalog hint gives one line per skill: its scope (`[project]` overrides `[global]`) and its **folder path**, so the agent can say where a skill lives and which file it is following. The agent is **read-only** here — no tool writes a skill. Creating one means writing `~/.agents/skills/<name>/SKILL.md` yourself: YAML frontmatter with `name` and `description`, then the markdown body.
+
 ## Desktop-only note
 
 Agent Skills discovery and the `read_skill` tool are **desktop-only**. In web/standalone builds the skill directories do not exist, so the catalog and `read_skill` tool are not available; the toggle has no effect there. The underlying implementation lives in `electron-app/src/lib/agentSkills.ts`.

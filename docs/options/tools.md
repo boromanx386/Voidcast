@@ -81,6 +81,25 @@ Max agent↔tool loop rounds per assistant turn (main agent only). Nested **work
 - The panel refreshes the MCP server list (scans `~/.voidcast/mcp.json` and trusted project `.mcp.json` files) and shows connection/test actions per server.
 - Which **project** `.mcp.json` is read here is the folder of the chat on screen (`activeCodingProjectPath`) — the same one the agent loads servers from, so the two cannot disagree.
 
+### Adding a server
+
+Both files use one shape: an object under `mcpServers`, keyed by server id. Each entry is either a **remote** endpoint (`url`) or a **local** process (`command` + `args`):
+
+```json
+{
+  "mcpServers": {
+    "ableton": { "url": "http://127.0.0.1:7866/mcp" },
+    "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "Q:\\"] }
+  }
+}
+```
+
+- `url` entries try SSE first, then streamable HTTP; `type` pins one, and `headers`, `env`, `oauth` are optional.
+- `command` entries spawn over stdio; `args`, `env` and `cwd` are optional, and on Windows the command is resolved through `resolveStdioCommand` (`.cmd` / `.exe`).
+- Project entries **win** over global ones with the same id. An entry with neither `url` nor `command` fails with `Invalid MCP config: need either "url" or "command".`
+- After editing a file press **Reload** in the MCP section: config is re-read and servers reconnect, no app restart.
+- The chat agent knows these paths and the shape — it can create or merge a project `.mcp.json` itself, but never writes the global `~/.voidcast/mcp.json`; for global servers it gives you the JSON to paste.
+
 ## Coding project path
 
 - There is **no app-level coding folder field any more**. `coding.projectPath` (`CodingSettings.projectPath`) and the backward-compatible top-level `codingProjectPath` alias were removed: with the folder owned per chat they only seeded a new chat — which `newChat()` deliberately does not do, a new chat is General — and decided which project the MCP / skills tabs read.

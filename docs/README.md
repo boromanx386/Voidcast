@@ -20,6 +20,17 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 - [**coding.md**](coding.md) — coding panel + how the agent (and workers) edit files
 - [**settings-reference.md**](settings-reference.md) — full field-by-field settings reference
 - [**architecture.md**](architecture.md) — screens, hooks, `sessionAgentStore`, agent loop, workers, types
+- [**options/README.md**](options/README.md) — Options screen overview: seven tabs, auto-save, agent-editable vs hidden settings
+
+### Options tabs
+
+- [**general.md**](options/general.md) — theme, cloud API keys, notifications, auto-update, reminders, long-term memory
+- [**llm.md**](options/llm.md) — provider and per-provider endpoints/models, generation defaults, think level, system prompt
+- [**media.md**](options/media.md) — image generation (OpenRouter vs Runware) and music (Runware ACE-Step)
+- [**tts.md**](options/tts.md) — text-to-speech and speech-to-text
+- [**tools.md**](options/tools.md) — tool flags, tool rounds, MCP servers, coding project path, PDF output directory
+- [**skills.md**](options/skills.md) — Agent Skills discovery, `read_skill`, the catalog hint
+- [**subagent.md**](options/subagent.md) — vision sub-agent, coding explore and workers
 
 ## Quick Start
 

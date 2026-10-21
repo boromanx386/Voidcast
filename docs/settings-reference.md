@@ -197,7 +197,7 @@ type ToolsEnabled = {
 
 | Key | Type | What it controls |
 | --- | --- | --- |
-| `skillsEnabled` | `boolean` | Discover Agent Skills from `~/.agents`, `~/.claude`, and `~/.cursor/skills` and expose a catalog + `read_skill` tool (desktop only). |
+| `skillsEnabled` | `boolean` | Discover Agent Skills from `~/.agents/skills` (plus project skill folders, which win on a name clash) and expose a catalog + `read_skill` tool (desktop only). |
 
 ---
 
