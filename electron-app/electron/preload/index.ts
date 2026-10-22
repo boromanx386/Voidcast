@@ -688,6 +688,35 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.on('voidcast:read-clipboard-tts', listener)
     return () => ipcRenderer.removeListener('voidcast:read-clipboard-tts', listener)
   },
+  /** Local control API: toggle the main-process server (opt-in, loopback only). */
+  setControlApiEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke('voidcast:control-set-enabled', enabled) as Promise<{
+      enabled: boolean
+      port: number | null
+    }>,
+  /** Answer control-API requests relayed from the main process. */
+  onControlRequest: (
+    handler: (method: string, params: Record<string, unknown>) => Promise<unknown> | unknown,
+  ) => {
+    const listener = async (
+      _event: Electron.IpcRendererEvent,
+      request: { id: string; method: string; params?: Record<string, unknown> },
+    ) => {
+      let result: unknown
+      try {
+        result = await handler(request.method, request.params ?? {})
+      } catch (error) {
+        result = {
+          ok: false,
+          status: 500,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      }
+      void ipcRenderer.invoke('voidcast:control-response', { id: request.id, result })
+    }
+    ipcRenderer.on('voidcast:control-request', listener)
+    return () => ipcRenderer.removeListener('voidcast:control-request', listener)
+  },
   onNewChat: (callback: () => void) => {
     ipcRenderer.on('voidcast:new-chat', callback)
     return () => ipcRenderer.removeListener('voidcast:new-chat', callback)

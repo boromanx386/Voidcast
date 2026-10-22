@@ -1111,6 +1111,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     activeAgentMode,
     setAgentModeForActiveChat,
     setAgentModeForSession,
+    setModelForSession,
     patchSessionImageVision,
     activeModelId,
     activeChatModelId,

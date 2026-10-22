@@ -13,6 +13,8 @@ Grouped by the Settings tab they belong to.
 | `uiTheme` | `UiTheme` | obsidian (cyberpunk shell vs calmer zinc/indigo) | Visual chrome / theme. |
 | `autoSaveChat` | `boolean` | on | When on, chat sessions auto-save. When off, a manual save button appears. |
 | `autoUpdate` | `boolean` | on (desktop) | Check for app updates automatically on startup (desktop only). |
+| `controlApiEnabled` | `boolean` | off | Desktop only: loopback-only control API to list, read and stop chats — see [control-api.md](control-api.md). |
+| `controlApiAllowSend` | `boolean` | off | With the control API on, also allow it to create chats and start turns (can run commands and edit files). |
 | `reminderNotificationsEnabled` | `boolean` | on | Renderer fires a desktop notification when a scheduled reminder becomes due. |
 | `notificationSoundsEnabled` | `boolean` | off | Play the user-selected reply/error sound files on chat events. |
 | `notificationSoundVolume` | `number` | 0–1 | Output volume for chat notification sounds. |

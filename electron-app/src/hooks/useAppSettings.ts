@@ -60,6 +60,14 @@ export function useAppSettings() {
     })
   }, [settings.autoUpdate])
 
+  // Start/stop the loopback control API in the main process (opt-in).
+  useEffect(() => {
+    if (!isElectron()) return
+    void window.voidcast?.setControlApiEnabled(Boolean(settings.controlApiEnabled)).catch(() => {
+      // Best-effort setting sync.
+    })
+  }, [settings.controlApiEnabled])
+
   // Register cloud API keys on the local TTS server for LAN web proxy (keys never sent to phone).
   useEffect(() => {
     if (!isElectron()) return

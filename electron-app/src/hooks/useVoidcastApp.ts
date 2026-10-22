@@ -4,7 +4,7 @@ import { fetchOllamaModels } from '@/lib/ollama'
 import { deleteReminder, markReminderDone } from '@/lib/reminderStorage'
 import { recordReminderDeleted, scheduleUserDataSync } from '@/lib/userDataSync'
 import { useAppSettings } from '@/hooks/useAppSettings'
-import { useChatAgent } from '@/hooks/useChatAgent'
+import { useChatAgent, type OnSendOptions } from '@/hooks/useChatAgent'
 import { useChatAttachments } from '@/hooks/useChatAttachments'
 import { useChatSessions } from '@/hooks/useChatSessions'
 import { useCodingSession } from '@/hooks/useCodingSession'
@@ -13,7 +13,11 @@ import { useSttInput } from '@/hooks/useSttInput'
 import { useTtsPlayback } from '@/hooks/useTtsPlayback'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
-import { runtimeKeyForSession } from '@/lib/sessionAgentStore'
+import { handleControlRequest } from '@/lib/controlApi'
+import { createControlDriver } from '@/lib/controlDriver'
+import { isElectron } from '@/lib/platform'
+import { runtimeKeyForSession, sessionAgentStore } from '@/lib/sessionAgentStore'
+import { stopSessionRun } from '@/lib/sessionRunControl'
 import { generatePromptHint } from '@/lib/promptHint'
 import { subAgentConfigForRole } from '@/lib/settings'
 import { subAgentKeysFromSettings } from '@/lib/subAgentKeys'
@@ -240,6 +244,48 @@ export function useVoidcastApp() {
   useEffect(() => {
     setViewSessionId(sessions.activeSessionId)
   }, [sessions.activeSessionId])
+
+  // Local control API: answer requests relayed from the main process. Everything is read
+  // through refs so the handler registered once always sees the latest render.
+  const sessionsApiRef = useRef(sessions)
+  sessionsApiRef.current = sessions
+  const onSendRef = useRef<(opts?: OnSendOptions) => Promise<void>>(async () => {})
+  onSendRef.current = agent.onSend
+  const controlSendAllowedRef = useRef(false)
+  controlSendAllowedRef.current = Boolean(
+    settings.controlApiEnabled && settings.controlApiAllowSend,
+  )
+  useEffect(() => {
+    const bridge = window.voidcast
+    if (!isElectron() || !bridge?.onControlRequest) return
+    const driver = createControlDriver({
+      getActiveSessionId: () => activeSessionIdRef.current,
+      getSession: (id) => sessionsRef.current.find((s) => s.id === id),
+      isBusy: (id) => sessionAgentStore.isBusy(id),
+      messageCount: (id) => {
+        const live = sessionAgentStore.get(id)
+        return live && live.messages.length > 0
+          ? live.messages.length
+          : (sessionsRef.current.find((s) => s.id === id)?.messages.length ?? 0)
+      },
+      slotError: (id) => sessionAgentStore.get(id)?.error ?? null,
+      newChatForProject: (path) => sessionsApiRef.current.newChatForProject(path),
+      setPendingMode: (mode) => sessionsApiRef.current.setAgentModeForActiveChat(mode),
+      openSession: (session) => sessionsApiRef.current.openSession(session),
+      setModelForSession: (id, model) => sessionsApiRef.current.setModelForSession(id, model),
+      send: (opts) => onSendRef.current(opts),
+    })
+    return bridge.onControlRequest((method, params) =>
+      handleControlRequest(method, params, {
+        listSessions: () => sessionsRef.current,
+        getSlot: (id) => sessionAgentStore.get(id),
+        stop: (id) => stopSessionRun(id),
+        sendAllowed: () => controlSendAllowedRef.current,
+        startChat: driver.startChat,
+        sendToChat: driver.sendToChat,
+      }),
+    )
+  }, [])
 
   const stt = useSttInput({
     settings,

@@ -25,6 +25,12 @@ import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { rgPath as rawBundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
+import {
+  createRendererRequester,
+  startControlServer,
+  type ControlReply,
+  type ControlServerHandle,
+} from './controlServer'
 import { scrapePublicUrlToText } from './scrape'
 import { registerBrowserIpc } from './browser/ipc'
 import {
@@ -897,6 +903,7 @@ app.on('activate', () => {
 app.on('before-quit', () => {
   isQuitting = true
   void mcpManager.stopAll()
+  void controlServer?.stop()
 })
 
 ipcMain.handle('voidcast:web-search', async (_evt, query: string) => {
@@ -3848,6 +3855,38 @@ ipcMain.handle('voidcast:window-focus-state', () => {
     minimized: win.isMinimized(),
     visible: win.isVisible(),
   }
+})
+
+// Local control API (opt-in): relays external requests to the renderer, where the agent runs.
+let controlServer: ControlServerHandle | null = null
+const controlRequester = createRendererRequester({
+  send: (request) => {
+    if (!win || win.isDestroyed()) return false
+    win.webContents.send('voidcast:control-request', request)
+    return true
+  },
+})
+
+ipcMain.handle(
+  'voidcast:control-response',
+  (_event, payload: { id: string; result: ControlReply }) => {
+    controlRequester.resolve(payload)
+  },
+)
+
+ipcMain.handle('voidcast:control-set-enabled', async (_event, enabled: boolean) => {
+  if (!enabled) {
+    await controlServer?.stop()
+    controlServer = null
+    return { enabled: false, port: null }
+  }
+  if (!controlServer) {
+    controlServer = await startControlServer({
+      userDataDir: app.getPath('userData'),
+      dispatch: controlRequester.dispatch,
+    })
+  }
+  return { enabled: true, port: controlServer.port }
 })
 
 ipcMain.handle('voidcast:quit-app', () => {

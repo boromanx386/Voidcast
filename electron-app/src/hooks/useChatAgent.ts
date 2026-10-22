@@ -34,6 +34,7 @@ import { filterProcessesForAgent, type ActiveCodingProcess } from '@/lib/codingA
 import { mergeImageVisionCache, type ImageVisionCache } from '@/lib/imageVisionCache'
 import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
+import { stopSessionRun } from '@/lib/sessionRunControl'
 import { touchMemoryUsage } from '@/lib/longMemoryStorage'
 import { runOllamaChatWithTools } from '@/lib/ollamaAgent'
 import {
@@ -1555,14 +1556,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   )
 
   const onStop = useCallback(() => {
-    const owner = sessionAgentStore.canonicalKey(runtimeKey)
-    sessionAgentStore.stop(runtimeKey)
-    void cancelActiveMcpCalls(owner)
-    sessionAgentStore.setMessages(runtimeKey, (prev) =>
-      prev.map((m) =>
-        m.plan?.status === 'approved' ? { ...m, plan: reopenPlanAsDraft(m.plan) } : m,
-      ),
-    )
+    stopSessionRun(runtimeKey)
   }, [runtimeKey])
 
   /**

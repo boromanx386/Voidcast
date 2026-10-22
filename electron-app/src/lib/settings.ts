@@ -1592,6 +1592,16 @@ export type AppSettings = {
    * clients can use the proxy. Default off — keys stay in localStorage only.
    */
   lanWebAccessEnabled: boolean
+  /**
+   * Desktop only: expose a loopback-only control API so a local agent can list,
+   * read and stop chats. Default off — it exposes chat content to local processes.
+   */
+  controlApiEnabled: boolean
+  /**
+   * With the control API on, also let it START agent turns (create chats / send). Default off:
+   * a started turn can run shell commands and edit files with the chat's tools.
+   */
+  controlApiAllowSend: boolean
   /** If true, chat sessions are auto-saved. When off, a manual save button appears. */
   autoSaveChat: boolean
   /** If true, the renderer fires a desktop notification when a scheduled reminder becomes due. */
@@ -1848,6 +1858,8 @@ export const defaults: AppSettings = {
   runwareAutoSaveMusic: false,
   autoUpdate: false,
   lanWebAccessEnabled: false,
+  controlApiEnabled: false,
+  controlApiAllowSend: false,
   autoSaveChat: true,
   reminderNotificationsEnabled: true,
   notificationSoundsEnabled: true,
@@ -2553,6 +2565,8 @@ function normalizeLanWebAccess(s: AppSettings): AppSettings {
   return {
     ...s,
     lanWebAccessEnabled: typeof s.lanWebAccessEnabled === 'boolean' ? s.lanWebAccessEnabled : false,
+    controlApiEnabled: typeof s.controlApiEnabled === 'boolean' ? s.controlApiEnabled : false,
+    controlApiAllowSend: typeof s.controlApiAllowSend === 'boolean' ? s.controlApiAllowSend : false,
   }
 }
 

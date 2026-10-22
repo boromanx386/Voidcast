@@ -18,6 +18,7 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 - [**multi-chat-and-team.md**](multi-chat-and-team.md) — concurrent chats, Agent/Ask/Plan/Team, coding workers, analysis card
 - [**chat.md**](chat.md) — the chat screen: composer, sessions, messages, attachments, sub-agents, memory, context, voice
 - [**coding.md**](coding.md) — coding panel + how the agent (and workers) edit files
+- [**control-api.md**](control-api.md) — opt-in loopback API to list, read and stop chats from a local agent
 - [**settings-reference.md**](settings-reference.md) — full field-by-field settings reference
 - [**architecture.md**](architecture.md) — screens, hooks, `sessionAgentStore`, agent loop, workers, types
 - [**options/README.md**](options/README.md) — Options screen overview: seven tabs, auto-save, agent-editable vs hidden settings

@@ -598,6 +598,12 @@ interface VoidcastBridge {
 
   setAutoUpdateEnabled: (enabled: boolean) => Promise<{ ok: true; autoUpdateEnabled: boolean }>
 
+  setControlApiEnabled: (enabled: boolean) => Promise<{ enabled: boolean; port: number | null }>
+
+  onControlRequest: (
+    handler: (method: string, params: Record<string, unknown>) => Promise<unknown> | unknown,
+  ) => () => void
+
   startUpdateDownload: () => Promise<void>
 
   quitAndInstallUpdate: () => Promise<void>
