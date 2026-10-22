@@ -30,6 +30,33 @@ export function formatCodingCommandExitLine(opts: {
   return '[done]'
 }
 
+/**
+ * Status line for the model. It goes last so head+tail trimming of noisy output keeps it;
+ * without it a failing build or test run looked exactly like a passing one.
+ */
+export function formatExecuteCommandStatusLine(opts: {
+  code?: number
+  timedOut?: boolean
+  killed?: boolean
+}): string {
+  const exit = typeof opts.code === 'number' ? `, exit ${opts.code}` : ''
+  if (opts.killed) return `[stopped${exit}]`
+  if (opts.timedOut) return `[timed out${exit}]`
+  if (typeof opts.code === 'number') return `[exit ${opts.code}]`
+  return ''
+}
+
+const EXECUTE_STATUS_LINE_RE = /^\[(?:(stopped|timed out)(?:, exit (-?\d+))?|exit (-?\d+))\]$/
+
+/** True when an execute_command result ends in a non-zero exit, a timeout, or a stop. */
+export function isFailedExecuteCommandStatus(result: string): boolean {
+  const lines = result.trimEnd().split(/\r?\n/)
+  const m = lines[lines.length - 1]?.trim().match(EXECUTE_STATUS_LINE_RE)
+  if (!m) return false
+  if (m[1]) return true
+  return Number(m[3]) !== 0
+}
+
 /** Set when a foreground coding command used IPC streaming (anti-dup for applyAgentToolResult). */
 let lastForegroundExecuteWasStreamed = false
 

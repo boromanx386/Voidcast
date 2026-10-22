@@ -58,11 +58,15 @@ import {
   CODING_SEARCH_LINE_TEXT_MAX,
   CODING_SEARCH_MAX_BLOCKS,
   CODING_SEARCH_MAX_PER_FILE,
+  compileCodingSearchGlob,
   countMatchesByFile,
+  matchesCodingSearchGlob,
   mergeMatchRanges,
   rankSearchMatches,
   type CodingSearchBlock,
   type CodingSearchBlockLine,
+  type CodingSearchGlob,
+  type CodingSearchOptions,
   type CodingSearchProcessedResult,
   type CodingSearchRawMatch,
   type ScoredSearchMatch,
@@ -1529,6 +1533,7 @@ async function searchProjectWithRipgrep(
   searchRoot: string,
   query: string,
   maxMatches: number,
+  options: { regex?: boolean; glob?: CodingSearchGlob | null } = {},
 ): Promise<CodingSearchRawMatch[] | null> {
   // Align with searchProjectFilesWalk: do not use ignore files (.gitignore, .ignore, …), and
   // include hidden paths. Walk only skips named dirs (shouldSkipCodingProjectDir) + globs below.
@@ -1536,7 +1541,7 @@ async function searchProjectWithRipgrep(
   const args: string[] = [
     '--json',
     '-i',
-    '-F',
+    ...(options.regex ? [] : ['-F']),
     '--no-ignore',
     '--hidden',
     '--max-filesize=2M',
@@ -1544,9 +1549,15 @@ async function searchProjectWithRipgrep(
     '-m',
     '50',
   ]
-  for (const ext of CODING_SOURCE_EXTENSIONS) {
-    args.push('-g', `*.${ext}`)
+  // A positive glob replaces the source-extension whitelist: ripgrep ORs positive globs, so
+  // keeping both would let every source file through. A negative glob narrows it instead.
+  const glob = options.glob
+  if (!glob || glob.negated) {
+    for (const ext of CODING_SOURCE_EXTENSIONS) {
+      args.push('-g', `*.${ext}`)
+    }
   }
+  if (glob) args.push('--iglob', `${glob.negated ? '!' : ''}${glob.pattern}`)
   for (const g of RIPGREP_EXCLUDE_GLOBS) {
     args.push('--glob', g)
   }
@@ -1589,8 +1600,14 @@ async function searchProjectFilesWalk(
   searchRoot: string,
   query: string,
   maxMatches: number,
+  options: { regex?: RegExp | null; glob?: CodingSearchGlob | null } = {},
 ): Promise<CodingSearchRawMatch[]> {
   const q = query.toLowerCase()
+  const re = options.regex
+  const lineMatches = re
+    ? (line: string) => re.test(line)
+    : (line: string) => line.toLowerCase().includes(q)
+  const glob = options.glob
   const results: CodingSearchRawMatch[] = []
   const visit = async (dir: string): Promise<void> => {
     const entries = await readdir(dir, { withFileTypes: true })
@@ -1603,13 +1620,14 @@ async function searchProjectFilesWalk(
       }
       const full = path.join(dir, entry.name)
       const rel = path.relative(projectRoot, full).replace(/\\/g, '/')
-      if (!CODING_SOURCE_FILE_RE.test(rel)) continue
+      if ((!glob || glob.negated) && !CODING_SOURCE_FILE_RE.test(rel)) continue
+      if (glob && !matchesCodingSearchGlob(rel, glob)) continue
       const content = await readFile(full, 'utf8').catch(() => '')
       if (!content) continue
       const lines = content.split(/\r?\n/)
       for (let i = 0; i < lines.length; i++) {
         if (results.length >= maxMatches) return
-        if (lines[i].toLowerCase().includes(q)) {
+        if (lineMatches(lines[i])) {
           results.push({
             path: rel,
             line: i + 1,
@@ -1673,21 +1691,41 @@ async function processCodingSearch(
   searchRoot: string,
   query: string,
   recentFiles: string[] = [],
+  options: CodingSearchOptions & { compiledGlob?: CodingSearchGlob | null } = {},
 ): Promise<CodingSearchProcessedResult> {
+  const glob = options.compiledGlob ?? null
   let raw = await searchProjectWithRipgrep(
     projectPath,
     searchRoot,
     query,
     CODING_SEARCH_INTERNAL_MAX,
+    { regex: options.regex, glob },
   )
   if (raw === null) {
-    raw = await searchProjectFilesWalk(projectPath, searchRoot, query, CODING_SEARCH_INTERNAL_MAX)
+    // Also the path for JS-only regex syntax ripgrep rejects (lookaround, backreferences).
+    const regex = options.regex ? new RegExp(query, 'i') : null
+    raw = await searchProjectFilesWalk(projectPath, searchRoot, query, CODING_SEARCH_INTERNAL_MAX, {
+      regex,
+      glob,
+    })
   }
   // Collector-level cap — check before artifact filtering shrinks the count below it.
   const truncatedCollection = raw.length >= CODING_SEARCH_INTERNAL_MAX
   raw = filterCodingSearchMatches(raw)
 
   const fileMatchCounts = countMatchesByFile(raw)
+  const meta = {
+    query,
+    regex: options.regex || undefined,
+    glob: options.glob || undefined,
+    filesOnly: options.filesOnly || undefined,
+    totalRawMatches: raw.length,
+    totalFiles: fileMatchCounts.size,
+    truncatedCollection,
+    fileMatchCounts: Object.fromEntries(fileMatchCounts),
+  }
+  if (options.filesOnly) return { ...meta, blocks: [] }
+
   const ranked = rankSearchMatches(raw, query, {
     recentFiles,
     maxPerFile: CODING_SEARCH_MAX_PER_FILE,
@@ -1695,14 +1733,7 @@ async function processCodingSearch(
   })
   const blocks = await buildSearchBlocks(projectPath, ranked, CODING_SEARCH_CONTEXT_LINES)
 
-  return {
-    query,
-    totalRawMatches: raw.length,
-    totalFiles: fileMatchCounts.size,
-    truncatedCollection,
-    fileMatchCounts: Object.fromEntries(fileMatchCounts),
-    blocks,
-  }
+  return { ...meta, blocks }
 }
 
 function fileLooksBinary(buf: Buffer): boolean {
@@ -2008,7 +2039,15 @@ ipcMain.handle(
   'voidcast:coding-search-files',
   async (
     _evt,
-    payload: { projectPath?: string; query?: string; pathPrefix?: string; recentFiles?: string[] },
+    payload: {
+      projectPath?: string
+      query?: string
+      pathPrefix?: string
+      recentFiles?: string[]
+      regex?: boolean
+      glob?: string
+      filesOnly?: boolean
+    },
   ) => {
     try {
       const projectPath = String(payload?.projectPath ?? '').trim()
@@ -2028,7 +2067,28 @@ ipcMain.handle(
       const recentFiles = Array.isArray(payload?.recentFiles)
         ? payload.recentFiles.filter((x): x is string => typeof x === 'string')
         : []
-      const result = await processCodingSearch(projectPath, searchRoot, query, recentFiles)
+      const regex = payload?.regex === true
+      if (regex) {
+        try {
+          new RegExp(query, 'i')
+        } catch (e) {
+          return {
+            ok: false as const,
+            error: `Invalid regex: ${e instanceof Error ? e.message : String(e)}`,
+          }
+        }
+      }
+      const globText = String(payload?.glob ?? '').trim()
+      const compiledGlob = globText ? compileCodingSearchGlob(globText) : null
+      if (globText && !compiledGlob) {
+        return { ok: false as const, error: `Invalid glob: ${globText}` }
+      }
+      const result = await processCodingSearch(projectPath, searchRoot, query, recentFiles, {
+        regex,
+        glob: globText || undefined,
+        filesOnly: payload?.filesOnly === true,
+        compiledGlob,
+      })
       return { ok: true as const, result }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
@@ -2975,6 +3035,8 @@ ipcMain.handle(
       code: number
       timedOut?: boolean
       killed?: boolean
+      /** Still running (background start or idle promotion): `code` is not an exit status. */
+      running?: boolean
       pid?: number
       runId: string
       streamed: boolean
@@ -3056,6 +3118,7 @@ ipcMain.handle(
           stdout: `Started in background (pid ${pid || 'n/a'})`,
           stderr: '',
           code: 0,
+          running: true,
           pid: pid || undefined,
           runId,
           streamed: true,
@@ -3145,6 +3208,7 @@ ipcMain.handle(
             `${body}\n\n[process still running — moved to background tracking (pid ${pid || 'n/a'})]`.trim(),
           stderr: '',
           code: 0,
+          running: true,
           pid: pid || undefined,
           runId,
           streamed: true,

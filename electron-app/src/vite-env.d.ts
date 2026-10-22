@@ -398,6 +398,9 @@ interface VoidcastBridge {
     query: string
     pathPrefix?: string
     recentFiles?: string[]
+    regex?: boolean
+    glob?: string
+    filesOnly?: boolean
   }) => Promise<
     | {
         ok: true
@@ -482,6 +485,7 @@ interface VoidcastBridge {
         code: number
         timedOut?: boolean
         killed?: boolean
+        running?: boolean
         pid?: number
         runId: string
         streamed: boolean

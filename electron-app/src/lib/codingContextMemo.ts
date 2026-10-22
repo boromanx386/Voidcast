@@ -1,4 +1,5 @@
 import { applySnippetEdit } from '@/lib/codingEol'
+import { isFailedExecuteCommandStatus } from '@/lib/codingCommandStream'
 
 export type CodingCommandMemo = {
   command: string
@@ -787,7 +788,7 @@ export function isCodingToolFailure(toolName: string, result: string): boolean {
 
   if (r.startsWith('Error:')) return true
 
-  if (toolName === 'execute_command') return !r.startsWith('$ ')
+  if (toolName === 'execute_command') return !r.startsWith('$ ') || isFailedExecuteCommandStatus(r)
   if (toolName === 'write_file') return !r.startsWith('Saved ')
   if (toolName === 'edit_code') return !r.startsWith('Edited ')
   if (toolName === 'stop_process') return !r.startsWith('Stopped process ')

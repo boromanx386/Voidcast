@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   CODING_SEARCH_CONTEXT_LINES,
+  compileCodingSearchGlob,
   formatSearchResults,
+  matchesCodingSearchGlob,
   mergeMatchRanges,
   rankSearchMatches,
   scoreSearchMatch,
@@ -110,5 +112,61 @@ describe('topFilesByMatchCount', () => {
       { path: 'c', matchCount: 2 },
       { path: 'b', matchCount: 1 },
     ])
+  })
+})
+
+describe('compileCodingSearchGlob', () => {
+  const matches = (glob: string, path: string) => {
+    const g = compileCodingSearchGlob(glob)
+    if (!g) throw new Error(`glob did not compile: ${glob}`)
+    return matchesCodingSearchGlob(path, g)
+  }
+
+  it('matches a slash-free glob against the file name in any folder', () => {
+    expect(matches('*.test.ts', 'electron-app/test/a.test.ts')).toBe(true)
+    expect(matches('*.test.ts', 'electron-app/src/a.ts')).toBe(false)
+  })
+
+  it('anchors a glob with a slash at the project root', () => {
+    expect(matches('src/**/*.tsx', 'src/components/chat/Composer.tsx')).toBe(true)
+    expect(matches('src/**/*.tsx', 'src/App.tsx')).toBe(true)
+    expect(matches('src/**/*.tsx', 'electron-app/src/App.tsx')).toBe(false)
+    expect(matches('**/lib/*.ts', 'electron-app/src/lib/codingSearch.ts')).toBe(true)
+  })
+
+  it('supports brace alternatives, ? and case-insensitive matching', () => {
+    expect(matches('*.{ts,tsx}', 'src/a.tsx')).toBe(true)
+    expect(matches('*.{ts,tsx}', 'src/a.js')).toBe(false)
+    expect(matches('file?.TS', 'src/file1.ts')).toBe(true)
+  })
+
+  it('inverts the result for a ! glob', () => {
+    expect(matches('!*.test.ts', 'src/a.test.ts')).toBe(false)
+    expect(matches('!*.test.ts', 'src/a.ts')).toBe(true)
+  })
+
+  it('treats dots literally and rejects broken globs', () => {
+    expect(matches('*.ts', 'src/ats')).toBe(false)
+    expect(compileCodingSearchGlob('*.{ts')).toBeNull()
+    expect(compileCodingSearchGlob('!')).toBeNull()
+  })
+})
+
+describe('formatSearchResults files_only', () => {
+  it('lists files by match count without context blocks', () => {
+    const text = formatSearchResults({
+      query: 'use\w+',
+      regex: true,
+      glob: '*.ts',
+      filesOnly: true,
+      totalRawMatches: 4,
+      totalFiles: 2,
+      truncatedCollection: false,
+      fileMatchCounts: { 'src/a.ts': 1, 'src/b.ts': 3 },
+      blocks: [],
+    })
+    expect(text).toContain('Search "use\w+" (regex, glob *.ts): 4 raw matches in 2 files.')
+    expect(text.indexOf('src/b.ts — 3')).toBeLessThan(text.indexOf('src/a.ts — 1'))
+    expect(text).not.toContain('Matches:')
   })
 })

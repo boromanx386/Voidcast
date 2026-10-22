@@ -21,8 +21,20 @@ export type CodingSearchBlock = {
   lines: CodingSearchBlockLine[]
 }
 
+export type CodingSearchOptions = {
+  /** Treat the query as a regular expression instead of a literal substring. */
+  regex?: boolean
+  /** File filter glob; `!` prefix excludes. Without `/` it matches the file name anywhere. */
+  glob?: string
+  /** Return only the files that match, with per-file counts (no context blocks). */
+  filesOnly?: boolean
+}
+
 export type CodingSearchProcessedResult = {
   query: string
+  regex?: boolean
+  glob?: string
+  filesOnly?: boolean
   totalRawMatches: number
   totalFiles: number
   truncatedCollection: boolean
@@ -41,6 +53,67 @@ export const CODING_SEARCH_CONTEXT_LINES = 2
 /** How many top files to list in the summary header. */
 export const CODING_SEARCH_TOP_FILES = 12
 export const CODING_SEARCH_LINE_TEXT_MAX = 240
+/** Max files listed by a files_only search. */
+export const CODING_SEARCH_FILES_ONLY_MAX = 200
+
+export type CodingSearchGlob = {
+  negated: boolean
+  /** Matches a project-relative, forward-slash path. */
+  re: RegExp
+  /** Source glob without the `!` prefix, as handed to ripgrep. */
+  pattern: string
+}
+
+/**
+ * Compile a ripgrep/gitignore-style glob (case-insensitive, like `rg --iglob`). A glob with a
+ * `/` is anchored at the project root; one without matches the file name in any folder.
+ * Kept in sync with ripgrep so the fallback walk filters the same files.
+ */
+export function compileCodingSearchGlob(glob: string): CodingSearchGlob | null {
+  let pattern = glob.trim()
+  const negated = pattern.startsWith('!')
+  if (negated) pattern = pattern.slice(1).trim()
+  pattern = pattern.replace(/\\/g, '/').replace(/^\.\//, '')
+  const anchored = pattern.includes('/')
+  pattern = pattern.replace(/^\/+/, '')
+  if (!pattern) return null
+
+  let src = ''
+  let braceDepth = 0
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern.charAt(i)
+    if (c === '*') {
+      if (pattern[i + 1] === '*') {
+        const slashAfter = pattern[i + 2] === '/'
+        src += slashAfter ? '(?:.*/)?' : '.*'
+        i += slashAfter ? 2 : 1
+      } else {
+        src += '[^/]*'
+      }
+    } else if (c === '?') {
+      src += '[^/]'
+    } else if (c === '{') {
+      braceDepth++
+      src += '(?:'
+    } else if (c === '}' && braceDepth > 0) {
+      braceDepth--
+      src += ')'
+    } else if (c === ',' && braceDepth > 0) {
+      src += '|'
+    } else {
+      src += c.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    }
+  }
+  if (braceDepth > 0) return null
+
+  const re = new RegExp(anchored ? `^${src}$` : `(?:^|/)${src}$`, 'i')
+  return { negated, re, pattern }
+}
+
+export function matchesCodingSearchGlob(relPath: string, glob: CodingSearchGlob): boolean {
+  const hit = glob.re.test(relPath.replace(/\\/g, '/').replace(/^\.\//, ''))
+  return glob.negated ? !hit : hit
+}
 
 function normalizeQuery(query: string): string {
   return query.trim().toLowerCase()
@@ -222,10 +295,23 @@ export function formatSearchResults(result: CodingSearchProcessedResult): string
 
   if (totalRawMatches === 0) return 'No matches.'
 
+  const filters = [result.regex ? 'regex' : '', result.glob ? `glob ${result.glob}` : '']
+    .filter(Boolean)
+    .join(', ')
+  const header =
+    `Search "${query}"${filters ? ` (${filters})` : ''}: ` +
+    `${totalRawMatches} raw match${totalRawMatches === 1 ? '' : 'es'} in ${totalFiles} file${totalFiles === 1 ? '' : 's'}${truncatedCollection ? ' (collection capped)' : ''}.`
+
+  if (result.filesOnly) {
+    const files = topFilesByMatchCount(fileMatchCounts, CODING_SEARCH_FILES_ONLY_MAX)
+    const more = totalFiles > files.length ? [`… ${totalFiles - files.length} more files`] : []
+    return [header, '', ...files.map((f) => `${f.path} — ${f.matchCount}`), ...more].join('\n')
+  }
+
   const topFiles = topFilesByMatchCount(fileMatchCounts)
   const shownFiles = new Set(blocks.map((b) => b.path))
   const lines: string[] = [
-    `Search "${query}": ${totalRawMatches} raw match${totalRawMatches === 1 ? '' : 'es'} in ${totalFiles} file${totalFiles === 1 ? '' : 's'}${truncatedCollection ? ' (collection capped)' : ''}.`,
+    header,
     `Showing ${blocks.length} contextual block${blocks.length === 1 ? '' : 's'} across ${shownFiles.size} file${shownFiles.size === 1 ? '' : 's'} (ranked by relevance).`,
     '',
     'Top files by match count:',

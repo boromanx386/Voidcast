@@ -7,10 +7,11 @@ import {
   readFileToolDisplayPrefix,
   type FileLineEndings,
 } from '@/lib/codingEol'
-import { formatSearchResults } from '@/lib/codingSearch'
+import { formatSearchResults, type CodingSearchOptions } from '@/lib/codingSearch'
 import { formatSymbolsOutline, type SymbolEntry } from '@/lib/codingOutline'
 import type { ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import {
+  formatExecuteCommandStatusLine,
   markLastExecuteCommandStreamed,
   type CodingCommandOutputEvent,
 } from '@/lib/codingCommandStream'
@@ -234,7 +235,7 @@ export async function invokeEditCodingFile(
 export async function invokeSearchCodingFiles(
   projectPath: string,
   query: string,
-  options?: { pathPrefix?: string; recentFiles?: string[] },
+  options?: { pathPrefix?: string; recentFiles?: string[] } & CodingSearchOptions,
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingSearchFiles
   if (!fn) return missingBridgeResult('Search files')
@@ -243,6 +244,9 @@ export async function invokeSearchCodingFiles(
     query,
     pathPrefix: options?.pathPrefix,
     recentFiles: options?.recentFiles,
+    regex: options?.regex,
+    glob: options?.glob,
+    filesOnly: options?.filesOnly,
   })
   if (!res.ok) return { ok: false, text: res.error || 'Search failed.' }
   return { ok: true, text: formatSearchResults(res.result) }
@@ -414,9 +418,16 @@ export async function invokeExecuteCodingCommand(
   const streamed = res.streamed === true
   markLastExecuteCommandStreamed(streamed)
   const output = [res.stdout, res.stderr].filter(Boolean).join('\n').trim() || '(no output)'
+  const status = res.running
+    ? ''
+    : formatExecuteCommandStatusLine({
+        code: res.code,
+        timedOut: res.timedOut,
+        killed: res.killed,
+      })
   return {
     ok: true,
-    text: `$ ${command}\n${output}`,
+    text: `$ ${command}\n${output}${status ? `\n${status}` : ''}`,
     streamed,
     code: res.code,
     runId: res.runId,

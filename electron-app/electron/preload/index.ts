@@ -450,6 +450,9 @@ contextBridge.exposeInMainWorld('voidcast', {
     query: string
     pathPrefix?: string
     recentFiles?: string[]
+    regex?: boolean
+    glob?: string
+    filesOnly?: boolean
   }) =>
     ipcRenderer.invoke('voidcast:coding-search-files', payload) as Promise<
       | { ok: true; result: import('../../src/lib/codingSearch').CodingSearchProcessedResult }
@@ -529,6 +532,7 @@ contextBridge.exposeInMainWorld('voidcast', {
           code: number
           timedOut?: boolean
           killed?: boolean
+          running?: boolean
           pid?: number
           runId: string
           streamed: boolean

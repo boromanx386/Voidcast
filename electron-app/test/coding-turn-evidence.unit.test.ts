@@ -41,6 +41,19 @@ describe('summarizeCodingTurnEvidence', () => {
     expect(ev.commandSummaries[0]).toContain('git commit')
   })
 
+  it('records a command with a non-zero exit as a failure, not a git mutation', () => {
+    let log = emptyCodingTurnLog()
+    log = recordCodingToolInTurnLog(
+      log,
+      'execute_command',
+      { command: 'git commit -m "fix"' },
+      '$ git commit -m "fix"\nnothing to commit, working tree clean\n[exit 1]',
+    )
+    const ev = summarizeCodingTurnEvidence(log)
+    expect(ev.hadGitMutation).toBe(false)
+    expect(log.events[0]?.kind).toBe('fail')
+  })
+
   it('does not expose a command preview in the UI label', () => {
     let log = emptyCodingTurnLog()
     log = recordCodingToolInTurnLog(

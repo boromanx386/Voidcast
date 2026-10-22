@@ -4,6 +4,8 @@ import {
   appendCodingCommandEventToFeed,
   consumeLastExecuteCommandStreamed,
   formatCodingCommandExitLine,
+  formatExecuteCommandStatusLine,
+  isFailedExecuteCommandStatus,
   markLastExecuteCommandStreamed,
   resetCodingTerminalFeedState,
 } from '../src/lib/codingCommandStream'
@@ -171,5 +173,33 @@ describe('resetCodingTerminalFeedState', () => {
     )
     expect(feed).toHaveLength(1)
     expect(feed[0]!.id).toBe('stream-r4-1')
+  })
+})
+
+describe('formatExecuteCommandStatusLine', () => {
+  it('reports exit code, timeout and stop', () => {
+    expect(formatExecuteCommandStatusLine({ code: 0 })).toBe('[exit 0]')
+    expect(formatExecuteCommandStatusLine({ code: 2 })).toBe('[exit 2]')
+    expect(formatExecuteCommandStatusLine({ code: 124, timedOut: true })).toBe(
+      '[timed out, exit 124]',
+    )
+    expect(formatExecuteCommandStatusLine({ code: 130, killed: true })).toBe('[stopped, exit 130]')
+    expect(formatExecuteCommandStatusLine({})).toBe('')
+  })
+})
+
+describe('isFailedExecuteCommandStatus', () => {
+  it('reads the trailing status line', () => {
+    expect(isFailedExecuteCommandStatus('$ npm test\nok\n[exit 0]')).toBe(false)
+    expect(isFailedExecuteCommandStatus('$ npm test\n1 failed\n[exit 1]\n')).toBe(true)
+    expect(isFailedExecuteCommandStatus('$ npm run dev\n…\n[timed out, exit 124]')).toBe(true)
+    expect(isFailedExecuteCommandStatus('$ sleep 9\n[stopped, exit 130]')).toBe(true)
+  })
+
+  it('ignores results without a status line and look-alikes inside output', () => {
+    expect(isFailedExecuteCommandStatus('$ npm run dev\nStarted in background (pid 42)')).toBe(
+      false,
+    )
+    expect(isFailedExecuteCommandStatus('$ cat log\n[exit 1] in log\ndone')).toBe(false)
   })
 })

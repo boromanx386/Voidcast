@@ -900,7 +900,7 @@ const CODING_WRITE_FILE_TOOL: AgentToolDefinition = {
   function: {
     name: 'write_file',
     description:
-      'MANDATORY: Write full file content in the configured coding project directory. CRITICAL: When the user asks to create a new file, save code, or replace a file\'s contents, you MUST call this tool BEFORE responding with any text. Do NOT show the file contents in chat and claim it was saved - actually call the tool. Do NOT say "File created" or "Saved to ..." without calling this tool first. Never claim a file was written unless this tool returned a successful result in this turn. This overwrites file content; read the file first when changing existing code.',
+      'Create a file or replace its entire content in the coding project. For changes to an existing file prefer edit_code; read the file first if you replace it.',
     parameters: {
       type: 'object',
       properties: {
@@ -923,7 +923,7 @@ const CODING_EDIT_CODE_TOOL: AgentToolDefinition = {
   function: {
     name: 'edit_code',
     description:
-      'MANDATORY: Edit existing file content by replacing a target snippet with new text inside the configured coding project directory. CRITICAL: When the user asks to change, fix, refactor, rename, or modify code inside an existing file, you MUST call this tool BEFORE responding with any text. Do NOT show the patched code in chat and claim it was applied - actually call the tool. Do NOT say "I changed ..." or "Updated the function" without calling this tool first. Never claim a file was edited unless this tool returned a successful result in this turn.',
+      'Replace a snippet in an existing project file. find_text must match the file exactly once (set replace_all to change every occurrence); an ambiguous or missing snippet is rejected without editing and the error shows the matching lines or the closest match. Copy find_text from a fresh read_file result. Returns the edited line range and a small diff.',
     parameters: {
       type: 'object',
       properties: {
@@ -970,7 +970,7 @@ const CODING_SEARCH_FILES_TOOL: AgentToolDefinition = {
   function: {
     name: 'search_files',
     description:
-      'Search file contents under the coding project using a plain-text query (case-insensitive, literal substring—fixed string, not regex). Results are ranked by relevance (filename/path match, definition-like lines, recent files) and returned as contextual blocks with a few lines before/after each match—not a flat dump of every hit. Uses a bundled ripgrep binary in the desktop app (override with VOIDCAST_RG_PATH, or system rg on PATH as fallback); if ripgrep is unavailable, a built-in walk runs the same query. Both paths share the same source-like extension list and skip the same heavy folders (node_modules, dist, .git, etc.). Ripgrep is run with --no-ignore and --hidden so match sets stay close to the fallback walk, which does not read .gitignore and does enter most dot-directories except a fixed skip list. Use read_file for full contents of promising paths.',
+      'Search file contents in the coding project (case-insensitive). The query is a literal substring unless regex=true. Results are ranked (definitions, file-name hits and recently touched files first) and returned as blocks with two lines of context, plus a per-file match count; set files_only=true for just the list of matching files. Searches source-like files and skips dependency, build and generated folders and lock files. Use read_file for full contents.',
     parameters: {
       type: 'object',
       properties: {
@@ -982,6 +982,21 @@ const CODING_SEARCH_FILES_TOOL: AgentToolDefinition = {
           type: 'string',
           description:
             'Optional relative folder inside the project to limit the search (e.g. src/components).',
+        },
+        regex: {
+          type: 'boolean',
+          description:
+            'If true, treat query as a regular expression (e.g. "function\\s+use\\w+"). Default false (literal text).',
+        },
+        glob: {
+          type: 'string',
+          description:
+            'Optional file filter. Without a slash it matches file names anywhere ("*.test.ts", "*.{ts,tsx}"); with a slash it matches the path from the project root ("src/**/*.tsx"). Prefix with ! to exclude ("!*.test.ts"). A positive glob may target any file type, not only source extensions.',
+        },
+        files_only: {
+          type: 'boolean',
+          description:
+            'If true, return only matching file paths with match counts (no context). Good for "which files use X".',
         },
       },
       required: ['query'],
@@ -1215,7 +1230,7 @@ const CODING_EXECUTE_COMMAND_TOOL: AgentToolDefinition = {
   function: {
     name: 'execute_command',
     description:
-      'MANDATORY: Execute a shell command in the configured coding project directory and return stdout/stderr. CRITICAL: When the user asks to run, execute, build, test, install, start, stop, or invoke any command/script, you MUST call this tool BEFORE responding with any text. Do NOT show example terminal output and claim the command ran - actually call the tool. Do NOT say "I ran the command" or paste fake stdout without calling this tool first. Never claim a command produced output unless this tool returned a real result with stdout/stderr in this turn. For long-lived CLIs that print then keep running (dev servers, agent-browser open/session, watchers), set run_in_background=true — otherwise the app may wait on process exit and stall the agent loop.',
+      'Run a shell command in the coding project folder and return its combined stdout and stderr, ending with a status line: [exit N], [timed out, exit 124] or [stopped, exit 130]. For anything that keeps running after it starts (dev servers, watchers, browser/agent CLIs), set run_in_background=true and manage it with list_processes / read_process_output / stop_process; otherwise the call waits for the process to exit or time out. A command that is still running after going quiet is moved to the background and returns early without a status line.',
     parameters: {
       type: 'object',
       properties: {

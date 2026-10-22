@@ -135,10 +135,14 @@ export const handleSearchFiles: ToolHandlerFn = async (args, ctx) => {
   const query = typeof args.query === 'string' ? args.query.trim() : ''
   if (!query) return 'Error: missing query parameter for search_files.'
   const pathPrefix = typeof args.path_prefix === 'string' ? args.path_prefix.trim() : ''
+  const glob = typeof args.glob === 'string' ? args.glob.trim() : ''
   return (
     await invokeSearchCodingFiles(projectPath, query, {
       pathPrefix: pathPrefix || undefined,
       recentFiles: ctx.codingRecentFiles,
+      regex: args.regex === true,
+      glob: glob || undefined,
+      filesOnly: args.files_only === true,
     })
   ).text
 }
