@@ -13,9 +13,19 @@ describe('imageCatalogKey', () => {
     expect(imageCatalogKey({ path: 'C:\\img.png', base64: 'abc' })).toBe('path:c:\\img.png')
   })
 
-  it('uses base64 prefix when no path', () => {
+  it('uses a content fingerprint when no path', () => {
     const b64 = 'A'.repeat(120)
-    expect(imageCatalogKey({ base64: b64 })).toBe(`b64:${'A'.repeat(96)}`)
+    const key = imageCatalogKey({ base64: b64 })
+    expect(key).toMatch(/^b64:[0-9a-f]{16}$/)
+    expect(imageCatalogKey({ base64: b64 })).toBe(key)
+    expect(imageCatalogKey({ base64: `${b64.slice(0, 60)}\n${b64.slice(60)}` })).toBe(key)
+  })
+
+  it('distinguishes images that share a long base64 prefix', () => {
+    const prefix = 'A'.repeat(200)
+    expect(imageCatalogKey({ base64: `${prefix}BBBB` })).not.toBe(
+      imageCatalogKey({ base64: `${prefix}CCCC` }),
+    )
   })
 })
 
