@@ -65,7 +65,7 @@ export interface ChatWithToolsCommonParams {
   codingRecentFiles?: string[]
   /** Mutable ref for per-turn working-set file cache (updated on read/write/edit, injected as user msg). */
   codingFileCacheRef?: React.MutableRefObject<CodingFileCache>
-  /** Live session memo (digests) for soft-deny full re-reads. */
+  /** Live session memo (file digests, recent files, turn summary). */
   codingContextMemoRef?: React.MutableRefObject<CodingContextMemo>
   rawUserText?: string
   subAgent?: SubAgentConfig

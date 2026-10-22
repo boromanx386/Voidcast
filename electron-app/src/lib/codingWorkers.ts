@@ -1080,7 +1080,7 @@ export type RunCodingWorkersOpts = {
    * applied SERIALLY after Promise.all settles (no race with sibling workers)
    * so subsequent turns see accurate recentFiles / recentFileDigests / file
    * cache for worker edits. Without this, worker edits are invisible to the
-   * parent memo and the next read_file can be soft-denied due to stale digest.
+   * parent memo and the next read_file can be soft-denied due to a stale cache entry.
    */
   codingContextMemoRef?: MutableRefObject<CodingContextMemo>
   codingFileCacheRef?: MutableRefObject<CodingFileCache>

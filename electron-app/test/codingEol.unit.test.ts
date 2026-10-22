@@ -203,6 +203,31 @@ describe('applySnippetEdit', () => {
     expect(result.ok).toBe(false)
   })
 
+  it('rejects a snippet that matches more than once', () => {
+    const result = applySnippetEdit('foo\nbar\nfoo\nbaz', 'foo', 'FOO', false)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.ambiguousLines).toEqual([1, 3])
+  })
+
+  it('rejects an ambiguous snippet on a CRLF file with LF find_text', () => {
+    const result = applySnippetEdit('a\r\nb\r\na\r\nb', 'a\nb', 'x', false)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.ambiguousLines).toEqual([1, 3])
+  })
+
+  it('rejects an ambiguous whitespace-normalized snippet', () => {
+    const file = '  x = 1\n\tx = 1\ny = 2'
+    const result = applySnippetEdit(file, 'x =  1', 'x = 2', { ignoreWhitespace: true })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.ambiguousLines).toEqual([1, 2])
+  })
+
+  it('reports ambiguous lines relative to the whole file inside a range', () => {
+    const result = applySnippetEdit('a\nfoo\nfoo\nb', 'foo', 'F', { startLine: 2, endLine: 3 })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.ambiguousLines).toEqual([2, 3])
+  })
+
   it('restricts match to start_line/end_line', () => {
     const file = 'foo\nbar\nfoo\nbaz'
     const result = applySnippetEdit(file, 'foo', 'FOO', {

@@ -115,6 +115,8 @@ function formatFirstDifference(diff?: FirstSnippetDifference): string {
 export type SnippetEditFailure = {
   ok: false
   closest?: ClosestSnippetMatch
+  /** Set when find_text matched more than once without replace_all: 1-based start line of each match. */
+  ambiguousLines?: number[]
 }
 
 export type SnippetEditResult = SnippetEditSuccess | SnippetEditFailure
@@ -122,6 +124,32 @@ export type SnippetEditResult = SnippetEditSuccess | SnippetEditFailure
 function lineNumberAt(text: string, index: number): number {
   if (index <= 0) return 1
   return text.slice(0, index).split(/\r?\n/).length
+}
+
+/** Start indexes of non-overlapping occurrences of `find` in `text`. */
+function matchStartIndexes(text: string, find: string): number[] {
+  const out: number[] = []
+  if (!find) return out
+  for (let at = text.indexOf(find); at >= 0; at = text.indexOf(find, at + find.length)) {
+    out.push(at)
+  }
+  return out
+}
+
+/**
+ * A single-replace edit must hit exactly one place: silently taking the first of several
+ * matches edits code the model never meant to touch.
+ */
+function ambiguousFailure(
+  text: string,
+  find: string,
+  replaceAll: boolean,
+  lineOffset: number,
+): SnippetEditFailure | null {
+  if (replaceAll) return null
+  const starts = matchStartIndexes(text, find)
+  if (starts.length < 2) return null
+  return { ok: false, ambiguousLines: starts.map((i) => lineNumberAt(text, i) + lineOffset) }
 }
 
 function snippetLineCount(text: string): number {
@@ -197,6 +225,8 @@ function applyReplaceWithRange(
   lineText: string,
   lineOffset = 0,
 ): SnippetEditResult {
+  const ambiguous = ambiguousFailure(lineText, findUsed, replaceAll, lineOffset)
+  if (ambiguous) return ambiguous
   const matchIndex = firstMatchIndex(lineText, findUsed, replaceAll)
   if (matchIndex < 0) return { ok: false }
   const { startLine, endLine } = editLineRange(lineText, matchIndex, findUsed, replaceUsed)
@@ -240,6 +270,14 @@ function applyWhitespaceNormalizedEdit(
   if (!replaceAll) {
     const at = findMatchAt(0)
     if (at < 0) return { ok: false }
+    const second = findMatchAt(at + findNorm.length)
+    if (second >= 0) {
+      const lines = [at + 1 + lineOffset]
+      for (let i = second; i >= 0; i = findMatchAt(i + findNorm.length)) {
+        lines.push(i + 1 + lineOffset)
+      }
+      return { ok: false, ambiguousLines: lines }
+    }
     const nextLines = [
       ...fileLines.slice(0, at),
       ...replaceLines,
@@ -410,6 +448,8 @@ export function applySnippetEdit(
     mode: SnippetEditMode,
   ) => {
     if (!haystack.includes(findUsed)) return null as SnippetEditResult | null
+    const ambiguous = ambiguousFailure(haystack, findUsed, replaceAll, lineOffset)
+    if (ambiguous) return ambiguous
     const matchIndex = firstMatchIndex(haystack, findUsed, replaceAll)
     if (matchIndex < 0) return null
     const nextSlice = replaceSnippet(haystack, findUsed, replaceUsed, replaceAll)
@@ -463,6 +503,7 @@ export function applySnippetEdit(
         endLine: ws.endLine,
       }
     }
+    if (ws.ambiguousLines) return ws
   }
 
   const closest = findClosestSnippetMatch(fileText, findText, {
@@ -585,6 +626,18 @@ export function formatClosestMatchFailure(closest?: ClosestSnippetMatch): string
     `Closest match at L${closest.startLine}-L${closest.endLine}, ` +
     `~${closest.similarity}% similar (often whitespace/indentation, or an invisible character). Excerpt:\n${excerpt}\n` +
     `Retry with a tighter find_text, start_line/end_line, or ignore_whitespace=true.`
+  )
+}
+
+const AMBIGUOUS_LINES_SHOWN = 10
+
+export function formatAmbiguousMatchFailure(lines: number[]): string {
+  const shown = lines.slice(0, AMBIGUOUS_LINES_SHOWN).map((l) => `L${l}`)
+  const more = lines.length > shown.length ? `, +${lines.length - shown.length} more` : ''
+  return (
+    `find_text matches ${lines.length} places (starting at ${shown.join(', ')}${more}); nothing was edited. ` +
+    'Add surrounding lines to make find_text unique, pass start_line/end_line around the intended match, ' +
+    'or set replace_all=true to change every occurrence.'
   )
 }
 

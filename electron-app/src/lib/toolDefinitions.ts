@@ -862,7 +862,7 @@ const CODING_READ_FILE_TOOL: AgentToolDefinition = {
   function: {
     name: 'read_file',
     description:
-      "Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. For large or unfamiliar files, prefer find_symbols first, then read with start_line/end_line (whole-file reads above ~220k characters are rejected unless you use a range). Whole-file re-reads of a path already in session digests or this turn's working set are soft-denied (returns a short digest reminder) — use start_line/end_line, or force:true only when you truly need the full file again. Lines are returned as N|text with 1-based line numbers.",
+      'Read a file from the configured coding project. Binary files (e.g. containing null bytes) are rejected. For large or unfamiliar files, prefer find_symbols first, then read with start_line/end_line (whole-file reads above ~220k characters are rejected unless you use a range). Whole-file re-reads of a path already read in this turn are soft-denied (returns a short digest reminder) — use start_line/end_line, or force:true only when you truly need the full file again. Files from earlier turns can be read normally. Lines are returned as N|text with 1-based line numbers.',
     parameters: {
       type: 'object',
       properties: {
@@ -942,7 +942,8 @@ const CODING_EDIT_CODE_TOOL: AgentToolDefinition = {
         },
         replace_all: {
           type: 'boolean',
-          description: 'If true, replace all matches. Default false (first match only).',
+          description:
+            'If true, replace all matches. Default false: find_text must match exactly once, and an ambiguous snippet is rejected without editing.',
         },
         start_line: {
           type: 'number',

@@ -65,12 +65,12 @@ describe('buildCodingMemoHint digests', () => {
     }
     const hint = buildCodingMemoHint(memo)
     expect(hint).toContain(
-      'Covered paths this session (whole-file re-read soft-denied unless force:true or start_line/end_line):',
+      'Files read in earlier turns (only the digests below were kept — read again before edit_code needs exact text):',
     )
     expect(hint).toContain('- src/a.ts')
     expect(hint).toContain('- src/b.ts')
     // Covered block appears before digest detail
-    const coveredIdx = hint.indexOf('Covered paths this session')
+    const coveredIdx = hint.indexOf('Files read in earlier turns')
     const digestsIdx = hint.indexOf('Recent file digests')
     expect(coveredIdx).toBeGreaterThanOrEqual(0)
     expect(digestsIdx).toBeGreaterThan(coveredIdx)
@@ -82,7 +82,7 @@ describe('buildCodingMemoHint digests', () => {
       recentFiles: ['lib/x.ts', 'lib/y.ts'],
     }
     const hint = buildCodingMemoHint(memo)
-    expect(hint).toContain('Covered paths this session')
+    expect(hint).toContain('Files read in earlier turns')
     expect(hint).toContain('- lib/x.ts')
     expect(hint).not.toContain('Recent file digests')
   })

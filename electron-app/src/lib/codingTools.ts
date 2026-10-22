@@ -2,6 +2,7 @@ import type { CodingFileNode, CodingToolResult } from '@/types/coding'
 import {
   applySnippetEdit,
   buildEditUnifiedDiff,
+  formatAmbiguousMatchFailure,
   formatClosestMatchFailure,
   readFileToolDisplayPrefix,
   type FileLineEndings,
@@ -202,6 +203,9 @@ export async function invokeEditCodingFile(
     ignoreWhitespace: options?.ignoreWhitespace,
   })
   if (!applied.ok) {
+    if (applied.ambiguousLines) {
+      return { ok: false, text: formatAmbiguousMatchFailure(applied.ambiguousLines) }
+    }
     const lineCount = before.split(/\r?\n/).length
     return {
       ok: false,
@@ -215,10 +219,10 @@ export async function invokeEditCodingFile(
     applied.mode === 'exact'
       ? replaceAll
         ? 'all matches'
-        : 'first match'
+        : 'single match'
       : applied.mode === 'whitespace-normalized'
-        ? `whitespace-normalized ${replaceAll ? 'all matches' : 'first match'}`
-        : `${applied.mode === 'crlf-expanded' ? 'CRLF-adjusted' : 'EOL-normalized'} ${replaceAll ? 'all matches' : 'first match'}`
+        ? `whitespace-normalized ${replaceAll ? 'all matches' : 'single match'}`
+        : `${applied.mode === 'crlf-expanded' ? 'CRLF-adjusted' : 'EOL-normalized'} ${replaceAll ? 'all matches' : 'single match'}`
   const lineNote = `lines ${applied.startLine}-${applied.endLine}`
   const diff = buildEditUnifiedDiff(before, applied.next, path, applied.startLine, applied.endLine)
   return {

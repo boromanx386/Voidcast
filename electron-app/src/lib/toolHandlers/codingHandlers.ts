@@ -74,7 +74,6 @@ export const handleReadFile: ToolHandlerFn = async (args, ctx) => {
       startLine,
       endLine,
       force,
-      digests,
       cachedPaths,
     })
   ) {

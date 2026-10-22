@@ -52,7 +52,7 @@ export interface ExecCtx {
   browserProfile?: string
   /** Recently touched files from coding session memo (boosts search ranking). */
   codingRecentFiles?: string[]
-  /** Session coding memo (digests for soft-deny full re-reads). Live ref. */
+  /** Session coding memo (file digests, recent files, turn summary). Live ref. */
   codingContextMemoRef?: { current: CodingContextMemo }
   /** Per-turn working-set file cache (soft-deny full re-reads). Live ref. */
   codingFileCacheRef?: { current: CodingFileCache }

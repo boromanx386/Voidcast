@@ -20,6 +20,7 @@ import { digestFindSymbols, digestReadFile } from '@/lib/codingSubAgent'
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import { codingRevealPathFromToolResult } from '@/lib/codingReveal'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
+import { SOFT_DENIED_READ_PREFIX } from '@/lib/codingReadGuard'
 import { MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
 import { toolPhaseForAgentTool } from '@/lib/agentToolPhase'
 import {
@@ -157,7 +158,7 @@ export function applyAgentToolResult(
     const filePath = typeof args?.path === 'string' ? args.path.trim() : ''
     if (name === 'read_file' && filePath && !isCodingToolFailure('read_file', result)) {
       // Soft-deny reminders are not real file bodies — skip working-set upsert.
-      if (!result.startsWith('[Already in context:')) {
+      if (!result.startsWith(SOFT_DENIED_READ_PREFIX)) {
         const lines = result.split('\n')
         const cleanLines: string[] = []
         for (const l of lines) {
@@ -295,7 +296,7 @@ export function applyAgentToolResult(
       } else if (filePath) {
         // Cross-turn structural digests (session-scoped).
         if (name === 'read_file') {
-          if (!result.startsWith('[Already in context:')) {
+          if (!result.startsWith(SOFT_DENIED_READ_PREFIX)) {
             next.recentFileDigests = upsertFileDigest(
               next.recentFileDigests ?? [],
               filePath,

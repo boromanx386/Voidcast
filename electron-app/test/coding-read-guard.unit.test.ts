@@ -13,19 +13,9 @@ describe('normalizeCodingReadPath', () => {
 })
 
 describe('shouldSoftDenyFullRead', () => {
-  const digests = [{ path: 'src/lib/foo.ts', digest: 'exports bar' }]
-  const cachedPaths = ['src/hooks/useChat.ts']
+  const cachedPaths = ['src/hooks/useChat.ts', 'src/lib/foo.ts']
 
-  it('denies full re-read when path is in digests', () => {
-    expect(
-      shouldSoftDenyFullRead({
-        path: 'src/lib/foo.ts',
-        digests,
-      }),
-    ).toBe(true)
-  })
-
-  it('denies when path is only in cache', () => {
+  it('denies a full re-read of a path already read this turn', () => {
     expect(
       shouldSoftDenyFullRead({
         path: 'src/hooks/useChat.ts',
@@ -34,22 +24,31 @@ describe('shouldSoftDenyFullRead', () => {
     ).toBe(true)
   })
 
-  it('matches windows-style path to digest', () => {
+  it('matches windows-style path to cached path', () => {
     expect(
       shouldSoftDenyFullRead({
         path: 'src\\lib\\foo.ts',
-        digests,
+        cachedPaths,
       }),
     ).toBe(true)
   })
 
-  it('allows range reads even when digested', () => {
+  it('allows a full read of a file from an earlier turn (not in the turn cache)', () => {
+    expect(
+      shouldSoftDenyFullRead({
+        path: 'src/lib/earlier.ts',
+        cachedPaths,
+      }),
+    ).toBe(false)
+  })
+
+  it('allows range reads even when read this turn', () => {
     expect(
       shouldSoftDenyFullRead({
         path: 'src/lib/foo.ts',
         startLine: 10,
         endLine: 40,
-        digests,
+        cachedPaths,
       }),
     ).toBe(false)
   })
@@ -59,16 +58,6 @@ describe('shouldSoftDenyFullRead', () => {
       shouldSoftDenyFullRead({
         path: 'src/lib/foo.ts',
         force: true,
-        digests,
-      }),
-    ).toBe(false)
-  })
-
-  it('allows unknown path', () => {
-    expect(
-      shouldSoftDenyFullRead({
-        path: 'src/new.ts',
-        digests,
         cachedPaths,
       }),
     ).toBe(false)
@@ -78,7 +67,7 @@ describe('shouldSoftDenyFullRead', () => {
 describe('formatSoftDeniedReadResult', () => {
   it('includes path, digest, and force/range guidance', () => {
     const text = formatSoftDeniedReadResult('src/a.ts', 'function main')
-    expect(text).toContain('[Already in context: src/a.ts]')
+    expect(text).toContain('[Already read this turn: src/a.ts]')
     expect(text).toContain('Digest: function main')
     expect(text).toContain('force:true')
     expect(text).toContain('start_line/end_line')

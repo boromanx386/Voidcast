@@ -838,7 +838,7 @@ export function buildCodingMemoHint(
   if (memo.lastTurnSummary.trim()) {
     lines.push('', memo.lastTurnSummary.trim(), '')
   }
-  // Covered paths = soft-deny list (same digests that gate whole-file re-reads).
+  // Only digests survive the turn boundary, so these paths must be re-read before exact edits.
   // recentFiles only as fallback when digests empty.
   const coveredPaths =
     memo.recentFileDigests.length > 0
@@ -846,7 +846,7 @@ export function buildCodingMemoHint(
       : memo.recentFiles.filter(Boolean)
   if (coveredPaths.length > 0) {
     lines.push(
-      'Covered paths this session (whole-file re-read soft-denied unless force:true or start_line/end_line):',
+      'Files read in earlier turns (only the digests below were kept — read again before edit_code needs exact text):',
       ...coveredPaths.map((p) => `- ${p}`),
       '',
     )

@@ -117,7 +117,7 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 
 Implementation details behind the agent's coding tools — deliberately kept out of the README:
 
-- **`edit_code` is exact-match only.** The tool requires an exact `find_text` match. On a miss it returns the actual file snippet plus `closest_matches` instead of guessing, so a model-invented fuzzy diff can never land on disk.
+- **`edit_code` is exact-match only.** The tool requires an exact `find_text` match. On a miss it returns the actual file snippet plus `closest_matches` instead of guessing, so a model-invented fuzzy diff can never land on disk. Without `replace_all`, the match must also be **unique**: a snippet found in several places is rejected with the line of each match, so the agent widens `find_text` or passes `start_line`/`end_line` instead of silently editing the first hit.
 - **`write_file` writes atomically** via temp+rename, with an auto-closing trailing newline and range support for large files.
 - **Result digests** — `git_diff`, `search_files`, and `list_directory` return compact digests rather than multi-thousand-char dumps.
 - **Process awareness** — active shell processes (foreground/background) are surfaced to the agent as a CTX hint, so it knows about running dev servers, watchers and agent-browser sessions. `execute_command` takes `run_in_background`; long-lived commands **auto-promote to background after 2.5s** of idle output. Background processes survive chat switches; only foreground runs are stopped on session change. The stop button targets the current foreground command, and quitting the app kills everything.
