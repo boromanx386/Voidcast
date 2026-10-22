@@ -1,5 +1,3 @@
-import { filterCodingSearchMatches } from './codingProjectSkip'
-
 export type CodingSearchRawMatch = {
   path: string
   line: number
@@ -143,9 +141,7 @@ export function rankSearchMatches(
   const maxBlocks = options?.maxBlocks ?? CODING_SEARCH_MAX_BLOCKS
   const recentFiles = options?.recentFiles ?? []
 
-  const filtered = filterCodingSearchMatches(matches)
-
-  const scored = filtered.map((match) => ({
+  const scored = matches.map((match) => ({
     ...match,
     score: scoreSearchMatch(match.path, match.line, match.text, query, recentFiles),
   }))

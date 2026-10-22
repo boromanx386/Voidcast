@@ -18,14 +18,36 @@ export const CODING_SKIP_DIR_NAMES = new Set([
   'Pods',
   '.gradle',
   'DerivedData',
+  '.voidcast',
 ])
 
-const CODING_SKIP_DOT_DIR_NAMES = new Set(['.git', '.next', '.turbo', '.cache', '.venv'])
+const CODING_SKIP_DOT_DIR_NAMES = new Set([
+  '.git',
+  '.next',
+  '.turbo',
+  '.cache',
+  '.venv',
+  '.voidcast',
+])
 
 /** Ripgrep `--glob` exclusions aligned with {@link CODING_SKIP_DIR_NAMES}. */
 export const CODING_RIPGREP_EXCLUDE_GLOBS = [
   ...Array.from(CODING_SKIP_DIR_NAMES, (name) => `!**/${name}/**`),
 ] as const
+
+/** Generated dependency locks — machine-written, huge, pure noise for source search. */
+const CODING_LOCK_FILE_NAMES = new Set([
+  'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'bun.lock',
+  'bun.lockb',
+  'cargo.lock',
+  'poetry.lock',
+  'composer.lock',
+  'pipfile.lock',
+  'flake.lock',
+])
 
 export function shouldSkipCodingProjectDir(name: string): boolean {
   if (name.startsWith('.')) {
@@ -58,6 +80,7 @@ export function isCodingGeneratedArtifactPath(filePath: string): boolean {
   if (/\.web-[a-z0-9_-]+\.(js|css)$/i.test(fileName)) return true
   // Vite/Rollup hashed bundles: index-GO3eqiis.js, assets/foo-bar12ab.css
   if (/^[a-z0-9_.-]+-[a-z0-9]{6,}\.(js|jsx|mjs|cjs|css|map)$/i.test(fileName)) return true
+  if (CODING_LOCK_FILE_NAMES.has(fileName)) return true
 
   return false
 }

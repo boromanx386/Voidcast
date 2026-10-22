@@ -11,6 +11,10 @@ describe('shouldSkipCodingProjectDir', () => {
     expect(shouldSkipCodingProjectDir('dist-electron')).toBe(true)
     expect(shouldSkipCodingProjectDir('src')).toBe(false)
   })
+
+  it('skips the .voidcast scratch dir', () => {
+    expect(shouldSkipCodingProjectDir('.voidcast')).toBe(true)
+  })
 })
 
 describe('isCodingGeneratedArtifactPath', () => {
@@ -26,13 +30,20 @@ describe('isCodingGeneratedArtifactPath', () => {
     expect(isCodingGeneratedArtifactPath('dist/assets/index.web-abc123.js')).toBe(true)
     expect(isCodingGeneratedArtifactPath('src/main.ts')).toBe(false)
   })
+
+  it('skips dependency lock files', () => {
+    expect(isCodingGeneratedArtifactPath('electron-app/package-lock.json')).toBe(true)
+    expect(isCodingGeneratedArtifactPath('pnpm-lock.yaml')).toBe(true)
+    expect(isCodingGeneratedArtifactPath('src/lib/lock.ts')).toBe(false)
+  })
 })
 
 describe('filterCodingSearchMatches', () => {
   it('drops generated artifact matches', () => {
     const out = filterCodingSearchMatches([
       { path: 'src/a.ts', line: 1, text: 'foo' },
-      { path: 'release/app/index-abc12345.js', line: 2, text: 'foo' },
+      { path: 'electron-app/package-lock.json', line: 2, text: 'foo' },
+      { path: 'release/app/index-abc12345.js', line: 3, text: 'foo' },
     ])
     expect(out).toHaveLength(1)
     expect(out[0]?.path).toBe('src/a.ts')
