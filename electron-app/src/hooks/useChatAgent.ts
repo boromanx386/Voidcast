@@ -1580,9 +1580,17 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         pendingImages.length === 0 &&
         pendingFiles.length === 0 &&
         slot.subAgentPanel.busy &&
-        slot.subAgentPanel.kind === 'workers' &&
-        pushWorkerSteer(queue, text)
+        slot.subAgentPanel.kind === 'workers'
       ) {
+        const verdict = pushWorkerSteer(queue, text)
+        if (verdict === 'full') {
+          // Never fall through to the hard abort: it would kill the live workers.
+          sessionAgentStore.update(runtimeKey, {
+            error: 'Too many steers for this run — wait for the workers to finish or press Stop.',
+          })
+          return
+        }
+        // 'queued' and 'duplicate' both mean the workers already have (or now get) it.
         setInput('')
         return
       }

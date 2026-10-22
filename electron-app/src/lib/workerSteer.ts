@@ -7,36 +7,49 @@
  * it as a course-correction user message. One queue object per running turn
  * (stored on the chat's session agent slot) so the composer reaches the exact
  * run it belongs to.
+ *
+ * The queue is an append-only log and every worker keeps its own read cursor,
+ * so a steer reaches ALL workers of the batch (a shared "drain" would hand it
+ * to whichever worker asked first and starve its sibling).
  */
 
 export type WorkerSteerQueue = {
-  pending: string[]
+  entries: string[]
 }
 
-/** Cap so a burst of typing cannot stall the workers. */
-export const WORKER_STEER_MAX_PENDING = 4
+/** Cap per turn so a burst of typing cannot flood the workers. */
+export const WORKER_STEER_MAX_ENTRIES = 8
 export const WORKER_STEER_MAX_CHARS = 600
 
+export type WorkerSteerPush = 'queued' | 'duplicate' | 'full' | 'empty'
+
 export function createWorkerSteerQueue(): WorkerSteerQueue {
-  return { pending: [] }
+  return { entries: [] }
 }
 
 /**
- * Queue a course correction. Returns false when the text is empty, already
- * queued, or the queue is full — the caller then decides whether to hard-steer.
+ * Queue a course correction. The verdict lets the caller tell "already queued"
+ * (swallow it) from "queue full" (tell the user) — neither should abort the run.
  */
-export function pushWorkerSteer(queue: WorkerSteerQueue, text: string): boolean {
+export function pushWorkerSteer(queue: WorkerSteerQueue, text: string): WorkerSteerPush {
   const message = text.trim().slice(0, WORKER_STEER_MAX_CHARS)
-  if (!message) return false
-  if (queue.pending.length >= WORKER_STEER_MAX_PENDING) return false
-  if (queue.pending.includes(message)) return false
-  queue.pending.push(message)
-  return true
+  if (!message) return 'empty'
+  if (queue.entries.includes(message)) return 'duplicate'
+  if (queue.entries.length >= WORKER_STEER_MAX_ENTRIES) return 'full'
+  queue.entries.push(message)
+  return 'queued'
 }
 
-/** Take everything queued so far (a worker drains before its next round). */
-export function drainWorkerSteer(queue: WorkerSteerQueue): string[] {
-  return queue.pending.splice(0, queue.pending.length)
+/**
+ * Steers a worker has not seen yet. `cursor` is how many entries it already
+ * consumed; start a batch at `queue.entries.length` so it ignores older steers.
+ */
+export function readWorkerSteer(
+  queue: WorkerSteerQueue,
+  cursor: number,
+): { messages: string[]; nextCursor: number } {
+  const from = Math.max(0, cursor)
+  return { messages: queue.entries.slice(from), nextCursor: queue.entries.length }
 }
 
 /** Model-facing wrapper so a steer is unambiguous against the original goal. */

@@ -14,7 +14,11 @@ import {
   invokeWriteCodingFile,
 } from '@/lib/codingTools'
 import { runCodingExplore } from '@/lib/codingSubAgent'
-import { parseCodingWorkerTasks, runCodingWorkers } from '@/lib/codingWorkers'
+import {
+  clipVerificationOutput,
+  parseCodingWorkerTasks,
+  runCodingWorkers,
+} from '@/lib/codingWorkers'
 import type { ToolHandlerFn, ToolHandlerRegistry } from '@/lib/toolExecTypes'
 import {
   ACTIVE_PROCESS_LAST_MAX_CHARS,
@@ -514,10 +518,15 @@ export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
     steerQueue: ctx.workerSteerQueue,
   })
 
+  // A stopped turn must not keep running git/typecheck behind the user's back.
+  if (ctx.signal?.aborted) {
+    return `${workerReport}\n\nTurn was stopped; post-worker verification skipped.`
+  }
+
   const verification: string[] = []
   try {
     const status = await executeCodingTool('git_status', {})
-    verification.push(`git_status:\n${status}`)
+    verification.push(`git_status:\n${clipVerificationOutput(status)}`)
   } catch (error) {
     verification.push(
       `git_status: Error: ${error instanceof Error ? error.message : String(error)}`,
@@ -525,13 +534,13 @@ export const handleRunCodingWorkers: ToolHandlerFn = async (args, ctx) => {
   }
   try {
     const diff = await executeCodingTool('git_diff', {})
-    verification.push(`git_diff:\n${diff}`)
+    verification.push(`git_diff:\n${clipVerificationOutput(diff)}`)
   } catch (error) {
     verification.push(`git_diff: Error: ${error instanceof Error ? error.message : String(error)}`)
   }
   try {
     const check = await executeCodingTool('check_types', {})
-    verification.push(`check_types:\n${check}`)
+    verification.push(`check_types:\n${clipVerificationOutput(check)}`)
   } catch (error) {
     verification.push(
       `check_types: Error: ${error instanceof Error ? error.message : String(error)}`,

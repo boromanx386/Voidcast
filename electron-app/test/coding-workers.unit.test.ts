@@ -7,6 +7,10 @@ import {
   clampWorkerMaxRounds,
   CODING_WORKER_ALLOWED_TOOLS,
   CODING_WORKER_BLOCKER_MAX_CHARS,
+  CODING_WORKER_TOOL_RESULT_MAX_CHARS,
+  CODING_WORKER_VERIFY_MAX_CHARS,
+  clipVerificationOutput,
+  clipWorkerToolResult,
   CODING_WORKER_DEFAULT_ROUNDS,
   CODING_WORKER_DIGEST_MAX_CHARS,
   CODING_WORKER_MAX_ROUNDS,
@@ -399,7 +403,7 @@ describe('buildWorkerInjection', () => {
     expect(first.text).toContain('prefer the existing helper')
     expect(first.text).toContain('[Steer — user course correction while you work]')
     expect(first.nextCount).toBe(2)
-    expect(queue.pending).toHaveLength(0)
+    expect(first.nextSteerCount).toBe(1)
     expect(drained).toEqual([['WORKER 1', 'prefer the existing helper']])
 
     const second = buildWorkerInjection({
@@ -407,14 +411,47 @@ describe('buildWorkerInjection', () => {
       blackboardSeen: first.nextCount,
       workerLabel: 'WORKER 1',
       steerQueue: queue,
+      steerSeen: first.nextSteerCount,
     })
     expect(second.text).toBe('')
     expect(second.nextCount).toBe(2)
+    expect(second.nextSteerCount).toBe(1)
+  })
+
+  it('delivers a steer to every worker, not just the first to ask', () => {
+    const queue = createWorkerSteerQueue()
+    pushWorkerSteer(queue, 'stop touching the config')
+    const w1 = buildWorkerInjection({
+      blackboardSeen: 0,
+      workerLabel: 'WORKER 1',
+      steerQueue: queue,
+      steerSeen: 0,
+    })
+    const w2 = buildWorkerInjection({
+      blackboardSeen: 0,
+      workerLabel: 'WORKER 2',
+      steerQueue: queue,
+      steerSeen: 0,
+    })
+    expect(w1.text).toContain('stop touching the config')
+    expect(w2.text).toContain('stop touching the config')
+  })
+
+  it('a batch started later does not replay older steers', () => {
+    const queue = createWorkerSteerQueue()
+    pushWorkerSteer(queue, 'old advice')
+    const late = buildWorkerInjection({
+      blackboardSeen: 0,
+      workerLabel: 'WORKER 1',
+      steerQueue: queue,
+      steerSeen: queue.entries.length,
+    })
+    expect(late.text).toBe('')
   })
 
   it('returns an empty injection when nothing new is available', () => {
     const none = buildWorkerInjection({ blackboardSeen: 0, workerLabel: 'WORKER 1' })
-    expect(none).toEqual({ text: '', nextCount: 0 })
+    expect(none).toEqual({ text: '', nextCount: 0, nextSteerCount: 0 })
   })
 })
 
@@ -479,7 +516,8 @@ describe('runWorkerTypeCheck', () => {
     const { exec } = makeExec(() => 'Error: No check target in repo.')
     const res = await runWorkerTypeCheck(['src/a.ts'], exec)
     expect(res.verified).toEqual([])
-    expect(res.failures[0]).toMatch(/check_types skipped for src\/a\.ts/)
+    expect(res.failures).toEqual([])
+    expect(res.skipped?.[0]).toMatch(/check_types skipped for src\/a\.ts/)
   })
 
   it('does nothing when no files were written', async () => {
@@ -613,5 +651,40 @@ describe('buildToolsList team mode', () => {
     expect(taskProperties).toHaveProperty('success_criteria')
     expect(taskProperties).toHaveProperty('focus_paths')
     expect(taskSchema?.required).toContain('success_criteria')
+  })
+})
+
+describe('clipWorkerToolResult', () => {
+  const max = CODING_WORKER_TOOL_RESULT_MAX_CHARS
+
+  it('leaves short results alone', () => {
+    expect(clipWorkerToolResult('execute_command', 'ok')).toBe('ok')
+  })
+
+  it('keeps the head of a file', () => {
+    const file = `START${'x'.repeat(max * 2)}END`
+    const out = clipWorkerToolResult('read_file', file)
+    expect(out.startsWith('START')).toBe(true)
+    expect(out).not.toContain('END')
+    expect(out).toContain('truncated for worker context')
+  })
+
+  it('keeps the tail of command output, where errors and exit status live', () => {
+    const output = `HEAD${'x'.repeat(max * 3)}error TS2322: boom
+exit status 2`
+    const out = clipWorkerToolResult('execute_command', output)
+    expect(out.startsWith('HEAD')).toBe(true)
+    expect(out).toContain('exit status 2')
+    expect(out).toContain('chars omitted')
+    expect(out.length).toBeLessThan(max + 80)
+  })
+})
+
+describe('clipVerificationOutput', () => {
+  it('caps raw verification output and says how to get the rest', () => {
+    const out = clipVerificationOutput('d'.repeat(CODING_WORKER_VERIFY_MAX_CHARS + 500))
+    expect(out.length).toBeLessThan(CODING_WORKER_VERIFY_MAX_CHARS + 120)
+    expect(out).toContain('500 more chars')
+    expect(clipVerificationOutput('short')).toBe('short')
   })
 })

@@ -30,11 +30,7 @@ import {
 } from '@/lib/codingContextMemo'
 import { digestReadFile } from '@/lib/codingSubAgent'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
-import {
-  drainWorkerSteer,
-  formatWorkerSteerMessage,
-  type WorkerSteerQueue,
-} from '@/lib/workerSteer'
+import { formatWorkerSteerMessage, readWorkerSteer, type WorkerSteerQueue } from '@/lib/workerSteer'
 
 export const CODING_WORKER_MAX_TASKS = 2
 /** Default tool rounds before forced digest. */
@@ -59,6 +55,13 @@ export const CODING_WORKER_READ_BUDGET = 160_000
 export const CODING_WORKER_DIGEST_MAX_CHARS = 1_500
 /** Blocker notes are raw tool-error snippets — clip them before they enter the report. */
 export const CODING_WORKER_BLOCKER_MAX_CHARS = 160
+/** Largest tool result a worker sees; also what a read_file is charged against its budget. */
+export const CODING_WORKER_TOOL_RESULT_MAX_CHARS = 12_000
+/**
+ * Per-section cap for the raw git/typecheck output appended after a worker batch.
+ * Like the digest cap, anything beyond it is re-fetched on demand.
+ */
+export const CODING_WORKER_VERIFY_MAX_CHARS = 6_000
 
 /**
  * Explore tools + mutation tools (no nested team/explore recursion).
@@ -332,7 +335,11 @@ export function formatWorkerDigest(opts: {
   body: string
   verification: WorkerTypeCheckResult
 }): string {
-  const verdicts = [...opts.verification.verified, ...opts.verification.failures]
+  const verdicts = [
+    ...opts.verification.verified,
+    ...opts.verification.failures,
+    ...(opts.verification.skipped ?? []),
+  ]
   const prose = clipWorkerText(opts.body, CODING_WORKER_DIGEST_MAX_CHARS)
   const verificationLine = verdicts.length > 0 ? `\nVerification: ${verdicts.join('; ')}` : ''
   return `${opts.workerLabel}:\n${prose}${verificationLine}`
@@ -396,6 +403,11 @@ export type WorkerStructuredReport = {
 export type WorkerTypeCheckResult = {
   verified: string[]
   failures: string[]
+  /**
+   * Nothing to check (e.g. a plain JS project without tsconfig). Informational:
+   * "could not verify" is not a failure and must not flag the worker as warned.
+   */
+  skipped?: string[]
 }
 
 type WorkerToolExec = (name: string, args: Record<string, unknown>) => Promise<string>
@@ -456,6 +468,35 @@ export function applyWorkerMutationsToMemo(opts: {
   memo = normalizeCodingContextMemo(memo, opts.codingProjectPath)
   opts.memoRef.current = memo
   opts.fileCacheRef.current = fileCache
+}
+
+/**
+ * Clip a tool result for the worker's context. Files keep their head (the part
+ * you read top-down); everything else keeps head AND tail, because command and
+ * typecheck output puts the error summary and exit status at the end.
+ */
+export function clipWorkerToolResult(
+  name: string,
+  result: string,
+  maxChars: number = CODING_WORKER_TOOL_RESULT_MAX_CHARS,
+): string {
+  if (result.length <= maxChars) return result
+  if (name === 'read_file') {
+    return `${result.slice(0, maxChars)}\n…[truncated for worker context]`
+  }
+  const head = Math.floor(maxChars / 3)
+  const tail = maxChars - head
+  const omitted = result.length - maxChars
+  return `${result.slice(0, head)}\n…[${omitted} chars omitted]…\n${result.slice(result.length - tail)}`
+}
+
+/** Clip raw verification output (git diff / typecheck) appended after a worker batch. */
+export function clipVerificationOutput(
+  text: string,
+  maxChars: number = CODING_WORKER_VERIFY_MAX_CHARS,
+): string {
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars)}\n…[${text.length - maxChars} more chars — re-run the tool for the rest]`
 }
 
 function clipWorkerText(value: string | undefined, maxChars: number): string {
@@ -670,9 +711,13 @@ export async function runWorkerTypeCheck(
     else failures.push(`check_types failed in ${label}`)
   }
   if (unscoped.length > 0) {
-    failures.push(
-      `check_types skipped for ${unscoped.join(', ')}: no tsconfig.json in any parent folder`,
-    )
+    return {
+      verified,
+      failures,
+      skipped: [
+        `check_types skipped for ${unscoped.join(', ')}: no tsconfig.json in any parent folder`,
+      ],
+    }
   }
   return { verified, failures }
 }
@@ -697,8 +742,10 @@ type WorkerRunOpts = {
   mutationSink: WorkerMutation[]
   /** Shared sibling-activity board for this batch (optional). */
   blackboard?: WorkerBlackboard
-  /** User course corrections queued mid-run (optional). Drained each round. */
+  /** User course corrections queued mid-run (optional). Read each round. */
   steerQueue?: WorkerSteerQueue
+  /** Steer-log position when this batch started; earlier steers are not replayed. */
+  steerStart?: number
 }
 
 /** Short tool target for the live status line (path / query / pattern). */
@@ -711,17 +758,20 @@ export function workerToolTarget(name: string, args?: Record<string, unknown>): 
 
 /**
  * Build the per-round injected user message: new sibling activity plus any user
- * steers queued since the previous round (steers are drained exactly once).
+ * steers queued since this worker's previous round (each worker reads every
+ * steer exactly once, via its own cursor).
  */
 export function buildWorkerInjection(params: {
   blackboard?: WorkerBlackboard
   blackboardSeen: number
   workerLabel: string
   steerQueue?: WorkerSteerQueue
+  steerSeen?: number
   onSteerDrained?: (workerLabel: string, correction: string) => void
-}): { text: string; nextCount: number } {
+}): { text: string; nextCount: number; nextSteerCount: number } {
   const parts: string[] = []
   let nextCount = params.blackboardSeen
+  let nextSteerCount = params.steerSeen ?? 0
   if (params.blackboard) {
     const next = newSiblingActivityText(
       params.blackboard.entries,
@@ -732,12 +782,14 @@ export function buildWorkerInjection(params: {
     if (next.text) parts.push(next.text)
   }
   if (params.steerQueue) {
-    for (const correction of drainWorkerSteer(params.steerQueue)) {
+    const read = readWorkerSteer(params.steerQueue, nextSteerCount)
+    nextSteerCount = read.nextCursor
+    for (const correction of read.messages) {
       parts.push(formatWorkerSteerMessage(correction))
       params.onSteerDrained?.(params.workerLabel, correction)
     }
   }
-  return { text: parts.join('\n\n'), nextCount }
+  return { text: parts.join('\n\n'), nextCount, nextSteerCount }
 }
 
 async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult> {
@@ -756,6 +808,7 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
   const mutatedPaths: string[] = []
   const mutations: WorkerMutation[] = opts.mutationSink
   let blackboardSeen = 0
+  let steerSeen = opts.steerStart ?? 0
   const emitEvent = (text: string, level: 'info' | 'ok' | 'warn' | 'err') => {
     opts.ui?.onCodingEvent?.({ workerId: opts.workerId, text, level })
   }
@@ -899,7 +952,8 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
       }
     }
 
-    let result = await opts.executeTool(name, execArgs)
+    // Clip first: the read budget must be charged for what the model actually sees.
+    let result = clipWorkerToolResult(name, await opts.executeTool(name, execArgs))
     if (name === 'read_file') {
       if (result.length >= readBudget) {
         // Return the meaningful remainder (never an empty slice) and then
@@ -914,9 +968,6 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
       } else {
         readBudget -= result.length
       }
-    }
-    if (result.length > 12_000) {
-      result = `${result.slice(0, 12_000)}\n…[truncated for worker context]`
     }
     return result
   }
@@ -1039,10 +1090,12 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
           blackboardSeen,
           workerLabel: opts.workerLabel,
           steerQueue: opts.steerQueue,
+          steerSeen,
           onSteerDrained: (label, correction) =>
             emitEvent(`${label} received steer: ${correction.slice(0, 80)}`, 'ok'),
         })
         blackboardSeen = injection.nextCount
+        steerSeen = injection.nextSteerCount
         return injection.text
       },
       trimToolResultForLlm: (_name, toolResult) => toolResult,
@@ -1055,6 +1108,8 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
       verification = await runWorkerTypeCheck(mutatedPaths, opts.executeTool)
       for (const ok of verification.verified) emitEvent(`${opts.workerLabel} ${ok}`, 'ok')
       for (const failed of verification.failures) emitEvent(`${opts.workerLabel} ${failed}`, 'err')
+      for (const note of verification.skipped ?? [])
+        emitEvent(`${opts.workerLabel} ${note}`, 'info')
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       verification = { verified: [], failures: [`check_types failed: ${msg}`] }
@@ -1129,6 +1184,7 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
   const fileLocks = createWorkerFileLock()
   const blackboard: WorkerBlackboard = { entries: [] }
   const contextPacket = buildWorkerContextPacket(opts.context)
+  const steerStart = opts.steerQueue?.entries.length ?? 0
   const n = tasks.length
   opts.ui?.onCodingStart?.(
     n === 1 ? 'WORKER 1 · starting' : `WORKERS 1–${n} · starting in parallel`,
@@ -1158,6 +1214,7 @@ export async function runCodingWorkers(opts: RunCodingWorkersOpts): Promise<stri
         executeTool: opts.executeTool,
         blackboard,
         steerQueue: opts.steerQueue,
+        steerStart,
       }).catch((e): WorkerRunResult => {
         const msg = e instanceof Error ? e.message : String(e)
         opts.ui?.onCodingEvent?.({

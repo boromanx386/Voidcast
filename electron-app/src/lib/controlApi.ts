@@ -14,6 +14,8 @@ export const CONTROL_TRANSCRIPT_MAX_LIMIT = 200
 export const CONTROL_MESSAGE_DEFAULT_CHARS = 4_000
 export const CONTROL_MESSAGE_MAX_CHARS = 20_000
 const PREVIEW_CHARS = 200
+const SUBAGENT_EVENTS = 12
+const SUBAGENT_LINE_CHARS = 300
 
 export type ControlResult =
   { ok: true; data: unknown } | { ok: false; status: number; error: string }
@@ -59,8 +61,24 @@ export type ControlChatStatus = {
   error: string | null
   toolPhase: string | null
   codingProjectPath: string | null
-  /** Live Team-worker / sub-agent card, so a caller can tell a worker batch is running. */
-  subAgent: { busy: boolean; kind: string; progress: string } | null
+  /**
+   * Team-worker / sub-agent card. It outlives the turn, so a caller can still read
+   * why a worker batch ended (`workers[].lastLine`, `events`) after it finished.
+   */
+  subAgent: {
+    busy: boolean
+    kind: string
+    title: string
+    progress: string
+    workers: Array<{
+      id: string
+      label: string
+      status: string
+      progress: string | null
+      lastLine: string | null
+    }>
+    events: Array<{ at: number; level: string; text: string }>
+  } | null
   messageCount: number
   lastMessage: { role: UiMessage['role']; preview: string } | null
 }
@@ -106,7 +124,26 @@ export function buildChatStatus(
     toolPhase: slot?.toolPhase ? String(slot.toolPhase) : null,
     codingProjectPath: slot?.codingProjectPath ?? session.codingProjectPath ?? null,
     subAgent:
-      panel && panel.open ? { busy: panel.busy, kind: panel.kind, progress: panel.progress } : null,
+      panel && panel.kind !== 'idle'
+        ? {
+            busy: panel.busy,
+            kind: panel.kind,
+            title: panel.title,
+            progress: panel.progress,
+            workers: panel.workers.map((w) => ({
+              id: w.id,
+              label: w.label,
+              status: w.status,
+              progress: w.progress ?? null,
+              lastLine: w.lastLine ? clip(w.lastLine, SUBAGENT_LINE_CHARS) : null,
+            })),
+            events: panel.events.slice(-SUBAGENT_EVENTS).map((e) => ({
+              at: e.at,
+              level: e.level,
+              text: clip(e.text, SUBAGENT_LINE_CHARS),
+            })),
+          }
+        : null,
     messageCount: messages.length,
     lastMessage: last ? { role: last.role, preview: clip(last.content, PREVIEW_CHARS) } : null,
   }
