@@ -211,6 +211,9 @@ export async function handleControlRequest(
       // `since` is a message index (the caller's last `total`), so polling only
       // fetches what is new. Past the end is simply an empty page.
       const from = clampInt(params.since, 0, 0, all.length)
+      // Opt-in: the intermediate drafts an agent wrote between tool rounds.
+      const withProgress =
+        params.progress === true || params.progress === '1' || params.progress === 'true'
       const page = all.slice(from, from + limit)
       return ok({
         total: all.length,
@@ -222,6 +225,14 @@ export async function handleControlRequest(
           role: m.role,
           content: clip(m.content, maxChars),
           truncated: m.content.length > maxChars,
+          ...(withProgress && m.agentProgress?.length
+            ? {
+                progress: m.agentProgress.map((b) => ({
+                  round: b.round,
+                  content: clip(b.content, maxChars),
+                })),
+              }
+            : {}),
           turnStartedAt: m.turnStartedAt ?? null,
           turnEndedAt: m.turnEndedAt ?? null,
         })),

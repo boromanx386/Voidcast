@@ -116,6 +116,36 @@ describe('chats.transcript', () => {
     expect(m.truncated).toBe(true)
   })
 
+  test('intermediate agent drafts are opt-in via progress=1', async () => {
+    const withDrafts = session('a', {
+      messages: [
+        {
+          ...msg('m', 'assistant', 'final answer'),
+          agentProgress: [
+            { round: 0, content: 'Let me look at the files.' },
+            { round: 1, content: 'x'.repeat(50) },
+          ],
+        },
+      ],
+    })
+    const { d } = deps([withDrafts])
+    const plain = await handleControlRequest('chats.transcript', { id: 'a' }, d)
+    expect(JSON.stringify(plain)).not.toContain('Let me look')
+    const res = await handleControlRequest(
+      'chats.transcript',
+      { id: 'a', progress: '1', maxChars: 10 },
+      d,
+    )
+    const m = (
+      res as {
+        ok: true
+        data: { messages: Array<{ progress: Array<{ round: number; content: string }> }> }
+      }
+    ).data.messages[0]!
+    expect(m.progress.map((b) => b.round)).toEqual([0, 1])
+    expect(m.progress[1]!.content).toBe(`${'x'.repeat(10)}…`)
+  })
+
   test('never leaks image payloads', async () => {
     const { d } = deps([
       session('a', { messages: [{ ...msg('m', 'user', 'see'), images: ['AAAA'] }] }),
