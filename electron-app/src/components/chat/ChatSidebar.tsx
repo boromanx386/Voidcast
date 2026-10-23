@@ -12,6 +12,8 @@ const SIDEBAR_WIDTH_KEY = 'voidcast.sidebarWidth'
 const SIDEBAR_WIDTH_DEFAULT = 288
 const SIDEBAR_WIDTH_MIN = 220
 const SIDEBAR_WIDTH_MAX = 460
+/** Age threshold for the ">30d" bulk-select shortcut. */
+const OLD_CHAT_DAYS = 30
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, width))
@@ -44,7 +46,7 @@ export function ChatSidebar({ app }: Props) {
     openSession,
     forkSession,
     exportSessionToMarkdown,
-    deleteSession,
+    deleteSessions,
     startRenameSession,
     cancelRenameSession,
     commitRenameSession,
@@ -80,6 +82,76 @@ export function ChatSidebar({ app }: Props) {
   }, [sessions, query])
 
   const projectGroups = useMemo(() => groupSessionsByProject(filteredSessions), [filteredSessions])
+
+  // --- Bulk select -------------------------------------------------------------
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set())
+  const [confirmBulk, setConfirmBulk] = useState(false)
+  /** Anchor for shift+click range selection. */
+  const lastToggledRef = useRef<string | null>(null)
+
+  /** Running agents are excluded: discarding them would kill work in progress. */
+  const isSelectable = (id: string) => !busyBySession[id]
+  /** Visible order (groups, then rows) — the axis shift+click ranges run along. */
+  const visibleIds = useMemo(
+    () => projectGroups.flatMap((g) => g.sessions.map((s) => s.id)),
+    [projectGroups],
+  )
+
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+    setConfirmBulk(false)
+    lastToggledRef.current = null
+  }
+
+  const replaceSelection = (ids: Iterable<string>) => {
+    setConfirmBulk(false)
+    setSelectedIds(new Set(Array.from(ids).filter(isSelectable)))
+  }
+
+  const toggleSelected = (id: string, shiftKey: boolean) => {
+    setConfirmBulk(false)
+    const anchor = lastToggledRef.current
+    const next = new Set(selectedIds)
+    if (shiftKey && anchor && anchor !== id) {
+      const from = visibleIds.indexOf(anchor)
+      const to = visibleIds.indexOf(id)
+      if (from >= 0 && to >= 0) {
+        // Range copies the anchor's state, like mail clients do.
+        const on = selectedIds.has(anchor)
+        for (const rangeId of visibleIds.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+          if (!isSelectable(rangeId)) continue
+          if (on) next.add(rangeId)
+          else next.delete(rangeId)
+        }
+        setSelectedIds(next)
+        lastToggledRef.current = id
+        return
+      }
+    }
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedIds(next)
+    lastToggledRef.current = id
+  }
+
+  const toggleGroup = (ids: string[]) => {
+    setConfirmBulk(false)
+    const selectable = ids.filter(isSelectable)
+    const allOn = selectable.length > 0 && selectable.every((id) => selectedIds.has(id))
+    const next = new Set(selectedIds)
+    for (const id of selectable) {
+      if (allOn) next.delete(id)
+      else next.add(id)
+    }
+    setSelectedIds(next)
+  }
+
+  const runBulkDelete = () => {
+    deleteSessions(Array.from(selectedIds).filter(isSelectable))
+    exitSelectMode()
+  }
   /** Folder group that holds the open chat — highlighted in the list. */
   const activeGroupKey = useMemo(() => {
     if (!activeSessionId) return null
@@ -119,6 +191,19 @@ export function ChatSidebar({ app }: Props) {
 
       <div className="sidebar-header gap-2">
         <span className="min-w-0 truncate text-sm font-medium text-void-light">Sessions</span>
+        <button
+          type="button"
+          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+          className={`shrink-0 rounded border px-2 py-1 text-[10px] font-mono transition-colors ${
+            selectMode
+              ? 'border-neon-red/60 text-neon-red'
+              : 'border-void-muted/50 text-void-dim hover:border-void-dim hover:text-void-light'
+          }`}
+          title="Select several chats to delete them at once"
+          aria-pressed={selectMode}
+        >
+          Select
+        </button>
         <button
           type="button"
           onClick={() => openOptions('general')}
@@ -216,6 +301,21 @@ export function ChatSidebar({ app }: Props) {
               }`}
             >
               <div className="flex w-full items-center">
+                {selectMode ? (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select all chats in ${group.label}`}
+                    title={`Select all in ${group.label}`}
+                    className="ml-2 shrink-0 accent-neon-red"
+                    checked={
+                      group.sessions.some((s) => isSelectable(s.id)) &&
+                      group.sessions
+                        .filter((s) => isSelectable(s.id))
+                        .every((s) => selectedIds.has(s.id))
+                    }
+                    onChange={() => toggleGroup(group.sessions.map((s) => s.id))}
+                  />
+                ) : null}
                 <button
                   type="button"
                   onClick={() =>
@@ -294,10 +394,14 @@ export function ChatSidebar({ app }: Props) {
                       onCommitRename={() => commitRenameSession(s.id)}
                       onCancelRename={cancelRenameSession}
                       onStartDelete={() => setPendingDeleteId(s.id)}
-                      onConfirmDelete={() => deleteSession(s.id)}
+                      onConfirmDelete={() => deleteSessions([s.id])}
                       onCancelDelete={() => setPendingDeleteId(null)}
                       onFork={() => forkSession(s)}
                       onExport={() => exportSessionToMarkdown(s)}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(s.id)}
+                      selectable={isSelectable(s.id)}
+                      onToggleSelect={(shiftKey) => toggleSelected(s.id, shiftKey)}
                     />
                   ))}
                 </div>
@@ -306,6 +410,92 @@ export function ChatSidebar({ app }: Props) {
           )
         })}
       </div>
+
+      {selectMode ? (
+        <div className="shrink-0 space-y-2 border-t border-void-muted/30 px-3 py-2 font-mono text-[10px]">
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              className="rounded border border-void-muted/50 px-2 py-0.5 text-void-dim hover:text-void-light"
+              onClick={() => replaceSelection(visibleIds)}
+              title={query ? 'Select every chat matching the filter' : 'Select every chat'}
+            >
+              All{query ? ' (filtered)' : ''}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-void-muted/50 px-2 py-0.5 text-void-dim hover:text-void-light"
+              onClick={() =>
+                replaceSelection(
+                  filteredSessions.filter((s) => s.messages.length === 0).map((s) => s.id),
+                )
+              }
+              title="Select chats with no messages"
+            >
+              Empty
+            </button>
+            <button
+              type="button"
+              className="rounded border border-void-muted/50 px-2 py-0.5 text-void-dim hover:text-void-light"
+              onClick={() => {
+                const cutoff = Date.now() - OLD_CHAT_DAYS * 24 * 60 * 60 * 1000
+                replaceSelection(
+                  filteredSessions.filter((s) => s.updatedAt < cutoff).map((s) => s.id),
+                )
+              }}
+              title={`Select chats not touched in ${OLD_CHAT_DAYS} days`}
+            >
+              &gt;{OLD_CHAT_DAYS}d
+            </button>
+            <button
+              type="button"
+              className="rounded border border-void-muted/50 px-2 py-0.5 text-void-dim hover:text-void-light"
+              onClick={() => replaceSelection([])}
+            >
+              None
+            </button>
+          </div>
+          {confirmBulk ? (
+            <div className="flex items-center gap-2">
+              <span className="text-neon-red">
+                Delete {selectedIds.size} chat{selectedIds.size === 1 ? '' : 's'}?
+              </span>
+              <button
+                type="button"
+                onClick={runBulkDelete}
+                className="border border-neon-red/30 bg-neon-red/20 px-2 py-0.5 text-neon-red"
+              >
+                YES
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmBulk(false)}
+                className="border border-void-dim/30 px-2 py-0.5 text-void-dim"
+              >
+                NO
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={selectedIds.size === 0}
+                onClick={() => setConfirmBulk(true)}
+                className="border border-neon-red/30 bg-neon-red/20 px-2 py-0.5 text-neon-red disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Delete {selectedIds.size || ''}
+              </button>
+              <button
+                type="button"
+                onClick={exitSelectMode}
+                className="border border-void-dim/30 px-2 py-0.5 text-void-dim"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="shrink-0 border-t border-void-muted/30 px-3 py-2 text-center text-[10px] font-mono text-void-dim/50">
         v{appVersion}

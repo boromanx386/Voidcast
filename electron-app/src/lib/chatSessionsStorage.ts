@@ -239,9 +239,20 @@ export function upsertSession(
 }
 
 export function deleteSessionById(state: ChatSessionsState, sessionId: string): ChatSessionsState {
-  const sessions = state.sessions.filter((s) => s.id !== sessionId)
+  return deleteSessionsByIds(state, [sessionId])
+}
+
+/** Bulk delete in one pass; active falls back to the newest survivor only if it was removed. */
+export function deleteSessionsByIds(
+  state: ChatSessionsState,
+  sessionIds: Iterable<string>,
+): ChatSessionsState {
+  const drop = new Set(sessionIds)
+  const sessions = state.sessions.filter((s) => !drop.has(s.id))
   const activeSessionId =
-    state.activeSessionId === sessionId ? (sessions[0]?.id ?? null) : state.activeSessionId
+    state.activeSessionId && drop.has(state.activeSessionId)
+      ? (sessions[0]?.id ?? null)
+      : state.activeSessionId
   return { sessions, activeSessionId }
 }
 

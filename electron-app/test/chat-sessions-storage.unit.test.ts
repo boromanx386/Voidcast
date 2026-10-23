@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { idbGetMeta } from '../src/lib/chatSessionsIndexedDb'
 import {
   deleteChatSession,
+  deleteSessionsByIds,
   LEGACY_CHAT_SESSIONS_KEY,
   loadChatSessions,
   saveChatSessions,
@@ -138,6 +139,29 @@ describe('chat sessions IndexedDB storage', () => {
     const loaded = await loadChatSessions()
     expect(loaded.sessions.map((s) => s.id)).toEqual(['keep'])
     expect(loaded.activeSessionId).toBeNull()
+  })
+
+  it('deleteSessionsByIds drops many at once and moves active only when it was removed', () => {
+    const a = makeSession({ id: 'a', title: 'A', updatedAt: 3 })
+    const b = makeSession({ id: 'b', title: 'B', updatedAt: 2 })
+    const c = makeSession({ id: 'c', title: 'C', updatedAt: 1 })
+
+    const keepsActive = deleteSessionsByIds({ sessions: [a, b, c], activeSessionId: 'a' }, [
+      'b',
+      'c',
+    ])
+    expect(keepsActive.sessions.map((s) => s.id)).toEqual(['a'])
+    expect(keepsActive.activeSessionId).toBe('a')
+
+    const movesActive = deleteSessionsByIds({ sessions: [a, b, c], activeSessionId: 'a' }, [
+      'a',
+      'b',
+    ])
+    expect(movesActive.sessions.map((s) => s.id)).toEqual(['c'])
+    expect(movesActive.activeSessionId).toBe('c')
+
+    const empty = deleteSessionsByIds({ sessions: [a], activeSessionId: 'a' }, ['a'])
+    expect(empty).toEqual({ sessions: [], activeSessionId: null })
   })
 
   it('save replaces removed sessions', async () => {

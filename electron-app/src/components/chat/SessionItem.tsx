@@ -21,6 +21,12 @@ type SessionItemProps = {
   onCancelDelete: () => void
   onFork: () => void
   onExport: () => void
+  /** Bulk-select mode: row shows a checkbox and a click toggles it instead of opening. */
+  selectMode?: boolean
+  selected?: boolean
+  /** Running agents can't be bulk-deleted, so their checkbox is disabled. */
+  selectable?: boolean
+  onToggleSelect?: (shiftKey: boolean) => void
 }
 
 const ICON_ATTRS = {
@@ -68,6 +74,10 @@ export function SessionItem({
   onCancelDelete,
   onFork,
   onExport,
+  selectMode = false,
+  selected = false,
+  selectable = true,
+  onToggleSelect,
 }: SessionItemProps) {
   const stamp = formatStamp(session.updatedAt)
   const hasStatus = isBusy || isUnreadComplete
@@ -114,6 +124,29 @@ export function SessionItem({
   const runAction = (action: () => void) => () => {
     setMenuUp(null)
     action()
+  }
+
+  if (selectMode) {
+    return (
+      <div className={`session-item ${isActive ? 'active' : ''}`}>
+        <label
+          className={`flex w-full min-w-0 items-center gap-2 px-3 py-1.5 ${
+            selectable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+          }`}
+          title={selectable ? tooltip : 'Agent running — stop it before deleting'}
+        >
+          <input
+            type="checkbox"
+            checked={selected}
+            disabled={!selectable}
+            // React drives checkbox onChange from the click, so its native event has shiftKey.
+            onChange={(e) => onToggleSelect?.((e.nativeEvent as MouseEvent).shiftKey === true)}
+            className="shrink-0 accent-neon-red"
+          />
+          <span className="session-item-title">{session.title}</span>
+        </label>
+      </div>
+    )
   }
 
   return (

@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { resolveContextCompressedThroughIndex } from '@/lib/chatMessages'
 import {
-  deleteSessionById,
+  deleteSessionsByIds,
   loadChatSessions,
   scheduleSaveChatSessions,
   upsertSession,
@@ -971,12 +971,18 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setSessionDirty(false)
   }
 
-  const deleteSession = (sessionId: string) => {
-    // Stop that session's agent if running, without stopping others.
-    sessionAgentStore.discard(sessionId)
-    void cancelActiveMcpCalls(sessionId)
-    clearComposerDraft(sessionId)
-    const state = deleteSessionById({ sessions, activeSessionId }, sessionId)
+  const deleteSession = (sessionId: string) => deleteSessions([sessionId])
+
+  /** Bulk delete: per-session teardown in a loop, but state, selection and persist once. */
+  const deleteSessions = (sessionIds: string[]) => {
+    if (sessionIds.length === 0) return
+    for (const sessionId of sessionIds) {
+      // Stop that session's agent if running, without stopping others.
+      sessionAgentStore.discard(sessionId)
+      void cancelActiveMcpCalls(sessionId)
+      clearComposerDraft(sessionId)
+    }
+    const state = deleteSessionsByIds({ sessions, activeSessionId }, sessionIds)
     setSessions(state.sessions)
     setActiveSession(state.activeSessionId)
     if (state.activeSessionId) {
@@ -1015,7 +1021,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     scheduleSaveChatSessions(state)
     setSessionDirty(false)
     setPendingDeleteId(null)
-    if (renamingSessionId === sessionId) {
+    if (renamingSessionId && sessionIds.includes(renamingSessionId)) {
       setRenamingSessionId(null)
       setRenameValue('')
     }
@@ -1102,6 +1108,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     exportSessionToMarkdown,
     saveOrUpdateSession,
     deleteSession,
+    deleteSessions,
     startRenameSession,
     cancelRenameSession,
     commitRenameSession,
