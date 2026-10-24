@@ -168,8 +168,6 @@ type RunwareMusicModelProfile = {
 | --- | --- | --- |
 | `toolsEnabled` | `ToolsEnabled` | Per-tool enable flags (see below). |
 | `agentMaxToolRounds` | `number` | Max agent↔tool loop rounds per assistant turn (clamped 5–120). Soft wrap-up warning near the end; hard wrap-up after exhaustion. |
-| `searchReadTop` | `number` | `web_search`: how many top results are read in full (0 = ranked snippets only). Clamped 0–5, default 3. |
-| `searchReadChars` | `number` | `web_search`: per-page character cap for those full reads. Clamped 2000–20000, default 6000. |
 | `mcpEnabled` | `boolean` | Connect to MCP servers from `~/.voidcast/mcp.json` (+ project `.mcp.json`) and register their tools (desktop only). |
 | `mcpServerEnabled` | `Record<string, boolean>` | Per-server enable flags (server id from mcp.json). Missing key = enabled; `false` keeps a server configured but not connected. |
 | `mcpTrustedProjectPaths` | `string[]` | Project roots explicitly trusted to load `.mcp.json` servers from. Untrusted project configs ignored until approved in Options → Tools. |

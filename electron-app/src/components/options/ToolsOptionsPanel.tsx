@@ -3,15 +3,7 @@ import {
   AGENT_MAX_TOOL_ROUNDS_DEFAULT,
   AGENT_MAX_TOOL_ROUNDS_MAX,
   AGENT_MAX_TOOL_ROUNDS_MIN,
-  SEARCH_READ_CHARS_DEFAULT,
-  SEARCH_READ_CHARS_MAX,
-  SEARCH_READ_CHARS_MIN,
-  SEARCH_READ_TOP_DEFAULT,
-  SEARCH_READ_TOP_MAX,
-  SEARCH_READ_TOP_MIN,
   clampAgentMaxToolRounds,
-  clampSearchReadChars,
-  clampSearchReadTop,
 } from '@/lib/settings'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isElectron, isWebStandalone } from '@/lib/platform'
@@ -107,43 +99,6 @@ export function ToolsOptionsPanel({
           </>
         }
       />
-
-      <div className="bg-void-black/50 border border-void-muted/30 p-4">
-        <label className="mb-1 block text-xs font-mono text-void-dim">
-          <span className="mr-2 text-neon-cyan">▸</span>WEB_SEARCH_READ_TOP
-        </label>
-        <p className="mb-2 text-xs text-void-dim">
-          How many top results web_search reads in full (default {SEARCH_READ_TOP_DEFAULT}). 0 =
-          ranked snippets only, no page fetching. Higher answers better and takes longer.
-        </p>
-        <NumericSettingInput
-          className="cyber-input w-28"
-          value={settings.searchReadTop}
-          min={SEARCH_READ_TOP_MIN}
-          max={SEARCH_READ_TOP_MAX}
-          onCommit={(n) => setSettings((s) => ({ ...s, searchReadTop: clampSearchReadTop(n) }))}
-        />
-        <p className="mt-1 text-[10px] font-mono text-void-dim">
-          {SEARCH_READ_TOP_MIN}–{SEARCH_READ_TOP_MAX}
-        </p>
-
-        <label className="mt-4 mb-1 block text-xs font-mono text-void-dim">
-          <span className="mr-2 text-neon-cyan">▸</span>WEB_SEARCH_READ_CHARS
-        </label>
-        <p className="mb-2 text-xs text-void-dim">
-          Character cap per page when reading results (default {SEARCH_READ_CHARS_DEFAULT}).
-        </p>
-        <NumericSettingInput
-          className="cyber-input w-28"
-          value={settings.searchReadChars}
-          min={SEARCH_READ_CHARS_MIN}
-          max={SEARCH_READ_CHARS_MAX}
-          onCommit={(n) => setSettings((s) => ({ ...s, searchReadChars: clampSearchReadChars(n) }))}
-        />
-        <p className="mt-1 text-[10px] font-mono text-void-dim">
-          {SEARCH_READ_CHARS_MIN}–{SEARCH_READ_CHARS_MAX}
-        </p>
-      </div>
 
       {/* Voidcast browser (coding panel WEB view) */}
       <ToolToggle

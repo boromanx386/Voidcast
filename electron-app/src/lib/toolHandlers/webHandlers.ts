@@ -5,7 +5,6 @@ import {
   SEARCH_RECENCY_WINDOWS,
   SEARCH_RESULTS_MAX,
   SEARCH_RESULTS_MIN,
-  loadSettings,
 } from '@/lib/settings'
 import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
@@ -32,10 +31,9 @@ export const handleWebSearch: ToolHandlerFn = async (args, ctx) => {
   }
   const q = typeof args.query === 'string' ? args.query.trim() : ''
   if (!q) return 'Error: missing query parameter for web_search.'
-  const settings = loadSettings()
   const maxResults = clampIntArg(args.max_results, SEARCH_RESULTS_MIN, SEARCH_RESULTS_MAX)
-  const readTop =
-    clampIntArg(args.read_top, SEARCH_READ_TOP_MIN, SEARCH_READ_TOP_MAX) ?? settings.searchReadTop
+  // Omitted read_top / page_chars fall back to the server defaults (tts-server/main.py).
+  const readTop = clampIntArg(args.read_top, SEARCH_READ_TOP_MIN, SEARCH_READ_TOP_MAX)
   const recencyRaw = typeof args.recency === 'string' ? args.recency.trim().toLowerCase() : ''
   const recency = SEARCH_RECENCY_WINDOWS.includes(recencyRaw) ? recencyRaw : undefined
   try {
@@ -43,7 +41,6 @@ export const handleWebSearch: ToolHandlerFn = async (args, ctx) => {
       maxResults,
       readTop,
       recency,
-      pageChars: settings.searchReadChars,
     })
   } catch (e) {
     return e instanceof Error ? e.message : String(e)

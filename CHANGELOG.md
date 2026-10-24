@@ -31,6 +31,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **`web_search` read depth is no longer a setting**: Options → Tools → `WEB_SEARCH_READ_TOP` / `WEB_SEARCH_READ_CHARS` and the `searchReadTop` / `searchReadChars` settings are gone, since the model already passes `read_top` (0–5) per call and `scrape_url` covers a full page. The client now sends `read_top` only when the model asked for it, and the server defaults to 3 pages at 4000 characters each with a 12000-character total (was 6000 / 24000), roughly halving what one search adds to the context. Saved values from older versions are ignored.
+
 - **Wider chat on large screens, Settings tabs aligned with their panel**: the message list and composer grow from `max-w-4xl` to `max-w-6xl` at the `2xl` breakpoint, so a 1440p+ window no longer leaves a narrow column between two empty margins. The Settings tab row now shares the content column's `max-w-4xl` instead of stretching edge to edge above it.
 
 - **Brighter secondary text**: `--color-void-dim` goes up in every dark theme (obsidian and blood-moon `145 145 158`, dystopian `132 132 178`, minimal `140 140 150`, matrix `0 165 55`, terminal `145 130 98`), lifting labels such as `AGENT ROUNDS`, option descriptions and field hints; it still sits below `--color-void-text` in each ramp. The light theme is unchanged.

@@ -1300,20 +1300,6 @@ export const SEARCH_RECENCY_WINDOWS = ['d', 'w', 'm', 'y']
 /** web_search: how many top results are read in full (0 = snippets only). */
 export const SEARCH_READ_TOP_MIN = 0
 export const SEARCH_READ_TOP_MAX = 5
-export const SEARCH_READ_TOP_DEFAULT = 3
-
-/** web_search: per-page character cap when reading results in full. */
-export const SEARCH_READ_CHARS_MIN = 2000
-export const SEARCH_READ_CHARS_MAX = 20000
-export const SEARCH_READ_CHARS_DEFAULT = 6000
-
-export function clampSearchReadTop(n: number): number {
-  return Math.min(SEARCH_READ_TOP_MAX, Math.max(SEARCH_READ_TOP_MIN, Math.round(n)))
-}
-
-export function clampSearchReadChars(n: number): number {
-  return Math.min(SEARCH_READ_CHARS_MAX, Math.max(SEARCH_READ_CHARS_MIN, Math.round(n)))
-}
 
 /** Per-tool toggles; extend with new keys as tools are added */
 export type ToolsEnabled = {
@@ -1498,10 +1484,6 @@ export type AppSettings = {
    * Soft wrap-up warning fires near the end; hard wrap-up after exhaustion.
    */
   agentMaxToolRounds: number
-  /** web_search: how many top results are read in full (0 = ranked snippets only). */
-  searchReadTop: number
-  /** web_search: per-page character cap for those full reads. */
-  searchReadChars: number
   /**
    * Discover Agent Skills from ~/.agents|~/.claude|~/.cursor/skills and expose
    * a catalog + read_skill tool (desktop only).
@@ -1726,8 +1708,6 @@ export const defaults: AppSettings = {
   runwareXaiPositivePrompt: '',
   runwareTtsSpeed: 1.0,
   voiceBakePhrase: 'This is my reference voice for consistent synthesis.',
-  searchReadTop: SEARCH_READ_TOP_DEFAULT,
-  searchReadChars: SEARCH_READ_CHARS_DEFAULT,
   toolsEnabled: {
     webSearch: true,
     weather: true,
@@ -1970,12 +1950,6 @@ function normalizeTools(s: AppSettings): AppSettings {
     },
     agentMaxToolRounds: clampAgentMaxToolRounds(
       typeof s.agentMaxToolRounds === 'number' ? s.agentMaxToolRounds : defaults.agentMaxToolRounds,
-    ),
-    searchReadTop: clampSearchReadTop(
-      typeof s.searchReadTop === 'number' ? s.searchReadTop : defaults.searchReadTop,
-    ),
-    searchReadChars: clampSearchReadChars(
-      typeof s.searchReadChars === 'number' ? s.searchReadChars : defaults.searchReadChars,
     ),
     skillsEnabled: typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
     mcpEnabled: typeof s.mcpEnabled === 'boolean' ? s.mcpEnabled : defaults.mcpEnabled,
