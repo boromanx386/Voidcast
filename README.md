@@ -192,9 +192,9 @@ Voidcast ships its **own Chromium view** — no external Chrome, no browser exte
 Full tool reference: [docs/options/tools.md](docs/options/tools.md).
 
 <p align="center">
-  <img src="demos/voidcast-browser.jpg" width="700" alt="Built-in browser playing YouTube — the agent opened it, played a track and translated the lyrics"/>
+  <img src="demos/voidcast-browser.jpg" width="700" alt="Built-in browser running a snake game the agent just built — it served the project locally and play-tested it"/>
 </p>
-<p align="center"><em>The WEB tab is a real Chromium view, shared with the agent — here it opened YouTube, played a track, and translated the lyrics live. Take over any time.</em></p>
+<p align="center"><em>The WEB tab is a real Chromium view, shared with the agent — here it served the game it just built and play-tested it before reporting back. Take over any time.</em></p>
 
 ### Chat modes
 
