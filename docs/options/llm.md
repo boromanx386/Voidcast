@@ -35,6 +35,11 @@ One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus op
 - **Sticky routing for upstream cache** — each chat sends a stable `session_id`, so OpenRouter keeps routing the conversation to the same upstream provider and that provider's prompt cache stays warm. Cache-friendly prompt ordering (a byte-identical system prompt + history prefix, with volatile context on the final user turn) is **not** OpenRouter-specific: it holds for **every** provider, and cached-token counts are read back from Ollama, OpenAI, DeepSeek and OpenRouter alike. See [../chat.md](../chat.md).
 - **Pinned models** — `pinnedModels` (`string[]`). Provider-specific ids like `'openrouter:anthropic/claude-sonnet-5'` or `'openrouter:openai/gpt-5.6-sol'`. Pinned models appear as quick-select chips in the panel (and in the chat model picker); toggle a pin on/off per candidate model.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-openrouter.png" width="720" alt="Agent tab with OpenRouter selected — model, provider lock and the LIST ALL provider table"/>
+</p>
+<p align="center"><em>OpenRouter in the Agent tab: <code>OPENROUTER_PROVIDER</code> locked to one upstream, with <b>LIST ALL</b> showing every provider for the model.</em></p>
+
 ### NVIDIA
 NVIDIA's free developer tier: no subscription and no paid plan to buy, so there is nothing to cancel or upgrade. It is also the slowest of the cloud providers in practice — free capacity is shared, so throughput varies and large models can crawl. Third-party lists put the free tier at roughly 40 requests/minute, which is indicative, not a contract.
 - `nvidiaBaseUrl` — default `https://integrate.api.nvidia.com/v1`
