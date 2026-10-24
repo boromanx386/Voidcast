@@ -40,3 +40,6 @@ videos/
 *.log
 .env
 .env.*
+
+# Local Claude Code config (preview launch, local settings)
+.claude/
