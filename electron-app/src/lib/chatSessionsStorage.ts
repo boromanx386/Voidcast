@@ -8,8 +8,8 @@ import {
 import { normalizeImageVisionCache } from '@/lib/imageVisionCache'
 import { normalizePlanArtifact } from '@/lib/planArtifact'
 import { normalizeSubAgentActivity } from '@/lib/subAgentPanelState'
-import { normalizeSystemPromptPreset } from '@/lib/settings'
 import type { ChatSession, ChatSessionsState, UiMessage } from '@/types/chat'
+import { normalizeChatThinkLevel } from '@/types/chat'
 
 /** Drop image payloads before persistence — avoids quota blowups (MVP). */
 function stripImagesForPersistence(msg: UiMessage): UiMessage {
@@ -95,9 +95,15 @@ function normalizeSession(raw: ChatSession): ChatSession {
   const imageVisionCache = normalizeImageVisionCache(raw.imageVisionCache)
   const hasVisionCache = Object.keys(imageVisionCache).length > 0
   const messages = Array.isArray(raw.messages) ? raw.messages.map(normalizeMessage) : raw.messages
-  // Legacy/unknown preset values normalize to 'default' before persistence.
-  const systemPromptPreset = normalizeSystemPromptPreset(raw.systemPromptPreset)
-  const base: ChatSession = { ...raw, messages, systemPromptPreset }
+  // Chats saved before presets were removed still carry `systemPromptPreset`; drop it.
+  const { systemPromptPreset: _legacyPreset, ...rest } = raw as ChatSession & {
+    systemPromptPreset?: unknown
+  }
+  const base: ChatSession = {
+    ...rest,
+    messages,
+    thinkLevel: normalizeChatThinkLevel(raw.thinkLevel),
+  }
   if (!raw.codingContextMemo) {
     return hasVisionCache ? { ...base, imageVisionCache } : base
   }

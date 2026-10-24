@@ -25,7 +25,7 @@ Some settings are **agent-editable** — the chat agent is allowed to view/chang
 
 Agent-editable fields are listed in `AGENT_EDITABLE_SETTINGS_FIELDS` in `electron-app/src/lib/settings.ts`:
 
-- `llmSystemPrompt`, `llmNumCtx`, `llmTemperature` (LLM defaults)
+- `llmNumCtx`, `llmTemperature` (LLM defaults; `llmSystemPrompt` is user-only)
 - `uiTheme` (interface theme)
 - `longMemoryAdd` (add long-term memory)
 - `autoVoice` (auto text-to-speech)

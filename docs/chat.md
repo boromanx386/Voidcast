@@ -64,14 +64,14 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
 
 ## Composer (ChatComposer.tsx)
 
-- Multiline textarea with send/stop, image & file chips, STT record, mode and preset menus. Send enabled with non-empty input or pending attachments and not busy; "pending draft" shown while busy.
+- Multiline textarea with send/stop, image & file chips, STT record, mode and think-level menus. Send enabled with non-empty input or pending attachments and not busy; "pending draft" shown while busy.
 - **Locked during context compression**: while `contextCompressBusy` is set (manual **COMPRESS NOW** in the CTX popup, or auto-compress) the textarea, send button and toolbar are disabled and a spinner banner explains why; Enter does nothing and `onSend` refuses outright, so a prompt cannot race the summary write.
 - **Agent mode toggle**: cycles `Agent → Ask → Plan → Team` (`MODE_CYCLE = ['agent','ask','plan','team']` in ChatComposer.tsx, also `Shift+Tab`). `AgentChatMode = 'agent' | 'ask' | 'plan' | 'team'` in `electron-app/src/types/chat.ts`; normalized by `normalizeAgentChatMode`. The mode is **per chat** (`ChatSession.agentMode`; `settings.agentMode` only seeds new chats), so a chat running in the background cannot change the mode shown on this one.
   - **Agent** — full tool implementation; coding workers optional if SUB coding is on.
   - **Ask** — read-only Q&A (web/research/coding read/explore); no Plan card, no `enter_plan_mode`, no mutations/workers.
   - **Plan** — read-only; plan artifact + Approve & Build → **Agent** (or **Team** if composer already Team).
   - **Team** — prefers **`run_coding_workers`** (≤2 parallel); requires coding SUB. No `enter_plan_mode`.
-- **System prompt preset** menu (`default|code|creative|teacher`, `SYSTEM_PROMPT_PRESETS` in settings.ts).
+- **Think level** menu: per-chat override of `llmThinkLevel` (`off|low|medium|high|on`), stored on the session as `thinkLevel`. **Default** (shown as `think <level>*`) follows Options → LLM → `THINK_LEVEL`; the override is applied to `turnSettings` at send time, so it reaches every provider. There are no system prompt presets — behaviour is switched by the mode menu, tone by `llmSystemPrompt`.
 - **Long-memory** extract button (`extractLongMemoryNow`, `longMemoryBusy`).
 - Placeholder from theme/mode (`getChatComposerPlaceholder`).
 

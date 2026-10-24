@@ -64,10 +64,7 @@ export const handleUpdateSettings: ToolHandlerFn = async (args, ctx) => {
   const field = fieldRaw as AgentEditableSettingsField
   const current = loadSettings()
   const candidate: AppSettings = { ...current }
-  if (field === 'llmSystemPrompt') {
-    const next = parseToolValueAsString(valueRaw)
-    candidate.llmSystemPrompt = next
-  } else if (field === 'llmNumCtx') {
+  if (field === 'llmNumCtx') {
     const n = parseToolValueAsNumber(valueRaw)
     if (n === null) return 'Error: llmNumCtx expects a numeric value.'
     candidate.llmNumCtx = Math.round(n)

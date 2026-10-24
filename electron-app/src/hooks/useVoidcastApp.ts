@@ -19,9 +19,9 @@ import { isElectron } from '@/lib/platform'
 import { runtimeKeyForSession, sessionAgentStore } from '@/lib/sessionAgentStore'
 import { stopSessionRun } from '@/lib/sessionRunControl'
 import { generatePromptHint } from '@/lib/promptHint'
-import { subAgentConfigForRole } from '@/lib/settings'
+import { subAgentConfigForRole, type LlmThinkLevel } from '@/lib/settings'
 import { subAgentKeysFromSettings } from '@/lib/subAgentKeys'
-import type { AgentChatMode, ChatSession, SystemPromptPreset, UiMessage } from '@/types/chat'
+import type { AgentChatMode, ChatSession, UiMessage } from '@/types/chat'
 import type { OptionsTab, Screen } from '@/types/voidcast'
 
 export type { OptionsTab, Screen } from '@/types/voidcast'
@@ -57,7 +57,7 @@ export function useVoidcastApp() {
   const sessionsRef = useRef<ChatSession[]>([])
   const setSessionsRef = useRef<React.Dispatch<React.SetStateAction<ChatSession[]>>>(() => {})
   const activeSessionIdRef = useRef<string | null>(null)
-  const activeSystemPromptPresetRef = useRef<SystemPromptPreset>('default')
+  const activeThinkLevelRef = useRef<LlmThinkLevel | undefined>(undefined)
   const activeAgentModeRef = useRef<AgentChatMode>('agent')
   const activeModelIdRef = useRef<string>('')
   const setAgentModeForActiveChatRef = useRef<(mode: AgentChatMode) => void>(() => {})
@@ -131,7 +131,7 @@ export function useVoidcastApp() {
     codingContextMemo: coding.codingContextMemo,
     codingContextMemoRef: coding.codingContextMemoRef,
     codingFileCacheRef: coding.codingFileCacheRef,
-    systemPromptPresetRef: activeSystemPromptPresetRef,
+    thinkLevelRef: activeThinkLevelRef,
     activeAgentModeRef,
     activeModelIdRef,
     codingProjectPathForRuntimeKey: (key) => codingProjectPathForRuntimeKeyRef.current(key),
@@ -228,7 +228,7 @@ export function useVoidcastApp() {
   sessionsRef.current = sessions.sessions
   setSessionsRef.current = sessions.setSessions
   activeSessionIdRef.current = sessions.activeSessionId
-  activeSystemPromptPresetRef.current = sessions.activeSystemPromptPreset
+  activeThinkLevelRef.current = sessions.activeThinkLevel
   activeAgentModeRef.current = sessions.activeAgentMode
   activeModelIdRef.current = sessions.activeModelId
   setAgentModeForSessionRef.current = sessions.setAgentModeForSession

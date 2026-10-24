@@ -25,7 +25,14 @@ export function isTeamChatMode(mode: AgentChatMode | string | undefined | null):
   return mode === 'team'
 }
 
-export type SystemPromptPreset = 'default' | 'code' | 'creative' | 'teacher'
+const CHAT_THINK_LEVELS = new Set<LlmThinkLevel>(['off', 'low', 'medium', 'high', 'on'])
+
+/** Per-chat think level override; undefined = follow the global `llmThinkLevel`. */
+export function normalizeChatThinkLevel(value: unknown): LlmThinkLevel | undefined {
+  return typeof value === 'string' && CHAT_THINK_LEVELS.has(value as LlmThinkLevel)
+    ? (value as LlmThinkLevel)
+    : undefined
+}
 
 export type PlanStep = {
   id: string
@@ -149,6 +156,7 @@ export type UiMessage = {
 }
 
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
+import type { LlmThinkLevel } from '@/lib/settings'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { SubAgentPanelState } from '@/lib/subAgentPanelState'
 
@@ -160,8 +168,8 @@ export type ChatSession = {
   createdAt: number
   updatedAt: number
   messages: ChatSessionMessage[]
-  /** System prompt preset used by this chat. Missing legacy values resolve to default. */
-  systemPromptPreset?: SystemPromptPreset
+  /** Think level picked in this chat's composer. Missing = follow the global default. */
+  thinkLevel?: LlmThinkLevel
   /**
    * Agent mode owned by this chat (agent / ask / plan / team).
    * Hydration back-fills legacy sessions from `settings.agentMode`; afterwards

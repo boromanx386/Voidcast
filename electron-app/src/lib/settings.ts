@@ -9,10 +9,10 @@ import {
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
 import { normalizePinnedModels } from '@/lib/pinnedModels'
-import type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
+import type { AgentChatMode } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
 
-export type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
+export type { AgentChatMode } from '@/types/chat'
 export {
   normalizeAgentChatMode,
   isPlanChatMode,
@@ -1596,8 +1596,10 @@ export type AppSettings = {
   subAgent: SubAgentConfig
 }
 
+// llmSystemPrompt is deliberately absent: web/MCP/file content flows into the context,
+// and a tool that rewrites the system prompt would let injected text persist into every
+// future chat. The user edits it in Options only.
 export const AGENT_EDITABLE_SETTINGS_FIELDS = [
-  'llmSystemPrompt',
   'llmNumCtx',
   'llmTemperature',
   'uiTheme',
@@ -1631,30 +1633,18 @@ const AGENT_HIDDEN_SETTINGS_FIELDS = [
   'runwareApiKey',
 ] as const
 
-const DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, a highly intelligent, quick‑witted, and candid virtual assistant.
+// The shipped default before the harness core existed. Saved settings still holding this
+// exact text are moved to the new default; edited prompts are left alone.
+const LEGACY_DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, a highly intelligent, quick‑witted, and candid virtual assistant.
 
 **Voice & Tone**
 - **Smart:** Provide accurate, well‑structured answers with concise explanations, relevant examples, and occasional "deep‑dive" optional sections.
 - **Witty:** Sprinkle light, appropriate humor, word‑play, or clever analogies (e.g., "That idea is like a cat on a keyboard—fun but chaotic"). Never sacrifice clarity for a joke.
 - **Honest:** If you don't know something, say so outright ("I'm not sure, but here's how you could find out"). When a request is ambiguous, ask a clarifying question. Avoid filler phrases and euphemisms.`
 
-export const SYSTEM_PROMPT_PRESETS: Record<Exclude<SystemPromptPreset, 'default'>, string> = {
-  code: `${DEFAULT_LLM_SYSTEM_PROMPT}\n\nYou are in Code mode. Prioritize correct, maintainable implementations. Inspect the repository before editing, make minimal focused changes, and verify them with tests or type checks when practical.`,
-  creative: `${DEFAULT_LLM_SYSTEM_PROMPT}\n\nYou are in Creative mode. Generate original ideas with strong taste, vivid detail, and useful structure. Explore multiple directions when helpful, while staying aligned with the user's intent.`,
-  teacher: `${DEFAULT_LLM_SYSTEM_PROMPT}\n\nYou are in Teacher mode. Explain concepts clearly from first principles, adapt to the learner's level, use examples, and check for common misunderstandings.`,
-}
-
-export function normalizeSystemPromptPreset(value: unknown): SystemPromptPreset {
-  return value === 'code' || value === 'creative' || value === 'teacher' ? value : 'default'
-}
-
-export function getSystemPromptForPreset(
-  preset: unknown,
-  settings: Pick<AppSettings, 'llmSystemPrompt'>,
-): string {
-  const normalized = normalizeSystemPromptPreset(preset)
-  return normalized === 'default' ? settings.llmSystemPrompt : SYSTEM_PROMPT_PRESETS[normalized]
-}
+// Kept short on purpose: operating rules live in the app's harness core, so this only
+// sets tone. Users put their own always-on preferences here.
+const DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, the assistant in Voidcast. Be direct and concise: answer first, add detail only when it helps. If you are unsure, say so; if a request is ambiguous, ask.`
 
 export const defaults: AppSettings = {
   llmProvider: 'ollama',
@@ -2134,7 +2124,12 @@ function normalizeLlm(s: AppSettings): AppSettings {
         ? s.longMemoryDefaultEnabled
         : defaults.longMemoryDefaultEnabled,
     llmThinkLevel: normalizeLlmThinkLevel(s, defaults.llmThinkLevel),
-    llmSystemPrompt: typeof s.llmSystemPrompt === 'string' ? s.llmSystemPrompt : '',
+    llmSystemPrompt:
+      typeof s.llmSystemPrompt !== 'string'
+        ? ''
+        : s.llmSystemPrompt === LEGACY_DEFAULT_LLM_SYSTEM_PROMPT
+          ? DEFAULT_LLM_SYSTEM_PROMPT
+          : s.llmSystemPrompt,
   }
 }
 

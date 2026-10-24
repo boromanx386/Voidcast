@@ -77,7 +77,7 @@ Max agent↔tool loop rounds per assistant turn (main agent only). Nested **work
 
 - **`mcpEnabled`** (`boolean`, default `false`) — connect to MCP servers from `~/.voidcast/mcp.json` plus project `.mcp.json` files and register their tools with the agent (desktop only).
 - **Per-server enable** — `mcpServerEnabled` (`Record<string, boolean>`). Key = server id from mcp.json; missing key = enabled. Set `false` to keep a server in config but not connect/expose its tools. The `McpServersSection` panel lists discovered servers with per-server toggle/connect/status handling.
-- **Trusted project paths** — `mcpTrustedProjectPaths` (`string[]`, default `[]`). Project roots the user explicitly trusted to load `.mcp.json` MCP servers from. Untrusted project configs are ignored until approved here (managed by `electron-app/src/lib/mcpProjectTrust.ts`).
+- **Trusted project paths** — `mcpTrustedProjectPaths` (`string[]`, default `[]`). Project roots the user explicitly trusted to load `.mcp.json` MCP servers from. Untrusted project configs are ignored until approved here (managed by `electron-app/src/lib/mcpProjectTrust.ts`). The same list gates the project's `AGENTS.md` / `CLAUDE.md` in the system prompt (see [Skills](skills.md)).
 - The panel refreshes the MCP server list (scans `~/.voidcast/mcp.json` and trusted project `.mcp.json` files) and shows connection/test actions per server.
 - Which **project** `.mcp.json` is read here is the folder of the chat on screen (`activeCodingProjectPath`) — the same one the agent loads servers from, so the two cannot disagree.
 

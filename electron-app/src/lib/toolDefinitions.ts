@@ -813,7 +813,7 @@ const UPDATE_SETTINGS_TOOL: AgentToolDefinition = {
   function: {
     name: 'update_settings',
     description:
-      'MANDATORY: Update app settings. CRITICAL: When the user asks to change system prompt, context window, temperature, theme, or image/edit models, you MUST call this tool BEFORE replying with confirmation text.',
+      'Update app settings. When the user asks to change the context window, temperature, theme, or image/edit models, call this tool before confirming the change. The system prompt is not editable here — the user changes it in Options → LLM.',
     parameters: {
       type: 'object',
       properties: {
@@ -821,7 +821,7 @@ const UPDATE_SETTINGS_TOOL: AgentToolDefinition = {
           type: 'string',
           enum: AGENT_EDITABLE_SETTINGS_FIELDS,
           description:
-            'Setting key to update. Allowed: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareImageModel, runwareEditModel.',
+            'Setting key to update. Allowed: llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareImageModel, runwareEditModel.',
         },
         value: {
           type: 'string',

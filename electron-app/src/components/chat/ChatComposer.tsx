@@ -6,7 +6,8 @@ import { resolveHintMode } from '@/lib/promptHint'
 import { getChatComposerPlaceholder } from '@/components/chat/chatEmptyState'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
-import type { AgentChatMode, SystemPromptPreset } from '@/types/chat'
+import type { LlmThinkLevel } from '@/lib/settings'
+import type { AgentChatMode } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
 
 type Props = {
@@ -34,8 +35,8 @@ type Props = {
     | 'sttPending'
     | 'recordingDuration'
     | 'toggleSttRecording'
-    | 'activeSystemPromptPreset'
-    | 'setSystemPromptPresetForActiveChat'
+    | 'activeThinkLevel'
+    | 'setThinkLevelForActiveChat'
     | 'activeAgentMode'
     | 'setAgentModeForActiveChat'
     | 'longMemoryBusy'
@@ -69,8 +70,8 @@ export function ChatComposer({ app }: Props) {
     sttPending,
     recordingDuration,
     toggleSttRecording,
-    activeSystemPromptPreset,
-    setSystemPromptPresetForActiveChat,
+    activeThinkLevel,
+    setThinkLevelForActiveChat,
     activeAgentMode,
     setAgentModeForActiveChat,
     longMemoryBusy,
@@ -173,17 +174,17 @@ export function ChatComposer({ app }: Props) {
     }
   }, [modeMenuOpen])
 
-  const [presetMenuOpen, setPresetMenuOpen] = useState(false)
-  const presetMenuRef = useRef<HTMLDivElement>(null)
+  const [thinkMenuOpen, setThinkMenuOpen] = useState(false)
+  const thinkMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!presetMenuOpen) return
+    if (!thinkMenuOpen) return
     const onPointerDown = (e: PointerEvent) => {
-      if (presetMenuRef.current?.contains(e.target as Node)) return
-      setPresetMenuOpen(false)
+      if (thinkMenuRef.current?.contains(e.target as Node)) return
+      setThinkMenuOpen(false)
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPresetMenuOpen(false)
+      if (e.key === 'Escape') setThinkMenuOpen(false)
     }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -191,18 +192,23 @@ export function ChatComposer({ app }: Props) {
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [presetMenuOpen])
+  }, [thinkMenuOpen])
 
-  const PRESET_OPTIONS: { value: SystemPromptPreset; label: string }[] = [
-    { value: 'default', label: 'Default' },
-    { value: 'code', label: 'Code' },
-    { value: 'creative', label: 'Creative' },
-    { value: 'teacher', label: 'Teacher' },
+  // undefined = follow Options → LLM → THINK_LEVEL, so changing the global default
+  // still reaches every chat that never picked its own level.
+  const THINK_OPTIONS: { value: LlmThinkLevel | undefined; label: string }[] = [
+    { value: undefined, label: `Default (${settings.llmThinkLevel})` },
+    { value: 'off', label: 'Off' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'on', label: 'On' },
   ]
+  const effectiveThinkLevel = activeThinkLevel ?? settings.llmThinkLevel
 
-  const selectPreset = (preset: SystemPromptPreset) => {
-    setSystemPromptPresetForActiveChat(preset)
-    setPresetMenuOpen(false)
+  const selectThinkLevel = (level: LlmThinkLevel | undefined) => {
+    setThinkLevelForActiveChat(level)
+    setThinkMenuOpen(false)
   }
 
   const setAgentMode = (mode: AgentChatMode) => {
@@ -573,24 +579,31 @@ export function ChatComposer({ app }: Props) {
                 </button>
               )}
 
-            {/* Per-chat system prompt preset — chip like pinned LLM models, opens upward */}
+            {/* Per-chat think level — chip like pinned LLM models, opens upward */}
             <div
-              ref={presetMenuRef}
+              ref={thinkMenuRef}
               className="relative ml-1.5 shrink-0"
-              title="System prompt preset — applies from the next message"
+              title={
+                activeThinkLevel
+                  ? 'Think level for this chat — applies from the next message'
+                  : 'Think level — follows Options → LLM default; pick one for this chat'
+              }
             >
               <button
                 type="button"
                 aria-haspopup="menu"
-                aria-expanded={presetMenuOpen}
-                aria-label={`System prompt preset: ${activeSystemPromptPreset}`}
-                onClick={() => setPresetMenuOpen((open) => !open)}
-                className="composer-preset-trigger"
+                aria-expanded={thinkMenuOpen}
+                aria-label={`Think level: ${effectiveThinkLevel}`}
+                onClick={() => setThinkMenuOpen((open) => !open)}
+                className="composer-think-trigger"
               >
-                <span>{activeSystemPromptPreset}</span>
+                <span>
+                  think {effectiveThinkLevel}
+                  {activeThinkLevel ? '' : '*'}
+                </span>
                 <svg
                   className={`h-2 w-2 opacity-70 transition-transform ${
-                    presetMenuOpen ? 'rotate-180' : ''
+                    thinkMenuOpen ? 'rotate-180' : ''
                   }`}
                   viewBox="0 0 24 24"
                   fill="none"
@@ -601,24 +614,20 @@ export function ChatComposer({ app }: Props) {
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
-              {presetMenuOpen ? (
-                <div
-                  className="composer-preset-dropdown"
-                  role="menu"
-                  aria-label="System prompt preset"
-                >
-                  {PRESET_OPTIONS.map((opt) => {
-                    const isActive = opt.value === activeSystemPromptPreset
+              {thinkMenuOpen ? (
+                <div className="composer-think-dropdown" role="menu" aria-label="Think level">
+                  {THINK_OPTIONS.map((opt) => {
+                    const isActive = opt.value === activeThinkLevel
                     return (
                       <button
-                        key={opt.value}
+                        key={opt.value ?? 'default'}
                         type="button"
                         role="menuitemradio"
                         aria-checked={isActive}
-                        className={`composer-preset-option${
-                          isActive ? ' composer-preset-option--active' : ''
+                        className={`composer-think-option${
+                          isActive ? ' composer-think-option--active' : ''
                         }`}
-                        onClick={() => selectPreset(opt.value)}
+                        onClick={() => selectThinkLevel(opt.value)}
                       >
                         <span className="w-2 text-center" aria-hidden>
                           {isActive ? '●' : '○'}

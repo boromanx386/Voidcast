@@ -38,6 +38,12 @@ Project-relative skills, scanned before the global ones so they win on a name cl
 
 The catalog hint gives one line per skill: its scope (`[project]` overrides `[global]`) and its **folder path**, so the agent can say where a skill lives and which file it is following. The agent is **read-only** here — no tool writes a skill. Creating one means writing `~/.agents/skills/<name>/SKILL.md` yourself: YAML frontmatter with `name` and `description`, then the markdown body.
 
+## Project instructions (`AGENTS.md` / `CLAUDE.md`)
+
+With coding tools on and a project folder bound, the project root's `AGENTS.md` / `CLAUDE.md` go into the system prompt's `<project_instructions>` section — **only if the project is trusted**. A cloned repository could otherwise steer an agent that has `execute_command`. Trust uses the same list as project `.mcp.json` (`mcpTrustedProjectPaths`), so trusting a project here also lets its `.mcp.json` load, and the reverse.
+
+For an untrusted project with instruction files, the panel marks them "not loaded — untrusted" and shows a **TRUST_PROJECT** button. The model gets only the file names and a note that they were skipped, so it can tell you why repository conventions are missing.
+
 ## Desktop-only note
 
 Agent Skills discovery and the `read_skill` tool are **desktop-only**. In web/standalone builds the skill directories do not exist, so the catalog and `read_skill` tool are not available; the toggle has no effect there. The underlying implementation lives in `electron-app/src/lib/agentSkills.ts`.

@@ -36,9 +36,9 @@ import {
 } from '@/lib/imageVisionCache'
 import {
   loadSettings,
-  normalizeSystemPromptPreset,
   subAgentConfigForRole,
   type AppSettings,
+  type LlmThinkLevel,
 } from '@/lib/settings'
 import type { ContextUsageInfo } from '@/lib/contextUsage'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
@@ -50,13 +50,7 @@ import {
 } from '@/lib/chatComposerDrafts'
 import { DRAFT_RUNTIME_KEY, runtimeKeyForSession, sessionAgentStore } from '@/lib/sessionAgentStore'
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
-import type {
-  AgentChatMode,
-  ChatSession,
-  FileAttachmentSnapshot,
-  SystemPromptPreset,
-  UiMessage,
-} from '@/types/chat'
+import type { AgentChatMode, ChatSession, FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
 import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 import { formatDurationMs } from '@/lib/turnTimer'
@@ -239,9 +233,10 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [sessionsHydrated, setSessionsHydrated] = useState(false)
-  /** Preset applied when the next brand-new session is created (no active session yet). */
-  const [pendingNewSessionPreset, setPendingNewSessionPreset] =
-    useState<SystemPromptPreset>('default')
+  /** Think level for the next brand-new session (undefined = follow the global default). */
+  const [pendingNewSessionThinkLevel, setPendingNewSessionThinkLevel] = useState<
+    LlmThinkLevel | undefined
+  >(undefined)
   /**
    * Agent mode for the next brand-new session. Set on every picker change so a fresh
    * chat keeps the user's last choice instead of a stale global value.
@@ -275,13 +270,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       const baseSettings = loadSettings()
       let sessionsMigrated = false
       const sessions = state.sessions.map((s) => {
-        // Legacy/unknown system prompt preset values resolve to 'default'.
         let next = s
-        const preset = normalizeSystemPromptPreset(s.systemPromptPreset)
-        if (preset !== s.systemPromptPreset) {
-          sessionsMigrated = true
-          next = { ...s, systemPromptPreset: preset }
-        }
         // Give every legacy chat its own mode so it can never follow the viewed chat.
         if (!next.agentMode) {
           sessionsMigrated = true
@@ -448,7 +437,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         createdAt: now,
         updatedAt: now,
         messages,
-        systemPromptPreset: pendingNewSessionPreset,
+        thinkLevel: pendingNewSessionThinkLevel,
         hiddenContextSummary: hiddenContextSummary.trim() || undefined,
         contextCompressedThroughIndex: hiddenContextSummary.trim()
           ? contextCompressedThroughIndex
@@ -487,7 +476,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
           createdAt: now,
           updatedAt: now,
           messages,
-          systemPromptPreset: pendingNewSessionPreset,
+          thinkLevel: pendingNewSessionThinkLevel,
           agentMode: pendingNewSessionAgentMode ?? normalizeAgentChatMode(settings.agentMode),
           hiddenContextSummary: nextHiddenContextSummary,
           contextCompressedThroughIndex: nextCompressedThrough,
@@ -554,7 +543,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     activeSessionId,
     sessionsHydrated,
     settings.autoSaveChat,
-    pendingNewSessionPreset,
+    pendingNewSessionThinkLevel,
   ])
 
   const activeSessionUseLongMemory = settings.longMemoryDefaultEnabled
@@ -601,7 +590,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
         createdAt: now,
         updatedAt: now,
         messages: [],
-        systemPromptPreset: pendingNewSessionPreset,
+        thinkLevel: pendingNewSessionThinkLevel,
         agentMode: pendingNewSessionAgentMode ?? normalizeAgentChatMode(settings.agentMode),
         codingContextMemo: normalizeCodingContextMemo(codingContextMemo, projectPath),
         codingProjectPath: projectPath || undefined,
@@ -617,7 +606,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     activeSessionId,
     settings.autoSaveChat,
     rekeyCodingTerminalOwner,
-    pendingNewSessionPreset,
+    pendingNewSessionThinkLevel,
     codingContextMemo,
     imageVisionCache,
   ])
@@ -677,7 +666,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setContextUsageInfo(null)
     setContextWarnDismissed(false)
     setActiveSession(null)
-    setPendingNewSessionPreset('default')
+    setPendingNewSessionThinkLevel(undefined)
     setSessionDirty(false)
     setPendingDeleteId(null)
     setRenamingSessionId(null)
@@ -771,7 +760,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       createdAt: now,
       updatedAt: now,
       messages: sourceMessages,
-      systemPromptPreset: session.systemPromptPreset,
+      thinkLevel: session.thinkLevel,
       agentMode: session.agentMode ?? normalizeAgentChatMode(settings.agentMode),
       // A fork continues the same chat, so it stays locked to the same model.
       model: session.model,
@@ -825,26 +814,26 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     setSettings((prev) => ({ ...prev, longMemoryDefaultEnabled: enabled }))
   }
 
-  /** Per-chat system prompt preset: applies from the next message. */
-  const setSystemPromptPresetForActiveChat = (preset: SystemPromptPreset) => {
+  /** Per-chat think level (undefined = global default): applies from the next message. */
+  const setThinkLevelForActiveChat = (level: LlmThinkLevel | undefined) => {
     if (!activeSessionId) {
       // Brand-new (unsaved) chat — stash for the session created on first message.
-      setPendingNewSessionPreset(preset)
+      setPendingNewSessionThinkLevel(level)
       return
     }
     const idx = sessions.findIndex((s) => s.id === activeSessionId)
     if (idx < 0) return
     const current = sessions[idx]
-    if ((current.systemPromptPreset ?? 'default') === preset) return
+    if (current.thinkLevel === level) return
     const next = [...sessions]
-    next[idx] = { ...current, systemPromptPreset: preset, updatedAt: Date.now() }
+    next[idx] = { ...current, thinkLevel: level, updatedAt: Date.now() }
     setSessions(next)
     scheduleSaveChatSessions({ sessions: next, activeSessionId })
   }
 
-  const activeSystemPromptPreset: SystemPromptPreset = activeSessionId
-    ? (sessions.find((s) => s.id === activeSessionId)?.systemPromptPreset ?? 'default')
-    : pendingNewSessionPreset
+  const activeThinkLevel: LlmThinkLevel | undefined = activeSessionId
+    ? sessions.find((s) => s.id === activeSessionId)?.thinkLevel
+    : pendingNewSessionThinkLevel
 
   /**
    * Agent mode of the chat on screen. The session owns the value; `settings.agentMode`
@@ -872,7 +861,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     })
   }, [])
 
-  /** Per-chat agent mode picker: applies from the next message, like the preset picker. */
+  /** Per-chat agent mode picker: applies from the next message, like the think-level picker. */
   const setAgentModeForActiveChat = (mode: AgentChatMode) => {
     setPendingNewSessionAgentMode(mode)
     if (!activeSessionId) return
@@ -942,7 +931,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       messages,
-      systemPromptPreset: existing?.systemPromptPreset ?? pendingNewSessionPreset,
+      thinkLevel: existing?.thinkLevel ?? pendingNewSessionThinkLevel,
       agentMode:
         existing?.agentMode ??
         pendingNewSessionAgentMode ??
@@ -1113,8 +1102,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     cancelRenameSession,
     commitRenameSession,
     setUseLongMemoryForActiveChat,
-    activeSystemPromptPreset,
-    setSystemPromptPresetForActiveChat,
+    activeThinkLevel,
+    setThinkLevelForActiveChat,
     activeAgentMode,
     setAgentModeForActiveChat,
     setAgentModeForSession,

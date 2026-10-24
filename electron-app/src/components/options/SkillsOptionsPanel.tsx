@@ -6,6 +6,7 @@ import {
   type AgentSkillMeta,
   type ProjectAgentInstructions,
 } from '@/lib/agentSkills'
+import { addTrustedMcpProjectPath, isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
 
@@ -63,6 +64,18 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
   }, [load])
 
   const projectSkillCount = skills.filter((s) => s.source === 'project').length
+  const projectTrusted = isMcpProjectTrusted(projectPath, settings.mcpTrustedProjectPaths)
+
+  const onTrustProject = useCallback(() => {
+    if (!projectPath) return
+    setSettings((s) => ({
+      ...s,
+      mcpTrustedProjectPaths: addTrustedMcpProjectPath(s.mcpTrustedProjectPaths, projectPath),
+    }))
+    // The trust list also unlocks the project's .mcp.json; drop cached tools so the
+    // next turn reloads servers with the new list.
+    void import('@/lib/mcpTools').then(({ clearMcpToolsCache }) => clearMcpToolsCache())
+  }, [projectPath, setSettings])
 
   return (
     <div className="space-y-4">
@@ -85,7 +98,10 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
         With coding tools on, Voidcast also injects{' '}
         <code className="text-void-light">AGENTS.md</code> /{' '}
         <code className="text-void-light">CLAUDE.md</code> from the project root into the system
-        prompt (repo conventions for every turn).
+        prompt (repo conventions for every turn) &mdash; only for a{' '}
+        <span className="text-void-light">trusted</span> project, since a cloned repo could use them
+        to steer the agent. Trust is shared with the project{' '}
+        <code className="text-void-light">.mcp.json</code> trust in Options → Tools.
       </p>
 
       {isWebStandalone() && (
@@ -151,12 +167,27 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
       </div>
 
       {projectPath ? (
-        <p className="text-xs text-void-dim font-mono break-all">
-          Coding project: {projectPath}
-          {projectFiles.length > 0
-            ? ` · instructions: ${projectFiles.map((f) => f.fileName).join(', ')}`
-            : ' · no AGENTS.md / CLAUDE.md'}
-        </p>
+        <>
+          <p className="text-xs text-void-dim font-mono break-all">
+            Coding project: {projectPath}
+            {projectFiles.length > 0
+              ? ` · instructions: ${projectFiles.map((f) => f.fileName).join(', ')}${
+                  projectTrusted ? '' : ' (not loaded — untrusted)'
+                }`
+              : ' · no AGENTS.md / CLAUDE.md'}
+          </p>
+          {projectFiles.length > 0 && !projectTrusted && (
+            <div className="rounded border border-neon-yellow/40 bg-neon-yellow/5 px-3 py-3 space-y-2">
+              <p className="text-xs text-neon-yellow font-mono">
+                Untrusted project — its instruction files are not sent to the model. Trust it only
+                if you know what the repository contains.
+              </p>
+              <button type="button" className="cyber-btn text-xs" onClick={onTrustProject}>
+                TRUST_PROJECT
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         <p className="text-xs text-void-dim">
           This chat has no coding folder. Bind one in the chat header (or the coding panel) to load

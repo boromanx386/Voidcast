@@ -60,7 +60,12 @@ import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { playNotificationSound } from '@/lib/notificationSounds'
 import { notifyAgentDone } from '@/lib/agentDoneNotification'
-import { getOpenRouterImageProfile, loadSettings, type AppSettings } from '@/lib/settings'
+import {
+  getOpenRouterImageProfile,
+  loadSettings,
+  type AppSettings,
+  type LlmThinkLevel,
+} from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import {
   applyCodingDone,
@@ -85,13 +90,7 @@ import {
   useSessionAgentSlot,
   type SessionAgentKeyHandle,
 } from '@/lib/sessionAgentStore'
-import type {
-  AgentChatMode,
-  FileAttachmentSnapshot,
-  PlanArtifact,
-  SystemPromptPreset,
-  UiMessage,
-} from '@/types/chat'
+import type { AgentChatMode, FileAttachmentSnapshot, PlanArtifact, UiMessage } from '@/types/chat'
 import { normalizeAgentChatMode } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
 
@@ -117,8 +116,8 @@ export type UseChatAgentDeps = {
   codingContextMemo: CodingContextMemo
   codingContextMemoRef: MutableRefObject<CodingContextMemo>
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
-  /** Live per-chat preset — read at send time so the current session wins. */
-  systemPromptPresetRef: MutableRefObject<SystemPromptPreset>
+  /** Live per-chat think level (undefined = global) — read at send time. */
+  thinkLevelRef: MutableRefObject<LlmThinkLevel | undefined>
   /** Live per-chat agent mode — read at send time so the sender's chat wins. */
   activeAgentModeRef: MutableRefObject<AgentChatMode>
   /** Live per-chat model pin (`provider:modelId`) — read at send time. */
@@ -271,7 +270,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     codingContextMemo,
     codingContextMemoRef,
     codingFileCacheRef,
-    systemPromptPresetRef,
+    thinkLevelRef,
     activeAgentModeRef,
     activeModelIdRef,
     codingProjectPathForRuntimeKey,
@@ -741,6 +740,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const turnSettings: AppSettings = {
         ...applyScopedModelToSettings(settings, turnModelId || currentPinnedModelId(settings)),
         agentMode: turnAgentMode,
+        llmThinkLevel: thinkLevelRef.current ?? settings.llmThinkLevel,
       }
 
       // Persist the mode on the chat that owns this run — background runs included —
@@ -798,7 +798,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const turnContext = await buildAgentTurnContext({
         settings: turnSettings,
         codingProjectPath: turnCodingProjectPath,
-        systemPromptPreset: systemPromptPresetRef.current,
         activeHistory,
         text,
         queued,
@@ -1548,7 +1547,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setPendingImages,
       setSettings,
       settings,
-      systemPromptPresetRef,
+      thinkLevelRef,
       ttsCloneRef,
       ttsOk,
       ttsVoiceAnchor,

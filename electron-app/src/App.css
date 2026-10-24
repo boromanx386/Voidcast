@@ -462,18 +462,18 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply bg-neon-yellow/10 text-neon-yellow;
 }
 
-.composer-preset-trigger {
+.composer-think-trigger {
   @apply shrink-0 inline-flex items-center justify-center gap-1;
   @apply rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide;
   @apply border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan transition-colors;
   @apply hover:border-neon-cyan hover:bg-neon-cyan/15 disabled:opacity-40;
 }
 
-.composer-preset-trigger[aria-expanded='true'] {
+.composer-think-trigger[aria-expanded='true'] {
   @apply border-neon-cyan bg-neon-cyan/20;
 }
 
-.composer-preset-dropdown {
+.composer-think-dropdown {
   @apply absolute bottom-full left-0 z-50 mb-1.5 min-w-[9.5rem];
   @apply border border-void-muted/80 bg-void-black/95 py-1 shadow-lg backdrop-blur-sm;
   clip-path: polygon(
@@ -488,13 +488,13 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   );
 }
 
-.composer-preset-option {
+.composer-think-option {
   @apply flex w-full items-center gap-2 px-3 py-1.5 text-left;
   @apply font-mono text-[10px] uppercase tracking-wider transition-colors;
   @apply text-void-dim hover:bg-void-mid/50 hover:text-void-light;
 }
 
-.composer-preset-option--active {
+.composer-think-option--active {
   @apply text-neon-cyan;
 }
 

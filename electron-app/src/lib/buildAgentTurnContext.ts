@@ -37,7 +37,6 @@ import {
   getAgentVisibleSettings,
   getRunwareMusicProfileForModel,
   getRunwareProfileForModel,
-  getSystemPromptForPreset,
   type AppSettings,
   type RunwareModelProfile,
   type RunwareMusicModelProfile,
@@ -46,6 +45,7 @@ import { normalizeAgentChatMode, isReadOnlyAgentMode } from '@/types/chat'
 import {
   buildProjectInstructionsHint,
   buildSkillsCatalogHint,
+  buildUntrustedProjectInstructionsHint,
   discoverAgentSkills,
   loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
@@ -59,6 +59,7 @@ import {
 import { formatPlanHandoffUserBlock } from '@/lib/codingReadGuard'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { ensureMcpToolsCached, type McpToolInfo } from '@/lib/mcpTools'
+import { isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
 import { isElectron } from '@/lib/platform'
 import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { LongMemoryItem } from '@/types/longMemory'
@@ -76,8 +77,6 @@ export type BuildAgentTurnContextParams = {
   /** Live foreground/background coding shell processes for CTX hint. */
   activeCodingProcesses?: ActiveCodingProcess[]
   activeSessionUseLongMemory: boolean
-  /** Per-chat system prompt preset; resolved via getSystemPromptForPreset. */
-  systemPromptPreset?: unknown
   /**
    * Approve & Build turn with Plan research attached — softens broad explore pressure.
    */
@@ -129,7 +128,6 @@ export async function buildAgentTurnContext(
     codingContextMemo,
     activeCodingProcesses = [],
     activeSessionUseLongMemory,
-    systemPromptPreset,
     buildWithResearch = false,
     planHandoffContext = '',
     buildFromPlan = false,
@@ -249,7 +247,13 @@ export async function buildAgentTurnContext(
     settings.toolsEnabled.coding && codingProjectPath
       ? await loadProjectAgentInstructions({ projectPath: codingProjectPath })
       : []
-  const projectInstructionsHint = buildProjectInstructionsHint(projectInstructionFiles)
+  // AGENTS.md / CLAUDE.md come from whatever repo the chat is bound to, including a
+  // freshly cloned stranger's repo, and land in the system prompt next to tools like
+  // execute_command. Same trust list as project .mcp.json: untrusted → not injected.
+  const projectTrusted = isMcpProjectTrusted(codingProjectPath, settings.mcpTrustedProjectPaths)
+  const projectInstructionsHint = projectTrusted
+    ? buildProjectInstructionsHint(projectInstructionFiles)
+    : buildUntrustedProjectInstructionsHint(projectInstructionFiles)
   const planModeSystemHint = planMode
     ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint) })
     : ''
@@ -364,8 +368,8 @@ export async function buildAgentTurnContext(
     const visible = getAgentVisibleSettings(settings)
     const settingsHint = [
       'You have an update_settings tool for app configuration.',
-      'Allowed fields: llmSystemPrompt, llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareImageModel, runwareEditModel. Image resolution is NOT settable here; pass width/height per generate_image / edit_image_runware call instead.',
-      `Current llmSystemPrompt: ${JSON.stringify(String(visible.llmSystemPrompt ?? ''))}`,
+      'Allowed fields: llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareImageModel, runwareEditModel. Image resolution is NOT settable here; pass width/height per generate_image / edit_image_runware call instead.',
+      'The system prompt is not agent-editable; if the user wants it changed, point them to Options → LLM → System prompt.',
       `Current llmNumCtx: ${String(visible.llmNumCtx ?? '')}`,
       `Current llmTemperature: ${String(visible.llmTemperature ?? '')}`,
       `Current uiTheme: ${String(visible.uiTheme ?? '')}`,
@@ -421,7 +425,7 @@ export async function buildAgentTurnContext(
       : undefined
 
   const history = buildOllamaMessages(priorHistory, ollamaUserText, {
-    systemPrompt: getSystemPromptForPreset(systemPromptPreset, settings),
+    systemPrompt: settings.llmSystemPrompt,
     projectInstructionsHint: projectInstructionsHint || undefined,
     planModeSystemHint: planModeSystemHint || undefined,
     askModeSystemHint: askModeSystemHint || undefined,

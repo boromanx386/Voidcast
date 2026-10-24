@@ -170,7 +170,7 @@ type RunwareMusicModelProfile = {
 | `agentMaxToolRounds` | `number` | Max agent↔tool loop rounds per assistant turn (clamped 5–120). Soft wrap-up warning near the end; hard wrap-up after exhaustion. |
 | `mcpEnabled` | `boolean` | Connect to MCP servers from `~/.voidcast/mcp.json` (+ project `.mcp.json`) and register their tools (desktop only). |
 | `mcpServerEnabled` | `Record<string, boolean>` | Per-server enable flags (server id from mcp.json). Missing key = enabled; `false` keeps a server configured but not connected. |
-| `mcpTrustedProjectPaths` | `string[]` | Project roots explicitly trusted to load `.mcp.json` servers from. Untrusted project configs ignored until approved in Options → Tools. |
+| `mcpTrustedProjectPaths` | `string[]` | Project roots explicitly trusted to load `.mcp.json` servers and `AGENTS.md` / `CLAUDE.md` from. Untrusted projects get neither until approved in Options → Tools (MCP) or Options → Skills. |
 | `codingProjectPath` | `string` | Backward-compatible top-level alias for the coding project path. |
 | `pdfOutputDir` | `string` | Where `save_pdf` writes files (no dialog). Empty = tool returns an error until set. |
 
