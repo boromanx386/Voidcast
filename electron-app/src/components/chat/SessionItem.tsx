@@ -27,6 +27,8 @@ type SessionItemProps = {
   /** Running agents can't be bulk-deleted, so their checkbox is disabled. */
   selectable?: boolean
   onToggleSelect?: (shiftKey: boolean) => void
+  /** Menu entry point into bulk-select mode, with this chat pre-ticked. */
+  onStartSelect?: () => void
 }
 
 const ICON_ATTRS = {
@@ -40,7 +42,7 @@ const ICON_ATTRS = {
 } as const
 
 /** Popover height (4 rows + padding) — used to decide whether it opens above the row. */
-const MENU_HEIGHT = 132
+const MENU_HEIGHT = 164
 
 /** Row tooltip stamp: "14.10. 18:03" (year only when it is not the current one). */
 function formatStamp(ts: number): string {
@@ -78,6 +80,7 @@ export function SessionItem({
   selected = false,
   selectable = true,
   onToggleSelect,
+  onStartSelect,
 }: SessionItemProps) {
   const stamp = formatStamp(session.updatedAt)
   const hasStatus = isBusy || isUnreadComplete
@@ -278,6 +281,16 @@ export function SessionItem({
               >
                 Rename
               </button>
+              {onStartSelect ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="session-menu-item"
+                  onClick={runAction(onStartSelect)}
+                >
+                  Select…
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"

@@ -98,6 +98,13 @@ export function ChatSidebar({ app }: Props) {
     [projectGroups],
   )
 
+  /** Entered from a row's menu; that chat starts out ticked. */
+  const startSelectMode = (id: string) => {
+    setSelectMode(true)
+    setSelectedIds(new Set(isSelectable(id) ? [id] : []))
+    lastToggledRef.current = isSelectable(id) ? id : null
+  }
+
   const exitSelectMode = () => {
     setSelectMode(false)
     setSelectedIds(new Set())
@@ -191,19 +198,6 @@ export function ChatSidebar({ app }: Props) {
 
       <div className="sidebar-header gap-2">
         <span className="min-w-0 truncate text-sm font-medium text-void-light">Sessions</span>
-        <button
-          type="button"
-          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-          className={`shrink-0 rounded border px-2 py-1 text-[10px] font-mono transition-colors ${
-            selectMode
-              ? 'border-neon-red/60 text-neon-red'
-              : 'border-void-muted/50 text-void-dim hover:border-void-dim hover:text-void-light'
-          }`}
-          title="Select several chats to delete them at once"
-          aria-pressed={selectMode}
-        >
-          Select
-        </button>
         <button
           type="button"
           onClick={() => openOptions('general')}
@@ -398,6 +392,7 @@ export function ChatSidebar({ app }: Props) {
                       onCancelDelete={() => setPendingDeleteId(null)}
                       onFork={() => forkSession(s)}
                       onExport={() => exportSessionToMarkdown(s)}
+                      onStartSelect={() => startSelectMode(s.id)}
                       selectMode={selectMode}
                       selected={selectedIds.has(s.id)}
                       selectable={isSelectable(s.id)}
