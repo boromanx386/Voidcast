@@ -150,7 +150,7 @@ Supports Markdown-lite (headings, lists, tables, bold). Images can come from cha
 
 ### Agent Skills
 
-In **Options → SKILLS**, Voidcast discovers instruction packs from your user profile (`~/.agents/skills`, `~/.claude/skills`, `~/.cursor/skills`) and, when a coding project is open, from the repo (`.cursor/skills`, `skills/`, etc.). Each skill is a directory containing `SKILL.md`.
+In **Options → SKILLS**, Voidcast discovers instruction packs from `~/.agents/skills` and, when a coding project is open, from the repo's `.cursor/skills`, `.claude/skills`, `.agents/skills` and `skills/`. `~/.claude/skills` and `~/.cursor/skills` are not scanned. Each skill is a directory containing `SKILL.md`.
 
 On every turn, the agent sees a **catalog** of skill names and descriptions. When a request matches a skill, it loads the full `SKILL.md` on demand via `read_skill`. This keeps the system prompt lean while still making specialized workflows available. Project skills override globals with the same name.
 

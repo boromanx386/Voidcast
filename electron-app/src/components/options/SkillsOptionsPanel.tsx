@@ -67,15 +67,18 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
   return (
     <div className="space-y-4">
       <p className="text-sm text-void-dim leading-relaxed">
-        Agent Skills are instruction packs from your user profile (
-        <code className="text-void-light">~/.agents/skills</code>,{' '}
-        <code className="text-void-light">~/.claude/skills</code>,{' '}
-        <code className="text-void-light">~/.cursor/skills</code>) and, when a coding project is
-        open, from the repo (<code className="text-void-light">.cursor/skills</code>,{' '}
-        <code className="text-void-light">skills/</code>, etc.). The model sees a catalog of names
-        and descriptions; full <code className="text-void-light">SKILL.md</code> bodies load via{' '}
-        <code className="text-neon-cyan">read_skill</code>. Project skills override globals with the
-        same name.
+        Agent Skills are instruction packs: one folder per skill, each with a{' '}
+        <code className="text-void-light">SKILL.md</code>. Global skills come from{' '}
+        <code className="text-void-light">~/.agents/skills</code> only &mdash;{' '}
+        <code className="text-void-light">~/.claude/skills</code> and{' '}
+        <code className="text-void-light">~/.cursor/skills</code> are not scanned. When a coding
+        project is open, its <code className="text-void-light">.cursor/skills</code>,{' '}
+        <code className="text-void-light">.claude/skills</code>,{' '}
+        <code className="text-void-light">.agents/skills</code> and{' '}
+        <code className="text-void-light">skills/</code> folders are scanned too, and a project
+        skill wins over a global one with the same name. The model sees a catalog of names and
+        descriptions; full <code className="text-void-light">SKILL.md</code> bodies load via{' '}
+        <code className="text-neon-cyan">read_skill</code>.
       </p>
 
       <p className="text-sm text-void-dim leading-relaxed">

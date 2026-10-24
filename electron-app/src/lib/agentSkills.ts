@@ -22,15 +22,15 @@ export type ProjectAgentInstructions = {
   content: string
 }
 
-/** Relative roots under os.homedir(), after project roots (first wins on name clash). */
+/**
+ * Relative roots under os.homedir(), after project roots (first wins on name clash).
+ * Only `.agents`: installers copy each skill into every agent root, so `.claude` / `.cursor`
+ * just listed duplicates. Keep in sync with GLOBAL_AGENT_SKILL_ROOTS in electron/main.
+ */
 export const AGENT_SKILL_ROOT_SPECS: ReadonlyArray<{
   source: Exclude<AgentSkillSource, 'project'>
   segments: readonly string[]
-}> = [
-  { source: 'agents', segments: ['.agents', 'skills'] },
-  { source: 'claude', segments: ['.claude', 'skills'] },
-  { source: 'cursor', segments: ['.cursor', 'skills'] },
-]
+}> = [{ source: 'agents', segments: ['.agents', 'skills'] }]
 
 /** Relative skill roots under the coding project (scanned first → override globals). */
 export const PROJECT_SKILL_ROOT_SEGMENTS: ReadonlyArray<readonly string[]> = [
