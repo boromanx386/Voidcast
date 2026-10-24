@@ -19,7 +19,7 @@
        ignored-file rows, empty states and the status bar, so it has to clear AA
        rather than merely exist. 120 120 168 keeps the violet cast and lands
        ~5:1 without crowding --color-void-text. */
-    --color-void-dim: 120 120 168;
+    --color-void-dim: 132 132 178;
     --color-void-text: 144 144 176;
     --color-void-light: 192 192 208;
     --color-void-white: 232 232 240;

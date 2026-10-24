@@ -100,7 +100,8 @@ export function appendCodingCommandEventToFeed(
     ].slice(-MAX_TERMINAL_ROWS)
   }
   if (!event.text) return prev
-  const stream = event.stream ?? 'stdout'
+  const stream: TerminalLine['stream'] =
+    event.stream === 'stderr' ? 'stderr-output' : (event.stream ?? 'stdout')
   seqRef.n += 1
   return [
     ...prev,

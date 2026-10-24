@@ -15,7 +15,7 @@ html[data-ui-theme='terminal'] {
   --color-void-muted: 52 44 32;
   /* 100 88 64 sat at ~2.8:1 on the charcoal backdrop — CLEAR/STOP, the empty
      state and the status bar were guesswork. */
-  --color-void-dim: 122 108 80;
+  --color-void-dim: 145 130 98;
   --color-void-text: 170 158 132;
   --color-void-light: 184 172 146;
   --color-void-white: 198 187 162;

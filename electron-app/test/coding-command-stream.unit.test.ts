@@ -119,6 +119,16 @@ describe('appendCodingCommandEventToFeed', () => {
     expect(afterDone[2]!.stream).toBe('system')
   })
 
+  it('tags process stderr as stderr-output so plain logs are not shown as errors', () => {
+    const seq = { n: 0 }
+    const after = appendCodingCommandEventToFeed(
+      [],
+      { runId: 'rs', stream: 'stderr', text: 'GET /index.html 200' },
+      seq,
+    )
+    expect(after[0]!.stream).toBe('stderr-output')
+  })
+
   it('appends [stopped] when done with killed', () => {
     const seq = { n: 0 }
     const after = appendCodingCommandEventToFeed(

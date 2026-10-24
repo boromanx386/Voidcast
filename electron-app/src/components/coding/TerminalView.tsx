@@ -7,9 +7,11 @@ const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: Terminal
       className={
         line.stream === 'stderr'
           ? 'coding-terminal-stderr'
-          : line.stream === 'system'
-            ? 'coding-terminal-system'
-            : 'text-void-light'
+          : line.stream === 'stderr-output'
+            ? 'coding-terminal-stderr-output'
+            : line.stream === 'system'
+              ? 'coding-terminal-system'
+              : 'text-void-light'
       }
     >
       {line.text}

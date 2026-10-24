@@ -924,6 +924,10 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   color: rgb(var(--coding-terminal-stderr-fg) / 0.9);
 }
 
+.coding-terminal-stderr-output {
+  @apply text-void-dim;
+}
+
 .coding-terminal-system {
   color: rgb(var(--coding-terminal-system-fg) / 0.8);
 }

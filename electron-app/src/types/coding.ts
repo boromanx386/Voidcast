@@ -9,7 +9,11 @@ export type CodingFileNode = {
 
 export type TerminalLine = {
   id: string
-  stream: 'stdout' | 'stderr' | 'system'
+  /**
+   * `stderr` is an app-side failure (commit, save, …). `stderr-output` is a running process's
+   * stderr, which many tools use for plain logs, so it is not painted as an error.
+   */
+  stream: 'stdout' | 'stderr' | 'stderr-output' | 'system'
   text: string
   ts: number
 }

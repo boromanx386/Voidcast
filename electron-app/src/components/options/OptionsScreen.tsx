@@ -74,36 +74,39 @@ export function OptionsScreen({ app }: Props) {
       </header>
 
       {/* Tabs */}
-      <div className="flex border-b border-void-muted/30 bg-void-dark/50">
-        {(['general', 'llm', 'subAgent', 'media', 'tts', 'tools', 'skills'] as OptionsTab[]).map(
-          (tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setOptionsTab(tab)}
-              title={
-                tab === 'llm'
-                  ? 'Agent: model, provider, prompt & context'
-                  : tab === 'subAgent'
-                    ? 'Sub-agent: helper models & nested workers'
-                    : tab === 'tts'
-                      ? 'Text-to-speech & speech-to-text'
-                      : tab === 'media'
-                        ? 'Image and music generation tools'
-                        : undefined
-              }
-              className={`option-tab flex-1 ${optionsTab === tab ? 'active' : ''}`}
-            >
-              {tab === 'general' && '◆ GENERAL'}
-              {tab === 'llm' && '◇ AGENT'}
-              {tab === 'subAgent' && '⬢ SUB'}
-              {tab === 'media' && '◌ MEDIA'}
-              {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
-              {tab === 'tools' && '⬡ TOOLS'}
-              {tab === 'skills' && '✦ SKILLS'}
-            </button>
-          ),
-        )}
+      {/* Inner row shares the content column's width so tabs sit above the panel they switch. */}
+      <div className="border-b border-void-muted/30 bg-void-dark/50">
+        <div className="mx-auto flex max-w-4xl">
+          {(['general', 'llm', 'subAgent', 'media', 'tts', 'tools', 'skills'] as OptionsTab[]).map(
+            (tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setOptionsTab(tab)}
+                title={
+                  tab === 'llm'
+                    ? 'Agent: model, provider, prompt & context'
+                    : tab === 'subAgent'
+                      ? 'Sub-agent: helper models & nested workers'
+                      : tab === 'tts'
+                        ? 'Text-to-speech & speech-to-text'
+                        : tab === 'media'
+                          ? 'Image and music generation tools'
+                          : undefined
+                }
+                className={`option-tab flex-1 ${optionsTab === tab ? 'active' : ''}`}
+              >
+                {tab === 'general' && '◆ GENERAL'}
+                {tab === 'llm' && '◇ AGENT'}
+                {tab === 'subAgent' && '⬢ SUB'}
+                {tab === 'media' && '◌ MEDIA'}
+                {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
+                {tab === 'tools' && '⬡ TOOLS'}
+                {tab === 'skills' && '✦ SKILLS'}
+              </button>
+            ),
+          )}
+        </div>
       </div>
 
       {/* Content */}
