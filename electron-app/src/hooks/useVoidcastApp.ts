@@ -252,9 +252,7 @@ export function useVoidcastApp() {
   const onSendRef = useRef<(opts?: OnSendOptions) => Promise<void>>(async () => {})
   onSendRef.current = agent.onSend
   const controlSendAllowedRef = useRef(false)
-  controlSendAllowedRef.current = Boolean(
-    settings.controlApiEnabled && settings.controlApiAllowSend,
-  )
+  controlSendAllowedRef.current = Boolean(settings.controlApiEnabled)
   useEffect(() => {
     const bridge = window.voidcast
     if (!isElectron() || !bridge?.onControlRequest) return

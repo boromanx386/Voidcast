@@ -579,33 +579,14 @@ export function GeneralOptionsPanel({
                 LOCAL_CONTROL_API
               </span>
               <span className="mt-1 block text-xs text-void-dim">
-                Let a local agent list, read and stop your chats over a loopback-only API (token in
-                the app data folder, file control.json). Exposes chat content to processes on this
-                computer — leave off unless you use it.
+                Let a local agent (for example your Claude Code or Codex agent) prompt Voidcast:
+                list and read chats, start new ones, send messages and stop runs, over a
+                loopback-only API (token in the app data folder, file control.json). A started turn
+                can run commands and edit files with the chat&apos;s tools, and chat content is
+                readable by processes on this computer — leave off unless you use it.
               </span>
             </span>
           </label>
-          {settings.controlApiEnabled && (
-            <label className="mt-3 flex items-start gap-3">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 accent-neon-cyan"
-                checked={settings.controlApiAllowSend}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, controlApiAllowSend: e.target.checked }))
-                }
-              />
-              <span>
-                <span className="text-xs font-mono text-neon-cyan uppercase tracking-wider">
-                  ALLOW_START_TURNS
-                </span>
-                <span className="mt-1 block text-xs text-void-dim">
-                  Also let it create chats and send messages. A started turn can run commands and
-                  edit files with the chat&apos;s tools, so only enable it for an agent you trust.
-                </span>
-              </span>
-            </label>
-          )}
         </div>
       )}
 
