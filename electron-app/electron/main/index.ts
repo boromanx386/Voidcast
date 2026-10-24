@@ -338,6 +338,8 @@ const TOOLS_SERVER_PORT = process.env.VOIDCAST_TOOLS_PORT?.trim() || '8765'
 /** Matches default `--color-void-black` in `index.css` (rgb 10 10 15). */
 const WIN_CHROME_BACKGROUND = '#0a0a0f'
 const TOOLS_SERVER_HEALTH_URL = `http://127.0.0.1:${TOOLS_SERVER_PORT}`
+/** Upper bound for a spawned tools server to answer `/health` before we give up on it. */
+const TOOLS_SERVER_READY_TIMEOUT_MS = 90_000
 
 type CapturedCommandResult =
   { ok: true; stdout: string; stderr: string; code: number } | { ok: false; error: string }
@@ -587,7 +589,12 @@ async function ensureToolsServerRunning(): Promise<void> {
     for (const candidate of candidates) {
       const ok = await startToolsServerWithCommand(candidate.command, candidate.args, cwd)
       if (!ok) continue
-      for (let i = 0; i < 12; i++) {
+      // The packaged server is a PyInstaller one-file exe: every launch unpacks it to %TEMP%
+      // and antivirus scans each extracted DLL, so a cold first start after boot can take far
+      // longer than a warm one. Keep waiting while the process is alive; killing it early left
+      // the app with no server (every proxied call "Failed to fetch") until the next restart.
+      const deadline = Date.now() + TOOLS_SERVER_READY_TIMEOUT_MS
+      while (toolsServerProcess && Date.now() < deadline) {
         if (await isToolsServerHealthy()) {
           console.log(
             `[tools-server] Ready on http://${TOOLS_SERVER_HOST}:${TOOLS_SERVER_PORT} (phone: http://<this-PC-LAN-IP>:${TOOLS_SERVER_PORT})`,

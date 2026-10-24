@@ -1192,6 +1192,15 @@ async def _reverse_proxy(
             content=body if body else None,
         )
         upstream = await client.send(upstream_req, stream=True)
+    except httpx.HTTPError as e:
+        await client.aclose()
+        # An unhandled exception becomes a 500 without CORS headers, which the renderer
+        # can only report as "Failed to fetch". Surface the real upstream error instead.
+        logger.warning("proxy %s %s failed: %r", request.method, target, e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Upstream request failed: {type(e).__name__}: {e}".rstrip(": "),
+        ) from e
     except Exception:
         await client.aclose()
         raise
