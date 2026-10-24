@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { extractJsonArray, sanitizeCandidate } from '../src/lib/longMemoryExtract'
+import {
+  buildLongMemoryExtractPrompt,
+  extractJsonArray,
+  sanitizeCandidate,
+} from '../src/lib/longMemoryExtract'
 import { scoreMemoryForQuery } from '../src/lib/longMemoryStorage'
 
 describe('long memory extraction parsing', () => {
@@ -33,6 +37,42 @@ describe('long memory extraction parsing', () => {
     expect(lowConfidence).toBeNull()
     expect(valid?.kind).toBe('preference')
     expect(valid?.tags).toEqual(['style', 'language'])
+  })
+})
+
+describe('long memory extraction prompt', () => {
+  test('existing memories and the transcript are passed in their own tags', () => {
+    const { system, user } = buildLongMemoryExtractPrompt(
+      [
+        { role: 'user', content: 'odgovaraj na srpskom' },
+        { role: 'assistant', content: 'Važi.' },
+      ],
+      ['User prefers concise answers.', '  '],
+    )
+    expect(system).toContain('ASSISTANT turns are context')
+    expect(system).toContain('Return []')
+    expect(user).toContain(
+      '<existing_memories>\n- User prefers concise answers.\n</existing_memories>',
+    )
+    expect(user).toContain(
+      '<transcript>\nUSER: odgovaraj na srpskom\n\nASSISTANT: Važi.\n</transcript>',
+    )
+  })
+
+  test('no existing memories is stated, not left blank', () => {
+    const { user } = buildLongMemoryExtractPrompt([{ role: 'user', content: 'hi there' }])
+    expect(user).toContain('<existing_memories>\n(none)\n</existing_memories>')
+  })
+
+  test('a long transcript keeps its end, not its start', () => {
+    const turns = [
+      { role: 'user' as const, content: `OLDEST ${'x'.repeat(30000)}` },
+      { role: 'user' as const, content: 'NEWEST always answer in Serbian' },
+    ]
+    const { user } = buildLongMemoryExtractPrompt(turns)
+    expect(user).toContain('[earlier turns omitted]')
+    expect(user).toContain('NEWEST always answer in Serbian')
+    expect(user).not.toContain('OLDEST')
   })
 })
 

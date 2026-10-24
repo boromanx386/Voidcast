@@ -103,6 +103,8 @@ export function useLongMemoryUi({
           num_ctx: settings.llmNumCtx,
         },
         turns,
+        // Most recently updated first; the extractor caps what it actually sends.
+        existingMemories: (await listMemories(60)).map((m) => m.text),
       })
       if (candidates.length === 0) {
         setError('No stable long-memory items found in this chat.')
