@@ -871,7 +871,9 @@ export function LlmOptionsPanel({
         <p className="text-xs text-void-dim mt-1">
           Thinking models default to reasoning unless{' '}
           <code className="text-neon-purple/90">think: false</code> is sent. Qwen/DeepSeek use
-          ON/OFF; GPT-OSS uses low/medium/high. DeepSeek maps to reasoning_effort when enabled.
+          ON/OFF; GPT-OSS uses low/medium/high. DeepSeek maps to reasoning_effort when enabled. This
+          is the default; each chat can override it from the{' '}
+          <span className="text-void-light/90">think</span> menu in the composer.
         </p>
       </div>
 
@@ -927,12 +929,13 @@ export function LlmOptionsPanel({
           className="cyber-input resize-y"
           value={settings.llmSystemPrompt}
           onChange={(e) => setSettings((s) => ({ ...s, llmSystemPrompt: e.target.value }))}
-          placeholder="e.g. Answer concisely. Do not invent facts."
+          placeholder="e.g. Always answer in Serbian. Keep answers short."
         />
         <p className="text-xs text-void-dim mt-1">
-          System message sent at start of each request. This is the{' '}
-          <span className="text-void-light/90">Default</span> preset — chats set to Code, Creative
-          or Teacher (header dropdown) use their own prompt.
+          Your always-on instructions for every chat: language, tone, answer length. Sent after the
+          app&apos;s fixed core rules (tool use, safety), which you can&apos;t change here and which
+          win on conflict. Only you can edit this — the agent can&apos;t. For facts that only matter
+          sometimes, use long-term memory instead.
         </p>
       </div>
 
