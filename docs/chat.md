@@ -119,6 +119,7 @@ Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 
 - Candidates `LongMemoryCandidate` (kind preference/project/fact/constraint/task, text, tags, importance, confidence) shown for confirmation; `confirmSaveLongMemory` saves, `longMemoryBusy` shows progress. `longMemoryDefaultEnabled` toggles auto-retrieval in new chats. Types in `electron-app/src/types/longMemory.ts`; logic in `useLongMemoryUi`.
 - The picker prompt lives in `buildLongMemoryExtractPrompt` (`electron-app/src/lib/longMemoryExtract.ts`). It saves only what the **user** said or confirmed (assistant turns and tool results are context, never a source), skips one-off and in-chat state, defines each kind, and asks for one self-contained sentence per item in the user's language, with English tags added because retrieval is keyword overlap. Up to 60 already-saved memories go along in `<existing_memories>` so the model does not propose them again; the chat goes in `<transcript>` as data. A chat over 24 000 characters keeps its **end**, where preferences usually settle.
+- Before the preview, `sanitizeCandidate` drops any item that holds a **secret-shaped value**: known key prefixes (`sk-…`, `ghp_…`, `AKIA…`, JWTs, private-key headers), `Bearer <token>`, a credential word followed by a value (`password: …`, `api_key=…`), or a 32+ character letter-and-digit string. The words alone ("tokenizer", "password manager") do not trigger it.
 
 ## Context / Compression
 

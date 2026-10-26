@@ -18,7 +18,7 @@ describe('long memory extraction parsing', () => {
   test('sanitizeCandidate filters secrets and low confidence', () => {
     const secret = sanitizeCandidate({
       kind: 'fact',
-      text: 'User API key is sk-secret-123456',
+      text: 'User API key is sk-proj-a8F3kd92LmQx7Zp1Vb',
       confidence: 0.9,
     })
     const lowConfidence = sanitizeCandidate({
@@ -37,6 +37,32 @@ describe('long memory extraction parsing', () => {
     expect(lowConfidence).toBeNull()
     expect(valid?.kind).toBe('preference')
     expect(valid?.tags).toEqual(['style', 'language'])
+  })
+
+  test.each([
+    'User API key is sk-proj-a8F3kd92LmQx7Zp1Vb',
+    'User GitHub token ghp_a8F3kd92LmQx7Zp1VbN4',
+    'User AWS key AKIAIOSFODNN7EXAMPLE',
+    'User sends Authorization: Bearer abc123def456ghi789jkl',
+    'User database password: hunter22',
+    'User api_key=a8f3kd92lmqx',
+    'User session id a8F3kd92LmQx7Zp1VbN4cE6tR0yU2wS5',
+    'User key starts with -----BEGIN RSA PRIVATE KEY-----',
+  ])('drops a secret-shaped value: %s', (text) => {
+    expect(sanitizeCandidate({ kind: 'fact', text, confidence: 0.9 })).toBeNull()
+  })
+
+  test.each([
+    'User is building a tokenizer for Voidcast.',
+    'User wants token-efficient answers.',
+    'User uses Bitwarden as a password manager.',
+    'User keeps the API key in the OS keychain, never in config files.',
+    'User works on the task-list in the sidebar.',
+    'User plays Secret Santa with the team every December.',
+    'User sets the token limit to 4096.',
+    'User ships voidcast-tools-server-linux-x64 in the AppImage.',
+  ])('keeps an ordinary memory that mentions a credential word: %s', (text) => {
+    expect(sanitizeCandidate({ kind: 'fact', text, confidence: 0.9 })).not.toBeNull()
   })
 })
 

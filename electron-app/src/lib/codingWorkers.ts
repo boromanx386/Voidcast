@@ -31,6 +31,7 @@ import {
 import { digestReadFile } from '@/lib/codingSubAgent'
 import { formatEditedFileMemoEntry } from '@/lib/codingEol'
 import { formatWorkerSteerMessage, readWorkerSteer, type WorkerSteerQueue } from '@/lib/workerSteer'
+import { SUB_AGENT_CORE } from '@/lib/chatMessages'
 
 export const CODING_WORKER_MAX_TASKS = 2
 /** Default tool rounds before forced digest. */
@@ -565,7 +566,7 @@ export function buildWorkerContextPacket(context?: CodingWorkerContext): string 
   return lines.join('\n').slice(0, 6500)
 }
 
-function workerSystemPrompt(
+export function workerSystemPrompt(
   pathPrefix: string | undefined,
   recentFiles: string[],
   task: CodingWorkerTask,
@@ -587,7 +588,9 @@ function workerSystemPrompt(
         .map((s) => `${s.pathPrefix || '(shared root)'} → ${clipWorkerText(s.goal, 220)}`)
         .join(' | ')}`
     : 'No sibling assignment.'
-  return `You are a coding worker sub-agent. Complete YOUR assigned goal only (do not reassign work).
+  return `${SUB_AGENT_CORE}
+
+You are a coding worker sub-agent. Complete YOUR assigned goal only (do not reassign work).
 Allowed tools: ${tools}. The tool API is native — call tools directly when needed; do not emit JSON tool-call objects in prose.
 Do NOT call run_coding_workers or coding_explore.
 Do NOT use shell redirects (>, >>) to write files another worker may be editing — file locks apply to write_file/edit_code only.

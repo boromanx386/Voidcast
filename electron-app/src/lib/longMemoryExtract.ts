@@ -46,13 +46,22 @@ const allowedKinds = new Set<LongMemoryKind>([
   'constraint',
   'task',
 ])
-const lowSignalSecrets = [
-  /api[_-]?key/i,
-  /token/i,
-  /password/i,
-  /secret/i,
-  /bearer\s+[a-z0-9\-_\.]+/i,
-  /sk-[a-z0-9]+/i,
+// Match secret-shaped values, not the words: "token" or "password" alone also hit
+// harmless memories ("builds a tokenizer", "uses a password manager") and those were
+// dropped silently. The extract prompt already tells the model to leave secrets out.
+const secretValuePatterns = [
+  // Known key prefixes, as a whole word so "task-list" doesn't hit "sk-".
+  /\b(?:sk|pk|rk)-[a-z0-9_-]{16,}/i,
+  /\b(?:ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[abpr]|hf|AIza)_?[a-z0-9_-]{16,}/i,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\beyJ[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}/i,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /\bbearer\s+[a-z0-9\-_.=]{16,}/i,
+  // A credential word followed by an actual value: "password: hunter2", "api_key=abc…".
+  /\b(?:api[_-]?key|token|secret|password|passwd|pwd|lozinka)\s*[:=]\s*\S{6,}/i,
+  // Long unbroken string mixing letters and digits. No hyphens, so long kebab-case
+  // names like "voidcast-tools-server-linux-x64" don't count.
+  /\b(?=\w*\d)(?=\w*[a-z])\w{32,}\b/i,
 ]
 
 const TRANSCRIPT_MAX_CHARS = 24000
@@ -144,7 +153,7 @@ export function sanitizeCandidate(raw: unknown): LongMemoryCandidate | null {
   if (!allowedKinds.has(kind)) return null
   const text = typeof r.text === 'string' ? r.text.trim().replace(/\s+/g, ' ') : ''
   if (!text || text.length < 6) return null
-  for (const re of lowSignalSecrets) {
+  for (const re of secretValuePatterns) {
     if (re.test(text)) return null
   }
   const tags = Array.isArray(r.tags)

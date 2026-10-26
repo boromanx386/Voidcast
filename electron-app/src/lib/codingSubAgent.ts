@@ -11,6 +11,7 @@
 import type { SubAgentConfig } from '@/lib/settings'
 import { subAgentConfigForRole, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from '@/lib/settings'
 import { callSubAgentChat, type SubAgentKeys, type SubAgentUiCallbacks } from '@/lib/subAgent'
+import { SUB_AGENT_CORE } from '@/lib/chatMessages'
 
 // ── Layer 1: deterministic trim of noisy outputs (current turn) ──────────
 
@@ -372,7 +373,7 @@ export function parseCodingExploreAction(raw: string): CodingExploreModelAction 
   return { kind: 'invalid', raw: text }
 }
 
-function exploreSystemPrompt(pathPrefix: string, recentFiles: string[]): string {
+export function exploreSystemPrompt(pathPrefix: string, recentFiles: string[]): string {
   const tools = [...CODING_EXPLORE_ALLOWED_TOOLS].join(', ')
   const prefixLine = pathPrefix
     ? `Prefer scoping to path_prefix "${pathPrefix}" when calling search/glob/list.`
@@ -381,7 +382,9 @@ function exploreSystemPrompt(pathPrefix: string, recentFiles: string[]): string 
     recentFiles.length > 0
       ? `Recently touched files: ${recentFiles.slice(0, 8).join(', ')}.`
       : 'No recent files yet.'
-  return `You are a read-only coding explore sub-agent. Investigate the codebase to answer the goal.
+  return `${SUB_AGENT_CORE}
+
+You are a read-only coding explore sub-agent. Investigate the codebase to answer the goal.
 Allowed tools only: ${tools}.
 Never write, edit, or execute shell commands.
 
