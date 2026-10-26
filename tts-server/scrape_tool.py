@@ -96,20 +96,54 @@ def _html_to_markdown(html: str, base_url: str | None = None) -> str | None:
         import trafilatura  # lazy: module import must work without the dependency
     except Exception:
         return None
-    try:
-        out = trafilatura.extract(
-            html,
+
+    def extract(doc: str) -> str | None:
+        # favor_recall: on pages whose content sits straight in <body> (sqlite.org)
+        # the precision mode drops every <li>, leaving "Advantages include:" with an
+        # empty list. On pages with a proper container it returns the same text.
+        return trafilatura.extract(
+            doc,
             url=base_url,
             output_format="markdown",
             include_links=True,
             include_tables=True,
             include_images=False,
+            favor_recall=True,
         )
+
+    try:
+        out = extract(html)
+        # The same body-level pages also lose every heading. Wrapping the body in
+        # <main> gives trafilatura a container and the headings come back, so retry
+        # once when the page clearly has headings but the result has none.
+        if out and not _MD_HEADING_RE.search(out) and _needs_main_wrapper(html):
+            retry = extract(_wrap_body_in_main(html))
+            if retry and _MD_HEADING_RE.search(retry):
+                out = retry
     except Exception:
         return None
     if not out or not out.strip():
         return None
     return out.strip()
+
+
+_MD_HEADING_RE = re.compile(r"^#{1,6} ", re.MULTILINE)
+_HTML_HEADING_RE = re.compile(r"<h[1-3][\s>]", re.IGNORECASE)
+_HTML_CONTAINER_RE = re.compile(r"<(main|article)[\s>]", re.IGNORECASE)
+_BODY_OPEN_RE = re.compile(r"<body[^>]*>", re.IGNORECASE)
+_BODY_CLOSE_RE = re.compile(r"</body\s*>", re.IGNORECASE)
+
+
+def _needs_main_wrapper(html: str) -> bool:
+    return len(_HTML_HEADING_RE.findall(html)) >= 2 and not _HTML_CONTAINER_RE.search(html)
+
+
+def _wrap_body_in_main(html: str) -> str:
+    start = _BODY_OPEN_RE.search(html)
+    end = _BODY_CLOSE_RE.search(html, start.end()) if start else None
+    if not start or not end:
+        return f"<html><body><main>{html}</main></body></html>"
+    return f"{html[: start.end()]}<main>{html[start.end() : end.start()]}</main>{html[end.start() :]}"
 
 
 def _html_to_text(html: str, base_url: str | None = None) -> tuple[str, str]:

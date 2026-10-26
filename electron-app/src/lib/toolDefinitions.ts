@@ -534,6 +534,11 @@ const WEB_SEARCH_TOOL: AgentToolDefinition = {
           description:
             'How many top results to fetch in full (default 3, max 5). Set 0 for snippets only.',
         },
+        page_chars: {
+          type: 'number',
+          description:
+            'Characters kept from the start of each page read in full (default 4000, max 12000). Raise it only for documentation and reference pages whose answer sits past the opening; pair it with read_top 1-2. For one whole page use scrape_url.',
+        },
       },
       required: ['query'],
     },

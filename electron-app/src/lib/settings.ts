@@ -1301,6 +1301,10 @@ export const SEARCH_RECENCY_WINDOWS = ['d', 'w', 'm', 'y']
 export const SEARCH_READ_TOP_MIN = 0
 export const SEARCH_READ_TOP_MAX = 5
 
+/** web_search: characters kept per page read in full; omitted = server default (4000). */
+export const SEARCH_PAGE_CHARS_MIN = 2000
+export const SEARCH_PAGE_CHARS_MAX = 12_000
+
 /** Per-tool toggles; extend with new keys as tools are added */
 export type ToolsEnabled = {
   webSearch: boolean

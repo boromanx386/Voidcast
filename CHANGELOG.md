@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **`web_search` can read deeper on documentation pages**: each page read in full is cut to its first 4000 characters, which covers news and short answers but not a reference page whose answer sits further down. The tool now exposes `page_chars` (2000–12000, default unchanged at 4000) and tells the model to raise it only for documentation and reference pages, paired with `read_top` 1–2. The read budget grows with the request (`read_top × page_chars`, at least 12000, at most 24000), so a deep read does not crowd out every other page. A default search costs exactly what it did before.
+
+### Fixed
+
+- **`web_search` no longer drops its third full-text page**: each read is capped at 4000 characters plus a `[Truncated to 4000 characters]` note, and the 12000-character budget counted the note, so three long pages overshot it and the third — in testing, sqlite.org's own WAL page — was always demoted to a snippet. A page now costs at most its cap.
+- **`scrape_url` keeps headings and lists on pages without a content container**: on sites that put their text straight into `<body>` (sqlite.org), trafilatura's precision mode returned no headings and emptied every list ("Advantages include:" followed by nothing). Extraction now runs with `favor_recall`, which restores the lists and returns identical text on pages with a proper container, and retries once with the body wrapped in `<main>` when the page has headings but the result has none.
+
 ## [2.12.0] — 2026-10-26
 
 ### Added

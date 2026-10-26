@@ -493,6 +493,9 @@ SEARCH_DEFAULT_RESULTS = 8
 SEARCH_READ_TOP_DEFAULT = 3
 SEARCH_READ_CHARS_DEFAULT = 4_000
 SEARCH_READ_TOTAL_BUDGET = 12_000
+# A deeper page_chars request may spend more, but never past this: a fixed 12k
+# budget would let a 12k page crowd out every other read.
+SEARCH_READ_TOTAL_BUDGET_MAX = 24_000
 SEARCH_READ_TIMEOUT_S = 15
 SEARCH_READ_CONCURRENCY = 3
 SEARCH_CACHE_TTL_S = 600
@@ -631,12 +634,16 @@ async def _read_top_results(
         full = row.get("full")
         if not full:
             continue
-        if used + len(full) > total_budget:
+        # A capped page carries a "[Truncated to N characters]" note on top of its N
+        # characters. Counting the note made three full pages overshoot the default
+        # 3 x 4000 budget by a few dozen chars, so the third read was always dropped.
+        cost = min(len(full), per_page_chars)
+        if used + cost > total_budget:
             row.pop("full", None)
             row.pop("full_format", None)
             row["read_error"] = "dropped (read budget exhausted)"
             continue
-        used += len(full)
+        used += cost
         kept += 1
     return kept
 
@@ -688,6 +695,11 @@ async def tools_search(req: SearchRequest):
     read_top = _clamp_int(req.read_top, 0, 5, SEARCH_READ_TOP_DEFAULT)
     page_chars = _clamp_int(req.page_chars, 2000, 20_000, SEARCH_READ_CHARS_DEFAULT)
 
+    read_budget = max(
+        SEARCH_READ_TOTAL_BUDGET,
+        min(read_top * page_chars, SEARCH_READ_TOTAL_BUDGET_MAX),
+    )
+
     cache_key = f"{_norm_query(req.query)}|{max_results}|{recency}|{read_top}|{page_chars}"
     cached = _cache_get(_SEARCH_CACHE, cache_key)
     if isinstance(cached, str):
@@ -719,7 +731,7 @@ async def tools_search(req: SearchRequest):
                     ),
                 }
             read_ok = await asyncio.wait_for(
-                _read_top_results(rows, read_top, page_chars, SEARCH_READ_TOTAL_BUDGET),
+                _read_top_results(rows, read_top, page_chars, read_budget),
                 timeout=SEARCH_READ_TIMEOUT_S,
             )
         text = _format_results(rows, read_top, read_ok)

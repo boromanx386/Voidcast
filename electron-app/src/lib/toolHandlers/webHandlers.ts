@@ -1,5 +1,7 @@
 import { invokeWebSearch } from '@/lib/webSearch'
 import {
+  SEARCH_PAGE_CHARS_MAX,
+  SEARCH_PAGE_CHARS_MIN,
   SEARCH_READ_TOP_MAX,
   SEARCH_READ_TOP_MIN,
   SEARCH_RECENCY_WINDOWS,
@@ -34,12 +36,14 @@ export const handleWebSearch: ToolHandlerFn = async (args, ctx) => {
   const maxResults = clampIntArg(args.max_results, SEARCH_RESULTS_MIN, SEARCH_RESULTS_MAX)
   // Omitted read_top / page_chars fall back to the server defaults (tts-server/main.py).
   const readTop = clampIntArg(args.read_top, SEARCH_READ_TOP_MIN, SEARCH_READ_TOP_MAX)
+  const pageChars = clampIntArg(args.page_chars, SEARCH_PAGE_CHARS_MIN, SEARCH_PAGE_CHARS_MAX)
   const recencyRaw = typeof args.recency === 'string' ? args.recency.trim().toLowerCase() : ''
   const recency = SEARCH_RECENCY_WINDOWS.includes(recencyRaw) ? recencyRaw : undefined
   try {
     return await invokeWebSearch(q, ctx.ttsBaseUrl, ctx.signal, {
       maxResults,
       readTop,
+      pageChars,
       recency,
     })
   } catch (e) {
