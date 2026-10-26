@@ -12,6 +12,7 @@ import { ChatToolResultBanner } from '@/components/chat/ChatToolResultBanner'
 import { ContextWarningBanner } from '@/components/chat/ContextWarningBanner'
 import { MemoryPreviewModal } from '@/components/chat/MemoryPreviewModal'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
+import { trustProjectFolder } from '@/lib/projectTrustActions'
 import {
   clampCodingPanelWidth,
   CODING_PANEL_WIDTH_MAX,
@@ -198,6 +199,7 @@ export function ChatScreen({ app }: Props) {
                   app.setSettings((s) => ({ ...s, coding: { ...s.coding, ...patch } }))
                 }
                 onUpdateProjectPath={app.applyCodingProjectPath}
+                onTrustProject={(path) => trustProjectFolder(app.setSettings, path)}
                 onReferencePath={(relPath) => {
                   // Point the agent at a file/folder: add a reference chip to the
                   // composer. Only the path reaches the model — never file content —

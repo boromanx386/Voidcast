@@ -25,7 +25,7 @@ The panel lists the skills found there (each skill is typically a folder contain
 
 `~/.claude/skills` and `~/.cursor/skills` are **not** scanned. Skill-pack installers write the same folder into every agent root they detect, so reading all three listed one skill three times while only the first copy in scan order (`.agents`) was reachable — and duplicated skills were silently deduplicated by name. Install (or copy) a skill into `~/.agents/skills` to make it visible here.
 
-Project-relative skills, scanned before the global ones so they win on a name clash, live under the chat's coding folder: `.agents/skills`, `.claude/skills`, `.cursor/skills` and `skills/`.
+Project-relative skills, scanned before the global ones so they win on a name clash, live under the chat's coding folder: `.agents/skills`, `.claude/skills`, `.cursor/skills` and `skills/`. They follow the same trust rule as `AGENTS.md` below: for an untrusted project they are listed in the panel as "not loaded — untrusted", left out of the skills catalog, and `read_skill` cannot open them.
 
 ## Panel behavior
 
@@ -42,7 +42,9 @@ The catalog hint gives one line per skill: its scope (`[project]` overrides `[gl
 
 With coding tools on and a project folder bound, the project root's `AGENTS.md` / `CLAUDE.md` go into the system prompt's `<project_instructions>` section — **only if the project is trusted**. A cloned repository could otherwise steer an agent that has `execute_command`. Trust uses the same list as project `.mcp.json` (`mcpTrustedProjectPaths`), so trusting a project here also lets its `.mcp.json` load, and the reverse.
 
-For an untrusted project with instruction files, the panel marks them "not loaded — untrusted" and shows a **TRUST_PROJECT** button. The model gets only the file names and a note that they were skipped, so it can tell you why repository conventions are missing.
+For an untrusted project with instruction files or project skills, the panel marks them "not loaded — untrusted" and shows a **TRUST_PROJECT** button. The model gets only the file names and a note that they were skipped, so it can tell you why repository conventions are missing.
+
+Binding a folder never asks about trust. Instead, the coding panel shows a yellow bar under the folder path when an untrusted folder has something that was skipped (`AGENTS.md` / `CLAUDE.md`, project skills, or `.mcp.json` servers while MCP is on). **TRUST** adds the folder to the trust list; **Not now** hides the bar for that folder until the app restarts. Trust is per exact folder: every chat bound to it is trusted, but subfolders and parent folders are not.
 
 ## Desktop-only note
 

@@ -6,7 +6,8 @@ import {
   type AgentSkillMeta,
   type ProjectAgentInstructions,
 } from '@/lib/agentSkills'
-import { addTrustedMcpProjectPath, isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
+import { isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
+import { trustProjectFolder } from '@/lib/projectTrustActions'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
 
@@ -66,16 +67,10 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
   const projectSkillCount = skills.filter((s) => s.source === 'project').length
   const projectTrusted = isMcpProjectTrusted(projectPath, settings.mcpTrustedProjectPaths)
 
-  const onTrustProject = useCallback(() => {
-    if (!projectPath) return
-    setSettings((s) => ({
-      ...s,
-      mcpTrustedProjectPaths: addTrustedMcpProjectPath(s.mcpTrustedProjectPaths, projectPath),
-    }))
-    // The trust list also unlocks the project's .mcp.json; drop cached tools so the
-    // next turn reloads servers with the new list.
-    void import('@/lib/mcpTools').then(({ clearMcpToolsCache }) => clearMcpToolsCache())
-  }, [projectPath, setSettings])
+  const onTrustProject = useCallback(
+    () => trustProjectFolder(setSettings, projectPath),
+    [projectPath, setSettings],
+  )
 
   return (
     <div className="space-y-4">
@@ -176,11 +171,11 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
                 }`
               : ' · no AGENTS.md / CLAUDE.md'}
           </p>
-          {projectFiles.length > 0 && !projectTrusted && (
+          {(projectFiles.length > 0 || projectSkillCount > 0) && !projectTrusted && (
             <div className="rounded border border-neon-yellow/40 bg-neon-yellow/5 px-3 py-3 space-y-2">
               <p className="text-xs text-neon-yellow font-mono">
-                Untrusted project — its instruction files are not sent to the model. Trust it only
-                if you know what the repository contains.
+                Untrusted project — its instruction files and project skills are not sent to the
+                model. Trust it only if you know what the repository contains.
               </p>
               <button type="button" className="cyber-btn text-xs" onClick={onTrustProject}>
                 TRUST_PROJECT
@@ -222,6 +217,7 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
                   }`}
                 >
                   {s.source}
+                  {s.source === 'project' && !projectTrusted ? ' · not loaded — untrusted' : ''}
                 </span>
               </div>
               <p className="text-xs text-void-dim mt-1 leading-relaxed">

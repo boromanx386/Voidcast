@@ -1,4 +1,5 @@
 import { readAgentSkillBody } from '@/lib/agentSkills'
+import { isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
 import { formatPlanProgressToolResult } from '@/lib/planArtifact'
 import {
   loadSettings,
@@ -49,7 +50,12 @@ export const handleReadSkill: ToolHandlerFn = async (args, ctx) => {
   }
   const skillName = typeof args.name === 'string' ? args.name.trim() : ''
   if (!skillName) return 'Error: missing name parameter for read_skill.'
-  const res = await readAgentSkillBody(skillName, ctx.codingProjectPath)
+  // Project skills are instructions from the repo, same as AGENTS.md: only resolve
+  // them for a trusted project, otherwise read_skill sees global skills only.
+  const projectPath = isMcpProjectTrusted(ctx.codingProjectPath ?? '', ctx.mcpTrustedProjectPaths)
+    ? ctx.codingProjectPath
+    : undefined
+  const res = await readAgentSkillBody(skillName, projectPath)
   if (!res.ok) return `Error: ${res.error}`
   return `Skill "${res.name}" instructions:\n\n${res.content}`
 }

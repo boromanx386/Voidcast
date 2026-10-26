@@ -219,8 +219,14 @@ export async function buildAgentTurnContext(
     return acc
   }, [])
 
+  // AGENTS.md / CLAUDE.md and project skills come from whatever repo the chat is bound
+  // to, including a freshly cloned stranger's repo, and land in the system prompt next
+  // to tools like execute_command. Same trust list as project .mcp.json.
+  const projectTrusted = isMcpProjectTrusted(codingProjectPath, settings.mcpTrustedProjectPaths)
   const discoveredSkills = settings.skillsEnabled
-    ? await discoverAgentSkills({ projectPath: codingProjectPath || undefined })
+    ? (await discoverAgentSkills({ projectPath: codingProjectPath || undefined })).filter(
+        (s) => projectTrusted || s.source !== 'project',
+      )
     : []
   const skillsActive = settings.skillsEnabled && discoveredSkills.length > 0
   const mcpTools =
@@ -247,10 +253,6 @@ export async function buildAgentTurnContext(
     settings.toolsEnabled.coding && codingProjectPath
       ? await loadProjectAgentInstructions({ projectPath: codingProjectPath })
       : []
-  // AGENTS.md / CLAUDE.md come from whatever repo the chat is bound to, including a
-  // freshly cloned stranger's repo, and land in the system prompt next to tools like
-  // execute_command. Same trust list as project .mcp.json: untrusted → not injected.
-  const projectTrusted = isMcpProjectTrusted(codingProjectPath, settings.mcpTrustedProjectPaths)
   const projectInstructionsHint = projectTrusted
     ? buildProjectInstructionsHint(projectInstructionFiles)
     : buildUntrustedProjectInstructionsHint(projectInstructionFiles)

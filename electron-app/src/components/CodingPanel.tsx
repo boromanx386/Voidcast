@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FileTree } from '@/components/coding/FileTree'
+import { ProjectTrustBar } from '@/components/coding/ProjectTrustBar'
 import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FilePreview } from '@/components/coding/FilePreview'
 import { TerminalView } from '@/components/coding/TerminalView'
@@ -85,6 +86,8 @@ type Props = {
    * with `read_file` when it needs the contents.
    */
   onReferencePath?: (relPath: string) => void
+  /** Trust the bound folder (unlocks its AGENTS.md, project skills and .mcp.json). */
+  onTrustProject?: (projectPath: string) => void
 }
 
 type PreviewMode = 'file' | 'diff' | 'image'
@@ -148,6 +151,7 @@ export function CodingPanel({
   onStopCommand,
   codingOwnerId,
   onReferencePath,
+  onTrustProject,
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
@@ -1059,6 +1063,14 @@ export function CodingPanel({
           </button>
         )}
       </div>
+      {projectPath && onTrustProject ? (
+        <ProjectTrustBar
+          projectPath={projectPath}
+          trustedProjectPaths={settings.mcpTrustedProjectPaths}
+          mcpEnabled={settings.mcpEnabled}
+          onTrust={onTrustProject}
+        />
+      ) : null}
       {/* Panes only exist in CODING mode — WEB takes the whole body, so the toolbar is hidden. */}
       {!showWeb ? (
         <div
