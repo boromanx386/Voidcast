@@ -239,25 +239,34 @@ function fmtCtx(n) {
 }
 
 /** Derive a human label from a model id (e.g. `z-ai/glm-5.3` -> `GLM 5.3`). */
-function makeLabel(id, ctx) {
+export function makeLabel(id, ctx) {
   let name = id
+  const free = /:free$/i.test(name)
   name = name.replace(/:(free|nitro|batch|floor|extended|exacto)$/i, '')
   const slash = name.indexOf('/')
   if (slash > 0) name = name.slice(slash + 1)
+  // Split on - and _, and on dots that are not inside a version number, so
+  // `glm-5.3` reads "GLM 5.3" rather than "GLM 5 3".
   let label = name
-    .split(/[-_.]/)
+    .split(/[-_]|\.(?!\d)|(?<!\d)\./)
     .filter(Boolean)
     .map((p) => p[0].toUpperCase() + p.slice(1))
     .join(' ')
   label = label
     .replace(/\bGpt\b/g, 'GPT')
-    .replace(/\bGrok\b/g, 'Grok')
     .replace(/\bGlm\b/g, 'GLM')
-    .replace(/\bQwen\b/g, 'Qwen')
-    .replace(/\bKimi\b/g, 'Kimi')
-    .replace(/\bNemotron\b/g, 'Nemotron')
     .replace(/\bDeepseek\b/g, 'DeepSeek')
-  if (ctx) label += ` (${fmtCtx(ctx)})`
+    .replace(/\bMimo\b/g, 'MiMo')
+    .replace(/\bMinimax\b/g, 'MiniMax')
+    .replace(/\bLongcat\b/g, 'LongCat')
+    .replace(/\bLfm\b/g, 'LFM')
+    .replace(/\bVl\b/g, 'VL')
+    .replace(/\bXs\b/g, 'XS')
+    .replace(/\bIt\b/g, 'IT')
+    // Parameter counts: "120b" / "A12b" -> "120B" / "A12B".
+    .replace(/\b(A?\d+(?:\.\d+)?)b\b/g, '$1B')
+  const notes = [free ? 'Free' : '', ctx ? fmtCtx(ctx) : ''].filter(Boolean)
+  if (notes.length) label += ` (${notes.join(' · ')})`
   return label
 }
 
@@ -306,6 +315,26 @@ async function checkOpenRouter(curated, overrides) {
   if (removed.length) {
     console.log(`  REMOVED (${removed.length}) — in app, gone from OpenRouter:`)
     for (const id of removed) console.log(`    [-] ${id}`)
+  }
+
+  // DOWN — a :free route stays in /models after its only provider is gone (seen: a 404
+  // from NVIDIA on every call). Endpoint status alone cannot tell dead from overloaded,
+  // so this is a prompt to test the model, not an automatic removal.
+  const down = []
+  for (const id of curated.filter((x) => x.endsWith(':free') && live.has(x))) {
+    try {
+      const d = await fetchJson(`https://openrouter.ai/api/v1/models/${id}/endpoints`)
+      const eps = d.data?.endpoints ?? []
+      if (eps.length === 0 || eps.every((e) => typeof e.status === 'number' && e.status < 0)) {
+        down.push([id, eps.map((e) => `${e.provider_name ?? e.name} status ${e.status}`).join(', ') || 'no endpoints'])
+      }
+    } catch {
+      // one failed lookup is not evidence either way
+    }
+  }
+  if (down.length) {
+    console.log(`  DOWN (${down.length}) — free route with no healthy endpoint; send it one message to see if it is dead:`)
+    for (const [id, why] of down) console.log(`    [?] ${id} (${why})`)
   }
 
   // CONTEXT mismatch (app override vs live context_length)
@@ -394,6 +423,9 @@ const OPENCODE_RESPONSES_FAMILIES = [/^grok/i, /^muse-spark/i, /^gpt-[0-9.]+-lun
 /** Resolve the OpenCode Go wire endpoint for a model id → { style, verified }. */
 function openCodeEndpoint(id, npm) {
   const mapped = npm && OPENCODE_NPM_ENDPOINT[npm]
+  // A known SDK the app has no wire format for (e.g. @ai-sdk/google = Gemini
+  // generateContent). Treating it as chat would suggest a model that 400s on every turn.
+  if (npm && !mapped) return { style: 'unsupported', verified: true, npm }
   if (mapped === 'anthropic-messages' || mapped === 'openai-responses') {
     return { style: mapped, verified: true }
   }
@@ -418,7 +450,14 @@ function matchesResponsesFamily(id) {
 //   grok-4.5       → superseded by grok-4.6/4.7 (which use /responses anyway)
 //   minimax-m2.5   → superseded by minimax-m2.7
 //   qwen3.5-plus   → superseded by qwen3.7-plus
-const OPENCODE_LEGACY_IDS = new Set(['deepseek-flash', 'grok-4.5', 'minimax-m2.5', 'qwen3.5-plus'])
+//   glm-5.1        → dropped from the presets in favour of glm-5.2 / glm-5.3
+const OPENCODE_LEGACY_IDS = new Set([
+  'deepseek-flash',
+  'grok-4.5',
+  'minimax-m2.5',
+  'qwen3.5-plus',
+  'glm-5.1',
+])
 
 async function checkOpenCodeGo(curated, overrides, appMessages, appResponses) {
   console.log('=== OPENCODE GO ===')
@@ -457,8 +496,13 @@ async function checkOpenCodeGo(curated, overrides, appMessages, appResponses) {
   const exists = (id) =>
     live.has(id) || mdIds.has(id) || messagesSet.has(id) || responsesSet.has(id)
 
-  // REMOVED — in app, gone from every source (live feed, models.dev, app routing sets)
-  const removed = curated.filter((id) => !exists(id))
+  // REMOVED — in app, gone from every source (live feed, models.dev, app routing sets).
+  // models.dev keeps ids long after Go drops them, so a chat-completions model missing
+  // from the live feed counts as removed too (seen: 410 ModelDeprecated, "Model is
+  // unavailable"). The feed omits only /v1/messages-only models, which stay exempt.
+  const removed = curated.filter(
+    (id) => !exists(id) || (!live.has(id) && endpointOf(id).style === 'openai-chat' && liveIds.length > 0),
+  )
   result.removed = removed
   if (removed.length) {
     console.log(`  REMOVED (${removed.length}) — in app, gone from OpenCode Go:`)
@@ -475,6 +519,13 @@ async function checkOpenCodeGo(curated, overrides, appMessages, appResponses) {
   if (staleResponses.length) {
     console.log(`  STALE ROUTING (${staleResponses.length}) — in OPENCODE_GO_RESPONSES_MODELS, not upstream:`)
     for (const id of staleResponses) console.log(`    [!] ${id}`)
+  }
+
+  // UNSUPPORTED — curated, but upstream serves it only on a format the app cannot speak
+  const unsupportedCurated = curated.filter((id) => endpointOf(id).style === 'unsupported')
+  if (unsupportedCurated.length) {
+    console.log(`  UNSUPPORTED (${unsupportedCurated.length}) — in app, but on an endpoint the app has no wire format for:`)
+    for (const id of unsupportedCurated) console.log(`    [!] ${id} (${endpointOf(id).npm}) — remove the preset`)
   }
 
   // MISROUTED — upstream serves it on a non-chat endpoint but the app does not route it
@@ -520,13 +571,23 @@ async function checkOpenCodeGo(curated, overrides, appMessages, appResponses) {
   // routes each via openCodeGoApiStyle(), so they are normal preset candidates.
   const candidates = [...new Set([...liveIds, ...messagesSet, ...responsesSet])].sort()
   const allFresh = candidates.filter((id) => !curatedSet.has(id))
-  const fresh = allFresh.filter((id) => !OPENCODE_LEGACY_IDS.has(id))
+  const unsupported = allFresh.filter((id) => endpointOf(id).style === 'unsupported')
+  const fresh = allFresh.filter(
+    (id) => !OPENCODE_LEGACY_IDS.has(id) && endpointOf(id).style !== 'unsupported',
+  )
   const legacy = allFresh.filter((id) => OPENCODE_LEGACY_IDS.has(id))
   result.newModels = fresh.map((id) => ({
     id,
     ctx: md[id]?.limit?.context,
     apiStyle: endpointOf(id).style,
   }))
+  if (unsupported.length) {
+    console.log(
+      `  (ignored ${unsupported.length} on an endpoint the app does not speak: ${unsupported
+        .map((id) => `${id} [${endpointOf(id).npm}]`)
+        .join(', ')})`,
+    )
+  }
   if (legacy.length) {
     console.log(
       `  (ignored ${legacy.length} legacy model${legacy.length === 1 ? '' : 's'} not in Go docs: ${legacy.join(', ')})`,
@@ -909,7 +970,10 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('error:', e.message)
-  process.exit(1)
-})
+// Run only as a CLI, so tooling can import makeLabel without hitting the network.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e) => {
+    console.error('error:', e.message)
+    process.exit(1)
+  })
+}

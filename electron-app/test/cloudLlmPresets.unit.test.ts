@@ -23,7 +23,7 @@ describe('openCodeGoApiStyle', () => {
   })
 
   it('defaults every other model to chat-completions', () => {
-    for (const id of ['deepseek-v4-pro', 'kimi-k2.7-code', 'glm-5.3', 'longcat-2.5-preview-free']) {
+    for (const id of ['deepseek-v4-pro', 'kimi-k2.7-code', 'glm-5.3', 'longcat-2.0']) {
       expect(openCodeGoApiStyle(id)).toBe('openai-chat')
     }
   })
