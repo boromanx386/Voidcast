@@ -171,7 +171,7 @@ describe('toConversationTurns', () => {
 describe('buildToolsCodingHint', () => {
   test('requires tool calls and includes project path', () => {
     const hint = buildToolsCodingHint('Q:/coding/vst')
-    expect(hint).toContain('MUST call')
+    expect(hint).toContain('call the matching coding tool in this turn')
     expect(hint).toContain('Q:/coding/vst')
     expect(hint).toContain('edit_code')
     expect(hint).toContain('execute_command')
@@ -185,7 +185,7 @@ describe('buildToolsCodingHint', () => {
     expect(hint).toContain('run_coding_workers')
     expect(hint).toContain('orchestrator protocol')
     expect(hint).toContain('TEAM MODE')
-    expect(hint).toContain('ONLY when the task splits into 2 path-disjoint areas')
+    expect(hint).toContain('only when the task splits into 2 path-disjoint areas')
     expect(hint).toContain('coding_explore')
   })
 
@@ -197,7 +197,7 @@ describe('buildToolsCodingHint', () => {
     expect(hint).toContain('run_coding_workers')
     expect(hint).toContain('optional')
     expect(hint).toContain('AGENT MODE workers')
-    expect(hint).not.toContain('PRIMARY for multi-file')
+    expect(hint).not.toContain('the main tool for multi-file')
   })
 })
 

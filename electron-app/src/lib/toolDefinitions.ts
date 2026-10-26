@@ -359,7 +359,7 @@ const BROWSER_HANDLE_DIALOG_TOOL: AgentToolDefinition = {
   function: {
     name: 'browser_handle_dialog',
     description:
-      'Set how JavaScript dialogs (alert / confirm / prompt / beforeunload) are answered in the Voidcast browser, and list recent ones. Dialogs are ALWAYS answered automatically so they can never freeze the page — this only chooses accept (default) or dismiss for the next one.',
+      'Set how JavaScript dialogs (alert / confirm / prompt / beforeunload) are answered in the Voidcast browser, and list recent ones. Dialogs are always answered automatically so they can never freeze the page — this only chooses accept (default) or dismiss for the next one.',
     parameters: {
       type: 'object',
       properties: {
@@ -381,7 +381,7 @@ const BROWSER_LIST_PAGES_TOOL: AgentToolDefinition = {
   function: {
     name: 'browser_list_pages',
     description:
-      'List every page (tab) open in the built-in Voidcast browser, marking the current one with *. The coding panel renders ONLY the current page, and agent tools act on it too — use browser_select_page to switch.',
+      'List every page (tab) open in the built-in Voidcast browser, marking the current one with *. The coding panel renders only the current page, and agent tools act on it too — use browser_select_page to switch.',
     parameters: {
       type: 'object',
       properties: {},
@@ -455,7 +455,7 @@ const SAVE_PDF_TOOL: AgentToolDefinition = {
   function: {
     name: 'save_pdf',
     description:
-      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). You MUST call this function to create a real file; do not claim a PDF was saved without calling it. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images saved in this chat session, pass absolute local paths in image_paths and/or 1-based session catalog indexes in generated_image_indexes (same indexes as image_recall — paths from the catalog block are preferred); (c) only if no local path exists, use public http(s) CDN URLs in image_urls. PNG/JPEG/WebP supported. Image placement: by default any image not referenced inline appears after the body text in order. To place an image at a specific spot inside the body, put a standalone markdown image line `![alt](attached:N)` (for the N-th attached/local-path image in combined order, 0-based) or `![alt](url:N)` (for the N-th image_urls entry, 0-based) on its own line — that exact position in the PDF will receive the image.',
+      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). Only this tool creates the file. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images saved in this chat session, pass absolute local paths in image_paths and/or 1-based session catalog indexes in generated_image_indexes (same indexes as image_recall — paths from the catalog block are preferred); (c) only if no local path exists, use public http(s) CDN URLs in image_urls. PNG/JPEG/WebP supported. Image placement: by default any image not referenced inline appears after the body text in order. To place an image at a specific spot inside the body, put a standalone markdown image line `![alt](attached:N)` (for the N-th attached/local-path image in combined order, 0-based) or `![alt](url:N)` (for the N-th image_urls entry, 0-based) on its own line — that exact position in the PDF will receive the image.',
     parameters: {
       type: 'object',
       properties: {
@@ -578,7 +578,7 @@ const GENERATE_IMAGE_TOOL: AgentToolDefinition = {
   function: {
     name: 'generate_image',
     description:
-      'MANDATORY: Generate an image from a text prompt (Runware or OpenRouter, per Media options). CRITICAL: When the user asks to create/make/draw/generate a new image, you MUST call this tool BEFORE responding with any text. Do NOT describe what you would create - actually call the tool. Do NOT say "Here is the image" without calling this tool first. Never claim an image was generated unless this tool returned a real result with image_url; if generation fails, report the tool error.',
+      'Generate an image from a text prompt (Runware or OpenRouter, per Media options). Call it whenever the user asks for a new image; describing the image instead does not count. If generation fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {
@@ -615,7 +615,7 @@ const GENERATE_IMAGE_TOOL: AgentToolDefinition = {
         transparent_background: {
           type: 'boolean',
           description:
-            'Optional. Set true to request a transparent background (output PNG with alpha). Supported ONLY by OpenAI GPT Image models (GPT Image 2 / 2.5); ignored by Gemini/FLUX. Use for logos, icons, stickers, cut-outs.',
+            'Optional. Set true to request a transparent background (output PNG with alpha). Supported only by OpenAI GPT Image models (GPT Image 2 / 2.5); ignored by Gemini/FLUX. Use for logos, icons, stickers, cut-outs.',
         },
       },
       required: ['prompt'],
@@ -628,7 +628,7 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
   function: {
     name: 'edit_image_runware',
     description:
-      'MANDATORY: Edit or transform images using attached chat images as references (Runware or OpenRouter, per Media options). CRITICAL: When the user asks to modify, change, edit, transform, or combine existing image(s), you MUST call this tool BEFORE responding with any text. Do NOT describe how the edited image would look - actually call the tool. Do NOT say "Here is the edited image" without calling this tool first. Never claim an image was edited or transformed unless this tool returned a real result with image_url; if editing fails, report the tool error.',
+      'Edit or transform images, using chat images as references (Runware or OpenRouter, per Media options). Call it whenever the user asks to modify, transform or combine existing images; describing the result instead does not count. If editing fails, report the tool error.',
     parameters: {
       type: 'object',
       properties: {
@@ -681,7 +681,7 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
         transparent_background: {
           type: 'boolean',
           description:
-            'Optional. Set true to request a transparent background (output PNG with alpha). Supported ONLY by OpenAI GPT Image models (GPT Image 2 / 2.5); ignored by Gemini/FLUX.',
+            'Optional. Set true to request a transparent background (output PNG with alpha). Supported only by OpenAI GPT Image models (GPT Image 2 / 2.5); ignored by Gemini/FLUX.',
         },
       },
       required: ['prompt'],
@@ -734,7 +734,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
   function: {
     name: 'generate_music_runware',
     description:
-      'MANDATORY: Generate music/audio with the Runware ACE-Step music model from a text prompt. CRITICAL: When the user asks to create/make/generate a song, beat, background music, jingle, soundtrack, or vocals, you MUST call this tool BEFORE responding with any text. Do NOT describe what music you would create - actually call the tool. Do NOT say "Here is the music" or "I created the song" without calling this tool first. Never claim music was generated unless this tool returned a real result with audio_url; if generation fails, report the tool error. After success, give a short caption only — do NOT paste audio_url or http(s) links in chat (the app shows the player). Audio engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) are controlled by the user in Options - never include them as arguments here.',
+      'Generate music or audio with the Runware ACE-Step model from a text prompt. Call it whenever the user asks for a song, beat, background music, jingle, soundtrack or vocals. If generation fails, report the tool error. Engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) come from Options, so do not pass them. After success give a short caption; the app shows the player, so do not paste audio_url or links.',
     parameters: {
       type: 'object',
       properties: {
@@ -779,7 +779,7 @@ const GENERATE_TTS_TOOL: AgentToolDefinition = {
   function: {
     name: 'generate_tts',
     description:
-      "MANDATORY: Synthesize speech audio with the user's active TTS provider (Local OmniVoice, Runware TTS, or OpenRouter TTS) and save a real audio file. CRITICAL: When the user asks to create/make/generate a voiceover, narration, TTS clip, spoken audio asset, or to save speech into the project, you MUST call this tool BEFORE responding with any text. Do NOT claim a voiceover/file was created without calling this tool first. Pass the exact text to speak. To place the file inside the coding project, pass output_path as a project-relative path (e.g. public/audio/intro.mp3). Absolute paths and .. traversal are rejected. If output_path is omitted, the app saves into its generated-audio folder. Voice/provider settings come from Options → TTS — never pass API keys. After success, give a short caption only; do NOT paste audio_path lines or fake links in chat (the app shows the player).",
+      "Synthesize speech with the user's active TTS provider (Local OmniVoice, Runware TTS or OpenRouter TTS) and save a real audio file. Call it for a voiceover, narration, TTS clip, spoken audio asset or speech saved into the project. Pass the exact text to speak. To place the file inside the coding project, pass output_path as a project-relative path (e.g. public/audio/intro.mp3); absolute paths and .. traversal are rejected. Without output_path the app saves into its generated-audio folder. Voice and provider come from Options → TTS. After success give a short caption; the app shows the player, so do not paste audio_path lines or links.",
     parameters: {
       type: 'object',
       properties: {
@@ -957,7 +957,7 @@ const CODING_EDIT_CODE_TOOL: AgentToolDefinition = {
         ignore_whitespace: {
           type: 'boolean',
           description:
-            'If true, match ignoring indentation and runs of spaces (useful after reformats). Does NOT cover Unicode look-alikes (em dash vs hyphen, middle dot vs bullet, non-breaking space). Default false.',
+            'If true, match ignoring indentation and runs of spaces (useful after reformats). Does not cover Unicode look-alikes (em dash vs hyphen, middle dot vs bullet, non-breaking space). Default false.',
         },
       },
       required: ['path', 'find_text', 'replace_text'],
@@ -1147,7 +1147,7 @@ const CODING_GIT_RESTORE_TOOL: AgentToolDefinition = {
   function: {
     name: 'git_restore',
     description:
-      'Recover a tracked file after a bad edit: restore one project-relative path via git restore. Default restores the worktree from the index (undoes unstaged edit_code/write changes for tracked files). Set to_head=true to reset both index and worktree to HEAD for that path. Does NOT commit, reset the whole repo, or delete untracked files. Prefer this over rewriting a broken file from memory.',
+      'Recover a tracked file after a bad edit: restore one project-relative path via git restore. Default restores the worktree from the index (undoes unstaged edit_code/write changes for tracked files). Set to_head=true to reset both index and worktree to HEAD for that path. Does not commit, reset the whole repo, or delete untracked files. Prefer this over rewriting a broken file from memory.',
     parameters: {
       type: 'object',
       properties: {
@@ -1171,7 +1171,7 @@ const CODING_GIT_STASH_TOOL: AgentToolDefinition = {
   function: {
     name: 'git_stash',
     description:
-      'Safe checkpoint without committing. action=list shows stashes; action=push saves current changes (optional path scope, optional include_untracked); action=pop reapplies stash@{n} (default 0). Does NOT commit or rewrite history. Use push before a risky multi-file refactor; pop to recover. Conflicts on pop are reported — resolve carefully.',
+      'Safe checkpoint without committing. action=list shows stashes; action=push saves current changes (optional path scope, optional include_untracked); action=pop reapplies stash@{n} (default 0). Does not commit or rewrite history. Use push before a risky multi-file refactor; pop to recover. Conflicts on pop are reported — resolve carefully.',
     parameters: {
       type: 'object',
       properties: {
@@ -1577,7 +1577,7 @@ const MCP_LIST_TOOLS_TOOL: AgentToolDefinition = {
   function: {
     name: MCP_LIST_TOOLS_NAME,
     description:
-      'Search/list external MCP tools. Returns ONLY short names + one-line descriptions (no schemas). Always pass a focused query when possible. Then use mcp_get_tool for ONE tool schema before mcp_call.',
+      'Search/list external MCP tools. Returns only short names and one-line descriptions (no schemas). Pass a focused query when possible, then use mcp_get_tool to fetch one tool schema before mcp_call.',
     parameters: {
       type: 'object',
       properties: {
