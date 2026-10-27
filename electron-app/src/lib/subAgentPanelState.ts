@@ -15,6 +15,20 @@ export type SubAgentPanelEvent = {
   workerId?: string
 }
 
+/** What one worker cost: wall time, model rounds and tokens. Filled when it finishes. */
+export type SubAgentWorkerMetrics = {
+  durationMs: number
+  /** Time spent waiting on the model, summed over rounds. */
+  modelMs: number
+  rounds: number
+  toolCalls: number
+  promptTokens: number
+  completionTokens: number
+  cachedPromptTokens: number
+  /** Rounds whose response carried no usage; when > 0 the token totals are a lower bound. */
+  unreportedRounds: number
+}
+
 export type SubAgentWorkerSlot = {
   id: string
   label: string
@@ -22,6 +36,45 @@ export type SubAgentWorkerSlot = {
   /** e.g. "3/50" */
   progress?: string
   lastLine?: string
+  metrics?: SubAgentWorkerMetrics
+}
+
+function compactCount(n: number): string {
+  return n >= 10_000
+    ? `${Math.round(n / 1000)}k`
+    : n >= 1000
+      ? `${(n / 1000).toFixed(1)}k`
+      : String(n)
+}
+
+/** One-line cost summary, e.g. "24s · 6 rounds · 9 tools · 18.2k in (12k cached) / 1.1k out". */
+export function formatWorkerMetrics(m: SubAgentWorkerMetrics): string {
+  const secs =
+    m.durationMs >= 10_000 ? Math.round(m.durationMs / 1000) : +(m.durationMs / 1000).toFixed(1)
+  const lowerBound = m.unreportedRounds > 0 ? '≥' : ''
+  const cached = m.cachedPromptTokens > 0 ? ` (${compactCount(m.cachedPromptTokens)} cached)` : ''
+  return [
+    `${secs}s`,
+    `${m.rounds} round${m.rounds === 1 ? '' : 's'}`,
+    `${m.toolCalls} tool${m.toolCalls === 1 ? '' : 's'}`,
+    `${lowerBound}${compactCount(m.promptTokens)} in${cached} / ${lowerBound}${compactCount(m.completionTokens)} out`,
+  ].join(' · ')
+}
+
+function normalizeWorkerMetrics(raw: unknown): SubAgentWorkerMetrics | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const o = raw as Record<string, unknown>
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0)
+  return {
+    durationMs: num(o.durationMs),
+    modelMs: num(o.modelMs),
+    rounds: num(o.rounds),
+    toolCalls: num(o.toolCalls),
+    promptTokens: num(o.promptTokens),
+    completionTokens: num(o.completionTokens),
+    cachedPromptTokens: num(o.cachedPromptTokens),
+    unreportedRounds: num(o.unreportedRounds),
+  }
 }
 
 export type SubAgentPanelState = {
@@ -242,6 +295,7 @@ export function applyCodingEvent(
     text: string
     level?: SubAgentPanelLevel
     status?: SubAgentWorkerSlot['status']
+    metrics?: SubAgentWorkerMetrics
   },
 ): SubAgentPanelState {
   const text = event.text.trim()
@@ -253,6 +307,7 @@ export function applyCodingEvent(
           ? {
               ...w,
               lastLine: text,
+              ...(event.metrics ? { metrics: event.metrics } : {}),
               ...(event.status
                 ? {
                     status: event.status,
@@ -409,6 +464,9 @@ export function normalizeSubAgentActivity(raw: unknown): SubAgentPanelState | un
                 : 'done',
             ...(typeof slot.progress === 'string' ? { progress: slot.progress.slice(0, 40) } : {}),
             ...(typeof slot.lastLine === 'string' ? { lastLine: slot.lastLine.slice(0, 160) } : {}),
+            ...(normalizeWorkerMetrics(slot.metrics)
+              ? { metrics: normalizeWorkerMetrics(slot.metrics) }
+              : {}),
           }
         })
     : []

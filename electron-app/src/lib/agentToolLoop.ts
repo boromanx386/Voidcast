@@ -1,4 +1,4 @@
-import type { OllamaChatUsage } from '@/lib/ollama'
+import type { OllamaChatUsage, TurnUsageTotals } from '@/lib/ollama'
 import type { AgentToolUiPhase } from '@/lib/agentToolPhase'
 import {
   isParallelSafeAgentTool,
@@ -262,6 +262,26 @@ export async function runSharedToolLoop<
   let lastAssistantText = ''
   let persistedThinkingPrefix = ''
   let lastUsage: OllamaChatUsage | undefined
+  const turnTotals: TurnUsageTotals = {
+    rounds: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    cachedPromptTokens: 0,
+    unreportedRounds: 0,
+  }
+  const recordRoundUsage = (usage: OllamaChatUsage | undefined) => {
+    turnTotals.rounds += 1
+    if (!usage) {
+      turnTotals.unreportedRounds += 1
+      return
+    }
+    lastUsage = usage
+    turnTotals.promptTokens += usage.prompt_eval_count ?? 0
+    turnTotals.completionTokens += usage.eval_count ?? 0
+    turnTotals.cachedPromptTokens += usage.cached_prompt_tokens ?? 0
+  }
+  const finalUsage = (): OllamaChatUsage | undefined =>
+    lastUsage ? { ...lastUsage, turnTotals: { ...turnTotals } } : undefined
   let requiredToolRepromptCount = 0
   let hasExecutedToolInTurn = false
   let hasExecutedRepoActionInTurn = false
@@ -375,7 +395,7 @@ export async function runSharedToolLoop<
       params.onThinkingDelta?.(`${persistedThinkingPrefix}${thinking}`)
     }
 
-    lastUsage = usage ?? lastUsage
+    recordRoundUsage(usage)
     const sharedCalls = params.toSharedToolCalls(toolCalls)
     const validCalls = sharedCalls
       .filter((x) => Boolean(x.name))
@@ -475,7 +495,7 @@ export async function runSharedToolLoop<
       if (params.mustCallTool && !hasExecutedToolInTurn) {
         throw new Error('Tool-required request was answered without invoking any tool.')
       }
-      return { content: lastAssistantText || content, usage: lastUsage }
+      return { content: lastAssistantText || content, usage: finalUsage() }
     }
 
     params.appendAssistantWithToolCalls({
@@ -518,7 +538,7 @@ export async function runSharedToolLoop<
       params.onEscalateToPlan?.({ messages })
       // Keep the pre-escalation draft instead of discarding it: the UI can show it
       // as a "plan handoff" note rather than making the answer vanish.
-      return { content: lastAssistantText || content, usage: lastUsage }
+      return { content: lastAssistantText || content, usage: finalUsage() }
     }
 
     preserveIntermediateResponse(params, round, content ?? lastAssistantText)
@@ -646,7 +666,7 @@ export async function runSharedToolLoop<
         params.onThinkingDelta?.(`${persistedThinkingPrefix}${fullRound}`)
       },
     })
-    lastUsage = wrap.usage ?? lastUsage
+    recordRoundUsage(wrap.usage)
     const text = (wrap.content || lastAssistantText || '').trim()
     const rejectWrapAsRepoTruth =
       params.guardRepoActionTruth && !hasExecutedRepoActionInTurn && Boolean(text)
@@ -663,5 +683,5 @@ export async function runSharedToolLoop<
     }
   }
 
-  return { content: lastAssistantText, usage: lastUsage }
+  return { content: lastAssistantText, usage: finalUsage() }
 }

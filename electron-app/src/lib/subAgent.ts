@@ -16,6 +16,7 @@ import {
   SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
 } from './settings'
 import type { SubAgentConfig } from './settings'
+import type { SubAgentWorkerMetrics } from './subAgentPanelState'
 import {
   deepseekApiBaseForRuntime,
   nvidiaApiBaseForRuntime,
@@ -58,6 +59,8 @@ export type SubAgentCodingEvent = {
    * sibling still runs.
    */
   status?: 'running' | 'done' | 'error'
+  /** Cost of the worker; sent with its final `done` event. */
+  metrics?: SubAgentWorkerMetrics
 }
 
 export type SubAgentUiCallbacks = {

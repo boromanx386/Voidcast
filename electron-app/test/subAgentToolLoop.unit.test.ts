@@ -91,6 +91,30 @@ describe('native sub-agent tool loop adapter', () => {
     expect(result.toolCalls[0]?.function.arguments).toEqual({ path: 'src/example.ts' })
   })
 
+  it('returns normalised usage from a chat-completions response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'done' } }],
+          usage: { prompt_tokens: 1200, completion_tokens: 80, prompt_cache_hit_tokens: 1000 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    const result = await callNativeSubAgentToolRound({
+      messages,
+      tools: [tool],
+      config: config('deepseek-chat', 'deepseek'),
+      keys,
+      maxTokens: 2_048,
+    })
+    expect(result.usage).toEqual({
+      promptTokens: 1200,
+      completionTokens: 80,
+      cachedPromptTokens: 1000,
+    })
+  })
+
   it('sends OpenAI-compatible workers with native tools', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

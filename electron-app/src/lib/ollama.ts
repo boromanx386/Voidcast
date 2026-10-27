@@ -144,8 +144,20 @@ export type OllamaModelOptions = {
   num_ctx?: number
 }
 
+/** Token usage summed over every model round of one agent turn (what the turn cost). */
+export type TurnUsageTotals = {
+  rounds: number
+  promptTokens: number
+  completionTokens: number
+  cachedPromptTokens: number
+  /** Rounds whose response carried no usage; when > 0 the sums are a lower bound. */
+  unreportedRounds: number
+}
+
 /** Usage counters from Ollama chat response chunks/final object. */
 export type OllamaChatUsage = {
+  /** Set by the agent loop on its final usage; the fields below describe the last round only. */
+  turnTotals?: TurnUsageTotals
   prompt_eval_count?: number
   /**
    * Prompt tokens served from the provider KV-cache this request.

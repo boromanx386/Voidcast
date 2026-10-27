@@ -58,6 +58,33 @@ describe('chats.get', () => {
     expect((res as { ok: true; data: { messageCount: number } }).data.messageCount).toBe(3)
   })
 
+  test('reports what the last turn cost, and null when nothing was measured', async () => {
+    const totals = {
+      rounds: 4,
+      promptTokens: 9000,
+      completionTokens: 300,
+      cachedPromptTokens: 6000,
+      unreportedRounds: 0,
+    }
+    const { d } = deps([session('a'), session('b')], {
+      a: slot({
+        contextUsageInfo: {
+          promptTokens: 2500,
+          outputTokens: 80,
+          maxTokens: 100_000,
+          ratio: 0.025,
+          shouldWarn: false,
+          shouldCompress: false,
+          turnTotals: totals,
+        },
+      }),
+    })
+    const a = await handleControlRequest('chats.get', { id: 'a' }, d)
+    const b = await handleControlRequest('chats.get', { id: 'b' }, d)
+    expect((a as { ok: true; data: { turnUsage: unknown } }).data.turnUsage).toEqual(totals)
+    expect((b as { ok: true; data: { turnUsage: unknown } }).data.turnUsage).toBeNull()
+  })
+
   test('falls back to persisted messages when the slot is empty', async () => {
     const { d } = deps([session('a')], { a: slot({}) })
     const res = await handleControlRequest('chats.get', { id: 'a' }, d)

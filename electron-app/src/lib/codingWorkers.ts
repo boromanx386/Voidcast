@@ -9,6 +9,7 @@ import { subAgentConfigForRole, SUB_AGENT_DEFAULT_OUTPUT_TOKENS } from '@/lib/se
 import { detectSubAgentProvider } from '@/lib/cloudLlmPresets'
 import type { PlanArtifact } from '@/types/chat'
 import { type SubAgentKeys, type SubAgentUiCallbacks } from '@/lib/subAgent'
+import { formatWorkerMetrics, type SubAgentWorkerMetrics } from '@/lib/subAgentPanelState'
 import { CODING_EXPLORE_ALLOWED_TOOLS } from '@/lib/codingSubAgent'
 import { runSharedToolLoop } from '@/lib/agentToolLoop'
 import { buildToolsList, type AgentToolDefinition } from '@/lib/toolDefinitions'
@@ -389,6 +390,7 @@ export type WorkerStructuredReport = {
   worker: string
   goal: string
   scope?: string
+  metrics?: SubAgentWorkerMetrics
   changed: string[]
   verified: string[]
   failed: string[]
@@ -827,6 +829,15 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
   const mutations: WorkerMutation[] = opts.mutationSink
   let blackboardSeen = 0
   let steerSeen = opts.steerStart ?? 0
+  const startedAt = Date.now()
+  const usageTotals = {
+    rounds: 0,
+    modelMs: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    cachedPromptTokens: 0,
+    unreportedRounds: 0,
+  }
   const emitEvent = (text: string, level: 'info' | 'ok' | 'warn' | 'err') => {
     opts.ui?.onCodingEvent?.({ workerId: opts.workerId, text, level })
   }
@@ -876,10 +887,21 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
       body: digestBody,
       verification,
     })
+    const metrics: SubAgentWorkerMetrics = {
+      durationMs: Date.now() - startedAt,
+      modelMs: usageTotals.modelMs,
+      rounds: usageTotals.rounds,
+      toolCalls: toolTrail.length,
+      promptTokens: usageTotals.promptTokens,
+      completionTokens: usageTotals.completionTokens,
+      cachedPromptTokens: usageTotals.cachedPromptTokens,
+      unreportedRounds: usageTotals.unreportedRounds,
+    }
     const structured: WorkerStructuredReport = {
       worker: opts.workerLabel,
       goal: goal.slice(0, 400),
       ...(pathPrefix ? { scope: pathPrefix } : {}),
+      metrics,
       changed: [...new Set(mutatedPaths)],
       verified: verification.verified,
       failed: verification.failures,
@@ -900,7 +922,9 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
       text: `${opts.workerLabel} done${doneLine ? ` — ${doneLine.slice(0, 120)}` : ''}`,
       level: verification.failures.length > 0 ? 'warn' : 'ok',
       status: 'done',
+      metrics,
     })
+    emitEvent(`${opts.workerLabel} cost: ${formatWorkerMetrics(metrics)}`, 'info')
     return { digest, mutations, structured }
   }
 
@@ -1021,6 +1045,7 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
       },
       onDelta: () => {},
       streamRound: async ({ messages: roundMessages, signal, onDelta, onThinkingDelta }) => {
+        const roundStartedAt = Date.now()
         const out = await callNativeSubAgentToolRound({
           messages: roundMessages,
           tools,
@@ -1029,6 +1054,15 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
           signal,
           maxTokens,
         })
+        usageTotals.rounds += 1
+        usageTotals.modelMs += Date.now() - roundStartedAt
+        if (out.usage) {
+          usageTotals.promptTokens += out.usage.promptTokens
+          usageTotals.completionTokens += out.usage.completionTokens
+          usageTotals.cachedPromptTokens += out.usage.cachedPromptTokens
+        } else {
+          usageTotals.unreportedRounds += 1
+        }
         onDelta(out.content)
         if (out.thinking) onThinkingDelta?.(out.thinking)
         return {

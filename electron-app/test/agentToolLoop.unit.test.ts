@@ -54,6 +54,79 @@ async function runToolRound(
   return { ...loopResult, committedResults }
 }
 
+describe('runSharedToolLoop turn usage', () => {
+  it('sums usage over every round, keeping the last round for context fill', async () => {
+    let round = 0
+    const result = await runSharedToolLoop<Message, ProviderCall>({
+      initialMessages: [],
+      maxToolRounds: 5,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      streamRound: async () => {
+        round += 1
+        if (round <= 2) {
+          return {
+            content: '',
+            thinking: '',
+            toolCalls: [{ id: `c${round}`, name: 'read_file', args: {} }],
+            usage: { prompt_eval_count: 1000 * round, eval_count: 10, cached_prompt_tokens: 500 },
+          }
+        }
+        return {
+          content: 'done',
+          thinking: '',
+          toolCalls: [],
+          usage: { prompt_eval_count: 3000, eval_count: 50 },
+        }
+      },
+      toSharedToolCalls: (calls) =>
+        calls.map((call) => ({ name: call.name, argsRaw: call.args, raw: call })),
+      appendAssistantWithToolCalls: () => {},
+      appendToolResult: () => {},
+      appendToolRequiredReprompt: () => {},
+      executeToolCall: async () => 'ok',
+      onDelta: () => {},
+    })
+    expect(result.usage?.prompt_eval_count).toBe(3000)
+    expect(result.usage?.turnTotals).toEqual({
+      rounds: 3,
+      promptTokens: 6000,
+      completionTokens: 70,
+      cachedPromptTokens: 1000,
+      unreportedRounds: 0,
+    })
+  })
+
+  it('counts rounds that reported no usage so the sums read as a lower bound', async () => {
+    let round = 0
+    const result = await runSharedToolLoop<Message, ProviderCall>({
+      initialMessages: [],
+      maxToolRounds: 5,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      streamRound: async () => {
+        round += 1
+        return round === 1
+          ? { content: '', thinking: '', toolCalls: [{ id: 'c1', name: 'read_file', args: {} }] }
+          : {
+              content: 'done',
+              thinking: '',
+              toolCalls: [],
+              usage: { prompt_eval_count: 400, eval_count: 20 },
+            }
+      },
+      toSharedToolCalls: (calls) =>
+        calls.map((call) => ({ name: call.name, argsRaw: call.args, raw: call })),
+      appendAssistantWithToolCalls: () => {},
+      appendToolResult: () => {},
+      appendToolRequiredReprompt: () => {},
+      executeToolCall: async () => 'ok',
+      onDelta: () => {},
+    })
+    expect(result.usage?.turnTotals).toMatchObject({ rounds: 2, unreportedRounds: 1 })
+  })
+})
+
 describe('runSharedToolLoop parallel tool execution', () => {
   it('runs adjacent read-only calls concurrently and commits their results in provider order', async () => {
     let active = 0

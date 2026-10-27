@@ -1,4 +1,4 @@
-import type { OllamaChatUsage } from '@/lib/ollama'
+import type { OllamaChatUsage, TurnUsageTotals } from '@/lib/ollama'
 import type { ContextLimitSource, ResolvedContextLimit } from '@/lib/contextLimit'
 
 export type ContextUsageInfo = {
@@ -21,6 +21,8 @@ export type ContextUsageInfo = {
   cachedPromptTokens?: number
   /** Prompt-cache hit rate: cachedPromptTokens / promptTokens, 0..1 (when reported). */
   cacheHitRatio?: number
+  /** Tokens summed over every model round of the turn — the turn's cost, not the context fill. */
+  turnTotals?: TurnUsageTotals
 }
 
 export const CONTEXT_WARN_RATIO = 0.78
@@ -117,6 +119,7 @@ export function estimateContextUsage(
     outputTokens: evalCount,
     cachedPromptTokens: cached,
     cacheHitRatio: cached !== undefined && prompt > 0 ? cached / prompt : undefined,
+    ...(usage.turnTotals ? { turnTotals: usage.turnTotals } : {}),
     maxTokens,
     ratio,
     shouldWarn: ratio >= CONTEXT_WARN_RATIO,

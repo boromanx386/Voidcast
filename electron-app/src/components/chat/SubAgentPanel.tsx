@@ -1,5 +1,6 @@
 import {
   formatSubAgentTime,
+  formatWorkerMetrics,
   type SubAgentPanelEvent,
   type SubAgentPanelState,
   type SubAgentWorkerSlot,
@@ -148,6 +149,14 @@ export function SubAgentActivityCard({
                   {w.lastLine && w.lastLine !== w.progress ? (
                     <div className="mt-0.5 truncate text-[10px] font-mono text-void-light/70">
                       {w.lastLine}
+                    </div>
+                  ) : null}
+                  {w.metrics ? (
+                    <div
+                      className="mt-0.5 truncate text-[10px] font-mono text-void-dim"
+                      title={formatWorkerMetrics(w.metrics)}
+                    >
+                      {formatWorkerMetrics(w.metrics)}
                     </div>
                   ) : null}
                 </div>

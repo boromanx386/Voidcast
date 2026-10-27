@@ -54,7 +54,7 @@ import {
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { isTimeoutMessage, readToolTimeoutSec } from '@/lib/turnTimer'
-import { streamOllamaChat, isThinkingUiEnabled } from '@/lib/ollama'
+import { streamOllamaChat, isThinkingUiEnabled, type OllamaChatUsage } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
@@ -928,9 +928,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       const isRunActive = () => sessionAgentStore.isRunActive(keyOf(), runId)
       let replyText = ''
-      let usage:
-        | { prompt_eval_count?: number; cached_prompt_tokens?: number; eval_count?: number }
-        | undefined
+      let usage: OllamaChatUsage | undefined
       let escalatedToPlan = false
       let liveBuildPlan: PlanArtifact | undefined = opts?.buildFromPlanMessageId
         ? (slotNow().messages.find((m) => m.id === opts.buildFromPlanMessageId)?.plan ??

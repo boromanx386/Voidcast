@@ -8,6 +8,8 @@
 
 import type { AgentChatMode, ChatSession, UiMessage } from '@/types/chat'
 import type { SessionAgentSlot } from '@/lib/sessionAgentStore'
+import type { SubAgentWorkerMetrics } from '@/lib/subAgentPanelState'
+import type { TurnUsageTotals } from '@/lib/ollama'
 
 export const CONTROL_TRANSCRIPT_DEFAULT_LIMIT = 50
 export const CONTROL_TRANSCRIPT_MAX_LIMIT = 200
@@ -62,6 +64,12 @@ export type ControlChatStatus = {
   toolPhase: string | null
   codingProjectPath: string | null
   /**
+   * What the last finished turn of the main agent cost, summed over its model rounds
+   * (Team workers report their own in `subAgent.workers[].metrics`). `null` before any
+   * turn ran this launch or when the provider reported no usage.
+   */
+  turnUsage: TurnUsageTotals | null
+  /**
    * Team-worker / sub-agent card. It outlives the turn, so a caller can still read
    * why a worker batch ended (`workers[].lastLine`, `events`) after it finished.
    */
@@ -76,6 +84,8 @@ export type ControlChatStatus = {
       status: string
       progress: string | null
       lastLine: string | null
+      /** Cost of the worker (time, rounds, tokens); present once it finished. */
+      metrics: SubAgentWorkerMetrics | null
     }>
     events: Array<{ at: number; level: string; text: string }>
   } | null
@@ -123,6 +133,7 @@ export function buildChatStatus(
     error: slot?.error ?? null,
     toolPhase: slot?.toolPhase ? String(slot.toolPhase) : null,
     codingProjectPath: slot?.codingProjectPath ?? session.codingProjectPath ?? null,
+    turnUsage: slot?.contextUsageInfo?.turnTotals ?? null,
     subAgent:
       panel && panel.kind !== 'idle'
         ? {
@@ -136,6 +147,7 @@ export function buildChatStatus(
               status: w.status,
               progress: w.progress ?? null,
               lastLine: w.lastLine ? clip(w.lastLine, SUBAGENT_LINE_CHARS) : null,
+              metrics: w.metrics ?? null,
             })),
             events: panel.events.slice(-SUBAGENT_EVENTS).map((e) => ({
               at: e.at,

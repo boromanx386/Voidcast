@@ -44,10 +44,51 @@ export type NativeSubAgentMessage = {
   name?: string
 }
 
+/** Token counts of one model round, normalised across provider response shapes. */
+export type NativeSubAgentUsage = {
+  promptTokens: number
+  completionTokens: number
+  /** Prompt tokens the provider served from its cache (0 when it does not report). */
+  cachedPromptTokens: number
+}
+
 export type NativeSubAgentToolRound = {
   content: string
   thinking: string
   toolCalls: NativeSubAgentToolCall[]
+  /** Absent when the provider did not report usage. */
+  usage?: NativeSubAgentUsage
+}
+
+function usageNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/**
+ * Read token usage from a non-streaming response body. Covers Ollama
+ * (`prompt_eval_count` / `eval_count`), OpenAI-style chat completions
+ * (`prompt_tokens` / `completion_tokens`, cache via `prompt_tokens_details` or
+ * DeepSeek's `prompt_cache_hit_tokens`) and the Anthropic / Responses shapes
+ * (`input_tokens` / `output_tokens`).
+ */
+export function extractNativeRoundUsage(data: unknown): NativeSubAgentUsage | undefined {
+  if (!data || typeof data !== 'object') return undefined
+  const root = data as Record<string, unknown>
+  const raw = root.usage && typeof root.usage === 'object' ? root.usage : root
+  const u = raw as Record<string, unknown>
+  const details = (u.prompt_tokens_details ?? u.input_tokens_details) as
+    Record<string, unknown> | undefined
+  const promptTokens =
+    usageNumber(u.prompt_tokens) || usageNumber(u.input_tokens) || usageNumber(u.prompt_eval_count)
+  const completionTokens =
+    usageNumber(u.completion_tokens) || usageNumber(u.output_tokens) || usageNumber(u.eval_count)
+  if (promptTokens === 0 && completionTokens === 0) return undefined
+  const cachedPromptTokens =
+    usageNumber(details?.cached_tokens) ||
+    usageNumber(u.prompt_cache_hit_tokens) ||
+    usageNumber(u.cache_read_input_tokens) ||
+    usageNumber(u.prompt_eval_cached_count)
+  return { promptTokens, completionTokens, cachedPromptTokens }
 }
 
 function argsAsObject(raw: string | Record<string, unknown> | undefined): Record<string, unknown> {
@@ -262,6 +303,7 @@ async function callOllamaToolRound(opts: {
     content: data.message?.content || '',
     thinking: data.message?.thinking || '',
     toolCalls: normalizeToolCalls(data.message?.tool_calls),
+    usage: extractNativeRoundUsage(data),
   }
 }
 
@@ -310,6 +352,7 @@ async function callCloudToolRound(opts: {
       )
     }
     const data = (await res.json()) as {
+      usage?: unknown
       content?: Array<{
         type?: string
         text?: string
@@ -339,7 +382,7 @@ async function callCloudToolRound(opts: {
         })
       }
     }
-    return { content, thinking, toolCalls }
+    return { content, thinking, toolCalls, usage: extractNativeRoundUsage(data) }
   }
 
   // OpenCode Go Responses-style models (the Contributor tier) only accept /responses.
@@ -375,8 +418,14 @@ async function callCloudToolRound(opts: {
         `${endpoint.label} worker /responses ${res.status}: ${errorText || res.statusText}`,
       )
     }
-    const parsed = parseResponsesOutput(await res.json())
-    return { content: parsed.content, thinking: parsed.reasoning, toolCalls: parsed.toolCalls }
+    const responseBody = await res.json()
+    const parsed = parseResponsesOutput(responseBody)
+    return {
+      content: parsed.content,
+      thinking: parsed.reasoning,
+      toolCalls: parsed.toolCalls,
+      usage: extractNativeRoundUsage(responseBody),
+    }
   }
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -406,6 +455,7 @@ async function callCloudToolRound(opts: {
     throw new Error(`${endpoint.label} worker ${res.status}: ${errorText || res.statusText}`)
   }
   const data = (await res.json()) as {
+    usage?: unknown
     choices?: Array<{
       message?: {
         content?: string | null
@@ -420,6 +470,7 @@ async function callCloudToolRound(opts: {
     content: message?.content || '',
     thinking: message?.reasoning || message?.reasoning_content || '',
     toolCalls: normalizeToolCalls(message?.tool_calls),
+    usage: extractNativeRoundUsage(data),
   }
 }
 
