@@ -19,53 +19,55 @@ MAX_REDIRECTS = 10
 FETCH_TIMEOUT_S = 20.0
 
 
-def _is_private_ipv4(ip: str) -> bool:
+def _is_blocked_ip(ip: str) -> bool:
+    """True for anything that is not a public internet address.
+
+    `is_global` also covers what `is_private` misses: CGNAT 100.64.0.0/10 (Tailscale
+    addresses), 0.0.0.0, multicast and reserved ranges.
+    """
     try:
-        addr = ipaddress.ip_address(ip)
-        return addr.is_private or addr.is_loopback or addr.is_link_local
+        addr = ipaddress.ip_address(ip.split("%", 1)[0])
     except ValueError:
         return True
-
-
-def _is_private_host_ip(ip: str) -> bool:
-    try:
-        addr = ipaddress.ip_address(ip)
-        if addr.version == 4:
-            return _is_private_ipv4(ip)
-        return addr.is_private or addr.is_loopback or addr.is_link_local
-    except ValueError:
-        return True
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return not addr.is_global
 
 
 async def _assert_host_is_public(hostname: str) -> None:
-    h = hostname.lower()
+    h = hostname.lower().rstrip(".")
     if h == "localhost" or h.endswith(".localhost"):
         raise ValueError("Local host is not allowed")
     try:
-        ipaddress.ip_address(h)
-        if _is_private_host_ip(h):
+        ipaddress.ip_address(h.split("%", 1)[0])
+        is_literal = True
+    except ValueError:
+        is_literal = False
+    if is_literal:
+        if _is_blocked_ip(h):
             raise ValueError("Private IP addresses are not allowed")
         return
-    except ValueError:
-        pass
 
     loop = asyncio.get_running_loop()
-    infos = await loop.run_in_executor(
-        None,
-        lambda: socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM),
-    )
+    try:
+        infos = await loop.run_in_executor(
+            None,
+            lambda: socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM),
+        )
+    except OSError as e:
+        raise ValueError("Could not resolve host") from e
     if not infos:
         raise ValueError("Could not resolve host")
     for info in infos:
         sockaddr = info[4]
         if not sockaddr:
             continue
-        ip = sockaddr[0]
-        if _is_private_host_ip(ip):
+        if _is_blocked_ip(str(sockaddr[0])):
             raise ValueError("Host resolves to a private address")
 
 
-async def _assert_url_safe_for_fetch(u: httpx.URL) -> None:
+async def assert_url_safe_for_fetch(u: httpx.URL) -> None:
+    """Reject URLs that could reach this machine or the local network (SSRF guard)."""
     if u.scheme not in ("http", "https"):
         raise ValueError("Only http(s) URLs are allowed")
     p = urlparse(str(u))
@@ -214,7 +216,7 @@ async def scrape_public_url_to_text(
                 return {"ok": False, "text": "Invalid URL"}
 
             try:
-                await _assert_url_safe_for_fetch(u)
+                await assert_url_safe_for_fetch(u)
             except ValueError as e:
                 return {"ok": False, "text": str(e)}
 

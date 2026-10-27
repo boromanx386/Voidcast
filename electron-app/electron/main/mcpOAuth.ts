@@ -99,8 +99,13 @@ function oauthConfig(config: McpOAuthServerConfig): McpOAuthConfig {
   return {}
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+}
+
+/** `message` may carry the provider's `error` query param, so it is always escaped. */
 function successHtml(message: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Voidcast MCP</title></head><body style="font-family:system-ui,sans-serif;padding:2rem"><h1>Voidcast</h1><p>${message}</p><p>You can close this tab and return to the app.</p></body></html>`
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Voidcast MCP</title></head><body style="font-family:system-ui,sans-serif;padding:2rem"><h1>Voidcast</h1><p>${escapeHtml(message)}</p><p>You can close this tab and return to the app.</p></body></html>`
 }
 
 function parseCallbackUrl(reqUrl: string): URL {

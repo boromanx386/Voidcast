@@ -40,7 +40,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from scrape_tool import scrape_public_url_to_text
+from scrape_tool import assert_url_safe_for_fetch, scrape_public_url_to_text
 
 from pdf_tool import HAS_REPORTLAB, save_pdf_to_folder
 
@@ -1101,6 +1101,12 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
         raise HTTPException(
             status_code=400, detail="Runware base URL must use https://"
         )
+    # The base URL is user-editable and the request carries the Runware key, so it must
+    # not be pointed at this machine or the LAN.
+    try:
+        await assert_url_safe_for_fetch(httpx.URL(base))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Runware base URL: {e}") from e
     key = req.api_key.strip() or get_runware_key()
     if not key:
         raise HTTPException(

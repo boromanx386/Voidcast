@@ -6,6 +6,8 @@
 const WINDOWS_ABS_RE = /^[a-zA-Z]:[\\/]/
 const UNC_RE = /^\\\\/
 const FORBIDDEN_NAME_CHARS_RE = /[<>:"|?*\x00-\x1F]/
+// Separate global copy for replace(): a /g regex keeps lastIndex state, which breaks .test().
+const FORBIDDEN_NAME_CHARS_GLOBAL_RE = /[<>:"|?*\x00-\x1F]/g
 
 export const GENERATED_AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a'] as const
 
@@ -39,7 +41,7 @@ export function extensionFromAudioMime(mime: string | undefined | null): Generat
 
 export function sanitizeAudioBaseName(input: string): string {
   const clean = input
-    .replace(FORBIDDEN_NAME_CHARS_RE, '_')
+    .replace(FORBIDDEN_NAME_CHARS_GLOBAL_RE, '_')
     .replace(/[\\/]+/g, '_')
     .replace(/\s+/g, ' ')
     .trim()

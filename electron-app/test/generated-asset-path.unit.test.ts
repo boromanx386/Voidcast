@@ -56,6 +56,7 @@ describe('path helpers', () => {
 
   test('sanitizeAudioBaseName and mime extension', () => {
     expect(sanitizeAudioBaseName('My Voice.mp3')).toBe('My Voice')
+    expect(sanitizeAudioBaseName('a:b|c?d*e')).toBe('a_b_c_d_e')
     expect(extensionFromAudioMime('audio/wav')).toBe('.wav')
     expect(extensionFromAudioMime('audio/mpeg')).toBe('.mp3')
   })

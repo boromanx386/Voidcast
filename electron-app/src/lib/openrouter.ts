@@ -233,15 +233,24 @@ export function mapOpenRouterUsageToOllama(
   }
 }
 
+/** Exact hostname match; a substring test would also accept e.g. `evil.com/?api.openai.com`. */
+function hasHost(url: string, host: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase() === host
+  } catch {
+    return false
+  }
+}
+
 function normalizeNvidiaBaseUrl(root: string): string {
-  if (!root.includes('integrate.api.nvidia.com')) return root
+  if (!hasHost(root, 'integrate.api.nvidia.com')) return root
   const withoutEndpoint = root.replace(/\/chat\/completions\/?$/i, '')
   return /\/v1(?:\/|$)/.test(withoutEndpoint) ? withoutEndpoint : `${withoutEndpoint}/v1`
 }
 
 function isDeepSeekApi(baseUrl: string): boolean {
   const root = normalizeBaseUrl(baseUrl)
-  return root.includes('api.deepseek.com') || root.includes('/api/deepseek')
+  return hasHost(root, 'api.deepseek.com') || root.includes('/api/deepseek')
 }
 
 function isOpenCodeGoApi(baseUrl: string): boolean {
@@ -328,8 +337,8 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
 
 function apiLabelForBaseUrl(baseUrl: string): string {
   if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
-  if (baseUrl.includes('api.openai.com') || baseUrl.includes('/api/openai')) return 'OpenAI'
-  if (baseUrl.includes('integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia'))
+  if (hasHost(baseUrl, 'api.openai.com') || baseUrl.includes('/api/openai')) return 'OpenAI'
+  if (hasHost(baseUrl, 'integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia'))
     return 'NVIDIA'
   if (isOpenCodeGoApi(baseUrl)) return 'OpenCode Go'
   return 'OpenRouter'
@@ -888,7 +897,7 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
   usage?: OllamaChatUsage
 }> {
   const root = resolveOpenRouterRoot(options.baseUrl)
-  const isNvidia = root.includes('integrate.api.nvidia.com')
+  const isNvidia = hasHost(root, 'integrate.api.nvidia.com')
   const canUseElectronNvidiaProxy =
     isElectron() && isNvidia && Boolean(window.voidcast?.llmChatProxy)
 
