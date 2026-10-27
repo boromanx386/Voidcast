@@ -50,6 +50,7 @@ import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
   isCodingGeneratedArtifactPath,
+  isCodingGitStatePath,
   shouldSkipCodingProjectDir,
 } from '../../src/lib/codingProjectSkip'
 import {
@@ -1810,6 +1811,7 @@ function scheduleCodingFsChange(): void {
 function shouldIgnoreCodingWatchPath(relPath: string | null | undefined): boolean {
   if (!relPath) return false
   const normalized = relPath.replace(/\\/g, '/')
+  if (isCodingGitStatePath(normalized)) return false
   // Ignore noise under heavy/generated folders; still notify for other project paths.
   return isCodingGeneratedArtifactPath(normalized)
 }
@@ -2511,7 +2513,10 @@ ipcMain.handle(
       }
 
       if (mode === 'status') {
+        // No optional locks: a status that rewrites .git/index would re-trigger the
+        // project watcher (which now watches the index) and loop.
         const r = await runGitCapture(root, [
+          '--no-optional-locks',
           '-c',
           'core.quotepath=false',
           'status',

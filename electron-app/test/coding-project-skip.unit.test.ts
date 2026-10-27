@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   filterCodingSearchMatches,
   isCodingGeneratedArtifactPath,
+  isCodingGitStatePath,
   shouldSkipCodingProjectDir,
 } from '../src/lib/codingProjectSkip'
 
@@ -47,5 +48,22 @@ describe('filterCodingSearchMatches', () => {
     ])
     expect(out).toHaveLength(1)
     expect(out[0]?.path).toBe('src/a.ts')
+  })
+})
+
+describe('isCodingGitStatePath', () => {
+  it('accepts the files a commit, checkout or stage changes', () => {
+    expect(isCodingGitStatePath('.git/HEAD')).toBe(true)
+    expect(isCodingGitStatePath('.git/index')).toBe(true)
+    expect(isCodingGitStatePath('.git/refs/heads/main')).toBe(true)
+    expect(isCodingGitStatePath('.git\\refs\\heads\\main')).toBe(true)
+  })
+
+  it('rejects object writes, lock files and other paths', () => {
+    expect(isCodingGitStatePath('.git/objects/ab/cdef')).toBe(false)
+    expect(isCodingGitStatePath('.git/index.lock')).toBe(false)
+    expect(isCodingGitStatePath('.git/logs/HEAD')).toBe(false)
+    expect(isCodingGitStatePath('src/.git/HEAD')).toBe(false)
+    expect(isCodingGitStatePath('src/index.ts')).toBe(false)
   })
 })

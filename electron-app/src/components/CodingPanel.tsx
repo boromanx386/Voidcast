@@ -821,6 +821,24 @@ export function CodingPanel({
 
   const selectedGit = selectedPath ? gitStatusByPath.get(normalizeGitPath(selectedPath)) : undefined
 
+  // The open preview is a diff of the file as of the last status. When a commit,
+  // stage or restore elsewhere changes that file's git state, reload it so it does
+  // not keep showing a diff that no longer exists.
+  const selectedGitSignature = selectedGit
+    ? `${selectedGit.staged}|${selectedGit.unstaged}|${selectedGit.untracked}`
+    : 'clean'
+  const lastPreviewSignatureRef = useRef<{ path: string | null; signature: string }>({
+    path: null,
+    signature: 'clean',
+  })
+  useEffect(() => {
+    const last = lastPreviewSignatureRef.current
+    lastPreviewSignatureRef.current = { path: selectedPath, signature: selectedGitSignature }
+    if (!selectedPath || editing || editBusy) return
+    if (last.path !== selectedPath || last.signature === selectedGitSignature) return
+    void loadFilePreview(selectedPath)
+  }, [selectedPath, selectedGitSignature, editing, editBusy, loadFilePreview])
+
   const onCommit = useCallback(
     async (all: boolean) => {
       if (!projectPath || commitBusy) return

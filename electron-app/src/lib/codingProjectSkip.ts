@@ -63,6 +63,18 @@ function fileNameFromPath(filePath: string): string {
 }
 
 /**
+ * True for the few `.git` entries that change when a commit, checkout, branch switch
+ * or stage happens. The project watcher otherwise skips `.git` (object writes are
+ * pure noise), so without this an outside `git commit` never refreshed the panel.
+ */
+export function isCodingGitStatePath(filePath: string): boolean {
+  const parts = filePath.replace(/\\/g, '/').split('/').filter(Boolean)
+  if (parts[0]?.toLowerCase() !== '.git') return false
+  if (parts.length === 2) return parts[1] === 'HEAD' || parts[1] === 'index'
+  return parts[1] === 'refs'
+}
+
+/**
  * True for bundled/minified artifacts and paths under generated folders.
  * Used to keep `search_files` signal focused on editable source.
  */
