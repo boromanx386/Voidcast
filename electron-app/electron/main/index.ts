@@ -10,6 +10,7 @@ import {
   Tray,
   nativeImage,
   nativeTheme,
+  safeStorage,
   Notification,
   type NativeImage,
   type OpenDialogOptions,
@@ -32,6 +33,7 @@ import {
   type ControlServerHandle,
 } from './controlServer'
 import { scrapePublicUrlToText } from './scrape'
+import { createSecretStore } from './secretStore'
 import { registerBrowserIpc } from './browser/ipc'
 import {
   formatMcpToolName,
@@ -1780,6 +1782,24 @@ ipcMain.handle('voidcast:coding-pick-directory', async () => {
 // Built-in Voidcast browser (coding panel WEB view) — driven by agent browser_* tools
 // through in-process CDP. The window getter keeps registration independent of createWindow timing.
 registerBrowserIpc(() => win)
+
+// API keys live encrypted outside localStorage. Sync IPC because the renderer loads settings
+// synchronously at startup.
+const secretStore = createSecretStore(path.join(app.getPath('userData'), 'secrets.json'), {
+  // Linux without a keyring falls back to a hardcoded password; that is not encryption, so
+  // the renderer keeps its old storage there instead of pretending.
+  isAvailable: () =>
+    safeStorage.isEncryptionAvailable() &&
+    (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
+  encrypt: (plain) => safeStorage.encryptString(plain),
+  decrypt: (cipher) => safeStorage.decryptString(cipher),
+})
+ipcMain.on('voidcast:secrets-get-sync', (evt) => {
+  evt.returnValue = secretStore.available() ? secretStore.getAll() : null
+})
+ipcMain.on('voidcast:secrets-set-sync', (evt, secrets: Record<string, string>) => {
+  evt.returnValue = secretStore.setAll(secrets && typeof secrets === 'object' ? secrets : {})
+})
 
 /** Live disk watch → renderer refreshes file tree / git colors when Explorer (etc.) mutates the project. */
 let codingProjectWatcher: FSWatcher | null = null

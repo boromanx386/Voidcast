@@ -1,6 +1,6 @@
 # Settings Reference
 
-Complete field-by-field reference for the Voidcast settings model. All keys come directly from the `AppSettings` and `CodingSettings` interfaces in `electron-app/src/lib/settings.ts`. Settings are stored in `localStorage` under `voidcast-settings-v1` and normalized on load.
+Complete field-by-field reference for the Voidcast settings model. All keys come directly from the `AppSettings` and `CodingSettings` interfaces in `electron-app/src/lib/settings.ts`. Settings are stored in `localStorage` under `voidcast-settings-v1` and normalized on load. On desktop the six `*ApiKey` fields are kept out of it and encrypted with the OS key store instead (see [getting-started.md](getting-started.md#where-settings-are-stored)).
 
 Grouped by the Settings tab they belong to.
 
@@ -17,7 +17,7 @@ Grouped by the Settings tab they belong to.
 | `reminderNotificationsEnabled` | `boolean` | on                                               | Renderer fires a desktop notification when a scheduled reminder becomes due.                                                                                      |
 | `notificationSoundsEnabled`    | `boolean` | off                                              | Play the user-selected reply/error sound files on chat events.                                                                                                    |
 | `notificationSoundVolume`      | `number`  | 0–1                                              | Output volume for chat notification sounds.                                                                                                                       |
-| `lanWebAccessEnabled`          | `boolean` | off (desktop only)                               | Push cloud API keys to the local TTS server so LAN/phone web clients can use the proxy. Default off — keys stay in localStorage only.                             |
+| `lanWebAccessEnabled`          | `boolean` | off (desktop only)                               | Push cloud API keys to the local TTS server so LAN/phone web clients can use the proxy. Default off — keys stay on the desktop only.                             |
 | `longMemoryDefaultEnabled`     | `boolean` | on                                               | Default for new chats: whether to include long-term memory retrieval.                                                                                             |
 
 ### Cloud API keys (General → Cloud API Keys)

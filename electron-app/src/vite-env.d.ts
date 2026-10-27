@@ -573,6 +573,11 @@ interface VoidcastBridge {
   getLanNetworkInfo: () => Promise<{ ips: string[] }>
 
   showWindow: () => Promise<void>
+  /** OS-encrypted API keys. `getAll` is null when the OS has no real key store. */
+  secrets?: {
+    getAll: () => Record<string, string> | null
+    setAll: (secrets: Record<string, string>) => boolean
+  }
 
   /** OS toast for a finished reply; resolves true when the toast was shown. */
   notifyAgentDone: (payload: { title?: string; body?: string }) => Promise<boolean>

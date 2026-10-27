@@ -42,10 +42,17 @@ The trust model is simple: **the agent acts with your user account's permissions
 
 ## Where secrets live
 
-- **API keys and settings** are stored in the app's local storage inside the Electron
-  `userData` folder, **unencrypted**. Anyone who can read your user profile can read
-  them. Voidcast has no account system and no telemetry; keys are only sent to the
-  provider you configured.
+- **API keys** are encrypted with your operating system's key store (Electron
+  `safeStorage`: DPAPI on Windows, the Secret Service keyring such as GNOME Keyring or
+  KWallet on Linux) and saved in `secrets.json` in the Electron `userData` folder. Only
+  your OS user account can decrypt them; a copied file is useless on another machine or
+  account. Malware running as your user can still ask the OS to decrypt them, as with any
+  desktop app.
+- **Linux without a keyring:** Electron would fall back to a hardcoded password, which is
+  not real encryption, so Voidcast keeps the keys in the app's local storage
+  unencrypted, as older versions did. Install and unlock a keyring to get encryption.
+- **Other settings** stay in the app's local storage, unencrypted. Voidcast has no
+  account system and no telemetry; keys are only sent to the provider you configured.
 - **LAN web UI** (off by default). When **LAN_WEB_ACCESS** is on, the desktop app
   registers your keys with the local tools server so a phone can use them, and turning it
   off clears them. Phones authenticate with a shared access token that travels over plain

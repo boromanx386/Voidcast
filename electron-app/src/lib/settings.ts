@@ -2659,16 +2659,63 @@ function ollamaUrlShouldUseDesktopProxy(url: string): boolean {
   }
 }
 
+type SecretBridge = { setAll: (secrets: Record<string, string>) => boolean }
+
+/**
+ * Set once loadSettings has read the OS-encrypted store. Saves only go through the store
+ * after that: a save before it would hold empty keys and wipe every stored secret.
+ */
+let secretBridge: SecretBridge | null = null
+let lastSavedSecretsJson = ''
+
+function pickSecrets(s: Partial<AppSettings>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const k of AGENT_HIDDEN_SETTINGS_FIELDS) {
+    const v = s[k]
+    if (typeof v === 'string' && v.trim()) out[k] = v
+  }
+  return out
+}
+
+function withoutSecrets<T extends Partial<AppSettings>>(s: T): T {
+  const out = { ...s }
+  for (const k of AGENT_HIDDEN_SETTINGS_FIELDS) delete out[k]
+  return out
+}
+
+/**
+ * Pulls API keys from the OS-encrypted store into `parsed`. Plaintext keys still in
+ * localStorage (older versions, or a save the store refused) are the newest copy, so they
+ * win and are moved into the store.
+ */
+function mergeEncryptedSecrets(parsed: Partial<AppSettings>): Partial<AppSettings> {
+  if (typeof window === 'undefined' || !isElectron()) return parsed
+  const bridge = window.voidcast?.secrets
+  if (!bridge) return parsed
+  let stored: Record<string, string> | null
+  try {
+    stored = bridge.getAll()
+  } catch {
+    stored = null
+  }
+  if (!stored) return parsed
+
+  const plaintext = pickSecrets(parsed)
+  const secrets = { ...pickSecrets(stored), ...plaintext }
+  secretBridge = bridge
+  if (Object.keys(plaintext).length > 0 && bridge.setAll(secrets)) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(withoutSecrets(parsed)))
+  }
+  lastSavedSecretsJson = JSON.stringify(secrets)
+  return { ...parsed, ...secrets }
+}
+
 export function loadSettings(): AppSettings {
   let merged: AppSettings
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      merged = { ...defaults }
-    } else {
-      const parsed = JSON.parse(raw) as Partial<AppSettings>
-      merged = normalizeAll({ ...defaults, ...parsed })
-    }
+    const parsed = raw ? (JSON.parse(raw) as Partial<AppSettings>) : {}
+    merged = normalizeAll({ ...defaults, ...mergeEncryptedSecrets(parsed) })
   } catch {
     merged = { ...defaults }
   }
@@ -2677,6 +2724,22 @@ export function loadSettings(): AppSettings {
 }
 
 export function saveSettings(s: AppSettings): void {
+  if (secretBridge) {
+    const secrets = pickSecrets(s)
+    const json = JSON.stringify(secrets)
+    let stored = json === lastSavedSecretsJson
+    if (!stored) {
+      try {
+        stored = secretBridge.setAll(secrets)
+      } catch {
+        stored = false
+      }
+      if (stored) lastSavedSecretsJson = json
+    }
+    // A refused write keeps the keys in localStorage so they are never lost.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored ? withoutSecrets(s) : s))
+    return
+  }
   const toSave =
     typeof window !== 'undefined' && isLanWebClient() && !isElectron() ? stripCloudSecrets(s) : s
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))

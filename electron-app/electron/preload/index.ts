@@ -627,6 +627,12 @@ contextBridge.exposeInMainWorld('voidcast', {
   getLanNetworkInfo: () =>
     ipcRenderer.invoke('voidcast:get-lan-network-info') as Promise<{ ips: string[] }>,
   showWindow: () => ipcRenderer.invoke('voidcast:show-window'),
+  /** OS-encrypted API keys. `getAll` is null when the OS has no real key store. */
+  secrets: {
+    getAll: (): Record<string, string> | null => ipcRenderer.sendSync('voidcast:secrets-get-sync'),
+    setAll: (secrets: Record<string, string>): boolean =>
+      ipcRenderer.sendSync('voidcast:secrets-set-sync', secrets),
+  },
   /** OS toast for a finished reply; main only shows it while the window is minimized/hidden. */
   notifyAgentDone: (payload: { title?: string; body?: string }) =>
     ipcRenderer.invoke('voidcast:notify-agent-done', payload) as Promise<boolean>,

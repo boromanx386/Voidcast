@@ -46,7 +46,7 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 
 The same UI runs in three environments:
 
-- **Desktop (Electron)** — full experience: cloud API keys stored locally (`localStorage`), Ollama access (your machine or Ollama's hosted models) + local TTS server, coding tools (file read/write/terminal), skills discovery, MCP servers, auto-update (Windows installer and Linux AppImage).
+- **Desktop (Electron)** — full experience: cloud API keys stored locally, encrypted with the OS key store, Ollama access (your machine or Ollama's hosted models) + local TTS server, coding tools (file read/write/terminal), skills discovery, MCP servers, auto-update (Windows installer and Linux AppImage).
 - **LAN web client** (phone/tablet browser pointed at the desktop server) — the UI works but `applyWebRuntimeOverrides` in `electron-app/src/lib/settings.ts` strips cloud secrets, forces `voiceMode: 'design'`, disables STT, and routes localhost API URLs through the desktop proxy.
 - **Web standalone** (browser-only) — no Electron preload, no local file access, no skills/MCP/terminal; cloud providers work if you enter keys (they persist only in that browser's `localStorage`).
 

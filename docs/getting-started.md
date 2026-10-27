@@ -49,7 +49,7 @@ Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.t
 - **OpenAI**: https://platform.openai.com/api-keys — `openaiApiKey`.
 - **OpenCode Go**: https://opencode.ai — `opencodeGoApiKey`.
 
-Cloud API keys are kept in renderer `localStorage`; on LAN web clients `saveSettings` strips them (`stripCloudSecrets`).
+On desktop, cloud API keys are encrypted with the OS key store (Electron `safeStorage`) in `secrets.json` in `userData`; on LAN web clients `saveSettings` strips them (`stripCloudSecrets`).
 
 ## Using Ollama
 
@@ -97,8 +97,9 @@ Only the network loop lives in `openrouter.ts`. Anthropic requires `max_tokens` 
 All settings live in `electron-app/src/lib/settings.ts`:
 
 - **Storage**: renderer `localStorage` under the key **`voidcast-settings-v1`** (`STORAGE_KEY`).
+- **API keys** (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `openaiApiKey`, `opencodeGoApiKey`, `runwareApiKey`): on desktop they are kept out of `localStorage` and encrypted with Electron `safeStorage` (DPAPI on Windows, the Secret Service keyring on Linux) in `secrets.json` in `userData`, via `electron/main/secretStore.ts` and the sync `voidcast:secrets-*` IPC. Keys left in `localStorage` by older versions are moved there on load. On Linux without a keyring (`basic_text` backend) they stay in `localStorage` as before.
 - **Load**: `loadSettings()` reads `localStorage`, merges over `defaults`, runs `normalizeAll` (llm, subAgent, tts, tools, pdf dir, ui theme, agent mode, runware, notification sounds, lan web access), then `sanitizeDesktopServiceUrls` and `applyWebRuntimeOverrides`.
-- **Save**: `saveSettings(s)` writes `JSON.stringify` to `localStorage` (stripping cloud secrets on LAN web clients).
+- **Save**: `saveSettings(s)` writes `JSON.stringify` to `localStorage` without the API keys, which go to the encrypted store only when they changed. If the store refuses a write, the keys stay in `localStorage` so they are never lost. LAN web clients strip cloud secrets.
 - **Defaults**: `export const defaults: AppSettings` (settings.ts). See [settings-reference.md](settings-reference.md) for every key.
 
 The React state wrapper is `useAppSettings()` in `electron-app/src/hooks/useAppSettings.ts` (loads via `loadSettings`, persists via `saveSettings`).
