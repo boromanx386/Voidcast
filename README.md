@@ -17,9 +17,9 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 > **Status: beta and early.** Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. Expect rough edges; issues, ideas and PRs are genuinely welcome.
 
 <p align="center">
-  <img src="demos/voidcast-hero.jpg" width="1000" alt="Voidcast — sessions sidebar, chat and the coding panel"/>
+  <img src="demos/voidcast-agent-demo.gif" width="1000" alt="Voidcast agent building a neon Breakout game from one prompt and opening it in the built-in browser"/>
 </p>
-<p align="center"><em>Sessions on the left, the agent running parallel tools and workers in chat, and the coding panel with file tree, diff, commit bar and terminal.</em></p>
+<p align="center"><em>One prompt in Agent mode: the agent writes a neon Breakout game into an empty folder, opens it in the built-in browser and checks it runs (~2 min of work, build part sped up 5×).</em></p>
 
 <details>
 <summary><strong>Table of contents</strong></summary>
@@ -49,6 +49,11 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 ---
 
 ## Main features
+
+<p align="center">
+  <img src="demos/voidcast-hero.jpg" width="1000" alt="Voidcast — sessions sidebar, chat and the coding panel"/>
+</p>
+<p align="center"><em>Sessions on the left, the agent running parallel tools and workers in chat, and the coding panel with file tree, diff, commit bar and terminal.</em></p>
 
 - **Everything in one window** — chat, coding, web tools and generative models together. The agent invokes search, YouTube, weather, image generation/edit, music and PDF, and **results appear inline** in the conversation. No tab juggling.
 
