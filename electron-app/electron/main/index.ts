@@ -65,6 +65,7 @@ import {
   CODING_SEARCH_LINE_TEXT_MAX,
   CODING_SEARCH_MAX_BLOCKS,
   CODING_SEARCH_MAX_PER_FILE,
+  buildLiteralSearchPatterns,
   compileCodingSearchGlob,
   countMatchesByFile,
   matchesCodingSearchGlob,
@@ -1580,8 +1581,12 @@ async function searchProjectWithRipgrep(
   // project-relative: buildSearchBlocks and read_file resolve them against the root, and a
   // subfolder search used to emit prefix-relative paths that resolved to nothing.
   const relSearchRoot = path.relative(projectRoot, searchRoot).replace(/\\/g, '/')
-  // `--` ends flag parsing: a query like `-m` or `--files` must be searched for, not obeyed.
-  args.push('--', query, relSearchRoot || '.')
+  // A plain query also matches its snake/kebab/compact spellings, one -e per pattern. -e takes
+  // its value verbatim, so a query like `-m` or `--files` is searched for, not obeyed; the `--`
+  // then ends flag parsing before the path.
+  const patterns = options.regex ? [query] : buildLiteralSearchPatterns(query)
+  for (const pattern of patterns) args.push('-e', pattern)
+  args.push('--', relSearchRoot || '.')
   const r = await runRipgrepCapture(projectRoot, args)
   if (!r.ok) return null
   if (r.code !== 0 && r.code !== 1) return null
@@ -1617,11 +1622,14 @@ async function searchProjectFilesWalk(
   maxMatches: number,
   options: { regex?: RegExp | null; glob?: CodingSearchGlob | null } = {},
 ): Promise<CodingSearchRawMatch[]> {
-  const q = query.toLowerCase()
+  const needles = buildLiteralSearchPatterns(query).map((pattern) => pattern.toLowerCase())
   const re = options.regex
   const lineMatches = re
     ? (line: string) => re.test(line)
-    : (line: string) => line.toLowerCase().includes(q)
+    : (line: string) => {
+        const lower = line.toLowerCase()
+        return needles.some((needle) => lower.includes(needle))
+      }
   const glob = options.glob
   const results: CodingSearchRawMatch[] = []
   const visit = async (dir: string): Promise<void> => {

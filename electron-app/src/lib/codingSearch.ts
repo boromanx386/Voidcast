@@ -115,6 +115,46 @@ export function matchesCodingSearchGlob(relPath: string, glob: CodingSearchGlob)
   return glob.negated ? !hit : hit
 }
 
+/** Most identifier-like words a query may have and still be expanded into name variants. */
+const NAME_VARIANT_MAX_WORDS = 4
+
+/**
+ * Literal patterns to search for one plain-text query. An agent guessing a name rarely
+ * knows its casing style, so `coding search`, `codingSearch` and `coding_search` should
+ * find each other: the query is split into words (whitespace, `_`, `-`, camelCase
+ * boundaries) and re-joined as `snake_case`, `kebab-case` and a compact form. Matching
+ * is case-insensitive, so the compact form also covers camelCase and PascalCase.
+ *
+ * Only short, purely alphanumeric word lists are expanded; anything else (punctuation,
+ * a sentence, a single word) is searched exactly as typed.
+ */
+export function buildLiteralSearchPatterns(query: string): string[] {
+  const exact = query.trim()
+  if (!exact) return []
+  const words = exact
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+  if (
+    words.length < 2 ||
+    words.length > NAME_VARIANT_MAX_WORDS ||
+    !words.every((word) => /^[a-z0-9]+$/i.test(word))
+  ) {
+    return [exact]
+  }
+  const lower = words.map((word) => word.toLowerCase())
+  const seen = new Set<string>()
+  const patterns: string[] = []
+  for (const pattern of [exact, lower.join('_'), lower.join('-'), lower.join('')]) {
+    const key = pattern.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    patterns.push(pattern)
+  }
+  return patterns
+}
+
 function normalizeQuery(query: string): string {
   return query.trim().toLowerCase()
 }

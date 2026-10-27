@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildLiteralSearchPatterns,
   CODING_SEARCH_CONTEXT_LINES,
   compileCodingSearchGlob,
   formatSearchResults,
@@ -168,5 +169,48 @@ describe('formatSearchResults files_only', () => {
     expect(text).toContain('Search "use\w+" (regex, glob *.ts): 4 raw matches in 2 files.')
     expect(text.indexOf('src/b.ts — 3')).toBeLessThan(text.indexOf('src/a.ts — 1'))
     expect(text).not.toContain('Matches:')
+  })
+})
+
+describe('buildLiteralSearchPatterns', () => {
+  it('expands a spaced query into snake, kebab and compact spellings', () => {
+    expect(buildLiteralSearchPatterns('coding search')).toEqual([
+      'coding search',
+      'coding_search',
+      'coding-search',
+      'codingsearch',
+    ])
+  })
+
+  it('splits camelCase, PascalCase and acronyms into words', () => {
+    expect(buildLiteralSearchPatterns('codingSearch')).toEqual([
+      'codingSearch',
+      'coding_search',
+      'coding-search',
+    ])
+    expect(buildLiteralSearchPatterns('HTMLParser')).toContain('html_parser')
+    expect(buildLiteralSearchPatterns('snake_case_name')).toContain('snake-case-name')
+  })
+
+  it('does not duplicate a spelling that equals the query ignoring case', () => {
+    expect(buildLiteralSearchPatterns('coding_search')).toEqual([
+      'coding_search',
+      'coding-search',
+      'codingsearch',
+    ])
+  })
+
+  it('leaves single words, punctuation and long phrases exactly as typed', () => {
+    expect(buildLiteralSearchPatterns('search')).toEqual(['search'])
+    expect(buildLiteralSearchPatterns('foo.bar baz')).toEqual(['foo.bar baz'])
+    expect(buildLiteralSearchPatterns('error: file not found')).toEqual(['error: file not found'])
+    expect(buildLiteralSearchPatterns('one two three four five')).toEqual([
+      'one two three four five',
+    ])
+    expect(buildLiteralSearchPatterns('-m')).toEqual(['-m'])
+  })
+
+  it('returns nothing for an empty query', () => {
+    expect(buildLiteralSearchPatterns('   ')).toEqual([])
   })
 })
