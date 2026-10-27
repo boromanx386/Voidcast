@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Team workers no longer typecheck each package twice**: `runWorkerTypeCheck` (`src/lib/codingWorkers.ts`) probes a folder for a check target with a real `check_types` call (the tool has no dry-run), then ran the per-path check on the same package again. A clean probe is now reused as the result, and the per-path re-run happens only when the probe reports errors, to narrow them to the files the worker wrote. Covered by `coding-workers.unit.test.ts`.
 - **`web_search` no longer drops its third full-text page**: each read is capped at 4000 characters plus a `[Truncated to 4000 characters]` note, and the 12000-character budget counted the note, so three long pages overshot it and the third — in testing, sqlite.org's own WAL page — was always demoted to a snippet. A page now costs at most its cap.
 - **`scrape_url` keeps headings and lists on pages without a content container**: on sites that put their text straight into `<body>` (sqlite.org), trafilatura's precision mode returned no headings and emptied every list ("Advantages include:" followed by nothing). Extraction now runs with `favor_recall`, which restores the lists and returns identical text on pages with a proper container, and retries once with the body wrapped in `<main>` when the page has headings but the result has none.
 

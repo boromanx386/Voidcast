@@ -496,9 +496,21 @@ describe('runWorkerTypeCheck', () => {
     const res = await runWorkerTypeCheck(['electron-app/src/lib/x.ts'], exec)
     expect(res.verified).toContain('check_types: clean (electron-app)')
     expect(res.failures).toEqual([])
+    // The clean whole-package probe is reused: no second tsc over the same package.
+    const forPackage = calls.filter((c) => c.args.path_prefix === 'electron-app')
+    expect(forPackage).toHaveLength(1)
+  })
+
+  it('re-runs a failing package with the written paths to narrow the errors', async () => {
+    const { exec, calls } = makeExec((prefix) =>
+      prefix === 'electron-app'
+        ? 'TypeScript (electron-app): 1 errors.\n\nsrc/a.ts:1:1 — TS1: bad'
+        : 'Error: No tsconfig.json in pkg.',
+    )
+    await runWorkerTypeCheck(['electron-app/src/a.ts'], exec)
     const final = calls.at(-1)
     expect(final?.args.path_prefix).toBe('electron-app')
-    expect(final?.args.paths).toEqual(['src/lib/x.ts'])
+    expect(final?.args.paths).toEqual(['src/a.ts'])
   })
 
   it('reports errors as failures', async () => {

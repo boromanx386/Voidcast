@@ -650,10 +650,18 @@ export function newSiblingActivityText(
   return { text: lines.join('\n'), nextCount }
 }
 
-/** True when a directory has a typecheck target (tsconfig / python marker / go.mod / …). */
-async function dirHasCheckTarget(dir: string, executeTool: WorkerToolExec): Promise<boolean> {
-  const out = await executeTool('check_types', dir ? { path_prefix: dir } : {})
-  return !/no tsconfig\.json/i.test(out) && !/no check target in/i.test(out)
+/**
+ * Probe a directory for a typecheck target (tsconfig / python marker / go.mod / …).
+ * There is no dry-run mode, so a hit is a real whole-package check; its output is
+ * returned so a clean result can stand in for the later per-path run.
+ */
+async function probeCheckTarget(
+  dir: string,
+  executeTool: WorkerToolExec,
+): Promise<{ hasTarget: boolean; output: string }> {
+  const output = await executeTool('check_types', dir ? { path_prefix: dir } : {})
+  const hasTarget = !/no tsconfig\.json/i.test(output) && !/no check target in/i.test(output)
+  return { hasTarget, output }
 }
 
 /**
@@ -671,14 +679,15 @@ export async function runWorkerTypeCheck(
   const failures: string[] = []
   if (unique.length === 0) return { verified, failures }
 
-  const probeCache = new Map<string, boolean>()
-  const hasTarget = async (dir: string): Promise<boolean> => {
+  const probeCache = new Map<string, { hasTarget: boolean; output: string }>()
+  const probe = async (dir: string) => {
     const cached = probeCache.get(dir)
-    if (cached !== undefined) return cached
-    const ok = await dirHasCheckTarget(dir, executeTool)
-    probeCache.set(dir, ok)
-    return ok
+    if (cached) return cached
+    const result = await probeCheckTarget(dir, executeTool)
+    probeCache.set(dir, result)
+    return result
   }
+  const hasTarget = async (dir: string): Promise<boolean> => (await probe(dir)).hasTarget
 
   // package dir ('') means the project root itself has the check target.
   const byPackage = new Map<string, string[]>()
@@ -704,9 +713,15 @@ export async function runWorkerTypeCheck(
   }
 
   for (const [pkg, paths] of byPackage) {
-    const args: Record<string, unknown> = { paths }
-    if (pkg) args.path_prefix = pkg
-    const out = await executeTool('check_types', args)
+    // A clean whole-package probe already covers any subset of its files; only a
+    // failing one needs the per-path run to narrow the errors to what was written.
+    const probed = probeCache.get(pkg)?.output ?? ''
+    let out = probed
+    if (!/no \w+ errors found/i.test(probed)) {
+      const args: Record<string, unknown> = { paths }
+      if (pkg) args.path_prefix = pkg
+      out = await executeTool('check_types', args)
+    }
     const label = pkg || '(project root)'
     const errMatch = out.match(/: (\d+) error/)
     if (/no \w+ errors found/i.test(out)) verified.push(`check_types: clean (${label})`)
