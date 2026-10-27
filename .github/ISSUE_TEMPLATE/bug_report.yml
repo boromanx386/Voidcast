@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in Voidcast is broken or behaves wrongly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems go through private reporting instead — see [SECURITY.md](https://github.com/boromanx386/Voidcast/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Voidcast version
+      description: Shown at the bottom of the chat sidebar.
+      placeholder: v2.13.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 10
+        - Windows 11
+        - Linux (AppImage)
+        - Linux (.deb)
+        - LAN web UI (phone / tablet)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model
+      description: e.g. OpenRouter / anthropic/claude-sonnet, Ollama / qwen3. Write "n/a" if not related.
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Chat mode
+      options:
+        - Agent
+        - Ask
+        - Plan
+        - Team
+        - Not related to chat
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Ask the agent to ...
+        3. See ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Error text, a screenshot, or the agent's tool output. Remove API keys and personal data first.

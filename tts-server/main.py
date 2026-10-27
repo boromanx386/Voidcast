@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hmac
 import io
 import logging
 import os
@@ -343,12 +344,12 @@ async def require_lan_access(request: Request) -> None:
         supplied = (request.headers.get("authorization") or "").strip()
         if supplied.lower().startswith("bearer "):
             supplied = supplied[7:].strip()
-    if not expected or supplied != expected:
+    # Constant-time compare so the token cannot be guessed byte by byte from timing.
+    if not expected or not hmac.compare_digest(supplied.encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Missing or invalid LAN access token")
 
 
 def _generate_wav_bytes(req: TtsRequest) -> bytes:
-    import torch
     import torchaudio
 
     if _model is None:
@@ -379,7 +380,6 @@ def _generate_clone_bytes(
     num_step: int,
     duration: float | None,
 ) -> bytes:
-    import torch
     import torchaudio
 
     if _model is None:
