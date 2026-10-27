@@ -542,4 +542,4 @@ Voidcast uses:
 
 ---
 
-Maintained by one developer. If Voidcast is useful to you, a ⭐ helps others find it — and [open an issue](https://github.com/boromanx386/Voidcast/issues) anytime with bugs or ideas.
+Maintained by one developer. If Voidcast is useful to you, a ⭐ helps others find it — and [open an issue](https://github.com/boromanx386/Voidcast/issues) anytime with bugs or ideas. Want to send a change? Start with [CONTRIBUTING.md](CONTRIBUTING.md). Found a security problem? See [SECURITY.md](SECURITY.md).
