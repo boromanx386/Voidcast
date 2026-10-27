@@ -334,6 +334,7 @@ export const handleImageRecall: ToolHandlerFn = async (args, ctx) => {
       source: x.recallSource,
     })),
     ...(recall.errors.length > 0 ? { errors: recall.errors } : {}),
+    note: 'The image pixels arrive in the next message and are visible for one round only. Look at them then and write down what you need; afterwards only your notes remain.',
   }
   return JSON.stringify(payload)
 }

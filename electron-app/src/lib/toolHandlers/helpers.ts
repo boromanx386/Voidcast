@@ -418,4 +418,6 @@ export type ImageRecallToolResult = {
     source?: string
   }>
   errors?: string[]
+  /** How the pixels reach the model when they are not in this result. */
+  note?: string
 }

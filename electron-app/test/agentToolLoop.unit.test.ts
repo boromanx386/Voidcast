@@ -127,6 +127,68 @@ describe('runSharedToolLoop turn usage', () => {
   })
 })
 
+describe('runSharedToolLoop recalled images', () => {
+  type ImgMessage = { role: string; content: string; images?: string[] }
+
+  it('keeps the model notes in the digest once the pixels are dropped', async () => {
+    let round = 0
+    const seen: ImgMessage[][] = []
+    await runSharedToolLoop<ImgMessage, ProviderCall>({
+      initialMessages: [],
+      maxToolRounds: 5,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      streamRound: async ({ messages }) => {
+        seen.push(messages.map((m) => ({ ...m, images: m.images ? [...m.images] : undefined })))
+        round += 1
+        if (round === 1) {
+          return {
+            content: '',
+            thinking: '',
+            toolCalls: [{ id: 'r', name: 'image_recall', args: {} }],
+          }
+        }
+        if (round === 2) {
+          return {
+            content: '',
+            thinking: 'The screenshot shows score 40 and two of three lives lost.',
+            toolCalls: [{ id: 'f', name: 'read_file', args: {} }],
+          }
+        }
+        return { content: 'done', thinking: '', toolCalls: [] }
+      },
+      toSharedToolCalls: (calls) =>
+        calls.map((call) => ({ name: call.name, argsRaw: call.args, raw: call })),
+      appendAssistantWithToolCalls: ({ messages, content }) => {
+        messages.push({ role: 'assistant', content })
+      },
+      appendToolResult: ({ messages, name, result }) => {
+        messages.push({ role: 'tool', content: `${name}:${result}` })
+      },
+      appendToolRequiredReprompt: () => {},
+      executeToolCall: async () => 'ok',
+      collectRecalledImages: ({ name }) =>
+        name === 'image_recall'
+          ? [{ base64: 'AAAA', mime: 'image/png', digest: '- img_1 (shot.png): seen' }]
+          : [],
+      appendRuntimeRecalledImages: (messages, recalled) => {
+        messages.push({ role: 'user', content: 'pixels', images: recalled.map((x) => x.base64) })
+      },
+      onDelta: () => {},
+    })
+
+    const withPixels = seen[1]!.find((m) => m.role === 'user')
+    expect(withPixels?.images).toEqual(['AAAA'])
+
+    const afterDrop = seen[2]!.find((m) => m.role === 'user')
+    expect(afterDrop?.images).toEqual([])
+    expect(afterDrop?.content).toContain('- img_1 (shot.png): seen')
+    expect(afterDrop?.content).toContain(
+      'Your notes from the round you saw it: The screenshot shows score 40',
+    )
+  })
+})
+
 describe('runSharedToolLoop parallel tool execution', () => {
   it('runs adjacent read-only calls concurrently and commits their results in provider order', async () => {
     let active = 0

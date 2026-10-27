@@ -33,7 +33,24 @@ export const RECALLED_IMAGE_DIGEST_HEADER =
 
 /** Carried by the raw recalled-image payload itself (agents append it). */
 export const RECALLED_IMAGE_ROUND_MESSAGE =
-  'Recalled image payload for this round — inspect the attached image(s) and continue. Call image_recall again if you need another look later.'
+  'Recalled image(s) attached — visible for THIS round only. Write down what you need from them now (what you see, numbers, text, layout, problems); the pixels are removed before your next round and only your notes remain. Call image_recall again if you need another look later.'
+
+/** Longest slice of the model's own notes kept in the digest once pixels are dropped. */
+const RECALLED_IMAGE_NOTES_MAX_CHARS = 600
+
+/**
+ * What the model wrote in the round it saw the image. Reasoning models often look at
+ * the image only in their thinking, which is not replayed to the provider, so
+ * without this the digest is the only trace of what they saw.
+ */
+function recalledImageNotes(content: string, thinking: string): string {
+  const source = thinking.trim() || content.trim()
+  const flat = source.replace(/\s+/g, ' ').trim()
+  if (!flat) return ''
+  return flat.length > RECALLED_IMAGE_NOTES_MAX_CHARS
+    ? `${flat.slice(0, RECALLED_IMAGE_NOTES_MAX_CHARS)}…`
+    : flat
+}
 
 /** A recalled image pushed into the conversation for one round. */
 export type RecalledImagePayload = {
@@ -298,6 +315,8 @@ export async function runSharedToolLoop<
     cleared: boolean
     /** Digest block left in place once the raw pixels are dropped. */
     digest?: string
+    /** The model's own notes from the round that saw the pixels. */
+    notes?: string
   }> = []
   /** How many streamRound calls may carry raw recalled-image base64 (1 = ephemeral). */
   const keepRecalledImageRounds = params.keepRecalledImageRounds ?? 1
@@ -348,7 +367,10 @@ export async function runSharedToolLoop<
         if (rec.cleared) continue
         if (round - rec.round <= keepRecalledImageRounds) continue
         const msg = messages[rec.index] as { content?: unknown; images?: unknown[] } | undefined
-        if (msg) stripRecalledImagePayload(msg, rec.digest)
+        const digest = rec.notes
+          ? `${rec.digest ?? RECALLED_IMAGE_PLACEHOLDER}\nYour notes from the round you saw it: ${rec.notes}`
+          : rec.digest
+        if (msg) stripRecalledImagePayload(msg, digest)
         rec.cleared = true
       }
     }
@@ -396,6 +418,10 @@ export async function runSharedToolLoop<
     }
 
     recordRoundUsage(usage)
+    for (const rec of recalledImageRecords) {
+      if (rec.cleared || rec.notes !== undefined || round - rec.round !== 1) continue
+      rec.notes = recalledImageNotes(content ?? '', thinking)
+    }
     const sharedCalls = params.toSharedToolCalls(toolCalls)
     const validCalls = sharedCalls
       .filter((x) => Boolean(x.name))

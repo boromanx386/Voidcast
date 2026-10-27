@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Vision models no longer act blind after `image_recall`** (no vision sub-agent): the pixels are visible for one round only, and the text left behind used to say "no cached analysis". Reasoning models that looked at the image only in their thinking then concluded they could not see, and fell back to measuring pixels with scripts. The `image_recall` result and the image message now say the pixels last one round and ask the model to write down what it needs. When the pixels are dropped, the digest keeps the model's own notes from that round (up to 600 characters of its thinking, or its reply) and says the image was seen. Covered by an `agentToolLoop` unit test.
+
 ## [2.12.2] — 2026-10-27
 
 ### Added

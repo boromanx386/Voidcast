@@ -122,7 +122,7 @@ export function buildRecalledImageDigestLine(
   const desc = lookupVisionCacheDescription(item, cache, focus)
   return desc
     ? `- ${head}: ${desc}`
-    : `- ${head}: no cached analysis — call image_recall again if you need another look.`
+    : `- ${head}: you saw this image; its pixels were removed to save context. Call image_recall again if you need another look.`
 }
 
 export function normalizeImageVisionCache(raw: unknown): ImageVisionCache {
