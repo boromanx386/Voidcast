@@ -83,12 +83,14 @@ jobs:
           name: dist-${{ matrix.platform }}
           if-no-files-found: error
           retention-days: 7
+          # Top level of release/<version>/ only: win-unpacked/ and linux-unpacked/ hold loose
+          # binaries (Voidcast.exe, rg.exe, the tools server) that must not reach the release.
           path: |
-            electron-app/release/**/*.exe
-            electron-app/release/**/*.blockmap
-            electron-app/release/**/*.AppImage
-            electron-app/release/**/*.deb
-            electron-app/release/**/latest*.yml
+            electron-app/release/*/*_Setup.exe
+            electron-app/release/*/*.blockmap
+            electron-app/release/*/*.AppImage
+            electron-app/release/*/*.deb
+            electron-app/release/*/latest*.yml
 
   release:
     name: Publish GitHub Release
@@ -126,11 +128,11 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            dist/**/*.exe
+            dist/**/*_Setup.exe
             dist/**/*.blockmap
             dist/**/*.AppImage
             dist/**/*.deb
-            dist/**/*.yml
+            dist/**/latest*.yml
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
