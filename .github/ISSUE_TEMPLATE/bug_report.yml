@@ -11,7 +11,7 @@ body:
     attributes:
       label: Voidcast version
       description: Shown at the bottom of the chat sidebar.
-      placeholder: v2.13.0
+      placeholder: v2.12.2
     validations:
       required: true
   - type: dropdown

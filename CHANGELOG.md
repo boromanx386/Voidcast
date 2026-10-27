@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.12.2] — 2026-10-27
+
 ### Added
 
 - **API keys are encrypted with the OS key store**: the six provider keys (OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go, Runware) used to sit in plaintext in renderer `localStorage`. On desktop they now live in `secrets.json` in `userData`, encrypted with Electron `safeStorage` (DPAPI on Windows, the Secret Service keyring on Linux), behind `electron/main/secretStore.ts` and a sync `voidcast:secrets-*` IPC so `loadSettings` stays synchronous. Keys from older versions are moved there on first start and removed from `localStorage`. If a write to the store fails the keys stay in `localStorage`, so they are never lost; on Linux without a keyring (`basic_text` backend) nothing changes. Covered by `secret-store` and `settings-secrets` unit tests.
