@@ -46,9 +46,13 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 
 ## Terminal View
 
-- `TerminalView` renders `TerminalLine` rows (`stream: 'stdout' | 'stderr' | 'system'`), auto-scrolls to bottom (sticky when within 48px), shows stderr/system styling, and has optional **CLEAR** (`onClear`) and **STOP** (`running` + `onStop`) controls.
-- Manual commands are run via `invokeExecuteCodingCommand`; output is streamed from the main process (`consumeLastExecuteCommandStreamed`, `expandTextToTerminalLines`, `MAX_TERMINAL_ROWS`).
-- Agent `execute_command` tool output is mirrored into the panel via `agentShellFeed` (per-chat-session terminal ownership keyed by `codingOwnerId` / `runtimeKey`); `agentShellEpoch` clears stale lines when switching sessions.
+- `TerminalView` renders `TerminalLine` rows (`stream: 'stdout' | 'stderr' | 'stderr-output' | 'system'`), auto-scrolls to bottom (sticky when within 48px), keeps whitespace (`pre-wrap`), shows stderr/system styling, and has optional **CLEAR** (`onClear`) and **STOP** (`running` + `onStop`) controls. CLEAR and STOP act on the active tab.
+- Two tabs: **AGENT** (the agent's `execute_command` runs) and **SHELL** (commands typed in the RUN row, plus panel messages such as save, stage and commit results). Each tab keeps up to `MAX_TERMINAL_ROWS` (2000) rows. A dot marks a tab that got output while the other one was shown. RUN switches to SHELL.
+- Rows are built by `appendTerminalChunk` (`terminalChunks.ts`): a chunk that continues the open last row of the same run is merged into it, `\r` (and the `ESC[2K` / `ESC[nG` spinner redraws) replaces the row instead of adding one, SGR color codes are kept and drawn by `parseAnsi` (`ansi.ts`, palette tokens `--ansi-0` … `--ansi-15`), and other escape sequences are dropped.
+- Manual commands are run via `invokeExecuteCodingCommand` with `interactive: true`: no timeout, no idle hand-back to background, `FORCE_COLOR=1`, and stdin stays open. While one runs, the input row sends lines to its stdin (`codingWriteStdin`, button **SEND**), and **Ctrl+C** with no text selected stops it.
+- Agent runs keep the timeout (default 20s, max 120s) and the idle hand-back; their stdin is never written.
+- Output streams from the main process line by line (`ChunkThrottle`); a partial line with no newline is shown after 250ms of silence. Output is decoded as streaming UTF-8, and on Windows the command's console is switched to code page 65001 first.
+- Agent `execute_command` tool output is mirrored into the panel via `agentShellFeed` (per-chat-session terminal ownership keyed by `codingOwnerId` / `runtimeKey`); `agentShellEpoch` clears stale lines when switching sessions. Feed lines carry `runId` and `source` (`'manual'` for RUN commands).
 - `commandRunning` / `onStopCommand` reflect the foreground agent or manual run (`activeCodingRunId`, `stopCodingCommand` in `useVoidcastApp`).
 
 ## WEB — built-in browser (`showWeb`)

@@ -155,6 +155,8 @@ type ActiveCodingProcessEntry = ActiveCodingProcess & {
 }
 
 const activeCodingProcesses = new Map<string, ActiveCodingProcessEntry>()
+/** stdin of commands the user started from the RUN row; agent runs never get input. */
+const codingProcessStdin = new Map<string, NodeJS.WritableStream>()
 let toolsServerStarting = false
 
 function isPidAlive(pid: number): boolean {
@@ -3065,6 +3067,8 @@ ipcMain.handle(
       timeoutSec?: number
       runInBackground?: boolean
       ownerId?: string
+      /** Typed by the user: no timeout, no idle hand-back, stdin stays writable, colors on. */
+      interactive?: boolean
     },
   ) => {
     const projectPath = String(payload?.projectPath ?? '').trim()
@@ -3076,7 +3080,8 @@ ipcMain.handle(
     const timeoutMs = Number.isFinite(timeoutSecRaw)
       ? Math.min(120_000, Math.max(3_000, Math.round(timeoutSecRaw * 1000)))
       : 20_000
-    const runInBackground = payload?.runInBackground === true
+    const interactive = payload?.interactive === true
+    const runInBackground = !interactive && payload?.runInBackground === true
     const ownerId = String(payload?.ownerId ?? '').trim() || undefined
     const runId = randomUUID()
     type OkResult = {
@@ -3101,8 +3106,15 @@ ipcMain.handle(
         detached: false,
         stdio: 'pipe',
         windowsHide: true,
-        env: codingCommandSpawnEnv(),
+        env: interactive
+          ? { ...codingCommandSpawnEnv(), FORCE_COLOR: '1', CLICOLOR_FORCE: '1' }
+          : codingCommandSpawnEnv(),
       })
+      if (interactive) {
+        codingProcessStdin.set(runId, child.stdin)
+        child.stdin.on('error', () => codingProcessStdin.delete(runId))
+        child.on('close', () => codingProcessStdin.delete(runId))
+      }
 
       const sendOutput = (payloadOut: {
         stream?: 'stdout' | 'stderr' | 'system'
@@ -3117,6 +3129,7 @@ ipcMain.handle(
             runId,
             ownerId,
             projectPath,
+            source: interactive ? 'manual' : 'agent',
             ...payloadOut,
           })
         } catch {
@@ -3209,10 +3222,12 @@ ipcMain.handle(
       const stdio = attachCodingProcessStdio(
         child,
         (stream, text) => {
-          if (stream === 'stdout') stdout += text
-          else stderr += text
           sendOutput({ stream, text })
           appendCodingProcessOutput(runId, text)
+          // The panel shows the stream; keeping a dev server's whole log here would only grow.
+          if (interactive) return
+          if (stream === 'stdout') stdout += text
+          else stderr += text
           bumpIdlePromote()
         },
         50,
@@ -3266,10 +3281,12 @@ ipcMain.handle(
         })
       }
 
-      const timer = setTimeout(() => {
-        timedOut = true
-        void killProcessTree(pid)
-      }, timeoutMs)
+      const timer = interactive
+        ? undefined
+        : setTimeout(() => {
+            timedOut = true
+            void killProcessTree(pid)
+          }, timeoutMs)
 
       child.on('error', (err) => {
         sendOutput({ stream: 'stderr', text: err.message })
@@ -3330,6 +3347,21 @@ ipcMain.handle(
         })
       })
     })
+  },
+)
+
+ipcMain.handle(
+  'voidcast:coding-write-stdin',
+  async (_evt, payload: { runId?: string; text?: string }) => {
+    const runId = String(payload?.runId ?? '').trim()
+    const stdin = runId ? codingProcessStdin.get(runId) : undefined
+    if (!stdin) return { ok: false as const, error: 'No running command accepts input.' }
+    try {
+      stdin.write(String(payload?.text ?? ''))
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
   },
 )
 

@@ -13,7 +13,11 @@ import {
   parseGitStatusText,
   type GitStatusEntry,
 } from '@/lib/gitStatusParse'
-import { expandTextToTerminalLines, MAX_TERMINAL_ROWS } from '@/lib/terminalChunks'
+import {
+  appendTerminalChunk,
+  expandTextToTerminalLines,
+  MAX_TERMINAL_ROWS,
+} from '@/lib/terminalChunks'
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import {
   clampCodingFileTreeHeight,
@@ -29,7 +33,9 @@ import {
   invokeCodingGit,
   invokeCodingWatchProject,
   invokeExecuteCodingCommand,
+  invokeKillCodingCommand,
   invokeListCodingDirectory,
+  invokeWriteCodingStdin,
   invokePickCodingDirectory,
   invokeReadCodingFile,
   invokeWriteCodingFile,
@@ -40,6 +46,8 @@ import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImageP
 import { codingRevealParentDirs, type CodingRevealRequest } from '@/lib/codingReveal'
 import { isWindowForeground } from '@/lib/windowFocus'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
+
+type TerminalTabId = 'agent' | 'shell'
 
 type CodingUiVisibilityPatch = Partial<
   Pick<
@@ -176,7 +184,19 @@ export function CodingPanel({
   )
   const [isTreeResizing, setIsTreeResizing] = useState(false)
   const [isBottomResizing, setIsBottomResizing] = useState(false)
-  const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
+  // Agent commands and the user's own RUN commands get separate buffers, so a long agent build
+  // never scrolls away what the user is typing into.
+  const [agentLines, setAgentLines] = useState<TerminalLine[]>([])
+  const [shellLines, setShellLines] = useState<TerminalLine[]>([])
+  const [terminalTab, setTerminalTab] = useState<TerminalTabId>('agent')
+  const terminalTabRef = useRef<TerminalTabId>('agent')
+  const [unreadTabs, setUnreadTabs] = useState<Record<TerminalTabId, boolean>>({
+    agent: false,
+    shell: false,
+  })
+  /** Run started from the RUN row; while set, the input writes to its stdin. */
+  const [shellRunId, setShellRunId] = useState<string | null>(null)
+  const shellRunPendingRef = useRef(false)
   const [command, setCommand] = useState('')
   /** Oldest → newest; used for ↑ / ↓ in command input (bash-style). */
   const [commandHistory, setCommandHistory] = useState<string[]>([])
@@ -434,8 +454,26 @@ export function CodingPanel({
     const idBase = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
     const rows = expandTextToTerminalLines(stream, text, idBase)
     if (rows.length === 0) return
-    setTerminalLines((prev) => [...prev, ...rows].slice(-MAX_TERMINAL_ROWS))
+    setShellLines((prev) => [...prev, ...rows].slice(-MAX_TERMINAL_ROWS))
   }, [])
+
+  const selectTerminalTab = useCallback((tab: TerminalTabId) => {
+    terminalTabRef.current = tab
+    setTerminalTab(tab)
+    setUnreadTabs((prev) => (prev[tab] ? { ...prev, [tab]: false } : prev))
+  }, [])
+
+  useEffect(() => {
+    if (agentLines.length > 0 && terminalTabRef.current !== 'agent') {
+      setUnreadTabs((prev) => (prev.agent ? prev : { ...prev, agent: true }))
+    }
+  }, [agentLines])
+
+  useEffect(() => {
+    if (shellLines.length > 0 && terminalTabRef.current !== 'shell') {
+      setUnreadTabs((prev) => (prev.shell ? prev : { ...prev, shell: true }))
+    }
+  }, [shellLines])
 
   const refreshGitStatus = useCallback(async () => {
     if (!projectPath) {
@@ -568,7 +606,9 @@ export function CodingPanel({
 
   useEffect(() => {
     seenAgentShellIdsRef.current.clear()
-    setTerminalLines([])
+    setAgentLines([])
+    setShellLines([])
+    setShellRunId(null)
   }, [agentShellEpoch])
 
   useEffect(() => {
@@ -578,14 +618,33 @@ export function CodingPanel({
       if (!stillInFeed.has(id)) seenAgentShellIdsRef.current.delete(id)
     }
     if (feed.length === 0) return
-    const batch: TerminalLine[] = []
+    const agentBatch: TerminalLine[] = []
+    const shellBatch: TerminalLine[] = []
     for (const line of feed) {
       if (seenAgentShellIdsRef.current.has(line.id)) continue
       seenAgentShellIdsRef.current.add(line.id)
-      batch.push(...expandTextToTerminalLines(line.stream, line.text, line.id))
+      if (line.source === 'manual') shellBatch.push(line)
+      else agentBatch.push(line)
     }
-    if (batch.length === 0) return
-    setTerminalLines((prev) => [...prev, ...batch].slice(-MAX_TERMINAL_ROWS))
+    const fold = (prev: TerminalLine[], batch: TerminalLine[]) =>
+      batch.reduce(
+        (acc, line) =>
+          appendTerminalChunk(acc, {
+            stream: line.stream,
+            text: line.text,
+            idPrefix: line.id,
+            runId: line.runId,
+            source: line.source,
+          }),
+        prev,
+      )
+    if (agentBatch.length > 0) setAgentLines((prev) => fold(prev, agentBatch))
+    if (shellBatch.length > 0) {
+      setShellLines((prev) => fold(prev, shellBatch))
+      // Only while RUN is still awaiting: a late render must not re-arm a finished run.
+      const runId = shellBatch[0].runId
+      if (shellRunPendingRef.current && runId) setShellRunId(runId)
+    }
   }, [agentShellFeed])
 
   const onPickFolder = useCallback(async () => {
@@ -991,16 +1050,7 @@ export function CodingPanel({
   const onRunCommand = useCallback(async () => {
     const trimmed = command.trim()
     if (!projectPath || !trimmed || commandRunning) return
-    const out = await invokeExecuteCodingCommand(projectPath, trimmed, {
-      ownerId: (codingOwnerId || '').trim() || undefined,
-    })
-    // Clear agent anti-dup flag; manual RUN does not go through applyAgentToolResult.
-    consumeLastExecuteCommandStreamed()
-    // Live IPC stream already mirrored `$ cmd` + chunks into agentShellFeed → terminalLines.
-    if (!out.streamed) {
-      pushTerminal('system', `$ ${trimmed}`)
-      pushTerminal(out.ok ? 'stdout' : 'stderr', out.text)
-    }
+    // Clear the input now: it becomes the stdin line while the command runs.
     setCommandHistory((prev) => {
       if (prev.length > 0 && prev[prev.length - 1] === trimmed) return prev
       return [...prev, trimmed].slice(-100)
@@ -1008,9 +1058,55 @@ export function CodingPanel({
     setHistoryFromEnd(null)
     commandHistoryDraftRef.current = ''
     setCommand('')
+    selectTerminalTab('shell')
+    shellRunPendingRef.current = true
+    const out = await invokeExecuteCodingCommand(projectPath, trimmed, {
+      ownerId: (codingOwnerId || '').trim() || undefined,
+      interactive: true,
+    })
+    shellRunPendingRef.current = false
+    setShellRunId(null)
+    // Clear agent anti-dup flag; manual RUN does not go through applyAgentToolResult.
+    consumeLastExecuteCommandStreamed()
+    // Live IPC stream already mirrored `$ cmd` + chunks into agentShellFeed → shellLines.
+    if (!out.streamed) {
+      pushTerminal('system', `$ ${trimmed}`)
+      pushTerminal(out.ok ? 'stdout' : 'stderr', out.text)
+    }
     void refreshFileTreeInPlace()
     setLocalGitBump((n) => n + 1)
-  }, [projectPath, command, commandRunning, pushTerminal, refreshFileTreeInPlace, codingOwnerId])
+  }, [
+    projectPath,
+    command,
+    commandRunning,
+    pushTerminal,
+    refreshFileTreeInPlace,
+    codingOwnerId,
+    selectTerminalTab,
+  ])
+
+  const onSendStdin = useCallback(async () => {
+    const runId = shellRunId
+    if (!runId) return
+    const text = command
+    setCommand('')
+    // Echo like a terminal does; it lands on the prompt's row when the prompt has no newline.
+    setShellLines((prev) =>
+      appendTerminalChunk(prev, {
+        stream: 'stdout',
+        text: `${text}\n`,
+        idPrefix: `stdin-${Date.now()}`,
+        runId,
+        source: 'manual',
+      }),
+    )
+    const res = await invokeWriteCodingStdin(runId, `${text}\n`)
+    if (!res.ok) pushTerminal('stderr', res.error)
+  }, [shellRunId, command, pushTerminal])
+
+  const onStopShellRun = useCallback(() => {
+    if (shellRunId) void invokeKillCodingCommand(shellRunId)
+  }, [shellRunId])
 
   const visibleFileCount = useMemo(() => {
     let n = 0
@@ -1384,10 +1480,37 @@ export function CodingPanel({
                       {/* Bound height so TerminalView can scroll inside (not grow past pane). */}
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         <TerminalView
-                          lines={terminalLines}
-                          onClear={() => setTerminalLines([])}
-                          running={commandRunning}
-                          onStop={onStopCommand}
+                          lines={terminalTab === 'agent' ? agentLines : shellLines}
+                          tabs={[
+                            {
+                              id: 'agent',
+                              label: 'AGENT',
+                              title: 'Commands the agent runs',
+                              unread: unreadTabs.agent,
+                            },
+                            {
+                              id: 'shell',
+                              label: 'SHELL',
+                              title: 'Commands you run from the input below, and panel messages',
+                              unread: unreadTabs.shell,
+                            },
+                          ]}
+                          activeTab={terminalTab}
+                          onTabChange={(id) => selectTerminalTab(id as TerminalTabId)}
+                          onClear={() =>
+                            terminalTab === 'agent' ? setAgentLines([]) : setShellLines([])
+                          }
+                          running={
+                            terminalTab === 'shell'
+                              ? shellRunId != null
+                              : commandRunning && shellRunId == null
+                          }
+                          onStop={terminalTab === 'shell' ? onStopShellRun : onStopCommand}
+                          emptyText={
+                            terminalTab === 'agent'
+                              ? 'No agent commands yet.'
+                              : 'Run a command from the input below.'
+                          }
                         />
                       </div>
                     </div>
@@ -1406,7 +1529,15 @@ export function CodingPanel({
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                void onRunCommand()
+                void (shellRunId ? onSendStdin() : onRunCommand())
+                return
+              }
+              if (e.key === 'c' && e.ctrlKey && shellRunId) {
+                const el = e.currentTarget
+                // With a selection Ctrl+C still copies.
+                if (el.selectionStart !== el.selectionEnd) return
+                e.preventDefault()
+                onStopShellRun()
                 return
               }
               if (e.key === 'ArrowUp') {
@@ -1437,17 +1568,22 @@ export function CodingPanel({
                 setCommand(commandHistory[commandHistory.length - 1 - next])
               }
             }}
-            placeholder="npm test"
-            title="Enter: run · ↑ / ↓: command history"
+            placeholder={shellRunId ? 'input for the running command' : 'npm test'}
+            title={
+              shellRunId
+                ? 'Enter: send to the running command · Ctrl+C: stop'
+                : 'Enter: run · ↑ / ↓: command history'
+            }
             className="cyber-input flex-1 text-xs"
           />
           <button
             type="button"
             className="cyber-btn text-xs disabled:opacity-60"
-            disabled={commandRunning || !command.trim()}
-            onClick={() => void onRunCommand()}
+            disabled={shellRunId ? false : commandRunning || !command.trim()}
+            onClick={() => void (shellRunId ? onSendStdin() : onRunCommand())}
+            title={shellRunId ? 'Send this line to the running command' : 'Run the command'}
           >
-            RUN
+            {shellRunId ? 'SEND' : 'RUN'}
           </button>
         </div>
       )}

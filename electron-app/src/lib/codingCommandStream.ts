@@ -10,6 +10,8 @@ export type CodingCommandOutputEvent = {
   /** Chat runtime that started this shell (for multi-session terminal isolation). */
   ownerId?: string
   projectPath?: string
+  /** `manual` = started from the panel's RUN row. */
+  source?: 'agent' | 'manual'
   stream?: 'stdout' | 'stderr' | 'system'
   text?: string
   done?: boolean
@@ -96,6 +98,8 @@ export function appendCodingCommandEventToFeed(
         stream: 'system' as const,
         text,
         ts: Date.now(),
+        runId: event.runId,
+        source: event.source,
       },
     ].slice(-MAX_TERMINAL_ROWS)
   }
@@ -110,6 +114,8 @@ export function appendCodingCommandEventToFeed(
       stream,
       text: event.text,
       ts: Date.now(),
+      runId: event.runId,
+      source: event.source,
     },
   ].slice(-MAX_TERMINAL_ROWS)
 }

@@ -16,6 +16,14 @@ export type TerminalLine = {
   stream: 'stdout' | 'stderr' | 'stderr-output' | 'system'
   text: string
   ts: number
+  /** Command run that produced the row; only rows of the same run merge. */
+  runId?: string
+  /** `manual` = typed in the RUN row (SHELL tab); anything else is the agent's (AGENT tab). */
+  source?: 'agent' | 'manual'
+  /** The row has no newline yet; the next chunk of the same run continues it. */
+  partial?: boolean
+  /** A trailing `\r` was seen: the next text replaces the row instead of extending it. */
+  pendingCr?: boolean
 }
 
 export type CodingToolResult = {

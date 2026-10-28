@@ -371,6 +371,7 @@ contextBridge.exposeInMainWorld('voidcast', {
         runId: string
         ownerId?: string
         projectPath?: string
+        source?: 'agent' | 'manual'
         stream?: 'stdout' | 'stderr' | 'system'
         text?: string
         done?: boolean
@@ -524,6 +525,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     timeoutSec?: number
     runInBackground?: boolean
     ownerId?: string
+    interactive?: boolean
   }) =>
     ipcRenderer.invoke('voidcast:coding-execute-command', payload) as Promise<
       | {
@@ -542,6 +544,10 @@ contextBridge.exposeInMainWorld('voidcast', {
     >,
   codingKillCommand: (payload: { runId: string }) =>
     ipcRenderer.invoke('voidcast:coding-kill-command', payload) as Promise<
+      { ok: true } | { ok: false; error?: string }
+    >,
+  codingWriteStdin: (payload: { runId: string; text: string }) =>
+    ipcRenderer.invoke('voidcast:coding-write-stdin', payload) as Promise<
       { ok: true } | { ok: false; error?: string }
     >,
   codingListActiveProcesses: () =>

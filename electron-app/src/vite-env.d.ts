@@ -342,6 +342,7 @@ interface VoidcastBridge {
   onCodingCommandOutput: (
     callback: (event: {
       runId: string
+      source?: 'agent' | 'manual'
       stream?: 'stdout' | 'stderr' | 'system'
       text?: string
       done?: boolean
@@ -477,6 +478,7 @@ interface VoidcastBridge {
     timeoutSec?: number
     runInBackground?: boolean
     ownerId?: string
+    interactive?: boolean
   }) => Promise<
     | {
         ok: true
@@ -495,6 +497,12 @@ interface VoidcastBridge {
 
   codingKillCommand: (payload: {
     runId: string
+  }) => Promise<{ ok: true } | { ok: false; error?: string }>
+
+  /** Writes to the stdin of a command started from the RUN row. */
+  codingWriteStdin: (payload: {
+    runId: string
+    text: string
   }) => Promise<{ ok: true } | { ok: false; error?: string }>
 
   codingListActiveProcesses: () => Promise<{

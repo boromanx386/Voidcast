@@ -129,6 +129,17 @@ export async function invokeKillAllActiveCodingProcesses(): Promise<void> {
   await fn()
 }
 
+export async function invokeWriteCodingStdin(
+  runId: string,
+  text: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const fn = window.voidcast?.codingWriteStdin
+  if (!fn) return { ok: false, error: 'Input is available only in Electron desktop.' }
+  const res = await fn({ runId, text })
+  if (!res.ok) return { ok: false, error: res.error || 'Input failed.' }
+  return { ok: true }
+}
+
 export async function invokeKillCodingCommand(
   runId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -394,7 +405,12 @@ export async function invokeCheckCodingTypes(
 export async function invokeExecuteCodingCommand(
   projectPath: string,
   command: string,
-  options?: { timeoutSec?: number; runInBackground?: boolean; ownerId?: string },
+  options?: {
+    timeoutSec?: number
+    runInBackground?: boolean
+    ownerId?: string
+    interactive?: boolean
+  },
 ): Promise<CodingToolResult> {
   const fn = window.voidcast?.codingExecuteCommand
   if (!fn) return missingBridgeResult('Execute command')
@@ -404,6 +420,7 @@ export async function invokeExecuteCodingCommand(
     timeoutSec: options?.timeoutSec,
     runInBackground: options?.runInBackground,
     ownerId: options?.ownerId,
+    interactive: options?.interactive,
   })
   if (!res.ok) {
     const streamed = res.streamed === true

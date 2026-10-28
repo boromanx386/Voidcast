@@ -56,6 +56,23 @@ html[data-ui-theme='light'] {
   --coding-find-mark-fg: 166 139 86;
   --coding-find-active-fg: 90 126 138;
   --coding-find-status-fg: 166 139 86;
+  /* Darker ANSI colors: the dark-theme palette is unreadable on paper. */
+  --ansi-0: 41 36 31;
+  --ansi-1: 170 60 60;
+  --ansi-2: 50 120 65;
+  --ansi-3: 140 105 30;
+  --ansi-4: 50 90 165;
+  --ansi-5: 135 70 140;
+  --ansi-6: 40 115 125;
+  --ansi-7: 100 91 79;
+  --ansi-8: 116 106 93;
+  --ansi-9: 190 70 70;
+  --ansi-10: 60 140 75;
+  --ansi-11: 155 120 35;
+  --ansi-12: 60 105 185;
+  --ansi-13: 150 80 155;
+  --ansi-14: 45 130 140;
+  --ansi-15: 72 64 55;
 }
 
 html[data-ui-theme='light'] body {

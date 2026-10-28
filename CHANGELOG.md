@@ -4,7 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Coding terminal has AGENT and SHELL tabs**: the agent's commands and the ones you type in the RUN row used to share one buffer, so a long agent build scrolled your own output away. Now each has its own tab with its own 2000 rows, and a dot marks a tab with new output. Panel messages (save, stage, commit) go to SHELL.
+- **Commands you run can be answered**: while a RUN command is running, the input row sends lines to its stdin (the button reads **SEND**), so `y/n` prompts and `npm init` work. The answer is echoed on the prompt's row. **Ctrl+C** in the input stops the command when no text is selected.
+- **Colored output and progress bars**: ANSI colors (16, 256 and truecolor, bold, underline) are drawn in the terminal, with a darker palette in the light theme. A carriage return or a spinner's erase-line redraws the current row instead of adding a new one, so progress bars stay on one line. Commands you run get `FORCE_COLOR=1`; agent runs stay uncolored. Covered by `ansi` and `terminal-chunks` unit tests.
+
 ### Changed
+
+- **RUN commands no longer time out**: commands typed in the RUN row used the agent's 20-second timeout, so a silent build or test run was killed, and output-producing ones were handed off to background tracking after 2.5s of silence. They now run until they exit or you stop them. Agent runs keep the timeout.
 
 - **Plan mode delivers the plan through a `submit_plan` tool instead of the chat bubble**: the model used to write the plan as markdown plus a ```` ```json plan ```` block into its reply, which streamed into the bubble before the app turned it into the card. Now it fills `submit_plan` (title, summary, steps or approaches, research). Nothing of the plan shows in the bubble, and the card is built from the tool arguments. Bad arguments come back as an error the model fixes, and a valid call ends the turn without an extra model round. The JSON block in the reply stays as the fallback when a turn has no tools.
 - **Plans are saved as files**: with a project folder, each plan is written to `.voidcast/plans/YYYY-MM-DD-<title>.md` (summary, checklist, approaches, research, the model's notes). The folder carries its own `.gitignore`, so plans stay out of `git status`. The card shows the path with an **Open** button. The file keeps itself in sync — card edits, Approve & Build, each `update_plan_progress` step and the end of the build rewrite it, so its checkboxes follow the build. Later turns get a compact copy of the plan in history, and the build prompt names the plan file. Covered by `plan-file`, `plan-submit` and `agentToolLoop` unit tests.

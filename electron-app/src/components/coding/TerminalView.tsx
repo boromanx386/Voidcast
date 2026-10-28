@@ -1,5 +1,19 @@
-import { memo, useCallback, useEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useRef, type CSSProperties } from 'react'
+import { hasAnsi, parseAnsi, type AnsiStyle } from '@/lib/ansi'
 import type { TerminalLine } from '@/types/coding'
+
+function ansiCss(style: AnsiStyle): CSSProperties {
+  const fg = style.inverse ? (style.bg ?? 'rgb(var(--color-void-black))') : style.fg
+  const bg = style.inverse ? (style.fg ?? 'rgb(var(--color-void-light))') : style.bg
+  return {
+    color: fg,
+    backgroundColor: bg,
+    fontWeight: style.bold ? 700 : undefined,
+    opacity: style.dim ? 0.7 : undefined,
+    fontStyle: style.italic ? 'italic' : undefined,
+    textDecoration: style.underline ? 'underline' : undefined,
+  }
+}
 
 const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: TerminalLine }) {
   return (
@@ -15,21 +29,51 @@ const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: Terminal
               : 'text-void-light'
       }`}
     >
-      {line.text.length === 0 ? ' ' : line.text}
+      {line.text.length === 0
+        ? ' '
+        : hasAnsi(line.text)
+          ? parseAnsi(line.text).map((span, i) => (
+              <span key={i} style={ansiCss(span.style)}>
+                {span.text}
+              </span>
+            ))
+          : line.text}
     </div>
   )
 })
 
+export type TerminalTab = {
+  id: string
+  label: string
+  title?: string
+  /** New output arrived while another tab was shown. */
+  unread?: boolean
+}
+
 type Props = {
   lines: TerminalLine[]
+  /** Tabs replace the TERMINAL label; the parent passes the active tab's lines. */
+  tabs?: TerminalTab[]
+  activeTab?: string
+  onTabChange?: (id: string) => void
   /** When set, shows a small CLEAR control in the header to wipe buffered lines. */
   onClear?: () => void
   /** Foreground command is streaming — show running hint + STOP. */
   running?: boolean
   onStop?: () => void
+  emptyText?: string
 }
 
-export function TerminalView({ lines, onClear, running = false, onStop }: Props) {
+export function TerminalView({
+  lines,
+  tabs,
+  activeTab,
+  onTabChange,
+  onClear,
+  running = false,
+  onStop,
+  emptyText = 'No terminal output yet.',
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
 
@@ -52,6 +96,13 @@ export function TerminalView({ lines, onClear, running = false, onStop }: Props)
     return () => cancelAnimationFrame(id)
   }, [lines, pinBottom])
 
+  // A tab switch shows a different buffer: start it at its newest line.
+  useEffect(() => {
+    stickToBottomRef.current = true
+    const id = requestAnimationFrame(pinBottom)
+    return () => cancelAnimationFrame(id)
+  }, [activeTab, pinBottom])
+
   // When the pane is resized (shrink/grow), re-pin if we were following —
   // otherwise the last lines sit clipped under the viewport with no way to
   // reach them (or look like scroll is broken if overflow wasn't constrained).
@@ -73,7 +124,35 @@ export function TerminalView({ lines, onClear, running = false, onStop }: Props)
     <div className="flex h-full min-h-0 flex-col rounded border border-void-muted/30 bg-void-black/50 p-2">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="coding-label--terminal text-xs font-mono">TERMINAL</div>
+          {tabs && tabs.length > 0 ? (
+            <div role="tablist" className="flex items-center gap-1">
+              {tabs.map((tab) => {
+                const active = tab.id === activeTab
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    title={tab.title}
+                    onClick={() => onTabChange?.(tab.id)}
+                    className={`relative rounded px-1.5 py-0.5 text-xs font-mono transition-colors ${
+                      active
+                        ? 'coding-label--terminal bg-void-mid/60'
+                        : 'text-void-dim hover:text-void-light'
+                    }`}
+                  >
+                    {tab.label}
+                    {tab.unread && !active && (
+                      <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[rgb(var(--coding-terminal-label-fg))]" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="coding-label--terminal text-xs font-mono">TERMINAL</div>
+          )}
           {running && (
             <span className="truncate text-[10px] font-mono uppercase tracking-wide text-void-dim">
               running…
@@ -109,9 +188,9 @@ export function TerminalView({ lines, onClear, running = false, onStop }: Props)
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden font-mono text-xs"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden font-mono text-xs leading-relaxed"
       >
-        {lines.length === 0 && <div className="text-void-dim">No terminal output yet.</div>}
+        {lines.length === 0 && <div className="text-void-dim">{emptyText}</div>}
         {lines.map((line) => (
           <TerminalLineRow key={line.id} line={line} />
         ))}
