@@ -3,8 +3,9 @@ import type { TerminalLine } from '@/types/coding'
 
 const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: TerminalLine }) {
   return (
+    // pre-wrap: indentation in stack traces, tables and tree output must survive.
     <div
-      className={
+      className={`whitespace-pre-wrap break-words ${
         line.stream === 'stderr'
           ? 'coding-terminal-stderr'
           : line.stream === 'stderr-output'
@@ -12,9 +13,9 @@ const TerminalLineRow = memo(function TerminalLineRow({ line }: { line: Terminal
             : line.stream === 'system'
               ? 'coding-terminal-system'
               : 'text-void-light'
-      }
+      }`}
     >
-      {line.text}
+      {line.text.length === 0 ? ' ' : line.text}
     </div>
   )
 })

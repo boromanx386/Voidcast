@@ -10,7 +10,23 @@ export function codingCommandSpawnEnv(base: NodeJS.ProcessEnv = process.env): No
   return {
     ...base,
     PYTHONUNBUFFERED: base.PYTHONUNBUFFERED || '1',
+    // Piped Python on Windows otherwise encodes to the ANSI code page, which we decode as UTF-8.
+    PYTHONIOENCODING: base.PYTHONIOENCODING || 'utf-8',
   }
+}
+
+/**
+ * Shell command line for `spawn(..., { shell: true })`. On Windows the hidden console starts
+ * on the OEM code page (437, 852, …), and programs that encode piped output with it (.NET
+ * tools, nested cmd) produced mojibake once decoded as UTF-8. chcp fixes those; cmd's own
+ * builtins (dir, echo) keep the code page cmd started with. `&` (not `&&`) so the command
+ * still runs if chcp is unavailable.
+ */
+export function codingShellCommandLine(
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === 'win32' ? `chcp 65001 >nul 2>&1 & ${command}` : command
 }
 
 /**
@@ -41,6 +57,10 @@ export function attachCodingProcessStdio(
     onChunk(stream, text)
   }, throttleMs)
 
+  // A string decoder keeps multi-byte UTF-8 characters intact across chunk boundaries;
+  // String(buffer) per chunk turned a split character into U+FFFD.
+  child.stdout?.setEncoding?.('utf8')
+  child.stderr?.setEncoding?.('utf8')
   child.stdout?.on('data', (chunk: Buffer | string) => {
     throttle.push('stdout', String(chunk))
   })

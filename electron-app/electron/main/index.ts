@@ -47,7 +47,11 @@ import {
   readPersistedMcpResult,
 } from './mcpManager'
 import { buildMcpProjectServerPreviews } from '../../src/lib/mcpProjectTrust'
-import { attachCodingProcessStdio, codingCommandSpawnEnv } from '../../src/lib/codingProcessStdio'
+import {
+  attachCodingProcessStdio,
+  codingCommandSpawnEnv,
+  codingShellCommandLine,
+} from '../../src/lib/codingProcessStdio'
 import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
@@ -3090,7 +3094,7 @@ ipcMain.handle(
     }
     type ErrResult = { ok: false; error: string; runId?: string; streamed?: boolean }
     return new Promise<OkResult | ErrResult>((resolve) => {
-      const child = spawn(command, {
+      const child = spawn(codingShellCommandLine(command), {
         cwd: projectPath,
         shell: true,
         // Never detach — Windows detached children often abandon our pipes (empty output buffer).

@@ -24,16 +24,50 @@ describe('ChunkThrottle', () => {
       flushed.push({ stream, text })
     }, 50)
 
-    t.push('stdout', 'a')
-    t.push('stdout', 'b')
-    t.push('stderr', 'e')
+    t.push('stdout', 'a\n')
+    t.push('stdout', 'b\n')
+    t.push('stderr', 'e\n')
     expect(flushed).toEqual([])
 
     vi.advanceTimersByTime(50)
     expect(flushed).toEqual([
-      { stream: 'stdout', text: 'ab' },
-      { stream: 'stderr', text: 'e' },
+      { stream: 'stdout', text: 'a\nb\n' },
+      { stream: 'stderr', text: 'e\n' },
     ])
+  })
+
+  it('holds a partial line until its newline arrives on a later chunk', () => {
+    vi.useFakeTimers()
+    const flushed: string[] = []
+    const t = new ChunkThrottle((_stream, text) => {
+      flushed.push(text)
+    }, 50)
+
+    t.push('stdout', 'one\ntw')
+    vi.advanceTimersByTime(50)
+    expect(flushed).toEqual(['one\n'])
+
+    t.push('stdout', 'o\nthree\n')
+    vi.advanceTimersByTime(50)
+    expect(flushed).toEqual(['one\n', 'two\nthree\n'])
+  })
+
+  it('releases a partial line after the tail hold so prompts still show', () => {
+    vi.useFakeTimers()
+    const flushed: string[] = []
+    const t = new ChunkThrottle(
+      (_stream, text) => {
+        flushed.push(text)
+      },
+      50,
+      250,
+    )
+
+    t.push('stdout', 'Proceed? ')
+    vi.advanceTimersByTime(50)
+    expect(flushed).toEqual([])
+    vi.advanceTimersByTime(200)
+    expect(flushed).toEqual(['Proceed? '])
   })
 
   it('flush() sends pending immediately and clears the timer', () => {

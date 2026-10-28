@@ -4,7 +4,7 @@ import type { TerminalLine } from '@/types/coding'
 export const MAX_TERMINAL_LINE_CHARS = 4096
 
 /** Total rows retained in state (including chunk-expanded tool output). */
-export const MAX_TERMINAL_ROWS = 100
+export const MAX_TERMINAL_ROWS = 2000
 
 export function expandTextToTerminalLines(
   stream: TerminalLine['stream'],
@@ -16,10 +16,16 @@ export function expandTextToTerminalLines(
   if (raw.length === 0) return []
 
   const segments = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  // Line-aligned stream chunks end in a newline; without this every chunk adds a blank row.
+  if (segments.length > 1 && segments[segments.length - 1] === '') segments.pop()
   const out: TerminalLine[] = []
   let seq = 0
 
   for (const segment of segments) {
+    if (segment.length === 0) {
+      out.push({ id: `${idPrefix}-${seq++}`, stream, text: '', ts })
+      continue
+    }
     let rest = segment
     while (rest.length > 0) {
       const take = rest.slice(0, MAX_TERMINAL_LINE_CHARS)
