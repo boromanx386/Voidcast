@@ -48,6 +48,9 @@ export type TerminalTab = {
   title?: string
   /** New output arrived while another tab was shown. */
   unread?: boolean
+  /** Process tabs: a live dot while running, dimmed once the process is gone. */
+  status?: 'running' | 'done'
+  onClose?: () => void
 }
 
 type Props = {
@@ -125,28 +128,53 @@ export function TerminalView({
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           {tabs && tabs.length > 0 ? (
-            <div role="tablist" className="flex items-center gap-1">
+            <div
+              role="tablist"
+              className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:thin]"
+            >
               {tabs.map((tab) => {
                 const active = tab.id === activeTab
                 return (
-                  <button
+                  <div
                     key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    title={tab.title}
-                    onClick={() => onTabChange?.(tab.id)}
-                    className={`relative rounded px-1.5 py-0.5 text-xs font-mono transition-colors ${
-                      active
-                        ? 'coding-label--terminal bg-void-mid/60'
-                        : 'text-void-dim hover:text-void-light'
+                    className={`relative flex shrink-0 items-center rounded transition-colors ${
+                      active ? 'bg-void-mid/60' : ''
                     }`}
                   >
-                    {tab.label}
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      title={tab.title}
+                      onClick={() => onTabChange?.(tab.id)}
+                      className={`flex items-center gap-1 whitespace-nowrap px-1.5 py-0.5 text-xs font-mono ${
+                        active
+                          ? 'coding-label--terminal'
+                          : tab.status === 'done'
+                            ? 'text-void-dim/70 hover:text-void-light'
+                            : 'text-void-dim hover:text-void-light'
+                      }`}
+                    >
+                      {tab.status === 'running' && (
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                      )}
+                      {tab.label}
+                    </button>
+                    {tab.onClose && (
+                      <button
+                        type="button"
+                        onClick={tab.onClose}
+                        title="Close tab"
+                        aria-label={`Close ${tab.label}`}
+                        className="pr-1 text-[10px] font-mono text-void-dim hover:text-void-light"
+                      >
+                        ×
+                      </button>
+                    )}
                     {tab.unread && !active && (
                       <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[rgb(var(--coding-terminal-label-fg))]" />
                     )}
-                  </button>
+                  </div>
                 )
               })}
             </div>

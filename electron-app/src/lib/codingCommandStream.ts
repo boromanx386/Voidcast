@@ -12,6 +12,8 @@ export type CodingCommandOutputEvent = {
   projectPath?: string
   /** `manual` = started from the panel's RUN row. */
   source?: 'agent' | 'manual'
+  /** Started with run_in_background, or handed back to the agent after going quiet. */
+  background?: boolean
   stream?: 'stdout' | 'stderr' | 'system'
   text?: string
   done?: boolean
@@ -100,6 +102,8 @@ export function appendCodingCommandEventToFeed(
         ts: Date.now(),
         runId: event.runId,
         source: event.source,
+        background: event.background,
+        done: true,
       },
     ].slice(-MAX_TERMINAL_ROWS)
   }
@@ -116,6 +120,7 @@ export function appendCodingCommandEventToFeed(
       ts: Date.now(),
       runId: event.runId,
       source: event.source,
+      background: event.background,
     },
   ].slice(-MAX_TERMINAL_ROWS)
 }

@@ -20,6 +20,10 @@ export type TerminalLine = {
   runId?: string
   /** `manual` = typed in the RUN row (SHELL tab); anything else is the agent's (AGENT tab). */
   source?: 'agent' | 'manual'
+  /** Feed only: the run is a background process, shown in its own tab. */
+  background?: boolean
+  /** Feed only: the run's exit line. */
+  done?: boolean
   /** The row has no newline yet; the next chunk of the same run continues it. */
   partial?: boolean
   /** A trailing `\r` was seen: the next text replaces the row instead of extending it. */

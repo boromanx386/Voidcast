@@ -343,6 +343,7 @@ interface VoidcastBridge {
     callback: (event: {
       runId: string
       source?: 'agent' | 'manual'
+      background?: boolean
       stream?: 'stdout' | 'stderr' | 'system'
       text?: string
       done?: boolean

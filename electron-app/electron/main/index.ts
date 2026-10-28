@@ -3116,6 +3116,8 @@ ipcMain.handle(
         child.on('close', () => codingProcessStdin.delete(runId))
       }
 
+      /** Flips on idle promotion, so the panel can move the run into its own tab. */
+      let isBackground = runInBackground
       const sendOutput = (payloadOut: {
         stream?: 'stdout' | 'stderr' | 'system'
         text?: string
@@ -3130,6 +3132,7 @@ ipcMain.handle(
             ownerId,
             projectPath,
             source: interactive ? 'manual' : 'agent',
+            background: isBackground || undefined,
             ...payloadOut,
           })
         } catch {
@@ -3259,6 +3262,7 @@ ipcMain.handle(
         clearTimeout(timer)
         clearIdleTimer()
         runState.kind = 'background'
+        isBackground = true
         sendCodingProcessUpdate(evt.sender, {
           action: 'upsert',
           process: toPublicProcess(runState),

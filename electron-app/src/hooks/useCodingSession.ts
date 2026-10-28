@@ -284,7 +284,13 @@ export function useCodingSession({
         setActiveCodingRunId((cur) => (viewing && cur === event.runId ? null : cur))
         setActiveCodingProcesses((prev) => removeActiveProcess(prev, event.runId))
       } else if (viewing) {
-        setActiveCodingRunId(event.runId)
+        // Background output must not mark a foreground run: it disabled RUN and pointed STOP
+        // at a dev server for as long as the server kept logging.
+        if (event.background) {
+          setActiveCodingRunId((cur) => (cur === event.runId ? null : cur))
+        } else {
+          setActiveCodingRunId(event.runId)
+        }
         if (event.text) {
           setActiveCodingProcesses((prev) =>
             applyOutputToActiveProcess(prev, event.runId, event.text!, {

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Each background process gets its own terminal tab**: a dev server, a watcher and a test runner the agent starts in the background used to write into the same AGENT buffer, so their logs mixed. Now each one gets a tab named after its command, with a live dot while it runs and STOP for that process alone. A foreground command that is handed back to the agent after going quiet moves into a tab of its own, and AGENT keeps a one-line pointer. Finished tabs dim and can be closed. At most 8 are kept, and the oldest finished ones go first. Covered by a `terminal-tabs` unit test.
 - **Coding terminal has AGENT and SHELL tabs**: the agent's commands and the ones you type in the RUN row used to share one buffer, so a long agent build scrolled your own output away. Now each has its own tab with its own 2000 rows, and a dot marks a tab with new output. Panel messages (save, stage, commit) go to SHELL.
 - **Commands you run can be answered**: while a RUN command is running, the input row sends lines to its stdin (the button reads **SEND**), so `y/n` prompts and `npm init` work. The answer is echoed on the prompt's row. **Ctrl+C** in the input stops the command when no text is selected.
 - **Colored output and progress bars**: ANSI colors (16, 256 and truecolor, bold, underline) are drawn in the terminal, with a darker palette in the light theme. A carriage return or a spinner's erase-line redraws the current row instead of adding a new one, so progress bars stay on one line. Commands you run get `FORCE_COLOR=1`; agent runs stay uncolored. Covered by `ansi` and `terminal-chunks` unit tests.
@@ -19,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **A background process no longer blocks RUN**: every output chunk from a background run marked it as the foreground command. While an agent's dev server kept logging, RUN stayed disabled and STOP in the terminal pointed at the server. Background output now leaves the foreground state alone.
 - **Coding terminal keeps indentation**: output rows collapsed runs of spaces, so stack traces, tables and `git status` lost their indentation. Rows now keep whitespace and wrap long lines.
 - **Coding terminal keeps 2000 rows instead of 100**: one `npm install` or failing test run used to push the actual error out of the panel.
 - **Coding terminal no longer splits lines at random**: a line that arrived in two pipe chunks showed up as two rows, and every chunk ending in a newline added a blank row. Output is now sent in whole lines. A partial line without a newline (a prompt such as `Proceed? `) still shows after 250ms of silence. Covered by `coding-command-stream` and `terminal-chunks` unit tests.

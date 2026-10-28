@@ -3,7 +3,7 @@ import { FileTree } from '@/components/coding/FileTree'
 import { ProjectTrustBar } from '@/components/coding/ProjectTrustBar'
 import { FolderIcon } from '@/components/icons/FolderIcon'
 import { FilePreview } from '@/components/coding/FilePreview'
-import { TerminalView } from '@/components/coding/TerminalView'
+import { TerminalView, type TerminalTab } from '@/components/coding/TerminalView'
 import { BrowserPane } from '@/components/BrowserPane'
 import { filterCodingTreeEntries } from '@/lib/codingTreeFilter'
 import {
@@ -13,11 +13,18 @@ import {
   parseGitStatusText,
   type GitStatusEntry,
 } from '@/lib/gitStatusParse'
+import { appendTerminalChunk, expandTextToTerminalLines } from '@/lib/terminalChunks'
 import {
-  appendTerminalChunk,
-  expandTextToTerminalLines,
-  MAX_TERMINAL_ROWS,
-} from '@/lib/terminalChunks'
+  appendShellRows,
+  clearTerminalTab,
+  closeProcessTab,
+  emptyTerminalBuffers,
+  linesForTab,
+  processTabId,
+  processTabLabel,
+  routeFeedLines,
+  type TerminalBuffers,
+} from '@/lib/terminalTabs'
 import { consumeLastExecuteCommandStreamed } from '@/lib/codingCommandStream'
 import {
   clampCodingFileTreeHeight,
@@ -46,8 +53,6 @@ import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImageP
 import { codingRevealParentDirs, type CodingRevealRequest } from '@/lib/codingReveal'
 import { isWindowForeground } from '@/lib/windowFocus'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
-
-type TerminalTabId = 'agent' | 'shell'
 
 type CodingUiVisibilityPatch = Partial<
   Pick<
@@ -184,16 +189,13 @@ export function CodingPanel({
   )
   const [isTreeResizing, setIsTreeResizing] = useState(false)
   const [isBottomResizing, setIsBottomResizing] = useState(false)
-  // Agent commands and the user's own RUN commands get separate buffers, so a long agent build
-  // never scrolls away what the user is typing into.
-  const [agentLines, setAgentLines] = useState<TerminalLine[]>([])
-  const [shellLines, setShellLines] = useState<TerminalLine[]>([])
-  const [terminalTab, setTerminalTab] = useState<TerminalTabId>('agent')
-  const terminalTabRef = useRef<TerminalTabId>('agent')
-  const [unreadTabs, setUnreadTabs] = useState<Record<TerminalTabId, boolean>>({
-    agent: false,
-    shell: false,
-  })
+  // Agent commands, the user's own RUN commands and each background process get separate
+  // buffers, so a dev server's log never scrolls away a build's error or what the user typed.
+  const [term, setTerm] = useState<TerminalBuffers>(emptyTerminalBuffers)
+  const [terminalTab, setTerminalTab] = useState('agent')
+  const terminalTabRef = useRef('agent')
+  const [unreadTabs, setUnreadTabs] = useState<Record<string, boolean>>({})
+  const seenTabLinesRef = useRef<Record<string, TerminalLine[]>>({})
   /** Run started from the RUN row; while set, the input writes to its stdin. */
   const [shellRunId, setShellRunId] = useState<string | null>(null)
   const shellRunPendingRef = useRef(false)
@@ -454,26 +456,44 @@ export function CodingPanel({
     const idBase = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
     const rows = expandTextToTerminalLines(stream, text, idBase)
     if (rows.length === 0) return
-    setShellLines((prev) => [...prev, ...rows].slice(-MAX_TERMINAL_ROWS))
+    setTerm((prev) => appendShellRows(prev, rows))
   }, [])
 
-  const selectTerminalTab = useCallback((tab: TerminalTabId) => {
+  const selectTerminalTab = useCallback((tab: string) => {
     terminalTabRef.current = tab
     setTerminalTab(tab)
     setUnreadTabs((prev) => (prev[tab] ? { ...prev, [tab]: false } : prev))
   }, [])
 
+  // Dot on every tab whose buffer changed while another tab was shown.
   useEffect(() => {
-    if (agentLines.length > 0 && terminalTabRef.current !== 'agent') {
-      setUnreadTabs((prev) => (prev.agent ? prev : { ...prev, agent: true }))
+    const current: Record<string, TerminalLine[]> = {
+      agent: term.agent,
+      shell: term.shell,
+      ...Object.fromEntries(term.procs.map((p) => [processTabId(p.runId), p.lines])),
     }
-  }, [agentLines])
+    const changed = Object.keys(current).filter(
+      (id) =>
+        id !== terminalTabRef.current &&
+        current[id].length > 0 &&
+        current[id] !== seenTabLinesRef.current[id],
+    )
+    seenTabLinesRef.current = current
+    if (changed.length === 0) return
+    setUnreadTabs((prev) => {
+      const next = { ...prev }
+      for (const id of changed) next[id] = true
+      return next
+    })
+  }, [term])
 
-  useEffect(() => {
-    if (shellLines.length > 0 && terminalTabRef.current !== 'shell') {
-      setUnreadTabs((prev) => (prev.shell ? prev : { ...prev, shell: true }))
+  const closeProcTab = useCallback((runId: string) => {
+    setTerm((prev) => closeProcessTab(prev, runId))
+    if (terminalTabRef.current === processTabId(runId)) {
+      terminalTabRef.current = 'agent'
+      setTerminalTab('agent')
     }
-  }, [shellLines])
+  }, [])
 
   const refreshGitStatus = useCallback(async () => {
     if (!projectPath) {
@@ -606,8 +626,7 @@ export function CodingPanel({
 
   useEffect(() => {
     seenAgentShellIdsRef.current.clear()
-    setAgentLines([])
-    setShellLines([])
+    setTerm(emptyTerminalBuffers())
     setShellRunId(null)
   }, [agentShellEpoch])
 
@@ -618,33 +637,17 @@ export function CodingPanel({
       if (!stillInFeed.has(id)) seenAgentShellIdsRef.current.delete(id)
     }
     if (feed.length === 0) return
-    const agentBatch: TerminalLine[] = []
-    const shellBatch: TerminalLine[] = []
+    const batch: TerminalLine[] = []
     for (const line of feed) {
       if (seenAgentShellIdsRef.current.has(line.id)) continue
       seenAgentShellIdsRef.current.add(line.id)
-      if (line.source === 'manual') shellBatch.push(line)
-      else agentBatch.push(line)
+      batch.push(line)
     }
-    const fold = (prev: TerminalLine[], batch: TerminalLine[]) =>
-      batch.reduce(
-        (acc, line) =>
-          appendTerminalChunk(acc, {
-            stream: line.stream,
-            text: line.text,
-            idPrefix: line.id,
-            runId: line.runId,
-            source: line.source,
-          }),
-        prev,
-      )
-    if (agentBatch.length > 0) setAgentLines((prev) => fold(prev, agentBatch))
-    if (shellBatch.length > 0) {
-      setShellLines((prev) => fold(prev, shellBatch))
-      // Only while RUN is still awaiting: a late render must not re-arm a finished run.
-      const runId = shellBatch[0].runId
-      if (shellRunPendingRef.current && runId) setShellRunId(runId)
-    }
+    if (batch.length === 0) return
+    setTerm((prev) => routeFeedLines(prev, batch))
+    // Only while RUN is still awaiting: a late render must not re-arm a finished run.
+    const manualRunId = batch.find((l) => l.source === 'manual' && l.runId)?.runId
+    if (shellRunPendingRef.current && manualRunId) setShellRunId(manualRunId)
   }, [agentShellFeed])
 
   const onPickFolder = useCallback(async () => {
@@ -1091,15 +1094,16 @@ export function CodingPanel({
     const text = command
     setCommand('')
     // Echo like a terminal does; it lands on the prompt's row when the prompt has no newline.
-    setShellLines((prev) =>
-      appendTerminalChunk(prev, {
+    setTerm((prev) => ({
+      ...prev,
+      shell: appendTerminalChunk(prev.shell, {
         stream: 'stdout',
         text: `${text}\n`,
         idPrefix: `stdin-${Date.now()}`,
         runId,
         source: 'manual',
       }),
-    )
+    }))
     const res = await invokeWriteCodingStdin(runId, `${text}\n`)
     if (!res.ok) pushTerminal('stderr', res.error)
   }, [shellRunId, command, pushTerminal])
@@ -1107,6 +1111,41 @@ export function CodingPanel({
   const onStopShellRun = useCallback(() => {
     if (shellRunId) void invokeKillCodingCommand(shellRunId)
   }, [shellRunId])
+
+  // A closed or pruned process tab falls back to AGENT.
+  const activeProc = term.procs.find((p) => processTabId(p.runId) === terminalTab)
+  const activeTerminalTab = terminalTab.startsWith('proc:') && !activeProc ? 'agent' : terminalTab
+
+  const terminalTabs = useMemo<TerminalTab[]>(
+    () => [
+      {
+        id: 'agent',
+        label: 'AGENT',
+        title: "The agent's foreground commands",
+        unread: unreadTabs.agent,
+      },
+      ...term.procs.map((p) => {
+        const id = processTabId(p.runId)
+        return {
+          id,
+          label: processTabLabel(p.command),
+          title: p.running
+            ? `${p.command}\nBackground process, still running`
+            : `${p.command}\n${p.exitText ?? 'finished'}`,
+          unread: unreadTabs[id],
+          status: p.running ? ('running' as const) : ('done' as const),
+          onClose: p.running ? undefined : () => closeProcTab(p.runId),
+        }
+      }),
+      {
+        id: 'shell',
+        label: 'SHELL',
+        title: 'Commands you run from the input below, and panel messages',
+        unread: unreadTabs.shell,
+      },
+    ],
+    [term.procs, unreadTabs, closeProcTab],
+  )
 
   const visibleFileCount = useMemo(() => {
     let n = 0
@@ -1480,36 +1519,33 @@ export function CodingPanel({
                       {/* Bound height so TerminalView can scroll inside (not grow past pane). */}
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         <TerminalView
-                          lines={terminalTab === 'agent' ? agentLines : shellLines}
-                          tabs={[
-                            {
-                              id: 'agent',
-                              label: 'AGENT',
-                              title: 'Commands the agent runs',
-                              unread: unreadTabs.agent,
-                            },
-                            {
-                              id: 'shell',
-                              label: 'SHELL',
-                              title: 'Commands you run from the input below, and panel messages',
-                              unread: unreadTabs.shell,
-                            },
-                          ]}
-                          activeTab={terminalTab}
-                          onTabChange={(id) => selectTerminalTab(id as TerminalTabId)}
+                          lines={linesForTab(term, activeTerminalTab)}
+                          tabs={terminalTabs}
+                          activeTab={activeTerminalTab}
+                          onTabChange={selectTerminalTab}
                           onClear={() =>
-                            terminalTab === 'agent' ? setAgentLines([]) : setShellLines([])
+                            setTerm((prev) => clearTerminalTab(prev, activeTerminalTab))
                           }
                           running={
-                            terminalTab === 'shell'
-                              ? shellRunId != null
-                              : commandRunning && shellRunId == null
+                            activeProc
+                              ? activeProc.running
+                              : activeTerminalTab === 'shell'
+                                ? shellRunId != null
+                                : commandRunning && shellRunId == null
                           }
-                          onStop={terminalTab === 'shell' ? onStopShellRun : onStopCommand}
+                          onStop={
+                            activeProc
+                              ? () => void invokeKillCodingCommand(activeProc.runId)
+                              : activeTerminalTab === 'shell'
+                                ? onStopShellRun
+                                : onStopCommand
+                          }
                           emptyText={
-                            terminalTab === 'agent'
-                              ? 'No agent commands yet.'
-                              : 'Run a command from the input below.'
+                            activeTerminalTab === 'shell'
+                              ? 'Run a command from the input below.'
+                              : activeProc
+                                ? 'No output yet.'
+                                : 'No agent commands yet.'
                           }
                         />
                       </div>
