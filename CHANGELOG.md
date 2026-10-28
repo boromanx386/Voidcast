@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Cloud retries wait as long as the provider asks**: on 429/502/503/504 the retry delay came only from OpenRouter's `retry_after_seconds`, so OpenCode Go's "at capacity; retry shortly (after 13 s)" got 1 s and 2 s waits and the request failed after about 3 s. The delay now also comes from the `Retry-After` header or an "after N s" hint in the error message, capped at 30 s.
 - **`generate_image` and `edit_image_runware` tell the agent where the file is**: the image was saved by the UI after the tool result had already gone back to the model, so an agent asked to "generate, then copy into the project" had no path in the same turn and could stop with nothing copied. The handler now saves the image first and adds a `Saved image: <path>` line to the result; the UI reuses it instead of saving a second copy. Remote URLs are still only saved when auto-save is on.
 - **A background process no longer blocks RUN**: every output chunk from a background run marked it as the foreground command. While an agent's dev server kept logging, RUN stayed disabled and STOP in the terminal pointed at the server. Background output now leaves the foreground state alone.
 - **Coding terminal keeps indentation**: output rows collapsed runs of spaces, so stack traces, tables and `git status` lost their indentation. Rows now keep whitespace and wrap long lines.

@@ -50,7 +50,7 @@ export type OllamaModelTag = {
 const OLLAMA_RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
 const OLLAMA_MAX_RETRIES = 4
 
-function parseRetryAfterSeconds(value: string | null | undefined): number | undefined {
+export function parseRetryAfterSeconds(value: string | null | undefined): number | undefined {
   if (!value) return undefined
   const trimmed = value.trim()
   if (!trimmed) return undefined

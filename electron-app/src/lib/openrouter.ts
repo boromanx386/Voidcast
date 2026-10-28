@@ -4,7 +4,7 @@ import type {
   OllamaModelOptions,
   OllamaToolCall,
 } from './ollama'
-import { logPromptCache } from './ollama'
+import { logPromptCache, parseRetryAfterSeconds } from './ollama'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from './platform'
 import type { LlmThinkLevel } from './settings'
@@ -419,19 +419,40 @@ async function fetchWithHardAbort(
   })
 }
 
+/** Caps a provider-requested wait so one retry never stalls a turn for minutes. */
+const MAX_RETRY_AFTER_SECONDS = 30
+
 async function parseOpenRouterError(res: Response): Promise<{
   text: string
   retryAfterSeconds?: number
 }> {
   const txt = await res.text().catch(() => '')
+  let fromBody: number | undefined
   try {
     const parsed = JSON.parse(txt) as {
       error?: { metadata?: { retry_after_seconds?: number } }
     }
-    const retryAfterSeconds = parsed?.error?.metadata?.retry_after_seconds
-    return { text: txt, retryAfterSeconds }
+    fromBody = parsed?.error?.metadata?.retry_after_seconds
   } catch {
-    return { text: txt }
+    // Non-JSON body; the header and message hint below still apply.
+  }
+  // OpenRouter puts the wait in metadata; others use the header, and OpenCode Go
+  // only writes it into the message text ("retry shortly (after 13 s)").
+  const fromMessage = /\bafter\s+(\d+(?:\.\d+)?)\s*s(?:ec(?:onds?)?)?\b/i.exec(txt)?.[1]
+  const candidates = [
+    fromBody,
+    parseRetryAfterSeconds(res.headers.get('retry-after')),
+    fromMessage ? Number(fromMessage) : undefined,
+  ]
+  const retryAfterSeconds = candidates.find(
+    (s): s is number => typeof s === 'number' && Number.isFinite(s) && s > 0,
+  )
+  return {
+    text: txt,
+    retryAfterSeconds:
+      retryAfterSeconds === undefined
+        ? undefined
+        : Math.min(retryAfterSeconds, MAX_RETRY_AFTER_SECONDS),
   }
 }
 
