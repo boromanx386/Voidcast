@@ -5,7 +5,12 @@ import { CdpSession } from '../electron/main/browser/cdp'
 type Emit = (method: string, params: Record<string, unknown>) => void
 
 /** A CdpSession over a fake webContents; `emit` plays the debugger's event stream. */
-function attachedSession(): { session: CdpSession; emit: Emit } {
+function attachedSession(
+  sendCommand: (
+    method: string,
+    params: Record<string, unknown>,
+  ) => Promise<unknown> = async () => ({}),
+): { session: CdpSession; emit: Emit } {
   let listener: ((event: unknown, method: string, params: Record<string, unknown>) => void) | null =
     null
   const wc = {
@@ -19,7 +24,7 @@ function attachedSession(): { session: CdpSession; emit: Emit } {
       },
       removeListener: () => undefined,
       detach: () => undefined,
-      sendCommand: async () => ({}),
+      sendCommand,
     },
   } as unknown as WebContents
   const session = new CdpSession(wc)
@@ -56,6 +61,29 @@ describe('CdpSession network tracking', () => {
         'GET 200 https://example.test/',
       ].join('\n'),
     )
+  })
+
+  test('a page script error fails fast instead of reading as "selector missing"', async () => {
+    const { session } = attachedSession(async (method) =>
+      method === 'Runtime.evaluate'
+        ? {
+            result: { type: 'object', subtype: 'error' },
+            exceptionDetails: {
+              text: 'Uncaught',
+              exception: {
+                description:
+                  "SyntaxError: Failed to execute 'querySelector' on 'Document': 'a[' is not a valid selector.\n    at <anonymous>:1:12",
+              },
+            },
+          }
+        : {},
+    )
+    await session.attach()
+    const started = Date.now()
+    await expect(session.waitFor({ selector: 'a[', timeoutMs: 5000 })).rejects.toThrow(
+      "Page script failed: SyntaxError: Failed to execute 'querySelector' on 'Document': 'a[' is not a valid selector.",
+    )
+    expect(Date.now() - started).toBeLessThan(1000)
   })
 
   test('an unanswered request still blocks networkIdle', async () => {

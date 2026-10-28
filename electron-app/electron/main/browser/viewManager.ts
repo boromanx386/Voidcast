@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { CdpSession } from './cdp'
 import { recordProfileKey, runBrowserMaintenance, trimProfileCaches } from './maintenance'
+import { POPUP_BURST, POPUP_WINDOW_MS, allowPopup, popupToEvict } from './popupGuard'
 
 /**
  * Owns the Voidcast browser: one Chromium view per open page, inside our own window.
@@ -37,6 +38,8 @@ export type BrowserPage = {
   createdAt: number
   /** Bucket this page belongs to — `bucketKey(projectPath)`. */
   key: string
+  /** Opened by a page (window.open / target=_blank): the only kind a popup may evict. */
+  popup: boolean
 }
 
 /** An HTTP auth request Chromium is holding open until the user answers it. */
@@ -128,6 +131,8 @@ type BrowserBucket = {
   lastDownload: DownloadNotice | null
   /** Bumped every time a download starts, so a click can tell a new one from a stale notice. */
   downloadSeq: number
+  /** Recent popup attempts, for the burst limit in `popupGuard`. */
+  popupTimes: number[]
 }
 
 const buckets = new Map<string, BrowserBucket>()
@@ -154,6 +159,7 @@ function bucket(key: string = currentKey): BrowserBucket {
       lastPermission: null,
       lastDownload: null,
       downloadSeq: 0,
+      popupTimes: [],
     }
     buckets.set(key, found)
   }
@@ -976,6 +982,7 @@ async function newPageInWindow(
   url?: string,
   key: string = currentKey,
   epoch = bucket(key).epoch,
+  popup = false,
 ): Promise<BrowserPage> {
   const st = bucket(key)
   // Hardening must be in place before the first page in this partition loads.
@@ -997,7 +1004,16 @@ async function newPageInWindow(
   view.webContents.setWindowOpenHandler(({ url: target }) => {
     // target=_blank / window.open stay inside the Voidcast browser (never the system
     // browser), so the flow keeps running in the panel and the agent can drive it.
-    if (/^https?:/i.test(target)) void openPopup(target, key).catch(() => undefined)
+    if (!/^https?:/i.test(target)) return { action: 'deny' }
+    const st = bucket(key)
+    // Checked here, synchronously, so a window.open loop never even queues behind the lock.
+    if (!allowPopup(st.popupTimes, Date.now())) {
+      st.lastPermission = `popup to ${hostOf(target)} blocked — more than ${POPUP_BURST} in ${POPUP_WINDOW_MS / 1000}s`
+      return { action: 'deny' }
+    }
+    void openPopup(target, key).catch((e) => {
+      st.lastError = e instanceof Error ? e.message : String(e)
+    })
     return { action: 'deny' }
   })
   // HTTP Basic/Digest: answered silently from the encrypted store, or held for the user.
@@ -1049,7 +1065,7 @@ async function newPageInWindow(
     throw new Error('Could not create the Voidcast browser page.')
   }
 
-  const page: BrowserPage = { id, view, cdp, createdAt: Date.now(), key }
+  const page: BrowserPage = { id, view, cdp, createdAt: Date.now(), key, popup }
   pages.push(page)
   st.activeId = id
   applyVisibility()
@@ -1066,7 +1082,10 @@ async function newPageInWindow(
   return page
 }
 
-/** A page requested by the page itself (popup) — evicts the oldest background page at the cap. */
+/**
+ * A page requested by the page itself (popup). At the cap it may only evict an earlier
+ * popup: the tabs the user or the agent opened are never closed to make room for one.
+ */
 async function openPopup(url: string, key: string): Promise<void> {
   await withBrowserLock(async () => {
     const win = ownerWindow
@@ -1075,13 +1094,14 @@ async function openPopup(url: string, key: string): Promise<void> {
     const mine = (): BrowserPage[] => pages.filter((p) => p.key === key)
     // The cap is per project: a tab storm in one chat must not evict another project's pages.
     if (mine().length >= MAX_PAGES) {
-      const oldest = [...mine()]
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .find((p) => p.id !== st.activeId)
-      if (oldest) closeBrowserPageUnsafe(oldest.id)
+      const evict = popupToEvict(mine(), st.activeId)
+      if (evict) closeBrowserPageUnsafe(evict)
     }
-    if (mine().length >= MAX_PAGES) return
-    await newPageInWindow(win, url, key)
+    if (mine().length >= MAX_PAGES) {
+      st.lastPermission = `popup to ${hostOf(url)} blocked — ${MAX_PAGES} pages are open; close one first`
+      return
+    }
+    await newPageInWindow(win, url, key, bucket(key).epoch, true)
   })
 }
 

@@ -761,12 +761,26 @@ export class CdpSession {
     return `Emulating ${parts.join(', ')}. Layout viewport is now ${await this.viewportSize()}. Screenshots will be scaled by the device scale factor.`
   }
 
+  /**
+   * Runtime.evaluate RESOLVES when the page script throws, with the error in
+   * `exceptionDetails`. Reading only `result.value` turned an invalid selector into
+   * `undefined`, so browser_wait_for burned its whole timeout on "selector missing".
+   */
   async evaluate(expression: string): Promise<unknown> {
-    const res = await this.send<{ result?: { value?: unknown } }>('Runtime.evaluate', {
+    const res = await this.send<{
+      result?: { value?: unknown }
+      exceptionDetails?: { text?: string; exception?: { description?: string } }
+    }>('Runtime.evaluate', {
       expression,
       returnByValue: true,
       awaitPromise: true,
     })
+    if (res?.exceptionDetails) {
+      const details = res.exceptionDetails
+      const description = details.exception?.description ?? details.text ?? 'unknown error'
+      // The first line is the message; the stack below it points into our own wrapper.
+      throw new Error(`Page script failed: ${compact(description.split('\n')[0], 300)}`)
+    }
     return res?.result?.value
   }
 
