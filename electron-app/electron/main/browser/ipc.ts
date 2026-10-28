@@ -47,11 +47,12 @@ function asInt(value: unknown, fallback: number, min: number, max: number): numb
  * stop — a click that downloads nothing pays at most this long.
  */
 async function waitForDownload(
+  key: string,
   mark: number,
 ): Promise<{ name: string; path: string; state: string } | null> {
   const deadline = Date.now() + 700
   for (;;) {
-    const download = downloadNoticeSince(mark)
+    const download = downloadNoticeSince(key, mark)
     if (download) return download
     if (Date.now() >= deadline) return null
     await new Promise((resolve) => setTimeout(resolve, 40))
@@ -59,9 +60,11 @@ async function waitForDownload(
 }
 
 export function registerBrowserIpc(getWindow: GetWindow): void {
-  ipcMain.handle('voidcast:browser-status', async () => {
+  ipcMain.handle('voidcast:browser-status', async (_event, payload?: { projectPath?: string }) => {
     try {
-      return { ok: true as const, ...browserStatus() }
+      // No payload = the panel asking about what it shows; the agent always names its project.
+      const projectPath = typeof payload?.projectPath === 'string' ? payload.projectPath : undefined
+      return { ok: true as const, ...browserStatus(projectPath) }
     } catch (e) {
       return fail(e)
     }
@@ -198,9 +201,9 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         const uid = typeof payload?.uid === 'string' ? payload.uid.trim() : ''
         if (!uid) throw new Error('Missing uid.')
         return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
-          const mark = downloadMark()
+          const mark = downloadMark(s.key)
           const text = await s.cdp.clickByUid(uid)
-          const download = await waitForDownload(mark)
+          const download = await waitForDownload(s.key, mark)
           return {
             ok: true as const,
             text: download

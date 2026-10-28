@@ -256,7 +256,8 @@ export const handleBrowserStatus: ToolHandlerFn = async (_args, ctx) => {
     return 'Error: the Voidcast browser is only available in the Electron desktop app.'
   }
   try {
-    const res = await bridge.status()
+    // '' (not undefined) for a chat without a project: undefined means "the panel's project".
+    const res = await bridge.status({ projectPath: ctx.codingProjectPath ?? '' })
     if (!res.ok) return `Error: ${res.error ?? 'could not read browser status'}`
     const lines = [
       `profile: ${res.profile || '(not configured yet)'}`,
