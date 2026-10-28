@@ -1,6 +1,13 @@
 import { isCodingToolFailure } from '@/lib/codingContextMemo'
 import { digestFindSymbols, digestReadFile } from '@/lib/codingSubAgent'
-import type { PlanApproach, PlanArtifact, PlanResearch, PlanStep, UiMessage } from '@/types/chat'
+import type {
+  PlanApproach,
+  PlanArtifact,
+  PlanFileRef,
+  PlanResearch,
+  PlanStep,
+  UiMessage,
+} from '@/types/chat'
 
 let planStepSeq = 0
 
@@ -236,14 +243,23 @@ export const BUILD_TEAM_WORKERS_SYSTEM_HINT = [
   'Partition unfinished multi-area steps into ≤2 path-disjoint run_coding_workers tasks early, then verify and update_plan_progress.',
 ].join(' ')
 
-/** System hint appended in Plan mode — explore read-only, end with JSON plan fence. */
-export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string {
+/** Plan-mode tool the model fills with the plan JSON instead of writing it into its reply. */
+export const SUBMIT_PLAN_TOOL_NAME = 'submit_plan'
+
+/**
+ * System hint appended in Plan mode — explore read-only, then deliver the plan through
+ * submit_plan (or, when the turn has no tools, a trailing JSON plan fence).
+ */
+export function buildPlanModeSystemHint(opts?: {
+  hasHandoff?: boolean
+  submitTool?: boolean
+}): string {
   const lines = [
     'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or mutate settings/reminders.',
   ]
   if (opts?.hasHandoff) {
     lines.push(
-      'HARD CONSTRAINT: A prior agent-mode exploration handoff is attached (digests / files / tool trail). Do NOT call coding_explore, broad glob_files, full-tree list_directory, or re-read whole files already covered by that handoff. Draft the json plan from the handoff first. Only a targeted find_symbols or one range-read is allowed when a concrete named gap blocks file-level steps.',
+      'HARD CONSTRAINT: A prior agent-mode exploration handoff is attached (digests / files / tool trail). Do NOT call coding_explore, broad glob_files, full-tree list_directory, or re-read whole files already covered by that handoff. Draft the plan from the handoff first. Only a targeted find_symbols or one range-read is allowed when a concrete named gap blocks file-level steps.',
     )
   } else {
     lines.push(
@@ -257,6 +273,18 @@ export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string
     'Steps must be concrete: name the files/modules to touch and what to change in each (not vague "update the module" / "wire it up").',
     'Always include a compact "research" object with keyFiles (paths you explored), findings (architecture + exact edit points), and searches so Approve & Build can reuse them. Base findings on coding_explore / read_file / search_files / handoff digests — do not invent them from the user prompt alone. Keep findings under ~2500 characters.',
     'Prefer steps that name distinct file areas (so Approve & Build / Team can run parallel workers by path_prefix). Avoid “do everything” mega-steps.',
+    'The app shows the plan as a plan card and saves it as a markdown file, so do NOT write the plan out (headings, step lists, tables, JSON) in your reply text. Any prose is limited to a few sentences of context or open questions.',
+    'Each step (and each approach) must be actionable and ordered, with file-level detail. Do not claim work was already done.',
+  )
+  if (opts?.submitTool) {
+    lines.push(
+      `Deliver the plan by calling ${SUBMIT_PLAN_TOOL_NAME} exactly once, after exploring: flat "steps" for most tasks, or "approaches" (A, B, optionally C/D) plus "recommended" when tradeoffs matter. Fill "research" from what you actually explored. The call ends your turn — do not explore further afterwards. If it returns an error, fix the arguments and call it again.`,
+      `If the user asks to revise with their own idea, adapt the plan to that preference and call ${SUBMIT_PLAN_TOOL_NAME} again with the full updated plan (including updated research when exploration changed).`,
+      `Only if ${SUBMIT_PLAN_TOOL_NAME} is unavailable, end your reply with a fenced JSON block tagged \`json plan\` holding the same fields.`,
+    )
+    return lines.join('\n')
+  }
+  lines.push(
     'End your reply with a fenced JSON block tagged `json plan`. Preferred shapes:',
     '',
     'Flat plan (most tasks):',
@@ -289,7 +317,6 @@ export function buildPlanModeSystemHint(opts?: { hasHandoff?: boolean }): string
     '  }',
     '}',
     '```',
-    'Each approach must have actionable ordered steps with file-level detail. Do not claim work was already done.',
     'If the user asks to revise with their own idea, adapt the plan to that preference and emit a fresh json plan fence (flat or approaches as appropriate), including updated research when exploration changed.',
   )
   return lines.join('\n')
@@ -410,49 +437,61 @@ export function parsePlanJsonFromText(text: string): PlanArtifact | null {
   }
   for (const raw of [...candidates].reverse()) {
     try {
-      const parsed = JSON.parse(raw.trim()) as RawPlanJson
-      const approaches = approachesFromUnknown(parsed.approaches)
-      const stepTexts = stepsFromUnknown(parsed.steps)
-      if (approaches.length === 0 && stepTexts.length === 0) continue
-
-      const title =
-        typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : 'Plan'
-      const summary =
-        typeof parsed.summary === 'string' && parsed.summary.trim()
-          ? parsed.summary.trim()
-          : undefined
-      const research = normalizePlanResearch(parsed.research)
-
-      if (approaches.length > 0) {
-        const recommendedRaw =
-          typeof parsed.recommended === 'string' ? parsed.recommended.trim().toUpperCase() : ''
-        const recommended = approaches.find((a) => a.id === recommendedRaw)?.id ?? approaches[0]?.id
-        const selected = approaches.find((a) => a.id === recommended) ?? approaches[0]!
-        return {
-          title,
-          ...(summary ? { summary } : {}),
-          approaches,
-          selectedApproachId: selected.id,
-          steps: selected.steps.map((s) => createPlanStep(s.text)),
-          status: 'draft',
-          ...(research ? { research } : {}),
-        }
-      }
-
-      return planArtifactFromParts(
-        title,
-        stepTexts,
-        summary,
-        'draft',
-        undefined,
-        undefined,
-        research,
-      )
+      const plan = planArtifactFromJson(JSON.parse(raw.trim()))
+      if (plan) return plan
     } catch {
       // try next
     }
   }
   return null
+}
+
+/** Build a draft plan from parsed plan JSON (fence body or submit_plan arguments). */
+export function planArtifactFromJson(raw: unknown): PlanArtifact | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const parsed = raw as RawPlanJson
+  const approaches = approachesFromUnknown(parsed.approaches)
+  const stepTexts = stepsFromUnknown(parsed.steps)
+  if (approaches.length === 0 && stepTexts.length === 0) return null
+
+  const title =
+    typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : 'Plan'
+  const summary =
+    typeof parsed.summary === 'string' && parsed.summary.trim() ? parsed.summary.trim() : undefined
+  const research = normalizePlanResearch(parsed.research)
+
+  if (approaches.length > 0) {
+    const recommendedRaw =
+      typeof parsed.recommended === 'string' ? parsed.recommended.trim().toUpperCase() : ''
+    const recommended = approaches.find((a) => a.id === recommendedRaw)?.id ?? approaches[0]?.id
+    const selected = approaches.find((a) => a.id === recommended) ?? approaches[0]!
+    return {
+      title,
+      ...(summary ? { summary } : {}),
+      approaches,
+      selectedApproachId: selected.id,
+      steps: selected.steps.map((s) => createPlanStep(s.text)),
+      status: 'draft',
+      ...(research ? { research } : {}),
+    }
+  }
+
+  return planArtifactFromParts(title, stepTexts, summary, 'draft', undefined, undefined, research)
+}
+
+/** Some models send nested arrays/objects as JSON strings; decode those before parsing. */
+export function planArtifactFromSubmitArgs(args: Record<string, unknown>): PlanArtifact | null {
+  const decoded: Record<string, unknown> = { ...args }
+  for (const key of ['steps', 'approaches', 'research']) {
+    const v = decoded[key]
+    if (typeof v !== 'string' || !/^\s*[[{]/.test(v)) continue
+    try {
+      decoded[key] = JSON.parse(v)
+    } catch {
+      // leave as-is; planArtifactFromJson rejects it
+    }
+  }
+  return planArtifactFromJson(decoded)
 }
 
 /** Parse markdown checklist / numbered / bulleted steps. */
@@ -509,6 +548,95 @@ export function stripPlanJsonFenceFromContent(text: string): string {
   return text.replace(/```(?:json\s*plan|plan\s*json|json)\s*\r?\n[\s\S]*?```\s*$/i, '').trimEnd()
 }
 
+export const PLAN_FILES_DIR = '.voidcast/plans'
+const PLAN_FILE_SLUG_MAX = 48
+const PLAN_NOTES_MAX = 6000
+
+export function planFileSlug(title: string): string {
+  const slug = title
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, PLAN_FILE_SLUG_MAX)
+    .replace(/-+$/, '')
+  return slug || 'plan'
+}
+
+/** Date-prefixed so plans sort chronologically; a same-day revise with the same title reuses the file. */
+export function planFileRef(projectPath: string, title: string, now = new Date()): PlanFileRef {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  return { projectPath, path: `${PLAN_FILES_DIR}/${day}-${planFileSlug(title)}.md` }
+}
+
+export function planFileAbsolutePath(file: PlanFileRef): string {
+  const root = file.projectPath.replace(/[\\/]+$/, '')
+  const sep = root.includes('\\') ? '\\' : '/'
+  return `${root}${sep}${file.path.split('/').join(sep)}`
+}
+
+/** Render the plan as the markdown kept in `.voidcast/plans/`. */
+export function formatPlanMarkdown(plan: PlanArtifact): string {
+  const doneCount = plan.steps.filter((s) => s.done).length
+  const status =
+    plan.status === 'built' ? 'Built' : plan.status === 'approved' ? 'Building' : 'Draft'
+  const selected = plan.approaches?.find((a) => a.id === plan.selectedApproachId)
+  const meta = [`Status: ${status}`, `${doneCount}/${plan.steps.length} steps done`]
+  if (selected) meta.push(`Approach ${selected.id} — ${selected.label}`)
+
+  const lines = [
+    `# ${plan.title}`,
+    '',
+    `> ${meta.join(' · ')}`,
+    '> Managed by Voidcast — edit the plan card in the app; changes here are overwritten.',
+    '',
+  ]
+  if (plan.summary?.trim()) lines.push(plan.summary.trim(), '')
+
+  lines.push('## Steps', '')
+  plan.steps.forEach((s, i) => {
+    lines.push(`- [${s.done ? 'x' : ' '}] ${i + 1}. ${s.text}`)
+  })
+  lines.push('')
+
+  if (plan.approaches && plan.approaches.length > 1) {
+    lines.push('## Approaches', '')
+    for (const a of plan.approaches) {
+      const mark = a.id === plan.selectedApproachId ? ' (selected)' : ''
+      lines.push(`### ${a.id} — ${a.label}${mark}`, '')
+      if (a.summary?.trim()) lines.push(a.summary.trim(), '')
+      a.steps.forEach((s, i) => lines.push(`${i + 1}. ${s.text}`))
+      lines.push('')
+    }
+  }
+
+  if (planHasResearch(plan) && plan.research) {
+    lines.push('## Research', '')
+    if (plan.research.keyFiles.length) {
+      lines.push('Key files:', '', ...plan.research.keyFiles.map((f) => `- \`${f}\``), '')
+    }
+    if (plan.research.searches?.length) {
+      lines.push(`Searches: ${plan.research.searches.join(' | ')}`, '')
+    }
+    if (plan.research.findings.trim()) lines.push(plan.research.findings.trim(), '')
+  }
+
+  if (plan.notes?.trim()) lines.push('## Notes', '', plan.notes.trim(), '')
+
+  return `${lines.join('\n').trimEnd()}\n`
+}
+
+/** Compact stand-in for a plan reply in later turns' LLM history. */
+export function formatPlanHistoryNote(plan: PlanArtifact): string {
+  const where = plan.file ? ` — saved to ${plan.file.path}` : ''
+  const lines = [`[Plan card: "${plan.title}" (${plan.status})${where}]`]
+  if (plan.summary?.trim()) lines.push(plan.summary.trim())
+  plan.steps.forEach((s, i) => lines.push(`${i + 1}.${s.done ? ' [done]' : ''} ${s.text}`))
+  return lines.join('\n')
+}
+
 export function formatPlanForBuildPrompt(
   plan: PlanArtifact,
   opts?: { teamWorkers?: boolean },
@@ -530,6 +658,11 @@ export function formatPlanForBuildPrompt(
       : []),
     '',
     `Title: ${plan.title}`,
+    ...(plan.file
+      ? [
+          `Plan file: ${plan.file.path} (the app keeps it in sync with update_plan_progress — do not edit it yourself).`,
+        ]
+      : []),
   ]
   if (plan.selectedApproachId && plan.approaches?.length) {
     const a = plan.approaches.find((x) => x.id === plan.selectedApproachId)
@@ -567,7 +700,7 @@ export function formatPlanForRevisePrompt(plan: PlanArtifact, customNote: string
   const note = customNote.trim()
   const lines = [
     'Revise the plan below to match my preferred approach. Stay in Plan mode (read-only) — do not implement yet.',
-    'Emit a fresh ```json plan fence with an updated title/summary/steps (and approaches only if real tradeoffs remain).',
+    'Deliver the full updated plan (title/summary/steps, approaches only if real tradeoffs remain) with submit_plan — or a fresh ```json plan fence if that tool is unavailable.',
     '',
     `My preferred approach: ${note}`,
     '',
@@ -807,6 +940,15 @@ export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {
   const selectedApproachId = approaches.some((a) => a.id === selectedRaw) ? selectedRaw : undefined
 
   const research = normalizePlanResearch(p.research)
+  const notes = typeof p.notes === 'string' ? p.notes.trim().slice(0, PLAN_NOTES_MAX) : ''
+  const file =
+    p.file &&
+    typeof p.file.projectPath === 'string' &&
+    p.file.projectPath.trim() &&
+    typeof p.file.path === 'string' &&
+    p.file.path.trim()
+      ? { projectPath: p.file.projectPath, path: p.file.path }
+      : undefined
 
   return {
     title: p.title.trim() || 'Plan',
@@ -816,5 +958,22 @@ export function normalizePlanArtifact(raw: unknown): PlanArtifact | undefined {
     ...(approaches.length > 0 ? { approaches } : {}),
     ...(selectedApproachId ? { selectedApproachId } : {}),
     ...(research ? { research } : {}),
+    ...(notes ? { notes } : {}),
+    ...(file ? { file } : {}),
+  }
+}
+
+/** Attach plan-file location and the reply prose to a freshly extracted plan. */
+export function withPlanFile(
+  plan: PlanArtifact,
+  projectPath: string,
+  notes: string,
+  now?: Date,
+): PlanArtifact {
+  const trimmed = notes.trim().slice(0, PLAN_NOTES_MAX)
+  return {
+    ...plan,
+    ...(trimmed ? { notes: trimmed } : {}),
+    file: planFileRef(projectPath, plan.title, now),
   }
 }

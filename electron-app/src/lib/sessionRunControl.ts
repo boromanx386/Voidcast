@@ -1,5 +1,6 @@
 import { cancelActiveMcpCalls } from '@/lib/mcpTools'
 import { reopenPlanAsDraft } from '@/lib/planArtifact'
+import { schedulePlanFileWrite } from '@/lib/planFile'
 import { sessionAgentStore } from '@/lib/sessionAgentStore'
 
 /**
@@ -12,8 +13,11 @@ export function stopSessionRun(key: string): void {
   sessionAgentStore.stop(key)
   void cancelActiveMcpCalls(owner)
   sessionAgentStore.setMessages(key, (prev) =>
-    prev.map((m) =>
-      m.plan?.status === 'approved' ? { ...m, plan: reopenPlanAsDraft(m.plan) } : m,
-    ),
+    prev.map((m) => {
+      if (m.plan?.status !== 'approved') return m
+      const plan = reopenPlanAsDraft(m.plan)
+      schedulePlanFileWrite(plan)
+      return { ...m, plan }
+    }),
   )
 }

@@ -567,6 +567,31 @@ export async function runSharedToolLoop<
       return { content: lastAssistantText || content, usage: finalUsage() }
     }
 
+    // submit_plan is the end of a Plan turn: once it validates there is nothing left to do,
+    // so stop here instead of paying another model round. Other calls in the batch are dropped.
+    const planSubmission = validCalls.find((v) => v.shared.name === 'submit_plan')
+    if (planSubmission) {
+      const shared = planSubmission.shared
+      params.onToolPhase?.(params.toolPhaseForName?.('submit_plan') ?? null)
+      const result = await executeToolCallWithActivity(
+        'submit_plan',
+        shared.argsRaw,
+        `round-${round}-submit-plan`,
+      )
+      params.appendToolResult({
+        messages,
+        call: planSubmission.provider,
+        name: 'submit_plan',
+        result,
+        round,
+      })
+      hasExecutedToolInTurn = true
+      params.onToolResult?.({ name: 'submit_plan', result, args: parseArgs(shared.argsRaw) })
+      params.onToolPhase?.(null)
+      if (/^\s*error\s*:/i.test(result.trim())) continue
+      return { content: lastAssistantText || content, usage: finalUsage() }
+    }
+
     preserveIntermediateResponse(params, round, content ?? lastAssistantText)
 
     const executeToolCallForLoop = async (valid: (typeof validCalls)[number], index: number) => {

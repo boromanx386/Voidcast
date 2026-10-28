@@ -377,3 +377,26 @@ describe('runSharedToolLoop parallel tool execution', () => {
     expect(result.content).toBe(TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY)
   })
 })
+
+describe('runSharedToolLoop submit_plan', () => {
+  it('ends the turn after a successful submit_plan without another model round', async () => {
+    const result = await runToolRound(
+      [{ id: 'p1', name: 'submit_plan', args: { title: 'T', steps: ['a'] } }],
+      async () => 'Plan submitted: "T" (1 steps).',
+      4,
+      { firstContent: 'Short note.' },
+    )
+    expect(result.content).toBe('Short note.')
+    expect(result.committedResults).toEqual(['submit_plan:Plan submitted: "T" (1 steps).'])
+    expect(result.usage?.turnTotals?.rounds ?? 1).toBe(1)
+  })
+
+  it('keeps going when submit_plan returns an error so the model can fix it', async () => {
+    const result = await runToolRound(
+      [{ id: 'p1', name: 'submit_plan', args: { title: 'T' } }],
+      async () => 'Error: the plan needs steps.',
+    )
+    expect(result.content).toBe('done')
+    expect(result.committedResults).toEqual(['submit_plan:Error: the plan needs steps.'])
+  })
+})

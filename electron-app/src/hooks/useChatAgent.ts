@@ -46,11 +46,14 @@ import {
   formatPlanForBuildPrompt,
   formatPlanForRevisePrompt,
   harvestPlanToolIntoBuffer,
+  planArtifactFromSubmitArgs,
   planHasResearch,
   reopenPlanAsDraft,
   stripPlanJsonFenceFromContent,
+  withPlanFile,
   type PlanResearchHarvest,
 } from '@/lib/planArtifact'
+import { schedulePlanFileWrite } from '@/lib/planFile'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { type AgentToolUiPhase } from '@/lib/agentToolPhase'
 import { isTimeoutMessage, readToolTimeoutSec } from '@/lib/turnTimer'
@@ -215,6 +218,18 @@ export type OnSendOptions = {
    * while the escalating chat may be in the background.
    */
   sessionKey?: string
+}
+
+function reopenPlanAsDraftAndSync(plan: PlanArtifact): PlanArtifact {
+  const next = reopenPlanAsDraft(plan)
+  schedulePlanFileWrite(next)
+  return next
+}
+
+function finalizePlanAndSync(plan: PlanArtifact): PlanArtifact {
+  const next = finalizePlanAfterBuild(plan)
+  schedulePlanFileWrite(next)
+  return next
 }
 
 function lastUserMessage(history: UiMessage[]): UiMessage | undefined {
@@ -936,6 +951,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         : undefined
       const planResearchHarvest: PlanResearchHarvest = emptyPlanResearchHarvest()
       const harvestingPlanResearch = turnAgentMode === 'plan'
+      // Plan delivered through the submit_plan tool; the json-plan fence in the reply is the fallback.
+      let submittedPlan: PlanArtifact | null = null
       let turnLogMutable = emptyCodingTurnLog()
 
       // Keep shared file-cache ref in sync when this run is the visible chat (tools that read it outside params).
@@ -1136,6 +1153,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             },
             onToolResult: (payload: AgentToolResultPayload) => {
               if (!isRunActive()) return
+              if (
+                harvestingPlanResearch &&
+                payload.name === 'submit_plan' &&
+                !/^error:/i.test(payload.result.trim())
+              ) {
+                submittedPlan = planArtifactFromSubmitArgs(payload.args ?? {}) ?? submittedPlan
+              }
               if (harvestingPlanResearch) {
                 harvestPlanToolIntoBuffer(
                   planResearchHarvest,
@@ -1200,6 +1224,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                     const { plan, error: planErr } = applyPlanProgressUpdate(m.plan, args)
                     if (planErr) return m
                     liveBuildPlan = plan
+                    schedulePlanFileWrite(plan)
                     return { ...m, plan }
                   }),
                 )
@@ -1291,7 +1316,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             setMsgs((prev) =>
               prev.map((m) =>
                 m.id === planMsgId && m.plan?.status === 'approved'
-                  ? { ...m, plan: reopenPlanAsDraft(m.plan) }
+                  ? { ...m, plan: reopenPlanAsDraftAndSync(m.plan) }
                   : m,
               ),
             )
@@ -1299,10 +1324,16 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           return
         }
 
-        if (turnAgentMode === 'plan' && replyText.trim()) {
-          const extracted = extractPlanArtifactFromReply(replyText)
-          const plan = extracted ? attachResearchToPlan(extracted, planResearchHarvest) : null
+        if (turnAgentMode === 'plan' && (submittedPlan || replyText.trim())) {
+          const extracted = submittedPlan ?? extractPlanArtifactFromReply(replyText)
+          const researched = extracted ? attachResearchToPlan(extracted, planResearchHarvest) : null
           const stripped = stripPlanJsonFenceFromContent(replyText)
+          const plan =
+            researched && turnCodingProjectPath
+              ? withPlanFile(researched, turnCodingProjectPath, stripped)
+              : researched
+          schedulePlanFileWrite(plan ?? undefined)
+          // The bubble keeps only the short prose; the plan itself is the card (and file).
           const displayContent = stripped.trim() ? stripped : plan ? '' : replyText
           setMsgs((prev) =>
             prev.map((m) =>
@@ -1322,7 +1353,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           const planMsgId = opts.buildFromPlanMessageId
           setMsgs((prev) =>
             prev.map((m) =>
-              m.id === planMsgId && m.plan ? { ...m, plan: finalizePlanAfterBuild(m.plan) } : m,
+              m.id === planMsgId && m.plan ? { ...m, plan: finalizePlanAndSync(m.plan) } : m,
             ),
           )
           applySessionAgentMode('agent')
@@ -1382,7 +1413,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           setMsgs((prev) =>
             prev.map((m) =>
               m.id === planMsgId && m.plan?.status === 'approved'
-                ? { ...m, plan: reopenPlanAsDraft(m.plan) }
+                ? { ...m, plan: reopenPlanAsDraftAndSync(m.plan) }
                 : m,
             ),
           )
@@ -1634,7 +1665,15 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
   const updateMessagePlan = useCallback(
     (messageId: string, plan: PlanArtifact | undefined) => {
-      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, plan } : m)))
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m
+          // Discarding a card whose prose moved into the plan file must not leave an empty bubble.
+          const restored = !plan && !m.content.trim() && m.plan?.notes ? m.plan.notes : m.content
+          return { ...m, plan, content: restored }
+        }),
+      )
+      schedulePlanFileWrite(plan)
       onSessionDirty()
     },
     [onSessionDirty, setMessages],
@@ -1645,6 +1684,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       if (busy) return
       const approved: PlanArtifact = { ...plan, status: 'approved' }
       setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, plan: approved } : m)))
+      schedulePlanFileWrite(approved)
       onSessionDirty()
       // Respect composer mode: Team stays Team (workers available). Plan alone → Agent for writes.
       const composerMode = normalizeAgentChatMode(activeAgentModeRef.current ?? settings.agentMode)

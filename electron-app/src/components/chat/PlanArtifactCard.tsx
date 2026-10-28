@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { createPlanStep, planHasResearch, selectPlanApproach } from '@/lib/planArtifact'
+import {
+  createPlanStep,
+  planFileAbsolutePath,
+  planHasResearch,
+  selectPlanApproach,
+} from '@/lib/planArtifact'
 import type { PlanArtifact, PlanStep } from '@/types/chat'
 
 type Props = {
@@ -34,6 +39,7 @@ export function PlanArtifactCard({
   const [customNote, setCustomNote] = useState('')
   const [researchOpen, setResearchOpen] = useState(false)
   const showResearch = planHasResearch(plan)
+  const planFileAbs = plan.file ? planFileAbsolutePath(plan.file) : ''
 
   const setTitle = (title: string) => {
     onChange(messageId, { ...plan, title })
@@ -116,6 +122,21 @@ export function PlanArtifactCard({
         />
       ) : (
         <h3 className="mb-2 text-sm font-medium text-void-light">{plan.title}</h3>
+      )}
+
+      {plan.file && (
+        <div className="plan-artifact-card__file">
+          <span className="min-w-0 truncate font-mono" title={planFileAbs}>
+            {plan.file.path}
+          </span>
+          <button
+            type="button"
+            className="plan-artifact-card__file-open"
+            onClick={() => void window.voidcast?.openPath(planFileAbs)}
+          >
+            Open
+          </button>
+        </div>
       )}
 
       {plan.summary?.trim() && (

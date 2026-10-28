@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Plan mode delivers the plan through a `submit_plan` tool instead of the chat bubble**: the model used to write the plan as markdown plus a ```` ```json plan ```` block into its reply, which streamed into the bubble before the app turned it into the card. Now it fills `submit_plan` (title, summary, steps or approaches, research). Nothing of the plan shows in the bubble, and the card is built from the tool arguments. Bad arguments come back as an error the model fixes, and a valid call ends the turn without an extra model round. The JSON block in the reply stays as the fallback when a turn has no tools.
+- **Plans are saved as files**: with a project folder, each plan is written to `.voidcast/plans/YYYY-MM-DD-<title>.md` (summary, checklist, approaches, research, the model's notes). The folder carries its own `.gitignore`, so plans stay out of `git status`. The card shows the path with an **Open** button. The file keeps itself in sync — card edits, Approve & Build, each `update_plan_progress` step and the end of the build rewrite it, so its checkboxes follow the build. Later turns get a compact copy of the plan in history, and the build prompt names the plan file. Covered by `plan-file`, `plan-submit` and `agentToolLoop` unit tests.
+
 ### Fixed
 
 - **Vision models no longer act blind after `image_recall`** (no vision sub-agent): the pixels are visible for one round only, and the text left behind used to say "no cached analysis". Reasoning models that looked at the image only in their thinking then concluded they could not see, and fell back to measuring pixels with scripts. The `image_recall` result and the image message now say the pixels last one round and ask the model to write down what it needs. When the pixels are dropped, the digest keeps the model's own notes from that round (up to 600 characters of its thinking, or its reply) and says the image was seen. Covered by an `agentToolLoop` unit test.

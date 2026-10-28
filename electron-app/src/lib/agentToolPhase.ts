@@ -118,6 +118,7 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
     case 'read_skill':
       return 'skill'
     case 'enter_plan_mode':
+    case 'submit_plan':
       return 'plan'
     case 'update_plan_progress':
       return 'plan_progress'

@@ -1540,6 +1540,63 @@ const ENTER_PLAN_MODE_TOOL: AgentToolDefinition = {
   },
 }
 
+const PLAN_STEPS_SCHEMA = {
+  type: 'array',
+  items: { type: 'string' },
+  description: 'Ordered, concrete steps. Name the files to touch and what changes in each.',
+}
+
+const SUBMIT_PLAN_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'submit_plan',
+    description:
+      'Deliver the finished plan (Plan mode only). The app shows it as an editable plan card and saves it as a markdown file — do not also write the plan in your reply. Give either "steps" (one flat plan, the default) or "approaches" with "recommended" when there are real tradeoffs. Calling it ends the turn.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Short plan title.' },
+        summary: { type: 'string', description: 'Optional 1-3 sentence overview.' },
+        steps: PLAN_STEPS_SCHEMA,
+        approaches: {
+          type: 'array',
+          description:
+            'Only when tradeoffs matter: 2 options (C/D only if meaningfully different).',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', enum: ['A', 'B', 'C', 'D'] },
+              label: { type: 'string', description: 'Short name.' },
+              summary: { type: 'string', description: 'The tradeoff in one line.' },
+              steps: PLAN_STEPS_SCHEMA,
+            },
+            required: ['id', 'label', 'steps'],
+          },
+        },
+        recommended: {
+          type: 'string',
+          enum: ['A', 'B', 'C', 'D'],
+          description: 'Recommended approach id when approaches are given.',
+        },
+        research: {
+          type: 'object',
+          description:
+            'What you explored, so Approve & Build can skip re-exploring. Base it on real tool results.',
+          properties: {
+            keyFiles: { type: 'array', items: { type: 'string' }, description: 'Paths explored.' },
+            findings: {
+              type: 'string',
+              description: 'Architecture and exact edit points, under ~2500 characters.',
+            },
+            searches: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      },
+      required: ['title'],
+    },
+  },
+}
+
 const UPDATE_PLAN_PROGRESS_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1784,6 +1841,7 @@ export function buildToolsList(
   if (skillsEnabled) out.push(READ_SKILL_TOOL)
   // enter_plan_mode: Agent only — not Team (orchestrates workers), not Ask (pure Q&A), not Plan.
   if (enabled.enterPlan && !planMode && !teamMode && !askMode) out.push(ENTER_PLAN_MODE_TOOL)
+  if (planMode) out.push(SUBMIT_PLAN_TOOL)
   // Plan progress only useful after Approve & Build (mutating modes).
   if (!readOnlyMode) out.push(UPDATE_PLAN_PROGRESS_TOOL)
   if (!readOnlyMode) out.push(UPDATE_SETTINGS_TOOL)

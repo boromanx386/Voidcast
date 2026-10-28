@@ -1,6 +1,6 @@
 import { readAgentSkillBody } from '@/lib/agentSkills'
 import { isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
-import { formatPlanProgressToolResult } from '@/lib/planArtifact'
+import { formatPlanProgressToolResult, planArtifactFromSubmitArgs } from '@/lib/planArtifact'
 import {
   loadSettings,
   normalizeSettingsCandidate,
@@ -38,6 +38,21 @@ export const handleEnterPlanMode: ToolHandlerFn = async (_args, ctx) => {
     )
   }
   return 'Switching to Plan mode.'
+}
+
+export const handleSubmitPlan: ToolHandlerFn = async (args, ctx) => {
+  if (ctx.agentMode !== 'plan') return 'Error: submit_plan is only available in Plan mode.'
+  const plan = planArtifactFromSubmitArgs(args)
+  if (!plan) {
+    return (
+      'Error: the plan needs "title" plus non-empty "steps" (array of strings), or ' +
+      '"approaches" where each has id, label and non-empty steps. Fix the arguments and call submit_plan again.'
+    )
+  }
+  const options = plan.approaches?.length
+    ? `${plan.approaches.length} approaches, ${plan.selectedApproachId} recommended`
+    : `${plan.steps.length} steps`
+  return `Plan submitted: "${plan.title}" (${options}). It is shown to the user as a plan card for approval.`
 }
 
 export const handleUpdatePlanProgress: ToolHandlerFn = async (args, ctx) => {
@@ -290,6 +305,7 @@ export const handleUpdateReminder: ToolHandlerFn = async (args, ctx) => {
 export const appHandlersRegistry: ToolHandlerRegistry = {
   ['enter_plan_mode']: handleEnterPlanMode,
   ['update_plan_progress']: handleUpdatePlanProgress,
+  ['submit_plan']: handleSubmitPlan,
   ['read_skill']: handleReadSkill,
   ['update_settings']: handleUpdateSettings,
   ['add_reminder']: handleAddReminder,

@@ -55,6 +55,7 @@ import {
   BUILD_TEAM_WORKERS_SYSTEM_HINT,
   buildAskModeSystemHint,
   buildPlanModeSystemHint,
+  formatPlanHistoryNote,
 } from '@/lib/planArtifact'
 import { formatPlanHandoffUserBlock } from '@/lib/codingReadGuard'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
@@ -209,11 +210,16 @@ export async function buildAgentTurnContext(
       acc.push(t)
       return acc
     }
-    if (!x.content.trim() && !x.thinking?.trim()) return acc
+    // Plan replies keep an empty bubble (the plan lives in the card + file), so the
+    // model still needs a compact copy to revise against.
+    const planNote = x.plan ? formatPlanHistoryNote(x.plan) : ''
+    if (!x.content.trim() && !x.thinking?.trim() && !planNote) return acc
     const imageVisionHint = buildAssistantImageVisionHint(x, imageVisionCache)
     acc.push({
       role: 'assistant',
-      content: [x.content, imageVisionHint].filter((v) => v.trim().length > 0).join('\n\n'),
+      content: [x.content, planNote, imageVisionHint]
+        .filter((v) => v.trim().length > 0)
+        .join('\n\n'),
       ...(x.thinking?.trim() ? { thinking: x.thinking } : {}),
     })
     return acc
@@ -257,7 +263,7 @@ export async function buildAgentTurnContext(
     ? buildProjectInstructionsHint(projectInstructionFiles)
     : buildUntrustedProjectInstructionsHint(projectInstructionFiles)
   const planModeSystemHint = planMode
-    ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint) })
+    ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint), submitTool: useTools })
     : ''
   const askModeSystemHint = askMode ? buildAskModeSystemHint() : ''
   const toolsHintParts: string[] = []

@@ -66,6 +66,16 @@ export type PlanArtifact = {
   selectedApproachId?: string
   /** Research snapshot from Plan exploration (model-authored and/or tool-harvested). */
   research?: PlanResearch
+  /** Model prose that came with the plan — lives in the plan file, not the chat bubble. */
+  notes?: string
+  /** Markdown mirror of this plan inside the chat's project, rewritten on every change. */
+  file?: PlanFileRef
+}
+
+export type PlanFileRef = {
+  projectPath: string
+  /** Project-relative, forward slashes (e.g. `.voidcast/plans/2026-10-27-foo.md`). */
+  path: string
 }
 
 export type FileAttachmentSnapshot = {

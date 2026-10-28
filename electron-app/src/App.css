@@ -583,6 +583,14 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply text-[11px] text-void-dim transition-colors hover:text-neon-red disabled:opacity-40;
 }
 
+.plan-artifact-card__file {
+  @apply mb-2 flex items-center gap-2 text-[11px] text-void-dim;
+}
+
+.plan-artifact-card__file-open {
+  @apply shrink-0 text-[11px] text-neon-cyan transition-colors hover:text-void-light;
+}
+
 .plan-artifact-card__section-label {
   @apply text-[11px] font-medium uppercase tracking-wide text-void-dim;
 }
