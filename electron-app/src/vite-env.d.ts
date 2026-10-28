@@ -764,7 +764,7 @@ interface VoidcastBridge {
       profile?: string
     }) => Promise<{ ok: true; text: string } | { ok: false; error?: string }>
 
-    status: () => Promise<
+    status: (payload?: { projectPath?: string }) => Promise<
       | {
           ok: true
           state: 'idle' | 'ready' | 'error'

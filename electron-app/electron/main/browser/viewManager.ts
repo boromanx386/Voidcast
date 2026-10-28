@@ -45,6 +45,8 @@ type PendingAuth = {
   /** webContents id of the page that asked — lets us drop it when the page dies. */
   wcId: number
   pageId: string
+  /** Bucket of the page that asked: only that project's panel and agent may see the prompt. */
+  projectKey: string
   /** Chromium partition that asked: a remembered sign-in must land in its own store file. */
   partition: string
   /** scheme://host:port (+ proxy marker) — the key remembered credentials are stored under. */
@@ -115,6 +117,17 @@ type BrowserBucket = {
   epoch: number
   /** Page creation in flight for this bucket. */
   creating: Promise<BrowserPage> | null
+  /**
+   * Notices are per project too: a timeout, denied permission or download in one chat must
+   * never show up in another project's panel or tool result.
+   */
+  lastError: string | null
+  /** Last permission Chromium denied, so "why is the camera blocked" has an answer. */
+  lastPermission: string | null
+  /** Last download routed into this project's folder. */
+  lastDownload: DownloadNotice | null
+  /** Bumped every time a download starts, so a click can tell a new one from a stale notice. */
+  downloadSeq: number
 }
 
 const buckets = new Map<string, BrowserBucket>()
@@ -131,7 +144,17 @@ function bucketKey(projectPath?: string): string {
 function bucket(key: string = currentKey): BrowserBucket {
   let found = buckets.get(key)
   if (!found) {
-    found = { activeId: null, partition: '', projectPath: '', epoch: 0, creating: null }
+    found = {
+      activeId: null,
+      partition: '',
+      projectPath: '',
+      epoch: 0,
+      creating: null,
+      lastError: null,
+      lastPermission: null,
+      lastDownload: null,
+      downloadSeq: 0,
+    }
     buckets.set(key, found)
   }
   return found
@@ -141,7 +164,6 @@ let visibleFlag = false
 /** True once the renderer has pushed a usable panel rect at least once. */
 let hasPanelRect = false
 let panelRect: BrowserRect = { x: 0, y: 0, width: 0, height: 0 }
-let lastError: string | null = null
 let shuttingDown = false
 let windowHooked = false
 /** Browser state is global to the app; serialize operations from concurrent chat runs. */
@@ -154,12 +176,6 @@ let authSeq = 1
 /** Remembered HTTP credentials for the active profile, read lazily from userData. */
 let authStore: Record<string, StoredCredential> | null = null
 let authStorePath = ''
-/** Last permission Chromium denied, so "why is the camera blocked" has an answer. */
-let lastPermission: string | null = null
-/** Last download routed into the project folder. */
-let lastDownload: DownloadNotice | null = null
-/** Bumped every time a download starts, so a click can tell a new one from a stale notice. */
-let downloadSeq = 0
 
 export async function withBrowserLock<T>(fn: () => Promise<T>): Promise<T> {
   const previous = browserOperationTail
@@ -267,10 +283,13 @@ function applyProfile(projectPath?: string): { profile: string; changed: boolean
   // the new profile, and so the next call starts a fresh page in the right partition.
   st.epoch += 1
   st.creating = null
-  lastError = null
-  // Held sign-in requests and permission notes belong to the partition we just left.
-  pendingAuth.clear()
-  lastPermission = null
+  st.lastError = null
+  // Held sign-in requests and permission notes belong to the partition we just left — this
+  // bucket's only. Other projects keep theirs: their pages are still waiting on them.
+  for (const entry of [...pendingAuth.values()]) {
+    if (entry.projectKey === currentKey) pendingAuth.delete(entry.id)
+  }
+  st.lastPermission = null
   // We just left that profile: drop its re-downloadable caches. Cookies, local storage and
   // every remembered sign-in survive — hundreds of MB of HTTP/code/service-worker cache do not.
   // Skipped while another project is still working in the same partition.
@@ -353,13 +372,25 @@ function partitionName(key: string = currentKey): string {
 }
 
 /**
+ * Bucket of the page that owns this webContents. A shared or named profile serves several
+ * projects from one session, so session-level events must be routed by the asking page,
+ * never by the partition.
+ */
+function keyOfWebContents(wc: Electron.WebContents | null | undefined): string | null {
+  if (!wc) return null
+  try {
+    const id = wc.id
+    return pages.find((p) => p.view.webContents.id === id)?.key ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Hardening that must be in place before the first page in a partition loads: a
  * deny-by-default permission handler and the download router. Session listeners
  * accumulate, so each partition is hardened exactly once.
  */
-/** Partition -> coding project, so a download lands in the project that started it. */
-const partitionProjects = new Map<string, string>()
-
 function hardenSession(bucketId: string = currentKey): Electron.Session {
   const name = partitionName(bucketId)
   const ses = session.fromPartition(name)
@@ -368,33 +399,35 @@ function hardenSession(bucketId: string = currentKey): Electron.Session {
   // This partition belongs to the app and to a project: record it so housekeeping never treats
   // it as an orphan, and let the once-per-run maintenance go now that we are actually here.
   const profile = bucket(bucketId).partition || 'default'
-  const projectPath = bucket(bucketId).projectPath
-  if (projectPath) partitionProjects.set(profile, projectPath)
   recordProfileKey(profile)
   runBrowserMaintenance(profile, hardenedPartitions)
 
-  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+  ses.setPermissionRequestHandler((wc, permission, callback, details) => {
     if (ALLOWED_PERMISSIONS.has(permission)) {
       callback(true)
       return
     }
-    lastPermission = `${permission} denied for ${hostOf(details?.requestingUrl ?? '')}`
+    const key = keyOfWebContents(wc)
+    if (key !== null) {
+      bucket(key).lastPermission =
+        `${permission} denied for ${hostOf(details?.requestingUrl ?? '')}`
+    }
     callback(false)
   })
   // Keeps navigator.permissions.query() honest about the denials above.
   ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission))
 
-  ses.on('will-download', (_event, item) => attachDownload(item, profile))
+  ses.on('will-download', (_event, item, wc) => attachDownload(item, keyOfWebContents(wc), profile))
   return ses
 }
 
 /**
  * Downloads never land in the OS Downloads folder: a file the agent was tricked into
  * fetching must not be able to overwrite something the user cares about, and the agent
- * needs to know where the file went. Project scope → the project, otherwise userData.
+ * needs to know where the file went. The page's project when it has one, otherwise userData.
  */
-function downloadsDir(profile: string = bucket().partition || 'default'): string {
-  const projectPath = partitionProjects.get(profile) ?? ''
+function downloadsDir(key: string | null, profile: string): string {
+  const projectPath = key !== null ? bucket(key).projectPath : ''
   if (projectPath) return path.join(projectPath, '.voidcast', 'browser', 'downloads')
   return path.join(app.getPath('userData'), 'browser-downloads', profile || 'default')
 }
@@ -418,8 +451,8 @@ function uniqueDownloadPath(dir: string, name: string): string {
   return candidate
 }
 
-function attachDownload(item: Electron.DownloadItem, profile: string): void {
-  const dir = downloadsDir(profile)
+function attachDownload(item: Electron.DownloadItem, key: string | null, profile: string): void {
+  const dir = downloadsDir(key, profile)
   try {
     mkdirSync(dir, { recursive: true })
   } catch {
@@ -435,17 +468,23 @@ function attachDownload(item: Electron.DownloadItem, profile: string): void {
   // Announce the download before it finishes: a click that starts one must be able to name
   // the file in its own result instead of leaving the agent to hunt for it later (or look
   // in the OS Downloads folder). downloadSeq lets a click tell a download that began while
-  // it was running apart from an earlier, stale notice.
-  lastDownload = {
+  // it was running apart from an earlier, stale notice. A download from a page we no longer
+  // track still lands safely, it just has no project to report to.
+  if (key === null) return
+  const st = bucket(key)
+  st.lastDownload = {
     name: path.basename(target),
     path: target,
     state: 'started',
     bytes: 0,
     at: Date.now(),
   }
-  downloadSeq += 1
+  st.downloadSeq += 1
+  const seq = st.downloadSeq
   item.once('done', (_event, state) => {
-    lastDownload = {
+    // Never let a slow, older download overwrite the notice of a newer one.
+    if (st.downloadSeq !== seq) return
+    st.lastDownload = {
       name: path.basename(target),
       path: target,
       state,
@@ -455,14 +494,15 @@ function attachDownload(item: Electron.DownloadItem, profile: string): void {
   })
 }
 
-/** Monotonic count of downloads routed through this profile; a click diffs it. */
-export function downloadMark(): number {
-  return downloadSeq
+/** Monotonic count of downloads started from one project's pages; a click diffs it. */
+export function downloadMark(key: string): number {
+  return bucket(key).downloadSeq
 }
 
-/** The most recent download notice if a download began after `mark`, else null. */
-export function downloadNoticeSince(mark: number): DownloadNotice | null {
-  return downloadSeq > mark ? lastDownload : null
+/** That project's most recent download notice if one began after `mark`, else null. */
+export function downloadNoticeSince(key: string, mark: number): DownloadNotice | null {
+  const st = bucket(key)
+  return st.downloadSeq > mark ? st.lastDownload : null
 }
 
 function authKey(authInfo: Electron.AuthInfo): string {
@@ -533,12 +573,16 @@ function decryptSecret(secret: string): string | null {
   }
 }
 
-function firstPendingAuth(): PendingAuth | null {
-  return pendingAuth.values().next().value ?? null
+function firstPendingAuth(match: (entry: PendingAuth) => boolean): PendingAuth | null {
+  for (const entry of pendingAuth.values()) {
+    if (match(entry)) return entry
+  }
+  return null
 }
 
-function authPrompt(): BrowserAuthPrompt | null {
-  const entry = firstPendingAuth()
+/** The held sign-in of one project — another project's prompt is never surfaced here. */
+function authPrompt(key: string): BrowserAuthPrompt | null {
+  const entry = firstPendingAuth((e) => e.projectKey === key)
   if (!entry) return null
   return {
     id: entry.id,
@@ -550,8 +594,7 @@ function authPrompt(): BrowserAuthPrompt | null {
 }
 
 /** Why a page is stuck, in words the agent can act on (and the panel can show). */
-function pendingAuthNote(): string | null {
-  const entry = firstPendingAuth()
+function pendingAuthNote(entry: PendingAuth | null): string | null {
   if (!entry) return null
   const realm = entry.realm ? ` (realm "${entry.realm}")` : ''
   return `HTTP authentication required by ${entry.host}${realm} — the page stays pending until the user answers the sign-in bar in the coding panel WEB view (they can tick "remember" to store it for this profile).`
@@ -617,6 +660,7 @@ async function handleLogin(
     id,
     wcId,
     pageId: asking?.id ?? '',
+    projectKey: asking?.key ?? currentKey,
     partition,
     key,
     host: authInfo.host,
@@ -644,9 +688,10 @@ function safeCurrentUrl(wcId: number): string {
 function withAuthWatch<T>(wcId: number, promise: Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setInterval(() => {
-      if (![...pendingAuth.values()].some((entry) => entry.wcId === wcId)) return
+      const held = firstPendingAuth((entry) => entry.wcId === wcId)
+      if (!held) return
       clearInterval(timer)
-      reject(new Error(pendingAuthNote() ?? 'HTTP authentication required.'))
+      reject(new Error(pendingAuthNote(held) ?? 'HTTP authentication required.'))
     }, 500)
     promise.then(
       (value) => {
@@ -674,7 +719,8 @@ async function loadInto(page: BrowserPage, url: string): Promise<string> {
       `Timed out loading ${target}`,
     )
   } catch (e) {
-    const note = pendingAuthNote()
+    // This page's own sign-in only: another project's held prompt says nothing about this load.
+    const note = pendingAuthNote(firstPendingAuth((entry) => entry.wcId === wcId))
     if (note) {
       // Not a broken load: Chromium is holding it until the user signs in. Say it once —
       // withAuthWatch already rejected with this same note.
@@ -717,7 +763,7 @@ function removeDeadPage(id: string, reason: string): void {
   }
   const dead = bucket(page.key)
   if (dead.activeId === id) dead.activeId = pages.find((p) => p.key === page.key)?.id ?? null
-  lastError = `Browser page ${id} was removed because its renderer exited (${reason}).`
+  dead.lastError = `Browser page ${id} was removed because its renderer exited (${reason}).`
   applyVisibility()
 }
 
@@ -871,9 +917,10 @@ export async function clearBrowserData(
     await rm(file, { force: true }).catch(() => undefined)
     authStore = {}
     authStorePath = ''
-    lastError = null
-    lastPermission = null
-    lastDownload = null
+    const st = bucket()
+    st.lastError = null
+    st.lastPermission = null
+    st.lastDownload = null
     // Clearing is an explicit "sort my browser data out" action: housekeeping for the other
     // profiles runs here too, instead of only wiping the one on screen.
     runBrowserMaintenance(bucket().partition || 'default', hardenedPartitions)
@@ -1054,11 +1101,11 @@ async function ensureActivePage(key: string = currentKey): Promise<BrowserPage> 
     const epoch = st.epoch
     const pending = newPageInWindow(ownerWindow as BrowserWindow, undefined, key, epoch)
       .then((page) => {
-        lastError = null
+        st.lastError = null
         return page
       })
       .catch((e) => {
-        lastError = e instanceof Error ? e.message : String(e)
+        st.lastError = e instanceof Error ? e.message : String(e)
         throw e
       })
       .finally(() => {
@@ -1092,8 +1139,9 @@ export async function openBrowserPage(
   profile?: string,
 ): Promise<{ pageId: string; url: string; text: string }> {
   return withBrowserLock(async () => {
-    // Panel-driven (GO / URL bar): the path and profile come from the panel's own context.
-    const target = await ensureBrowser(win, projectPath, profile, true)
+    // Agent-driven (browser_new_page), so not authoritative: a background chat must not
+    // re-point the panel at its own project or reset a profile from an empty path.
+    const target = await ensureBrowser(win, projectPath, profile)
     const st = bucket()
     if (pages.filter((p) => p.key === currentKey).length >= MAX_PAGES) {
       throw new Error(
@@ -1232,7 +1280,7 @@ export async function navigateTo(url: string, wait = true): Promise<string> {
   // returns at once. The final URL is not known yet, so the requested one is reported.
   const target = normalizeUrl(url)
   void page.view.webContents.loadURL(target).catch((e) => {
-    lastError = e instanceof Error ? e.message : String(e)
+    bucket(page.key).lastError = e instanceof Error ? e.message : String(e)
   })
   return target
 }
@@ -1362,11 +1410,14 @@ export function browserStatus(projectPath?: string): {
       ? panelRect
       : parkedRect()
     : { x: 0, y: 0, width: 0, height: 0 }
-  const notice = pendingAuthNote() ?? lastPermission
+  const st = bucket(key)
+  const notice = pendingAuthNote(firstPendingAuth((e) => e.projectKey === key)) ?? st.lastPermission
+  const downloads = downloadsDir(key, st.partition || 'default')
 
   if (!page || page.view.webContents.isDestroyed()) {
     return {
-      state: pages.length ? 'error' : lastError ? 'error' : 'idle',
+      // Only this project's pages count: tabs open in another project are not an error here.
+      state: info.length || st.lastError ? 'error' : 'idle',
       url: '',
       title: '',
       attached: false,
@@ -1377,11 +1428,11 @@ export function browserStatus(projectPath?: string): {
       pages: info,
       activeId: bucket(key).activeId,
       profile: bucket(key).partition,
-      auth: authPrompt(),
+      auth: authPrompt(key),
       notice,
-      downloadsDir: downloadsDir(bucket(key).partition || 'default'),
-      download: lastDownload,
-      error: lastError,
+      downloadsDir: downloads,
+      download: st.lastDownload,
+      error: st.lastError,
     }
   }
   return {
@@ -1396,11 +1447,11 @@ export function browserStatus(projectPath?: string): {
     pages: info,
     activeId: bucket(key).activeId,
     profile: bucket(key).partition,
-    auth: authPrompt(),
+    auth: authPrompt(key),
     notice,
-    downloadsDir: downloadsDir(bucket(key).partition || 'default'),
-    download: lastDownload,
-    error: lastError,
+    downloadsDir: downloads,
+    download: st.lastDownload,
+    error: st.lastError,
   }
 }
 

@@ -201,11 +201,22 @@ export class CdpSession {
       }
       case 'Network.requestWillBeSent': {
         const req = (params.request as { method?: unknown; url?: unknown } | undefined) ?? {}
-        this.pendingRequests.set(String(params.requestId ?? ''), {
+        const id = String(params.requestId ?? '')
+        const redirect = params.redirectResponse as { status?: unknown } | undefined
+        if (redirect) {
+          // A redirect re-sends requestWillBeSent under the SAME requestId: it is still one
+          // request in flight, and counting it twice kept networkIdle from ever settling.
+          const previous = this.pendingRequests.get(id)
+          this.pushRequest(
+            `${previous?.method ?? 'GET'} ${compact(redirect.status ?? '3xx', 8)} ${previous?.url ?? ''} -> ${String(req.url ?? '')}`,
+          )
+        } else {
+          this.inflightRequests += 1
+        }
+        this.pendingRequests.set(id, {
           method: compact(req.method ?? 'GET', 12),
           url: String(req.url ?? ''),
         })
-        this.inflightRequests += 1
         break
       }
       case 'Network.responseReceived': {

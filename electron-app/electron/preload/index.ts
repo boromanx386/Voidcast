@@ -85,7 +85,8 @@ contextBridge.exposeInMainWorld('voidcast', {
       projectPath?: string
       profile?: string
     }) => ipcRenderer.invoke('voidcast:browser-handle-dialog', payload),
-    status: () => ipcRenderer.invoke('voidcast:browser-status'),
+    status: (payload?: { projectPath?: string }) =>
+      ipcRenderer.invoke('voidcast:browser-status', payload),
     listPages: (payload?: { projectPath?: string; profile?: string }) =>
       ipcRenderer.invoke('voidcast:browser-list-pages', payload),
     newPage: (payload: {
