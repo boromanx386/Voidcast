@@ -84,6 +84,7 @@ import {
 } from '@/lib/subAgentPanelState'
 import { createWorkerSteerQueue, pushWorkerSteer } from '@/lib/workerSteer'
 import { buildSteerCourseCorrectionText, toConversationTurns } from '@/lib/chatHints'
+import { resolveGeneratedImageOutputDir } from '@/lib/saveImage'
 import { sliceUiHistoryForContext } from '@/lib/chatMessages'
 import {
   DRAFT_RUNTIME_KEY,
@@ -1026,6 +1027,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               },
               negativePrompt: turnSettings.runwareNegativePrompt,
               imageProvider: turnSettings.imageProvider,
+              outputDir: resolveGeneratedImageOutputDir(turnSettings),
               openrouter: {
                 apiKey: turnSettings.openrouterApiKey,
                 baseUrl: turnSettings.openrouterBaseUrl,

@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **`generate_image` and `edit_image_runware` tell the agent where the file is**: the image was saved by the UI after the tool result had already gone back to the model, so an agent asked to "generate, then copy into the project" had no path in the same turn and could stop with nothing copied. The handler now saves the image first and adds a `Saved image: <path>` line to the result; the UI reuses it instead of saving a second copy. Remote URLs are still only saved when auto-save is on.
 - **A background process no longer blocks RUN**: every output chunk from a background run marked it as the foreground command. While an agent's dev server kept logging, RUN stayed disabled and STOP in the terminal pointed at the server. Background output now leaves the foreground state alone.
 - **Coding terminal keeps indentation**: output rows collapsed runs of spaces, so stack traces, tables and `git status` lost their indentation. Rows now keep whitespace and wrap long lines.
 - **Coding terminal keeps 2000 rows instead of 100**: one `npm install` or failing test run used to push the actual error out of the panel.

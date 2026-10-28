@@ -461,11 +461,16 @@ export function applyAgentToolResult(
 
     attachRemoteUrls(remoteUrls)
 
+    // The tool handler already saved the file and told the model where it is.
+    const alreadySaved = extractSavedImagePaths(result)
+    attachSavedPaths(alreadySaved)
+
     if (
-      dataUrls.length > 0 ||
-      (remoteUrls.length > 0 &&
-        settings.runwareAutoSaveImages &&
-        settings.runwareImageOutputDir.trim())
+      alreadySaved.length === 0 &&
+      (dataUrls.length > 0 ||
+        (remoteUrls.length > 0 &&
+          settings.runwareAutoSaveImages &&
+          settings.runwareImageOutputDir.trim()))
     ) {
       void (async () => {
         const saved: string[] = []

@@ -23,6 +23,8 @@ import { synthesizeSpeech } from '@/lib/tts'
 import { invokeSaveAudioBytes } from '@/lib/saveAudio'
 import { extensionFromAudioMime, validateProjectRelativeAudioPath } from '@/lib/generatedAssetPath'
 import { isElectron, isWebStandalone } from '@/lib/platform'
+import { extractRunwareImageUrls, extractSavedImagePaths } from '@/lib/runwareMessageMeta'
+import { invokeSaveImageFromUrl, isDataImageUrl } from '@/lib/saveImage'
 import { sanitizeForTts } from '@/lib/chatHints'
 
 const MAX_TTS_TOOL_CHARS = 8_000
@@ -522,9 +524,32 @@ export const handleGenerateTts: ToolHandlerFn = async (args, ctx) => {
   }
 }
 
+/**
+ * Saves the generated image before the result reaches the model, so the model
+ * knows the file path in the same turn (it can copy it into the project).
+ * applyAgentToolResult reuses these "Saved image:" lines instead of saving again.
+ */
+const withSavedImagePaths =
+  (handler: ToolHandlerFn): ToolHandlerFn =>
+  async (args, ctx) => {
+    const result = await handler(args, ctx)
+    if (!isElectron()) return result
+    const outputDir = (ctx.runware?.outputDir ?? '').trim()
+    const saved: string[] = []
+    for (const url of extractRunwareImageUrls(result)) {
+      // Remote URLs are only saved when the user turned auto-save on.
+      if (!isDataImageUrl(url) && !outputDir) continue
+      const txt = await invokeSaveImageFromUrl({ imageUrl: url, outputDir }).catch(() => '')
+      saved.push(txt)
+    }
+    const paths = extractSavedImagePaths(saved.join('\n'))
+    if (paths.length === 0) return result
+    return `${result}\n${paths.map((p) => `Saved image: ${p}`).join('\n')}`
+  }
+
 export const mediaHandlersRegistry: ToolHandlerRegistry = {
-  ['generate_image']: handleGenerateImage,
-  ['edit_image_runware']: handleEditImageRunware,
+  ['generate_image']: withSavedImagePaths(handleGenerateImage),
+  ['edit_image_runware']: withSavedImagePaths(handleEditImageRunware),
   ['image_recall']: handleImageRecall,
   ['generate_music_runware']: handleGenerateMusicRunware,
   ['generate_tts']: handleGenerateTts,

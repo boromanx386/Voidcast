@@ -41,6 +41,8 @@ export type RunwareImageConfig = {
   negativePrompt?: string
   /** Image backend: Runware API or OpenRouter chat completions. */
   imageProvider?: ImageProvider
+  /** User output folder when auto-save is on; empty = Electron's cache folder. */
+  outputDir?: string
   /** OpenRouter settings when imageProvider is openrouter. */
   openrouter?: {
     apiKey: string
