@@ -288,13 +288,18 @@ export class CdpSession {
     const nodes = res?.nodes ?? []
     const map = new Map<string, CdpSnapshotNode>()
     const lines: string[] = []
+    // Counted past the cap on purpose: comparing against `nodes.length` included every
+    // skipped generic/StaticText node, so nearly every snapshot claimed to be truncated and
+    // pushed the agent into asking for a bigger max_nodes for nothing.
+    let eligible = 0
     for (const node of nodes) {
-      if (lines.length >= maxNodes) break
       if (!node || node.ignored) continue
       const role = compact((node.role as { value?: unknown } | undefined)?.value, 40)
       if (!role || SKIP_ROLES.has(role)) continue
       const uid = String(node.nodeId ?? '')
       if (!uid) continue
+      eligible += 1
+      if (lines.length >= maxNodes) continue
       const entry: CdpSnapshotNode = {
         uid,
         role,
@@ -308,7 +313,9 @@ export class CdpSession {
     this.uidMap = map
     const head = [`url: ${this.wc.getURL() || 'about:blank'}`, `title: ${this.wc.getTitle()}`]
     const truncated =
-      nodes.length > lines.length ? [`(truncated to ${lines.length} of ${nodes.length} nodes)`] : []
+      eligible > lines.length
+        ? [`(truncated to ${lines.length} of ${eligible} nodes — raise max_nodes to see the rest)`]
+        : []
     return [...head, ...lines, ...truncated].join('\n')
   }
 

@@ -98,3 +98,40 @@ describe('CdpSession network tracking', () => {
     )
   })
 })
+
+describe('CdpSession snapshot', () => {
+  const axNode = (nodeId: string, role: string, name = '') => ({
+    nodeId,
+    role: { value: role },
+    name: { value: name },
+    backendDOMNodeId: Number(nodeId),
+  })
+  // Two actionable nodes buried in the generic/StaticText noise every real page has.
+  const tree = {
+    nodes: [
+      axNode('1', 'RootWebArea', 'Example'),
+      axNode('2', 'generic'),
+      axNode('3', 'StaticText', 'hello'),
+      axNode('4', 'button', 'Save'),
+      { nodeId: '5', ignored: true },
+    ],
+  }
+  const treeSession = () =>
+    attachedSession(async (method) => (method === 'Accessibility.getFullAXTree' ? tree : {}))
+
+  test('skipped noise nodes do not make a full snapshot look truncated', async () => {
+    const { session } = treeSession()
+    await session.attach()
+    const text = await session.snapshot(400)
+    expect(text).toContain('4 button name="Save"')
+    expect(text).not.toContain('truncated')
+  })
+
+  test('a real cut counts only the nodes that would have been listed', async () => {
+    const { session } = treeSession()
+    await session.attach()
+    const text = await session.snapshot(1)
+    expect(text).toContain('(truncated to 1 of 2 nodes — raise max_nodes to see the rest)')
+    expect(text).not.toContain('button')
+  })
+})

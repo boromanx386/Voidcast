@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { CdpSession } from './cdp'
 import { recordProfileKey, runBrowserMaintenance, trimProfileCaches } from './maintenance'
+import { settleNavigation } from './navigationWait'
 import { POPUP_BURST, POPUP_WINDOW_MS, allowPopup, popupToEvict } from './popupGuard'
 
 /**
@@ -1066,6 +1067,7 @@ async function newPageInWindow(
   }
 
   const page: BrowserPage = { id, view, cdp, createdAt: Date.now(), key, popup }
+  const previousActive = st.activeId
   pages.push(page)
   st.activeId = id
   applyVisibility()
@@ -1078,7 +1080,27 @@ async function newPageInWindow(
   view.webContents.on('render-process-gone', (_event, details) => onRendererGone(details))
   view.webContents.once('destroyed', () => onRendererGone({ reason: 'destroyed' }))
 
-  if (url && url !== HOME_URL) await loadInto(page, url)
+  if (url && url !== HOME_URL) {
+    try {
+      await loadInto(page, url)
+    } catch (e) {
+      // A page held for HTTP sign-in is waiting for the user, not broken: keep it.
+      if (firstPendingAuth((entry) => entry.wcId === wcId)) throw e
+      // Otherwise the caller gets an error, so it must not also get a blank page that took
+      // over as the current one and counts toward MAX_PAGES.
+      try {
+        closeBrowserPageUnsafe(id)
+      } catch {
+        /* already gone */
+      }
+      if (previousActive && pages.some((p) => p.id === previousActive && p.key === key)) {
+        st.activeId = previousActive
+        applyVisibility()
+      }
+      const detail = e instanceof Error ? e.message : String(e)
+      throw new Error(`${detail.replace(/\.?\s*$/, '.')} The new page was closed.`)
+    }
+  }
   return page
 }
 
@@ -1318,18 +1340,25 @@ export async function historyStep(direction: 'back' | 'forward'): Promise<string
   if (next < 0 || next >= entries.length) {
     throw new Error(`Cannot go ${direction} — no further history entry.`)
   }
-  await page.cdp.send('Page.navigateToHistoryEntry', {
-    entryId: (entries[next] as { id?: number })?.id,
-  })
-  await new Promise((resolve) => setTimeout(resolve, 400))
+  await settleNavigation(
+    page.view.webContents,
+    () =>
+      page.cdp.send('Page.navigateToHistoryEntry', {
+        entryId: (entries[next] as { id?: number })?.id,
+      }),
+    LOAD_TIMEOUT_MS,
+  )
   return page.view.webContents.getURL()
 }
 
 export async function reloadPage(): Promise<string> {
   const page = activeBrowserPage()
   if (!page) throw new Error('Browser page is not running yet.')
-  await page.cdp.send('Page.reload', {})
-  await new Promise((resolve) => setTimeout(resolve, 400))
+  await settleNavigation(
+    page.view.webContents,
+    () => page.cdp.send('Page.reload', {}),
+    LOAD_TIMEOUT_MS,
+  )
   return page.view.webContents.getURL()
 }
 
