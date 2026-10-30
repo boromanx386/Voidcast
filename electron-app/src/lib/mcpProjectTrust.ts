@@ -53,14 +53,24 @@ export function normalizeMcpProjectPath(projectPath: string): string {
   return trimmed.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 }
 
+/** True when `path` is `root` or sits inside it. Both must already be normalized. */
+export function isSameOrInsideFolder(path: string, root: string): boolean {
+  if (!path || !root) return false
+  if (path === root) return true
+  // Folder boundary, so trusting c:/code/vst never covers c:/code/vst-old.
+  return path.startsWith(root.endsWith('/') ? root : `${root}/`)
+}
+
+/** Trusting a folder also trusts everything below it. */
 export function isMcpProjectTrusted(
   projectPath: string,
   trustedProjectPaths: string[] | undefined,
 ): boolean {
   const normalized = normalizeMcpProjectPath(projectPath)
   if (!normalized) return false
-  const trusted = new Set((trustedProjectPaths ?? []).map(normalizeMcpProjectPath).filter(Boolean))
-  return trusted.has(normalized)
+  return (trustedProjectPaths ?? [])
+    .map(normalizeMcpProjectPath)
+    .some((root) => isSameOrInsideFolder(normalized, root))
 }
 
 export function addTrustedMcpProjectPath(

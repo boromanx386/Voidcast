@@ -20,6 +20,15 @@ describe('mcpProjectTrust', () => {
     expect(isMcpProjectTrusted('c:/projects/other', trusted)).toBe(false)
   })
 
+  test('a trusted folder covers its subfolders, on a folder boundary', () => {
+    const trusted = ['Q:\\coding']
+    expect(isMcpProjectTrusted('Q:\\coding\\vst', trusted)).toBe(true)
+    expect(isMcpProjectTrusted('q:/coding/vst/electron-app/', trusted)).toBe(true)
+    expect(isMcpProjectTrusted('Q:\\coding-old\\app', trusted)).toBe(false)
+    expect(isMcpProjectTrusted('Q:\\', trusted)).toBe(false)
+    expect(isMcpProjectTrusted('/home/me/code/app', ['/home/me/code/'])).toBe(true)
+  })
+
   test('addTrustedMcpProjectPath dedupes and sorts', () => {
     expect(addTrustedMcpProjectPath(['b/path'], 'A/Path')).toEqual(['a/path', 'b/path'])
     expect(addTrustedMcpProjectPath(['a/path'], 'a/path')).toEqual(['a/path'])

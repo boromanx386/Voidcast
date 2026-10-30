@@ -45,7 +45,6 @@ import { normalizeAgentChatMode, isReadOnlyAgentMode } from '@/types/chat'
 import {
   buildProjectInstructionsHint,
   buildSkillsCatalogHint,
-  buildUntrustedProjectInstructionsHint,
   discoverAgentSkills,
   loadProjectAgentInstructions,
 } from '@/lib/agentSkills'
@@ -60,7 +59,6 @@ import {
 import { formatPlanHandoffUserBlock } from '@/lib/codingReadGuard'
 import { anyToolEnabled } from '@/lib/toolDefinitions'
 import { ensureMcpToolsCached, type McpToolInfo } from '@/lib/mcpTools'
-import { isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
 import { isElectron } from '@/lib/platform'
 import type { FileAttachmentSnapshot, UiMessage } from '@/types/chat'
 import type { LongMemoryItem } from '@/types/longMemory'
@@ -225,14 +223,11 @@ export async function buildAgentTurnContext(
     return acc
   }, [])
 
-  // AGENTS.md / CLAUDE.md and project skills come from whatever repo the chat is bound
-  // to, including a freshly cloned stranger's repo, and land in the system prompt next
-  // to tools like execute_command. Same trust list as project .mcp.json.
-  const projectTrusted = isMcpProjectTrusted(codingProjectPath, settings.mcpTrustedProjectPaths)
+  // AGENTS.md / CLAUDE.md and project skills are plain text the agent could read with
+  // read_file anyway, so they load without trust. Only project .mcp.json, which starts
+  // processes, waits for the trust list.
   const discoveredSkills = settings.skillsEnabled
-    ? (await discoverAgentSkills({ projectPath: codingProjectPath || undefined })).filter(
-        (s) => projectTrusted || s.source !== 'project',
-      )
+    ? await discoverAgentSkills({ projectPath: codingProjectPath || undefined })
     : []
   const skillsActive = settings.skillsEnabled && discoveredSkills.length > 0
   const mcpTools =
@@ -259,9 +254,7 @@ export async function buildAgentTurnContext(
     settings.toolsEnabled.coding && codingProjectPath
       ? await loadProjectAgentInstructions({ projectPath: codingProjectPath })
       : []
-  const projectInstructionsHint = projectTrusted
-    ? buildProjectInstructionsHint(projectInstructionFiles)
-    : buildUntrustedProjectInstructionsHint(projectInstructionFiles)
+  const projectInstructionsHint = buildProjectInstructionsHint(projectInstructionFiles)
   const planModeSystemHint = planMode
     ? buildPlanModeSystemHint({ hasHandoff: Boolean(handoffHint), submitTool: useTools })
     : ''

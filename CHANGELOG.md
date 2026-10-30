@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Trust only gates project `.mcp.json`, and covers subfolders**: 2.12.0 also held back `AGENTS.md` / `CLAUDE.md` and project skills in untrusted folders, and the coding panel bar only appeared when something was skipped, so a skill added later to a folder without one was silently ignored until you remembered to trust it. Those files are plain text the agent could read with `read_file` anyway, so they now always load and `read_skill` opens project skills everywhere. Trust stays for `.mcp.json`, whose servers start processes; the yellow bar now appears only when MCP is on and an untrusted folder has servers waiting, and the Skills panel no longer has a trust box. A trusted folder now covers its subfolders too (on a folder boundary, in both the renderer and main-process checks), so trusting `Q:\coding` once covers every project under it.
+
 ### Added
 
 - **Each background process gets its own terminal tab**: a dev server, a watcher and a test runner the agent starts in the background used to write into the same AGENT buffer, so their logs mixed. Now each one gets a tab named after its command, with a live dot while it runs and STOP for that process alone. A foreground command that is handed back to the agent after going quiet moves into a tab of its own, and AGENT keeps a one-line pointer. Finished tabs dim and can be closed. At most 8 are kept, and the oldest finished ones go first. Covered by a `terminal-tabs` unit test.

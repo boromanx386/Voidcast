@@ -106,7 +106,7 @@ The assistant (agent) loop lives in `src/lib/`:
 
 ### MCP
 
-MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gated by `mcpEnabled` and per-server `mcpServerEnabled` flags. Project `.mcp.json` files are only trusted after approval in Options → Tools (`mcpTrustedProjectPaths`). Concurrent chats cancel MCP only for their own runtime key.
+MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gated by `mcpEnabled` and per-server `mcpServerEnabled` flags. Project `.mcp.json` files are only trusted after approval in Options → Tools or the coding panel (`mcpTrustedProjectPaths`; an entry covers its subfolders). Concurrent chats cancel MCP only for their own runtime key.
 
 ### Sub-agent
 

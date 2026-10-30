@@ -234,20 +234,20 @@ export function isMcpProjectTrustedResolved(
 ): boolean {
   const normalized = normalizeMcpProjectPathResolved(projectPath)
   if (!normalized) return false
-  const trusted = new Set(
-    (trustedProjectPaths ?? [])
-      .map((entry) => {
-        const trimmed = entry.trim()
-        if (!trimmed) return ''
-        try {
-          return path.resolve(trimmed).replace(/\\/g, '/').toLowerCase()
-        } catch {
-          return trimmed.replace(/\\/g, '/').toLowerCase()
-        }
-      })
-      .filter(Boolean),
-  )
-  return trusted.has(normalized)
+  // Same rule as the renderer: a trusted folder covers its subfolders, on a folder
+  // boundary so c:/code/vst never covers c:/code/vst-old.
+  return (trustedProjectPaths ?? []).some((entry) => {
+    const trimmed = entry.trim()
+    if (!trimmed) return false
+    let root: string
+    try {
+      root = path.resolve(trimmed).replace(/\\/g, '/').toLowerCase()
+    } catch {
+      root = trimmed.replace(/\\/g, '/').toLowerCase()
+    }
+    if (normalized === root) return true
+    return normalized.startsWith(root.endsWith('/') ? root : `${root}/`)
+  })
 }
 
 export function projectMcpConfigFile(projectPath: string): string {

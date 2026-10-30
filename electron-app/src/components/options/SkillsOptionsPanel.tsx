@@ -6,8 +6,6 @@ import {
   type AgentSkillMeta,
   type ProjectAgentInstructions,
 } from '@/lib/agentSkills'
-import { isMcpProjectTrusted } from '@/lib/mcpProjectTrust'
-import { trustProjectFolder } from '@/lib/projectTrustActions'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
 
@@ -65,12 +63,6 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
   }, [load])
 
   const projectSkillCount = skills.filter((s) => s.source === 'project').length
-  const projectTrusted = isMcpProjectTrusted(projectPath, settings.mcpTrustedProjectPaths)
-
-  const onTrustProject = useCallback(
-    () => trustProjectFolder(setSettings, projectPath),
-    [projectPath, setSettings],
-  )
 
   return (
     <div className="space-y-4">
@@ -162,27 +154,12 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
       </div>
 
       {projectPath ? (
-        <>
-          <p className="text-xs text-void-dim font-mono break-all">
-            Coding project: {projectPath}
-            {projectFiles.length > 0
-              ? ` · instructions: ${projectFiles.map((f) => f.fileName).join(', ')}${
-                  projectTrusted ? '' : ' (not loaded — untrusted)'
-                }`
-              : ' · no AGENTS.md / CLAUDE.md'}
-          </p>
-          {(projectFiles.length > 0 || projectSkillCount > 0) && !projectTrusted && (
-            <div className="rounded border border-neon-yellow/40 bg-neon-yellow/5 px-3 py-3 space-y-2">
-              <p className="text-xs text-neon-yellow font-mono">
-                Untrusted project — its instruction files and project skills are not sent to the
-                model. Trust it only if you know what the repository contains.
-              </p>
-              <button type="button" className="cyber-btn text-xs" onClick={onTrustProject}>
-                TRUST_PROJECT
-              </button>
-            </div>
-          )}
-        </>
+        <p className="text-xs text-void-dim font-mono break-all">
+          Coding project: {projectPath}
+          {projectFiles.length > 0
+            ? ` · instructions: ${projectFiles.map((f) => f.fileName).join(', ')}`
+            : ' · no AGENTS.md / CLAUDE.md'}
+        </p>
       ) : (
         <p className="text-xs text-void-dim">
           This chat has no coding folder. Bind one in the chat header (or the coding panel) to load
@@ -217,7 +194,6 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
                   }`}
                 >
                   {s.source}
-                  {s.source === 'project' && !projectTrusted ? ' · not loaded — untrusted' : ''}
                 </span>
               </div>
               <p className="text-xs text-void-dim mt-1 leading-relaxed">
