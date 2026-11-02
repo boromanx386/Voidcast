@@ -25,7 +25,9 @@ export type ControlDriverEnv = {
   messageCount: (id: string) => number
   slotError: (id: string) => string | null
   newChatForProject: (projectPath: string) => void
-  setPendingMode: (mode: AgentChatMode) => void
+  /** Mode the next brand-new chat is created with; `null` = follow Options. */
+  getNewChatMode: () => AgentChatMode | null
+  setNewChatMode: (mode: AgentChatMode | null) => void
   openSession: (session: ChatSession) => void
   setModelForSession: (id: string, model: string) => void
   /** Same entry point as the composer; resolves when the WHOLE turn ends. */
@@ -100,8 +102,11 @@ export function createControlDriver(env: ControlDriverEnv) {
   function startChat(input: ControlStartInput): Promise<ControlActionResult> {
     return serial(async () => {
       const previousId = env.getActiveSessionId()
+      const previousNewChatMode = env.getNewChatMode()
       env.newChatForProject(input.projectPath)
-      env.setPendingMode(input.mode)
+      // Only the new-chat default: a per-chat setter would still target the chat on
+      // screen, because the navigation above has not rendered yet.
+      env.setNewChatMode(input.mode)
       await sleep(SETTLE_MS)
       const result = await sendAndConfirm(
         null,
@@ -113,6 +118,8 @@ export function createControlDriver(env: ControlDriverEnv) {
           }),
         0,
       )
+      // The created chat owns its mode now; the user's next new chat keeps their own pick.
+      env.setNewChatMode(previousNewChatMode)
       if ('error' in result) return result
       // Persist the pin so follow-up sends on this chat keep the same model.
       if (input.model) env.setModelForSession(result.id, input.model)

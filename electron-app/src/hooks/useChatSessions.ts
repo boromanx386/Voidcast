@@ -605,8 +605,10 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }, [
     activeSessionId,
     settings.autoSaveChat,
+    settings.agentMode,
     rekeyCodingTerminalOwner,
     pendingNewSessionThinkLevel,
+    pendingNewSessionAgentMode,
     codingContextMemo,
     imageVisionCache,
   ])
@@ -1107,6 +1109,8 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     activeAgentMode,
     setAgentModeForActiveChat,
     setAgentModeForSession,
+    newChatAgentMode: pendingNewSessionAgentMode,
+    setNewChatAgentMode: setPendingNewSessionAgentMode,
     setModelForSession,
     patchSessionImageVision,
     activeModelId,

@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import { createControlDriver, type ControlDriverEnv } from '../src/lib/controlDriver'
-import type { ChatSession } from '../src/types/chat'
+import type { AgentChatMode, ChatSession } from '../src/types/chat'
 
 function chat(id: string): ChatSession {
   return { id, title: id, createdAt: 1, updatedAt: 1, messages: [] }
@@ -14,7 +14,11 @@ function fakeEnv(opts: { startActive: string | null; sendBehavior?: 'busy' | 're
     ['prev', chat('prev')],
     ['other', chat('other')],
   ])
-  const state = { active: opts.startActive, busy: new Set<string>() }
+  const state = {
+    active: opts.startActive,
+    busy: new Set<string>(),
+    newChatMode: 'plan' as AgentChatMode | null,
+  }
   const calls: string[] = []
   const env: ControlDriverEnv = {
     getActiveSessionId: () => state.active,
@@ -26,7 +30,11 @@ function fakeEnv(opts: { startActive: string | null; sendBehavior?: 'busy' | 're
       calls.push(`new:${path}`)
       state.active = null
     },
-    setPendingMode: (mode) => calls.push(`mode:${mode}`),
+    getNewChatMode: () => state.newChatMode,
+    setNewChatMode: (mode) => {
+      calls.push(`mode:${mode}`)
+      state.newChatMode = mode
+    },
     openSession: (s) => {
       calls.push(`open:${s.id}`)
       state.active = s.id
@@ -64,11 +72,26 @@ describe('startChat', () => {
       'new:C:/p',
       'mode:team',
       'send:build it:team:ollama:m',
+      'mode:plan',
       'model:new-1:ollama:m',
       'open:prev',
     ])
     expect(state.active).toBe('prev')
     expect(state.busy.has('new-1')).toBe(true)
+  })
+
+  test('only the new-chat default carries the mode, and it is restored afterwards', async () => {
+    const { env, state, calls } = fakeEnv({ startActive: 'prev' })
+    await createControlDriver(env).startChat({ ...START, text: 't', mode: 'team' })
+    // No per-chat write: the viewed chat's mode is never touched.
+    expect(calls.filter((c) => c.startsWith('mode:'))).toEqual(['mode:team', 'mode:plan'])
+    expect(state.newChatMode).toBe('plan')
+  })
+
+  test('a failed start still restores the new-chat default', async () => {
+    const { env, state } = fakeEnv({ startActive: 'prev', sendBehavior: 'reject' })
+    await createControlDriver(env).startChat({ ...START, text: 't', mode: 'ask' })
+    expect(state.newChatMode).toBe('plan')
   })
 
   test('foreground stays on the new chat', async () => {
