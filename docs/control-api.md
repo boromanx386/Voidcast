@@ -1,6 +1,18 @@
 # Local control API
 
-An opt-in HTTP API on the running desktop app that lets a **local** agent or script list chats, read their transcripts, stop a running turn and — with a second opt-in — start turns.
+An opt-in HTTP API on the running desktop app that lets a **local** agent or script list chats, read their transcripts, stop a running turn and start turns.
+
+## Use it from Claude Code, Codex or Cursor
+
+[`skills/voidcast/`](../skills/voidcast/) is a ready-made agent skill (`SKILL.md` + a small Node CLI, `voidcast.mjs`) that wraps this API. Copy the folder to where your agent loads skills, for example:
+
+| Agent       | Folder                                     |
+| ----------- | ------------------------------------------ |
+| Claude Code | `~/.claude/skills/voidcast/`               |
+| Codex       | `~/.codex/skills/voidcast/`                |
+| Cursor      | `.cursor/skills/voidcast/` in your project |
+
+Then turn on `LOCAL_CONTROL_API` and ask your agent to hand something to Voidcast. Typical uses: let a cheaper model in Voidcast do the bulk work while your main agent plans and reviews, or get an image, a music track or a voiceover into the project with Voidcast's media tools.
 
 ## Enable
 

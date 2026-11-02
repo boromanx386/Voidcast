@@ -28,6 +28,7 @@ Everything that lives in the repo is **English**:
 | `start-dev.bat` | Windows dev launcher |
 | `site/` | GitHub Pages marketing site |
 | `docs/` | documentation |
+| `skills/voidcast/` | agent skill + CLI for the local control API, copied by users into Claude Code / Codex / Cursor |
 
 ## 3. Commands
 

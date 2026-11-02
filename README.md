@@ -69,6 +69,8 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 
 - **Watch it think** — adjacent read-only tool calls run in parallel (up to ten) while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts in collapsible round blocks.
 
+- **A worker for Claude Code, Codex and Cursor** — turn on the local control API, copy [`skills/voidcast/`](skills/voidcast/) into your agent's skills folder, and your main agent can hand Voidcast a task, wait for it and check the result. Let a cheaper model do the bulk work, or use Voidcast's image, music, TTS and browser tools from another agent. See [Local control API](docs/control-api.md).
+
 - **Chat from your phone** — an opt-in **LAN web UI** served from your PC, so your own phone or tablet can use the same agent, models and memory. See [LAN web UI](#lan-web-ui--chat-from-your-phone).
 
 ---
@@ -524,6 +526,7 @@ This approach ensures all users get the same environment without manual Python s
 ├── demos/                           # Screenshots & demo assets used in this README
 ├── scripts/                         # Build/release helpers (tools exe, web UI copy…)
 ├── site/                            # Landing page (static site)
+├── skills/voidcast/                 # Agent skill + CLI for the local control API
 ├── CHANGELOG.md                     # Release history
 ├── LICENSE                          # MIT
 ├── THIRD_PARTY_NOTICES.md           # Bundled third-party licenses
