@@ -9,7 +9,26 @@ import {
   MCP_LIST_TOOLS_NAME,
   MCP_READ_RESULT_NAME,
 } from '@/lib/mcpTools'
+import { extractSavedImagePaths } from '@/lib/runwareMessageMeta'
+import { registerTurnCatalogImages } from '@/lib/toolHandlers/helpers'
 import type { ExecCtx, ToolHandlerFn, ToolHandlerRegistry } from '@/lib/toolExecTypes'
+
+/** Images the server returned join the catalog at once, so this turn can recall or edit them. */
+async function executeMcpToolWithImages(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: ExecCtx,
+): Promise<string> {
+  const result = await executeMcpToolCall(name, args, {
+    projectPath: ctx.codingProjectPath,
+    enabledServers: ctx.mcpServerEnabled,
+    trustedProjectPaths: ctx.mcpTrustedProjectPaths,
+    ownerId: ctx.mcpOwnerId,
+    imageOutputDir: ctx.runware?.outputDir,
+  })
+  await registerTurnCatalogImages(extractSavedImagePaths(result), ctx)
+  return result
+}
 
 export const handleMcpListTools: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.mcpEnabled) {
@@ -93,12 +112,7 @@ export const handleMcpCall: ToolHandlerFn = async (args, ctx) => {
       ? (args.arguments as Record<string, unknown>)
       : {}
   try {
-    return await executeMcpToolCall(toolName, callArgs, {
-      projectPath: ctx.codingProjectPath,
-      enabledServers: ctx.mcpServerEnabled,
-      trustedProjectPaths: ctx.mcpTrustedProjectPaths,
-      ownerId: ctx.mcpOwnerId,
-    })
+    return await executeMcpToolWithImages(toolName, callArgs, ctx)
   } catch (e) {
     return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`
   }
@@ -114,12 +128,7 @@ export async function handleMcpLegacy(
     return 'Error: MCP tools are disabled in settings.'
   }
   try {
-    return await executeMcpToolCall(name, args, {
-      projectPath: ctx.codingProjectPath,
-      enabledServers: ctx.mcpServerEnabled,
-      trustedProjectPaths: ctx.mcpTrustedProjectPaths,
-      ownerId: ctx.mcpOwnerId,
-    })
+    return await executeMcpToolWithImages(name, args, ctx)
   } catch (e) {
     return `Error: MCP tool execution failed: ${e instanceof Error ? e.message : String(e)}`
   }

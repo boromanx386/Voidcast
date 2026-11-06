@@ -46,6 +46,7 @@ import {
 import type { UiMessage } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
 import { isElectron } from '@/lib/platform'
+import { isMcpToolName, MCP_CALL_NAME } from '@/lib/mcpTools'
 
 export type AgentToolResultHandlerDeps = {
   asstId: string
@@ -89,6 +90,38 @@ export type AgentToolResultPayload = {
   args?: Record<string, unknown>
 }
 
+/** Put saved image files on the assistant message: the chat renders them, the catalog reads them. */
+function attachSavedImagePaths(
+  deps: AgentToolResultHandlerDeps,
+  savedPaths: string[],
+  meta?: RunwareImageToolMeta | null,
+): void {
+  if (savedPaths.length === 0) return
+  const { asstId, setMessages, setAssistantSavedImagePaths, setAssistantImageToolMeta } = deps
+  setMessages((prev) =>
+    prev.map((m) => {
+      if (m.id !== asstId) return m
+      return {
+        ...m,
+        generatedImagePaths: dedupeNonEmpty([...(m.generatedImagePaths || []), ...savedPaths]),
+      }
+    }),
+  )
+  setAssistantSavedImagePaths((prev) => {
+    const cur = prev[asstId] || []
+    const next = Array.from(new Set([...cur, ...savedPaths]))
+    return { ...prev, [asstId]: next }
+  })
+  if (meta) {
+    setAssistantImageToolMeta((prev) => {
+      const cur = prev[asstId] || {}
+      const next = { ...cur }
+      for (const p of savedPaths) next[p] = meta
+      return { ...prev, [asstId]: next }
+    })
+  }
+}
+
 export function applyAgentToolResult(
   deps: AgentToolResultHandlerDeps,
   payload: AgentToolResultPayload,
@@ -110,7 +143,6 @@ export function applyAgentToolResult(
     setToolResultBanner,
     setMessages,
     setAssistantGeneratedImages,
-    setAssistantSavedImagePaths,
     setAssistantImageToolMeta,
     setAssistantImageMessageMeta,
     setAssistantGeneratedAudios,
@@ -398,6 +430,9 @@ export function applyAgentToolResult(
   if (name === 'save_pdf') {
     setToolResultBanner({ text: result })
   }
+  if (name === 'show_image' || name === MCP_CALL_NAME || isMcpToolName(name)) {
+    attachSavedImagePaths(deps, extractSavedImagePaths(result))
+  }
   if (name === 'generate_image' || name === 'edit_image_runware') {
     const urls = extractRunwareImageUrls(result)
     const meta = parseRunwareImageToolMeta(result)
@@ -434,29 +469,7 @@ export function applyAgentToolResult(
     }
 
     const attachSavedPaths = (savedPaths: string[]) => {
-      if (savedPaths.length === 0) return
-      setMessages((prev) =>
-        prev.map((m) => {
-          if (m.id !== asstId) return m
-          return {
-            ...m,
-            generatedImagePaths: dedupeNonEmpty([...(m.generatedImagePaths || []), ...savedPaths]),
-          }
-        }),
-      )
-      setAssistantSavedImagePaths((prev) => {
-        const cur = prev[asstId] || []
-        const next = Array.from(new Set([...cur, ...savedPaths]))
-        return { ...prev, [asstId]: next }
-      })
-      if (meta) {
-        setAssistantImageToolMeta((prev) => {
-          const cur = prev[asstId] || {}
-          const next = { ...cur }
-          for (const p of savedPaths) next[p] = meta
-          return { ...prev, [asstId]: next }
-        })
-      }
+      attachSavedImagePaths(deps, savedPaths, meta)
     }
 
     attachRemoteUrls(remoteUrls)

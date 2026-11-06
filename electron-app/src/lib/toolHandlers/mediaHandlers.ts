@@ -7,12 +7,20 @@ import { invokeOpenRouterEditImage, invokeOpenRouterGenerateImage } from '@/lib/
 import { cacheEntriesFromDescribeResults } from '@/lib/imageVisionCache'
 import { describeImagesWithSubAgent, formatSubAgentResultsForAgent } from '@/lib/subAgent'
 import { resolveImageRecallRequest } from '@/lib/toolHandlers/imageRecall'
-import { loadProjectImageRecalls } from '@/lib/imageProjectRecall'
+import {
+  loadProjectImageRecalls,
+  MAX_PROJECT_IMAGE_B64_CHARS,
+  resolveLocalImagePath,
+} from '@/lib/imageProjectRecall'
+import { prepareBase64ImageForUpload } from '@/lib/imageAttachment'
+import { imageCatalogId } from '@/lib/imageVisionCache'
 import {
   parseImageIds,
   parseImageIndexes,
   parseImagePaths,
   pickImageByOneBasedIndex,
+  registerTurnCatalogImages,
+  resolveCatalogImageByOneBasedIndex,
   resolveReferenceImageIndexes,
   userRequestedCfgOverride,
   userRequestedStepsOverride,
@@ -544,13 +552,108 @@ const withSavedImagePaths =
     }
     const paths = extractSavedImagePaths(saved.join('\n'))
     if (paths.length === 0) return result
+    await registerTurnCatalogImages(paths, ctx)
     return `${result}\n${paths.map((p) => `Saved image: ${p}`).join('\n')}`
   }
+
+/** Save bytes as a new file in the image output folder; returns its path or the failure text. */
+async function saveShownImage(
+  base64: string,
+  mime: string,
+  outputDir: string,
+  filename?: string,
+): Promise<{ path: string } | { error: string }> {
+  const text = await invokeSaveImageFromUrl({
+    imageUrl: `data:${mime};base64,${base64}`,
+    outputDir,
+    filename,
+  }).catch((e) => (e instanceof Error ? e.message : String(e)))
+  const path = extractSavedImagePaths(text)[0]
+  return path ? { path } : { error: text }
+}
+
+export const handleShowImage: ToolHandlerFn = async (args, ctx) => {
+  const readImageFile = isElectron() ? window.voidcast?.readImageFile : undefined
+  if (!readImageFile) return 'Error: show_image is only available in the desktop app.'
+  const selected = resolveReferenceImageIndexes(args, ctx.userImagePaths, ctx.userImages)
+  const errors = selected.missingIds.map((id) => `Unknown id: ${id}.`)
+  if (!selected.indexes.length && !selected.missingPaths.length) {
+    const detail = errors.length ? ` ${errors.join(' ')}` : ''
+    return `Error: missing image references for show_image. Provide reference_image_paths, reference_image_ids and/or reference_image_indexes.${detail}`
+  }
+  const outputDir = (ctx.runware?.outputDir ?? '').trim()
+  const shown: string[] = []
+
+  for (const index of selected.indexes) {
+    const hit = resolveCatalogImageByOneBasedIndex(
+      ctx.userImages,
+      ctx.userImageMimes,
+      ctx.userImagePaths,
+      index,
+    )
+    if (!hit) {
+      errors.push(`Catalog index ${index} not found.`)
+    } else if (hit.path) {
+      shown.push(hit.path)
+    } else {
+      const saved = await saveShownImage(hit.base64, hit.mime, outputDir)
+      if ('path' in saved) shown.push(saved.path)
+      else errors.push(`Could not save catalog image ${index}: ${saved.error}`)
+    }
+  }
+
+  const projectRoot = (ctx.codingProjectPath || '').trim()
+  for (const raw of selected.missingPaths) {
+    const abs = resolveLocalImagePath(projectRoot, raw)
+    if (!abs) {
+      errors.push(
+        `Not a usable image path: ${raw} (PNG/JPEG/WebP/GIF/BMP; a relative path needs a project folder).`,
+      )
+      continue
+    }
+    const res = await readImageFile({ path: abs }).catch(() => null)
+    if (!res?.ok || !res.file?.base64?.trim()) {
+      errors.push(`Could not read image: ${abs}.`)
+      continue
+    }
+    let base64 = res.file.base64.replace(/\s+/g, '')
+    let mime = res.file.mime || 'image/png'
+    // Keep the original pixels unless the file would be refused once it is recalled or edited.
+    if (base64.length > MAX_PROJECT_IMAGE_B64_CHARS) {
+      const prepared = await prepareBase64ImageForUpload(base64, mime)
+      base64 = prepared.base64
+      mime = prepared.mime
+    }
+    if (base64.length > MAX_PROJECT_IMAGE_B64_CHARS) {
+      errors.push(`Image is too large to show: ${abs}.`)
+      continue
+    }
+    // A copy, so the chat keeps this image after a script overwrites or deletes the original.
+    const baseName = (res.file.name || '').replace(/\.[^.]+$/, '')
+    const saved = await saveShownImage(base64, mime, outputDir, baseName || undefined)
+    if ('path' in saved) shown.push(saved.path)
+    else errors.push(`Could not save a copy of ${abs}: ${saved.error}`)
+  }
+
+  if (shown.length === 0) {
+    return `Error: show_image could not show any image. ${errors.join(' ')}`
+  }
+  await registerTurnCatalogImages(shown, ctx)
+  return [
+    'The image(s) are now visible to the user in the chat. Do not repeat the path as an image link.',
+    ...shown.flatMap((p) => [
+      `Saved image: ${p}`,
+      `image_id: ${imageCatalogId({ path: p, base64: '' })}`,
+    ]),
+    ...errors,
+  ].join('\n')
+}
 
 export const mediaHandlersRegistry: ToolHandlerRegistry = {
   ['generate_image']: withSavedImagePaths(handleGenerateImage),
   ['edit_image_runware']: withSavedImagePaths(handleEditImageRunware),
   ['image_recall']: handleImageRecall,
+  ['show_image']: handleShowImage,
   ['generate_music_runware']: handleGenerateMusicRunware,
   ['generate_tts']: handleGenerateTts,
 }

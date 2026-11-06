@@ -295,17 +295,111 @@ function schemaToParameters(inputSchema: unknown): Record<string, unknown> {
   return { type: 'object', properties: {} }
 }
 
-function toolResultToString(result: {
-  content?: unknown[]
-  isError?: boolean
-  structuredContent?: unknown
-}): string {
+const MCP_EMPTY_RESULT_TEXT = '(empty MCP tool result)'
+
+const MCP_IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+}
+
+/** Same cap as project images: anything larger is rejected by providers once recalled. */
+export const MCP_IMAGE_MAX_BASE64_CHARS = 8 * 1024 * 1024
+
+/** An `image` block, or an embedded `resource` block that carries image bytes. */
+function mcpImagePayload(block: Record<string, unknown>): { data: string; mime: string } | null {
+  const source =
+    block.type === 'image'
+      ? { data: block.data, mime: block.mimeType }
+      : block.type === 'resource' && isPlainObject(block.resource)
+        ? { data: block.resource.blob, mime: block.resource.mimeType }
+        : null
+  if (!source || typeof source.data !== 'string' || typeof source.mime !== 'string') return null
+  const mime = source.mime.split(';')[0].trim().toLowerCase()
+  if (!mime.startsWith('image/')) return null
+  return { data: source.data.replace(/^data:[^,]*,/, ''), mime }
+}
+
+/**
+ * Write the images of an MCP result to disk, so they reach the chat and the session catalog as
+ * files instead of filling the model's context with base64.
+ * `notes` has one entry per image block: empty once saved, otherwise the reason it was not.
+ */
+export async function saveMcpResultImages(
+  content: unknown,
+  outputDir: string,
+  toolLabel: string,
+): Promise<{ paths: string[]; notes: Map<unknown, string> }> {
+  const paths: string[] = []
+  const notes = new Map<unknown, string>()
+  if (!Array.isArray(content)) return { paths, notes }
+  const stamp = Date.now()
+  for (const block of content) {
+    if (!isPlainObject(block)) continue
+    const image = mcpImagePayload(block)
+    if (!image) continue
+    const ext = MCP_IMAGE_EXTENSIONS[image.mime]
+    if (!ext) {
+      notes.set(block, `[image content omitted: unsupported type ${image.mime}]`)
+      continue
+    }
+    if (image.data.length > MCP_IMAGE_MAX_BASE64_CHARS) {
+      notes.set(block, '[image content omitted: larger than the 8 MB base64 limit]')
+      continue
+    }
+    const bytes = Buffer.from(image.data, 'base64')
+    if (bytes.length === 0) {
+      notes.set(block, '[image content omitted: empty image data]')
+      continue
+    }
+    try {
+      await mkdir(outputDir, { recursive: true })
+      const file = path.join(
+        outputDir,
+        `${stamp}-${safeToolFileStem(toolLabel)}-${paths.length + 1}${ext}`,
+      )
+      await writeFile(file, bytes)
+      paths.push(file)
+      notes.set(block, '')
+    } catch (e) {
+      notes.set(block, `[image content omitted: could not save it (${formatError(e)})]`)
+    }
+  }
+  return { paths, notes }
+}
+
+/** Saved-image lines go first so a later truncation of the result cannot drop them. */
+export function withSavedMcpImageLines(text: string, paths: string[]): string {
+  if (paths.length === 0) return text
+  const lines = [
+    'Image(s) returned by this tool are shown in the chat. Call image_recall with reference_image_paths to look at one.',
+    ...paths.map((p) => `Saved image: ${p}`),
+  ]
+  if (text !== MCP_EMPTY_RESULT_TEXT) lines.push('', text)
+  return lines.join('\n')
+}
+
+export function toolResultToString(
+  result: {
+    content?: unknown[]
+    isError?: boolean
+    structuredContent?: unknown
+  },
+  imageNotes?: Map<unknown, string>,
+): string {
   const parts: string[] = []
   if (Array.isArray(result.content)) {
     for (const block of result.content) {
       if (!isPlainObject(block)) continue
-      if (block.type === 'text' && typeof block.text === 'string') {
-        parts.push(block.text)
+      const imageNote = imageNotes?.get(block)
+      if (imageNote !== undefined) {
+        if (imageNote) parts.push(imageNote)
+      } else if (block.type === 'text' && typeof block.text === 'string') {
+        // The chat shows any file named on a "Saved image:" line, so server text must not be able
+        // to name one: that would put an arbitrary local image in the chat and the catalog.
+        parts.push(block.text.replace(/^(\s*)Saved image:/gim, '$1Saved image (server text):'))
       } else if (block.type === 'image') {
         parts.push('[image content omitted]')
       } else if (block.type === 'audio') {
@@ -320,7 +414,7 @@ function toolResultToString(result: {
   if (parts.length === 0 && result.structuredContent != null) {
     parts.push(JSON.stringify(result.structuredContent))
   }
-  const text = parts.join('\n').trim() || '(empty MCP tool result)'
+  const text = parts.join('\n').trim() || MCP_EMPTY_RESULT_TEXT
   if (result.isError) return `Error: ${text}`
   return text
 }
@@ -827,7 +921,7 @@ export class McpManager {
     serverId: string,
     toolName: string,
     args: Record<string, unknown>,
-    opts?: { signal?: AbortSignal; timeoutMs?: number; ownerId?: string },
+    opts?: { signal?: AbortSignal; timeoutMs?: number; ownerId?: string; imageOutputDir?: string },
   ): Promise<string> {
     const entry = this.servers.get(serverId)
     if (!entry) {
@@ -850,10 +944,19 @@ export class McpManager {
         `MCP tool "${formatMcpToolName(serverId, toolName)}"`,
         signal,
       )
-      const text = toolResultToString(
-        result as { content?: unknown[]; isError?: boolean; structuredContent?: unknown },
-      )
-      return await persistIfLargeMcpResult(text, formatMcpToolName(serverId, toolName))
+      const toolResult = result as {
+        content?: unknown[]
+        isError?: boolean
+        structuredContent?: unknown
+      }
+      const label = formatMcpToolName(serverId, toolName)
+      const images =
+        opts?.imageOutputDir && !toolResult.isError
+          ? await saveMcpResultImages(toolResult.content, opts.imageOutputDir, label)
+          : null
+      const text = toolResultToString(toolResult, images?.notes)
+      const persisted = await persistIfLargeMcpResult(text, label)
+      return withSavedMcpImageLines(persisted, images?.paths ?? [])
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
         return `Error: MCP tool "${formatMcpToolName(serverId, toolName)}" was cancelled.`

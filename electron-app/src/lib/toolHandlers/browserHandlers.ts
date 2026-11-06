@@ -141,7 +141,7 @@ export const handleBrowserTakeScreenshot: ToolHandlerFn = async (args, ctx) => {
     })
     if (!res.ok) return `Error: ${res.error ?? 'screenshot failed'}`
     const rel = res.relativePath ?? res.path
-    return `Screenshot saved: ${res.path} (relative: ${rel}, ${res.bytes} bytes, ${res.width}x${res.height}). Call image_recall with reference_image_paths="${rel}" to view it.`
+    return `Screenshot saved: ${res.path} (relative: ${rel}, ${res.bytes} bytes, ${res.width}x${res.height}). Call image_recall with reference_image_paths="${rel}" to view it, or show_image to show it to the user.`
   } catch (e) {
     return errText(e)
   }

@@ -1019,6 +1019,7 @@ function extFromContentType(contentType: string): string {
   if (ct.includes('image/png')) return '.png'
   if (ct.includes('image/webp')) return '.webp'
   if (ct.includes('image/gif')) return '.gif'
+  if (ct.includes('image/bmp')) return '.bmp'
   if (ct.includes('image/jpeg') || ct.includes('image/jpg')) return '.jpg'
   return '.jpg'
 }
@@ -4078,6 +4079,7 @@ ipcMain.handle(
       enabledServers?: Record<string, boolean>
       trustedProjectPaths?: string[]
       ownerId?: string
+      imageOutputDir?: string
     },
   ) => {
     try {
@@ -4117,8 +4119,12 @@ ipcMain.handle(
           ? payload.args
           : {}
       const ownerId = typeof payload?.ownerId === 'string' ? payload.ownerId.trim() : undefined
+      const imageOutputDir =
+        (typeof payload?.imageOutputDir === 'string' ? payload.imageOutputDir.trim() : '') ||
+        path.join(app.getPath('userData'), 'generated-images')
       const result = await mcpManager.callTool(serverId, toolName, args, {
         ownerId: ownerId || undefined,
+        imageOutputDir,
       })
       return { ok: true as const, result, qualifiedName: formatMcpToolName(serverId, toolName) }
     } catch (e) {

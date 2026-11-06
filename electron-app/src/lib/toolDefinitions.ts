@@ -734,6 +734,36 @@ const IMAGE_RECALL_TOOL: AgentToolDefinition = {
   },
 }
 
+const SHOW_IMAGE_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'show_image',
+    description:
+      'Show an existing image to the user in this chat: a browser screenshot, a chart a script produced, a project asset, or an earlier chat image. Call it when the user should SEE the image; image_recall only lets you look at it. The result gives the saved path and a permanent image id, which image_recall and edit_image_runware accept. Images from generate_image, edit_image_runware and MCP tools already appear in the chat, so do not show those again unless asked.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reference_image_paths: {
+          type: 'string',
+          description:
+            'Image path(s), comma or newline separated: absolute anywhere on this PC, or relative to the coding project root. PNG/JPEG/WebP/GIF/BMP.',
+        },
+        reference_image_ids: {
+          type: 'string',
+          description:
+            'Optional stable image id(s) from the session catalog (for example: "img_1a2b3c4d").',
+        },
+        reference_image_indexes: {
+          type: 'string',
+          description:
+            'Optional 1-based session catalog indexes (for example: "1" or "1,2"). Prefer ids.',
+        },
+      },
+      required: [],
+    },
+  },
+}
+
 const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1803,6 +1833,7 @@ export function buildToolsList(
   if (enabled.pdf && !readOnlyMode) out.push(SAVE_PDF_TOOL)
   // Vision recall is independent of Runware generate/edit.
   out.push(IMAGE_RECALL_TOOL)
+  out.push(SHOW_IMAGE_TOOL)
   if (enabled.runwareImage && !readOnlyMode) {
     out.push(GENERATE_IMAGE_TOOL)
     out.push(EDIT_IMAGE_RUNWARE_TOOL)

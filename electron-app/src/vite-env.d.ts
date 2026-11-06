@@ -146,6 +146,8 @@ interface VoidcastBridge {
     trustedProjectPaths?: string[]
     /** Chat runtime key — cancel only cancels this owner's MCP calls. */
     ownerId?: string
+    /** Where images in the result are saved; empty uses the app's generated-images folder. */
+    imageOutputDir?: string
   }) => Promise<
     { ok: true; result: string; qualifiedName?: string } | { ok: false; result: string }
   >

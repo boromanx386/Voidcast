@@ -93,6 +93,8 @@ While tools are running, the busy indicator shows each active tool by name. Adja
 
 - The session keeps a chronological catalog of images. It is **stable**: index 1 is the oldest image in the conversation and indexes never renumber; each line also carries a permanent id like `[img_1a2b3c4d]` (`imageCatalogId` in `lib/imageVisionCache.ts`, exposed via `lib/chatImageCatalog.ts`).
 - `image_recall` and `edit_image_runware` accept `reference_image_ids` (preferred — ids never change across turns), `reference_image_indexes` (1-based positions), and/or `reference_image_paths`. Unknown ids are reported back in the tool error.
+- `show_image` puts an existing image in the chat (desktop only). It takes the same three references; `reference_image_paths` also accepts absolute paths outside the project. Files outside the catalog are copied into the image output folder, so the chat does not depend on the original.
+- Images saved during a turn by `generate_image`, `edit_image_runware`, `show_image` or an MCP tool join the catalog immediately, so the same turn can recall or edit them.
 
 ## Sub-agent activity and workers (SubAgentPanel.tsx)
 

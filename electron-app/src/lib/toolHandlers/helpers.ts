@@ -252,6 +252,31 @@ export function normalizePathForMatch(p: string): string {
   return p.trim().replace(/\\/g, '/').toLowerCase()
 }
 
+/**
+ * Add images saved during this turn to the turn's catalog. It is built once when the turn starts,
+ * so without this a file made a moment ago could not be recalled or edited until the next message.
+ * Appending keeps every existing index valid. The arrays are shared with the provider's recall
+ * path, so they are changed in place.
+ */
+export async function registerTurnCatalogImages(
+  paths: string[],
+  ctx: { userImages?: string[]; userImageMimes?: string[]; userImagePaths?: string[] },
+): Promise<void> {
+  const { userImages, userImageMimes, userImagePaths } = ctx
+  const readImageFile = window.voidcast?.readImageFile
+  if (!userImages || !userImagePaths || !readImageFile) return
+  for (const path of paths) {
+    const key = normalizePathForMatch(path)
+    const res = await readImageFile({ path }).catch(() => null)
+    if (!res?.ok || !res.file?.base64?.trim()) continue
+    // Checked after the read: parallel tool calls can register the same file meanwhile.
+    if (userImagePaths.some((p) => normalizePathForMatch(p) === key)) continue
+    userImages.push(res.file.base64.replace(/\s+/g, ''))
+    userImageMimes?.push(res.file.mime || 'image/png')
+    userImagePaths.push(path)
+  }
+}
+
 export function indexesFromReferencePaths(
   catalogPaths: string[] | undefined,
   requestedPaths: string[],

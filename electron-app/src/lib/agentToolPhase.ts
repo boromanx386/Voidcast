@@ -70,6 +70,7 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
     case 'edit_image_runware':
       return 'image'
     case 'image_recall':
+    case 'show_image':
       return 'vision'
     case 'generate_music_runware':
       return 'music'

@@ -10,7 +10,7 @@ const IMAGE_RECALL_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'b
  * encoded — would 400 on the request. 8 MB of base64 is ~6 MB of pixels: still generous and
  * safely under every provider limit.
  */
-const MAX_PROJECT_IMAGE_B64_CHARS = 8 * 1024 * 1024
+export const MAX_PROJECT_IMAGE_B64_CHARS = 8 * 1024 * 1024
 
 export type ProjectRecalledImage = {
   index: number
@@ -76,6 +76,17 @@ export function resolveCodingProjectImagePath(
   const abs = resolveInsideCodingProject(projectRoot, inputPath)
   if (!abs || !isImageRecallExtension(abs)) return null
   return abs
+}
+
+/**
+ * Path of an image to show in chat. Unlike recall this also takes absolute paths outside the
+ * project, because scripts often write charts to a temp folder. Relative paths need a project.
+ */
+export function resolveLocalImagePath(projectRoot: string, inputPath: string): string | null {
+  const raw = normalizeSlashes(inputPath)
+  if (!raw || !isImageRecallExtension(raw)) return null
+  if (/^[a-zA-Z]:\//.test(raw) || raw.startsWith('/')) return inputPath.trim()
+  return projectRoot.trim() ? resolveCodingProjectImagePath(projectRoot, raw) : null
 }
 
 export type ProjectImageReadResult =

@@ -435,7 +435,7 @@ export async function signOutMcpOAuthServer(
 export async function executeMcpToolCall(
   qualifiedName: string,
   args: Record<string, unknown>,
-  opts?: McpClientOpts,
+  opts?: McpClientOpts & { imageOutputDir?: string },
 ): Promise<string> {
   if (!isElectron() || !window.voidcast?.mcpExecuteTool) {
     return 'Error: MCP tools are only available in the desktop app.'
@@ -450,6 +450,7 @@ export async function executeMcpToolCall(
     qualifiedName,
     args,
     ...mcpPayload(opts),
+    imageOutputDir: opts?.imageOutputDir?.trim() || undefined,
   })
   return res.result
 }
