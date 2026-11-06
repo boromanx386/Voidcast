@@ -43,7 +43,7 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
     : RUNWARE_FLUX_MODEL_ID
   const activeImageProfile = getRunwareProfileForModel(settings, selectedImageModel)
   const activeEditProfile = getRunwareProfileForModel(settings, selectedEditModel)
-  // Covers GPT Image 2 and both GPT Image 2.5 tiers.
+  // Covers GPT Image 2 and the 2.5 and 2.6 tiers.
   const isGptImage2Selected = isRunwareGptImageModel(selectedImageModel)
   const isGptImage2EditSelected = isRunwareGptImageModel(selectedEditModel)
   const isZImageTurboSelected = selectedImageModel === RUNWARE_Z_IMAGE_TURBO_MODEL_ID
@@ -307,7 +307,7 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
                 <option value="max">max</option>
               </select>
               <p className="mt-2 text-xs text-neon-yellow/80">
-                GPT Image 2.5 supports quality and up to 16 reference images for edits.
+                GPT Image 2.5 and 2.6 support quality and up to 16 reference images for edits.
               </p>
               <label className="mt-3 flex items-center gap-2 text-xs font-mono text-void-dim">
                 <input

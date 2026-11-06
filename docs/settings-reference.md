@@ -91,11 +91,11 @@ type RunwareModelProfile = {
   height: number;
   steps: number;
   cfgScale: number;
-  gptQuality?: "auto" | "low" | "medium" | "high"; // GPT Image models only
+  gptQuality?: "auto" | "low" | "medium" | "high" | "xhigh" | "max"; // GPT Image models only
 };
 ```
 
-Configured Runware image models: FLUX 9B (`runware:400@6`), Z Image Turbo (`runware:z-image@turbo`), GPT Image 2 (`openai:gpt-image@2`).
+Configured Runware image models: FLUX 9B (`runware:400@6`), Z Image Turbo (`runware:z-image@turbo`), GPT Image 2 (`openai:gpt-image@2`), GPT Image 2.5 Sunburst / Flare (`openai:gpt-image@2.5-sunburst`, `openai:gpt-image@2.5-flare`), GPT Image 2.6 Sunburst / Flare (`openai:gpt-image@2.6-sunburst`, `openai:gpt-image@2.6-flare`).
 
 ---
 

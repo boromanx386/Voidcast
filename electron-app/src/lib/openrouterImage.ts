@@ -171,6 +171,26 @@ function extractImagesFromCompletion(body: {
   return Array.from(new Set(out))
 }
 
+type OpenRouterUsage = {
+  cost?: unknown
+  is_byok?: unknown
+  cost_details?: { upstream_inference_cost?: unknown }
+}
+
+/**
+ * What the image cost, from `usage.cost` (OpenRouter credits, which are priced in USD). With a
+ * user's own provider key `cost` is only OpenRouter's fee, so the provider's price is added.
+ * Undefined when the response has no cost: the result then shows none rather than a guess.
+ */
+export function openRouterImageCost(usage: OpenRouterUsage | undefined): number | undefined {
+  const cost = usage?.cost
+  if (typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0) return undefined
+  const upstream = usage?.cost_details?.upstream_inference_cost
+  return usage?.is_byok === true && typeof upstream === 'number' && Number.isFinite(upstream)
+    ? cost + upstream
+    : cost
+}
+
 function formatOpenRouterImageResult(payload: {
   imageUrl: string
   model: string
@@ -179,6 +199,7 @@ function formatOpenRouterImageResult(payload: {
   width: number
   height: number
   elapsedMs?: number
+  costUsd?: number
   mode: 'generate' | 'edit'
   sizeAdjustedNote?: string
 }): string {
@@ -195,6 +216,7 @@ function formatOpenRouterImageResult(payload: {
   if (payload.prompt?.trim()) {
     lines.push(`prompt: ${payload.prompt.replace(/\s+/g, ' ').trim()}`)
   }
+  if (payload.costUsd !== undefined) lines.push(`cost_usd: ${payload.costUsd.toFixed(6)}`)
   if (typeof payload.elapsedMs === 'number' && Number.isFinite(payload.elapsedMs)) {
     lines.push(`elapsed_ms: ${Math.max(0, Math.round(payload.elapsedMs))}`)
   }
@@ -203,7 +225,15 @@ function formatOpenRouterImageResult(payload: {
 
 type ImagesApiResponse = {
   data?: Array<{ b64_json?: string; url?: string }>
+  usage?: OpenRouterUsage
   error?: { message?: string }
+}
+
+type OpenRouterImageResponse = {
+  imageUrl: string
+  model: string
+  elapsedMs: number
+  costUsd?: number
 }
 
 function imageUrlFromImagesApiItem(item: { b64_json?: string; url?: string }): string {
@@ -227,7 +257,7 @@ async function postOpenRouterDedicatedImage(
   config: OpenRouterImageConfig,
   body: Record<string, unknown>,
   signal?: AbortSignal,
-): Promise<{ imageUrl: string; model: string; elapsedMs: number }> {
+): Promise<OpenRouterImageResponse> {
   const viaProxy = usesServerCloudProxy()
   const apiKey = (config.apiKey || '').trim()
   if (!viaProxy && !apiKey) {
@@ -258,14 +288,19 @@ async function postOpenRouterDedicatedImage(
         'OpenRouter returned no image. Ensure the model supports the dedicated Images API.',
     )
   }
-  return { imageUrl, model, elapsedMs: Date.now() - started }
+  return {
+    imageUrl,
+    model,
+    elapsedMs: Date.now() - started,
+    costUsd: openRouterImageCost(json.usage),
+  }
 }
 
 async function postOpenRouterImageChat(
   config: OpenRouterImageConfig,
   body: Record<string, unknown>,
   signal?: AbortSignal,
-): Promise<{ imageUrl: string; model: string; elapsedMs: number }> {
+): Promise<OpenRouterImageResponse> {
   const viaProxy = usesServerCloudProxy()
   const apiKey = (config.apiKey || '').trim()
   if (!viaProxy && !apiKey) {
@@ -295,6 +330,7 @@ async function postOpenRouterImageChat(
         content?: string | Array<{ type?: string; image_url?: { url?: string } }>
       }
     }>
+    usage?: OpenRouterUsage
     error?: { message?: string }
   }
   if (!res.ok) {
@@ -309,7 +345,12 @@ async function postOpenRouterImageChat(
         'OpenRouter returned no image. Ensure the model supports image output and modalities include image.',
     )
   }
-  return { imageUrl, model, elapsedMs: Date.now() - started }
+  return {
+    imageUrl,
+    model,
+    elapsedMs: Date.now() - started,
+    costUsd: openRouterImageCost(json.usage),
+  }
 }
 
 export async function invokeOpenRouterGenerateImage(
@@ -334,7 +375,7 @@ export async function invokeOpenRouterGenerateImage(
     : undefined
 
   const transparentBackground = req.transparentBackground ?? config.transparentBackground ?? false
-  const { imageUrl, elapsedMs } = usesOpenRouterDedicatedImageApi(model)
+  const { imageUrl, elapsedMs, costUsd } = usesOpenRouterDedicatedImageApi(model)
     ? await postOpenRouterDedicatedImage(
         config,
         {
@@ -366,6 +407,7 @@ export async function invokeOpenRouterGenerateImage(
     width: dims.width,
     height: dims.height,
     elapsedMs,
+    costUsd,
     mode: 'generate',
     sizeAdjustedNote,
   })
@@ -407,7 +449,7 @@ export async function invokeOpenRouterEditImage(
   ]
 
   const transparentBackground = req.transparentBackground ?? config.transparentBackground ?? false
-  const { imageUrl, elapsedMs } = usesOpenRouterDedicatedImageApi(model)
+  const { imageUrl, elapsedMs, costUsd } = usesOpenRouterDedicatedImageApi(model)
     ? await postOpenRouterDedicatedImage(
         config,
         {
@@ -442,6 +484,7 @@ export async function invokeOpenRouterEditImage(
     width: dims.width,
     height: dims.height,
     elapsedMs,
+    costUsd,
     mode: 'edit',
     sizeAdjustedNote,
   })

@@ -4,6 +4,8 @@ import {
   normalizeBaseUrl,
   RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_Z_IMAGE_TURBO_MODEL_ID,
   type GptImageQuality,
@@ -183,6 +185,8 @@ export const RUNWARE_ALLOWED_EDIT_MODEL_IDS = [
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID,
 ] as const
 
 const RUNWARE_ALLOWED_EDIT_MODEL_SET = new Set<string>(
@@ -194,8 +198,29 @@ function isAllowedEditModelId(modelId: string): boolean {
 }
 
 function isGptImage2Model(modelId: string): boolean {
-  // Covers GPT Image 2 and both GPT Image 2.5 tiers (shared size/quality handling).
+  // Covers GPT Image 2 and the 2.5 and 2.6 tiers (shared size/quality handling).
   return isRunwareGptImageModel(modelId)
+}
+
+/**
+ * Quality and background fields for a GPT Image task. 2.6 is documented with a `settings`
+ * object. 2 and 2.5 keep `providerSettings`, where low quality is known to work on 2.5.
+ */
+function gptImageTaskFields(
+  modelId: string,
+  quality: string,
+  transparentBackground: boolean,
+): Record<string, unknown> {
+  const options = {
+    quality,
+    ...(transparentBackground ? { background: 'transparent' } : {}),
+  }
+  return {
+    ...(/^openai:gpt-image@2\.6(-|$)/i.test(modelId.trim())
+      ? { settings: options }
+      : { providerSettings: { openai: options } }),
+    ...(transparentBackground ? { outputFormat: 'PNG' } : {}),
+  }
 }
 
 function isZImageTurboModel(modelId: string): boolean {
@@ -873,13 +898,7 @@ export async function invokeRunwareGenerateImage(
     payload.CFGScale = cfgScale
     if (negativePrompt) payload.negativePrompt = negativePrompt
   } else {
-    payload.providerSettings = {
-      openai: {
-        quality: gptQuality,
-        ...(transparentBackground ? { background: 'transparent' } : {}),
-      },
-    }
-    if (transparentBackground) payload.outputFormat = 'PNG'
+    Object.assign(payload, gptImageTaskFields(model, gptQuality, transparentBackground))
   }
 
   const started = Date.now()
@@ -980,13 +999,10 @@ export async function invokeRunwareEditImage(
   payload.inputs = { referenceImages: modelRefs }
   if (!isGptImage2 && negativePrompt) payload.negativePrompt = negativePrompt
   if (isGptImage2) {
-    payload.providerSettings = {
-      openai: {
-        quality: editDefaultGptQuality,
-        ...(editTransparentBackground ? { background: 'transparent' } : {}),
-      },
-    }
-    if (editTransparentBackground) payload.outputFormat = 'PNG'
+    Object.assign(
+      payload,
+      gptImageTaskFields(model, editDefaultGptQuality, editTransparentBackground),
+    )
   }
 
   const started = Date.now()

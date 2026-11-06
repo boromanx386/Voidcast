@@ -6,9 +6,16 @@ import {
   isRunwareGptImageModel,
   OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID,
   OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
+  OPENROUTER_GPT_IMAGE_2_6_FLARE_MODEL_ID,
+  OPENROUTER_GPT_IMAGE_2_6_SUNBURST_MODEL_ID,
   OPENROUTER_GPT_IMAGE_2_MODEL_ID,
+  OPENROUTER_IMAGE_MODEL_PRESETS,
+  RUNWARE_CONFIGURED_MODELS,
+  RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID,
   usesOpenRouterDedicatedImageApi,
 } from '../src/lib/settings'
+import { RUNWARE_ALLOWED_EDIT_MODEL_IDS } from '../src/lib/runware'
 
 describe('usesOpenRouterDedicatedImageApi', () => {
   test('matches GPT Image 2 slug', () => {
@@ -20,6 +27,11 @@ describe('usesOpenRouterDedicatedImageApi', () => {
     expect(usesOpenRouterDedicatedImageApi(OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID)).toBe(true)
     expect(usesOpenRouterDedicatedImageApi(OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID)).toBe(true)
     expect(usesOpenRouterDedicatedImageApi(' openai/gpt-image-2.5-flare ')).toBe(true)
+  })
+
+  test('matches both GPT Image 2.6 tiers', () => {
+    expect(usesOpenRouterDedicatedImageApi(OPENROUTER_GPT_IMAGE_2_6_SUNBURST_MODEL_ID)).toBe(true)
+    expect(usesOpenRouterDedicatedImageApi(OPENROUTER_GPT_IMAGE_2_6_FLARE_MODEL_ID)).toBe(true)
   })
 
   test('does not match Gemini image models', () => {
@@ -35,10 +47,33 @@ describe('isRunwareGptImageModel', () => {
     expect(isRunwareGptImageModel('OPENAI:GPT-IMAGE@2.5-flare')).toBe(true)
   })
 
+  test('matches both 2.6 tiers', () => {
+    expect(isRunwareGptImageModel(RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID)).toBe(true)
+    expect(isRunwareGptImageModel(RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID)).toBe(true)
+  })
+
   test('does not match other Runware models', () => {
     expect(isRunwareGptImageModel('runware:z-image@turbo')).toBe(false)
     expect(isRunwareGptImageModel('')).toBe(false)
   })
+})
+
+describe('GPT Image 2.6 can be selected', () => {
+  // A Runware model missing from these lists silently falls back to the default model.
+  test.each([RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID, RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID])(
+    'Runware %s for generate and edit',
+    (id) => {
+      expect(RUNWARE_CONFIGURED_MODELS.map((m) => m.id)).toContain(id)
+      expect(RUNWARE_ALLOWED_EDIT_MODEL_IDS as readonly string[]).toContain(id)
+    },
+  )
+
+  test.each([OPENROUTER_GPT_IMAGE_2_6_SUNBURST_MODEL_ID, OPENROUTER_GPT_IMAGE_2_6_FLARE_MODEL_ID])(
+    'OpenRouter %s',
+    (id) => {
+      expect(OPENROUTER_IMAGE_MODEL_PRESETS.map((m) => m.id)).toContain(id)
+    },
+  )
 })
 
 describe('isGptImageQuality', () => {

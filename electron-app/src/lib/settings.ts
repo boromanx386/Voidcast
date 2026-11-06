@@ -39,8 +39,12 @@ export const OPENROUTER_GPT_IMAGE_2_MODEL_ID = 'openai/gpt-image-2'
 export const OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID = 'openai/gpt-image-2.5-sunburst'
 /** OpenRouter GPT Image 2.5 — speed tier (dedicated Images API). */
 export const OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID = 'openai/gpt-image-2.5-flare'
+/** OpenRouter GPT Image 2.6 — precision tier (dedicated Images API). */
+export const OPENROUTER_GPT_IMAGE_2_6_SUNBURST_MODEL_ID = 'openai/gpt-image-2.6-sunburst'
+/** OpenRouter GPT Image 2.6 — speed tier (dedicated Images API). */
+export const OPENROUTER_GPT_IMAGE_2_6_FLARE_MODEL_ID = 'openai/gpt-image-2.6-flare'
 
-/** Quality levels accepted by OpenAI GPT Image models. 2.5 adds `xhigh` and `max`. */
+/** Quality levels accepted by OpenAI GPT Image models. 2.5 and 2.6 add `xhigh` and `max`. */
 export type GptImageQuality = 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 const GPT_IMAGE_QUALITY_SET = new Set<string>(['auto', 'low', 'medium', 'high', 'xhigh', 'max'])
@@ -71,6 +75,14 @@ export const OPENROUTER_IMAGE_MODEL_PRESETS: Array<{ id: string; label: string }
     id: OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID,
     label: 'OpenAI GPT Image 2.5 Flare (speed)',
   },
+  {
+    id: OPENROUTER_GPT_IMAGE_2_6_SUNBURST_MODEL_ID,
+    label: 'OpenAI GPT Image 2.6 Sunburst (precision)',
+  },
+  {
+    id: OPENROUTER_GPT_IMAGE_2_6_FLARE_MODEL_ID,
+    label: 'OpenAI GPT Image 2.6 Flare (speed)',
+  },
 ]
 
 /** Every OpenRouter model served by the dedicated Images API (OpenAI GPT Image family). */
@@ -78,6 +90,8 @@ export const OPENROUTER_DEDICATED_IMAGE_MODEL_IDS: readonly string[] = [
   OPENROUTER_GPT_IMAGE_2_MODEL_ID,
   OPENROUTER_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
   OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID,
+  OPENROUTER_GPT_IMAGE_2_6_SUNBURST_MODEL_ID,
+  OPENROUTER_GPT_IMAGE_2_6_FLARE_MODEL_ID,
 ]
 
 const OPENROUTER_DEDICATED_IMAGE_MODEL_ID_SET = new Set<string>(
@@ -124,6 +138,20 @@ function defaultOpenRouterImageProfiles(): Record<string, RunwareModelProfile> {
       gptQuality: 'auto',
     },
     [OPENROUTER_GPT_IMAGE_2_5_FLARE_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 20,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+    [OPENROUTER_GPT_IMAGE_2_6_SUNBURST_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 20,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+    [OPENROUTER_GPT_IMAGE_2_6_FLARE_MODEL_ID]: {
       width: 1920,
       height: 1080,
       steps: 20,
@@ -1239,6 +1267,8 @@ export const RUNWARE_GPT_IMAGE_2_MODEL_ID = 'openai:gpt-image@2'
  */
 export const RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID = 'openai:gpt-image@2.5-sunburst'
 export const RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID = 'openai:gpt-image@2.5-flare'
+export const RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID = 'openai:gpt-image@2.6-sunburst'
+export const RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID = 'openai:gpt-image@2.6-flare'
 export const RUNWARE_Z_IMAGE_TURBO_MODEL_ID = 'runware:z-image@turbo'
 export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
   { id: RUNWARE_FLUX_9B_MODEL_ID, label: 'FLUX 9B' },
@@ -1246,20 +1276,24 @@ export const RUNWARE_CONFIGURED_MODELS: Array<{ id: string; label: string }> = [
   { id: RUNWARE_GPT_IMAGE_2_MODEL_ID, label: 'GPT Image 2' },
   { id: RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID, label: 'GPT Image 2.5 Sunburst (precision)' },
   { id: RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID, label: 'GPT Image 2.5 Flare (speed)' },
+  { id: RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID, label: 'GPT Image 2.6 Sunburst (precision)' },
+  { id: RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID, label: 'GPT Image 2.6 Flare (speed)' },
 ]
 
-/** Every Runware GPT Image model (2 + both 2.5 tiers) sharing size/quality handling. */
+/** Every Runware GPT Image model (2 + the 2.5 and 2.6 tiers) sharing size/quality handling. */
 export const RUNWARE_GPT_IMAGE_MODEL_IDS: readonly string[] = [
   RUNWARE_GPT_IMAGE_2_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_5_SUNBURST_MODEL_ID,
   RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID,
+  RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID,
 ]
 
 const RUNWARE_GPT_IMAGE_MODEL_ID_SET = new Set<string>(
   RUNWARE_GPT_IMAGE_MODEL_IDS.map((id) => id.trim().toLowerCase()),
 )
 
-/** True when `modelId` is any Runware GPT Image model (2 or 2.5). */
+/** True when `modelId` is any Runware GPT Image model (2, 2.5 or 2.6). */
 export function isRunwareGptImageModel(modelId: string | undefined | null): boolean {
   const id = (modelId ?? '').trim().toLowerCase()
   if (!id) return false
@@ -1762,6 +1796,20 @@ export const defaults: AppSettings = {
       gptQuality: 'auto',
     },
     [RUNWARE_GPT_IMAGE_2_5_FLARE_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 30,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+    [RUNWARE_GPT_IMAGE_2_6_SUNBURST_MODEL_ID]: {
+      width: 1920,
+      height: 1080,
+      steps: 30,
+      cfgScale: 7,
+      gptQuality: 'auto',
+    },
+    [RUNWARE_GPT_IMAGE_2_6_FLARE_MODEL_ID]: {
       width: 1920,
       height: 1080,
       steps: 30,
