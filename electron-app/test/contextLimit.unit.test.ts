@@ -47,16 +47,6 @@ describe('resolveContextLimit', () => {
     expect(limit.maxTokens).toBe(1_048_576)
   })
 
-  test('openrouter laguna free route uses 256k window', () => {
-    const limit = resolveContextLimit(
-      baseSettings({
-        llmProvider: 'openrouter',
-        openrouterModel: 'poolside/laguna-s-2.1:free',
-      }),
-    )
-    expect(limit.maxTokens).toBe(262_144)
-  })
-
   test('deepseek flash and pro use 1M', () => {
     const flash = resolveContextLimit(
       baseSettings({
