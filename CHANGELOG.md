@@ -4,10 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
-
-- **Model presets refreshed**: OpenRouter gains Kimi K3.1 Pro, GPT 6.1 Terra and Hy4; OpenCode Go gains Hy4, MiniMax M3.1 Flash (Anthropic Messages) and Crouton Alpha Free (Responses). Removed: Poolside Laguna S 2.1 and its free route on OpenRouter, GLM 5.3 on NVIDIA, and Kimi K2.6, MiMo V2.5, MiMo V2.5 Pro and Omen Alpha on OpenCode Go.
-- **Trust only gates project `.mcp.json`, and covers subfolders**: 2.12.0 also held back `AGENTS.md` / `CLAUDE.md` and project skills in untrusted folders, and the coding panel bar only appeared when something was skipped, so a skill added later to a folder without one was silently ignored until you remembered to trust it. Those files are plain text the agent could read with `read_file` anyway, so they now always load and `read_skill` opens project skills everywhere. Trust stays for `.mcp.json`, whose servers start processes; the yellow bar now appears only when MCP is on and an untrusted folder has servers waiting, and the Skills panel no longer has a trust box. A trusted folder now covers its subfolders too (on a folder boundary, in both the renderer and main-process checks), so trusting `Q:\coding` once covers every project under it.
+## [2.12.6] — 2026-11-09
 
 ### Added
 
@@ -23,6 +20,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Model presets refreshed**: OpenRouter gains Kimi K3.1 Pro, GPT 6.1 Terra and Hy4; OpenCode Go gains Hy4, MiniMax M3.1 Flash (Anthropic Messages) and Crouton Alpha Free (Responses). Removed: Poolside Laguna S 2.1 and its free route on OpenRouter, GLM 5.3 on NVIDIA, and Kimi K2.6, MiMo V2.5, MiMo V2.5 Pro and Omen Alpha on OpenCode Go.
+- **Trust only gates project `.mcp.json`, and covers subfolders**: 2.12.0 also held back `AGENTS.md` / `CLAUDE.md` and project skills in untrusted folders, and the coding panel bar only appeared when something was skipped, so a skill added later to a folder without one was silently ignored until you remembered to trust it. Those files are plain text the agent could read with `read_file` anyway, so they now always load and `read_skill` opens project skills everywhere. Trust stays for `.mcp.json`, whose servers start processes; the yellow bar now appears only when MCP is on and an untrusted folder has servers waiting, and the Skills panel no longer has a trust box. A trusted folder now covers its subfolders too (on a folder boundary, in both the renderer and main-process checks), so trusting `Q:\coding` once covers every project under it.
 - **RUN commands no longer time out**: commands typed in the RUN row used the agent's 20-second timeout, so a silent build or test run was killed, and output-producing ones were handed off to background tracking after 2.5s of silence. They now run until they exit or you stop them. Agent runs keep the timeout.
 
 - **Plan mode delivers the plan through a `submit_plan` tool instead of the chat bubble**: the model used to write the plan as markdown plus a ```` ```json plan ```` block into its reply, which streamed into the bubble before the app turned it into the card. Now it fills `submit_plan` (title, summary, steps or approaches, research). Nothing of the plan shows in the bubble, and the card is built from the tool arguments. Bad arguments come back as an error the model fixes, and a valid call ends the turn without an extra model round. The JSON block in the reply stays as the fallback when a turn has no tools.
