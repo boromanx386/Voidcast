@@ -201,6 +201,36 @@ export function sliceUiHistoryForContext(
   return messages.slice(through)
 }
 
+export type ContextWindow = {
+  summary: string
+  throughIndex: number
+}
+
+/**
+ * Context window for a resend that rewrites history at `editedIndex`, or null when the
+ * summary only covers messages that stay. A summary cannot be partly undone, and it
+ * still holds the old text plus every removed turn, so it has to go. The raw messages
+ * were never deleted, so slicing from 0 brings them back.
+ */
+export function contextWindowAfterEdit(
+  hiddenContextSummary: string | undefined,
+  contextCompressedThroughIndex: number | undefined,
+  messageCount: number,
+  editedIndex: number,
+): ContextWindow | null {
+  const through = resolveContextCompressedThroughIndex(
+    hiddenContextSummary,
+    contextCompressedThroughIndex,
+    messageCount,
+  )
+  return editedIndex < through ? { summary: '', throughIndex: 0 } : null
+}
+
+/** History without its trailing user message, which the turn sends as the new user turn. */
+export function historyBeforeCurrentUserTurn(history: UiMessage[]): UiMessage[] {
+  return history.at(-1)?.role === 'user' ? history.slice(0, -1) : history
+}
+
 function tagSection(name: string, body: string): string {
   return `<${name}>\n${body}\n</${name}>`
 }

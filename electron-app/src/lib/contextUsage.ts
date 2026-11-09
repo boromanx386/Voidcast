@@ -53,6 +53,42 @@ type ContextTurnForEstimate = {
   content: string
 }
 
+function approximateConversationTokens(turns: ContextTurnForEstimate[], summary?: string): number {
+  return approximateTokenCount(
+    [
+      summary?.trim() ? `${COMPRESSED_SUMMARY_LABEL}\n${summary.trim()}` : '',
+      ...turns.map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`),
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  )
+}
+
+/**
+ * Whether swapping a summary back for raw turns would land at the auto-compress level.
+ * Without a previous usage (fresh app start) only the turns themselves are counted.
+ */
+export function restoredHistoryNeedsCompression(
+  previousUsage: ContextUsageInfo | null,
+  previousTurns: ContextTurnForEstimate[],
+  existingSummary: string | undefined,
+  restoredTurns: ContextTurnForEstimate[],
+  limit: ResolvedContextLimit | number | undefined,
+): boolean {
+  const maxTokens = resolveMaxTokens(limit)
+  if (!maxTokens) return false
+  const fixedOverhead = previousUsage
+    ? Math.max(
+        0,
+        previousUsage.promptTokens - approximateConversationTokens(previousTurns, existingSummary),
+      )
+    : 0
+  return (
+    (fixedOverhead + approximateConversationTokens(restoredTurns)) / maxTokens >=
+    CONTEXT_COMPRESS_RATIO
+  )
+}
+
 /**
  * Estimate the prompt size that will be used after compression, without making
  * another provider request. The previous real prompt usage supplies the
@@ -71,14 +107,10 @@ export function estimateContextUsageAfterCompression(
   const summary = nextSummary.trim()
   if (!previousUsage || !maxTokens || !summary) return null
 
-  const previousConversation = [
-    existingSummary?.trim() ? `${COMPRESSED_SUMMARY_LABEL}\n${existingSummary.trim()}` : '',
-    ...previousTurns.map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`),
-  ]
-    .filter(Boolean)
-    .join('\n\n')
-  const previousConversationTokens = approximateTokenCount(previousConversation)
-  const fixedOverhead = Math.max(0, previousUsage.promptTokens - previousConversationTokens)
+  const fixedOverhead = Math.max(
+    0,
+    previousUsage.promptTokens - approximateConversationTokens(previousTurns, existingSummary),
+  )
   const nextSummaryTokens = approximateTokenCount(`${COMPRESSED_SUMMARY_LABEL}\n${summary}`)
   const promptTokens = Math.max(1, fixedOverhead + nextSummaryTokens)
   const ratio = promptTokens / maxTokens

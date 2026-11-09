@@ -17,6 +17,7 @@ import {
   CONTEXT_COMPRESS_RATIO_RESET,
   estimateContextUsage,
   estimateContextUsageAfterCompression,
+  restoredHistoryNeedsCompression,
 } from '@/lib/contextUsage'
 import { resolveContextLimit } from '@/lib/contextLimit'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
@@ -24,6 +25,7 @@ import {
   buildCodingTurnSummary,
   buildPlanHandoffContextHint,
   buildPlanHandoffUiDraftContent,
+  emptyCodingContextMemo,
   emptyCodingFileCache,
   emptyCodingTurnLog,
   recordCodingToolInTurnLog,
@@ -85,7 +87,12 @@ import {
 import { createWorkerSteerQueue, pushWorkerSteer } from '@/lib/workerSteer'
 import { buildSteerCourseCorrectionText, toConversationTurns } from '@/lib/chatHints'
 import { resolveGeneratedImageOutputDir } from '@/lib/saveImage'
-import { sliceUiHistoryForContext } from '@/lib/chatMessages'
+import {
+  contextWindowAfterEdit,
+  historyBeforeCurrentUserTurn,
+  sliceUiHistoryForContext,
+  type ContextWindow,
+} from '@/lib/chatMessages'
 import {
   DRAFT_RUNTIME_KEY,
   isRealSessionRuntimeKey,
@@ -206,6 +213,11 @@ export type OnSendOptions = {
    * UI only — not included in the Plan turn's LLM history.
    */
   planHandoffUiDraft?: UiMessage
+  /**
+   * Summary state for this turn when the caller just changed it: the hook's values are
+   * still the previous render's until React commits.
+   */
+  contextWindow?: ContextWindow
   /**
    * Mid-turn course correction: model gets a steer prefix; bubble stays plain user text.
    * Caller must abort the active run first (`onSteer` / `onStop`) so `busy` is clear.
@@ -456,18 +468,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     media,
   } = slot
 
-  const summarizeContextNow = useCallback(async () => {
-    if (busy || contextCompressBusy) return
-    const turns = toConversationTurns(messages)
-    if (turns.length === 0) return
-    const previousTurns = toConversationTurns(
-      sliceUiHistoryForContext(messages, hiddenContextSummary, contextCompressedThroughIndex),
-    )
-
-    setContextCompressBusy(true)
-    setError(null)
-    try {
-      const compressed = await compressConversationContext({
+  const compressTurns = useCallback(
+    (
+      turns: ReturnType<typeof toConversationTurns>,
+      existingSummary: string,
+      verifiedCodingState: string,
+    ) =>
+      compressConversationContext({
         provider: settings.llmProvider,
         ollamaBaseUrl: settings.ollamaBaseUrl,
         ollamaModel: settings.ollamaModel,
@@ -489,10 +496,29 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         opencodeGoModel: settings.opencodeGoModel,
         opencodeSessionId: runtimeKey,
         turns,
-        existingSummary: hiddenContextSummary,
-        verifiedCodingState: codingContextMemo.lastTurnSummary,
+        existingSummary,
+        verifiedCodingState,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-      })
+      }),
+    [runtimeKey, settings],
+  )
+
+  const summarizeContextNow = useCallback(async () => {
+    if (busy || contextCompressBusy) return
+    const turns = toConversationTurns(messages)
+    if (turns.length === 0) return
+    const previousTurns = toConversationTurns(
+      sliceUiHistoryForContext(messages, hiddenContextSummary, contextCompressedThroughIndex),
+    )
+
+    setContextCompressBusy(true)
+    setError(null)
+    try {
+      const compressed = await compressTurns(
+        turns,
+        hiddenContextSummary,
+        codingContextMemo.lastTurnSummary,
+      )
       const nextSummary = compressed.trim()
       if (!nextSummary) return
       const throughIndex = messages.length
@@ -535,6 +561,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     hiddenContextSummary,
     messages,
     codingContextMemo,
+    compressTurns,
     onContextCompressed,
     runtimeKey,
     setContextCompressedThroughIndex,
@@ -699,7 +726,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const text = isSteer ? buildSteerCourseCorrectionText(plainText) : plainText
       let queued = isEdit || (opts?.text && !isPlanHandoff) ? [] : pendingImages
       let queuedFiles = isEdit || (opts?.text && !isPlanHandoff) ? [] : pendingFiles
-      if (isPlanHandoff && isEdit) {
+      // The rewritten turn replaces the original, so its attachments must go out again.
+      if (isEdit) {
         const lastUser = lastUserMessage(activeHistory)
         if (lastUser) {
           const recovered = attachmentsFromUserMessage(lastUser)
@@ -814,12 +842,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const turnContext = await buildAgentTurnContext({
         settings: turnSettings,
         codingProjectPath: turnCodingProjectPath,
-        activeHistory,
+        // On an edit or handoff the history already ends with this turn's user message.
+        activeHistory: isEdit ? historyBeforeCurrentUserTurn(activeHistory) : activeHistory,
         text,
         queued,
         queuedFiles,
-        hiddenContextSummary,
-        contextCompressedThroughIndex,
+        hiddenContextSummary: opts?.contextWindow?.summary ?? hiddenContextSummary,
+        contextCompressedThroughIndex:
+          opts?.contextWindow?.throughIndex ?? contextCompressedThroughIndex,
         imageVisionCache: turnVisionCacheRef.current,
         codingContextMemo: turnMemoRef.current,
         activeCodingProcesses: filterProcessesForAgent(activeCodingProcesses, {
@@ -1524,6 +1554,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           forceModel: turnModelId,
           planHandoffContext: handoffContext || undefined,
           planHandoffUiDraft,
+          // This nested call closes over the same stale render as the turn that escalated.
+          contextWindow: opts?.contextWindow,
         })
         return
       }
@@ -1650,7 +1682,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
   }, [])
 
   const commitEdit = useCallback(
-    (msgId: string) => {
+    async (msgId: string) => {
+      if (busy || contextCompressBusy) return
       const idx = messages.findIndex((m) => m.id === msgId)
       if (idx < 0) return
       const trimmed = editInputValue.trim()
@@ -1660,9 +1693,89 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setMessages(truncated)
       setEditingMessageId(null)
       setEditInputValue('')
-      void onSend({ text: trimmed, history: truncated, skipAddUserMsg: true })
+      // Both describe the turns just removed. The memo is only a cache of tool activity,
+      // so losing what it knew about the kept turns costs a few re-reads at most.
+      setCodingContextMemo(emptyCodingContextMemo(codingProjectPathForRuntimeKey(runtimeKey)))
+      resetContextUsage()
+
+      let contextWindow = contextWindowAfterEdit(
+        hiddenContextSummary,
+        contextCompressedThroughIndex,
+        messages.length,
+        idx,
+      )
+      if (contextWindow) {
+        const restoredTurns = toConversationTurns(truncated.slice(0, idx))
+        const needsCompression =
+          settings.contextAutoCompress &&
+          restoredHistoryNeedsCompression(
+            contextUsageInfo,
+            toConversationTurns(
+              sliceUiHistoryForContext(
+                messages,
+                hiddenContextSummary,
+                contextCompressedThroughIndex,
+              ),
+            ),
+            hiddenContextSummary,
+            restoredTurns,
+            resolveContextLimit(settings),
+          )
+        if (needsCompression) {
+          setContextCompressBusy(true)
+          try {
+            const summary = (await compressTurns(restoredTurns, '', '')).trim()
+            if (summary) contextWindow = { summary, throughIndex: idx }
+          } catch {
+            // Resend with the raw history; if it does not fit, the provider says so.
+          } finally {
+            setContextCompressBusy(false)
+          }
+        }
+        onContextCompressed?.({
+          summary: contextWindow.summary,
+          throughIndex: contextWindow.throughIndex,
+          activeSessionId: sessionIdFromRuntimeKey(runtimeKey),
+        })
+        // A turn started now would read the coding memo of the chat on screen.
+        if (runtimeKey !== runtimeKeyRef.current) {
+          sessionAgentStore.update(runtimeKey, {
+            error: 'Chat changed during compression. Edit and resend the message to continue.',
+          })
+          return
+        }
+        setHiddenContextSummary(contextWindow.summary)
+        setContextCompressedThroughIndex(contextWindow.throughIndex)
+      }
+      void onSend({
+        text: trimmed,
+        history: truncated,
+        skipAddUserMsg: true,
+        ...(contextWindow ? { contextWindow } : {}),
+      })
     },
-    [editInputValue, messages, onSend, setMessages],
+    [
+      busy,
+      codingProjectPathForRuntimeKey,
+      compressTurns,
+      contextCompressBusy,
+      contextCompressedThroughIndex,
+      contextUsageInfo,
+      editInputValue,
+      hiddenContextSummary,
+      messages,
+      onContextCompressed,
+      onSend,
+      resetContextUsage,
+      runtimeKey,
+      runtimeKeyRef,
+      setCodingContextMemo,
+      setContextCompressBusy,
+      setContextCompressedThroughIndex,
+      setHiddenContextSummary,
+      setMessages,
+      settings,
+    ],
   )
 
   const updateMessagePlan = useCallback(
