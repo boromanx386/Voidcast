@@ -34,8 +34,6 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'z-ai/glm-5.3', label: 'GLM 5.3 (reasoning · coding)' },
   { id: 'tencent/hy3', label: 'Tencent Hy3 (reasoning · agentic)' },
   { id: 'tencent/hy3-preview', label: 'Tencent Hy3 Preview (agentic · 256K)' },
-  { id: 'poolside/laguna-s-2.1', label: 'Poolside Laguna S 2.1' },
-  { id: 'poolside/laguna-s-2.1:free', label: 'Poolside Laguna S 2.1 (Free)' },
   { id: 'nvidia/nemotron-3.5-lightning', label: 'Nemotron 3.5 Lightning (262K ctx · cheap)' },
   { id: 'nvidia/nemotron-3.5-lightning:free', label: 'Nemotron 3.5 Lightning (Free)' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron 3 Ultra (Free)' },
@@ -72,6 +70,9 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'minimax/minimax-m3.1-flash', label: 'MiniMax M3.1 Flash (1M ctx)' },
   { id: 'meta/muse-spark-open', label: 'Muse Spark Open (1M ctx)' },
   { id: 'meta/muse-wonder', label: 'Muse Wonder (1M ctx)' },
+  { id: 'moonshotai/kimi-k3.1-pro', label: 'Kimi K3.1 Pro (1M ctx)' },
+  { id: 'openai/gpt-6.1-terra', label: 'GPT 6.1 Terra (1.1M ctx)' },
+  { id: 'tencent/hy4', label: 'Hy4 (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -100,7 +101,6 @@ export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna XS 2.1' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash' },
   { id: 'deepseek-ai/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash' },
-  { id: 'z-ai/glm-5.3', label: 'GLM 5.3' },
   { id: 'stepfun-ai/step-5-preview', label: 'Step 5 Preview' },
   { id: 'nvidia/nemotron-3.5-super-vl-120b-a12b', label: 'Nemotron 3.5 Super VL 120B A12B' },
 ]
@@ -118,12 +118,9 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (coding)' },
   { id: 'longcat-2.0', label: 'LongCat 2.0 (1M ctx)' },
   { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code' },
-  { id: 'kimi-k2.6', label: 'Kimi K2.6' },
   { id: 'kimi-k3', label: 'Kimi K3' },
   { id: 'glm-5.3', label: 'GLM 5.3' },
   { id: 'glm-5.2', label: 'GLM 5.2' },
-  { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
-  { id: 'mimo-v2.5', label: 'MiMo V2.5' },
   { id: 'hy3', label: 'Hy3' },
   { id: 'glm-5.3-flash', label: 'GLM 5.3 Flash (1M ctx)' },
   { id: 'hy4-preview', label: 'Hy4 Preview (1M ctx)' },
@@ -133,7 +130,6 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Anthropic Messages)' },
   { id: 'qwen3.8-flash', label: 'Qwen3.8 Flash (1M ctx · Anthropic Messages)' },
   { id: 'qwen3.8-max', label: 'Qwen3.8 Max (1M ctx · Anthropic Messages)' },
-  { id: 'omen-alpha', label: 'Omen Alpha' },
   { id: 'gpt-5.6-luna', label: 'GPT 5.6 Luna (1.1M ctx · Responses)' },
   { id: 'gpt-6-luna', label: 'GPT 6 Luna (1.1M ctx · Responses)' },
   { id: 'muse-spark-1.2-contributor', label: 'Muse Spark 1.2 Contributor (1M ctx · Responses)' },
@@ -143,6 +139,9 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'iceman-contributor-free', label: 'Iceman Contributor Free (262K ctx)' },
   { id: 'step-5-preview', label: 'Step 5 Preview (1M ctx)' },
   { id: 'grok-4.7', label: 'Grok 4.7 (500K ctx · Responses)' },
+  { id: 'hy4', label: 'Hy4 (1M ctx)' },
+  { id: 'minimax-m3.1-flash', label: 'MiniMax M3.1 Flash (1M ctx · Anthropic Messages)' },
+  { id: 'crouton-alpha-free', label: 'Crouton Alpha Free (1M ctx · Responses)' },
 ]
 
 /**
@@ -159,6 +158,7 @@ const OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS: ReadonlySet<string> = new Set([
   'qwen3.8-max',
   'qwen3.8-flash',
   'qwen3.7-plus',
+  'minimax-m3.1-flash',
 ])
 
 /**
@@ -180,7 +180,7 @@ const OPENCODE_GO_RESPONSES_FAMILIES: readonly RegExp[] = [
  * Per-id pins for a Responses-only model that matches none of the families above.
  * `npm run check:models --apply` writes here; empty while the families cover the catalog.
  */
-const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set<string>([])
+const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set<string>(['crouton-alpha-free'])
 
 /**
  * Wire formats learned at runtime. OpenCode Go answers `/chat/completions` with a
