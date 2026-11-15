@@ -447,7 +447,6 @@ async def health():
         "error": _load_error,
         "tools_search": _HAS_DDGS,
         "tools_youtube": {
-            "ddgs": _HAS_DDGS,
             "yt_dlp": HAS_YTDLP,
             "youtube_transcript_api": HAS_YOUTUBE_TRANSCRIPT,
         },
