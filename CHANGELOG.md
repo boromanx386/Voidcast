@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Coding panel header shows MCP connections**: a small `MCP 2/3` chip sits at the right end of the panel's top row, with a dot that is green when servers are connected, yellow when the configured ones are not connected yet and red on error. Hovering lists each server with its state, tool count, error and whether it needs a sign-in, and clicking opens Options → Tools. The chip never passes `ensure`, so the header cannot start `npx`/`uvx` servers or reload connections. It re-reads when a chat turn ends, when the window regains focus and when the folder or MCP settings change; it does not poll. `stopped` means "not connected yet this session", not a fault. Hidden when MCP is off or the folder has no enabled server configured.
+- **Coding panel header shows MCP connections**: a small `MCP 2/3` chip sits at the right end of the panel's top row, with a dot that is green when servers are connected, yellow when the configured ones are not connected yet and red on error. When exactly one server has failed the chip shows its name instead of the count, and likewise when exactly one is connected and none failed (long names are cut off so the tab row keeps its space). Hovering lists each server with its state, tool count, error and whether it needs a sign-in, and clicking opens Options → Tools. The chip never passes `ensure`, so the header cannot start `npx`/`uvx` servers or reload connections. It re-reads when a chat turn ends, when the window regains focus and when the folder or MCP settings change; it does not poll. `stopped` means "not connected yet this session", not a fault. Hidden when MCP is off or the folder has no enabled server configured.
 
 ### Changed
 

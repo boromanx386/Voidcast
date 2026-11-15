@@ -220,6 +220,13 @@ function McpStatusChip({
       return `${s.id}: ${state}${tools}${s.error ? ` — ${s.error}` : ''}`
     })
     .join('\n')
+  // Name a server only when one is the whole story: the single failure is what the
+  // user needs to see, else the single live connection. With several, names would
+  // crowd the tab row on a narrow panel, so the count stays and the tooltip lists them.
+  const failedOnly = failed === 1 ? active.find((s) => s.state === 'error') : undefined
+  const runningOnly =
+    failed === 0 && running === 1 ? active.find((s) => s.state === 'running') : undefined
+  const named = failedOnly ?? runningOnly
 
   return (
     <button
@@ -227,13 +234,20 @@ function McpStatusChip({
       onClick={onOpen}
       disabled={!onOpen}
       title={`MCP servers\n${detail}${onOpen ? '\n\nClick for Options → Tools' : ''}`}
-      aria-label={`MCP servers: ${running} of ${active.length} running`}
+      aria-label={`MCP servers: ${running} of ${active.length} running${
+        named ? `, ${named.id} ${named.state}` : ''
+      }`}
       className="flex shrink-0 items-center gap-1.5 rounded border border-void-muted/50 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-void-dim/70 transition-colors hover:border-void-dim hover:text-void-text disabled:cursor-default disabled:hover:border-void-muted/50 disabled:hover:text-void-dim/70"
     >
       <span>MCP</span>
-      <span className="tabular-nums">
-        {running}/{active.length}
-      </span>
+      {named ? (
+        // Server ids are case-sensitive config keys, so they keep their own case.
+        <span className="max-w-[8rem] truncate normal-case tracking-normal">{named.id}</span>
+      ) : (
+        <span className="tabular-nums">
+          {running}/{active.length}
+        </span>
+      )}
       <span className={`h-1.5 w-1.5 rounded-full ${tone}`} aria-hidden />
     </button>
   )
