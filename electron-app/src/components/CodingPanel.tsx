@@ -52,6 +52,7 @@ import {
 import { isCodingPreviewImage, loadCodingPreviewImage } from '@/lib/codingImagePreview'
 import { codingRevealParentDirs, type CodingRevealRequest } from '@/lib/codingReveal'
 import { isWindowForeground } from '@/lib/windowFocus'
+import { getMcpStatus, type McpServerStatus } from '@/lib/mcpTools'
 import type { CodingFileNode, TerminalLine } from '@/types/coding'
 
 type CodingUiVisibilityPatch = Partial<
@@ -101,6 +102,10 @@ type Props = {
   onReferencePath?: (relPath: string) => void
   /** Trust the bound folder (unlocks its AGENTS.md, project skills and .mcp.json). */
   onTrustProject?: (projectPath: string) => void
+  /** Jump to Options → Tools (MCP servers) from the header status chip. */
+  onOpenMcpOptions?: () => void
+  /** A chat turn is running; the MCP chip re-reads its state when this drops. */
+  chatBusy?: boolean
 }
 
 type PreviewMode = 'file' | 'diff' | 'image'
@@ -149,6 +154,91 @@ function sameCodingPath(a: string | null, b: string | null): boolean {
   return normalizeGitPath(a) === normalizeGitPath(b)
 }
 
+/**
+ * MCP connection summary for the header row.
+ *
+ * Never passes `ensure`: the header must not spawn MCP servers (npx / uvx) just
+ * because the coding panel is on screen. Main answers a passive read from this
+ * folder's config files, so the server list is right before any turn has run.
+ * Connections happen inside chat turns, so it re-reads when a turn ends (`busy`
+ * drops) and when the window regains focus, instead of polling.
+ */
+function McpStatusChip({
+  settings,
+  projectPath,
+  busy,
+  onOpen,
+}: {
+  settings: AppSettings
+  projectPath?: string
+  busy?: boolean
+  onOpen?: () => void
+}) {
+  const [servers, setServers] = useState<McpServerStatus[]>([])
+  const [focusTick, setFocusTick] = useState(0)
+  const enabledServers = settings.mcpServerEnabled
+  const trustedProjectPaths = settings.mcpTrustedProjectPaths
+
+  useEffect(() => {
+    const onFocus = () => setFocusTick((n) => n + 1)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
+  useEffect(() => {
+    // Mid-turn reads would only catch servers half-way through connecting.
+    if (busy) return
+    if (!settings.mcpEnabled) {
+      setServers([])
+      return
+    }
+    let cancelled = false
+    void getMcpStatus(projectPath || undefined, false, enabledServers, trustedProjectPaths)
+      .then((res) => {
+        if (!cancelled) setServers(res.status)
+      })
+      .catch(() => {
+        if (!cancelled) setServers([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [settings.mcpEnabled, projectPath, enabledServers, trustedProjectPaths, busy, focusTick])
+
+  const active = servers.filter((s) => s.state !== 'disabled')
+  if (!settings.mcpEnabled || active.length === 0) return null
+
+  const running = active.filter((s) => s.state === 'running').length
+  const failed = active.filter((s) => s.state === 'error').length
+  // 'stopped' is not a fault: nothing has connected yet this session.
+  const tone = failed > 0 ? 'bg-neon-red' : running > 0 ? 'bg-neon-green' : 'bg-neon-yellow'
+  const detail = active
+    .map((s) => {
+      // A stopped OAuth server is waiting on a sign-in, not on the next turn.
+      const state = s.authState === 'needs_sign_in' ? `${s.state}, needs sign-in` : s.state
+      const tools = s.toolCount > 0 ? ` (${s.toolCount} tools)` : ''
+      return `${s.id}: ${state}${tools}${s.error ? ` — ${s.error}` : ''}`
+    })
+    .join('\n')
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={!onOpen}
+      title={`MCP servers\n${detail}${onOpen ? '\n\nClick for Options → Tools' : ''}`}
+      aria-label={`MCP servers: ${running} of ${active.length} running`}
+      className="flex shrink-0 items-center gap-1.5 rounded border border-void-muted/50 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-void-dim/70 transition-colors hover:border-void-dim hover:text-void-text disabled:cursor-default disabled:hover:border-void-muted/50 disabled:hover:text-void-dim/70"
+    >
+      <span>MCP</span>
+      <span className="tabular-nums">
+        {running}/{active.length}
+      </span>
+      <span className={`h-1.5 w-1.5 rounded-full ${tone}`} aria-hidden />
+    </button>
+  )
+}
+
 export function CodingPanel({
   settings,
   projectPath: chatProjectPath = '',
@@ -165,6 +255,8 @@ export function CodingPanel({
   codingOwnerId,
   onReferencePath,
   onTrustProject,
+  onOpenMcpOptions,
+  chatBusy,
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
@@ -1188,17 +1280,25 @@ export function CodingPanel({
             )
           })}
         </div>
-        {!projectPath ? (
-          <button
-            type="button"
-            className="cyber-btn text-xs"
-            onClick={() => void onPickFolder()}
-            title="Select project folder for this chat"
-            aria-label="Select project folder"
-          >
-            <FolderIcon className="h-4 w-4" />
-          </button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <McpStatusChip
+            settings={settings}
+            projectPath={projectPath}
+            busy={chatBusy}
+            onOpen={onOpenMcpOptions}
+          />
+          {!projectPath ? (
+            <button
+              type="button"
+              className="cyber-btn text-xs"
+              onClick={() => void onPickFolder()}
+              title="Select project folder for this chat"
+              aria-label="Select project folder"
+            >
+              <FolderIcon className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="shrink-0 text-[11px] font-mono text-void-dim break-all">
         {projectPath ? (

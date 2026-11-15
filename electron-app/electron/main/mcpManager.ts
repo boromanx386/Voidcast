@@ -800,11 +800,46 @@ export class McpManager {
   }
 
   getStatus(): McpServerStatus[] {
-    const out: McpServerStatus[] = []
     const ids = this.lastConfigIds.length > 0 ? this.lastConfigIds : [...this.servers.keys()]
+    return this.buildStatus(ids, this.lastEnabledMap, this.lastServerConfigs, () => true)
+  }
+
+  /**
+   * Status for a given project and enabled map without connecting anything.
+   *
+   * getStatus() describes whatever the last ensure connected, which may be another
+   * chat's project. This reads the config files for the caller's project instead
+   * and only counts a live connection when it was started from the same server
+   * config, so a passive status read never spawns a process yet never reports a
+   * different project's server as this one's.
+   */
+  async statusFor(
+    projectPath?: string,
+    enabledMap?: Record<string, boolean>,
+    opts?: { allowProjectConfig?: boolean },
+  ): Promise<McpServerStatus[]> {
+    const config = await loadMcpConfig((projectPath || '').trim() || undefined, {
+      allowProjectConfig: opts?.allowProjectConfig,
+    })
+    const configs = config.mcpServers
+    return this.buildStatus(
+      Object.keys(configs),
+      enabledMap ?? {},
+      configs,
+      (id) => JSON.stringify(this.lastServerConfigs[id]) === JSON.stringify(configs[id]),
+    )
+  }
+
+  private buildStatus(
+    ids: string[],
+    enabledMap: Record<string, boolean>,
+    configs: Record<string, McpServerConfig>,
+    liveMatches: (id: string) => boolean,
+  ): McpServerStatus[] {
+    const out: McpServerStatus[] = []
     for (const id of ids) {
-      const oauthEnabled = isMcpOAuthEnabled(this.lastServerConfigs[id])
-      if (!isServerEnabled(id, this.lastEnabledMap)) {
+      const oauthEnabled = isMcpOAuthEnabled(configs[id])
+      if (!isServerEnabled(id, enabledMap)) {
         out.push({
           id,
           state: 'disabled',
@@ -814,7 +849,7 @@ export class McpManager {
         })
         continue
       }
-      const entry = this.servers.get(id)
+      const entry = liveMatches(id) ? this.servers.get(id) : undefined
       if (!entry) {
         out.push({
           id,

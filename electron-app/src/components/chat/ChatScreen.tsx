@@ -200,6 +200,8 @@ export function ChatScreen({ app }: Props) {
                 }
                 onUpdateProjectPath={app.applyCodingProjectPath}
                 onTrustProject={(path) => trustProjectFolder(app.setSettings, path)}
+                onOpenMcpOptions={() => app.openOptions('tools')}
+                chatBusy={app.busy}
                 onReferencePath={(relPath) => {
                   // Point the agent at a file/folder: add a reference chip to the
                   // composer. Only the path reaches the model — never file content —

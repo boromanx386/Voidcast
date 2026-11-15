@@ -4205,8 +4205,18 @@ ipcMain.handle(
       const projectPath = mcpProjectPathFromPayload(payload)
       const enabledServers = mcpEnabledMapFromPayload(payload)
       const connectionOpts = mcpConnectionOpts(payload)
+      // Without ensure, answer for the caller's project and enabled map rather than
+      // whatever the last ensure (possibly another chat) left behind.
+      let status: ReturnType<typeof mcpManager.getStatus>
       if (payload?.ensure) {
         await mcpManager.ensureConnected(projectPath || undefined, enabledServers, connectionOpts)
+        status = mcpManager.getStatus()
+      } else {
+        status = await mcpManager.statusFor(
+          projectPath || undefined,
+          enabledServers,
+          connectionOpts,
+        )
       }
       const pendingProjectTrust =
         Boolean(projectPath) &&
@@ -4214,7 +4224,7 @@ ipcMain.handle(
         !connectionOpts.allowProjectConfig
       return {
         ok: true as const,
-        status: mcpManager.getStatus(),
+        status,
         configPath: getGlobalMcpConfigPath(),
         pendingProjectTrust,
       }

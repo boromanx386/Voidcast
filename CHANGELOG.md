@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Coding panel header shows MCP connections**: a small `MCP 2/3` chip sits at the right end of the panel's top row, with a dot that is green when servers are connected, yellow when the configured ones are not connected yet and red on error. Hovering lists each server with its state, tool count, error and whether it needs a sign-in, and clicking opens Options → Tools. The chip never passes `ensure`, so the header cannot start `npx`/`uvx` servers or reload connections. It re-reads when a chat turn ends, when the window regains focus and when the folder or MCP settings change; it does not poll. `stopped` means "not connected yet this session", not a fault. Hidden when MCP is off or the folder has no enabled server configured.
+
+### Changed
+
+- **A passive MCP status read describes the folder that asked**: `mcpStatus` without `ensure` used to return whatever the last connection set up, which could be another chat's project with another chat's enabled servers. It now reads the MCP config for the requested folder and enabled map, still without connecting anything, and only reports a server as running when the live connection was started from the same config. Options → Tools benefits too: toggling a server off shows it as disabled straight away instead of after the next turn.
+
 ### Fixed
 
 - **A slow search is no longer killed just as it is about to answer**: the worker's own collect budget is 15 s and each ddgs request had a 10 s timeout, while the parent gave the whole request 25 s. A pass that started near the deadline could therefore end exactly when the parent gave up, and the parent killed the worker. Callers saw a hard `SearchError` where results were one second away. The ddgs request timeout is now 8 s, so the budgets nest (15 + 8 < 25), and each side names the other in a comment. Also removed `text_results` and the `text` worker op: they existed only for the old `site:youtube.com` lookup and had no caller left, and `text_results` was the one place that asked for the full 25 s.
