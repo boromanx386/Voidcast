@@ -75,7 +75,7 @@ from host_tool_config import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
 
-# Dedicated, bounded pool for blocking web tools (ddgs/YouTube). If ddgs stalls on
+# Dedicated, bounded pool for blocking web tools (search/yt-dlp). If ddgs stalls on
 # DuckDuckGo rate limits, threads pile up here and can never starve the *default*
 # executor that serves TTS / proxy / health — so one bad search no longer freezes
 # the whole server. The semaphore caps how many searches may run at once.
@@ -169,7 +169,7 @@ class SearchRequest(BaseModel):
 
 
 class YoutubeToolRequest(BaseModel):
-    """search_youtube: YouTube search via ddgs, or metadata/transcript for a URL (yt-dlp + transcript API)."""
+    """search_youtube: YouTube search via yt-dlp, or metadata/transcript for a URL (yt-dlp + transcript API)."""
 
     query: str | None = Field(None, max_length=2000)
     video_url: str | None = Field(None, max_length=2048)
@@ -459,19 +459,6 @@ async def health():
     }
 
 
-def _ddgs_text_for_youtube(query: str, max_results: int) -> list:
-    if not _HAS_DDGS:
-        return []
-    try:
-        return search_pool().request(
-            {"op": "text", "query": query, "max_results": max_results},
-            timeout_s=SEARCH_WORKER_TIMEOUT_S,
-        )
-    except SearchError as e:
-        logger.warning("youtube ddgs lookup failed: %s", e)
-        return []
-
-
 def _run_youtube_tool(
     query: str | None,
     video_url: str | None,
@@ -483,8 +470,6 @@ def _run_youtube_tool(
         video_url=video_url,
         get_transcript=get_transcript,
         max_results=max_results,
-        has_ddgs=_HAS_DDGS,
-        ddgs_text_fn=_ddgs_text_for_youtube if _HAS_DDGS else None,
     )
 
 
@@ -756,7 +741,7 @@ async def tools_search(req: SearchRequest):
 
 @app.post("/tools/youtube", dependencies=[Depends(require_lan_access)])
 async def tools_youtube(req: YoutubeToolRequest):
-    """YouTube search (ddgs) and/or video info + optional captions (yt-dlp, youtube-transcript-api)."""
+    """YouTube search (yt-dlp ytsearch) and/or video info + optional captions (yt-dlp, youtube-transcript-api)."""
     q = (req.query or "").strip()
     u = (req.video_url or "").strip()
     if not q and not u:
@@ -765,7 +750,10 @@ async def tools_youtube(req: YoutubeToolRequest):
             detail="Provide query (search) or video_url (video details / transcript).",
         )
     try:
-        text = await asyncio.to_thread(
+        # yt-dlp talks to YouTube directly and can stall on throttling, so it stays
+        # off the default executor that serves TTS/proxy/health.
+        text = await asyncio.get_running_loop().run_in_executor(
+            _TOOLS_EXECUTOR,
             _run_youtube_tool,
             q or None,
             u or None,

@@ -33,7 +33,10 @@ from typing import Any
 logger = logging.getLogger("tts-server.search")
 
 # The worker imports the ddgs client, which is what used to freeze the server.
-# Keep this generous: one search may run three backend passes.
+# Keep this generous: one search may run three backend passes. It must also stay
+# strictly above the worker's own budget (search_core SEARCH_TIMEOUT_S = 15s plus
+# one 8s ddgs request timeout = 23s), otherwise the parent kills a worker that was about to
+# answer and the caller sees a hard error where it should have seen results.
 DEFAULT_TIMEOUT_S = 25.0
 # A worker failure that returns faster than this was a crash (dead pipe, process
 # gone), not a wedge — only then is a transparent retry worth it.

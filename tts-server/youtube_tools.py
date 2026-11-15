@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable, Iterable
 from typing import Any
 
 logger = logging.getLogger("tts-server.youtube")
@@ -31,6 +30,10 @@ _YT_ID_RE = re.compile(
 
 # Cap transcript size for LLM payloads (chars)
 MAX_TRANSCRIPT_CHARS = 120_000
+
+# yt-dlp has no socket timeout by default, so a throttled YouTube connection would
+# hold a tools-pool thread indefinitely.
+YTDLP_SOCKET_TIMEOUT_S = 10
 
 
 def extract_youtube_video_id(url: str) -> str | None:
@@ -120,6 +123,16 @@ def _fetch_transcript_text(video_id: str) -> tuple[str, str | None]:
     return "", "Transcript not available for this video (no captions or blocked)."
 
 
+def _format_duration(seconds: Any) -> str:
+    """`m:ss`, or `h:mm:ss` past an hour; empty when unknown."""
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds <= 0:
+        return ""
+    total = int(seconds)
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
 def _maybe_truncate(text: str) -> str:
     if len(text) <= MAX_TRANSCRIPT_CHARS:
         return text
@@ -132,12 +145,7 @@ def youtube_tool_run(
     video_url: str | None,
     get_transcript: bool,
     max_results: int,
-    has_ddgs: bool,
-    ddgs_text_fn: Callable[[str, int], Iterable[Any]] | None,
 ) -> str:
-    """
-    `ddgs_text_fn(query, max_results)` returns an iterable of result dicts (title, body, href).
-    """
     q_in = (query or "").strip()
     url_in = (video_url or "").strip()
 
@@ -150,6 +158,7 @@ def youtube_tool_run(
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
+            "socket_timeout": YTDLP_SOCKET_TIMEOUT_S,
         }
         try:
             with YoutubeDL(ydl_opts) as ydl:
@@ -159,10 +168,7 @@ def youtube_tool_run(
 
         title = info.get("title", "N/A")
         channel = info.get("uploader", "N/A")
-        duration = int(info.get("duration") or 0)
-        dur_s = ""
-        if duration > 0:
-            dur_s = f"{duration // 60}:{duration % 60:02d}"
+        dur_s = _format_duration(info.get("duration"))
         views = info.get("view_count")
         views_s = f"{int(views):,}" if isinstance(views, int) else str(views or "N/A")
         upload = info.get("upload_date", "N/A")
@@ -196,27 +202,51 @@ def youtube_tool_run(
         return result
 
     if q_in:
-        if not has_ddgs or ddgs_text_fn is None:
-            return "YouTube search requires ddgs (pip install ddgs)."
-        search_query = f"site:youtube.com {q_in}"
+        if not HAS_YTDLP or YoutubeDL is None:
+            return "YouTube search requires yt-dlp. Install: pip install yt-dlp"
+
+        n = max(1, min(20, max_results))
+        ydl_opts: dict[str, Any] = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "extract_flat": True,
+            "socket_timeout": YTDLP_SOCKET_TIMEOUT_S,
+        }
+        # A `site:youtube.com` web query returns channel and playlist pages whose
+        # descriptions mash several video titles together, so result titles never
+        # line up with their URLs. `ytsearch` asks YouTube itself.
         try:
-            results = list(ddgs_text_fn(search_query, max_results))
+            with YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch{n}:{q_in}", download=False)
         except Exception as e:
             return f"Error in YouTube search: {e}"
 
-        if not results:
+        entries = [
+            e
+            for e in ((info or {}).get("entries") or [])
+            if isinstance(e, dict) and e.get("id")
+        ]
+        if not entries:
             return f"No YouTube videos found for {q_in!r}."
 
-        lines: list[str] = []
-        for r in results:
-            href = (r.get("href") or r.get("url") or "").strip()
-            if "youtube.com" not in href and "youtu.be" not in href:
-                continue
-            t = (r.get("title") or "").strip()
-            body = (r.get("body") or "")[:220]
-            lines.append(f"{t}\n{body}\n{href}")
-        if not lines:
-            return f"No YouTube URLs in results for {q_in!r}."
-        return "YouTube search:\n\n" + "\n\n---\n\n".join(lines)
+        blocks: list[str] = []
+        for e in entries:
+            lines = [f"Title: {e.get('title') or 'N/A'}"]
+            channel = e.get("uploader") or e.get("channel")
+            if channel:
+                lines.append(f"Channel: {channel}")
+            lines.append(f"ID: {e['id']}")
+            dur_s = _format_duration(e.get("duration"))
+            if dur_s:
+                lines.append(f"Duration: {dur_s}")
+            views = e.get("view_count")
+            if isinstance(views, int):
+                lines.append(f"Views: {views:,}")
+            if e.get("upload_date"):
+                lines.append(f"Upload date: {e['upload_date']}")
+            lines.append(f"URL: https://www.youtube.com/watch?v={e['id']}")
+            blocks.append("\n".join(lines))
+        return "YouTube search:\n\n" + "\n\n---\n\n".join(blocks)
 
     return "Error: provide `query` (search) or `video_url` (video details / transcript)."

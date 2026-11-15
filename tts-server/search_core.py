@@ -14,7 +14,6 @@ Why a separate process at all:
 
 Requests:
     {"op": "search", "query": str, "recency": "d|w|m|y" | None, "max_results": int}
-    {"op": "text",   "query": str, "max_results": int}
 
 Replies:
     {"ok": true,  "rows": [...]}
@@ -436,33 +435,25 @@ def search_candidates(
     DDGS = ddgs_class()
     # A stale year in the query (the model writing 2024 in 2026) poisons results.
     q_norm = re.sub(r"\b(20\d{2})\b", str(datetime.now().year), q)
-    with DDGS(timeout=10) as ddgs:  # type: ignore[misc]
+    # Budget: collect_candidates starts no pass after SEARCH_TIMEOUT_S (15s), and a
+    # pass that starts just under that deadline should still land inside the
+    # client's DEFAULT_TIMEOUT_S (25s) — 15 + 8 = 23. This timeout is per HTTP
+    # request, not per pass, so the sum is a target rather than a guarantee; at 10
+    # or above the worker and the parent are back in the same race.
+    with DDGS(timeout=8) as ddgs:  # type: ignore[misc]
         rows = collect_candidates(ddgs, q_norm, recency, max_results)
     rank_candidates(rows, q_norm)
     return select_results(rows, max_results)
 
 
-def text_results(query: str, max_results: int) -> list[dict[str, Any]]:
-    """Plain ddgs text search (used for YouTube site: lookups)."""
-    q = (query or "").strip()
-    if not q:
-        return []
-    DDGS = ddgs_class()
-    with DDGS(timeout=25) as ddgs:  # type: ignore[misc]
-        return [r for r in ddgs.text(q, max_results=max_results) if isinstance(r, dict)]
-
-
 def handle(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Dispatch one worker request. Raises on failure; the caller serialises it."""
-    op = str(payload.get("op") or "search")
+    """Run one search request. Raises on failure; the caller serialises it."""
     query = str(payload.get("query") or "")
     try:
         max_results = int(payload.get("max_results") or SEARCH_DEFAULT_RESULTS)
     except (TypeError, ValueError):
         max_results = SEARCH_DEFAULT_RESULTS
     max_results = max(1, min(20, max_results))
-    if op == "text":
-        return text_results(query, max_results)
     recency = payload.get("recency")
     return search_candidates(
         query,
