@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { ChatMarkdown } from '@/components/ChatMarkdown'
+import { ChatAudioPlayer } from '@/components/chat/ChatAudioPlayer'
 import { PlanArtifactCard } from '@/components/chat/PlanArtifactCard'
 import { SubAgentActivityCard } from '@/components/chat/SubAgentPanel'
 import { TurnTimer } from '@/components/chat/TurnTimer'
@@ -436,32 +437,29 @@ export function ChatMessage({ message: m, index, render, app }: Props) {
                     const savedPath = item.kind === 'url' ? item.savedPath : item.path
                     const playSrc = item.kind === 'url' ? item.url : item.playUrl || ''
                     const metaKey = item.kind === 'url' ? item.url : item.path
+                    const fileName =
+                      (savedPath || (item.kind === 'url' ? item.url.split(/[?#]/)[0] : ''))
+                        .split(/[\\/]/)
+                        .pop() || ''
                     return (
                       <div
                         key={item.key}
-                        className="rounded border border-void-muted/35 bg-void-black/25 px-2 py-1.5"
+                        className="max-w-[30rem] rounded border border-void-muted/35 bg-void-black/25 px-2 py-1.5"
                       >
-                        <div className="mb-1 flex items-center gap-2">
+                        <div className="mb-1.5 flex min-w-0 items-center gap-2">
                           <span className="shrink-0 text-[10px] font-mono text-neon-cyan/75">
                             AUDIO_{i + 1}
-                            {savedPath ? ' · local' : ''}
                           </span>
-                          <div className="min-w-0 flex-1">
-                            {playSrc ? (
-                              <audio
-                                controls
-                                preload="metadata"
-                                src={playSrc}
-                                className="chat-audio-player"
-                              />
-                            ) : savedPath ? (
-                              <span className="text-[10px] font-mono text-void-dim">Loading…</span>
-                            ) : (
-                              <span className="text-[10px] font-mono text-void-dim">
-                                No playable source
-                              </span>
-                            )}
-                          </div>
+                          {fileName ? (
+                            <span
+                              className="min-w-0 flex-1 truncate text-[10px] font-mono text-void-dim"
+                              title={savedPath || fileName}
+                            >
+                              {fileName}
+                            </span>
+                          ) : (
+                            <span className="flex-1" />
+                          )}
                           {savedPath ? (
                             <button
                               type="button"
@@ -476,10 +474,17 @@ export function ChatMessage({ message: m, index, render, app }: Props) {
                             </button>
                           ) : null}
                         </div>
+                        {playSrc ? (
+                          <ChatAudioPlayer src={playSrc} title={savedPath || undefined} />
+                        ) : (
+                          <span className="text-[10px] font-mono text-void-dim">
+                            {savedPath ? 'Loading…' : 'No playable source'}
+                          </span>
+                        )}
                         {assistantAudioToolMeta[m.id]?.[metaKey] ||
                         assistantAudioMessageMeta[m.id] ||
                         parseRunwareAudioToolMeta(m.content) ? (
-                          <details className="border-t border-void-muted/25 pt-1">
+                          <details className="mt-1.5 border-t border-void-muted/25 pt-1">
                             <summary className="cursor-pointer px-0.5 text-[10px] font-mono text-neon-cyan/70 hover:text-neon-cyan">
                               INFO
                             </summary>

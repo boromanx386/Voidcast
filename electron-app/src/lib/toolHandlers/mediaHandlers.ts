@@ -10,6 +10,7 @@ import { resolveImageRecallRequest } from '@/lib/toolHandlers/imageRecall'
 import {
   loadProjectImageRecalls,
   MAX_PROJECT_IMAGE_B64_CHARS,
+  resolveInsideCodingProject,
   resolveLocalImagePath,
 } from '@/lib/imageProjectRecall'
 import { prepareBase64ImageForUpload } from '@/lib/imageAttachment'
@@ -29,7 +30,13 @@ import {
 import type { ToolHandlerFn, ToolHandlerRegistry } from '@/lib/toolExecTypes'
 import { synthesizeSpeech } from '@/lib/tts'
 import { invokeSaveAudioBytes } from '@/lib/saveAudio'
-import { extensionFromAudioMime, validateProjectRelativeAudioPath } from '@/lib/generatedAssetPath'
+import {
+  extensionFromAudioMime,
+  GENERATED_AUDIO_EXTENSIONS,
+  isAbsoluteFilesystemPath,
+  normalizeSlashes,
+  validateProjectRelativeAudioPath,
+} from '@/lib/generatedAssetPath'
 import { isElectron, isWebStandalone } from '@/lib/platform'
 import { extractRunwareImageUrls, extractSavedImagePaths } from '@/lib/runwareMessageMeta'
 import { invokeSaveImageFromUrl, isDataImageUrl } from '@/lib/saveImage'
@@ -649,11 +656,70 @@ export const handleShowImage: ToolHandlerFn = async (args, ctx) => {
   ].join('\n')
 }
 
+/** Each file crosses IPC twice as base64, so very long recordings are refused. */
+export const MAX_SHOW_AUDIO_BYTES = 50 * 1024 * 1024
+
+/** Absolute paths anywhere (scripts write to temp folders); relative ones only inside the project. */
+export function resolveLocalAudioPath(projectRoot: string, inputPath: string): string | null {
+  const raw = normalizeSlashes(inputPath.trim())
+  const ext = raw.slice(raw.lastIndexOf('.')).toLowerCase()
+  if (!raw || !(GENERATED_AUDIO_EXTENSIONS as readonly string[]).includes(ext)) return null
+  if (isAbsoluteFilesystemPath(raw)) return inputPath.trim()
+  return projectRoot.trim() ? resolveInsideCodingProject(projectRoot, raw) : null
+}
+
+export const handleShowAudio: ToolHandlerFn = async (args, ctx) => {
+  const readAudioFile = isElectron() ? window.voidcast?.readAudioFile : undefined
+  if (!readAudioFile) return 'Error: show_audio is only available in the desktop app.'
+  const requested = parseImagePaths(args.paths)
+  if (requested.length === 0) {
+    return 'Error: missing audio paths for show_audio. Provide paths.'
+  }
+  const projectRoot = (ctx.codingProjectPath || '').trim()
+  const shown: string[] = []
+  const errors: string[] = []
+  for (const raw of requested) {
+    const abs = resolveLocalAudioPath(projectRoot, raw)
+    if (!abs) {
+      errors.push(
+        `Not a usable audio path: ${raw} (MP3/WAV/FLAC/OGG/M4A; a relative path needs a project folder).`,
+      )
+      continue
+    }
+    const res = await readAudioFile({ path: abs, maxBytes: MAX_SHOW_AUDIO_BYTES }).catch(() => null)
+    if (!res?.ok || !res.file?.base64?.trim()) {
+      const why = res && !res.ok && res.error ? ` ${res.error}.` : ''
+      errors.push(`Could not read audio: ${abs}.${why}`)
+      continue
+    }
+    const bytes = Uint8Array.from(atob(res.file.base64.replace(/\s+/g, '')), (c) =>
+      c.charCodeAt(0),
+    ).buffer
+    // A copy, so the player keeps working after a script overwrites or deletes the original.
+    const saved = await invokeSaveAudioBytes({
+      bytes,
+      mime: res.file.mime,
+      filename: (res.file.name || '').replace(/\.[^.]+$/, '') || undefined,
+    }).catch((e) => ({ ok: false, text: e instanceof Error ? e.message : String(e) }))
+    if (saved.ok && 'path' in saved && saved.path) shown.push(saved.path)
+    else errors.push(`Could not save a copy of ${abs}: ${saved.text}`)
+  }
+  if (shown.length === 0) {
+    return `Error: show_audio could not show any audio. ${errors.join(' ')}`
+  }
+  return [
+    'The audio is now playable in the chat. Do not repeat the path as a link.',
+    ...shown.map((p) => `audio_path: ${p}`),
+    ...errors,
+  ].join('\n')
+}
+
 export const mediaHandlersRegistry: ToolHandlerRegistry = {
   ['generate_image']: withSavedImagePaths(handleGenerateImage),
   ['edit_image_runware']: withSavedImagePaths(handleEditImageRunware),
   ['image_recall']: handleImageRecall,
   ['show_image']: handleShowImage,
+  ['show_audio']: handleShowAudio,
   ['generate_music_runware']: handleGenerateMusicRunware,
   ['generate_tts']: handleGenerateTts,
 }

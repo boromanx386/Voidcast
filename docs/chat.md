@@ -96,6 +96,12 @@ While tools are running, the busy indicator shows each active tool by name. Adja
 - `show_image` puts an existing image in the chat (desktop only). It takes the same three references; `reference_image_paths` also accepts absolute paths outside the project. Files outside the catalog are copied into the image output folder, so the chat does not depend on the original.
 - Images saved during a turn by `generate_image`, `edit_image_runware`, `show_image` or an MCP tool join the catalog immediately, so the same turn can recall or edit them.
 
+## Showing audio (`show_audio`)
+
+- `show_audio` puts an existing audio file in the chat with a player (desktop only), for example a clip a script cut or mixed, or a sound asset in the project. It takes `paths`: absolute anywhere on the PC, or relative to the coding project.
+- MP3, WAV, FLAC, OGG and M4A, up to 50 MB per file. Each file is copied into the app's `generated-audio` folder (the same place `generate_tts` uses without `output_path`), so the player keeps working after the original changes.
+- Audio from `generate_tts` and `generate_music_runware` already gets a player, so the agent does not need this tool for those. There is no audio counterpart to `image_recall`: the agent cannot listen to the file.
+
 ## Sub-agent activity and workers (SubAgentPanel.tsx)
 
 Full table: [multi-chat-and-team.md](multi-chat-and-team.md) and [options/subagent.md](options/subagent.md).

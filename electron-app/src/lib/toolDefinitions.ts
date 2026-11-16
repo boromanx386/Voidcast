@@ -764,6 +764,26 @@ const SHOW_IMAGE_TOOL: AgentToolDefinition = {
   },
 }
 
+const SHOW_AUDIO_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'show_audio',
+    description:
+      'Put an existing audio file in this chat with a player, so the user can listen: a clip a script cut, converted or mixed, a project sound asset, a recording. The app copies the file, so the player keeps working after the original changes. Audio from generate_tts and generate_music_runware already appears in the chat, so do not show it again unless asked. After success give a short caption; do not paste the path as a link.',
+    parameters: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'string',
+          description:
+            'Audio path(s), comma or newline separated: absolute anywhere on this PC, or relative to the coding project root. MP3/WAV/FLAC/OGG/M4A, up to 50 MB each.',
+        },
+      },
+      required: ['paths'],
+    },
+  },
+}
+
 const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1834,6 +1854,7 @@ export function buildToolsList(
   // Vision recall is independent of Runware generate/edit.
   out.push(IMAGE_RECALL_TOOL)
   out.push(SHOW_IMAGE_TOOL)
+  out.push(SHOW_AUDIO_TOOL)
   if (enabled.runwareImage && !readOnlyMode) {
     out.push(GENERATE_IMAGE_TOOL)
     out.push(EDIT_IMAGE_RUNWARE_TOOL)

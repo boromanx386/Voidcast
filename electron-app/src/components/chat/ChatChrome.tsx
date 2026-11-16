@@ -134,6 +134,7 @@ const TOOL_PHASE_UI: Record<AgentToolUiPhase, { icon: string; label: string; cla
     image: { icon: '◌', label: 'IMAGE_GEN', className: 'image' },
     vision: { icon: '◎', label: 'IMAGE_RECALL', className: 'vision' },
     music: { icon: '♫', label: 'MUSIC_GEN', className: 'music' },
+    audio: { icon: '♫', label: 'AUDIO_SHOW', className: 'music' },
     tts: { icon: '◈', label: 'TTS_GEN', className: 'tts' },
     coding_list: { icon: '⊢', label: 'CODING_FILES', className: 'coding' },
     coding_read: { icon: '◊', label: 'CODING_READ', className: 'coding' },

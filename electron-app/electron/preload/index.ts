@@ -114,7 +114,7 @@ contextBridge.exposeInMainWorld('voidcast', {
     projectPath?: string
     relativePath?: string
   }) => ipcRenderer.invoke('voidcast:save-audio-bytes', payload),
-  readAudioFile: (payload: { path: string }) =>
+  readAudioFile: (payload: { path: string; maxBytes?: number }) =>
     ipcRenderer.invoke('voidcast:read-audio-file', payload),
   runwareProxy: (payload: { api_base_url: string; api_key: string; tasks: unknown[] }) =>
     ipcRenderer.invoke('voidcast:runware-proxy', payload) as Promise<

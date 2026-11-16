@@ -1261,36 +1261,52 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle('voidcast:read-audio-file', async (_evt, payload: { path?: string }) => {
-  try {
-    const filePath = String(payload?.path ?? '').trim()
-    if (!filePath) return { ok: false, error: 'Missing path' }
-    const abs = path.resolve(filePath)
-    const bytes = await readFile(abs)
-    const ext = path.extname(abs).toLowerCase()
-    const mime =
-      ext === '.wav'
-        ? 'audio/wav'
-        : ext === '.flac'
-          ? 'audio/flac'
-          : ext === '.ogg'
-            ? 'audio/ogg'
-            : ext === '.m4a'
-              ? 'audio/mp4'
-              : 'audio/mpeg'
-    return {
-      ok: true,
-      file: {
-        base64: bytes.toString('base64'),
-        mime,
-        name: path.basename(abs),
-        path: abs,
-      },
+ipcMain.handle(
+  'voidcast:read-audio-file',
+  async (_evt, payload: { path?: string; maxBytes?: number }) => {
+    try {
+      const filePath = String(payload?.path ?? '').trim()
+      if (!filePath) return { ok: false, error: 'Missing path' }
+      const abs = path.resolve(filePath)
+      // Checked before reading: the whole file crosses IPC as base64.
+      const maxBytes = Number(payload?.maxBytes) || 0
+      if (maxBytes > 0) {
+        const st = await stat(abs)
+        if (!st.isFile()) return { ok: false, error: 'Not a file' }
+        if (st.size > maxBytes) {
+          const mb = (n: number) => (n / (1024 * 1024)).toFixed(1)
+          return {
+            ok: false,
+            error: `File is ${mb(st.size)} MB; the limit is ${mb(maxBytes)} MB`,
+          }
+        }
+      }
+      const bytes = await readFile(abs)
+      const ext = path.extname(abs).toLowerCase()
+      const mime =
+        ext === '.wav'
+          ? 'audio/wav'
+          : ext === '.flac'
+            ? 'audio/flac'
+            : ext === '.ogg'
+              ? 'audio/ogg'
+              : ext === '.m4a'
+                ? 'audio/mp4'
+                : 'audio/mpeg'
+      return {
+        ok: true,
+        file: {
+          base64: bytes.toString('base64'),
+          mime,
+          name: path.basename(abs),
+          path: abs,
+        },
+      }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
-  }
-})
+  },
+)
 
 ipcMain.handle(
   'voidcast:runware-proxy',

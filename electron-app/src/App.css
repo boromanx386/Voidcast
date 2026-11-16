@@ -1157,22 +1157,129 @@ html[data-win-chrome] .voidcast-header [role='button'] {
   @apply text-neon-cyan border-neon-cyan/30;
 }
 
-/* Compact chat audio (music URL + local TTS) — sits in one row with OPEN */
-.chat-audio-player {
-  display: block;
+/* Chat audio player (music, TTS, show_audio): play, waveform seek, time, mute */
+.chat-audio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
-  max-width: 18rem;
-  height: 28px;
-  margin: 0;
-  border-radius: 4px;
-  color-scheme: dark;
+  min-width: 0;
+  max-width: 30rem;
+  height: 34px;
+  padding: 0 0.5rem 0 3px;
+  border: 1px solid rgb(var(--color-neon-cyan) / 0.18);
+  border-radius: 5px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--color-neon-cyan) / 0.06),
+    rgb(var(--color-void-mid) / 0.6) 40%
+  );
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
-.chat-audio-player::-webkit-media-controls-panel {
-  background: rgb(var(--color-void-mid) / 0.95);
+.chat-audio.is-playing {
+  border-color: rgb(var(--color-neon-cyan) / 0.45);
+  box-shadow: 0 0 10px rgb(var(--color-neon-cyan) / 0.12);
 }
-.chat-audio-player::-webkit-media-controls-enclosure {
-  max-height: 28px;
+.chat-audio-play {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgb(var(--color-neon-cyan) / 0.5);
   border-radius: 4px;
+  background: rgb(var(--color-neon-cyan) / 0.1);
+  color: rgb(var(--color-neon-cyan));
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.chat-audio-play:hover:not(:disabled) {
+  background: rgb(var(--color-neon-cyan) / 0.2);
+  box-shadow: 0 0 8px rgb(var(--color-neon-cyan) / 0.35);
+}
+.chat-audio-play:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.chat-audio-play svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+.chat-audio-track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 4rem;
+  height: 22px;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: 2px;
+}
+.chat-audio-track:focus-visible {
+  outline: 1px solid rgb(var(--color-neon-cyan) / 0.6);
+  outline-offset: 2px;
+}
+.chat-audio-wave {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 100%;
+}
+.chat-audio-wave span {
+  flex: 1 1 0;
+  min-width: 1px;
+  border-radius: 1px;
+  background: rgb(var(--color-void-dim) / 0.45);
+  transition: background 0.1s;
+}
+.chat-audio-wave span.is-played {
+  background: rgb(var(--color-neon-cyan));
+}
+.chat-audio-track:hover .chat-audio-wave span:not(.is-played) {
+  background: rgb(var(--color-void-dim) / 0.7);
+}
+.chat-audio-bar {
+  position: absolute;
+  inset: 9px 0;
+  border-radius: 2px;
+  background: rgb(var(--color-void-dim) / 0.35);
+  overflow: hidden;
+}
+.chat-audio-bar span {
+  display: block;
+  height: 100%;
+  background: rgb(var(--color-neon-cyan));
+}
+.chat-audio-time {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--color-void-text));
+}
+.chat-audio-mute {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 2px;
+  color: rgb(var(--color-void-dim));
+  transition: color 0.15s;
+}
+.chat-audio-mute:hover,
+.chat-audio-mute[aria-pressed='true'] {
+  color: rgb(var(--color-neon-cyan));
+}
+.chat-audio-mute svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: currentColor;
+}
+.chat-audio-mute svg path:first-child {
+  stroke: none;
 }
 .tool-indicator.settings {
   @apply text-neon-yellow border-neon-yellow/30;

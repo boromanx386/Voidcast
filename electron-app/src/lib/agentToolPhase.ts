@@ -12,6 +12,8 @@ export type AgentToolUiPhase =
   /** Chat image recall for multimodal / vision (not Runware generation). */
   | 'vision'
   | 'music'
+  /** An existing audio file put in the chat (show_audio). */
+  | 'audio'
   | 'tts'
   | 'coding_list'
   | 'coding_read'
@@ -74,6 +76,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'vision'
     case 'generate_music_runware':
       return 'music'
+    case 'show_audio':
+      return 'audio'
     case 'generate_tts':
       return 'tts'
     case 'list_directory':

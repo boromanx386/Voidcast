@@ -44,7 +44,7 @@ interface VoidcastBridge {
     | { ok: false; text?: string; error?: string }
   >
 
-  readAudioFile: (payload: { path: string }) => Promise<
+  readAudioFile: (payload: { path: string; maxBytes?: number }) => Promise<
     | {
         ok: true
         file: { base64: string; mime: string; name: string; path: string }

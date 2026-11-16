@@ -526,9 +526,10 @@ export function applyAgentToolResult(
       })()
     }
   }
-  if (name === 'generate_music_runware' || name === 'generate_tts') {
+  if (name === 'generate_music_runware' || name === 'generate_tts' || name === 'show_audio') {
     const urls = name === 'generate_music_runware' ? extractRunwareAudioUrls(result) : []
-    const meta = parseRunwareAudioToolMeta(result)
+    // show_audio has no generation settings to show under the player.
+    const meta = name === 'show_audio' ? null : parseRunwareAudioToolMeta(result)
     if (meta) {
       setAssistantAudioMessageMeta((prev) => ({ ...prev, [asstId]: meta }))
     }
