@@ -78,3 +78,31 @@ describe('McpManager.statusFor', () => {
     expect(status.find((s) => s.id === 'gamma')).toMatchObject({ state: 'stopped', toolCount: 0 })
   })
 })
+
+describe('McpManager.onChange', () => {
+  test('fires when servers are stopped and stops after unsubscribe', async () => {
+    const mgr = new McpManager()
+    let calls = 0
+    const off = mgr.onChange(() => {
+      calls += 1
+    })
+    await mgr.stopAll()
+    expect(calls).toBe(1)
+    off()
+    await mgr.stopAll()
+    expect(calls).toBe(1)
+  })
+
+  test('a throwing listener does not stop the others', async () => {
+    const mgr = new McpManager()
+    let calls = 0
+    mgr.onChange(() => {
+      throw new Error('boom')
+    })
+    mgr.onChange(() => {
+      calls += 1
+    })
+    await mgr.stopAll()
+    expect(calls).toBe(1)
+  })
+})

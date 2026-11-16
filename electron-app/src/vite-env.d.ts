@@ -337,6 +337,8 @@ interface VoidcastBridge {
     projectPath: string | null
   }) => Promise<{ ok: true } | { ok: false; error?: string }>
 
+  /** Fired when an MCP server connects, fails or is closed. */
+  onMcpStatusChanged?: (callback: () => void) => () => void
   /** Fired (debounced) when files change under the watched coding project. */
   onCodingFsChange: (callback: () => void) => () => void
 

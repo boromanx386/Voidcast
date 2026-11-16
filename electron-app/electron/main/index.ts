@@ -134,6 +134,12 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null
+
+// Servers connect in the background (a turn's ensure, OAuth, reload), so passive
+// status readers are told when to look again instead of polling.
+mcpManager.onChange(() => {
+  if (win && !win.isDestroyed()) win.webContents.send('voidcast:mcp-status-changed')
+})
 let tray: Tray | null = null
 /** True when user chose Quit (vs close-to-tray). */
 let isQuitting = false

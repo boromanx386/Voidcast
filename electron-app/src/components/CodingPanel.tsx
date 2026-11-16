@@ -104,8 +104,6 @@ type Props = {
   onTrustProject?: (projectPath: string) => void
   /** Jump to Options → Tools (MCP servers) from the header status chip. */
   onOpenMcpOptions?: () => void
-  /** A chat turn is running; the MCP chip re-reads its state when this drops. */
-  chatBusy?: boolean
 }
 
 type PreviewMode = 'file' | 'diff' | 'image'
@@ -159,35 +157,40 @@ function sameCodingPath(a: string | null, b: string | null): boolean {
  *
  * Never passes `ensure`: the header must not spawn MCP servers (npx / uvx) just
  * because the coding panel is on screen. Main answers a passive read from this
- * folder's config files, so the server list is right before any turn has run.
- * Connections happen inside chat turns, so it re-reads when a turn ends (`busy`
- * drops) and when the window regains focus, instead of polling.
+ * folder's config files, so the server list is right before anything connects,
+ * and it sends `mcp-status-changed` whenever a server connects, fails or closes,
+ * so the chip follows a slow startup connect without polling.
  */
 function McpStatusChip({
   settings,
   projectPath,
-  busy,
   onOpen,
 }: {
   settings: AppSettings
   projectPath?: string
-  busy?: boolean
   onOpen?: () => void
 }) {
   const [servers, setServers] = useState<McpServerStatus[]>([])
-  const [focusTick, setFocusTick] = useState(0)
+  const [changeTick, setChangeTick] = useState(0)
   const enabledServers = settings.mcpServerEnabled
   const trustedProjectPaths = settings.mcpTrustedProjectPaths
 
   useEffect(() => {
-    const onFocus = () => setFocusTick((n) => n + 1)
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    const subscribe = window.voidcast?.onMcpStatusChanged
+    if (!subscribe) return
+    // Servers report one by one while connecting; one read per burst is enough.
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const unsubscribe = subscribe(() => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => setChangeTick((n) => n + 1), 150)
+    })
+    return () => {
+      if (timer) clearTimeout(timer)
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
-    // Mid-turn reads would only catch servers half-way through connecting.
-    if (busy) return
     if (!settings.mcpEnabled) {
       setServers([])
       return
@@ -203,7 +206,7 @@ function McpStatusChip({
     return () => {
       cancelled = true
     }
-  }, [settings.mcpEnabled, projectPath, enabledServers, trustedProjectPaths, busy, focusTick])
+  }, [settings.mcpEnabled, projectPath, enabledServers, trustedProjectPaths, changeTick])
 
   const active = servers.filter((s) => s.state !== 'disabled')
   if (!settings.mcpEnabled || active.length === 0) return null
@@ -237,18 +240,18 @@ function McpStatusChip({
       aria-label={`MCP servers: ${running} of ${active.length} running${
         named ? `, ${named.id} ${named.state}` : ''
       }`}
-      className="flex shrink-0 items-center gap-1.5 rounded border border-void-muted/50 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-void-dim/70 transition-colors hover:border-void-dim hover:text-void-text disabled:cursor-default disabled:hover:border-void-muted/50 disabled:hover:text-void-dim/70"
+      className="flex shrink-0 items-center gap-1.5 rounded border border-void-muted/50 px-2 py-1 font-mono text-[11px] uppercase tracking-wide text-void-dim/70 transition-colors hover:border-void-dim hover:text-void-text disabled:cursor-default disabled:hover:border-void-muted/50 disabled:hover:text-void-dim/70"
     >
       <span>MCP</span>
       {named ? (
         // Server ids are case-sensitive config keys, so they keep their own case.
-        <span className="max-w-[8rem] truncate normal-case tracking-normal">{named.id}</span>
+        <span className="max-w-[10rem] truncate normal-case tracking-normal">{named.id}</span>
       ) : (
         <span className="tabular-nums">
           {running}/{active.length}
         </span>
       )}
-      <span className={`h-1.5 w-1.5 rounded-full ${tone}`} aria-hidden />
+      <span className={`h-2 w-2 rounded-full ${tone}`} aria-hidden />
     </button>
   )
 }
@@ -270,7 +273,6 @@ export function CodingPanel({
   onReferencePath,
   onTrustProject,
   onOpenMcpOptions,
-  chatBusy,
 }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [previewContent, setPreviewContent] = useState('')
@@ -1295,12 +1297,7 @@ export function CodingPanel({
           })}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <McpStatusChip
-            settings={settings}
-            projectPath={projectPath}
-            busy={chatBusy}
-            onOpen={onOpenMcpOptions}
-          />
+          <McpStatusChip settings={settings} projectPath={projectPath} onOpen={onOpenMcpOptions} />
           {!projectPath ? (
             <button
               type="button"

@@ -349,6 +349,11 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:coding-watch-project', payload) as Promise<
       { ok: true } | { ok: false; error?: string }
     >,
+  onMcpStatusChanged: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('voidcast:mcp-status-changed', listener)
+    return () => ipcRenderer.removeListener('voidcast:mcp-status-changed', listener)
+  },
   onCodingFsChange: (callback: () => void) => {
     const listener = () => callback()
     ipcRenderer.on('voidcast:coding-fs-change', listener)

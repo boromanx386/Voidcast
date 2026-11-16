@@ -769,6 +769,27 @@ export class McpManager {
   /** In-flight tool calls keyed by owner (chat session / runtime key). */
   private activeCallsByOwner = new Map<string, Set<AbortController>>()
   private pendingOAuth = new Map<string, PendingOAuthSession>()
+  private changeListeners = new Set<() => void>()
+
+  /**
+   * Called whenever a server connects, fails or is closed. Lets passive readers
+   * (the coding panel chip) refresh exactly when something changed, instead of
+   * polling or triggering a connect themselves.
+   */
+  onChange(listener: () => void): () => void {
+    this.changeListeners.add(listener)
+    return () => this.changeListeners.delete(listener)
+  }
+
+  private emitChange(): void {
+    for (const listener of this.changeListeners) {
+      try {
+        listener()
+      } catch {
+        /* a broken listener must not break a connect */
+      }
+    }
+  }
 
   constructor() {
     mcpOAuthEvents.on('authorization_code', ({ serverId, code }) => {
@@ -1013,6 +1034,7 @@ export class McpManager {
     this.lastProjectPath = ''
     this.lastServerConfigs = {}
     this.lastConnectionOpts = {}
+    this.emitChange()
     await Promise.all(entries.map(([, entry]) => safeClose(entry.client, entry.transport)))
   }
 
@@ -1023,6 +1045,7 @@ export class McpManager {
     if (entry) {
       await safeClose(entry.client, entry.transport)
       this.servers.delete(serverId)
+      this.emitChange()
     }
   }
 
@@ -1146,6 +1169,7 @@ export class McpManager {
     for (const [id] of toCloseEntries) {
       this.servers.delete(id)
     }
+    if (toCloseEntries.length > 0) this.emitChange()
     await Promise.all(toCloseEntries.map(([, entry]) => safeClose(entry.client, entry.transport)))
 
     if (plan.toStart.length === 0) return
@@ -1181,6 +1205,7 @@ export class McpManager {
       oauthEnabled: extras?.oauthEnabled,
       authState: extras?.authState,
     })
+    this.emitChange()
   }
 
   private async startServer(
@@ -1223,6 +1248,7 @@ export class McpManager {
       oauthEnabled: extras?.oauthEnabled,
       authState: extras?.authState,
     })
+    this.emitChange()
   }
 
   private async startStdioServer(
