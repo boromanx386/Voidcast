@@ -50,7 +50,7 @@ describe('formatTurnToolRecord', () => {
 
   it('marks a turn that called no tools', () => {
     expect(formatTurnToolRecord({ turnTools: [] })).toBe(
-      '<tool_record>No tools were called in this turn.</tool_record>',
+      "<tool_record>Previous assistant turn, from the app's tool log: No tools were called in this turn.</tool_record>",
     )
   })
 
@@ -62,7 +62,9 @@ describe('formatTurnToolRecord', () => {
           { name: 'generate_image', calls: 2, failed: 1 },
         ],
       }),
-    ).toBe('<tool_record>Tools called: web_search, generate_image ×2 (1 failed).</tool_record>')
+    ).toBe(
+      "<tool_record>Previous assistant turn, from the app's tool log: Tools called: web_search, generate_image ×2 (1 failed).</tool_record>",
+    )
   })
 
   it('names the sources next to the tool', () => {
@@ -74,7 +76,7 @@ describe('formatTurnToolRecord', () => {
         ],
       }),
     ).toBe(
-      '<tool_record>Tools called: web_search ×2 ["electron updater", "appimage"], scrape_url ["https://a.test/y"].</tool_record>',
+      `<tool_record>Previous assistant turn, from the app's tool log: Tools called: web_search ×2 ["electron updater", "appimage"], scrape_url ["https://a.test/y"].</tool_record>`,
     )
   })
 
@@ -93,7 +95,7 @@ describe('formatTurnToolRecord', () => {
         },
       }),
     ).toBe(
-      '<tool_record>Tools called: edit_code ×2. Project: files changed: src/a.ts; commands run: npm test.</tool_record>',
+      "<tool_record>Previous assistant turn, from the app's tool log: Tools called: edit_code ×2. Project: files changed: src/a.ts; commands run: npm test.</tool_record>",
     )
   })
 
@@ -103,12 +105,14 @@ describe('formatTurnToolRecord', () => {
         turnTools: [{ name: 'web_search', calls: 1, failed: 0 }],
         codingTurnEvidence: noRepo,
       }),
-    ).toBe('<tool_record>Tools called: web_search. Nothing in the project changed.</tool_record>')
+    ).toBe(
+      "<tool_record>Previous assistant turn, from the app's tool log: Tools called: web_search. Nothing in the project changed.</tool_record>",
+    )
   })
 
   it('older coding messages only claim what the coding log knows', () => {
     expect(formatTurnToolRecord({ codingTurnEvidence: noRepo })).toBe(
-      '<tool_record>No coding tools were called; nothing in the project changed.</tool_record>',
+      "<tool_record>Previous assistant turn, from the app's tool log: No coding tools were called; nothing in the project changed.</tool_record>",
     )
   })
 })

@@ -60,10 +60,10 @@ export function recordTurnToolUse(
 type CodingEvidence = NonNullable<UiMessage['codingTurnEvidence']>
 
 /**
- * App-written tool log appended to a prior assistant turn in the model history.
- * History otherwise carries only the reply text, so after a few turns the model
- * sees "user asks → assistant says done" with no tool calls and copies that.
- * Returns '' when the message has no record (older messages, no tools offered).
+ * App-written tool log of an assistant turn; the history puts it at the start of the
+ * following user message. History otherwise carries only the reply text, so after a
+ * few turns the model sees "user asks → assistant says done" with no tool calls and
+ * copies that. Returns '' when the message has no record (older messages, no tools offered).
  */
 export function formatTurnToolRecord(
   m: Pick<UiMessage, 'turnTools' | 'codingTurnEvidence'>,
@@ -81,7 +81,7 @@ export function formatTurnToolRecord(
     )
   }
   if (ev) parts.push(formatCodingPart(ev, Boolean(tools)))
-  return `<tool_record>${parts.filter(Boolean).join(' ')}</tool_record>`
+  return `<tool_record>Previous assistant turn, from the app's tool log: ${parts.filter(Boolean).join(' ')}</tool_record>`
 }
 
 function formatToolUse(t: TurnToolUse): string {

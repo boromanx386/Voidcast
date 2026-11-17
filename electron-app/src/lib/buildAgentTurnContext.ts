@@ -166,8 +166,18 @@ export async function buildAgentTurnContext(
     hiddenContextSummary,
     contextCompressedThroughIndex,
   )
+  // The tool record of an assistant turn opens the NEXT user message. Appended to the
+  // assistant reply itself, models learned it as part of their own output and wrote
+  // fake records instead of calling tools.
+  let pendingToolRecord = ''
+  const takeToolRecord = (): string => {
+    const r = pendingToolRecord
+    pendingToolRecord = ''
+    return r
+  }
   const priorHistory: HistoryTurn[] = historyForApi.reduce<HistoryTurn[]>((acc, x) => {
     if (x.role === 'user') {
+      const toolRecord = takeToolRecord()
       const fileHint = x.fileAttachments?.length
         ? [
             'Attached files in this user turn:',
@@ -186,15 +196,16 @@ export async function buildAgentTurnContext(
           ].join('\n')
         : ''
       const imageRecallHint = buildHistoricalImageRecallHint(x, toolImageCatalog, imageVisionCache)
+      const body =
+        [x.content, fileHint, imageRecallHint].filter((v) => v.trim().length > 0).join('\n\n') ||
+        (x.images?.length
+          ? 'Attached image(s) were provided in this message.'
+          : x.fileAttachments?.length
+            ? 'Attached file(s) were provided in this message.'
+            : '')
       const t: HistoryTurn = {
         role: 'user',
-        content:
-          [x.content, fileHint, imageRecallHint].filter((v) => v.trim().length > 0).join('\n\n') ||
-          (x.images?.length
-            ? 'Attached image(s) were provided in this message.'
-            : x.fileAttachments?.length
-              ? 'Attached file(s) were provided in this message.'
-              : ''),
+        content: [toolRecord, body].filter((v) => v.trim().length > 0).join('\n\n'),
       }
       acc.push(t)
       return acc
@@ -202,15 +213,15 @@ export async function buildAgentTurnContext(
     // Plan replies keep an empty bubble (the plan lives in the card + file), so the
     // model still needs a compact copy to revise against.
     const planNote = x.plan ? formatPlanHistoryNote(x.plan) : ''
-    const toolRecord = formatTurnToolRecord(x)
-    if (!x.content.trim() && !planNote && !toolRecord) return acc
+    pendingToolRecord = formatTurnToolRecord(x)
+    if (!x.content.trim() && !planNote) return acc
     const imageVisionHint = buildAssistantImageVisionHint(x, imageVisionCache)
     // Reasoning from earlier turns is not replayed: it costs several times the reply
     // and carries stale conclusions ("the user only wants a confirmation") into new
     // requests. Reasoning inside the current turn's tool loop is kept by the loop.
     acc.push({
       role: 'assistant',
-      content: [x.content, planNote, imageVisionHint, toolRecord]
+      content: [x.content, planNote, imageVisionHint]
         .filter((v) => v.trim().length > 0)
         .join('\n\n'),
     })
@@ -378,7 +389,11 @@ export async function buildAgentTurnContext(
           .slice(0, 1200)
       : undefined
 
-  const history = buildOllamaMessages(priorHistory, ollamaUserText, {
+  const lastToolRecord = takeToolRecord()
+  const userTextWithRecord = lastToolRecord
+    ? `${lastToolRecord}\n\n${ollamaUserText}`
+    : ollamaUserText
+  const history = buildOllamaMessages(priorHistory, userTextWithRecord, {
     systemPrompt: settings.llmSystemPrompt,
     projectInstructionsHint: projectInstructionsHint || undefined,
     planModeSystemHint: planModeSystemHint || undefined,
