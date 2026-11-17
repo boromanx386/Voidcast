@@ -106,6 +106,8 @@ export type TurnToolUse = {
   calls: number
   /** Calls whose result started with "Error:". */
   failed: number
+  /** What successful calls read or searched (query, URL, MCP tool), for web-type tools only. */
+  sources?: string[]
 }
 
 export type UiMessage = {

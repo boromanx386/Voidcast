@@ -19,6 +19,28 @@ describe('recordTurnToolUse', () => {
       { name: 'edit_code', calls: 1, failed: 1 },
     ])
   })
+
+  it('keeps what web-type calls read, skipping failures and repeats', () => {
+    let list = recordTurnToolUse([], 'web_search', 'results', { query: 'electron  updater' })
+    list = recordTurnToolUse(list, 'scrape_url', 'Error: 404', { url: 'https://a.test/x' })
+    list = recordTurnToolUse(list, 'scrape_url', 'page', { url: 'https://a.test/y' })
+    list = recordTurnToolUse(list, 'web_search', 'results', { query: 'electron updater' })
+    list = recordTurnToolUse(list, 'read_file', 'ok', { path: 'src/a.ts' })
+    expect(list).toEqual([
+      { name: 'web_search', calls: 2, failed: 0, sources: ['electron updater'] },
+      { name: 'scrape_url', calls: 2, failed: 1, sources: ['https://a.test/y'] },
+      { name: 'read_file', calls: 1, failed: 0 },
+    ])
+  })
+
+  it('caps sources per tool and their length', () => {
+    let list: ReturnType<typeof recordTurnToolUse> = []
+    for (let i = 0; i < 8; i++)
+      list = recordTurnToolUse(list, 'web_search', 'r', { query: `q${i}` })
+    list = recordTurnToolUse(list, 'scrape_url', 'r', { url: 'x'.repeat(300) })
+    expect(list[0].sources).toHaveLength(5)
+    expect(list[1].sources?.[0]).toHaveLength(120)
+  })
 })
 
 describe('formatTurnToolRecord', () => {
@@ -41,6 +63,19 @@ describe('formatTurnToolRecord', () => {
         ],
       }),
     ).toBe('<tool_record>Tools called: web_search, generate_image ×2 (1 failed).</tool_record>')
+  })
+
+  it('names the sources next to the tool', () => {
+    expect(
+      formatTurnToolRecord({
+        turnTools: [
+          { name: 'web_search', calls: 2, failed: 0, sources: ['electron updater', 'appimage'] },
+          { name: 'scrape_url', calls: 1, failed: 0, sources: ['https://a.test/y'] },
+        ],
+      }),
+    ).toBe(
+      '<tool_record>Tools called: web_search ×2 ["electron updater", "appimage"], scrape_url ["https://a.test/y"].</tool_record>',
+    )
   })
 
   it('adds project changes for coding turns', () => {

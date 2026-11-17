@@ -1224,7 +1224,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   payload.result,
                 )
               }
-              turnTools = recordTurnToolUse(turnTools, payload.name, payload.result)
+              turnTools = recordTurnToolUse(turnTools, payload.name, payload.result, payload.args)
               turnLogMutable = recordCodingToolInTurnLog(
                 turnLogMutable,
                 payload.name,
