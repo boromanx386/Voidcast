@@ -81,6 +81,8 @@ describe('restoredHistoryNeedsCompression', () => {
       outputTokens: 0,
       maxTokens: 1_000,
       ratio: 0.8,
+      historyPromptTokens: 800,
+      historyRatio: 0.8,
       shouldWarn: true,
       shouldCompress: false,
     }

@@ -152,6 +152,12 @@ export type TurnUsageTotals = {
   cachedPromptTokens: number
   /** Rounds whose response carried no usage; when > 0 the sums are a lower bound. */
   unreportedRounds: number
+  /**
+   * Prompt tokens of the turn's first round: system, history and the new message,
+   * before any tool result. This is what the next turn starts from, unlike the
+   * last round, whose tool results do not carry over.
+   */
+  firstRoundPromptTokens?: number
 }
 
 /** Usage counters from Ollama chat response chunks/final object. */

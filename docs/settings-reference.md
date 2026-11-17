@@ -44,7 +44,7 @@ These providers store their API keys/URLs here (keys are local to this device):
 | `llmProvider`              | `LlmProvider`   | Active backend: `'ollama' \| 'openrouter' \| 'nvidia' \| 'deepseek' \| 'openai' \| 'opencode-go'`.                                      |
 | `llmTemperature`           | `number`        | Sampling temperature passed to the model (higher = more random).                                                                        |
 | `llmNumCtx`                | `number`        | Context window size in tokens (`options.num_ctx` for Ollama).                                                                           |
-| `contextAutoCompress`      | `boolean`       | Auto-run context compression when prompt usage reaches ~90% of `llmNumCtx`.                                                             |
+| `contextAutoCompress`      | `boolean`       | Auto-run context compression when the next turn's prompt reaches ~90% of the context limit; the newest messages stay verbatim.                                                             |
 | `llmThinkLevel`            | `LlmThinkLevel` | `think` level. Thinking models default to on unless `think: false` is sent; OpenRouter/NVIDIA reasoning shows in the UI when not `off`. |
 | `llmSystemPrompt`          | `string`        | System message prepended to each request.                                                                                               |
 | `longMemoryDefaultEnabled` | `boolean`       | Whether new chats include long-term memory retrieval by default.                                                                        |

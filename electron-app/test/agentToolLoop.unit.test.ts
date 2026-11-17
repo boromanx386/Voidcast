@@ -94,6 +94,7 @@ describe('runSharedToolLoop turn usage', () => {
       completionTokens: 70,
       cachedPromptTokens: 1000,
       unreportedRounds: 0,
+      firstRoundPromptTokens: 1000,
     })
   })
 

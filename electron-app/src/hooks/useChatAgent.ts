@@ -88,8 +88,11 @@ import { createWorkerSteerQueue, pushWorkerSteer } from '@/lib/workerSteer'
 import { buildSteerCourseCorrectionText, toConversationTurns } from '@/lib/chatHints'
 import { resolveGeneratedImageOutputDir } from '@/lib/saveImage'
 import {
+  COMPRESSION_KEEP_MAX_RATIO,
   contextWindowAfterEdit,
   historyBeforeCurrentUserTurn,
+  pickCompressionKeepFrom,
+  resolveContextCompressedThroughIndex,
   sliceUiHistoryForContext,
   type ContextWindow,
 } from '@/lib/chatMessages'
@@ -512,11 +515,24 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
   const summarizeContextNow = useCallback(async () => {
     if (busy || contextCompressBusy) return
-    const turns = toConversationTurns(messages)
-    if (turns.length === 0) return
-    const previousTurns = toConversationTurns(
-      sliceUiHistoryForContext(messages, hiddenContextSummary, contextCompressedThroughIndex),
+    const limit = resolveContextLimit(settings)
+    // Only messages the current summary does not cover yet are summarized, and the
+    // newest ones stay verbatim: re-summarizing old turns drifts, and the latest
+    // exchange is what the next turn needs word for word.
+    const from = resolveContextCompressedThroughIndex(
+      hiddenContextSummary,
+      contextCompressedThroughIndex,
+      messages.length,
     )
+    const throughIndex = pickCompressionKeepFrom(
+      messages,
+      from,
+      limit.maxTokens * COMPRESSION_KEEP_MAX_RATIO,
+    )
+    const turns = toConversationTurns(messages.slice(from, throughIndex))
+    if (turns.length === 0) return
+    const keptTurns = toConversationTurns(messages.slice(throughIndex))
+    const previousTurns = toConversationTurns(messages.slice(from))
 
     setContextCompressBusy(true)
     setError(null)
@@ -528,7 +544,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       )
       const nextSummary = compressed.trim()
       if (!nextSummary) return
-      const throughIndex = messages.length
       // The compression await can span a chat switch, and these two are window-level
       // mirrors — writing them after switching would slice the *viewed* chat's history
       // with this chat's summary. The owning session is written by onContextCompressed
@@ -546,7 +561,8 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         previousTurns,
         hiddenContextSummary,
         nextSummary,
-        resolveContextLimit(settings),
+        keptTurns,
+        limit,
       )
       if (estimatedUsage) setContextUsageInfo(estimatedUsage)
       onContextCompressed?.({
@@ -582,7 +598,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
   useEffect(() => {
     if (!contextUsageInfo) return
-    if (contextUsageInfo.ratio < CONTEXT_COMPRESS_RATIO_RESET) {
+    if (contextUsageInfo.historyRatio < CONTEXT_COMPRESS_RATIO_RESET) {
       // Only clear when set — a no-op write + emit freezes React (infinite loop).
       if (slot.contextOverflowLatch) {
         sessionAgentStore.update(runtimeKey, { contextOverflowLatch: false })

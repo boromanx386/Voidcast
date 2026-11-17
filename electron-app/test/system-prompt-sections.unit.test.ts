@@ -41,10 +41,23 @@ describe('system prompt sections', () => {
     expect(last?.role).toBe('user')
     const text = String(last?.content)
     expect(text.startsWith('<runtime_context>\n')).toBe(true)
-    expect(text).toContain('<conversation_summary>')
+    expect(text).not.toContain('<conversation_summary>')
     expect(text).toContain('<long_term_memory>')
     expect(text.endsWith('</runtime_context>\n\nnow')).toBe(true)
     expect(String(msgs[0]?.content)).not.toContain('clock')
+  })
+
+  test('the compression summary closes the system prompt, ahead of the history', () => {
+    const msgs = buildOllamaMessages([{ role: 'user', content: 'earlier' }], 'now', {
+      systemPrompt: 'p',
+      toolsSystemHint: 'tool rules',
+      hiddenContextSummary: 'we chose X',
+    })
+    const sys = String(msgs[0]?.content)
+    expect(sys.indexOf('<conversation_summary>')).toBeGreaterThan(sys.indexOf('<tools_policy>'))
+    expect(sys.trimEnd().endsWith('</conversation_summary>')).toBe(true)
+    expect(sys).toContain('we chose X')
+    expect(msgs[1]).toEqual({ role: 'user', content: 'earlier' })
   })
 
   test('project instructions are injected as written', () => {

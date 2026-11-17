@@ -32,8 +32,8 @@ export function ContextWarningBanner({ app }: Props) {
             <div className="text-sm font-mono text-neon-yellow">
               <span className="opacity-70">CONTEXT_WARNING:</span> CTX_USAGE{' '}
               {contextUsageInfo.estimated ? '~' : ''}
-              {Math.round(contextUsageInfo.ratio * 100)}% ({contextUsageInfo.promptTokens}/
-              {contextUsageInfo.maxTokens})
+              {Math.round(contextUsageInfo.historyRatio * 100)}% (
+              {contextUsageInfo.historyPromptTokens}/{contextUsageInfo.maxTokens})
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -55,8 +55,8 @@ export function ContextWarningBanner({ app }: Props) {
           </div>
           <div className="context-bar mt-2">
             <div
-              className={`context-fill ${contextUsageInfo.ratio > 0.9 ? 'danger' : contextUsageInfo.ratio > 0.7 ? 'warning' : ''}`}
-              style={{ width: `${Math.min(100, contextUsageInfo.ratio * 100)}%` }}
+              className={`context-fill ${contextUsageInfo.historyRatio > 0.9 ? 'danger' : contextUsageInfo.historyRatio > 0.7 ? 'warning' : ''}`}
+              style={{ width: `${Math.min(100, contextUsageInfo.historyRatio * 100)}%` }}
             />
           </div>
         </div>
@@ -68,7 +68,7 @@ export function ContextWarningBanner({ app }: Props) {
             <div className="text-sm font-mono text-neon-cyan">
               <span className="opacity-70">CONTEXT:</span> CTX{' '}
               {contextUsageInfo.estimated ? '~' : ''}
-              {Math.round(contextUsageInfo.ratio * 100)}%
+              {Math.round(contextUsageInfo.historyRatio * 100)}%
               {contextCompressBusy ? ' · auto-compressing…' : ' · auto-compress when idle'}
             </div>
           </div>

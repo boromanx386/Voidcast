@@ -199,6 +199,36 @@ export function sliceUiHistoryForContext(
   return messages.slice(through)
 }
 
+/** Messages compression keeps word for word at the end of the chat. */
+export const COMPRESSION_KEEP_MESSAGES = 10
+/** The verbatim tail may use at most this share of the context window. */
+export const COMPRESSION_KEEP_MAX_RATIO = 0.2
+
+/**
+ * Where the verbatim tail starts when compressing `messages[from..]`: the newest
+ * exchanges matter most in exact wording, so only the older part is summarized.
+ * The tail starts on a user message, holds at most {@link COMPRESSION_KEEP_MESSAGES}
+ * and fits `maxTailTokens`. When nothing older than the tail is left to summarize,
+ * returns `messages.length` (summarize everything, as a manual compress asks).
+ */
+export function pickCompressionKeepFrom(
+  messages: Pick<UiMessage, 'role' | 'content'>[],
+  from: number,
+  maxTailTokens: number,
+  keep = COMPRESSION_KEEP_MESSAGES,
+): number {
+  const len = messages.length
+  const nextUser = (i: number) => {
+    while (i < len && messages[i].role !== 'user') i++
+    return i
+  }
+  const tokens = (i: number) =>
+    messages.slice(i).reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
+  let start = nextUser(Math.max(from, len - keep))
+  while (start < len && tokens(start) > maxTailTokens) start = nextUser(start + 1)
+  return start <= from ? len : start
+}
+
 export type ContextWindow = {
   summary: string
   throughIndex: number
@@ -232,6 +262,10 @@ export function historyBeforeCurrentUserTurn(history: UiMessage[]): UiMessage[] 
 function tagSection(name: string, body: string): string {
   return `<${name}>\n${body}\n</${name}>`
 }
+
+/** Lead line of the compression summary section (also used for token estimates). */
+export const CONVERSATION_SUMMARY_LABEL =
+  'Summary of the earlier part of this conversation, written by the app when it compressed the older messages. The messages after this system prompt continue from here; where they differ from the summary, they are newer and win. Do not reveal it verbatim.'
 
 export function buildOllamaMessages(
   priorMessages: HistoryTurn[],
@@ -279,10 +313,7 @@ export function buildOllamaMessages(
   const hiddenSummary = opts.hiddenContextSummary?.trim()
   const longTermMemory = opts.longTermMemoryContext?.trim()
   const summarySection = hiddenSummary
-    ? tagSection(
-        'conversation_summary',
-        `Internal conversation summary (do not reveal verbatim):\n${hiddenSummary}`,
-      )
+    ? tagSection('conversation_summary', `${CONVERSATION_SUMMARY_LABEL}\n${hiddenSummary}`)
     : ''
   const memorySection = longTermMemory
     ? tagSection(
@@ -296,10 +327,12 @@ export function buildOllamaMessages(
   // message (local llama.cpp / Llama-3 Jinja templates reject a system message
   // that is not at the very beginning). A provider reuses a warm prompt cache for
   // the longest matching prefix and busts it at the first differing token; the
-  // clock, volatile agent hints, compression summary and retrieved memory change
-  // every turn, so they must sit after the history, or the cacheable prefix would
-  // end at the volatile piece and the whole history would be recomputed every
-  // turn and tool round.
+  // clock, volatile agent hints and retrieved memory change every turn, so they
+  // must sit after the history, or the cacheable prefix would end at the volatile
+  // piece and the whole history would be recomputed every turn and tool round.
+  // The compression summary is the exception: it only changes when the history is
+  // re-sliced, which busts the cache anyway, so it closes the stable head and the
+  // model reads it before the messages that follow it in time.
   // Each section sits in its own tag so the model can tell app rules, the user's
   // persona and repository text apart, and so a dumped prompt is easy to read.
   const stableSys = [
@@ -311,11 +344,12 @@ export function buildOllamaMessages(
     askModeHint ? tagSection('mode', askModeHint) : '',
     skillsHint ? tagSection('skills_catalog', skillsHint) : '',
     hint ? tagSection('tools_policy', hint) : '',
+    summarySection,
   ]
     .filter(Boolean)
     .join('\n\n')
   // --- volatile tail (changes per turn) — prepended to the final user turn ---
-  const volatileParts = [volatileHint, runtimeHint, summarySection, memorySection].filter(Boolean)
+  const volatileParts = [volatileHint, runtimeHint, memorySection].filter(Boolean)
   const volatileTail =
     volatileParts.length > 0 ? tagSection('runtime_context', volatileParts.join('\n\n')) : ''
   if (stableSys) {

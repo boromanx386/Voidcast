@@ -1,3 +1,4 @@
+import { CONVERSATION_SUMMARY_LABEL } from '@/lib/chatMessages'
 import type { OllamaChatUsage, TurnUsageTotals } from '@/lib/ollama'
 import type { ContextLimitSource, ResolvedContextLimit } from '@/lib/contextLimit'
 
@@ -9,7 +10,16 @@ export type ContextUsageInfo = {
   maxTokens: number
   /** Prompt-context utilization ratio (promptTokens / maxTokens). */
   ratio: number
+  /**
+   * Prompt tokens the next turn starts from (the turn's first round: system,
+   * history, new message). The last round also holds this turn's tool results,
+   * which do not carry over, so compression decides on this number.
+   */
+  historyPromptTokens: number
+  historyRatio: number
+  /** From historyRatio. */
   shouldWarn: boolean
+  /** From historyRatio. */
   shouldCompress: boolean
   /** How maxTokens was chosen (model-aware for cloud providers). */
   limitSource?: ContextLimitSource
@@ -31,7 +41,7 @@ export const CONTEXT_COMPRESS_RATIO = 0.9
 export const CONTEXT_COMPRESS_RATIO_RESET = 0.85
 
 const APPROX_CHARS_PER_TOKEN = 4
-const COMPRESSED_SUMMARY_LABEL = 'Internal conversation summary (do not reveal verbatim):'
+const COMPRESSED_SUMMARY_LABEL = CONVERSATION_SUMMARY_LABEL
 
 function resolveMaxTokens(limit: ResolvedContextLimit | number | undefined): number | undefined {
   const maxTokens =
@@ -80,7 +90,8 @@ export function restoredHistoryNeedsCompression(
   const fixedOverhead = previousUsage
     ? Math.max(
         0,
-        previousUsage.promptTokens - approximateConversationTokens(previousTurns, existingSummary),
+        previousUsage.historyPromptTokens -
+          approximateConversationTokens(previousTurns, existingSummary),
       )
     : 0
   return (
@@ -93,14 +104,15 @@ export function restoredHistoryNeedsCompression(
  * Estimate the prompt size that will be used after compression, without making
  * another provider request. The previous real prompt usage supplies the
  * provider/system/tool overhead; only the conversation portion is replaced by
- * the new summary. The result must be shown as approximate until the next
- * real model response reports provider token usage.
+ * the new summary plus the turns kept verbatim. The result must be shown as
+ * approximate until the next real model response reports provider token usage.
  */
 export function estimateContextUsageAfterCompression(
   previousUsage: ContextUsageInfo | null,
   previousTurns: ContextTurnForEstimate[],
   existingSummary: string | undefined,
   nextSummary: string,
+  keptTurns: ContextTurnForEstimate[],
   limit: ResolvedContextLimit | number | undefined,
 ): ContextUsageInfo | null {
   const maxTokens = resolveMaxTokens(limit)
@@ -109,10 +121,13 @@ export function estimateContextUsageAfterCompression(
 
   const fixedOverhead = Math.max(
     0,
-    previousUsage.promptTokens - approximateConversationTokens(previousTurns, existingSummary),
+    previousUsage.historyPromptTokens -
+      approximateConversationTokens(previousTurns, existingSummary),
   )
-  const nextSummaryTokens = approximateTokenCount(`${COMPRESSED_SUMMARY_LABEL}\n${summary}`)
-  const promptTokens = Math.max(1, fixedOverhead + nextSummaryTokens)
+  const promptTokens = Math.max(
+    1,
+    fixedOverhead + approximateConversationTokens(keptTurns, summary),
+  )
   const ratio = promptTokens / maxTokens
 
   return {
@@ -120,6 +135,8 @@ export function estimateContextUsageAfterCompression(
     outputTokens: 0,
     maxTokens,
     ratio,
+    historyPromptTokens: promptTokens,
+    historyRatio: ratio,
     shouldWarn: ratio >= CONTEXT_WARN_RATIO,
     shouldCompress: ratio >= CONTEXT_COMPRESS_RATIO,
     limitSource: typeof limit === 'object' ? limit.source : undefined,
@@ -146,6 +163,10 @@ export function estimateContextUsage(
       ? Math.min(prompt, Math.max(0, Math.round(usage.cached_prompt_tokens)))
       : undefined
   const ratio = prompt / maxTokens
+  // Single-round turns report no separate first round: the prompt is it.
+  const firstRound = usage.turnTotals?.firstRoundPromptTokens
+  const historyPrompt = firstRound && firstRound > 0 ? Math.min(prompt, firstRound) : prompt
+  const historyRatio = historyPrompt / maxTokens
   return {
     promptTokens: prompt,
     outputTokens: evalCount,
@@ -154,8 +175,10 @@ export function estimateContextUsage(
     ...(usage.turnTotals ? { turnTotals: usage.turnTotals } : {}),
     maxTokens,
     ratio,
-    shouldWarn: ratio >= CONTEXT_WARN_RATIO,
-    shouldCompress: ratio >= CONTEXT_COMPRESS_RATIO,
+    historyPromptTokens: historyPrompt,
+    historyRatio,
+    shouldWarn: historyRatio >= CONTEXT_WARN_RATIO,
+    shouldCompress: historyRatio >= CONTEXT_COMPRESS_RATIO,
     limitSource: typeof limit === 'object' ? limit.source : undefined,
     modelId: typeof limit === 'object' ? limit.modelId : undefined,
   }

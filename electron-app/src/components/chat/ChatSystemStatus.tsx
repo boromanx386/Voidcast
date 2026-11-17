@@ -251,6 +251,16 @@ export function ChatSystemStatus({ app }: Props) {
                     <span className="ml-1 text-neon-yellow/80">(estimated)</span>
                   ) : null}
                 </div>
+                {contextUsageInfo.historyPromptTokens < contextUsageInfo.promptTokens ? (
+                  <div title="What the next turn starts from: this turn's tool results do not carry over. Auto-compress goes by this number.">
+                    <span className="text-void-dim/85">Next turn </span>
+                    {contextUsageInfo.estimated ? '~' : ''}
+                    <span className="text-void-text">{contextUsageInfo.historyPromptTokens}</span>
+                    <span className="ml-1 text-void-dim/85">
+                      ({Math.round(contextUsageInfo.historyRatio * 100)}%)
+                    </span>
+                  </div>
+                ) : null}
                 <div>
                   <span className="text-void-dim/85">Output </span>
                   <span>{contextUsageInfo.estimated ? '—' : contextUsageInfo.outputTokens}</span>

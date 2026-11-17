@@ -293,6 +293,9 @@ export async function runSharedToolLoop<
       return
     }
     lastUsage = usage
+    if (turnTotals.rounds === 1 && usage.prompt_eval_count) {
+      turnTotals.firstRoundPromptTokens = usage.prompt_eval_count
+    }
     turnTotals.promptTokens += usage.prompt_eval_count ?? 0
     turnTotals.completionTokens += usage.eval_count ?? 0
     turnTotals.cachedPromptTokens += usage.cached_prompt_tokens ?? 0

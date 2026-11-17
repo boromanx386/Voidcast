@@ -135,11 +135,13 @@ Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 
 ## Context / Compression
 
-- **Footer CTX popup** (`ChatSystemStatus.tsx`): click the CTX meter for auto-compress toggle (`contextAutoCompress` at ~90%) and **COMPRESS NOW** (`summarizeContextNow`) anytime — useful on 1M-ctx models when you want to shrink early. Disabled while the agent is busy or a compress is already running.
-- **Warning banner** (`ContextWarningBanner.tsx`): shows `CTX_USAGE %` when `shouldWarn`, `contextAutoCompress` off, not dismissed — COMPRESS / IGNORE.
-- Auto-compress near 90% of the model context limit stores `hiddenContextSummary` (never rendered) + `contextCompressedThroughIndex`.
+- **Footer CTX popup** (`ChatSystemStatus.tsx`): click the CTX meter for auto-compress toggle (`contextAutoCompress` at ~90%) and **COMPRESS NOW** (`summarizeContextNow`) anytime — useful on 1M-ctx models when you want to shrink early. Disabled while the agent is busy or a compress is already running. The meter shows the last model round of the turn, tool results included; when that is larger than what carries over, the popup adds a **Next turn** row (`historyPromptTokens`).
+- **Warning banner** (`ContextWarningBanner.tsx`): shows `CTX_USAGE %` (of the next-turn size) when `shouldWarn`, `contextAutoCompress` off, not dismissed — COMPRESS / IGNORE.
+- **What triggers compression**: `shouldWarn` (78%) and `shouldCompress` (90%) are measured on the turn's **first** model round — system prompt, history and the new message — not on the last round. Tool results only live inside the turn that produced them (and are trimmed there by old-result clearing), so a heavy tool turn no longer compresses a short chat.
+- **What compression does** (`summarizeContextNow`): it summarizes only the messages the current summary does not cover yet, merged into the existing `hiddenContextSummary` (never rendered), and keeps the newest messages verbatim — up to 10, starting on a user message, within 20% of the context limit (`pickCompressionKeepFrom`). `contextCompressedThroughIndex` points at the start of that verbatim tail. When nothing older than the tail is left, everything is summarized.
+- The summary closes the system prompt as `<conversation_summary>`, ahead of the history that continues from it.
 - **Edit and resend** (`commitEdit`) rewrites the context as well as the bubbles: the coding memo and CTX usage are reset, the edited message goes to the model once with its attachments, and a summary that covers the edited message is dropped so the raw messages before it come back. If those messages would reach ~90% of the limit and `contextAutoCompress` is on, they are compressed before the resend.
-- **Cache-stable ordering**: the system prompt and full history form a byte-identical cached prefix each turn; volatile context (clock, coding memo, live processes, summary, long-term memory) rides on the **final user turn** instead of a trailing system message. Cached-token counts are mapped from the usage block and a `[voidcast] prompt …` cache-hit line is logged.
+- **Cache-stable ordering**: the system prompt and full history form a byte-identical cached prefix each turn; volatile context (clock, coding memo, live processes, long-term memory) rides on the **final user turn** instead of a trailing system message. Cached-token counts are mapped from the usage block and a `[voidcast] prompt …` cache-hit line is logged.
 
 ## Tool-Result & Error Banners
 
