@@ -313,7 +313,7 @@ OpenRouter is a first-class provider in Voidcast: **one key, 300+ models** (Clau
 Leave `OPENROUTER_PROVIDER` empty for OpenRouter's default load balancing across providers.
 
 <p align="center">
-  <img src="demos/voidcast-options-llm.png" width="820" alt="Options → LLM: OpenRouter model, provider lock and the LIST ALL provider table"/>
+  <img src="demos/voidcast-options-openrouter.png" width="820" alt="Options → LLM: OpenRouter provider, model, OPENROUTER_PROVIDER lock and the LIST ALL provider table"/>
 </p>
 <p align="center"><em>Options → LLM — OpenRouter model picker, the optional <code>OPENROUTER_PROVIDER</code> lock, and the <strong>LIST ALL</strong> table (provider · ctx · price · uptime). Click a row to pin it.</em></p>
 
