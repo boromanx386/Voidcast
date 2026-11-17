@@ -101,7 +101,14 @@ import {
   useSessionAgentSlot,
   type SessionAgentKeyHandle,
 } from '@/lib/sessionAgentStore'
-import type { AgentChatMode, FileAttachmentSnapshot, PlanArtifact, UiMessage } from '@/types/chat'
+import type {
+  AgentChatMode,
+  FileAttachmentSnapshot,
+  PlanArtifact,
+  TurnToolUse,
+  UiMessage,
+} from '@/types/chat'
+import { recordTurnToolUse } from '@/lib/turnToolRecord'
 import { normalizeAgentChatMode } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
 
@@ -985,6 +992,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       // Plan delivered through the submit_plan tool; the json-plan fence in the reply is the fallback.
       let submittedPlan: PlanArtifact | null = null
       let turnLogMutable = emptyCodingTurnLog()
+      let turnTools: TurnToolUse[] = []
 
       // Keep shared file-cache ref in sync when this run is the visible chat (tools that read it outside params).
       if (isViewingThisRun()) {
@@ -1200,6 +1208,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   payload.result,
                 )
               }
+              turnTools = recordTurnToolUse(turnTools, payload.name, payload.result)
               turnLogMutable = recordCodingToolInTurnLog(
                 turnLogMutable,
                 payload.name,
@@ -1410,6 +1419,11 @@ export function useChatAgent(deps: UseChatAgentDeps) {
               lastTurnSummary: summary,
             }))
           }
+        }
+
+        if (useTools) {
+          const tools = turnTools
+          setMsgs((prev) => prev.map((m) => (m.id === asstId ? { ...m, turnTools: tools } : m)))
         }
 
         if (turnSettings.toolsEnabled.coding && isImplementAgentMode(turnAgentMode)) {

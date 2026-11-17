@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   emptyCodingTurnLog,
   formatCodingTurnEvidenceLabel,
-  formatCodingTurnToolRecord,
   isGitMutationDetail,
   recordCodingToolInTurnLog,
   summarizeCodingTurnEvidence,
@@ -118,38 +117,5 @@ describe('isSuccessfulRepoActionTool', () => {
     expect(isSuccessfulExecuteCommandResult('Error: failed')).toBe(false)
     expect(isSuccessfulRepoActionTool('execute_command', '$ git commit -m x\nok')).toBe(true)
     expect(isSuccessfulRepoActionTool('execute_command', 'Error: denied')).toBe(false)
-  })
-})
-
-describe('formatCodingTurnToolRecord', () => {
-  it('marks a turn with no tool calls', () => {
-    const ev = summarizeCodingTurnEvidence(emptyCodingTurnLog())
-    expect(formatCodingTurnToolRecord(ev)).toBe(
-      '<tool_record>No tools were called in this turn; nothing in the project changed.</tool_record>',
-    )
-  })
-
-  it('marks a read-only turn', () => {
-    expect(
-      formatCodingTurnToolRecord({
-        hadAnyToolEvents: true,
-        hadRepoAction: false,
-        filePaths: [],
-        commandSummaries: [],
-        gitSummaries: [],
-      }),
-    ).toBe('<tool_record>Read-only tools only; no files changed, no commands run.</tool_record>')
-  })
-
-  it('lists files, commands and git actions', () => {
-    expect(
-      formatCodingTurnToolRecord({
-        hadAnyToolEvents: true,
-        hadRepoAction: true,
-        filePaths: ['src/a.ts', 'src/b.ts'],
-        commandSummaries: ['npm test'],
-        gitSummaries: [],
-      }),
-    ).toBe('<tool_record>files changed: src/a.ts, src/b.ts; commands run: npm test</tool_record>')
   })
 })

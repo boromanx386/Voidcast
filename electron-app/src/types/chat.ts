@@ -101,6 +101,13 @@ export type AgentProgressBlock = {
   content: string
 }
 
+export type TurnToolUse = {
+  name: string
+  calls: number
+  /** Calls whose result started with "Error:". */
+  failed: number
+}
+
 export type UiMessage = {
   id: string
   role: ChatRole
@@ -149,6 +156,11 @@ export type UiMessage = {
    * in timeline order after later user prompts.
    */
   subAgentActivity?: SubAgentPanelState
+  /**
+   * Assistant only: every tool called this turn, by name, in first-call order.
+   * Absent on turns that ran without tools offered and on messages older than this field.
+   */
+  turnTools?: TurnToolUse[]
   /**
    * Assistant only: tool-log evidence for Agent/Team coding turns (files, shell, git).
    * Language-neutral; derived from CodingTurnLog, not assistant prose.

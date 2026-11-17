@@ -27,16 +27,12 @@ import {
   buildRuntimeTimeHint,
 } from '@/lib/chatHints'
 import { buildToolImageCatalog, type PendingChatImage } from '@/lib/chatImageCatalog'
-import {
-  buildCodingMemoHint,
-  formatCodingTurnToolRecord,
-  type CodingContextMemo,
-} from '@/lib/codingContextMemo'
+import { buildCodingMemoHint, type CodingContextMemo } from '@/lib/codingContextMemo'
+import { formatTurnToolRecord } from '@/lib/turnToolRecord'
 import { buildActiveProcessesHint, type ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import { searchMemories } from '@/lib/longMemoryStorage'
 import type { OllamaApiMessage } from '@/lib/ollama'
-import { isThinkingUiEnabled } from '@/lib/ollama'
 import {
   getAgentVisibleSettings,
   getRunwareMusicProfileForModel,
@@ -215,24 +211,17 @@ export async function buildAgentTurnContext(
     // Plan replies keep an empty bubble (the plan lives in the card + file), so the
     // model still needs a compact copy to revise against.
     const planNote = x.plan ? formatPlanHistoryNote(x.plan) : ''
-    if (!x.content.trim() && !x.thinking?.trim() && !planNote) return acc
+    const toolRecord = formatTurnToolRecord(x)
+    if (!x.content.trim() && !planNote && !toolRecord) return acc
     const imageVisionHint = buildAssistantImageVisionHint(x, imageVisionCache)
-    const ev = x.codingTurnEvidence
-    const toolRecord = ev
-      ? formatCodingTurnToolRecord({
-          hadAnyToolEvents: ev.hadAnyToolEvents,
-          hadRepoAction: ev.hadRepoAction,
-          filePaths: ev.filePaths ?? [],
-          commandSummaries: ev.commandSummaries ?? [],
-          gitSummaries: ev.gitSummaries ?? [],
-        })
-      : ''
+    // Reasoning from earlier turns is not replayed: it costs several times the reply
+    // and carries stale conclusions ("the user only wants a confirmation") into new
+    // requests. Reasoning inside the current turn's tool loop is kept by the loop.
     acc.push({
       role: 'assistant',
       content: [x.content, planNote, imageVisionHint, toolRecord]
         .filter((v) => v.trim().length > 0)
         .join('\n\n'),
-      ...(x.thinking?.trim() ? { thinking: x.thinking } : {}),
     })
     return acc
   }, [])
@@ -453,7 +442,6 @@ export async function buildAgentTurnContext(
     volatileSystemHint: volatileHintParts.length > 0 ? volatileHintParts.join('\n\n') : undefined,
     newUserImages:
       visionImagesForCurrentMessage.length > 0 ? visionImagesForCurrentMessage : undefined,
-    includeThinkingInHistory: isThinkingUiEnabled(settings.llmThinkLevel),
   })
 
   const activeRunwareProfile = getRunwareProfileForModel(settings, settings.runwareImageModel)

@@ -4,8 +4,6 @@ import type { UiMessage } from '@/types/chat'
 export type HistoryTurn = {
   role: 'user' | 'assistant'
   content: string
-  /** Assistant only: replay thinking/reasoning for Ollama `think` and OpenRouter. */
-  thinking?: string
   /** User turns only; raw base64 for Ollama. */
   images?: string[]
   /** User turns only; optional file names for attached images. */
@@ -267,8 +265,6 @@ export function buildOllamaMessages(
     longTermMemoryContext?: string
     /** Raw base64 strings for the latest user message (vision). */
     newUserImages?: string[]
-    /** When false, prior assistant `thinking` is omitted from the API payload. */
-    includeThinkingInHistory?: boolean
   },
 ): OllamaApiMessage[] {
   const out: OllamaApiMessage[] = []
@@ -328,12 +324,6 @@ export function buildOllamaMessages(
   for (const m of priorMessages) {
     if (m.role === 'user' && m.images?.length) {
       out.push({ role: 'user', content: m.content, images: m.images })
-    } else if (m.role === 'assistant') {
-      const a: OllamaApiMessage = { role: 'assistant', content: m.content }
-      if (opts.includeThinkingInHistory !== false && m.thinking?.trim()) {
-        a.thinking = m.thinking
-      }
-      out.push(a)
     } else {
       out.push({ role: m.role, content: m.content })
     }
