@@ -10,11 +10,6 @@ import type { CodingSearchProcessedResult } from '@/lib/codingSearch'
 interface VoidcastBridge {
   webSearch: (query: string) => Promise<{ ok: boolean; text: string }>
 
-  getWeather: (payload: {
-    city: string
-    forecast: boolean
-  }) => Promise<{ ok: boolean; text: string }>
-
   scrapeUrl: (payload: {
     url: string
     max_chars?: number

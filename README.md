@@ -55,7 +55,7 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 </p>
 <p align="center"><em>Sessions on the left, the agent running parallel tools and workers in chat, and the coding panel with file tree, diff, commit bar and terminal.</em></p>
 
-- **Everything in one window** — chat, coding, web tools and generative models together. The agent invokes search, YouTube, weather, image generation/edit, music and PDF, and **results appear inline** in the conversation. No tab juggling.
+- **Everything in one window** — chat, coding, web tools and generative models together. The agent invokes search, YouTube, image generation/edit, music and PDF, and **results appear inline** in the conversation. No tab juggling.
 
 - **Run several agents at once** — start work in one session, open another, keep both running (up to **3 concurrent agent turns**). Each chat keeps its own messages, project and tool loop, and Stop cancels only the active session. **Team** mode adds up to **2 parallel coding workers**. See [Multi-chat & Team](docs/multi-chat-and-team.md).
 
@@ -65,7 +65,7 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 
 - **BYOK — your providers, your billing** — use the accounts and keys you already pay for (OpenRouter, OpenAI, NVIDIA NIM, DeepSeek, OpenCode Go), or run models on your own hardware with Ollama. Nothing is resold: no credits to buy from us, no markup. **OpenRouter** alone unlocks 300+ models from a single key — and you can **pin the upstream provider per model** (price, context and uptime shown inline), so routing stays predictable and prompt caches stay warm. Keys and settings stay on your machine; Voidcast has no cloud account and never receives your keys. See [Providers](#providers) and [OpenRouter support](#openrouter-support-per-model-provider-routing).
 
-- **Tools that do things** — web search, YouTube search + transcripts, weather, web scraping, PDF export, image generation and edit, music generation, TTS/STT, reminders, settings control, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
+- **Tools that do things** — web search, YouTube search + transcripts, web scraping, PDF export, image generation and edit, music generation, TTS/STT, reminders, settings control, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
 
 - **Watch it think** — adjacent read-only tool calls run in parallel (up to ten) while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts in collapsible round blocks.
 
@@ -123,7 +123,6 @@ Voidcast runs an **agent tool loop**: the model decides when to call a tool, the
 Available tools:
 
 - **Web Search** — real-time DuckDuckGo search
-- **Weather** — current conditions + forecast
 - **YouTube** — search videos + fetch transcripts
 - **Web Scrape** — fetch and summarize public pages
 - **Built-in Browser** — drive a real Chromium view inside the app (coding panel **WEB** view): navigate, click, type, snapshot, screenshots, console/network, device emulation — no external Chrome (see below)

@@ -153,7 +153,6 @@ export function isSuccessfulRepoActionTool(name: string, result: string): boolea
  */
 export const PARALLEL_SAFE_AGENT_TOOLS: ReadonlySet<string> = new Set([
   'web_search',
-  'get_weather',
   'scrape_url',
   'search_youtube',
   'list_directory',

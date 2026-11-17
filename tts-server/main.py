@@ -32,7 +32,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -180,11 +179,6 @@ class YoutubeToolRequest(BaseModel):
 class ScrapeRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=2048)
     max_chars: int | None = Field(default=None, ge=2000, le=120_000)
-
-
-class WeatherRequest(BaseModel):
-    city: str = Field(..., min_length=1, max_length=200)
-    forecast: bool = False
 
 
 class PdfImageItem(BaseModel):
@@ -451,7 +445,6 @@ async def health():
             "youtube_transcript_api": HAS_YOUTUBE_TRANSCRIPT,
         },
         "tools_scrape": True,
-        "tools_weather": True,
         "tools_pdf": HAS_REPORTLAB,
         "ollama_proxy": OLLAMA_BASE_URL,
         "web_ui": _web_index_file() is not None,
@@ -768,46 +761,6 @@ async def tools_youtube(req: YoutubeToolRequest):
         ) from e
 
 
-def _format_wttr_text(data: dict[str, Any], city: str, forecast: bool) -> str:
-    curr_list = data.get("current_condition")
-    curr = curr_list[0] if isinstance(curr_list, list) and curr_list else None
-    if not curr:
-        return "No weather data returned for this location."
-    desc = ""
-    wd = curr.get("weatherDesc")
-    if isinstance(wd, list) and wd:
-        d0 = wd[0]
-        if isinstance(d0, dict):
-            desc = str(d0.get("value") or "")
-    res = f"Weather for {city}: {curr.get('temp_C', '?')}°C, {desc}\n"
-    res += f"Humidity: {curr.get('humidity', '?')}%, Wind: {curr.get('windspeedKmph', '?')} km/h"
-    if forecast and data.get("weather"):
-        res += "\n\nForecast (3 days):"
-        for day in (data.get("weather") or [])[:3]:
-            if not isinstance(day, dict):
-                continue
-            d = day.get("date") or "?"
-            mx = day.get("maxtempC") or "?"
-            mn = day.get("mintempC") or "?"
-            hourly = day.get("hourly") or []
-            h0 = hourly[0] if isinstance(hourly, list) and hourly else {}
-            hourly_desc = ""
-            if isinstance(h0, dict):
-                hd = h0.get("weatherDesc")
-                if isinstance(hd, list) and hd and isinstance(hd[0], dict):
-                    hourly_desc = str(hd[0].get("value") or "")
-            res += f"\n- {d}: {mx}°C / {mn}°C — {hourly_desc}"
-    return res
-
-
-def _fetch_wttr_json(city: str) -> dict[str, Any]:
-    path = quote(city.strip(), safe="")
-    url = f"https://wttr.in/{path}?format=j1"
-    r = httpx.get(url, timeout=25.0)
-    r.raise_for_status()
-    return r.json()
-
-
 @app.post("/tools/scrape", dependencies=[Depends(require_lan_access)])
 async def tools_scrape(req: ScrapeRequest):
     """Fetch a public http(s) URL → Markdown (SSRF-safe).
@@ -844,21 +797,6 @@ async def tools_scrape(req: ScrapeRequest):
         raise HTTPException(
             status_code=503,
             detail=str(e) or "Scrape failed",
-        ) from e
-
-
-@app.post("/tools/weather", dependencies=[Depends(require_lan_access)])
-async def tools_weather(req: WeatherRequest):
-    """wttr.in JSON → same text format as Electron main."""
-    try:
-        data = await asyncio.to_thread(_fetch_wttr_json, req.city)
-        text = _format_wttr_text(data, req.city.strip(), req.forecast)
-        return {"ok": True, "text": text}
-    except Exception as e:
-        logger.exception("tools/weather failed: %s", e)
-        raise HTTPException(
-            status_code=503,
-            detail=str(e) or "Weather failed",
         ) from e
 
 

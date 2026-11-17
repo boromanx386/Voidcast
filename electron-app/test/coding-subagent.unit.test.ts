@@ -314,7 +314,6 @@ describe('buildToolsList coding_explore', () => {
   const codingEnabled = {
     webSearch: false,
     youtube: false,
-    weather: false,
     scrape: false,
     pdf: false,
     runwareImage: false,
@@ -400,7 +399,6 @@ describe('buildToolsList image_recall vs runware', () => {
   const noImageTools = {
     webSearch: false,
     youtube: false,
-    weather: false,
     scrape: false,
     pdf: false,
     runwareImage: false,
@@ -438,7 +436,6 @@ describe('buildToolsList generate_tts', () => {
   const base = {
     webSearch: false,
     youtube: false,
-    weather: false,
     scrape: false,
     pdf: false,
     runwareImage: false,

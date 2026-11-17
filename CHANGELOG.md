@@ -27,6 +27,10 @@ All notable changes to this project will be documented in this file.
 
 - **`search_youtube` searches YouTube instead of the web**: the query was sent to the text search engine as `site:youtube.com <query>`, so results were channel and playlist pages whose descriptions bundle several video titles. A title therefore sat above an unrelated URL, and the video it named was not the video the link opened. The query now goes through yt-dlp's `ytsearch` extractor, which returns one entry per video with its own id, title, channel, duration and view count, so the id is read from a dedicated `ID:` field instead of being parsed out of a URL. This also removes the empty-result case where a long query silently returned nothing: ddgs no longer takes part in YouTube search at all, and `/health` no longer lists `ddgs` under `tools_youtube`. YouTube calls now have a 10 s socket timeout and run on the dedicated tools thread pool, so a throttled YouTube connection can no longer tie up the threads that serve TTS and health checks.
 
+### Removed
+
+- **Weather tool (`get_weather`) removed**: `web_search` covers weather and forecasts for any place, and the tool was on by default, so its schema went to the model on every turn for little use. Dropped: the `get_weather` agent tool, the `toolsEnabled.weather` setting with its **WEATHER** toggle in Options → Tools (a saved value is ignored), the `WEATHER_API` tool-activity indicator, `electron-app/src/lib/weather.ts`, the Electron `voidcast:get-weather` IPC fallback, and the tools-server `POST /tools/weather` endpoint with its `tools_weather` health flag.
+
 ## [2.12.6] — 2026-11-09
 
 ### Added

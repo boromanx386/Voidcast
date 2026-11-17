@@ -14,7 +14,6 @@ Type: `ToolsEnabled`, all booleans. Defaults: all `true`.
 | Tool key | Purpose |
 | --- | --- |
 | `webSearch` | Web search |
-| `weather` | Weather lookup |
 | `scrape` | Fetch a public URL in the main process → plain text (HTML stripped) |
 | `browser` | Drive the built-in Voidcast browser (coding panel **WEB** view) with agent `browser_*` tools |
 | `pdf` | Save text as PDF into `pdfOutputDir` (main process) |
@@ -117,7 +116,7 @@ Where the `save_pdf` tool writes files **without showing a save dialog**. Empty 
 
 ## Tools the agent registers
 
-The agent registers tools from the enabled set above (`webSearch`, `weather`, `scrape`, `browser`, `pdf`, `youtube`, `runwareImage`, `runwareMusic`, `coding`, `enterPlan`) plus:
+The agent registers tools from the enabled set above (`webSearch`, `scrape`, `browser`, `pdf`, `youtube`, `runwareImage`, `runwareMusic`, `coding`, `enterPlan`) plus:
 
 - MCP tools from enabled servers (when `mcpEnabled`).
 - The `read_skill` tool and skills catalog when `skillsEnabled` (see [Skills](skills.md)).

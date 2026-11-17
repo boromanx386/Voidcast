@@ -1342,7 +1342,6 @@ export const SEARCH_PAGE_CHARS_MAX = 12_000
 /** Per-tool toggles; extend with new keys as tools are added */
 export type ToolsEnabled = {
   webSearch: boolean
-  weather: boolean
   /** Fetch public URL in main process → plain text (HTML stripped) */
   scrape: boolean
   /** Drive the built-in Voidcast browser (coding panel WEB view) from agent tools. */
@@ -1733,7 +1732,6 @@ export const defaults: AppSettings = {
   voiceBakePhrase: 'This is my reference voice for consistent synthesis.',
   toolsEnabled: {
     webSearch: true,
-    weather: true,
     scrape: true,
     browser: true,
     pdf: true,
@@ -1966,7 +1964,6 @@ function normalizeTools(s: AppSettings): AppSettings {
     toolsEnabled: {
       webSearch:
         typeof te?.webSearch === 'boolean' ? te.webSearch : defaults.toolsEnabled.webSearch,
-      weather: typeof te?.weather === 'boolean' ? te.weather : defaults.toolsEnabled.weather,
       scrape: typeof te?.scrape === 'boolean' ? te.scrape : defaults.toolsEnabled.scrape,
       browser: typeof te?.browser === 'boolean' ? te.browser : defaults.toolsEnabled.browser,
       pdf: typeof te?.pdf === 'boolean' ? te.pdf : defaults.toolsEnabled.pdf,

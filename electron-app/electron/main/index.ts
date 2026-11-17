@@ -970,40 +970,6 @@ ipcMain.handle('voidcast:web-search', async (_evt, query: string) => {
   }
 })
 
-type WttrJson = {
-  current_condition?: Array<{
-    temp_C?: string
-    humidity?: string
-    windspeedKmph?: string
-    weatherDesc?: Array<{ value?: string }>
-  }>
-  weather?: Array<{
-    date?: string
-    maxtempC?: string
-    mintempC?: string
-    hourly?: Array<{ weatherDesc?: Array<{ value?: string }> }>
-  }>
-}
-
-function formatWttrText(data: WttrJson, city: string, forecast: boolean): string {
-  const curr = data.current_condition?.[0]
-  if (!curr) return 'No weather data returned for this location.'
-  const desc = curr.weatherDesc?.[0]?.value ?? ''
-  let res = `Weather for ${city}: ${curr.temp_C ?? '?'}°C, ${desc}\n`
-  res += `Humidity: ${curr.humidity ?? '?'}%, Wind: ${curr.windspeedKmph ?? '?'} km/h`
-  if (forecast && data.weather && data.weather.length > 0) {
-    res += '\n\nForecast (3 days):'
-    for (const day of data.weather.slice(0, 3)) {
-      const d = day.date ?? '?'
-      const mx = day.maxtempC ?? '?'
-      const mn = day.mintempC ?? '?'
-      const hourlyDesc = day.hourly?.[0]?.weatherDesc?.[0]?.value ?? ''
-      res += `\n- ${d}: ${mx}°C / ${mn}°C — ${hourlyDesc}`
-    }
-  }
-  return res
-}
-
 ipcMain.handle(
   'voidcast:scrape-url',
   async (_evt, payload: { url?: string; max_chars?: number }) => {
@@ -3861,28 +3827,6 @@ ipcMain.handle(
       return { ok: true as const, path: outPath }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
-    }
-  },
-)
-
-ipcMain.handle(
-  'voidcast:get-weather',
-  async (_evt, payload: { city?: string; forecast?: boolean }) => {
-    try {
-      const city = String(payload?.city ?? '').trim()
-      if (!city) return { ok: false, text: 'Empty city' }
-      const forecast = Boolean(payload.forecast)
-      const path = encodeURIComponent(city)
-      const url = `https://wttr.in/${path}?format=j1`
-      const res = await fetch(url)
-      if (!res.ok) return { ok: false, text: `HTTP ${res.status}` }
-      const data = (await res.json()) as WttrJson
-      return { ok: true, text: formatWttrText(data, city, forecast) }
-    } catch (e) {
-      return {
-        ok: false,
-        text: e instanceof Error ? e.message : String(e),
-      }
     }
   },
 )

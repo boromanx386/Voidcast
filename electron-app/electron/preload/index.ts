@@ -3,8 +3,6 @@ import { ipcRenderer, contextBridge, webUtils } from 'electron'
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('voidcast', {
   webSearch: (query: string) => ipcRenderer.invoke('voidcast:web-search', query),
-  getWeather: (payload: { city: string; forecast: boolean }) =>
-    ipcRenderer.invoke('voidcast:get-weather', payload),
   scrapeUrl: (payload: { url: string; max_chars?: number }) =>
     ipcRenderer.invoke('voidcast:scrape-url', payload),
   /**

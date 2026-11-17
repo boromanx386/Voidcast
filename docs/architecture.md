@@ -150,7 +150,6 @@ The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost
 | `GET /health` | Server health check |
 | `POST /tools/search` | Web search |
 | `POST /tools/scrape` | Web scraping |
-| `POST /tools/weather` | Weather data |
 | `POST /tools/youtube` | YouTube search / transcripts |
 | `POST /tools/pdf` | PDF export (`save_pdf`) |
 | `POST /tools/runware_proxy` | Runware image / music proxy |

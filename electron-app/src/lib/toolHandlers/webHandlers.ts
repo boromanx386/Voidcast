@@ -8,7 +8,6 @@ import {
   SEARCH_RESULTS_MAX,
   SEARCH_RESULTS_MIN,
 } from '@/lib/settings'
-import { invokeGetWeather } from '@/lib/weather'
 import { invokeScrapeUrl } from '@/lib/scrapeUrl'
 import { invokeSavePdf } from '@/lib/savePdf'
 import { invokeYoutubeTool } from '@/lib/youtubeTool'
@@ -82,20 +81,6 @@ export const handleSearchYoutube: ToolHandlerFn = async (args, ctx) => {
   }
 }
 
-export const handleGetWeather: ToolHandlerFn = async (args, ctx) => {
-  if (!ctx.toolsEnabled.weather) {
-    return 'Error: get_weather tool is disabled in settings.'
-  }
-  const city = typeof args.city === 'string' ? args.city.trim() : ''
-  if (!city) return 'Error: missing city parameter for get_weather.'
-  const forecast = Boolean(args.forecast)
-  try {
-    return await invokeGetWeather(city, forecast, ctx.ttsBaseUrl, ctx.signal)
-  } catch (e) {
-    return e instanceof Error ? e.message : String(e)
-  }
-}
-
 export const handleScrapeUrl: ToolHandlerFn = async (args, ctx) => {
   if (!ctx.toolsEnabled.scrape) {
     return 'Error: scrape_url tool is disabled in settings.'
@@ -156,7 +141,6 @@ export const handleSavePdf: ToolHandlerFn = async (args, ctx) => {
 export const webHandlersRegistry: ToolHandlerRegistry = {
   ['web_search']: handleWebSearch,
   ['search_youtube']: handleSearchYoutube,
-  ['get_weather']: handleGetWeather,
   ['scrape_url']: handleScrapeUrl,
   ['save_pdf']: handleSavePdf,
 }

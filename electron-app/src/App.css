@@ -1132,9 +1132,6 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 .tool-indicator.youtube {
   @apply text-neon-red border-neon-red/30;
 }
-.tool-indicator.weather {
-  @apply text-neon-yellow border-neon-yellow/30;
-}
 .tool-indicator.scrape {
   @apply text-neon-green border-neon-green/30;
 }

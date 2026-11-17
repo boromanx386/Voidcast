@@ -69,29 +69,6 @@ export type AgentToolDefinition = {
   }
 }
 
-const GET_WEATHER_TOOL: AgentToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'get_weather',
-    description:
-      'Get current weather and optionally a short multi-day forecast for a city or town (wttr.in). Use it when the user asks about weather, temperature or a forecast; set forecast true when they want several days.',
-    parameters: {
-      type: 'object',
-      properties: {
-        city: {
-          type: 'string',
-          description: 'City or location name (e.g. Belgrade, London)',
-        },
-        forecast: {
-          type: 'boolean',
-          description: 'If true, include a brief 3-day outlook. Default false.',
-        },
-      },
-      required: ['city'],
-    },
-  },
-}
-
 const SCRAPE_URL_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1828,7 +1805,6 @@ export function buildToolsList(
     (opts?.codingProjectPath === undefined || opts.codingProjectPath.trim().length > 0)
   if (enabled.webSearch) out.push(WEB_SEARCH_TOOL)
   if (enabled.youtube) out.push(SEARCH_YOUTUBE_TOOL)
-  if (enabled.weather) out.push(GET_WEATHER_TOOL)
   if (enabled.scrape) out.push(SCRAPE_URL_TOOL)
   if (enabled.browser) {
     out.push(BROWSER_TAKE_SNAPSHOT_TOOL)
@@ -1921,7 +1897,6 @@ export function anyToolEnabled(
   return (
     enabled.webSearch ||
     enabled.youtube ||
-    enabled.weather ||
     enabled.scrape ||
     enabled.browser ||
     enabled.pdf ||

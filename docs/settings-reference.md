@@ -178,7 +178,6 @@ type RunwareMusicModelProfile = {
 ```ts
 type ToolsEnabled = {
   webSearch: boolean; // web_search tool (ranked results; top hits read in full)
-  weather: boolean; // get_weather tool
   scrape: boolean; // scrape_url (public URL → Markdown, plain-text fallback)
   browser: boolean; // built-in Voidcast browser (coding panel WEB view) — browser_* tools
   pdf: boolean; // save_pdf into pdfOutputDir

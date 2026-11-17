@@ -33,7 +33,7 @@ export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolut
  * coding tools are not sent at all (see buildToolsList). Say that plainly
  * instead of writing a coding prompt for tools the model does not have.
  */
-export const TOOLS_CODING_NO_FOLDER_HINT = `Coding tools are enabled in Options but not available in this chat: it has no project folder bound, so you have no file / terminal / git access here. Do not attempt coding work in this chat and never claim you did. Tell the user to bind a folder (coding panel → the "No project folder" path row, or the ⚠ chip in the chat header) or to open a chat that is already bound to a project folder. Everything else (web search, scrape, browser, images, music, TTS, PDF, weather, reminders) still works normally here.`
+export const TOOLS_CODING_NO_FOLDER_HINT = `Coding tools are enabled in Options but not available in this chat: it has no project folder bound, so you have no file / terminal / git access here. Do not attempt coding work in this chat and never claim you did. Tell the user to bind a folder (coding panel → the "No project folder" path row, or the ⚠ chip in the chat header) or to open a chat that is already bound to a project folder. Everything else (web search, scrape, browser, images, music, TTS, PDF, reminders) still works normally here.`
 
 /** When coding tools are enabled. */
 export function buildToolsCodingHint(

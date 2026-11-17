@@ -289,27 +289,6 @@ export function ToolsOptionsPanel({
         )}
       </div>
 
-      {/* Weather */}
-      <ToolToggle
-        checked={settings.toolsEnabled.weather}
-        onChange={(v) =>
-          setSettings((s) => ({
-            ...s,
-            toolsEnabled: { ...s.toolsEnabled, weather: v },
-          }))
-        }
-        label="WEATHER"
-        icon="◐"
-        iconColor="text-neon-yellow"
-        description={
-          <>
-            <code className="text-neon-yellow">POST /tools/weather</code> on local server or
-            Electron → <code className="text-void-light">wttr.in</code>. Includes 3-day forecast
-            when enabled.
-          </>
-        }
-      />
-
       <div className="bg-void-black/50 border border-void-muted/30 p-4">
         <ToolToggle
           checked={settings.toolsEnabled.coding}

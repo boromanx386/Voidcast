@@ -41,7 +41,6 @@ import type { ToolsEnabled } from '../src/lib/settings'
 const baseTools: ToolsEnabled = {
   webSearch: false,
   youtube: false,
-  weather: false,
   scrape: false,
   pdf: false,
   runwareImage: false,
