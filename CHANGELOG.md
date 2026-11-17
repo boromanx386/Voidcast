@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.12.8] — 2026-11-17
+
 ### Added
 
 - **The agent can put audio in the chat**: new `show_audio` tool, the audio counterpart of `show_image`, for files that did not come from `generate_tts` or `generate_music_runware`, such as a clip a script cut, converted or mixed, or a sound asset in the project. It takes paths (absolute, or relative to the project) to MP3, WAV, FLAC, OGG or M4A files up to 50 MB each. Each file is copied into the `generated-audio` folder, so the player keeps working after the original changes. The tool activity strip shows it as `AUDIO_SHOW`. Desktop only. See [docs/chat.md](docs/chat.md).
