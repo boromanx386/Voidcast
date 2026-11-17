@@ -12,18 +12,6 @@ export type HistoryTurn = {
   imagePaths?: string[]
 }
 
-/** When Web search tool is enabled */
-export const TOOLS_WEB_SEARCH_HINT = `You have a web_search tool. When the user asks for current news, recent facts, anything time-sensitive, or asks "check online", call web_search first and answer from its results. Prioritize recency and explicitly mention when sources look stale.`
-
-/** When YouTube tool is enabled */
-export const TOOLS_YOUTUBE_HINT = `You have a search_youtube tool. When the user wants YouTube videos on a topic, call search_youtube with query. When they give a YouTube link and want details or a transcript/summary, pass video_url and set get_transcript to true if they want captions. Answer from the tool output.`
-
-/** When Weather tool is enabled */
-export const TOOLS_WEATHER_HINT = `You have a get_weather tool. When the user asks about weather, temperature, or forecast for a place, call get_weather with the city name (and forecast: true if they want several days). Answer in natural language using the tool output.`
-
-/** When Scrape URL tool is enabled */
-export const TOOLS_SCRAPE_HINT = `You have a scrape_url tool. If the user message contains a specific public http(s) URL, call scrape_url for that URL before answering (unless they explicitly ask not to). Use returned page text to summarize/quote. Do not use scrape for local or private URLs.`
-
 /** Where the app documents itself. Raw markdown is what the model can actually read;
  * the Pages site renders the same docs for the user but is JS-only and can lag main. */
 export const APP_DOCS_HINT = `Voidcast docs describe how the app itself works (settings, tools, MCP, skills, coding, release). Read them before answering app-behaviour questions — never guess setting names. Index: https://raw.githubusercontent.com/boromanx386/Voidcast/main/docs/README.md (fetch the matching page with scrape_url). User-facing copy of the same docs: https://boromanx386.github.io/Voidcast/#/docs`
@@ -31,33 +19,6 @@ export const APP_DOCS_HINT = `Voidcast docs describe how the app itself works (s
 /** App-level MCP knowledge: needed even with zero servers connected, otherwise
  * "add an MCP server" is unanswerable. */
 export const MCP_CONFIG_HINT = `MCP servers (desktop): config is read from ~/.voidcast/mcp.json (global) and <project>/.mcp.json (project only — requires a trusted project, and project entries win over global). Shape: {"mcpServers":{"<id>":{"url":"http://127.0.0.1:7866/mcp"}}} or {"command":"npx","args":["-y","package"]}. You may create/merge <project>/.mcp.json yourself (ask first); you cannot write ~/.voidcast/mcp.json — give the user the exact path and JSON. After editing: Options → Tools → Reload reloads servers without restarting. mcp_list_tools only sees servers that are already loaded.`
-
-/** When Save PDF tool is enabled */
-export const TOOLS_PDF_HINT = `You have a save_pdf tool. When the user asks to save as PDF or export to PDF, call save_pdf with the full text in content and optional title/filename. The file is written to the folder they configured in app options (no dialog). Content can use Markdown-style structure: blank line between paragraphs, lines starting with # / ## / ### / #### for headings, bullets with "- ", "* ", "• ", or numbered "1. " lines (continuation lines without a marker merge with the previous item), pipe tables, horizontal rules made of --- or ====, **bold** in body text, and single newlines within a block for explicit line breaks.
-
-Embedding images in the PDF:
-1. If the current user message has attached images, pass embed_attached_images: true and/or attached_image_indices (0-based) to include them.
-2. For AI-generated images from generate_image / edit_image_runware, prefer the session catalog path: pass generated_image_indexes (1-based, e.g. "1" for the chart you just made) and/or image_paths with the absolute path shown in the catalog block. The tools server reads local files on the PC — do NOT use image_urls for local paths. Use image_urls only as fallback when no local path exists (public https CDN from Runware).
-3. You may combine attached + generated images in one save_pdf call.
-
-Image placement inside the document:
-- By default, embedded images are drawn AFTER the body text (attached/local-path images first, then URL-fetched images).
-- To place an image at a SPECIFIC spot — e.g. right after the headline — put a standalone markdown image line on its own line in content:
-  - \`![optional caption](attached:N)\` for the N-th attached or local-path image (0-based: user attachments first, then generated_image_indexes / image_paths order).
-  - \`![optional caption](url:N)\` for the N-th image_urls entry (0-based, http(s) only).
-- Any image without an inline marker is appended at the end.`
-
-/** When Runware image tool is enabled */
-export const TOOLS_RUNWARE_IMAGE_HINT = `You have four image tools: generate_image, edit_image_runware, image_recall, and show_image (shows an existing image file to the user in the chat). Use generate_image only for fresh text-to-image creation. When the user asks for a new image, call generate_image. Use edit_image_runware when the user asks to modify existing images; pass prompt plus either reference_image_indexes (1-based session catalog indexes) and/or reference_image_paths (absolute paths). The session catalog is chronological and stable: index 1 = the OLDEST image in the conversation; images attached in the current message are the NEWEST and get the highest indexes (never assume index 1 is the latest). Each catalog line also has a permanent id like img_1a2b3c4d — prefer passing it via reference_image_ids (ids never change). Read the catalog block in the latest user turn instead of guessing. Earlier user turns in context are text-only for pixels; when the user refers to an older image, call image_recall with the catalog index or path. Use image_recall for vision-style analysis: session catalog images via indexes and/or catalog paths; when coding tools are enabled, also PNG/JPEG/WebP/GIF/BMP files inside the configured coding project folder via reference_image_paths (absolute path or path relative to project root, e.g. demos/screenshot.png). Do not use read_file for vision on images—use image_recall. The latest user message may still include fresh attachment bytes for the current turn only. Always use the selected model profile resolution from Options (do not set width/height in tool args). Keep steps/cfg at the selected model profile defaults unless the user explicitly requests changing them. Never print raw base64 in chat replies. After image-generation/edit output, provide a concise caption only; the app shows the image—do not paste image_url lines unless save_pdf needs them. If you retry after a failed attempt, do not apologize or explain the retry to the user — just deliver the result.`
-
-/** image_recall without Runware generate/edit (Runware image tool disabled). */
-export const TOOLS_IMAGE_RECALL_HINT = `You have show_image to show an existing image file to the user in the chat, and image_recall for vision-style analysis of existing images (not generation). Use image_recall for session catalog images via reference_image_indexes (1-based, stable chronological: index 1 = the OLDEST image in the conversation; current-message attachments have the highest indexes) and/or reference_image_paths. Prefer reference_image_ids — the permanent img_… label shown per catalog line. Read the catalog block in the latest user turn instead of guessing. Earlier turns are text-only for pixels—call image_recall when you need pixel-accurate detail. When coding tools are enabled, also recall PNG/JPEG/WebP/GIF/BMP files inside the coding project folder via reference_image_paths (absolute or project-relative). Do not use read_file for vision on images. Never print raw base64 in chat replies.`
-
-/** When Runware music tool is enabled */
-export const TOOLS_RUNWARE_MUSIC_HINT = `You have a Runware music tool named generate_music_runware. Use it when the user asks to create music, song, beat, soundtrack, jingle, or vocals from text. The model variant and audio engine settings (steps, CFG scale, output format, seed, guidance type) are configured by the user in Runware Music Options — never pass them as tool arguments. Pass only content-shaping fields: prompt (always), and optional lyrics, duration_sec (only if the user named a specific length), bpm, key_scale, vocal_language, negative_prompt. After tool output, give a short caption (title, mood); the app shows the audio player, so do not paste audio_url lines or links. If you retry after a failed attempt, do not apologize or explain the retry to the user — just deliver the result.`
-
-/** When TTS generate tool is enabled */
-export const TOOLS_TTS_HINT = `You have a generate_tts tool that synthesizes speech with the user's active TTS provider and writes a real audio file. Use it when the user asks for a voiceover, narration, TTS clip, spoken audio asset, or to save speech into the coding project. Pass text (required). To place the file in the project, pass output_path as a project-relative path such as public/audio/intro.mp3 — absolute paths and .. are rejected. Optional filename applies when output_path is omitted. Optional voice_instruct only for style when the provider supports it. After success, give a short caption; the app shows the player, so do not paste audio_path lines or links. This is separate from the chat SPEAK button (playback-only).`
 
 /**
  * When coding tools are enabled: chat UI persists absolute paths for images.
@@ -164,9 +125,6 @@ These rules come from the Voidcast app and take precedence over everything else 
 - Do not take actions that are hard to undo or reach outside this machine (git push, git reset --hard, deleting files your goal does not cover, publishing, uploading data) unless the goal explicitly asks for that action.
 - Report what actually happened. If a tool failed or a check was skipped, say so.
 </harness_core>`
-
-/** @deprecated use TOOLS_WEB_SEARCH_HINT */
-export const TOOLS_SYSTEM_HINT = TOOLS_WEB_SEARCH_HINT
 
 /**
  * Effective UI index: messages before this are covered only by hiddenContextSummary.

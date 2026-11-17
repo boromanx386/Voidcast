@@ -74,7 +74,7 @@ const GET_WEATHER_TOOL: AgentToolDefinition = {
   function: {
     name: 'get_weather',
     description:
-      'Get current weather and optionally a short multi-day forecast for a city or town (wttr.in).',
+      'Get current weather and optionally a short multi-day forecast for a city or town (wttr.in). Use it when the user asks about weather, temperature or a forecast; set forecast true when they want several days.',
     parameters: {
       type: 'object',
       properties: {
@@ -97,7 +97,7 @@ const SCRAPE_URL_TOOL: AgentToolDefinition = {
   function: {
     name: 'scrape_url',
     description:
-      'Fetch a public web page over HTTP(S) and return its main text content (HTML stripped). Use when the user gives a URL or needs article/page content. Only public internet URLs; local/private hosts are blocked.',
+      'Fetch a public web page over HTTP(S) and return its main text content (HTML stripped). When the user message contains a public URL, read it with this tool before answering, unless they say not to. Only public internet URLs; local/private hosts are blocked.',
     parameters: {
       type: 'object',
       properties: {
@@ -455,7 +455,7 @@ const SAVE_PDF_TOOL: AgentToolDefinition = {
   function: {
     name: 'save_pdf',
     description:
-      'Save content as a formatted PDF into the user-configured output folder (Options → Tools). Only this tool creates the file. Pass content (full body), optional title and filename. Content may use Markdown-style: # headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images: (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images saved in this chat session, pass absolute local paths in image_paths and/or 1-based session catalog indexes in generated_image_indexes (same indexes as image_recall — paths from the catalog block are preferred); (c) only if no local path exists, use public http(s) CDN URLs in image_urls. PNG/JPEG/WebP supported. Image placement: by default any image not referenced inline appears after the body text in order. To place an image at a specific spot inside the body, put a standalone markdown image line `![alt](attached:N)` (for the N-th attached/local-path image in combined order, 0-based) or `![alt](url:N)` (for the N-th image_urls entry, 0-based) on its own line — that exact position in the PDF will receive the image.',
+      'Save content as a formatted PDF into the user-configured output folder (Options → Tools), with no save dialog. Call it when the user asks to save or export as PDF; only this tool creates the file. Pass content (full body), optional title and filename. Content may use Markdown-style: blank lines between paragraphs, # to #### headings, `-` / `*` / `•` bullets, `1.` numbered lines, wrapped list continuations (no marker on next line), | tables |, --- or ==== rules, **bold**, and single newlines inside a paragraph for intentional line breaks. To embed images (they can be combined in one call): (a) for images the user attached to the current message, set embed_attached_images true and/or attached_image_indices (0-based); (b) for AI-generated images saved in this chat session, pass absolute local paths in image_paths and/or 1-based session catalog indexes in generated_image_indexes (same indexes as image_recall — paths from the catalog block are preferred; the tools server reads local files, so never put local paths in image_urls); (c) only if no local path exists, use public http(s) CDN URLs in image_urls. PNG/JPEG/WebP supported. Image placement: by default any image not referenced inline appears after the body text, attached and local-path images first, then image_urls. To place an image at a specific spot inside the body, put a standalone markdown image line `![alt](attached:N)` (N-th attached or local-path image, 0-based: user attachments first, then generated_image_indexes / image_paths order) or `![alt](url:N)` (N-th image_urls entry, 0-based) on its own line — that exact position in the PDF will receive the image.',
     parameters: {
       type: 'object',
       properties: {
@@ -511,7 +511,7 @@ const WEB_SEARCH_TOOL: AgentToolDefinition = {
   function: {
     name: 'web_search',
     description:
-      'Search the public web and read the top results. Returns ranked, dated hits; by default the top few arrive with their full page text (Markdown) already included, so you can answer and quote without another call. Leave `recency` UNSET for how-to, reference, documentation and evergreen questions — setting it restricts results to that window and hides the authoritative older pages. Use `recency` only for recent events, prices, releases or scores.',
+      'Search the public web and read the top results. Call it for current news, recent or time-sensitive facts, or when the user asks to check online, and answer from its results; say so when the sources look stale. Returns ranked, dated hits; by default the top few arrive with their full page text (Markdown) already included, so you can answer and quote without another call. Leave `recency` UNSET for how-to, reference, documentation and evergreen questions — setting it restricts results to that window and hides the authoritative older pages. Use `recency` only for recent events, prices, releases or scores.',
     parameters: {
       type: 'object',
       properties: {
@@ -583,7 +583,7 @@ const GENERATE_IMAGE_TOOL: AgentToolDefinition = {
   function: {
     name: 'generate_image',
     description:
-      'Generate an image from a text prompt (Runware or OpenRouter, per Media options). Call it whenever the user asks for a new image; describing the image instead does not count. If generation fails, report the tool error.',
+      'Generate a new image from a text prompt (Runware or OpenRouter, per Media options); to change an existing image use edit_image_runware. Call it whenever the user asks for a new image; describing the image instead does not count. If generation fails, report the tool error; if a retry then succeeds, just deliver the result without explaining the retry. Leave steps and cfg_scale at the configured defaults unless the user asks. The app shows the image, so reply with a short caption only — no image_url lines, links or base64.',
     parameters: {
       type: 'object',
       properties: {
@@ -633,7 +633,7 @@ const EDIT_IMAGE_RUNWARE_TOOL: AgentToolDefinition = {
   function: {
     name: 'edit_image_runware',
     description:
-      'Edit or transform images, using chat images as references (Runware or OpenRouter, per Media options). Call it whenever the user asks to modify, transform or combine existing images; describing the result instead does not count. If editing fails, report the tool error.',
+      'Edit or transform images, using chat images as references (Runware or OpenRouter, per Media options). Call it whenever the user asks to modify, transform or combine existing images; describing the result instead does not count. Pick references from the session image catalog in the latest user turn (prefer reference_image_ids) instead of guessing. If editing fails, report the tool error; if a retry then succeeds, just deliver the result without explaining the retry. The app shows the image, so reply with a short caption of what changed — no image_url lines, links or base64.',
     parameters: {
       type: 'object',
       properties: {
@@ -699,7 +699,7 @@ const IMAGE_RECALL_TOOL: AgentToolDefinition = {
   function: {
     name: 'image_recall',
     description:
-      'Recall image bytes for vision or edit prep in the current runtime turn. Resolves reference_image_indexes and/or reference_image_paths against the session image catalog. When coding tools are enabled, reference_image_paths can also name PNG/JPEG/WebP/GIF/BMP files inside the configured coding project folder (absolute path or path relative to project root).',
+      'Look at an existing image (vision): load its pixels into the current turn. Earlier turns carry images as text only, so call this whenever you need to see an older chat image; only images attached to the current message arrive with their pixels. Resolves ids, indexes and/or paths against the session image catalog in the latest user turn. When coding tools are enabled, reference_image_paths can also name PNG/JPEG/WebP/GIF/BMP files inside the coding project folder (absolute or project-relative) — use this, not read_file, to look at image files. This does not show the image to the user; show_image does.',
     parameters: {
       type: 'object',
       properties: {
@@ -789,7 +789,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
   function: {
     name: 'generate_music_runware',
     description:
-      'Generate music or audio with the Runware ACE-Step model from a text prompt. Call it whenever the user asks for a song, beat, background music, jingle, soundtrack or vocals. If generation fails, report the tool error. Engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) come from Options, so do not pass them. After success give a short caption; the app shows the player, so do not paste audio_url or links.',
+      'Generate music or audio with the Runware ACE-Step model from a text prompt. Call it whenever the user asks for a song, beat, background music, jingle, soundtrack or vocals. If generation fails, report the tool error; if a retry then succeeds, just deliver the result without explaining the retry. Engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) come from Options, so do not pass them. After success give a short caption; the app shows the player, so do not paste audio_url or links.',
     parameters: {
       type: 'object',
       properties: {
@@ -868,7 +868,7 @@ const UPDATE_SETTINGS_TOOL: AgentToolDefinition = {
   function: {
     name: 'update_settings',
     description:
-      'Update app settings. When the user asks to change the context window, temperature, theme, or image/edit models, call this tool before confirming the change. The system prompt is not editable here — the user changes it in Options → LLM.',
+      'Update app settings. When the user asks to change the context window, temperature, theme, or image/edit models, call this tool before confirming the change. Image resolution is not a setting here: pass width/height on the generate_image / edit_image_runware call instead. The system prompt is not editable here — the user changes it in Options → LLM. API keys are never readable or settable.',
     parameters: {
       type: 'object',
       properties: {

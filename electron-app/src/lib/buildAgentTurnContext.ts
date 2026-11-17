@@ -6,16 +6,7 @@ import {
   TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT,
   TOOLS_CODING_NO_FOLDER_HINT,
   buildToolsCodingHint,
-  TOOLS_PDF_HINT,
-  TOOLS_IMAGE_RECALL_HINT,
-  TOOLS_RUNWARE_IMAGE_HINT,
-  TOOLS_RUNWARE_MUSIC_HINT,
-  TOOLS_TTS_HINT,
-  TOOLS_SCRAPE_HINT,
   TOOLS_TRUTH_HINT,
-  TOOLS_WEATHER_HINT,
-  TOOLS_WEB_SEARCH_HINT,
-  TOOLS_YOUTUBE_HINT,
   type HistoryTurn,
 } from '@/lib/chatMessages'
 import {
@@ -305,31 +296,13 @@ export async function buildAgentTurnContext(
   // is false, otherwise "add an MCP server" cannot be answered at all.
   toolsHintParts.push(MCP_CONFIG_HINT)
   toolsHintParts.push(APP_DOCS_HINT)
-  if (settings.toolsEnabled.webSearch) toolsHintParts.push(TOOLS_WEB_SEARCH_HINT)
-  if (settings.toolsEnabled.youtube) toolsHintParts.push(TOOLS_YOUTUBE_HINT)
-  if (settings.toolsEnabled.weather) toolsHintParts.push(TOOLS_WEATHER_HINT)
-  if (settings.toolsEnabled.scrape) toolsHintParts.push(TOOLS_SCRAPE_HINT)
-  if (settings.toolsEnabled.pdf && !readOnlyMode) toolsHintParts.push(TOOLS_PDF_HINT)
-  if (useTools) {
-    if (settings.toolsEnabled.runwareImage) {
-      if (readOnlyMode) {
-        toolsHintParts.push(
-          `image_recall is available in ${modeLabel} mode for inspecting existing session/project images (read-only). Image generation/edit tools are disabled.`,
-        )
-      } else {
-        toolsHintParts.push(TOOLS_RUNWARE_IMAGE_HINT)
-      }
-    } else if (readOnlyMode) {
-      toolsHintParts.push(
-        `image_recall is available in ${modeLabel} mode for inspecting existing session/project images (read-only).`,
-      )
-    } else {
-      toolsHintParts.push(TOOLS_IMAGE_RECALL_HINT)
-    }
+  // How to use each tool lives in its description, which is sent only with the
+  // tool. Hints below cover what a description cannot: mode limits and app state.
+  if (useTools && readOnlyMode && settings.toolsEnabled.runwareImage) {
+    toolsHintParts.push(
+      `Image generation and editing are disabled in ${modeLabel} mode; image_recall still works.`,
+    )
   }
-  if (settings.toolsEnabled.runwareMusic && !readOnlyMode)
-    toolsHintParts.push(TOOLS_RUNWARE_MUSIC_HINT)
-  if (settings.toolsEnabled.tts && !readOnlyMode) toolsHintParts.push(TOOLS_TTS_HINT)
   if (codingBlockedNoFolder) {
     // Option is ON but this chat has no project folder → the coding tools are
     // not even sent (see buildToolsList). Without this branch the model would
@@ -357,9 +330,6 @@ export async function buildAgentTurnContext(
         }),
       )
       toolsHintParts.push(TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT)
-      toolsHintParts.push(
-        'image_recall can load vision bytes from image files inside the coding project folder (use reference_image_paths with a project-relative path such as demos/name.png).',
-      )
     }
     volatileHintParts.push(buildCodingMemoHint(codingContextMemo, { buildWithResearch }))
     if (codingConcurrencyAdvisory.trim()) {
@@ -369,32 +339,12 @@ export async function buildAgentTurnContext(
     if (activeHint) volatileHintParts.push(activeHint)
   }
   if (useTools && !readOnlyMode) {
+    // Current values change when the user edits Options, so they ride in the
+    // volatile tail: a theme switch must not bust the cached system prompt.
     const visible = getAgentVisibleSettings(settings)
-    const settingsHint = [
-      'You have an update_settings tool for app configuration.',
-      'Allowed fields: llmNumCtx, llmTemperature, uiTheme, longMemoryAdd, autoVoice, runwareImageModel, runwareEditModel. Image resolution is NOT settable here; pass width/height per generate_image / edit_image_runware call instead.',
-      'The system prompt is not agent-editable; if the user wants it changed, point them to Options → LLM → System prompt.',
-      `Current llmNumCtx: ${String(visible.llmNumCtx ?? '')}`,
-      `Current llmTemperature: ${String(visible.llmTemperature ?? '')}`,
-      `Current uiTheme: ${String(visible.uiTheme ?? '')}`,
-      `Current autoVoice: ${String(visible.autoVoice ?? '')}`,
-      `Current runwareImageModel: ${String(visible.runwareImageModel ?? '')}`,
-      `Current runwareEditModel: ${String(visible.runwareEditModel ?? '')}`,
-      'Sensitive keys are hidden; never ask to reveal API keys.',
-    ].join('\n')
-    toolsHintParts.push(settingsHint)
-    const remindersHint = [
-      'You have reminder tools: add_reminder (set a note or scheduled reminder), list_reminders (show what is coming up), delete_reminder (cancel/remove), and update_reminder (reschedule or edit text/tags).',
-      'For add_reminder, pass ISO datetime in "when" for scheduled, or omit for general.',
-      'For list_reminders, use "today", "tomorrow", or date ranges like "next 3 days" in from/to.',
-      'For delete_reminder and update_reminder, pass search_text to find the reminder by its text.',
-    ].join('\n')
-    toolsHintParts.push(remindersHint)
-    if (settings.toolsEnabled.enterPlan && !teamMode) {
-      toolsHintParts.push(
-        'You have an enter_plan_mode tool. Call it when a task is complex, risky, or has meaningful tradeoffs — before making any changes — or whenever the user explicitly asks for a plan. It hands control to Plan mode, which explores read-only and presents an editable plan card for approval before anything is implemented.',
-      )
-    }
+    volatileHintParts.push(
+      `Current app settings: llmNumCtx ${String(visible.llmNumCtx ?? '')}, llmTemperature ${String(visible.llmTemperature ?? '')}, uiTheme ${String(visible.uiTheme ?? '')}, autoVoice ${String(visible.autoVoice ?? '')}, runwareImageModel ${String(visible.runwareImageModel ?? '')}, runwareEditModel ${String(visible.runwareEditModel ?? '')}.`,
+    )
     if (teamMode) {
       toolsHintParts.push(
         [
