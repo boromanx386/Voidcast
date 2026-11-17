@@ -133,7 +133,7 @@ Coding project root: ${path}`
 /** When any tools are enabled — reduces false claims about tool execution.
  *  Kept short and placed FIRST in the tools hint block so it stays in the
  *  high-attention region of the system prompt across long sessions. */
-export const TOOLS_TRUTH_HINT = `Tool-call truth: never claim you generated an image, saved a file, ran a command, searched the web, edited code, exported a PDF, produced music, or created a voiceover/TTS audio file unless you called the matching tool in this turn and got its result. If you only have illustrative or sample content, state explicitly that it is an example — do not imply a real file, URL, or output exists.`
+export const TOOLS_TRUTH_HINT = `Tool-call truth: never claim you generated an image, saved a file, ran a command, searched the web, edited code, exported a PDF, produced music, or created a voiceover/TTS audio file unless you called the matching tool in this turn and got its result. If you only have illustrative or sample content, state explicitly that it is an example — do not imply a real file, URL, or output exists. A <tool_record> at the end of an earlier assistant turn is written by the app from that turn's real tool log — never write one yourself.`
 export const ATTACHMENT_TRUTH_HINT = `If the chat context already includes attached file snapshots or quoted file text, analyze that provided content directly. Do not say you cannot access local files/tools unless no snapshot/content was provided.`
 
 /**

@@ -27,7 +27,11 @@ import {
   buildRuntimeTimeHint,
 } from '@/lib/chatHints'
 import { buildToolImageCatalog, type PendingChatImage } from '@/lib/chatImageCatalog'
-import { buildCodingMemoHint, type CodingContextMemo } from '@/lib/codingContextMemo'
+import {
+  buildCodingMemoHint,
+  formatCodingTurnToolRecord,
+  type CodingContextMemo,
+} from '@/lib/codingContextMemo'
 import { buildActiveProcessesHint, type ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import { searchMemories } from '@/lib/longMemoryStorage'
@@ -213,9 +217,19 @@ export async function buildAgentTurnContext(
     const planNote = x.plan ? formatPlanHistoryNote(x.plan) : ''
     if (!x.content.trim() && !x.thinking?.trim() && !planNote) return acc
     const imageVisionHint = buildAssistantImageVisionHint(x, imageVisionCache)
+    const ev = x.codingTurnEvidence
+    const toolRecord = ev
+      ? formatCodingTurnToolRecord({
+          hadAnyToolEvents: ev.hadAnyToolEvents,
+          hadRepoAction: ev.hadRepoAction,
+          filePaths: ev.filePaths ?? [],
+          commandSummaries: ev.commandSummaries ?? [],
+          gitSummaries: ev.gitSummaries ?? [],
+        })
+      : ''
     acc.push({
       role: 'assistant',
-      content: [x.content, planNote, imageVisionHint]
+      content: [x.content, planNote, imageVisionHint, toolRecord]
         .filter((v) => v.trim().length > 0)
         .join('\n\n'),
       ...(x.thinking?.trim() ? { thinking: x.thinking } : {}),

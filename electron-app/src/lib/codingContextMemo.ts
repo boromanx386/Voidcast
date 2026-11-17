@@ -530,6 +530,32 @@ export function formatCodingTurnEvidenceLabel(evidence: CodingTurnEvidence): str
   return parts.join(' · ')
 }
 
+/**
+ * App-written tool log appended to a prior assistant turn in the model history.
+ * History otherwise carries only the reply text, so after a few turns the model
+ * sees "user asks → assistant says done" with no tool calls and copies that.
+ */
+export function formatCodingTurnToolRecord(
+  ev: Pick<
+    CodingTurnEvidence,
+    'hadAnyToolEvents' | 'hadRepoAction' | 'filePaths' | 'commandSummaries' | 'gitSummaries'
+  >,
+): string {
+  let body: string
+  if (!ev.hadAnyToolEvents) {
+    body = 'No tools were called in this turn; nothing in the project changed.'
+  } else if (!ev.hadRepoAction) {
+    body = 'Read-only tools only; no files changed, no commands run.'
+  } else {
+    const parts: string[] = []
+    if (ev.filePaths.length) parts.push(`files changed: ${ev.filePaths.join(', ')}`)
+    if (ev.commandSummaries.length) parts.push(`commands run: ${ev.commandSummaries.join(' | ')}`)
+    if (ev.gitSummaries.length) parts.push(`git: ${ev.gitSummaries.join(' | ')}`)
+    body = parts.join('; ')
+  }
+  return `<tool_record>${body}</tool_record>`
+}
+
 export const CODING_PLAN_HANDOFF_MAX_CHARS = 6000
 const PLAN_TOOL_TRAIL_MAX = 20
 
