@@ -1752,10 +1752,19 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             resolveContextLimit(settings),
           )
         if (needsCompression) {
+          // Same tail rule as a normal compress: the exchanges right before the edited
+          // message stay word for word.
+          const keepFrom = pickCompressionKeepFrom(
+            truncated.slice(0, idx),
+            0,
+            resolveContextLimit(settings).maxTokens * COMPRESSION_KEEP_MAX_RATIO,
+          )
           setContextCompressBusy(true)
           try {
-            const summary = (await compressTurns(restoredTurns, '', '')).trim()
-            if (summary) contextWindow = { summary, throughIndex: idx }
+            const summary = (
+              await compressTurns(toConversationTurns(truncated.slice(0, keepFrom)), '', '')
+            ).trim()
+            if (summary) contextWindow = { summary, throughIndex: keepFrom }
           } catch {
             // Resend with the raw history; if it does not fit, the provider says so.
           } finally {
