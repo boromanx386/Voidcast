@@ -121,7 +121,7 @@ const BROWSER_TAKE_SNAPSHOT_TOOL: AgentToolDefinition = {
   function: {
     name: 'browser_take_snapshot',
     description:
-      'Accessibility snapshot of the current Voidcast browser page. Every line is `<uid> <role> name="..."`. Pass a uid to browser_click / browser_fill. Call it after every navigation or UI change instead of guessing CSS selectors.',
+      'Accessibility snapshot of the current Voidcast browser page. Element lines are `<uid> <role> name="..."`; pass a uid to browser_click / browser_fill. `text "..."` lines are the page text in reading order (no uid) — read scores, messages and errors there instead of taking a screenshot. Call it after every navigation or UI change instead of guessing CSS selectors.',
     parameters: {
       type: 'object',
       properties: {

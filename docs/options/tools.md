@@ -32,7 +32,7 @@ Each flag has a toggle in the panel (`ToolToggle`). If a tool is disabled, the a
 | Tool | Access | Purpose |
 | --- | --- | --- |
 | `browser_navigate_page` | write | Open an `http(s)` URL (localhost allowed) and return the final URL; `wait: false` replies as soon as the navigation starts |
-| `browser_take_snapshot` | read | Accessibility snapshot; every line is `<uid> <role> name="..."` |
+| `browser_take_snapshot` | read | Accessibility snapshot: element lines are `<uid> <role> name="..."`, and `text "..."` lines carry the page text in reading order (merged per element, up to 4000 chars, no repeats of an element's name, no `<canvas>` fallback) |
 | `browser_click` | write | Trusted real mouse click on the element with that `uid` |
 | `browser_fill` | write | Focus the `uid` element, **replace** what it holds with the text (optional Enter submit) |
 | `browser_press_key` | write | Press one key or a chord: a character (`1`, `a`, `+`), a physical code (`Digit1`, `KeyA`, `Numpad1`, `F5`) or a name (`Enter`, `Escape`, `Tab`, `ArrowUp`, …), optionally with modifiers (`Control+A`) |

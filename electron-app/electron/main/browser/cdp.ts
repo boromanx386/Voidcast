@@ -38,6 +38,10 @@ export type ClipRect = { x: number; y: number; width: number; height: number }
 const MAX_BUFFER = 200
 const MAX_TEXT_LEN = 160
 const DEFAULT_MAX_NODES = 400
+/** One merged `text` line — a paragraph's worth. */
+const MAX_TEXT_LINE_LEN = 300
+/** All page text in one snapshot; a long article must not crowd out the controls. */
+const MAX_PAGE_TEXT_CHARS = 4000
 
 /** Roles with no actionable meaning — dropped from snapshots to save context. */
 const SKIP_ROLES = new Set([
@@ -288,18 +292,69 @@ export class CdpSession {
     const nodes = res?.nodes ?? []
     const map = new Map<string, CdpSnapshotNode>()
     const lines: string[] = []
+    const roleOf = (node: CdpMessageParams): string =>
+      compact((node.role as { value?: unknown } | undefined)?.value, 40)
+    const byId = new Map<string, CdpMessageParams>()
+    for (const node of nodes) if (node?.nodeId !== undefined) byId.set(String(node.nodeId), node)
+    // The element a piece of text belongs to: its nearest ancestor that gets its own line.
+    const ownerOf = (node: CdpMessageParams): CdpMessageParams | null => {
+      let cur = byId.get(String(node.parentId ?? ''))
+      for (let hops = 0; cur && hops < 64; hops += 1) {
+        const role = roleOf(cur)
+        if (!cur.ignored && role && !SKIP_ROLES.has(role)) return cur
+        cur = byId.get(String(cur.parentId ?? ''))
+      }
+      return null
+    }
+    // Page text rides along so the agent can read a score, an error or a paragraph without a
+    // screenshot. Pieces under one element merge into one line; text an element already
+    // carries as its name (button, link, heading) is not repeated.
+    let textOwner: unknown = undefined
+    let textIdx = -1
+    let textChars = 0
+    let textCut = false
     // Counted past the cap on purpose: comparing against `nodes.length` included every
     // skipped generic/StaticText node, so nearly every snapshot claimed to be truncated and
     // pushed the agent into asking for a bigger max_nodes for nothing.
     let eligible = 0
     for (const node of nodes) {
       if (!node || node.ignored) continue
-      const role = compact((node.role as { value?: unknown } | undefined)?.value, 40)
+      const role = roleOf(node)
+      if (role === 'StaticText') {
+        const text = compact(
+          (node.name as { value?: unknown } | undefined)?.value,
+          MAX_TEXT_LINE_LEN,
+        )
+        if (!text) continue
+        const owner = ownerOf(node)
+        const ownerName = owner
+          ? compact((owner.name as { value?: unknown } | undefined)?.value, 10_000)
+          : ''
+        if (ownerName && ownerName.includes(text)) continue
+        // Fallback content inside <canvas> ("your browser does not support canvas") is in the
+        // tree even though the canvas renders; agents read it as a bug report.
+        if (owner && roleOf(owner) === 'Canvas') continue
+        if (textChars + text.length > MAX_PAGE_TEXT_CHARS) {
+          textCut = true
+          continue
+        }
+        textChars += text.length
+        const ownerKey = owner?.nodeId ?? null
+        const prev = textIdx === lines.length - 1 ? lines[textIdx] : null
+        if (prev && ownerKey === textOwner && prev.length + text.length < MAX_TEXT_LINE_LEN) {
+          lines[textIdx] = `${prev.slice(0, -1)} ${quote(text)}"`
+        } else {
+          lines.push(`text "${quote(text)}"`)
+          textIdx = lines.length - 1
+          textOwner = ownerKey
+        }
+        continue
+      }
       if (!role || SKIP_ROLES.has(role)) continue
       const uid = String(node.nodeId ?? '')
       if (!uid) continue
       eligible += 1
-      if (lines.length >= maxNodes) continue
+      if (map.size >= maxNodes) continue
       const entry: CdpSnapshotNode = {
         uid,
         role,
@@ -313,9 +368,12 @@ export class CdpSession {
     this.uidMap = map
     const head = [`url: ${this.wc.getURL() || 'about:blank'}`, `title: ${this.wc.getTitle()}`]
     const truncated =
-      eligible > lines.length
-        ? [`(truncated to ${lines.length} of ${eligible} nodes — raise max_nodes to see the rest)`]
+      eligible > map.size
+        ? [`(truncated to ${map.size} of ${eligible} nodes — raise max_nodes to see the rest)`]
         : []
+    if (textCut) {
+      truncated.push(`(page text cut at ${MAX_PAGE_TEXT_CHARS} chars)`)
+    }
     return [...head, ...lines, ...truncated].join('\n')
   }
 
