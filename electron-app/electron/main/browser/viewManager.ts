@@ -224,6 +224,28 @@ function parkedRect(): BrowserRect {
 }
 
 /**
+ * Where an active page that is not on screen waits. Chromium stops producing frames for a
+ * view that lies wholly outside the window or is wholly covered by another view: measured
+ * on Electron 44, requestAnimationFrame stalls and Page.captureScreenshot times out even
+ * with backgroundThrottling off. One pixel inside the window keeps it rendering at full
+ * rate, so each such page shows exactly one pixel in its own window corner — separate
+ * corners keep two background pages from covering each other.
+ */
+function liveParkedRect(slot: number): BrowserRect {
+  const rect = parkedRect()
+  const win = ownerWindow && !ownerWindow.isDestroyed() ? ownerWindow : null
+  if (!win) return rect
+  const { width, height } = win.getContentBounds()
+  const right = slot % 2 === 0
+  const bottom = slot % 4 < 2
+  return {
+    ...rect,
+    x: right ? width - 1 : 1 - rect.width,
+    y: bottom ? height - 1 : 1 - rect.height,
+  }
+}
+
+/**
  * Stable-ish partition key so a project keeps its cookies/logins between runs.
  *
  * The path is case-folded and stripped of a trailing separator on purpose: Windows paths
@@ -341,14 +363,16 @@ function normalizeUrl(raw: string): string {
  * snapshot coordinate becomes a lie.
  */
 function applyVisibility(): void {
+  let liveSlot = 0
   for (const page of pages) {
     const active = !shuttingDown && page.id === bucket(page.key).activeId
     // Only the panel's project paints. Every active page — in any project — stays VISIBLE
-    // while parked: a hidden renderer stops requestAnimationFrame outright, so a canvas game
-    // in a background chat would freeze the moment the agent keeps driving it.
+    // while parked, one pixel inside the window (see liveParkedRect): a hidden or wholly
+    // off-window renderer stops requestAnimationFrame, so a canvas game in a background chat
+    // would freeze the moment the agent keeps driving it.
     const paint = active && page.key === panelKey && visibleFlag && panelSizeKnown()
     try {
-      page.view.setBounds(paint ? panelRect : parkedRect())
+      page.view.setBounds(paint ? panelRect : active ? liveParkedRect(liveSlot++) : parkedRect())
       if (typeof page.view.setVisible === 'function') page.view.setVisible(active)
     } catch {
       /* view may already be destroyed during teardown */
@@ -857,6 +881,8 @@ async function ensureBrowser(
   if (!windowHooked) {
     windowHooked = true
     target.once('closed', () => disposeBrowserView())
+    // Background pages sit one pixel inside the window's corners, so they follow its size.
+    target.on('resize', () => applyVisibility())
   }
   // Every entry point states the project it is calling for: that is this call's bucket, and
   // nothing below can reach into another project's pages.

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Built-in browser works in background chats**: a page the WEB panel was not showing — the agent's page in a background chat, or any page while the panel was closed — sat wholly outside the window, and Chromium stopped rendering it. `requestAnimationFrame` stalled, canvas games froze, snapshots came back empty and every screenshot timed out after 20 s, so the agent spent round after round trying to check its work (one benchmark run took 36 rounds for a small game). Such a page now keeps one pixel inside a corner of the window, which keeps it rendering at full speed. A minimized window still pauses every page.
+
 ## [2.12.8] — 2026-11-17
 
 ### Added
