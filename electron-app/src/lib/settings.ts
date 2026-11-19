@@ -26,11 +26,32 @@ export type TtsProvider = 'none' | 'local' | 'runware-xai' | 'openrouter-tts'
 export type SttProvider = 'none' | 'openrouter' | 'whistle'
 /** Backend for generate_image / edit_image_runware tools. */
 export type ImageProvider = 'runware' | 'openrouter'
+/** Music backend for generate_music_runware: Runware ACE-Step or an OpenRouter audio model. */
+export type MusicProvider = 'runware' | 'openrouter'
 
 /** Default OpenRouter TTS model (OpenAI gpt-4o-mini-tts was removed from OpenRouter). */
 export const OPENROUTER_TTS_MODEL_DEFAULT = 'google/gemini-3.1-flash-tts-preview'
 
 /** Default OpenRouter image model (Nano Banana 2 Lite). */
+/** Google Lyria 3 on OpenRouter: chat-completions models that stream the song as audio. */
+export const OPENROUTER_MUSIC_MODELS = [
+  {
+    id: 'google/lyria-3-pro-preview',
+    label: 'Lyria 3 Pro — full song with vocals ($0.08 per song)',
+  },
+  {
+    id: 'google/lyria-3-clip-preview',
+    label: 'Lyria 3 Clip — 30 s clip or loop ($0.04 per clip)',
+  },
+] as const
+
+export const OPENROUTER_MUSIC_MODEL_DEFAULT = OPENROUTER_MUSIC_MODELS[0].id
+
+export function normalizeOpenRouterMusicModel(raw: unknown): string {
+  const s = typeof raw === 'string' ? raw.trim() : ''
+  return s || OPENROUTER_MUSIC_MODEL_DEFAULT
+}
+
 export const OPENROUTER_IMAGE_MODEL_DEFAULT = 'google/gemini-3.1-flash-lite-image'
 
 /** OpenRouter dedicated Images API model (OpenAI GPT Image 2). */
@@ -1582,6 +1603,10 @@ export type AppSettings = {
   runwareImageOutputDir: string
   /** If true, each generated image is saved automatically to output folder. */
   runwareAutoSaveImages: boolean
+  /** Music backend for the music tool. */
+  musicProvider: MusicProvider
+  /** OpenRouter music model (Google Lyria 3) when musicProvider is openrouter. */
+  openrouterMusicModel: string
   /** Active Runware music model id (ACE-Step turbo or base). */
   runwareMusicModel: string
   /** Per-variant defaults for the ACE-Step music family. */
@@ -1824,6 +1849,8 @@ export const defaults: AppSettings = {
   runwareNegativePrompt: '',
   runwareImageOutputDir: '',
   runwareAutoSaveImages: false,
+  musicProvider: 'runware',
+  openrouterMusicModel: OPENROUTER_MUSIC_MODEL_DEFAULT,
   runwareMusicModel: RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID,
   runwareMusicModelProfiles: {
     [RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID]: {
@@ -2544,6 +2571,8 @@ function normalizeRunware(s: AppSettings): AppSettings {
       typeof s.runwareAutoSaveImages === 'boolean'
         ? s.runwareAutoSaveImages
         : defaults.runwareAutoSaveImages,
+    musicProvider: s.musicProvider === 'openrouter' ? 'openrouter' : 'runware',
+    openrouterMusicModel: normalizeOpenRouterMusicModel(s.openrouterMusicModel),
     runwareMusicModel: safeMusicModel,
     runwareMusicModelProfiles: normalizedMusicProfiles,
     runwareMusicOutputFormat: activeMusicProfile.outputFormat,

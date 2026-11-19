@@ -179,7 +179,7 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
         <p className="mt-2 text-xs text-void-dim">
           {isOpenRouter
             ? 'Uses OPENROUTER_API_KEY from General. Same pattern as OpenRouter TTS.'
-            : 'Uses RUNWARE_API_KEY from General. Music tool always uses Runware.'}
+            : 'Uses RUNWARE_API_KEY from General. Music picks its own provider under Music.'}
         </p>
       </div>
 

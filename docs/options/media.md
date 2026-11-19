@@ -57,9 +57,18 @@ Configured Runware image models: **FLUX 9B** (`runware:400@6`), **Z Image Turbo*
 
 ---
 
-## Music (ACE-Step)
+## Music
 
-### Model
+### Provider (`musicProvider`)
+
+- **Runware (ACE-Step)** — the default; uses `runwareApiKey`. Everything below this section applies to it.
+- **OpenRouter (Google Lyria 3)** — uses `openrouterApiKey`. Pick the model in `openrouterMusicModel`:
+  - **Lyria 3 Pro** (`google/lyria-3-pro-preview`) — full song with vocals and lyrics, billed per song ($0.08 on OpenRouter as of November 2026).
+  - **Lyria 3 Clip** (`google/lyria-3-clip-preview`) — 30-second clip or loop, billed per clip ($0.04).
+
+  Lyria runs on chat completions and streams the song back, so the app saves it to `runwareMusicOutputDir` when auto-save is on, otherwise to its own `generated-audio` folder. Lyria picks the length itself; duration, steps, format and seed apply to Runware only. Desktop app only.
+
+### Runware model
 
 Choose the active Runware music model:
 

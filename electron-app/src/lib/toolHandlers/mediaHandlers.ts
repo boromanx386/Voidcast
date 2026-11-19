@@ -4,6 +4,7 @@ import {
   invokeRunwareGenerateMusic,
 } from '@/lib/runware'
 import { invokeOpenRouterEditImage, invokeOpenRouterGenerateImage } from '@/lib/openrouterImage'
+import { invokeOpenRouterGenerateMusic } from '@/lib/openrouterMusic'
 import { cacheEntriesFromDescribeResults } from '@/lib/imageVisionCache'
 import { describeImagesWithSubAgent, formatSubAgentResultsForAgent } from '@/lib/subAgent'
 import { resolveImageRecallRequest } from '@/lib/toolHandlers/imageRecall'
@@ -370,6 +371,31 @@ export const handleGenerateMusicRunware: ToolHandlerFn = async (args, ctx) => {
         ? args.positivePrompt.trim()
         : ''
   if (!prompt) return 'Error: missing prompt parameter for generate_music_runware.'
+  if (ctx.runware.musicProvider === 'openrouter') {
+    const or = ctx.runware.openrouter
+    if (!or) return 'Error: OpenRouter settings are missing.'
+    try {
+      return await invokeOpenRouterGenerateMusic(
+        {
+          prompt,
+          lyrics: typeof args.lyrics === 'string' ? args.lyrics : undefined,
+          bpm: typeof args.bpm === 'number' ? args.bpm : undefined,
+          keyScale: typeof args.key_scale === 'string' ? args.key_scale : undefined,
+          vocalLanguage: typeof args.vocal_language === 'string' ? args.vocal_language : undefined,
+        },
+        {
+          apiKey: or.apiKey,
+          baseUrl: or.baseUrl,
+          model: or.musicModel || '',
+          outputDir: ctx.runware.musicOutputDir,
+          proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
+        },
+        ctx.signal,
+      )
+    } catch (e) {
+      return `Error: ${e instanceof Error ? e.message : String(e)}`
+    }
+  }
   try {
     // Audio engine tuning (steps, cfg_scale, output_format, seed, guidance_type) is intentionally
     // sourced from settings only; any values the model attempts to send in tool args are ignored.

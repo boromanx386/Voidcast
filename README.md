@@ -37,7 +37,7 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 - [Get started (one click)](#get-started-one-click)
 - [Updates (desktop)](#updates-desktop)
 - [The agent & tools](#the-agent--tools)
-  - [Music (Runware)](#music-runware) · [PDF export](#pdf-export) · [Agent skills](#agent-skills) · [MCP servers](#mcp-servers-desktop) · [Built-in browser](#built-in-browser) · [Chat modes](#chat-modes)
+  - [Music (Runware or Lyria)](#music-runware-or-lyria) · [PDF export](#pdf-export) · [Agent skills](#agent-skills) · [MCP servers](#mcp-servers-desktop) · [Built-in browser](#built-in-browser) · [Chat modes](#chat-modes)
 - [Coding tools](#coding-tools)
 - [Providers](#providers)
 - [OpenRouter support](#openrouter-support-per-model-provider-routing)
@@ -137,7 +137,7 @@ Available tools:
 - **PDF Export** — agent writes a formatted PDF to a folder you configure (Python tools server / ReportLab)
 - **Image Generation** — Runware or **OpenRouter** (Gemini Flash Image, GPT Image 2)
 - **Image Edit** — Runware or OpenRouter; reference images from chat
-- **Music / Audio Generation** — Runware AI soundtracks (ACE-Step v1.5 Turbo, Base, and XL Turbo/Base/SFT; see below)
+- **Music / Audio Generation** — Runware ACE-Step v1.5 (Turbo, Base, XL Turbo/Base/SFT) or Google Lyria 3 through OpenRouter; see below
 - **Text-to-Speech** — `generate_tts` uses the active TTS provider and saves a real audio file; project-relative output paths are supported on desktop
 - **Reminders** — set, list, update, delete scheduled notes
 - **Settings Agent** — change app config via chat commands
@@ -152,9 +152,9 @@ All providers share the same tool catalog and executor. See [Providers](#provide
 </p>
 <p align="center"><em>Options — General, LLM, Media, TTS/STT, Tools, Skills and Sub-Agent in one composite. Every tab is documented in <a href="docs/options/README.md">docs/options</a>.</em></p>
 
-### Music (Runware)
+### Music (Runware or Lyria)
 
-In **Options → Media → Music tool**, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20), **ACE-Step v1.5 Base** (higher quality, steps up to 300), or one of the 4B **XL** variants — **XL Turbo** (8-step distilled, steps capped at 20), **XL Base** (50-step CFG, up to 300 steps) and **XL SFT** (flagship quality, up to 300 steps). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
+In **Options → Media → Music tool**, choose the provider: **Runware ACE-Step** or **Google Lyria 3** through OpenRouter (**Lyria 3 Pro** for full songs with vocals, **Lyria 3 Clip** for 30-second clips; uses your OpenRouter key). For Runware, pick **ACE-Step v1.5 Turbo** (fast defaults, steps capped at 20), **ACE-Step v1.5 Base** (higher quality, steps up to 300), or one of the 4B **XL** variants — **XL Turbo** (8-step distilled, steps capped at 20), **XL Base** (50-step CFG, up to 300 steps) and **XL SFT** (flagship quality, up to 300 steps). Each model keeps its own profile (duration, format, steps, seed). Tuning stays in Options — the agent does not override music parameters via tool args.
 
 ### PDF Export
 

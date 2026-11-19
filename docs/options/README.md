@@ -4,7 +4,7 @@ This is the reference documentation for the **Settings** screen in the desktop/w
 
 1. [General](general.md) — interface theme, cloud API keys, notification sounds, auto-save chat, auto-update, reminders, long-term memory.
 2. [LLM](llm.md) — chat model provider and per-provider endpoints/models, generation defaults, think level, system prompt.
-3. [Media](media.md) — image generation (OpenRouter vs Runware) and music generation (Runware ACE-Step).
+3. [Media](media.md) — image generation (OpenRouter vs Runware) and music generation (Runware ACE-Step or Google Lyria 3 through OpenRouter).
 4. [TTS](tts.md) — text-to-speech & speech-to-text (labeled **TTS/STT** in desktop builds).
 5. [Tools](tools.md) — agent tool enable flags, max tool rounds, MCP servers, coding project path, PDF output directory.
 6. [Skills](skills.md) — Agent Skills discovery from `~/.agents/skills` (global) plus the chat project's skill folders.

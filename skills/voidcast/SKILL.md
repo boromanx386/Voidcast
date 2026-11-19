@@ -58,7 +58,7 @@ node voidcast.mjs create --mode agent --project "<absolute project dir>" \
 
 Be explicit about format and size: a service may return an 816x816 JPEG that the agent then re-encodes to whatever it guesses. Say "keep the original size/format" if that matters. Transparent backgrounds only work on OpenAI GPT Image models.
 
-**Music** (`generate_music_runware`, Runware ACE-Step):
+**Music** (`generate_music_runware`, Runware ACE-Step or Google Lyria 3, whichever the user picked in Options → Media; Lyria picks its own length):
 
 ```bash
 node voidcast.mjs create --mode agent --project "<absolute project dir>" \

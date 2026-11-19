@@ -50,7 +50,13 @@ export type RunwareImageConfig = {
     apiKey: string
     baseUrl: string
     model: string
+    /** Lyria model for the music tool when musicProvider is openrouter. */
+    musicModel?: string
   }
+  /** Music backend for generate_music_runware (default Runware). */
+  musicProvider?: 'runware' | 'openrouter'
+  /** Folder for music saved by the app (OpenRouter returns bytes, not a URL). */
+  musicOutputDir?: string
   /** Optional defaults for Runware music generation (ACE-Step). */
   musicDefaults?: {
     /** Active ACE-Step variant model id (turbo or base). */

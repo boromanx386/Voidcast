@@ -19,7 +19,7 @@ Type: `ToolsEnabled`, all booleans. Defaults: all `true`.
 | `pdf` | Save text as PDF into `pdfOutputDir` (main process) |
 | `youtube` | YouTube search / video info / transcript (TTS server: yt-dlp + transcript API) |
 | `runwareImage` | Generate images via Runware API |
-| `runwareMusic` | Generate music/audio via Runware ACE-Step model |
+| `runwareMusic` | Generate music/audio via Runware ACE-Step or Google Lyria 3 (OpenRouter), per Options → Media |
 | `coding` | Local coding tools (file read/write/search + terminal command execution) |
 | `enterPlan` | Agent can switch the conversation into Plan mode (read-only plan flow) |
 

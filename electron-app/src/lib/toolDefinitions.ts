@@ -771,7 +771,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
   function: {
     name: 'generate_music_runware',
     description:
-      'Generate music or audio with the Runware ACE-Step model from a text prompt. Call it whenever the user asks for a song, beat, background music, jingle, soundtrack or vocals. If generation fails, report the tool error; if a retry then succeeds, just deliver the result without explaining the retry. Engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) come from Options, so do not pass them. After success give a short caption; the app shows the player, so do not paste audio_url or links.',
+      'Generate music or audio from a text prompt with the music provider picked in Options → Media (Runware ACE-Step, or Google Lyria 3 through OpenRouter, which picks its own length). Call it whenever the user asks for a song, beat, background music, jingle, soundtrack or vocals. If generation fails, report the tool error; if a retry then succeeds, just deliver the result without explaining the retry. Engine settings (model variant, denoising steps, CFG scale, output format, seed, guidance type) come from Options, so do not pass them. After success give a short caption; the app shows the player, so do not paste audio_url or links.',
     parameters: {
       type: 'object',
       properties: {
@@ -791,7 +791,7 @@ const GENERATE_MUSIC_RUNWARE_TOOL: AgentToolDefinition = {
         duration_sec: {
           type: 'number',
           description:
-            'Optional duration in seconds (6-300). Only set when the user explicitly asks for a specific length.',
+            'Optional duration in seconds (6-300, Runware only). Only set when the user explicitly asks for a specific length.',
         },
         bpm: {
           type: 'number',

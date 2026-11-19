@@ -1113,7 +1113,13 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 apiKey: turnSettings.openrouterApiKey,
                 baseUrl: turnSettings.openrouterBaseUrl,
                 model: turnSettings.openrouterImageModel,
+                musicModel: turnSettings.openrouterMusicModel,
               },
+              musicProvider: turnSettings.musicProvider,
+              musicOutputDir:
+                turnSettings.runwareAutoSaveMusic && turnSettings.runwareMusicOutputDir.trim()
+                  ? turnSettings.runwareMusicOutputDir.trim()
+                  : '',
               musicDefaults: {
                 model: turnSettings.runwareMusicModel,
                 outputFormat: activeRunwareMusicProfile.outputFormat,
