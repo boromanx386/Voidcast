@@ -332,9 +332,15 @@ export function applyCodingDone(prev: SubAgentPanelState, formatted: string): Su
   const isErr = /^\s*error\b/i.test(text) || /\berror\s*:/i.test(text)
   const isPartial = /round budget|max rounds|without done|synthesized|stopped at/i.test(text)
 
+  // A worker that already reported done/error through its own event keeps that verdict.
+  // The digest is the model's own prose, and a clean worker that writes "400 { error: … }"
+  // about the API it built must not be marked as failed.
+  const settled = new Map(
+    prev.workers.filter((w) => w.status !== 'running').map((w) => [w.id, w.status]),
+  )
   let workers = prev.workers.map((w) => ({
     ...w,
-    status: (isErr ? 'error' : 'done') as SubAgentWorkerSlot['status'],
+    status: (settled.get(w.id) ?? (isErr ? 'error' : 'done')) as SubAgentWorkerSlot['status'],
   }))
 
   // "---\nWORKER 1:\n..." or "WORKER 1:\n"
@@ -349,7 +355,8 @@ export function applyCodingDone(prev: SubAgentPanelState, formatted: string): Su
     const n = m[1]!
     const body = (m[2] || '').trim()
     const id = `worker-${n}`
-    const err = /^\s*error\b/i.test(body) || /\berror\s*:/i.test(body)
+    const known = settled.get(id)
+    const err = known ? known === 'error' : /^\s*error\b/i.test(body) || /\berror\s*:/i.test(body)
     const partial = /round budget|max rounds|without done/i.test(body)
     workerUpdates.push({
       id,

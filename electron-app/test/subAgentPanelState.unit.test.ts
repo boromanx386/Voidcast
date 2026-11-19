@@ -134,6 +134,19 @@ describe('applyCodingDone with worker slots', () => {
     expect(s.events.at(-1)?.level).toBe('err')
   })
 
+  it('keeps the runner verdict when a clean digest mentions error:', () => {
+    let s = applyCodingStart(emptySubAgentPanelState(), 'WORKERS 1–2 · starting in parallel')
+    s = applyCodingEvent(s, { workerId: 'worker-1', text: 'WORKER 1 done', status: 'done' })
+    s = applyCodingEvent(s, { workerId: 'worker-2', text: 'WORKER 2 done', status: 'done' })
+    s = applyCodingDone(
+      s,
+      'WORKER 1:\nPOST answers 400 { error: "bad tags" } for invalid input.\n---\nWORKER 2:\nDone B',
+    )
+    expect(s.workers.every((w) => w.status === 'done')).toBe(true)
+    expect(s.progress).toBe('done')
+    expect(s.events.at(-1)?.level).toBe('ok')
+  })
+
   it('reports plain done when both workers were clean', () => {
     let s = applyCodingStart(emptySubAgentPanelState(), 'WORKERS 1–2 · starting in parallel')
     s = applyCodingDone(s, 'WORKER 1:\nDone A\n---\nWORKER 2:\nDone B')
