@@ -23,7 +23,7 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 
 ## Why Voidcast
 
-- **Cheap models, real coding agent.** On the same models through the same provider, Voidcast passed every hidden check that OpenCode passed and used about 22% fewer prompt tokens across three tasks. A $10/month OpenCode Go plan or a DeepSeek key is enough to do real work. Method, numbers and limits: [Benchmark](docs/benchmark.md).
+- **Cheap models, real coding agent.** On the same models through the same provider, Voidcast passed every hidden check that OpenCode passed and used about 22% fewer prompt tokens across three tasks. A $10/month OpenCode Go plan or a DeepSeek key is enough to do real work. Method and numbers: [Benchmark](docs/benchmark.md).
 - **More than code.** The same agent searches the web, reads YouTube transcripts, drives a browser you can take over, generates images and music, speaks with TTS and writes PDFs, all inline in the chat.
 - **A worker for your main agent.** Claude Code, Codex or Cursor can hand Voidcast a task through the [local control API](docs/control-api.md) and read the result: cheap bulk work, or tools your main agent lacks.
 - **Your keys, your machine.** No account with us, no credits, no markup, no telemetry.

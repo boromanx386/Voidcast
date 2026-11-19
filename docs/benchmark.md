@@ -46,13 +46,3 @@ Rounds / prompt tokens. Voidcast numbers are from the current coding prompt (202
   Breakout; on the smaller tasks each harness wins some cells.
 - Wall times are left out: the two harnesses did not run at the same hour, and the
   provider's speed changed a lot during the day.
-
-## Limits
-
-- One run per cell, except DeepSeek Breakout on Voidcast (3 runs). Agent runs vary: the
-  same task and model ranged from 5 to 10 rounds.
-- Two models, three small tasks. This says nothing about large repos or frontier models.
-- The think levels differ on paper (medium vs none sent). Measured on DeepSeek v4.1 Flash
-  through OpenCode Go, reasoning tokens at low, default, high and max overlapped completely
-  over 3 runs each, so the level changes little on this model.
-- Voidcast had long-term memory on; OpenCode had two MCP servers configured.
