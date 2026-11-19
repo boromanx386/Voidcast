@@ -11,8 +11,9 @@ const USAGE = `Usage: node voidcast.mjs <command> [args]
   transcript <id> [--since N] [--limit N] [--max-chars N] [--progress]
   wait <id> [seconds]                     long-poll until idle (default 60, max 600)
   stop <id>
-  create [--mode agent|ask|plan|team] [--project <dir>] [--model <provider:model>] [--foreground] <text...>
-  send <id> [--foreground] <text...>
+  create [--mode agent|ask|plan|team] [--project <dir>] [--model <provider:model>]
+         [--think off|low|medium|high|on] [--provider <openrouter-slug>] [--foreground] <text...>
+  send <id> [--think <level>] [--provider <slug>] [--foreground] <text...>
 Text may be "-" to read it from stdin.`;
 
 function controlFile() {
@@ -25,6 +26,14 @@ function controlFile() {
         ? path.join(os.homedir(), "Library", "Application Support")
         : (process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config"));
   return path.join(base ?? "", "voidcast", "control.json");
+}
+
+/** Per-turn overrides shared by create and send. */
+function turnFlags(flags) {
+  return {
+    ...(flags.think ? { think: flags.think } : {}),
+    ...(flags.provider ? { provider: flags.provider } : {}),
+  };
 }
 
 function die(message, code = 1) {
@@ -142,6 +151,7 @@ switch (cmd) {
         mode: flags.mode ?? "agent",
         ...(flags.project ? { projectPath: flags.project } : {}),
         ...(flags.model ? { model: flags.model } : {}),
+        ...turnFlags(flags),
         ...(flags.foreground ? { background: false } : {}),
       },
       60_000,
@@ -156,7 +166,11 @@ switch (cmd) {
     out = await call(
       "POST",
       `/chats/${enc(id)}/send`,
-      { text, ...(flags.foreground ? { background: false } : {}) },
+      {
+        text,
+        ...turnFlags(flags),
+        ...(flags.foreground ? { background: false } : {}),
+      },
       60_000,
     );
     break;

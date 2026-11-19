@@ -273,6 +273,8 @@ export function useVoidcastApp() {
       setNewChatMode: (mode) => sessionsApiRef.current.setNewChatAgentMode(mode),
       openSession: (session) => sessionsApiRef.current.openSession(session),
       setModelForSession: (id, model) => sessionsApiRef.current.setModelForSession(id, model),
+      setThinkLevelForSession: (id, level) =>
+        sessionsApiRef.current.setThinkLevelForSession(id, level),
       send: (opts) => onSendRef.current(opts),
     })
     return bridge.onControlRequest((method, params) =>

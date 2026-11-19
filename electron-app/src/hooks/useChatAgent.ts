@@ -212,6 +212,10 @@ export type OnSendOptions = {
   forceAgentMode?: AgentChatMode
   /** Model pin (`provider:modelId`) for this turn — plan handoff keeps its run's model. */
   forceModel?: string
+  /** Think level for this turn, ahead of the chat's own pick (control API). */
+  forceThinkLevel?: LlmThinkLevel
+  /** OpenRouter provider slug for this turn only; ignored when the turn runs on another provider. */
+  forceOpenRouterProvider?: string
   /** After a successful build turn, mark this plan message as built. */
   buildFromPlanMessageId?: string
   /** enter_plan_mode handoff: reuse attachments from the last user message in history. */
@@ -804,10 +808,18 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       const turnModelId = (opts?.forceModel ?? activeModelIdRef.current ?? '').trim()
       // The coding root is NOT folded into settings any more: settings has no coding
       // folder field, and the turn passes `turnCodingProjectPath` around explicitly.
+      const scopedSettings = applyScopedModelToSettings(
+        settings,
+        turnModelId || currentPinnedModelId(settings),
+      )
+      const forcedProvider = opts?.forceOpenRouterProvider?.trim()
       const turnSettings: AppSettings = {
-        ...applyScopedModelToSettings(settings, turnModelId || currentPinnedModelId(settings)),
+        ...scopedSettings,
+        ...(forcedProvider && scopedSettings.llmProvider === 'openrouter'
+          ? { openrouterProviderOnly: forcedProvider }
+          : {}),
         agentMode: turnAgentMode,
-        llmThinkLevel: thinkLevelRef.current ?? settings.llmThinkLevel,
+        llmThinkLevel: opts?.forceThinkLevel ?? thinkLevelRef.current ?? settings.llmThinkLevel,
       }
 
       // Persist the mode on the chat that owns this run — background runs included —

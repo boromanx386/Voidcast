@@ -40,8 +40,12 @@ function fakeEnv(opts: { startActive: string | null; sendBehavior?: 'busy' | 're
       state.active = s.id
     },
     setModelForSession: (id, model) => calls.push(`model:${id}:${model}`),
+    setThinkLevelForSession: (id, level) => calls.push(`think:${id}:${level}`),
     send: vi.fn(async (o) => {
       calls.push(`send:${o.text}:${o.forceAgentMode ?? '-'}:${o.forceModel ?? '-'}`)
+      if (o.forceThinkLevel || o.forceOpenRouterProvider) {
+        calls.push(`turn:${o.forceThinkLevel ?? '-'}:${o.forceOpenRouterProvider ?? '-'}`)
+      }
       if (opts.sendBehavior === 'reject') throw new Error('boom')
       if (opts.sendBehavior === 'noop') return
       const id = state.active ?? 'new-1'
@@ -78,6 +82,19 @@ describe('startChat', () => {
     ])
     expect(state.active).toBe('prev')
     expect(state.busy.has('new-1')).toBe(true)
+  })
+
+  test('think and provider ride on the send, and think is saved on the new chat', async () => {
+    const { env, calls } = fakeEnv({ startActive: 'prev' })
+    await createControlDriver(env).startChat({
+      ...START,
+      text: 't',
+      model: 'openrouter:m',
+      think: 'high',
+      provider: 'deepinfra',
+    })
+    expect(calls).toContain('turn:high:deepinfra')
+    expect(calls).toContain('think:new-1:high')
   })
 
   test('only the new-chat default carries the mode, and it is restored afterwards', async () => {
@@ -126,6 +143,21 @@ describe('sendToChat', () => {
     expect(res).toEqual({ id: 'other' })
     expect(calls).toEqual(['open:other', 'send:go:-:-', 'open:prev'])
     expect(state.active).toBe('prev')
+  })
+
+  test('passes think and provider for the turn and saves think on the chat', async () => {
+    const { env, calls } = fakeEnv({ startActive: 'prev' })
+    await createControlDriver(env).sendToChat('other', 'go', true, {
+      think: 'low',
+      provider: 'deepseek',
+    })
+    expect(calls).toEqual([
+      'open:other',
+      'send:go:-:-',
+      'turn:low:deepseek',
+      'think:other:low',
+      'open:prev',
+    ])
   })
 
   test('sending to the chat already on screen does not navigate', async () => {

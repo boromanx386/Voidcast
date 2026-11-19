@@ -297,7 +297,41 @@ describe('chats.create / chats.send', () => {
     const { d, sendToChat } = sendDeps(true)
     const res = await handleControlRequest('chats.send', { id: 'a', text: 'again' }, d)
     expect(res).toEqual({ ok: true, data: { id: 'a', started: true } })
-    expect(sendToChat).toHaveBeenCalledWith('a', 'again', true)
+    expect(sendToChat).toHaveBeenCalledWith('a', 'again', true, {})
+  })
+
+  test('think and provider pass through create and send', async () => {
+    const { d, startChat, sendToChat } = sendDeps(true)
+    await handleControlRequest(
+      'chats.create',
+      {
+        text: 'x',
+        model: 'openrouter:deepseek/deepseek-v4.1-flash',
+        think: 'high',
+        provider: ' deepinfra ',
+      },
+      d,
+    )
+    expect(startChat).toHaveBeenCalledWith(
+      expect.objectContaining({ think: 'high', provider: 'deepinfra' }),
+    )
+    await handleControlRequest('chats.send', { id: 'a', text: 'y', think: 'off' }, d)
+    expect(sendToChat).toHaveBeenCalledWith('a', 'y', true, { think: 'off' })
+  })
+
+  test('a bad think level or a provider on a non-OpenRouter model is 400', async () => {
+    const { d, startChat } = sendDeps(true)
+    expect(
+      await handleControlRequest('chats.create', { text: 'x', think: 'max' }, d),
+    ).toMatchObject({ status: 400 })
+    expect(
+      await handleControlRequest(
+        'chats.create',
+        { text: 'x', model: 'opencode-go:glm-5.3-flash', provider: 'deepseek' },
+        d,
+      ),
+    ).toMatchObject({ status: 400 })
+    expect(startChat).not.toHaveBeenCalled()
   })
 
   test('a driver error is surfaced with its status', async () => {

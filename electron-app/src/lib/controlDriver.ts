@@ -11,7 +11,8 @@
  */
 
 import type { AgentChatMode, ChatSession } from '@/types/chat'
-import type { ControlActionResult, ControlStartInput } from '@/lib/controlApi'
+import type { ControlActionResult, ControlStartInput, ControlTurnOptions } from '@/lib/controlApi'
+import type { LlmThinkLevel } from '@/lib/settings'
 
 export const CONTROL_STEP_TIMEOUT_MS = 5_000
 const POLL_MS = 25
@@ -30,11 +31,14 @@ export type ControlDriverEnv = {
   setNewChatMode: (mode: AgentChatMode | null) => void
   openSession: (session: ChatSession) => void
   setModelForSession: (id: string, model: string) => void
+  setThinkLevelForSession: (id: string, level: LlmThinkLevel) => void
   /** Same entry point as the composer; resolves when the WHOLE turn ends. */
   send: (opts: {
     text: string
     forceAgentMode?: AgentChatMode
     forceModel?: string
+    forceThinkLevel?: LlmThinkLevel
+    forceOpenRouterProvider?: string
   }) => Promise<void>
   sleep?: (ms: number) => Promise<void>
 }
@@ -47,6 +51,12 @@ export function createControlDriver(env: ControlDriverEnv) {
     chain = run.catch(() => undefined)
     return run
   }
+
+  /** Send-option fields for the per-turn overrides. */
+  const turnOverrides = (opts: ControlTurnOptions) => ({
+    ...(opts.think ? { forceThinkLevel: opts.think } : {}),
+    ...(opts.provider ? { forceOpenRouterProvider: opts.provider } : {}),
+  })
 
   async function waitFor(
     cond: () => boolean,
@@ -115,6 +125,7 @@ export function createControlDriver(env: ControlDriverEnv) {
             text: input.text,
             forceAgentMode: input.mode,
             ...(input.model ? { forceModel: input.model } : {}),
+            ...turnOverrides(input),
           }),
         0,
       )
@@ -123,6 +134,8 @@ export function createControlDriver(env: ControlDriverEnv) {
       if ('error' in result) return result
       // Persist the pin so follow-up sends on this chat keep the same model.
       if (input.model) env.setModelForSession(result.id, input.model)
+      // Same for the think level, which the chat's composer then shows.
+      if (input.think) env.setThinkLevelForSession(result.id, input.think)
       // Returning to a previous *draft* would hand it the new chat's composer
       // stash, so only a real chat is restored.
       if (input.background && previousId && previousId !== result.id) {
@@ -133,7 +146,12 @@ export function createControlDriver(env: ControlDriverEnv) {
     })
   }
 
-  function sendToChat(id: string, text: string, background: boolean): Promise<ControlActionResult> {
+  function sendToChat(
+    id: string,
+    text: string,
+    background: boolean,
+    options: ControlTurnOptions = {},
+  ): Promise<ControlActionResult> {
     return serial(async () => {
       const target = env.getSession(id)
       if (!target) return { error: 'Unknown chat id.', status: 404 }
@@ -145,8 +163,13 @@ export function createControlDriver(env: ControlDriverEnv) {
         }
       }
       await sleep(SETTLE_MS)
-      const result = await sendAndConfirm(id, () => env.send({ text }), env.messageCount(id))
+      const result = await sendAndConfirm(
+        id,
+        () => env.send({ text, ...turnOverrides(options) }),
+        env.messageCount(id),
+      )
       if ('error' in result) return result
+      if (options.think) env.setThinkLevelForSession(id, options.think)
       if (background && previousId && previousId !== id) {
         const previous = env.getSession(previousId)
         if (previous) env.openSession(previous)

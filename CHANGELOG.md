@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Think level and OpenRouter host in the control API**: `POST /chats` and `POST /chats/:id/send` take `think` (`off`, `low`, `medium`, `high`, `on`) and `provider` (an OpenRouter host slug such as `deepseek`). The think level is saved on the chat, so later turns keep it; before, chats started through the API always used the app's Default. The host applies to that turn only, with no fallbacks, so one model can run on several hosts at once without touching the provider lock in Options. The `voidcast` skill CLI gains `--think` and `--provider`.
+
 ### Changed
 
 - **Coding agent keeps to the task**: the coding prompt now asks the agent to do what was asked, suggest extra features or polish instead of adding them, verify with the project's own tests, build or `check_types` rather than tooling it builds itself (headless browsers, screenshot scripts, simulations), and remove its temporary files. In one benchmark run a model built a headless-browser screenshot setup and a game simulation for a small Breakout task and kept polishing for 44 rounds. The tool list in the same prompt now keeps only what the tool descriptions cannot say, so the prompt is about 1,100 characters shorter.

@@ -28,10 +28,10 @@ Use the real path of the folder this `SKILL.md` was loaded from (for example `~/
 | `transcript <id> [--since N] [--progress]` | Messages from index N. `--progress` adds the agent's intermediate drafts |
 | `wait <id> [seconds]` | Wait until the chat is idle (max 600). Returns status + `timedOut` |
 | `stop <id>` | Same as the Stop button |
-| `create [--mode agent\|ask\|plan\|team] [--project <dir>] [--model <provider:model>] [--foreground] <text>` | New chat + first turn. Returns `{id}` |
-| `send <id> [--foreground] <text>` | Next turn in an idle chat. `409` if it is busy |
+| `create [--mode agent\|ask\|plan\|team] [--project <dir>] [--model <provider:model>] [--think <level>] [--provider <slug>] [--foreground] <text>` | New chat + first turn. Returns `{id}` |
+| `send <id> [--think <level>] [--provider <slug>] [--foreground] <text>` | Next turn in an idle chat. `409` if it is busy |
 
-Use `-` as the text to read a long brief from stdin. `--model` takes the same ids as Voidcast's model picker, e.g. `openrouter:deepseek/deepseek-v4.1-flash` or `opencode-go:deepseek-v4-pro`; without it the chat uses the app's current model.
+Use `-` as the text to read a long brief from stdin. `--model` takes the same ids as Voidcast's model picker, e.g. `openrouter:deepseek/deepseek-v4.1-flash` or `opencode-go:deepseek-v4-pro`; without it the chat uses the app's current model. `--think off|low|medium|high|on` sets the chat's think level (kept for later turns; without it the chat uses the app's Default). `--provider <slug>` pins the OpenRouter host for that turn only (e.g. `deepseek`, `deepinfra`; no fallbacks), and works on `send` too.
 
 ## How to delegate a task
 

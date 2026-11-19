@@ -10,6 +10,7 @@ import type { AgentChatMode, ChatSession, UiMessage } from '@/types/chat'
 import type { SessionAgentSlot } from '@/lib/sessionAgentStore'
 import type { SubAgentWorkerMetrics } from '@/lib/subAgentPanelState'
 import type { TurnUsageTotals } from '@/lib/ollama'
+import type { LlmThinkLevel } from '@/lib/settings'
 
 export const CONTROL_TRANSCRIPT_DEFAULT_LIMIT = 50
 export const CONTROL_TRANSCRIPT_MAX_LIMIT = 200
@@ -25,7 +26,17 @@ export type ControlResult =
 export const CONTROL_TEXT_MAX_CHARS = 100_000
 const CONTROL_MODES: readonly AgentChatMode[] = ['agent', 'ask', 'plan', 'team']
 
-export type ControlStartInput = {
+const CONTROL_THINK_LEVELS: readonly LlmThinkLevel[] = ['off', 'low', 'medium', 'high', 'on']
+
+/** Per-turn overrides a caller can pass with create and send. */
+export type ControlTurnOptions = {
+  /** Think level; saved on the chat, so later turns keep it. */
+  think?: LlmThinkLevel
+  /** OpenRouter provider slug for this turn only (`provider.only`, no fallbacks). */
+  provider?: string
+}
+
+export type ControlStartInput = ControlTurnOptions & {
   text: string
   /** '' = General (no coding folder). */
   projectPath: string
@@ -49,7 +60,12 @@ export type ControlDeps = {
   /** Create a chat and start its first turn; resolves once the run is live. */
   startChat?: (input: ControlStartInput) => Promise<ControlActionResult>
   /** Start a turn in an existing idle chat; resolves once the run is live. */
-  sendToChat?: (id: string, text: string, background: boolean) => Promise<ControlActionResult>
+  sendToChat?: (
+    id: string,
+    text: string,
+    background: boolean,
+    options?: ControlTurnOptions,
+  ) => Promise<ControlActionResult>
 }
 
 export type ControlChatStatus = {
@@ -180,6 +196,26 @@ function parseBackground(raw: unknown): boolean {
   return !(raw === false || raw === 'false')
 }
 
+function parseTurnOptions(params: Record<string, unknown>): ControlTurnOptions | ControlResult {
+  const out: ControlTurnOptions = {}
+  if (params.think !== undefined && params.think !== '') {
+    if (!CONTROL_THINK_LEVELS.includes(params.think as LlmThinkLevel)) {
+      return fail(400, '`think` must be off, low, medium, high or on.')
+    }
+    out.think = params.think as LlmThinkLevel
+  }
+  if (params.provider !== undefined) {
+    if (typeof params.provider !== 'string') return fail(400, '`provider` must be a string.')
+    const provider = params.provider.trim()
+    if (provider.length > 100) return fail(400, 'Value too long.')
+    if (provider) out.provider = provider
+  }
+  return out
+}
+
+const isTurnOptions = (v: ControlTurnOptions | ControlResult): v is ControlTurnOptions =>
+  !('ok' in v)
+
 function actionResult(res: ControlActionResult): ControlResult {
   return 'error' in res ? fail(res.status, res.error) : ok({ id: res.id, started: true })
 }
@@ -271,6 +307,11 @@ export async function handleControlRequest(
       const projectPath = typeof params.projectPath === 'string' ? params.projectPath.trim() : ''
       const model = typeof params.model === 'string' ? params.model.trim() : ''
       if (projectPath.length > 1024 || model.length > 200) return fail(400, 'Value too long.')
+      const turn = parseTurnOptions(params)
+      if (!isTurnOptions(turn)) return turn
+      if (turn.provider && model && !model.startsWith('openrouter:')) {
+        return fail(400, '`provider` only applies to OpenRouter models (`openrouter:…`).')
+      }
       return actionResult(
         await deps.startChat({
           text,
@@ -278,6 +319,7 @@ export async function handleControlRequest(
           mode,
           model,
           background: parseBackground(params.background),
+          ...turn,
         }),
       )
     }
@@ -290,11 +332,13 @@ export async function handleControlRequest(
       if (!session) return fail(404, 'Unknown chat id.')
       const text = parseText(params.text)
       if (typeof text !== 'string') return text
+      const turn = parseTurnOptions(params)
+      if (!isTurnOptions(turn)) return turn
       if (deps.getSlot(session.id)?.busy) {
         return fail(409, 'Chat is busy. Wait for it to finish or stop it first.')
       }
       return actionResult(
-        await deps.sendToChat(session.id, text, parseBackground(params.background)),
+        await deps.sendToChat(session.id, text, parseBackground(params.background), turn),
       )
     }
 

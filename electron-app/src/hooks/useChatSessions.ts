@@ -898,6 +898,19 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     })
   }, [])
 
+  /** Write the think level of one chat by id (the control API sets it on chats it starts). */
+  const setThinkLevelForSession = useCallback((sessionId: string, level: LlmThinkLevel) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === sessionId)
+      if (idx < 0) return prev
+      const current = prev[idx]
+      if (current.thinkLevel === level) return prev
+      const next = [...prev]
+      next[idx] = { ...current, thinkLevel: level }
+      return next
+    })
+  }, [])
+
   /**
    * Chat-header model switcher. A locked chat keeps its own model, so the pick lands on that
    * chat; an unlocked one follows Options, so the pick is the global change the switcher made
@@ -1112,6 +1125,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     newChatAgentMode: pendingNewSessionAgentMode,
     setNewChatAgentMode: setPendingNewSessionAgentMode,
     setModelForSession,
+    setThinkLevelForSession,
     patchSessionImageVision,
     activeModelId,
     activeChatModelId,
