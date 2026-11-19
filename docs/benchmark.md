@@ -47,19 +47,6 @@ Rounds / prompt tokens. Voidcast numbers are from the current coding prompt (202
 - Wall times are left out: the two harnesses did not run at the same hour, and the
   provider's speed changed a lot during the day.
 
-## What changed along the way
-
-The benchmark found two Voidcast problems, both fixed:
-
-- **Background pages stopped rendering.** A page in the built-in browser that was not on
-  screen froze, so the agent's screenshots timed out and it kept retrying (36 rounds for
-  the Breakout task). Fixed in the browser panel.
-- **No rule for when the work is done.** At think "on", DeepSeek built its own headless
-  Chrome setup and a game simulation for the Breakout task and kept polishing: 44 rounds,
-  4.25M tokens. A short scope rule in the coding prompt (do what was asked, verify with the
-  project's own tests or build, suggest extra polish instead of adding it) brought it to
-  5–10 rounds over 3 runs, with no change on the other tasks.
-
 ## Limits
 
 - One run per cell, except DeepSeek Breakout on Voidcast (3 runs). Agent runs vary: the
