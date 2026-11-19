@@ -236,6 +236,9 @@ function liveParkedRect(slot: number): BrowserRect {
   const win = ownerWindow && !ownerWindow.isDestroyed() ? ownerWindow : null
   if (!win) return rect
   const { width, height } = win.getContentBounds()
+  // A minimized window reports a 0x0 content area, which would put the corner pixel at
+  // (-1, -1) and spread the page over the whole window once it is restored.
+  if (win.isMinimized() || width < 2 || height < 2) return rect
   const right = slot % 2 === 0
   const bottom = slot % 4 < 2
   return {
@@ -883,6 +886,8 @@ async function ensureBrowser(
     target.once('closed', () => disposeBrowserView())
     // Background pages sit one pixel inside the window's corners, so they follow its size.
     target.on('resize', () => applyVisibility())
+    // Restoring from minimized emits no 'resize' on Windows.
+    target.on('restore', () => applyVisibility())
   }
   // Every entry point states the project it is calling for: that is this call's bucket, and
   // nothing below can reach into another project's pages.
@@ -1426,6 +1431,12 @@ export async function takeBrowserScreenshot(
   if (!page) throw new Error('Browser page is not running yet.')
   // An element clip is resolved to DOCUMENT coordinates (spike #5) and works even for
   // elements that are below the fold.
+  // Chromium paints nothing while the window is minimized, so the capture would only time out.
+  if (ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.isMinimized()) {
+    throw new Error(
+      'The Voidcast window is minimized, so the page cannot be painted. Ask the user to restore it.',
+    )
+  }
   const target = options.outputPath ? shotTarget(projectPath, options.outputPath) : undefined
   const clip = options.uid ? await page.cdp.elementClip(options.uid) : undefined
   const shot = await page.cdp.screenshot({

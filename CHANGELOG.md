@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Browser page no longer covers the app after a minimize**: when the agent used the browser while the Voidcast window was minimized, the background page was parked from a 0x0 window size and, once the window was restored, sat over the whole interface. Pages now stay off-screen while the window is minimized and move back to their corner pixel on restore. A screenshot taken while minimized now fails at once with a message to restore the window, instead of after a 20-second timeout.
 - **Browser snapshot shows where links go**: `browser_take_snapshot` link lines now carry `url="..."` (same-origin links without the origin, so link-heavy pages stay small). Before, the snapshot had only link text, so an agent that needed the URLs of a list of links had to click each one and read the address bar. Collecting 20 Hacker News stories took 90 rounds that way.
 
 - **A new chat could take the title of the chat on screen**: the chat on screen was mirrored into the agent's view by an effect that ran one commit late. When the control API restored your chat after starting one task and started a second task before that effect ran, the view snapped back to your chat while the new chat was being set up. Auto-save then read your chat's messages as a new draft, and the new chat kept a title made from your chat's first message (its messages and run were fine). The view now changes only together with the active chat, so there is nothing left to lag behind.
