@@ -482,13 +482,26 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     media,
   } = slot
 
+  // Compression and its context limit follow the model this chat is on, like the turn
+  // does. Window settings would name another provider: a chat on a local model would
+  // send its history to a cloud one, and the limit would be some other model's.
+  const chatModelSettings = useCallback(
+    () =>
+      applyScopedModelToSettings(
+        settings,
+        activeModelIdRef.current?.trim() || currentPinnedModelId(settings),
+      ),
+    [activeModelIdRef, settings],
+  )
+
   const compressTurns = useCallback(
     (
       turns: ReturnType<typeof toConversationTurns>,
       existingSummary: string,
       verifiedCodingState: string,
-    ) =>
-      compressConversationContext({
+    ) => {
+      const settings = chatModelSettings()
+      return compressConversationContext({
         provider: settings.llmProvider,
         ollamaBaseUrl: settings.ollamaBaseUrl,
         ollamaModel: settings.ollamaModel,
@@ -513,13 +526,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         existingSummary,
         verifiedCodingState,
         modelOptions: { temperature: settings.llmTemperature, num_ctx: settings.llmNumCtx },
-      }),
-    [runtimeKey, settings],
+      })
+    },
+    [chatModelSettings, runtimeKey],
   )
 
   const summarizeContextNow = useCallback(async () => {
     if (busy || contextCompressBusy) return
-    const limit = resolveContextLimit(settings)
+    const limit = resolveContextLimit(chatModelSettings())
     // Only messages the current summary does not cover yet are summarized, and the
     // newest ones stay verbatim: re-summarizing old turns drifts, and the latest
     // exchange is what the next turn needs word for word.
@@ -582,6 +596,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     }
   }, [
     busy,
+    chatModelSettings,
     contextCompressBusy,
     contextCompressedThroughIndex,
     contextUsageInfo,
@@ -1747,6 +1762,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         idx,
       )
       if (contextWindow) {
+        const limit = resolveContextLimit(chatModelSettings())
         const restoredTurns = toConversationTurns(truncated.slice(0, idx))
         const needsCompression =
           settings.contextAutoCompress &&
@@ -1761,7 +1777,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             ),
             hiddenContextSummary,
             restoredTurns,
-            resolveContextLimit(settings),
+            limit,
           )
         if (needsCompression) {
           // Same tail rule as a normal compress: the exchanges right before the edited
@@ -1769,7 +1785,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
           const keepFrom = pickCompressionKeepFrom(
             truncated.slice(0, idx),
             0,
-            resolveContextLimit(settings).maxTokens * COMPRESSION_KEEP_MAX_RATIO,
+            limit.maxTokens * COMPRESSION_KEEP_MAX_RATIO,
           )
           setContextCompressBusy(true)
           try {
@@ -1807,6 +1823,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     },
     [
       busy,
+      chatModelSettings,
       codingProjectPathForRuntimeKey,
       compressTurns,
       contextCompressBusy,
