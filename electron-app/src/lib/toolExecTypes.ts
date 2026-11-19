@@ -104,6 +104,11 @@ export interface ExecCtx {
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   /** Session vision cache — skip sub-agent API when a description already exists. */
   imageVisionCache?: ImageVisionCache
+  /**
+   * Audio this turn already put in the chat (audioPathKey), so show_audio does not add a
+   * second player for a file generate_music_runware / generate_tts just showed.
+   */
+  turnAudioPaths?: Set<string>
   /** Tool enable flags — set by executeToolCall before dispatch. */
   toolsEnabled: ToolsEnabled
 }

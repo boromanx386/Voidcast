@@ -66,6 +66,11 @@ export function extractRunwareAudioUrls(text: string): string[] {
   return Array.from(new Set(out))
 }
 
+/** Compare key for local audio paths: Windows paths differ only in case and slashes. */
+export function audioPathKey(p: string): string {
+  return p.trim().replace(/\\/g, '/').toLowerCase()
+}
+
 export function extractAudioPaths(text: string): string[] {
   const out: string[] = []
   if (!text.trim()) return out

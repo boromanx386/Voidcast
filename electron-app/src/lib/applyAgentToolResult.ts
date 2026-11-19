@@ -33,6 +33,7 @@ import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { loadSettings, type AppSettings } from '@/lib/settings'
 import { scheduleUserDataSync } from '@/lib/userDataSync'
 import {
+  audioPathKey,
   extractRunwareAudioUrls,
   extractRunwareImageUrls,
   extractAudioPaths,
@@ -58,6 +59,8 @@ export type AgentToolResultHandlerDeps = {
   setCodingContextMemo: Dispatch<SetStateAction<CodingContextMemo>>
   /** Mutable ref for the per-turn working-set file cache, updated on read/write/edit. */
   codingFileCacheRef: React.MutableRefObject<CodingFileCache>
+  /** Audio already shown this turn; generated audio is added so show_audio can skip it. */
+  turnAudioPaths?: Set<string>
   /**
    * Frozen coding root for this agent turn. Memo normalization uses this instead of
    * live settings so a session switch mid-run cannot rebind digests to another folder.
@@ -135,6 +138,7 @@ export function applyAgentToolResult(
     refreshLongMemories,
     setCodingContextMemo,
     codingFileCacheRef,
+    turnAudioPaths,
     codingProjectPath: codingProjectPathFrozen,
     setCodingTerminalFeed,
     setCodingFileTreeNonce,
@@ -551,6 +555,7 @@ export function applyAgentToolResult(
 
     const attachSavedAudioPaths = (savedPaths: string[]) => {
       if (savedPaths.length === 0) return
+      for (const p of savedPaths) turnAudioPaths?.add(audioPathKey(p))
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== asstId) return m

@@ -86,6 +86,7 @@ export interface ChatWithToolsCommonParams {
   workerSteerQueue?: WorkerSteerQueue
   onImageVisionCacheUpdate?: (entries: ImageVisionCache) => void
   imageVisionCache?: ImageVisionCache
+  turnAudioPaths?: Set<string>
 }
 
 export type { AgentTtsConfig, TtsProvider, VoiceMode, StoredVoiceAnchor }
@@ -112,6 +113,7 @@ export function buildToolExecutorOptions(
     codingRecentFiles: params.codingRecentFiles,
     codingContextMemoRef: params.codingContextMemoRef,
     codingFileCacheRef: params.codingFileCacheRef,
+    turnAudioPaths: params.turnAudioPaths,
     userText: params.rawUserText,
     skillsEnabled: Boolean(params.skillsEnabled),
     mcpEnabled: Boolean(params.mcpEnabled),

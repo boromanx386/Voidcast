@@ -111,6 +111,7 @@ describe('show_audio', () => {
         asstId: 'a1',
         settings: { runwareAutoSaveMusic: false, runwareMusicOutputDir: '' },
         codingFileCacheRef: { current: { entries: [] } },
+        turnAudioPaths: undefined,
         setMessages: (u: (m: UiMessage[]) => UiMessage[]) => {
           messages = u(messages)
         },
@@ -122,6 +123,43 @@ describe('show_audio', () => {
       result: 'The audio is now playable in the chat.\naudio_path: /out/clip.wav',
     })
     expect(messages[0].generatedAudioPaths).toEqual(['/out/clip.wav'])
+  })
+
+  test('skips a song this turn already generated instead of adding a second player', async () => {
+    const { saves } = stubDesktop({ 'Q:/arhiva/sound/song.mp3': 'QUJD', '/tmp/ok.wav': 'QUJD' })
+    const turnAudioPaths = new Set<string>()
+    let messages = [{ id: 'a1', role: 'assistant', content: '' }] as unknown as UiMessage[]
+    const deps = new Proxy(
+      {
+        asstId: 'a1',
+        settings: { runwareAutoSaveMusic: false, runwareMusicOutputDir: '' },
+        codingFileCacheRef: { current: { entries: [] } },
+        turnAudioPaths,
+        setMessages: (u: (m: UiMessage[]) => UiMessage[]) => {
+          messages = u(messages)
+        },
+      } as Record<string, unknown>,
+      { get: (target, key: string) => (key in target ? target[key] : vi.fn()) },
+    ) as unknown as AgentToolResultHandlerDeps
+    applyAgentToolResult(deps, {
+      name: 'generate_music_runware',
+      result: 'Music generated successfully.\naudio_path: Q:\\arhiva\\sound\\song.mp3',
+    })
+
+    const only = await handleShowAudio(
+      { paths: 'q:/Arhiva/sound/song.mp3' },
+      makeCtx({ turnAudioPaths }),
+    )
+    expect(only).toMatch(/^Already playable in the chat/)
+    expect(saves).toHaveLength(0)
+
+    const mixed = await handleShowAudio(
+      { paths: 'Q:/arhiva/sound/song.mp3, /tmp/ok.wav' },
+      makeCtx({ turnAudioPaths }),
+    )
+    expect(mixed).toContain('audio_path: /out/ok.wav')
+    expect(mixed).toContain('not shown again: Q:/arhiva/sound/song.mp3')
+    expect(saves).toHaveLength(1)
   })
 })
 

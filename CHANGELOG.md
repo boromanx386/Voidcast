@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **A generated song no longer shows two players**: after `generate_music_runware` (or `generate_tts`) the agent sometimes also called `show_audio` on the same file, and since `show_audio` plays a copy, the reply ended up with the same track twice. `show_audio` now skips a file this turn already put in the chat and tells the agent so.
 - **Control API refuses a chat folder that is not there**: `POST /chats` (`create --project`) took any `projectPath`, so a typo created a chat whose tools ran against a missing folder. A relative path, a missing folder or a file now answers `400` with the reason.
 - **Context compression uses the chat's own model**: COMPRESS NOW, auto-compress at 90% and the compress before an edited resend took the provider, model and context limit from the app-wide default instead of the model picked for the chat. A chat on a local Ollama model could send its history to a cloud model for the summary, and the 90% mark was measured against another model's window. The long-memory picker (brain icon in the composer) had the same problem and now also uses the chat's model.
 - **Control API returns the plan of a Plan-mode chat**: the transcript only had the reply text, and Plan mode keeps the plan itself on the plan card, so a caller that asked Voidcast to plan something got a short exploration note and no steps. Transcript messages now carry `plan` with the title, status, summary, steps, offered approaches and the path of the plan file.

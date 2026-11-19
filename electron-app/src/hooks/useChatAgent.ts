@@ -848,6 +848,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
 
       // Per-turn isolation so background runs do not share mutables with the active view.
       const turnFileCacheRef = { current: emptyCodingFileCache() }
+      const turnAudioPaths = new Set<string>()
       const turnMemoRef = { current: codingContextMemoRef.current }
       // Snapshot vision cache at turn start for tools; live view updates apply only if viewing.
       const turnVisionCacheRef = {
@@ -1139,6 +1140,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             codingRecentFiles: turnMemoRef.current.recentFiles,
             codingFileCacheRef: turnFileCacheRef,
             codingContextMemoRef: turnMemoRef,
+            turnAudioPaths,
             subAgent: turnSettings.subAgent,
             ollamaBaseUrlForSubAgent: turnSettings.ollamaBaseUrl,
             openrouterBaseUrlForSubAgent: turnSettings.openrouterBaseUrl,
@@ -1275,6 +1277,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                   refreshLongMemories,
                   setCodingContextMemo: applyCodingMemo,
                   codingFileCacheRef: turnFileCacheRef,
+                  turnAudioPaths,
                   codingProjectPath: turnCodingProjectPath,
                   setCodingTerminalFeed: viewing
                     ? setCodingTerminalFeed

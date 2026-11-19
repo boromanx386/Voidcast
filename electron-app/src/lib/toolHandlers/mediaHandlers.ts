@@ -39,7 +39,11 @@ import {
   validateProjectRelativeAudioPath,
 } from '@/lib/generatedAssetPath'
 import { isElectron, isWebStandalone } from '@/lib/platform'
-import { extractRunwareImageUrls, extractSavedImagePaths } from '@/lib/runwareMessageMeta'
+import {
+  audioPathKey,
+  extractRunwareImageUrls,
+  extractSavedImagePaths,
+} from '@/lib/runwareMessageMeta'
 import { invokeSaveImageFromUrl, isDataImageUrl } from '@/lib/saveImage'
 import { sanitizeForTts } from '@/lib/chatHints'
 
@@ -703,6 +707,7 @@ export const handleShowAudio: ToolHandlerFn = async (args, ctx) => {
   }
   const projectRoot = (ctx.codingProjectPath || '').trim()
   const shown: string[] = []
+  const alreadyShown: string[] = []
   const errors: string[] = []
   for (const raw of requested) {
     const abs = resolveLocalAudioPath(projectRoot, raw)
@@ -710,6 +715,11 @@ export const handleShowAudio: ToolHandlerFn = async (args, ctx) => {
       errors.push(
         `Not a usable audio path: ${raw} (MP3/WAV/FLAC/OGG/M4A; a relative path needs a project folder).`,
       )
+      continue
+    }
+    // Models often "show" the song they just generated; that file already has a player.
+    if (ctx.turnAudioPaths?.has(audioPathKey(abs))) {
+      alreadyShown.push(abs)
       continue
     }
     const res = await readAudioFile({ path: abs, maxBytes: MAX_SHOW_AUDIO_BYTES }).catch(() => null)
@@ -730,12 +740,17 @@ export const handleShowAudio: ToolHandlerFn = async (args, ctx) => {
     if (saved.ok && 'path' in saved && saved.path) shown.push(saved.path)
     else errors.push(`Could not save a copy of ${abs}: ${saved.text}`)
   }
+  const alreadyNote = alreadyShown.length
+    ? `Already playable in the chat from this turn, not shown again: ${alreadyShown.join(', ')}.`
+    : ''
   if (shown.length === 0) {
-    return `Error: show_audio could not show any audio. ${errors.join(' ')}`
+    if (alreadyNote && errors.length === 0) return alreadyNote
+    return `Error: show_audio could not show any audio. ${[alreadyNote, ...errors].filter(Boolean).join(' ')}`
   }
   return [
     'The audio is now playable in the chat. Do not repeat the path as a link.',
     ...shown.map((p) => `audio_path: ${p}`),
+    ...(alreadyNote ? [alreadyNote] : []),
     ...errors,
   ].join('\n')
 }
