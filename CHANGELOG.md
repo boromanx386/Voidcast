@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Coding agent keeps to the task**: the coding prompt now asks the agent to do what was asked, suggest extra features or polish instead of adding them, verify with the project's own tests, build or `check_types` rather than tooling it builds itself (headless browsers, screenshot scripts, simulations), and remove its temporary files. In one benchmark run a model built a headless-browser screenshot setup and a game simulation for a small Breakout task and kept polishing for 44 rounds. The tool list in the same prompt now keeps only what the tool descriptions cannot say, so the prompt is about 1,100 characters shorter.
+
 ### Fixed
 
 - **A new chat could take the title of the chat on screen**: the chat on screen was mirrored into the agent's view by an effect that ran one commit late. When the control API restored your chat after starting one task and started a second task before that effect ran, the view snapped back to your chat while the new chat was being set up. Auto-save then read your chat's messages as a new draft, and the new chat kept a title made from your chat's first message (its messages and run were fine). The view now changes only together with the active chat, so there is nothing left to lag behind.

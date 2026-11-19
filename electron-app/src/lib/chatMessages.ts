@@ -55,21 +55,14 @@ export function buildToolsCodingHint(
     : ''
   return `You have local coding tools scoped to the configured project folder. When the user asks to read, list, search, write, edit, refactor, fix, run, build, test, install or inspect git state in the project, call the matching coding tool in this turn before answering, instead of pasting code, diffs or terminal output from memory.
 
-Tool choice (call the right one first):
-- list_directory / glob_files / search_files — discover paths and matches (use path_prefix on search_files when the user names a folder).
-- find_symbols → targeted read_file(start_line/end_line) → edit_code — preferred navigation for large or unfamiliar files. Do not page a whole file with many range-reads when an outline would locate the symbol in one call.
-- read_file — inspect file contents (prefer start_line/end_line or max_chars on large files). Reuse a prior unread read_file / Digest from this turn; do not re-read the same path unless you need exact text for a patch or the prior result was cleared and the digest is insufficient.
-- write_file — create or fully replace a file.
-- edit_code — patch an existing file (preferred over write_file when changing part of a file). Use find_text from a recent read; pass start_line/end_line when the snippet may repeat.
-- execute_command — run shell commands (build, test, npm, git via shell only when no dedicated git tool fits).
-- list_processes / read_process_output / stop_process — inspect or stop Active coding processes by runId (do not start a duplicate server).
-- git_status / git_diff / git_log / git_show — repo inspection without guessing.
-- git_restore — undo a bad edit on one tracked path (worktree from index; to_head=true resets to HEAD). Never commits.
-- git_stash — checkpoint without commit (list / push / pop). Use push before risky multi-file work.
-- check_types — TypeScript (tsc), Python (ruff/pyright), Go (go vet), or Rust (cargo check); auto-detects from path_prefix / .ts|.py|.go|.rs paths and project markers.
+Working with the tools (each tool's description says how to call it):
+- Large or unfamiliar file: find_symbols, then a targeted read_file range, then edit_code. Do not page a whole file with many range-reads.
+- Do not re-read a path already read this turn unless you need its exact text for a patch.
+- Never invent paths: find them with glob_files or search_files. All paths stay inside the project root.
+- Prefer the git_* tools over git through execute_command.
+- If Active coding processes lists a server still running, reuse it or stop_process(runId); do not start a duplicate.
 ${exploreLine}${workersLine}
-Before edit_code, ensure you have the exact snippet (from an in-context read_file this turn, or one targeted range-read). Prefer find_symbols to locate lines first. If unsure of a path, call glob_files or search_files instead of inventing paths. All paths must stay inside the project root.
-If Active coding processes lists a server/dev command still running, do not start a duplicate; reuse or stop_process(runId) first.
+Scope: do what the user asked. Do not add features, refactors or polish nobody requested; suggest them in your answer instead. Verify with the project's existing tests, build or check_types; do not build your own verification tooling (headless browsers, screenshot scripts, simulations) unless asked. Remove temporary files you create.
 ${
   teamMode && subOn
     ? `
