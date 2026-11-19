@@ -9,12 +9,18 @@
 
 import { invokeSaveAudioBytes } from '@/lib/saveAudio'
 import { usesServerCloudProxy } from '@/lib/platform'
-import { normalizeOpenRouterMusicModel } from '@/lib/settings'
+import {
+  lyriaSupportsWav,
+  normalizeOpenRouterMusicModel,
+  type OpenRouterMusicFormat,
+} from '@/lib/settings'
 
 export type OpenRouterMusicConfig = {
   apiKey: string
   baseUrl: string
   model: string
+  /** Asked format; only Lyria 3 Pro honours WAV, the saved file follows the real bytes. */
+  format?: OpenRouterMusicFormat
   /** Folder for the song; empty = the app's generated-audio folder. */
   outputDir?: string
   proxyBaseUrl?: string
@@ -133,6 +139,21 @@ export function lyriaPromptText(req: OpenRouterMusicRequest): string {
   return parts.join('\n\n')
 }
 
+/** Chat-completions body for Lyria; audio output only streams. */
+export function lyriaRequestBody(
+  req: OpenRouterMusicRequest,
+  model: string,
+  format?: OpenRouterMusicFormat,
+): Record<string, unknown> {
+  return {
+    model,
+    stream: true,
+    modalities: ['text', 'audio'],
+    ...(format === 'wav' && lyriaSupportsWav(model) ? { audio: { format: 'wav' } } : {}),
+    messages: [{ role: 'user', content: lyriaPromptText(req) }],
+  }
+}
+
 export async function invokeOpenRouterGenerateMusic(
   req: OpenRouterMusicRequest,
   config: OpenRouterMusicConfig,
@@ -154,12 +175,7 @@ export async function invokeOpenRouterGenerateMusic(
     method: 'POST',
     headers,
     signal,
-    body: JSON.stringify({
-      model,
-      stream: true,
-      modalities: ['text', 'audio'],
-      messages: [{ role: 'user', content: lyriaPromptText(req) }],
-    }),
+    body: JSON.stringify(lyriaRequestBody(req, model, config.format)),
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } }

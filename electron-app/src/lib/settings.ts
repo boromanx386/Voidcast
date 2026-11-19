@@ -47,6 +47,13 @@ export const OPENROUTER_MUSIC_MODELS = [
 
 export const OPENROUTER_MUSIC_MODEL_DEFAULT = OPENROUTER_MUSIC_MODELS[0].id
 
+/** Lyria 3 Pro can return WAV; Clip is MP3 only. */
+export type OpenRouterMusicFormat = 'mp3' | 'wav'
+
+export function lyriaSupportsWav(model: string): boolean {
+  return model.trim() === 'google/lyria-3-pro-preview'
+}
+
 export function normalizeOpenRouterMusicModel(raw: unknown): string {
   const s = typeof raw === 'string' ? raw.trim() : ''
   return s || OPENROUTER_MUSIC_MODEL_DEFAULT
@@ -1607,6 +1614,8 @@ export type AppSettings = {
   musicProvider: MusicProvider
   /** OpenRouter music model (Google Lyria 3) when musicProvider is openrouter. */
   openrouterMusicModel: string
+  /** Audio format asked of Lyria 3 Pro (Clip always returns MP3). */
+  openrouterMusicFormat: OpenRouterMusicFormat
   /** Active Runware music model id (ACE-Step turbo or base). */
   runwareMusicModel: string
   /** Per-variant defaults for the ACE-Step music family. */
@@ -1851,6 +1860,7 @@ export const defaults: AppSettings = {
   runwareAutoSaveImages: false,
   musicProvider: 'runware',
   openrouterMusicModel: OPENROUTER_MUSIC_MODEL_DEFAULT,
+  openrouterMusicFormat: 'mp3',
   runwareMusicModel: RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID,
   runwareMusicModelProfiles: {
     [RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID]: {
@@ -2573,6 +2583,7 @@ function normalizeRunware(s: AppSettings): AppSettings {
         : defaults.runwareAutoSaveImages,
     musicProvider: s.musicProvider === 'openrouter' ? 'openrouter' : 'runware',
     openrouterMusicModel: normalizeOpenRouterMusicModel(s.openrouterMusicModel),
+    openrouterMusicFormat: s.openrouterMusicFormat === 'wav' ? 'wav' : 'mp3',
     runwareMusicModel: safeMusicModel,
     runwareMusicModelProfiles: normalizedMusicProfiles,
     runwareMusicOutputFormat: activeMusicProfile.outputFormat,

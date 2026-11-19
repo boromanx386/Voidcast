@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { collectAudioStream, lyriaPromptText, sniffAudioMime } from '@/lib/openrouterMusic'
+import {
+  collectAudioStream,
+  lyriaPromptText,
+  lyriaRequestBody,
+  sniffAudioMime,
+} from '@/lib/openrouterMusic'
 import {
   defaults,
   OPENROUTER_MUSIC_MODEL_DEFAULT,
@@ -86,10 +91,24 @@ describe('music provider settings', () => {
     })
     expect(kept.musicProvider).toBe('openrouter')
     expect(kept.openrouterMusicModel).toBe('google/lyria-3-clip-preview')
+    expect(kept.openrouterMusicFormat).toBe('mp3')
     const odd = normalizeSettingsCandidate({
       ...defaults,
       musicProvider: 'suno' as never,
     })
     expect(odd.musicProvider).toBe('runware')
+  })
+})
+
+describe('lyriaRequestBody', () => {
+  const req = { prompt: 'Synth pop' }
+  it('asks Lyria 3 Pro for WAV only when WAV is picked', () => {
+    expect(lyriaRequestBody(req, 'google/lyria-3-pro-preview', 'wav').audio).toEqual({
+      format: 'wav',
+    })
+    expect(lyriaRequestBody(req, 'google/lyria-3-pro-preview', 'mp3').audio).toBeUndefined()
+  })
+  it('never asks Clip for WAV', () => {
+    expect(lyriaRequestBody(req, 'google/lyria-3-clip-preview', 'wav').audio).toBeUndefined()
   })
 })

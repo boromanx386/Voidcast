@@ -1115,6 +1115,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 baseUrl: turnSettings.openrouterBaseUrl,
                 model: turnSettings.openrouterImageModel,
                 musicModel: turnSettings.openrouterMusicModel,
+                musicFormat: turnSettings.openrouterMusicFormat,
               },
               musicProvider: turnSettings.musicProvider,
               musicOutputDir:

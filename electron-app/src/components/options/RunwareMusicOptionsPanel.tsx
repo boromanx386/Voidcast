@@ -1,6 +1,7 @@
 import type { AppSettings, RunwareMusicModelProfile } from '@/lib/settings'
 import {
   OPENROUTER_MUSIC_MODELS,
+  lyriaSupportsWav,
   RUNWARE_ACE_STEP_V1_5_TURBO_MODEL_ID,
   RUNWARE_CONFIGURED_MUSIC_MODELS,
   getRunwareMusicProfileForModel,
@@ -105,6 +106,37 @@ export function RunwareMusicOptionsPanel({ settings, setSettings, variant = 'sta
               </option>
             ))}
           </select>
+        </div>
+      ) : null}
+
+      {isOpenRouter ? (
+        <div className="form-group">
+          <label className="form-label">
+            <span className="mr-2 text-neon-purple">▸</span>LYRIA_FORMAT
+          </label>
+          <select
+            className="form-select"
+            value={
+              lyriaSupportsWav(settings.openrouterMusicModel)
+                ? settings.openrouterMusicFormat
+                : 'mp3'
+            }
+            disabled={!lyriaSupportsWav(settings.openrouterMusicModel)}
+            onChange={(e) =>
+              setSettings((s) => ({
+                ...s,
+                openrouterMusicFormat: e.target.value === 'wav' ? 'wav' : 'mp3',
+              }))
+            }
+          >
+            <option value="mp3">MP3</option>
+            <option value="wav">WAV (lossless, about 10x larger)</option>
+          </select>
+          <p className="mt-2 text-xs text-void-dim">
+            {lyriaSupportsWav(settings.openrouterMusicModel)
+              ? 'Lyria 3 Pro only. The file is saved in whatever format actually arrives.'
+              : 'Lyria 3 Clip always returns MP3.'}
+          </p>
         </div>
       ) : null}
 
