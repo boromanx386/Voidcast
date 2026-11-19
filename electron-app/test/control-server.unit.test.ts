@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import {
   CONTROL_INFO_FILE,
   createRendererRequester,
+  projectPathProblem,
   routeControlRequest,
   startControlServer,
   waitForIdle,
@@ -265,5 +266,27 @@ describe('waitForIdle', () => {
       ok: false,
       status: 404,
     })
+  })
+})
+
+describe('projectPathProblem', () => {
+  test('no folder is fine; a real folder is fine', async () => {
+    expect(await projectPathProblem(undefined)).toBeNull()
+    expect(await projectPathProblem('  ')).toBeNull()
+    expect(await projectPathProblem(os.tmpdir())).toBeNull()
+  })
+
+  test('a relative, missing or file path is refused', async () => {
+    expect(await projectPathProblem('some/dir')).toMatch(/absolute/)
+    const missing = path.join(os.tmpdir(), `voidcast-missing-${Date.now()}`)
+    expect(await projectPathProblem(missing)).toMatch(/does not exist/)
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'voidcast-pp-'))
+    try {
+      const file = path.join(dir, 'a.txt')
+      await writeFile(file, 'x')
+      expect(await projectPathProblem(file)).toMatch(/not a folder/)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

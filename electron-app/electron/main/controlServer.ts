@@ -10,7 +10,7 @@
 
 import http from 'node:http'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 
@@ -106,6 +106,23 @@ export function routeControlRequest(
     return { method: 'chats.send', params: { ...body, id } }
   }
   return null
+}
+
+/**
+ * Why `projectPath` cannot be a chat's folder, or null when it can (empty = no folder).
+ * Checked here because only the main process can see the disk: a missing folder used to
+ * create the chat anyway, and its turn then ran tools against a path that is not there.
+ */
+export async function projectPathProblem(projectPath: unknown): Promise<string | null> {
+  if (typeof projectPath !== 'string' || !projectPath.trim()) return null
+  const p = projectPath.trim()
+  if (!path.isAbsolute(p)) return '`projectPath` must be an absolute path.'
+  try {
+    if ((await stat(p)).isDirectory()) return null
+    return `\`projectPath\` is not a folder: ${p}`
+  } catch {
+    return `\`projectPath\` does not exist: ${p}`
+  }
 }
 
 /** Poll `chats.get` until the chat is idle or the deadline passes. */
@@ -220,6 +237,13 @@ export function createControlServer(opts: {
         if (!route) {
           writeJson(res, 404, { error: 'Not found.' })
           return
+        }
+        if (route.method === 'chats.create') {
+          const problem = await projectPathProblem(route.params.projectPath)
+          if (problem) {
+            writeJson(res, 400, { error: problem })
+            return
+          }
         }
         const reply =
           route.method === 'chats.wait'
