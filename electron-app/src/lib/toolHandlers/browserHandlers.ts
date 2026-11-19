@@ -266,9 +266,11 @@ export const handleBrowserStatus: ToolHandlerFn = async (_args, ctx) => {
       `state: ${res.state}${res.error ? ` — last error: ${res.error}` : ''}`,
       `active page: ${res.url || '(none open)'}${res.title ? ` — ${res.title}` : ''}`,
       `painted in the WEB panel: ${
-        res.visible
-          ? 'yes'
-          : 'NO — the page is hidden, and a hidden page stops requestAnimationFrame, so canvas games and rAF-driven apps are frozen while it is not shown'
+        res.windowMinimized
+          ? 'NO — the Voidcast window is minimized, so nothing renders: requestAnimationFrame stops, and clicks, keys and screenshots fail until the user restores the window'
+          : res.visible
+            ? 'yes'
+            : 'no — the page runs in the background and keeps rendering, so input and screenshots work'
       }`,
       `pages: ${
         res.pages.map((p) => `${p.active ? '*' : ' '}${p.id} ${p.url || '(blank)'}`).join(' | ') ||

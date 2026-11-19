@@ -1416,6 +1416,22 @@ function shotTarget(
   return { abs, format }
 }
 
+export function windowMinimized(): boolean {
+  return Boolean(ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.isMinimized())
+}
+
+/**
+ * Chromium renders nothing while the window is minimized: screenshots time out and
+ * clicks and keys queue until a frame comes. Failing at once tells the agent why.
+ */
+export function assertWindowPaints(): void {
+  if (windowMinimized()) {
+    throw new Error(
+      'The Voidcast window is minimized, so the page renders nothing and input does not reach it. Ask the user to restore the window, then try again.',
+    )
+  }
+}
+
 export async function takeBrowserScreenshot(
   projectPath?: string,
   options: { uid?: string; fullPage?: boolean; outputPath?: string } = {},
@@ -1431,12 +1447,7 @@ export async function takeBrowserScreenshot(
   if (!page) throw new Error('Browser page is not running yet.')
   // An element clip is resolved to DOCUMENT coordinates (spike #5) and works even for
   // elements that are below the fold.
-  // Chromium paints nothing while the window is minimized, so the capture would only time out.
-  if (ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.isMinimized()) {
-    throw new Error(
-      'The Voidcast window is minimized, so the page cannot be painted. Ask the user to restore it.',
-    )
-  }
+  assertWindowPaints()
   const target = options.outputPath ? shotTarget(projectPath, options.outputPath) : undefined
   const clip = options.uid ? await page.cdp.elementClip(options.uid) : undefined
   const shot = await page.cdp.screenshot({
@@ -1502,6 +1513,8 @@ export function browserStatus(projectPath?: string): {
   visible: boolean
   panelRect: boolean
   forcedFrames: number
+  /** Nothing renders while the window is minimized, painted or parked. */
+  windowMinimized: boolean
   pages: BrowserPageInfo[]
   activeId: string | null
   /** Chromium partition key in use ('' until the browser has been configured). */
@@ -1544,6 +1557,7 @@ export function browserStatus(projectPath?: string): {
       visible: false,
       panelRect: hasPanelRect,
       forcedFrames: 0,
+      windowMinimized: windowMinimized(),
       pages: info,
       activeId: bucket(key).activeId,
       profile: bucket(key).partition,
@@ -1563,6 +1577,7 @@ export function browserStatus(projectPath?: string): {
     visible: painting,
     panelRect: hasPanelRect,
     forcedFrames: page.cdp.screencastFrameCount,
+    windowMinimized: windowMinimized(),
     pages: info,
     activeId: bucket(key).activeId,
     profile: bucket(key).partition,

@@ -788,6 +788,7 @@ interface VoidcastBridge {
           panelRect: boolean
           /** Frames seen by the forced-frame screencast (screenshot liveness). */
           forcedFrames: number
+          windowMinimized: boolean
           /** Chromium partition key currently in use (browser profile). */
           profile: string
           /** HTTP auth the page is waiting for — render the sign-in bar when this is set. */
