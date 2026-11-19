@@ -109,7 +109,7 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 - Requires Options → SUB → **ENABLE_CODING_SUB_AGENT**, coding tools on, and a project path.
 - Up to **2** tasks per call; each has `goal`, optional **`path_prefix`**, optional `max_rounds` (default/max **100**).
 - **Two workers run in parallel** with each other; the **main** agent is **blocked** until the batch returns digests (one tool step).
-- **Writes/edits** are rejected outside `path_prefix` when it is set (file or directory). **Reads** may span the whole project (read budget). **File locks** reduce two workers writing the same path.
+- **Writes/edits** are rejected outside `path_prefix` when it is set: a file or directory, or several separated by commas (`src, test/tags.test.js`) so one worker can own code and its tests. **Reads** may span the whole project (read budget). **File locks** reduce two workers writing the same path.
 - Workers cannot nest another `run_coding_workers` or `coding_explore`.
 - **Sibling blackboard** — a successful write/edit is broadcast in-process; before each round a worker is told which files its sibling changed, so an interface change in one scope is not invisible to the other.
 - **One end-of-run typecheck** — a worker runs `check_types` **once at the end** over the files it wrote (grouped by package folder), not a full `tsc` after every edit. The batch report carries a **compact JSON block** per worker (`changed` / `verified` / `failed` / `blockers`, one line, blockers clipped) next to the **capped** prose digests; the raw terminal dump stays out — the main agent runs its own post-worker `check_types` pass for diagnostics.
