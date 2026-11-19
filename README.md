@@ -71,7 +71,7 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 
 - **BYOK — your providers, your billing** — use the accounts and keys you already pay for (OpenRouter, OpenAI, NVIDIA NIM, DeepSeek, OpenCode Go), or run models on your own hardware with Ollama. Nothing is resold: no credits to buy from us, no markup. **OpenRouter** alone unlocks 300+ models from a single key. Keys and settings stay on your machine; Voidcast has no cloud account and never receives your keys. See [Providers](#providers).
 
-- **Pick who serves each model on OpenRouter** — the same open model is hosted by many providers at different prices, speeds and quantizations. **LIST ALL** shows every host for the selected model with price, context and uptime; click one and requests go **only** there, no fallbacks. The choice is remembered per model, and each chat keeps its upstream prompt cache warm. See [OpenRouter support](#openrouter-support-per-model-provider-routing).
+- **Pick who serves each model on OpenRouter** — the same open model is hosted by many providers at different prices, speeds and quantizations. **LIST ALL** shows every host for the selected model with its quantization (fp8, fp4…), input/output and cache-hit price and uptime; click one and requests go **only** there, no fallbacks. The choice is remembered per model, and each chat keeps its upstream prompt cache warm. See [OpenRouter support](#openrouter-support-per-model-provider-routing).
 
 - **Tools that do things** — web search, YouTube search + transcripts, web scraping, PDF export, image generation and edit, music generation, TTS/STT, reminders, settings control, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
 
@@ -315,7 +315,7 @@ OpenRouter is a first-class provider in Voidcast: **one key, 300+ models** (Clau
 
 - **Pin the provider per model** — set `OPENROUTER_PROVIDER` to a slug (`anthropic`, `openai`, `deepinfra`, `deepseek`, …). Requests then go **only** to that provider (`provider.only`, no fallbacks), so latency, price and behaviour stop moving under you.
 - **Remembered per model** — the lock is stored per model id (`openrouterProviderByModel`). Switch to another model and Voidcast restores *that* model's provider; switch back and it comes with it.
-- **LIST ALL** — lists every provider currently serving the selected model, with **context length, input/output price (per 1M tokens) and recent uptime**. Click a row to apply it as the lock — the field fills in and saves instantly.
+- **LIST ALL** — lists every provider currently serving the selected model, with its **quantization, input/output price, cache-hit price (per 1M tokens) and recent uptime**. Variants of one host (for example DeepInfra `fp8`, `fp8/flex`) show as separate rows. Click a row to apply it as the lock — the field fills in and saves instantly.
 - **Sticky routing for upstream cache** — each chat sends a stable `session_id`, so OpenRouter keeps routing the conversation to the same **upstream** provider, keeping that provider's prompt cache warm. Note this is an OpenRouter routing aid, not the cache itself: Voidcast's cache-friendly prompt ordering (stable system prompt + history prefix, volatile context on the final turn) applies to **every** provider, and cache-hit tokens are tracked for Ollama, OpenAI, DeepSeek and OpenRouter alike — see [Context Compression](#context-compression).
 
 Leave `OPENROUTER_PROVIDER` empty for OpenRouter's default load balancing across providers.
@@ -323,7 +323,7 @@ Leave `OPENROUTER_PROVIDER` empty for OpenRouter's default load balancing across
 <p align="center">
   <img src="demos/voidcast-options-openrouter.png" width="820" alt="Options → LLM: OpenRouter provider, model, OPENROUTER_PROVIDER lock and the LIST ALL provider table"/>
 </p>
-<p align="center"><em>Options → LLM — OpenRouter model picker, the optional <code>OPENROUTER_PROVIDER</code> lock, and the <strong>LIST ALL</strong> table (provider · ctx · price · uptime). Click a row to pin it.</em></p>
+<p align="center"><em>Options → LLM — OpenRouter model picker, the optional <code>OPENROUTER_PROVIDER</code> lock, and the <strong>LIST ALL</strong> table (provider · quant · price · cache hit · uptime). Click a row to pin it.</em></p>
 
 Full field reference: [docs/options/llm.md](docs/options/llm.md).
 

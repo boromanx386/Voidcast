@@ -114,12 +114,40 @@ export type OpenRouterModelEndpoint = {
   pricing?: {
     prompt?: string
     completion?: string
+    /** Price of a cached prompt token (cache hit). */
+    input_cache_read?: string
     request?: string
     image?: string
   }
   uptime_last_30m?: number
   status?: number
+  /** e.g. "fp8", "fp4", "bf16"; "unknown" when the host does not say. */
   quantization?: string
+}
+
+/**
+ * Per-token USD price string → dollars per million tokens for the LIST ALL table.
+ * Cache-hit prices are often fractions of a cent, so small values keep two significant
+ * digits instead of rounding to 0.00.
+ */
+export function formatPricePerMillion(perToken: string | undefined): string {
+  // toPrecision(6) drops float noise: 1e-7 * 1e6 is 0.09999999999999999, not 0.1.
+  const n = Number((Number(perToken) * 1e6).toPrecision(6))
+  if (!perToken || !Number.isFinite(n)) return '—'
+  if (n === 0) return '0'
+  return n >= 0.1 ? n.toFixed(2) : String(Number(n.toPrecision(2)))
+}
+
+/** Provider name plus the tag's variant ("deepinfra/fp8/flex" → "fp8/flex"), which tells same-name rows apart. */
+export function endpointVariant(tag: string): string {
+  const slash = tag.indexOf('/')
+  return slash < 0 ? '' : tag.slice(slash + 1)
+}
+
+/** Quantization for display; hosts that do not report one show a dash. */
+export function endpointQuant(quantization: string | undefined): string {
+  const q = (quantization || '').trim()
+  return !q || q === 'unknown' ? '—' : q
 }
 
 export type OpenRouterModelEndpointsResult = {

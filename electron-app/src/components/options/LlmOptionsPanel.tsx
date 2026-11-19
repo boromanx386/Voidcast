@@ -11,7 +11,13 @@ import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isWebStandalone } from '@/lib/platform'
 import { pinnedIdLabel, pinsForProvider, toScopedPinnedId } from '@/lib/pinnedModels'
 import { useCallback, useState } from 'react'
-import { fetchOpenRouterModelEndpoints, type OpenRouterModelEndpoint } from '@/lib/openrouter'
+import {
+  endpointQuant,
+  endpointVariant,
+  fetchOpenRouterModelEndpoints,
+  formatPricePerMillion,
+  type OpenRouterModelEndpoint,
+} from '@/lib/openrouter'
 import type { Dispatch, SetStateAction } from 'react'
 import type { CloudLlmPreset } from '@/lib/cloudLlmPresets'
 
@@ -435,22 +441,23 @@ export function LlmOptionsPanel({
                   <thead className="sticky top-0 bg-void-bg/95 text-void-dim">
                     <tr>
                       <th className="px-2 py-1.5 font-semibold">PROVIDER</th>
-                      <th className="px-2 py-1.5 font-semibold">CTX</th>
+                      <th className="px-2 py-1.5 font-semibold">QUANT</th>
                       <th className="px-2 py-1.5 font-semibold">IN/OUT ($/M)</th>
+                      <th
+                        className="px-2 py-1.5 font-semibold"
+                        title="Price of a cached prompt token"
+                      >
+                        CACHE HIT
+                      </th>
                       <th className="px-2 py-1.5 font-semibold">UPTIME</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orEndpoints.map((ep) => {
-                      const inPrice = ep.pricing?.prompt
-                        ? `${(Number(ep.pricing.prompt) * 1e6).toFixed(2)}`
-                        : '—'
-                      const outPrice = ep.pricing?.completion
-                        ? `${(Number(ep.pricing.completion) * 1e6).toFixed(2)}`
-                        : '—'
-                      const ctx = ep.context_length
-                        ? `${(ep.context_length / 1024).toFixed(0)}K`
-                        : '—'
+                      const inPrice = formatPricePerMillion(ep.pricing?.prompt)
+                      const outPrice = formatPricePerMillion(ep.pricing?.completion)
+                      const cacheHit = formatPricePerMillion(ep.pricing?.input_cache_read)
+                      const variant = endpointVariant(ep.tag)
                       const uptime =
                         typeof ep.uptime_last_30m === 'number'
                           ? `${ep.uptime_last_30m.toFixed(1)}%`
@@ -476,12 +483,18 @@ export function LlmOptionsPanel({
                             }`}
                           >
                             {ep.provider_name || ep.tag}
+                            {variant && ep.provider_name && (
+                              <span className="ml-1 text-void-dim">{variant}</span>
+                            )}
                             {isCurrent && <span className="ml-1 text-neon-cyan">◉</span>}
                           </td>
-                          <td className="px-2 py-1.5 text-void-dim">{ctx}</td>
                           <td className="px-2 py-1.5 text-void-dim">
+                            {endpointQuant(ep.quantization)}
+                          </td>
+                          <td className="px-2 py-1.5 text-void-dim whitespace-nowrap">
                             {inPrice} / {outPrice}
                           </td>
+                          <td className="px-2 py-1.5 text-void-dim">{cacheHit}</td>
                           <td className="px-2 py-1.5 text-void-dim">{uptime}</td>
                         </tr>
                       )
