@@ -391,7 +391,6 @@ export const handleGenerateMusicRunware: ToolHandlerFn = async (args, ctx) => {
           apiKey: or.apiKey,
           baseUrl: or.baseUrl,
           model: or.musicModel || '',
-          format: or.musicFormat,
           outputDir: ctx.runware.musicOutputDir,
           proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
         },

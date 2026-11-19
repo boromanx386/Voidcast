@@ -52,8 +52,6 @@ export type RunwareImageConfig = {
     model: string
     /** Lyria model for the music tool when musicProvider is openrouter. */
     musicModel?: string
-    /** Format asked of Lyria 3 Pro. */
-    musicFormat?: 'mp3' | 'wav'
   }
   /** Music backend for generate_music_runware (default Runware). */
   musicProvider?: 'runware' | 'openrouter'

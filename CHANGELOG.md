@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Music with Google Lyria 3**: Options → Media → Music has a provider choice. Pick OpenRouter to have `generate_music_runware` use Lyria 3 Pro (full songs with vocals) or Lyria 3 Clip (30-second clips) on your OpenRouter key. The song is streamed back, saved to the music folder (or the app's generated-audio folder) and gets the usual player. Runware ACE-Step stays the default. Lyria 3 Pro can return WAV instead of MP3 (LYRIA_FORMAT); Clip is MP3 only.
+- **Music with Google Lyria 3**: Options → Media → Music has a provider choice. Pick OpenRouter to have `generate_music_runware` use Lyria 3 Pro (full songs with vocals) or Lyria 3 Clip (30-second clips) on your OpenRouter key. The song is streamed back, saved to the music folder (or the app's generated-audio folder) and gets the usual player. Runware ACE-Step stays the default.
 - **Think level and OpenRouter host in the control API**: `POST /chats` and `POST /chats/:id/send` take `think` (`off`, `low`, `medium`, `high`, `on`) and `provider` (an OpenRouter host slug such as `deepseek`). The think level is saved on the chat, so later turns keep it; before, chats started through the API always used the app's Default. The host applies to that turn only, with no fallbacks, so one model can run on several hosts at once without touching the provider lock in Options. The `voidcast` skill CLI gains `--think` and `--provider`.
 
 ### Changed
