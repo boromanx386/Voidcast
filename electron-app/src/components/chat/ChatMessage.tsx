@@ -435,7 +435,12 @@ export function ChatMessage({ message: m, index, render, app }: Props) {
                 <div className="space-y-1.5">
                   {items.map((item, i) => {
                     const savedPath = item.kind === 'url' ? item.savedPath : item.path
-                    const playSrc = item.kind === 'url' ? item.url : item.playUrl || ''
+                    // Once the song is saved, play the local copy: a remote WAV/FLAC may
+                    // not play from the CDN, and the copy is what survives a restart.
+                    const playSrc =
+                      item.kind === 'url'
+                        ? (item.savedPath && localAudioUrls[item.savedPath]) || item.url
+                        : item.playUrl || ''
                     const metaKey = item.kind === 'url' ? item.url : item.path
                     const fileName =
                       (savedPath || (item.kind === 'url' ? item.url.split(/[?#]/)[0] : ''))
