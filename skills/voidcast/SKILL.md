@@ -25,7 +25,7 @@ Use the real path of the folder this `SKILL.md` was loaded from (for example `~/
 |---|---|
 | `list` | All chats, newest first, with `busy` and last-message preview |
 | `get <id>` | Status of one chat: `busy`, `error`, `toolPhase`, `turnUsage` (tokens of the last finished turn), Team-worker card (`subAgent.workers[].lastLine`, `events`) |
-| `transcript <id> [--since N] [--progress]` | Messages from index N. `--progress` adds the agent's intermediate drafts |
+| `transcript <id> [--since N] [--progress]` | Messages from index N. `--progress` adds the agent's intermediate drafts. A `--mode plan` reply carries its plan in `plan` (title, steps, file), not in `content` |
 | `wait <id> [seconds]` | Wait until the chat is idle (max 600). Returns status + `timedOut` |
 | `stop <id>` | Same as the Stop button |
 | `create [--mode agent\|ask\|plan\|team] [--project <dir>] [--model <provider:model>] [--think <level>] [--provider <slug>] [--foreground] <text>` | New chat + first turn. Returns `{id}` |

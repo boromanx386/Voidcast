@@ -6,7 +6,7 @@
  * `ControlDeps` so the handlers stay unit-testable without React or Electron.
  */
 
-import type { AgentChatMode, ChatSession, UiMessage } from '@/types/chat'
+import type { AgentChatMode, ChatSession, PlanArtifact, UiMessage } from '@/types/chat'
 import type { SessionAgentSlot } from '@/lib/sessionAgentStore'
 import type { SubAgentWorkerMetrics } from '@/lib/subAgentPanelState'
 import type { TurnUsageTotals } from '@/lib/ollama'
@@ -129,6 +129,29 @@ function messagesFor(session: ChatSession, slot: SessionAgentSlot | undefined): 
 
 function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+/** The plan a Plan-mode turn produced, as an API caller needs it to act on it. */
+function planForControl(plan: PlanArtifact) {
+  return {
+    title: plan.title,
+    status: plan.status,
+    ...(plan.summary ? { summary: plan.summary } : {}),
+    steps: plan.steps.map((st) => ({ text: st.text, done: Boolean(st.done) })),
+    ...(plan.approaches?.length
+      ? {
+          approaches: plan.approaches.map((a) => ({
+            id: a.id,
+            label: a.label,
+            ...(a.summary ? { summary: a.summary } : {}),
+            steps: a.steps.map((st) => st.text),
+          })),
+          selectedApproachId: plan.selectedApproachId ?? null,
+        }
+      : {}),
+    ...(plan.notes ? { notes: plan.notes } : {}),
+    ...(plan.file ? { file: plan.file.path } : {}),
+  }
 }
 
 export function buildChatStatus(
@@ -281,6 +304,8 @@ export async function handleControlRequest(
                 })),
               }
             : {}),
+          // A Plan-mode reply keeps its plan on the message, not in `content`.
+          ...(m.plan ? { plan: planForControl(m.plan) } : {}),
           turnStartedAt: m.turnStartedAt ?? null,
           turnEndedAt: m.turnEndedAt ?? null,
         })),

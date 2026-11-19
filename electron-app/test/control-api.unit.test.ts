@@ -127,6 +127,33 @@ describe('chats.transcript', () => {
     expect(data.messages.map((m) => m.index)).toEqual([4, 5, 6])
   })
 
+  test('a Plan-mode reply carries its plan', async () => {
+    const reply: UiMessage = {
+      ...msg('p', 'assistant', 'Explored the code.'),
+      plan: {
+        title: 'Add tags',
+        status: 'draft',
+        steps: [
+          { id: 's1', text: 'Store tags', done: true },
+          { id: 's2', text: 'Filter by tag' },
+        ],
+        file: { projectPath: 'Q:/p', path: '.voidcast/plans/add-tags.md' },
+      },
+    }
+    const { d } = deps([session('a', { messages: [reply] })])
+    const res = await handleControlRequest('chats.transcript', { id: 'a' }, d)
+    const m = (res as { ok: true; data: { messages: Array<{ plan?: unknown }> } }).data.messages[0]
+    expect(m?.plan).toEqual({
+      title: 'Add tags',
+      status: 'draft',
+      steps: [
+        { text: 'Store tags', done: true },
+        { text: 'Filter by tag', done: false },
+      ],
+      file: '.voidcast/plans/add-tags.md',
+    })
+  })
+
   test('since past the end is an empty page, not an error', async () => {
     const { d } = deps([many])
     const res = await handleControlRequest('chats.transcript', { id: 'a', since: 99 }, d)
