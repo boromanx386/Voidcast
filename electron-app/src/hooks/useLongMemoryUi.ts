@@ -17,6 +17,7 @@ import { fetchHostToolConfig } from '@/lib/hostToolConfig'
 import { recordMemoryDeleted, scheduleUserDataSync, syncUserDataNow } from '@/lib/userDataSync'
 import { isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
+import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 import { toConversationTurns } from '@/lib/chatHints'
 import type { UiMessage } from '@/types/chat'
 import type { LongMemoryCandidate, LongMemoryItem } from '@/types/longMemory'
@@ -27,6 +28,8 @@ export type UseLongMemoryUiParams = {
   messages: UiMessage[]
   busy: boolean
   activeSessionId: string | null
+  /** Model picked for the chat on screen (scoped id); empty = the app default. */
+  activeModelId: string
   setError: (error: string | null) => void
   setHostPdfOutputDir: (dir: string) => void
   setScreen: (screen: Screen) => void
@@ -57,6 +60,7 @@ export function useLongMemoryUi({
   messages,
   busy,
   activeSessionId,
+  activeModelId,
   setError,
   setHostPdfOutputDir,
   setScreen,
@@ -74,33 +78,39 @@ export function useLongMemoryUi({
     if (busy || longMemoryBusy) return
     const turns = toConversationTurns(messages)
     if (turns.length === 0) return
+    // The chat's own model, as its turns use: a chat on a local model must not have its
+    // history sent to the app-default cloud model.
+    const chat = applyScopedModelToSettings(
+      settings,
+      activeModelId.trim() || currentPinnedModelId(settings),
+    )
     setLongMemoryBusy(true)
     setError(null)
     try {
       const candidates = await extractLongMemoryCandidates({
-        provider: settings.llmProvider,
-        ollamaBaseUrl: settings.ollamaBaseUrl,
-        ollamaModel: settings.ollamaModel,
-        openrouterBaseUrl: settings.openrouterBaseUrl,
-        openrouterApiKey: settings.openrouterApiKey,
-        openrouterModel: settings.openrouterModel,
-        openrouterProviderOnly: settings.openrouterProviderOnly,
-        nvidiaBaseUrl: settings.nvidiaBaseUrl,
-        nvidiaApiKey: settings.nvidiaApiKey,
-        nvidiaModel: settings.nvidiaModel,
-        deepseekBaseUrl: settings.deepseekBaseUrl,
-        deepseekApiKey: settings.deepseekApiKey,
-        deepseekModel: settings.deepseekModel,
-        openaiBaseUrl: settings.openaiBaseUrl,
-        openaiApiKey: settings.openaiApiKey,
-        openaiModel: settings.openaiModel,
-        opencodeGoBaseUrl: settings.opencodeGoBaseUrl,
-        opencodeGoApiKey: settings.opencodeGoApiKey,
-        opencodeGoModel: settings.opencodeGoModel,
+        provider: chat.llmProvider,
+        ollamaBaseUrl: chat.ollamaBaseUrl,
+        ollamaModel: chat.ollamaModel,
+        openrouterBaseUrl: chat.openrouterBaseUrl,
+        openrouterApiKey: chat.openrouterApiKey,
+        openrouterModel: chat.openrouterModel,
+        openrouterProviderOnly: chat.openrouterProviderOnly,
+        nvidiaBaseUrl: chat.nvidiaBaseUrl,
+        nvidiaApiKey: chat.nvidiaApiKey,
+        nvidiaModel: chat.nvidiaModel,
+        deepseekBaseUrl: chat.deepseekBaseUrl,
+        deepseekApiKey: chat.deepseekApiKey,
+        deepseekModel: chat.deepseekModel,
+        openaiBaseUrl: chat.openaiBaseUrl,
+        openaiApiKey: chat.openaiApiKey,
+        openaiModel: chat.openaiModel,
+        opencodeGoBaseUrl: chat.opencodeGoBaseUrl,
+        opencodeGoApiKey: chat.opencodeGoApiKey,
+        opencodeGoModel: chat.opencodeGoModel,
         opencodeSessionId: activeSessionId || 'voidcast-draft',
         modelOptions: {
-          temperature: settings.llmTemperature,
-          num_ctx: settings.llmNumCtx,
+          temperature: chat.llmTemperature,
+          num_ctx: chat.llmNumCtx,
         },
         turns,
         // Most recently updated first; the extractor caps what it actually sends.
@@ -117,7 +127,7 @@ export function useLongMemoryUi({
     } finally {
       setLongMemoryBusy(false)
     }
-  }, [busy, longMemoryBusy, messages, settings, setError])
+  }, [activeModelId, activeSessionId, busy, longMemoryBusy, messages, setError, settings])
 
   const confirmSaveLongMemory = useCallback(async () => {
     if (!memoryCandidates.length) {

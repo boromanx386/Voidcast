@@ -301,6 +301,7 @@ export function useVoidcastApp() {
     messages: agent.messages,
     busy: agent.busy,
     activeSessionId: sessions.activeSessionId,
+    activeModelId: sessions.activeModelId,
     setError: agent.setError,
     setHostPdfOutputDir,
     setScreen,
