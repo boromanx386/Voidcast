@@ -240,10 +240,11 @@ export function useVoidcastApp() {
   setCodingPathForActiveChatRef.current = sessions.setCodingPathForActiveChat
   codingProjectPathForRuntimeKeyRef.current = sessions.codingProjectPathForRuntimeKey
 
-  // Keep agent runtime key in sync with sidebar selection (session id or draft).
-  useEffect(() => {
-    setViewSessionId(sessions.activeSessionId)
-  }, [sessions.activeSessionId])
+  // No effect mirrors activeSessionId into viewSessionId: setActiveSession sets both in one
+  // batch. A mirror effect runs a commit late, so a navigation that lands before it flushes
+  // (the control API opening a new chat right after restoring the previous one) got the view
+  // pulled back to the old chat. Auto-save then read that chat's messages as a new draft,
+  // and the new chat kept the old chat's title.
 
   // Local control API: answer requests relayed from the main process. Everything is read
   // through refs so the handler registered once always sees the latest render.
