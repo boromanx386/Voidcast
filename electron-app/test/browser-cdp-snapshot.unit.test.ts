@@ -9,6 +9,7 @@ type AxNode = {
   name?: string
   ignored?: boolean
   backendDOMNodeId?: number
+  url?: string
 }
 
 /** A CdpSession whose Accessibility.getFullAXTree returns `nodes`. */
@@ -20,6 +21,7 @@ async function snapshotOf(nodes: AxNode[], maxNodes?: number): Promise<string> {
     role: { value: n.role },
     name: n.name === undefined ? undefined : { value: n.name },
     backendDOMNodeId: n.backendDOMNodeId,
+    properties: n.url === undefined ? undefined : [{ name: 'url', value: { value: n.url } }],
   }))
   const wc = {
     getURL: () => 'http://localhost/',
@@ -105,5 +107,30 @@ describe('CdpSession snapshot page text', () => {
     const out = await snapshotOf(nodes)
     expect(out.match(/^text /gm)?.length).toBe(16)
     expect(out).toContain('(page text cut at 4000 chars)')
+  })
+})
+
+describe('CdpSession snapshot links', () => {
+  test('links carry their url, same-origin ones without the origin', async () => {
+    const out = await snapshotOf([
+      { nodeId: '1', role: 'RootWebArea', url: 'http://localhost/' },
+      { nodeId: '2', parentId: '1', role: 'link', name: 'Story', url: 'https://example.com/a?b=1' },
+      {
+        nodeId: '3',
+        parentId: '1',
+        role: 'link',
+        name: '12 comments',
+        url: 'http://localhost/item?id=7',
+      },
+      { nodeId: '4', parentId: '1', role: 'link', name: 'No href' },
+    ])
+    expect(out).toBe(
+      [
+        '1 RootWebArea',
+        '2 link name="Story" url="https://example.com/a?b=1"',
+        '3 link name="12 comments" url="/item?id=7"',
+        '4 link name="No href"',
+      ].join('\n'),
+    )
   })
 })

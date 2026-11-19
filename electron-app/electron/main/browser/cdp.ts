@@ -37,6 +37,7 @@ export type ClipRect = { x: number; y: number; width: number; height: number }
 
 const MAX_BUFFER = 200
 const MAX_TEXT_LEN = 160
+const MAX_URL_LEN = 200
 const DEFAULT_MAX_NODES = 400
 /** One merged `text` line — a paragraph's worth. */
 const MAX_TEXT_LINE_LEN = 300
@@ -75,7 +76,24 @@ function quote(raw: string): string {
   return raw.replace(/"/g, "'")
 }
 
-function formatSnapshotLine(entry: CdpSnapshotNode, node: CdpMessageParams): string {
+/** Where a link points. Same-origin links drop the origin to keep link-heavy pages small. */
+function linkUrl(raw: unknown, pageUrl: string): string {
+  const url = compact(raw, MAX_URL_LEN)
+  if (!url) return ''
+  try {
+    const origin = new URL(pageUrl).origin
+    if (origin !== 'null' && url.startsWith(`${origin}/`)) return url.slice(origin.length)
+  } catch {
+    // about:blank and friends have no origin to strip.
+  }
+  return url
+}
+
+function formatSnapshotLine(
+  entry: CdpSnapshotNode,
+  node: CdpMessageParams,
+  pageUrl: string,
+): string {
   const props = new Map<string, unknown>()
   for (const p of (node.properties as
     { name?: string; value?: { value?: unknown } }[] | undefined) ?? []) {
@@ -93,6 +111,9 @@ function formatSnapshotLine(entry: CdpSnapshotNode, node: CdpMessageParams): str
   const parts = [entry.uid, entry.role]
   if (entry.name) parts.push(`name="${quote(entry.name)}"`)
   if (value) parts.push(`value="${quote(value)}"`)
+  // Without the href an agent can only learn where a link goes by clicking it.
+  const url = entry.role === 'link' ? linkUrl(props.get('url'), pageUrl) : ''
+  if (url) parts.push(`url="${quote(url)}"`)
   if (flags.length) parts.push(flags.join(''))
   return parts.join(' ')
 }
@@ -292,6 +313,7 @@ export class CdpSession {
     const nodes = res?.nodes ?? []
     const map = new Map<string, CdpSnapshotNode>()
     const lines: string[] = []
+    const pageUrl = this.wc.getURL()
     const roleOf = (node: CdpMessageParams): string =>
       compact((node.role as { value?: unknown } | undefined)?.value, 40)
     const byId = new Map<string, CdpMessageParams>()
@@ -363,7 +385,7 @@ export class CdpSession {
           typeof node.backendDOMNodeId === 'number' ? (node.backendDOMNodeId as number) : undefined,
       }
       map.set(uid, entry)
-      lines.push(formatSnapshotLine(entry, node))
+      lines.push(formatSnapshotLine(entry, node, pageUrl))
     }
     this.uidMap = map
     const head = [`url: ${this.wc.getURL() || 'about:blank'}`, `title: ${this.wc.getTitle()}`]
