@@ -185,7 +185,7 @@ const BROWSER_STATUS_TOOL: AgentToolDefinition = {
   function: {
     name: 'browser_status',
     description:
-      'Current state of the Voidcast browser and its active page: profile, url/title, every open page, whether the active page is actually painted in the coding panel, a held HTTP sign-in, the last denied permission and the last download. Call this FIRST when a page does not react to input. A page the panel is not showing still renders in the background; only a minimized Voidcast window stops rendering, and then clicks, keys and screenshots fail until the user restores it.',
+      'Current state of the Voidcast browser and its active page: profile, url/title, every open page, whether the active page is actually painted in the coding panel, a held HTTP sign-in, the last denied permission and the last download. Call this FIRST when a page does not react to input. A page the panel is not showing still renders in the background and takes input, even while the Voidcast window is minimized.',
     parameters: { type: 'object', properties: {} },
   },
 }

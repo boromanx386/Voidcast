@@ -1,7 +1,6 @@
 import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
   answerBrowserAuth,
-  assertWindowPaints,
   browserStatus,
   clearBrowserData,
   closeBrowserPageForProject,
@@ -203,7 +202,6 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         if (!uid) throw new Error('Missing uid.')
         return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
           const mark = downloadMark(s.key)
-          assertWindowPaints()
           const text = await s.cdp.clickByUid(uid)
           const download = await waitForDownload(s.key, mark)
           return {
@@ -236,7 +234,6 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         if (!uid) throw new Error('Missing uid.')
         const text = typeof payload?.text === 'string' ? payload.text : ''
         return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
-          assertWindowPaints()
           const result = await s.cdp.fillByUid(uid, text, Boolean(payload?.submit))
           return { ok: true as const, text: result }
         })
@@ -253,7 +250,6 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
         const key = typeof payload?.key === 'string' ? payload.key.trim() : ''
         if (!key) throw new Error('Missing key.')
         return await withSession(getWindow(), payload?.projectPath, payload?.profile, async (s) => {
-          assertWindowPaints()
           const text = await s.cdp.pressKey(key)
           return { ok: true as const, text }
         })

@@ -472,6 +472,13 @@ export class CdpSession {
     return compact(raw, 24) || 'unknown'
   }
 
+  /** Viewport-space rect of a uid, scrolled into view — for webContents.capturePage. */
+  async elementViewportClip(uid: string): Promise<ClipRect> {
+    const entry = this.resolveUid(uid)
+    const { viewport } = await this.elementBox(entry.backendDOMNodeId as number, true)
+    return viewport
+  }
+
   /** Document-space rect of a uid, ready to use as a screenshot clip. */
   async elementClip(uid: string): Promise<ClipRect> {
     const entry = this.resolveUid(uid)

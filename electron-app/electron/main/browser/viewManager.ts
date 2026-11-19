@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync, mkdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { CdpSession } from './cdp'
+import { CdpSession, SCREENSHOT_TIMEOUT_MS } from './cdp'
 import { recordProfileKey, runBrowserMaintenance, trimProfileCaches } from './maintenance'
 import { settleNavigation } from './navigationWait'
 import { POPUP_BURST, POPUP_WINDOW_MS, allowPopup, popupToEvict } from './popupGuard'
@@ -231,14 +231,22 @@ function parkedRect(): BrowserRect {
  * rate, so each such page shows exactly one pixel in its own window corner — separate
  * corners keep two background pages from covering each other.
  */
+let lastContentSize: { width: number; height: number } | null = null
+
 function liveParkedRect(slot: number): BrowserRect {
   const rect = parkedRect()
   const win = ownerWindow && !ownerWindow.isDestroyed() ? ownerWindow : null
   if (!win) return rect
-  const { width, height } = win.getContentBounds()
   // A minimized window reports a 0x0 content area, which would put the corner pixel at
-  // (-1, -1) and spread the page over the whole window once it is restored.
-  if (win.isMinimized() || width < 2 || height < 2) return rect
+  // (-1, -1) and spread the page over the whole window once it is restored. Keep the corner
+  // of the last real size instead: parked off-screen, a page in a minimized window stops
+  // rendering and takes no input, while in the corner it keeps both.
+  const bounds = win.getContentBounds()
+  if (!win.isMinimized() && bounds.width >= 2 && bounds.height >= 2) {
+    lastContentSize = { width: bounds.width, height: bounds.height }
+  }
+  if (!lastContentSize) return rect
+  const { width, height } = lastContentSize
   const right = slot % 2 === 0
   const bottom = slot % 4 < 2
   return {
@@ -1421,14 +1429,39 @@ export function windowMinimized(): boolean {
 }
 
 /**
- * Chromium renders nothing while the window is minimized: screenshots time out and
- * clicks and keys queue until a frame comes. Failing at once tells the agent why.
+ * While the window is minimized Page.captureScreenshot never gets a frame, but
+ * webContents.capturePage still renders the visible viewport (measured on Electron 44).
+ * It cannot reach below the fold, so a full-page capture has to wait for a restore.
  */
-export function assertWindowPaints(): void {
-  if (windowMinimized()) {
+async function captureMinimized(
+  page: BrowserPage,
+  options: { uid?: string; fullPage?: boolean },
+  format: 'jpeg' | 'png' | undefined,
+): Promise<{ bytes: Buffer; label: string }> {
+  if (options.fullPage) {
     throw new Error(
-      'The Voidcast window is minimized, so the page renders nothing and input does not reach it. Ask the user to restore the window, then try again.',
+      'The Voidcast window is minimized, so only the visible viewport can be captured. Take a viewport or element screenshot, or ask the user to restore the window for a full-page one.',
     )
+  }
+  const clip = options.uid ? await page.cdp.elementViewportClip(options.uid) : undefined
+  const image = await withTimeout(
+    page.view.webContents.capturePage(
+      clip
+        ? {
+            x: Math.round(clip.x),
+            y: Math.round(clip.y),
+            width: Math.max(1, Math.round(clip.width)),
+            height: Math.max(1, Math.round(clip.height)),
+          }
+        : undefined,
+    ),
+    SCREENSHOT_TIMEOUT_MS,
+    'capturePage timed out while the window is minimized.',
+  )
+  if (image.isEmpty()) throw new Error('capturePage returned an empty image.')
+  return {
+    bytes: format === 'png' ? image.toPNG() : image.toJPEG(70),
+    label: clip ? 'element (window minimized)' : 'viewport (window minimized)',
   }
 }
 
@@ -1445,16 +1478,16 @@ export async function takeBrowserScreenshot(
 }> {
   const page = activeBrowserPage()
   if (!page) throw new Error('Browser page is not running yet.')
-  // An element clip is resolved to DOCUMENT coordinates (spike #5) and works even for
-  // elements that are below the fold.
-  assertWindowPaints()
   const target = options.outputPath ? shotTarget(projectPath, options.outputPath) : undefined
-  const clip = options.uid ? await page.cdp.elementClip(options.uid) : undefined
-  const shot = await page.cdp.screenshot({
-    clip,
-    fullPage: options.fullPage,
-    format: target?.format,
-  })
+  const shot = windowMinimized()
+    ? await captureMinimized(page, options, target?.format)
+    : await page.cdp.screenshot({
+        // An element clip is resolved to DOCUMENT coordinates (spike #5) and works even for
+        // elements that are below the fold.
+        clip: options.uid ? await page.cdp.elementClip(options.uid) : undefined,
+        fullPage: options.fullPage,
+        format: target?.format,
+      })
   let width = 0
   let height = 0
   try {

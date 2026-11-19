@@ -267,7 +267,7 @@ export const handleBrowserStatus: ToolHandlerFn = async (_args, ctx) => {
       `active page: ${res.url || '(none open)'}${res.title ? ` — ${res.title}` : ''}`,
       `painted in the WEB panel: ${
         res.windowMinimized
-          ? 'NO — the Voidcast window is minimized, so nothing renders: requestAnimationFrame stops, and clicks, keys and screenshots fail until the user restores the window'
+          ? 'no — the Voidcast window is minimized; the page keeps running and takes input, and viewport or element screenshots work, but a full-page screenshot needs the window restored'
           : res.visible
             ? 'yes'
             : 'no — the page runs in the background and keeps rendering, so input and screenshots work'
