@@ -125,8 +125,12 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 // Disable GPU Acceleration for Windows 7
 if (os.release().startsWith('6.1')) app.disableHardwareAcceleration()
 
-// Set application name for Windows 10+ notifications
-if (process.platform === 'win32') app.setAppUserModelId(app.getName())
+// Must equal electron-builder's appId: the NSIS shortcuts carry that id, and the taskbar
+// takes the button icon from the shortcut whose id matches the window. Dev keeps its own
+// id so it never groups with an installed copy.
+if (process.platform === 'win32') {
+  app.setAppUserModelId(app.isPackaged ? 'com.voidcast.app' : process.execPath)
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
