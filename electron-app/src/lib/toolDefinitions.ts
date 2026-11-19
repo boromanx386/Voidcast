@@ -1415,7 +1415,7 @@ const CODING_RUN_WORKERS_TOOL: AgentToolDefinition = {
               path_prefix: {
                 type: 'string',
                 description:
-                  'Project-relative folder or file scope for writes. Required for each task when two workers run in parallel; scopes must not overlap.',
+                  'Project-relative write scope: a folder or file, or several separated by commas (e.g. "src/api, test/api.test.js" for code plus its tests). Required for each task when two workers run in parallel; scopes must not overlap.',
               },
               max_rounds: {
                 type: 'number',

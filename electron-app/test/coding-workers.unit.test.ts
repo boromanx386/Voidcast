@@ -153,6 +153,17 @@ describe('path scope + locks', () => {
     expect(workerScopesOverlap('src/auth', undefined)).toBe(true)
   })
 
+  it('a scope may list several folders or files', () => {
+    const scope = 'src, test/tags.test.js'
+    expect(isPathInWorkerScope('src/store.js', scope)).toBe(true)
+    expect(isPathInWorkerScope('test/tags.test.js', scope)).toBe(true)
+    expect(isPathInWorkerScope('test/notes.test.js', scope)).toBe(false)
+    expect(isPathInWorkerScope('public/index.html', scope)).toBe(false)
+    expect(workerScopesOverlap(scope, 'public')).toBe(false)
+    expect(workerScopesOverlap(scope, 'public, test')).toBe(true)
+    expect(workerScopesOverlap(' , ', 'public')).toBe(true)
+  })
+
   it('blocks path traversal and absolute paths outside the worker scope', () => {
     // `..` that climbs out of the scope must not match the prefix.
     expect(isPathInWorkerScope('src/../package.json', 'src')).toBe(false)

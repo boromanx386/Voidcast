@@ -134,27 +134,36 @@ function isEscapingWorkerPath(relPath: string): boolean {
 }
 
 /**
+ * The parts of a path_prefix. It may list several comma-separated folders or files, because
+ * a worker's code and its tests usually live in different folders (src/ and test/).
+ */
+export function workerScopeParts(pathPrefix?: string): string[] {
+  return (pathPrefix || '')
+    .split(',')
+    .map((p) => normalizeWorkerPathKey(p))
+    .filter(Boolean)
+}
+
+/**
  * true if relPath is inside path_prefix (when set). Empty prefix = whole project.
- * path_prefix may be a file or directory; directory match allows prefix/child.
+ * Each part may be a file or directory; directory match allows prefix/child.
  */
 export function isPathInWorkerScope(relPath: string, pathPrefix?: string): boolean {
   if (isEscapingWorkerPath(relPath)) return false
   const path = normalizeWorkerPathKey(relPath)
   if (!path) return false
-  const raw = (pathPrefix || '').trim()
-  if (!raw) return true
-  const prefix = normalizeWorkerPathKey(raw)
-  if (!prefix) return true
-  return path === prefix || path.startsWith(`${prefix}/`)
+  const parts = workerScopeParts(pathPrefix)
+  if (parts.length === 0) return true
+  return parts.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
 }
 
 /** Conservative overlap check for two worker write scopes. */
 export function workerScopesOverlap(left?: string, right?: string): boolean {
-  const a = normalizeWorkerPathKey(left || '')
-  const b = normalizeWorkerPathKey(right || '')
+  const as = workerScopeParts(left)
+  const bs = workerScopeParts(right)
   // An unscoped parallel worker can touch anything, so it overlaps by default.
-  if (!a || !b) return true
-  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
+  if (as.length === 0 || bs.length === 0) return true
+  return as.some((a) => bs.some((b) => a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)))
 }
 
 export function pathFromWorkerToolArgs(tool: string, args: Record<string, unknown>): string | null {
@@ -250,8 +259,12 @@ export function parseCodingWorkerTasks(
     const o = item as Record<string, unknown>
     const goal = typeof o.goal === 'string' ? o.goal.trim() : ''
     if (!goal) return { ok: false, error: `Error: tasks[${i}].goal is required.` }
-    const pathPrefix =
-      typeof o.path_prefix === 'string' && o.path_prefix.trim() ? o.path_prefix.trim() : undefined
+    const rawPrefix = Array.isArray(o.path_prefix)
+      ? o.path_prefix.filter((p): p is string => typeof p === 'string').join(', ')
+      : typeof o.path_prefix === 'string'
+        ? o.path_prefix
+        : ''
+    const pathPrefix = rawPrefix.trim() || undefined
     const successCriteria =
       typeof o.success_criteria === 'string' && o.success_criteria.trim()
         ? o.success_criteria.trim()
@@ -980,8 +993,10 @@ async function runOneCodingWorker(opts: WorkerRunOpts): Promise<WorkerRunResult>
     }
 
     const execArgs = { ...args }
+    // Only a single-part scope can serve as a default search root.
     if (
       pathPrefix &&
+      workerScopeParts(pathPrefix).length === 1 &&
       (name === 'search_files' || name === 'glob_files' || name === 'list_directory') &&
       typeof execArgs.path_prefix !== 'string' &&
       (name === 'list_directory' ? typeof execArgs.path !== 'string' : true)
