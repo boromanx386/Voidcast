@@ -213,7 +213,7 @@ const BROWSER_TAKE_SCREENSHOT_TOOL: AgentToolDefinition = {
   function: {
     name: 'browser_take_screenshot',
     description:
-      'Capture part of the current Voidcast browser page as a JPEG saved inside the coding project: the viewport by default, one element (pass uid from browser_take_snapshot) or the whole document (full_page true). Works whether or not the panel is showing the page, and element / full-page captures also cover content below the fold. RETURNS A FILE PATH (no image bytes) — to actually look at it, call image_recall with that path.',
+      'Capture part of the current Voidcast browser page as an image saved inside the coding project (JPEG under .voidcast/browser/shots by default, or at `path`): the viewport by default, one element (pass uid from browser_take_snapshot) or the whole document (full_page true). Works whether or not the panel is showing the page, and element / full-page captures also cover content below the fold. RETURNS A FILE PATH (no image bytes) — to actually look at it, call image_recall with that path.',
     parameters: {
       type: 'object',
       properties: {
@@ -225,6 +225,11 @@ const BROWSER_TAKE_SCREENSHOT_TOOL: AgentToolDefinition = {
           type: 'boolean',
           description:
             'Capture the whole scrollable page instead of the viewport (clamped to 16000px tall).',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Project-relative file to save to, e.g. screenshots/home.png. The extension picks the format: .png (lossless) or .jpg/.jpeg. Folders are created.',
         },
       },
     },

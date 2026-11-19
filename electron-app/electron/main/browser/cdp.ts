@@ -760,13 +760,15 @@ export class CdpSession {
   }
 
   /**
-   * JPEG bytes of a region of the page — the viewport by default, one element's box or
+   * JPEG (default) or PNG bytes of a region of the page — the viewport by default, one element's box or
    * the whole document on request.
    *
    * Frames are forced (see `withForcedFrames`), so this never depends on the view being
    * on screen, and clip-based captures work for elements below the fold (spike #5).
    */
-  async screenshot(options: { clip?: ClipRect; fullPage?: boolean } = {}): Promise<{
+  async screenshot(
+    options: { clip?: ClipRect; fullPage?: boolean; format?: 'jpeg' | 'png' } = {},
+  ): Promise<{
     bytes: Buffer
     label: string
   }> {
@@ -786,7 +788,8 @@ export class CdpSession {
     } else if (clip) {
       label = 'element'
     }
-    const params: Record<string, unknown> = { format: 'jpeg', quality: 70 }
+    const params: Record<string, unknown> =
+      options.format === 'png' ? { format: 'png' } : { format: 'jpeg', quality: 70 }
     if (clip) {
       params.clip = { ...clip, scale: 1 }
       params.captureBeyondViewport = true

@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Browser screenshots can go where the task wants them**: `browser_take_screenshot` takes an optional project-relative `path` (for example `screenshots/home.png`), and the extension picks the format, so `.png` is real lossless PNG. Before, every capture was a timestamped JPEG under `.voidcast/browser/shots/`, and an agent asked for a PNG at a given path had to copy and convert it with a script of its own.
 - **LIST ALL shows quantization and cache-hit price**: the OpenRouter provider table in Options → Agent now has QUANT (fp8, fp4, bf16…; a dash when the host does not say) and CACHE HIT (price of a cached prompt token, per 1M) columns. CTX is gone. Rows of one host carry their variant (DeepInfra `fp8`, `fp8/flex`, `fp8/priority`), so same-name rows can be told apart, and sub-cent prices keep two significant digits instead of showing 0.00.
 - **Coding agent keeps to the task**: the coding prompt now asks the agent to do what was asked, suggest extra features or polish instead of adding them, verify with the project's own tests, build or `check_types` rather than tooling it builds itself (headless browsers, screenshot scripts, simulations), and remove its temporary files. In one benchmark run a model built a headless-browser screenshot setup and a game simulation for a small Breakout task and kept polishing for 44 rounds. The tool list in the same prompt now keeps only what the tool descriptions cannot say, so the prompt is about 1,100 characters shorter.
 

@@ -134,10 +134,12 @@ export const handleBrowserTakeScreenshot: ToolHandlerFn = async (args, ctx) => {
   try {
     const uid = typeof args.uid === 'string' ? args.uid.trim() : ''
     const fullPage = args.full_page === true
+    const outputPath = typeof args.path === 'string' ? args.path.trim() : ''
     const res = await bridge.screenshot({
       ...browserContext(ctx),
       uid: uid || undefined,
       fullPage,
+      path: outputPath || undefined,
     })
     if (!res.ok) return `Error: ${res.error ?? 'screenshot failed'}`
     const rel = res.relativePath ?? res.path

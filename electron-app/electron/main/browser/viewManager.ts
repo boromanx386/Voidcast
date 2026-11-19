@@ -1388,9 +1388,32 @@ export async function reloadPage(): Promise<string> {
   return page.view.webContents.getURL()
 }
 
+/** Format follows the extension, so a `.png` target holds real PNG bytes. */
+const SHOT_FORMATS: Record<string, 'jpeg' | 'png'> = {
+  '.png': 'png',
+  '.jpg': 'jpeg',
+  '.jpeg': 'jpeg',
+}
+
+function shotTarget(
+  projectPath: string | undefined,
+  outputPath: string,
+): { abs: string; format: 'jpeg' | 'png' } {
+  if (!projectPath) throw new Error('path needs an open coding project.')
+  const root = path.resolve(projectPath)
+  const abs = path.resolve(root, outputPath)
+  const rel = path.relative(root, abs)
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('path must stay inside the project.')
+  }
+  const format = SHOT_FORMATS[path.extname(abs).toLowerCase()]
+  if (!format) throw new Error('path must end in .png, .jpg or .jpeg.')
+  return { abs, format }
+}
+
 export async function takeBrowserScreenshot(
   projectPath?: string,
-  options: { uid?: string; fullPage?: boolean } = {},
+  options: { uid?: string; fullPage?: boolean; outputPath?: string } = {},
 ): Promise<{
   path: string
   relativePath?: string
@@ -1403,8 +1426,13 @@ export async function takeBrowserScreenshot(
   if (!page) throw new Error('Browser page is not running yet.')
   // An element clip is resolved to DOCUMENT coordinates (spike #5) and works even for
   // elements that are below the fold.
+  const target = options.outputPath ? shotTarget(projectPath, options.outputPath) : undefined
   const clip = options.uid ? await page.cdp.elementClip(options.uid) : undefined
-  const shot = await page.cdp.screenshot({ clip, fullPage: options.fullPage })
+  const shot = await page.cdp.screenshot({
+    clip,
+    fullPage: options.fullPage,
+    format: target?.format,
+  })
   let width = 0
   let height = 0
   try {
@@ -1414,13 +1442,18 @@ export async function takeBrowserScreenshot(
   } catch {
     /* dimensions are cosmetic — never fail a capture over them */
   }
-  const shotsDir = projectPath
-    ? path.join(projectPath, '.voidcast', 'browser', 'shots')
-    : path.join(os.tmpdir(), 'voidcast-browser-shots')
-  await mkdir(shotsDir, { recursive: true })
-  const suffix = options.uid ? `-${options.uid}` : options.fullPage ? '-full' : ''
-  const name = `shot-${new Date().toISOString().replace(/[:.]/g, '-')}${suffix}.jpg`
-  const abs = path.join(shotsDir, name)
+  let abs: string
+  if (target) {
+    abs = target.abs
+  } else {
+    const shotsDir = projectPath
+      ? path.join(projectPath, '.voidcast', 'browser', 'shots')
+      : path.join(os.tmpdir(), 'voidcast-browser-shots')
+    const suffix = options.uid ? `-${options.uid}` : options.fullPage ? '-full' : ''
+    const name = `shot-${new Date().toISOString().replace(/[:.]/g, '-')}${suffix}.jpg`
+    abs = path.join(shotsDir, name)
+  }
+  await mkdir(path.dirname(abs), { recursive: true })
   await writeFile(abs, shot.bytes)
   const relativePath = projectPath
     ? path.relative(projectPath, abs).split(path.sep).join('/')

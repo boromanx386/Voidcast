@@ -263,7 +263,13 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
     'voidcast:browser-screenshot',
     async (
       _event,
-      payload: { projectPath?: string; profile?: string; uid?: string; fullPage?: boolean },
+      payload: {
+        projectPath?: string
+        profile?: string
+        uid?: string
+        fullPage?: boolean
+        path?: string
+      },
     ) => {
       try {
         const projectPath =
@@ -271,10 +277,12 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
             ? payload.projectPath.trim()
             : undefined
         const uid = typeof payload?.uid === 'string' ? payload.uid.trim() : ''
+        const outputPath = typeof payload?.path === 'string' ? payload.path.trim() : ''
         return await withSession(getWindow(), projectPath, payload?.profile, async () => {
           const shot = await takeBrowserScreenshot(projectPath, {
             uid: uid || undefined,
             fullPage: Boolean(payload?.fullPage),
+            outputPath: outputPath || undefined,
           })
           return { ok: true as const, ...shot }
         })

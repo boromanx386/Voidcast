@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('voidcast', {
       profile?: string
       uid?: string
       fullPage?: boolean
+      path?: string
     }) => ipcRenderer.invoke('voidcast:browser-screenshot', payload),
     emulate: (payload: {
       width?: number

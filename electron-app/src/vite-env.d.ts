@@ -700,6 +700,7 @@ interface VoidcastBridge {
       profile?: string
       uid?: string
       fullPage?: boolean
+      path?: string
     }) => Promise<
       | {
           ok: true
