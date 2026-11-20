@@ -645,6 +645,11 @@ interface VoidcastBridge {
 
     setVisible: (payload: { visible: boolean }) => Promise<{ ok: boolean; error?: string }>
 
+    /** JPEG data URL of the painted page (null when nothing is painted). */
+    captureFrame: () => Promise<
+      { ok: true; dataUrl: string | null } | { ok: false; error?: string }
+    >
+
     navigate: (payload: {
       url: string
       projectPath?: string

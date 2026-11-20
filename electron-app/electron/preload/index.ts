@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('voidcast', {
       ipcRenderer.invoke('voidcast:browser-set-bounds', payload),
     setVisible: (payload: { visible: boolean }) =>
       ipcRenderer.invoke('voidcast:browser-set-visible', payload),
+    captureFrame: () => ipcRenderer.invoke('voidcast:browser-capture-frame'),
     navigate: (payload: { url: string; projectPath?: string; profile?: string; wait?: boolean }) =>
       ipcRenderer.invoke('voidcast:browser-navigate', payload),
     back: (payload?: { projectPath?: string; profile?: string }) =>

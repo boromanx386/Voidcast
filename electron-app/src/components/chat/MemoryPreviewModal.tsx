@@ -26,7 +26,12 @@ export function MemoryPreviewModal({ app }: Props) {
   if (!memoryPreviewOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-void-black/80 p-4">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Long memory preview"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-void-black/80 p-4"
+    >
       <div className="w-full max-w-2xl rounded border border-neon-cyan/30 bg-void-dark p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-mono text-neon-cyan">LONG_MEMORY_PREVIEW</div>

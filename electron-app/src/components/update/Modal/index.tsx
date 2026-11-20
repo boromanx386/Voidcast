@@ -25,7 +25,7 @@ const ModalTemplate: React.FC<
   } = props
 
   return (
-    <div className="update-modal">
+    <div className="update-modal" role="dialog" aria-modal="true">
       <div className="update-modal__mask" />
       <div className="update-modal__warp">
         <div className="update-modal__content" style={{ width }}>

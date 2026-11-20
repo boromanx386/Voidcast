@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { hostContentRect, overlayCovers, sameRect, type Rect } from '@/lib/browserOverlay'
 
 /**
  * Coding panel WEB mode — the Voidcast browser.
@@ -6,8 +7,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * The page itself is a native `WebContentsView` owned by the main process (the
  * SAME view agent `browser_*` tools drive over CDP), so it is drawn ABOVE the
  * DOM. This component only:
- *  - keeps the native view sized/positioned over its host div (ResizeObserver →
- *    IPC; a native view does not move with CSS), and
+ *  - keeps the native view sized/positioned over its host div (per-frame check →
+ *    IPC; a native view does not move with CSS),
+ *  - swaps the view for a still frame while a DOM popup or modal overlaps it
+ *    (see `lib/browserOverlay`), since nothing in the DOM can be drawn above it, and
  *  - renders the chrome above it (URL bar, history, reload, screenshot).
  *
  * Hiding on unmount is what keeps the view from floating over the rest of the UI.
@@ -25,7 +28,6 @@ const STATUS_POLL_MS = 1500
 
 export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
-  const frameRef = useRef(0)
   const urlFocusedRef = useRef(false)
   const [draft, setDraft] = useState('')
   const [url, setUrl] = useState('')
@@ -69,50 +71,83 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
 
   const browserApi = () => (typeof window !== 'undefined' ? window.voidcast?.browser : undefined)
 
-  const pushBounds = useCallback(() => {
+  /** Last rect pushed to main — the frame loop only sends a change. */
+  const lastRectRef = useRef<Rect | null>(null)
+  /** True while a DOM overlay overlaps the page and the native view is hidden. */
+  const coveredRef = useRef(false)
+  /** Bumped on every cover change, so a slow capture cannot act on a stale one. */
+  const coverSeqRef = useRef(0)
+  const [covered, setCovered] = useState(false)
+  /** Still of the page, shown in place of the native view while it is hidden. */
+  const [frozenFrame, setFrozenFrame] = useState<string | null>(null)
+
+  const pushBounds = useCallback((force = false) => {
     const api = browserApi()
     const el = hostRef.current
     if (!api || !el) return
-    const rect = el.getBoundingClientRect()
-    void api.setBounds({
-      x: Math.round(rect.left),
-      y: Math.round(rect.top),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-    })
+    const rect = hostContentRect(el)
+    if (!force && sameRect(lastRectRef.current, rect)) return
+    lastRectRef.current = rect
+    void api.setBounds(rect)
   }, [])
 
-  const scheduleBounds = useCallback(() => {
-    cancelAnimationFrame(frameRef.current)
-    frameRef.current = requestAnimationFrame(pushBounds)
-  }, [pushBounds])
+  const applyCover = useCallback(async (next: boolean) => {
+    const api = browserApi()
+    if (!api) return
+    coveredRef.current = next
+    setCovered(next)
+    const seq = ++coverSeqRef.current
+    if (next) {
+      // Capture before hiding: the overlay then opens over a still of the page rather than
+      // over an empty panel.
+      const res = await api.captureFrame().catch(() => null)
+      if (seq !== coverSeqRef.current) return
+      setFrozenFrame(res && res.ok ? res.dataUrl : null)
+      void api.setVisible({ visible: false })
+    } else {
+      await api.setVisible({ visible: true })
+      if (seq !== coverSeqRef.current) return
+      // Drop the still only once the live view is back on top, so nothing flashes.
+      setFrozenFrame(null)
+    }
+  }, [])
 
-  // Keep the native view glued to the host rect + hide it when WEB mode closes.
+  // Keep the native view glued to the host rect, step aside for DOM overlays, and hide it
+  // when WEB mode closes. A per-frame check because a native view follows neither CSS nor
+  // layout: ResizeObserver misses pure moves (a sidebar or splitter shifting the panel), and
+  // a popup must not open underneath the page for even one poll interval.
   useEffect(() => {
     const api = browserApi()
     const el = hostRef.current
     if (!api || !el) return
-    const observer = new ResizeObserver(scheduleBounds)
-    observer.observe(el)
-    window.addEventListener('resize', scheduleBounds)
-    scheduleBounds()
+    let frame = 0
+    const tick = () => {
+      pushBounds()
+      const next = overlayCovers(document, el, lastRectRef.current ?? hostContentRect(el))
+      if (next !== coveredRef.current) void applyCover(next)
+      frame = requestAnimationFrame(tick)
+    }
+    coveredRef.current = false
+    lastRectRef.current = null
     // Payload shape matters: the bridge contract is { visible }. A bare boolean reads
     // as `undefined` in main and silently kept the native view parked off-screen.
     void api.setVisible({ visible: true })
+    frame = requestAnimationFrame(tick)
     return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', scheduleBounds)
-      cancelAnimationFrame(frameRef.current)
+      cancelAnimationFrame(frame)
+      // Orphan a capture still in flight so it cannot re-show the view after unmount.
+      coverSeqRef.current += 1
+      coveredRef.current = false
       void api.setVisible({ visible: false })
     }
-  }, [scheduleBounds])
+  }, [applyCover, pushBounds])
 
   const refreshStatus = useCallback(async () => {
     const api = browserApi()
     if (!api) return
-    // Re-assert geometry on every poll: a native view does not follow CSS, and one
-    // missed resize would otherwise leave it parked off-screen for good.
-    pushBounds()
+    // Re-assert geometry on every poll: the frame loop stops while the window is hidden,
+    // and one missed update would otherwise leave the view parked off-screen for good.
+    pushBounds(true)
     const res = await api.status()
     if (!res.ok) {
       setState('error')
@@ -524,7 +559,15 @@ export function BrowserPane({ projectPath, browserProfile = '' }: BrowserPanePro
         ref={hostRef}
         className="relative min-h-0 flex-1 overflow-hidden rounded border border-void-muted/40 bg-void-black/40"
       >
-        {state === 'ready' && !painted ? (
+        {frozenFrame ? (
+          <img
+            src={frozenFrame}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute inset-0 h-full w-full select-none"
+          />
+        ) : null}
+        {state === 'ready' && !painted && !covered ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center font-mono text-[11px] text-amber-300">
             <span className="uppercase tracking-wide">View not on screen</span>
             <span className="text-void-dim">

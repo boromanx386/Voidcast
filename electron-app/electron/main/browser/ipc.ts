@@ -2,6 +2,7 @@ import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
   answerBrowserAuth,
   browserStatus,
+  captureBrowserFrame,
   clearBrowserData,
   closeBrowserPageForProject,
   configureBrowser,
@@ -101,6 +102,14 @@ export function registerBrowserIpc(getWindow: GetWindow): void {
       }
     },
   )
+
+  ipcMain.handle('voidcast:browser-capture-frame', async () => {
+    try {
+      return { ok: true as const, dataUrl: await captureBrowserFrame() }
+    } catch (e) {
+      return fail(e)
+    }
+  })
 
   ipcMain.handle(
     'voidcast:browser-navigate',

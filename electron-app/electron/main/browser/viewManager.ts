@@ -1351,6 +1351,29 @@ export function setBrowserVisible(visible: boolean): void {
   applyVisibility()
 }
 
+/** Short on purpose: the panel waits on this before it lets a popup show over the page. */
+const FRAME_CAPTURE_TIMEOUT_MS = 400
+
+/**
+ * Still image of the page the panel is painting, or null when nothing is painted.
+ *
+ * The page is a native view drawn above every DOM element, so a popup or modal that overlaps
+ * it would open underneath. The panel swaps the live view for this frame while such an
+ * overlay is open, which keeps the page looking unchanged instead of going blank.
+ */
+export async function captureBrowserFrame(): Promise<string | null> {
+  const page = activeBrowserPage(panelKey)
+  if (!page || shuttingDown || !visibleFlag || !panelSizeKnown()) return null
+  if (page.view.webContents.isDestroyed()) return null
+  const image = await withTimeout(
+    page.view.webContents.capturePage(),
+    FRAME_CAPTURE_TIMEOUT_MS,
+    'Frame capture timed out.',
+  )
+  if (image.isEmpty()) return null
+  return `data:image/jpeg;base64,${image.toJPEG(85).toString('base64')}`
+}
+
 export async function navigateTo(url: string, wait = true): Promise<string> {
   const page = activeBrowserPage()
   if (!page)
