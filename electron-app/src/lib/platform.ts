@@ -27,6 +27,26 @@ export function opencodeGoApiBaseUrl(ttsBaseUrl?: string): string {
   return `${tts}/api/opencode-go/v1`
 }
 
+const NVIDIA_HOSTED_HOST = 'integrate.api.nvidia.com'
+
+/**
+ * NVIDIA's hosted NIM sends no CORS headers, so the browser blocks a renderer call in the
+ * preflight; it goes through the local tools proxy instead. A self-hosted NIM address is left
+ * alone: it is the user's own server and may well allow the renderer.
+ */
+export function nvidiaApiBaseUrl(nvidiaBaseUrl: string | undefined, ttsBaseUrl?: string): string {
+  const raw = (nvidiaBaseUrl || `https://${NVIDIA_HOSTED_HOST}/v1`).trim().replace(/\/+$/, '')
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return raw
+  }
+  if (url.hostname.toLowerCase() !== NVIDIA_HOSTED_HOST) return raw
+  const tts = (ttsBaseUrl || DEFAULT_TTS_BASE_URL).trim().replace(/\/+$/, '')
+  return `${tts}/api/nvidia/v1`
+}
+
 /**
  * Root of the local tools proxy for the Custom provider. The real endpoint travels in the
  * `x-voidcast-upstream` header: a user-typed server rarely sends CORS headers (Anthropic needs

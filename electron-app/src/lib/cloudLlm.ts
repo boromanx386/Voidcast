@@ -1,5 +1,5 @@
 import type { AppSettings, CustomLlmApiStyle, LlmProvider, LlmThinkLevel } from '@/lib/settings'
-import { customLlmProxyBaseUrl, opencodeGoApiBaseUrl } from '@/lib/platform'
+import { customLlmProxyBaseUrl, nvidiaApiBaseUrl, opencodeGoApiBaseUrl } from '@/lib/platform'
 import { ANTHROPIC_VERSION } from '@/lib/anthropicMessages'
 
 export function cloudLlmProviderLabel(provider: LlmProvider): string {
@@ -152,7 +152,7 @@ export function resolveCloudLlmChatConfig(
       }
     case 'nvidia':
       return {
-        baseUrl: settings.nvidiaBaseUrl || '',
+        baseUrl: nvidiaApiBaseUrl(settings.nvidiaBaseUrl, settings.ttsBaseUrl),
         apiKey: settings.nvidiaApiKey || '',
         model: settings.nvidiaModel || '',
       }
@@ -200,7 +200,7 @@ export function resolveCloudLlmChatConfigForProvider(
       }
     case 'nvidia':
       return {
-        baseUrl: settings.nvidiaBaseUrl || '',
+        baseUrl: nvidiaApiBaseUrl(settings.nvidiaBaseUrl, settings.ttsBaseUrl),
         apiKey: settings.nvidiaApiKey || '',
         model: modelOverride || settings.nvidiaModel || '',
       }

@@ -153,6 +153,8 @@ The bundled Python server listens on **`127.0.0.1:8765`**. Common endpoints:
 | `POST /tools/pdf` | PDF export (`save_pdf`) |
 | `POST /tools/runware_proxy` | Runware image / music proxy |
 | `/api/opencode-go/*` | OpenCode Go proxy (the upstream sends no CORS headers) |
+| `/api/nvidia/*` | NVIDIA NIM proxy for `integrate.api.nvidia.com` (no CORS headers either) |
+| `/api/custom-llm/*` | Custom provider proxy; the real base URL comes in `x-voidcast-upstream` |
 | `POST /tts` | Text-to-speech (local OmniVoice setup) |
 
 The desktop main process supplies a per-launch desktop token to the tools process and to the app's own main frame through preload. The renderer attaches it only to requests on the configured loopback tools port and rejects redirects for authenticated requests. Incoming Host values must name loopback. `GET /health` reports `desktop: true` only for a caller with the right token, so Electron can tell its own server from a leftover one that holds the port.

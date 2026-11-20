@@ -157,6 +157,38 @@ class DesktopAuthTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    async def test_nvidia_proxy_forwards_to_nim_with_the_bearer_key(self):
+        forwarded, patched = self._capture_upstream()
+        with patched:
+            response = await self.desktop.post(
+                "/api/nvidia/v1/chat/completions",
+                headers={"authorization": "Bearer nvapi-test", "cookie": "a=b"},
+                content=b"{}",
+            )
+        response.raise_for_status()
+        (request,) = forwarded
+        self.assertEqual(
+            str(request.url), "https://integrate.api.nvidia.com/v1/chat/completions"
+        )
+        self.assertEqual(request.headers["authorization"], "Bearer nvapi-test")
+        for name in ("x-voidcast-desktop-token", "cookie"):
+            self.assertNotIn(name, request.headers)
+
+    async def test_nvidia_proxy_requires_a_key_and_the_desktop_token(self):
+        forwarded, patched = self._capture_upstream()
+        with patched:
+            missing = await self.desktop.post(
+                "/api/nvidia/v1/chat/completions", content=b"{}"
+            )
+            page = await self.page.post(
+                "/api/nvidia/v1/chat/completions",
+                headers={"authorization": "Bearer nvapi-test"},
+                content=b"{}",
+            )
+        self.assertEqual(missing.status_code, 503)
+        self.assertEqual(page.status_code, 403)
+        self.assertEqual(forwarded, [])
+
 
 if __name__ == "__main__":
     unittest.main()

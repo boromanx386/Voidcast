@@ -19,7 +19,7 @@ import {
   type SubAgentConfig,
 } from './settings'
 import type { SubAgentWorkerMetrics } from './subAgentPanelState'
-import { customLlmProxyBaseUrl, opencodeGoApiBaseUrl } from './platform'
+import { customLlmProxyBaseUrl, nvidiaApiBaseUrl, opencodeGoApiBaseUrl } from './platform'
 import { customLlmRoute } from '@/lib/cloudLlm'
 import {
   detectSubAgentProvider as detectSubAgentProviderId,
@@ -418,7 +418,7 @@ async function describeWithNvidia(
   prompt: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const baseUrl = normalizeBaseUrl(nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1')
+  const baseUrl = normalizeBaseUrl(nvidiaBaseUrl)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -637,7 +637,7 @@ export async function callSubAgentChat(opts: {
   }
   if (provider === 'nvidia') {
     const baseUrl = normalizeBaseUrl(
-      opts.keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1',
+      nvidiaApiBaseUrl(opts.keys.nvidiaBaseUrl, opts.keys.ttsBaseUrl),
     )
     return textWithOpenAiCompatible(
       'NVIDIA',
@@ -724,7 +724,7 @@ async function describeSingleImage(
       img,
       config.model,
       maxTokens,
-      keys.nvidiaBaseUrl,
+      nvidiaApiBaseUrl(keys.nvidiaBaseUrl, keys.ttsBaseUrl),
       keys.nvidiaApiKey,
       prompt,
       signal,

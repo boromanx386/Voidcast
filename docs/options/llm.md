@@ -42,7 +42,7 @@ One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus op
 
 ### NVIDIA
 NVIDIA's free developer tier: no subscription and no paid plan to buy, so there is nothing to cancel or upgrade. It is also the slowest of the cloud providers in practice — free capacity is shared, so throughput varies and large models can crawl. Third-party lists put the free tier at roughly 40 requests/minute, which is indicative, not a contract.
-- `nvidiaBaseUrl` — default `https://integrate.api.nvidia.com/v1`
+- `nvidiaBaseUrl` — default `https://integrate.api.nvidia.com/v1`. NVIDIA sends no CORS headers, so with this hosted address requests go through the local tools server at `/api/nvidia/v1`; any other address (a self-hosted NIM) is called directly.
 - `nvidiaApiKey` — local key
 - `nvidiaModel` — default `'nvidia/nemotron-3-ultra-550b-a55b'`
 

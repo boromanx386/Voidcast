@@ -66,6 +66,12 @@ OPENCODE_GO_UPSTREAM = os.environ.get(
 ).rstrip("/")
 
 
+# NVIDIA NIM sends no CORS headers either, so a renderer call to it dies in the preflight.
+NVIDIA_UPSTREAM = os.environ.get(
+    "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com"
+).rstrip("/")
+
+
 def _env_key(name: str) -> str:
     return os.environ.get(name, "").strip()
 
@@ -1048,6 +1054,27 @@ async def opencode_go_proxy(request: Request, full_path: str):
         bearer_key=key,
         extra_headers={"x-api-key": key} if is_messages else None,
     )
+
+
+@app.api_route(
+    "/api/nvidia/{full_path:path}",
+    methods=["GET", "POST"],
+    dependencies=[Depends(require_desktop)],
+)
+async def nvidia_proxy(request: Request, full_path: str):
+    """Proxy NVIDIA NIM so the renderer can stream from it despite the missing CORS headers."""
+    key = ""
+    auth = (request.headers.get("authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        key = auth[7:].strip()
+    if not key:
+        key = _env_key("NVIDIA_API_KEY")
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="NVIDIA API key not configured (desktop Agent options or NVIDIA_API_KEY env)",
+        )
+    return await _reverse_proxy(request, NVIDIA_UPSTREAM, full_path, bearer_key=key)
 
 
 def _custom_llm_upstream(raw: str) -> str:

@@ -11,7 +11,7 @@ import {
   CUSTOM_LLM_UPSTREAM_HEADER,
   customLlmRoute,
 } from '@/lib/cloudLlm'
-import { customLlmProxyBaseUrl, opencodeGoApiBaseUrl } from '@/lib/platform'
+import { customLlmProxyBaseUrl, nvidiaApiBaseUrl, opencodeGoApiBaseUrl } from '@/lib/platform'
 import { assertSubAgentModel, normalizeBaseUrl } from '@/lib/settings'
 import {
   openRouterProviderRoutingBody,
@@ -265,7 +265,7 @@ function cloudEndpoint(
   if (provider === 'nvidia') {
     return {
       label: 'NVIDIA',
-      baseUrl: normalizeBaseUrl(keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1'),
+      baseUrl: normalizeBaseUrl(nvidiaApiBaseUrl(keys.nvidiaBaseUrl, keys.ttsBaseUrl)),
       apiKey: keys.nvidiaApiKey,
       extraBody: {},
       extraHeaders: {},
