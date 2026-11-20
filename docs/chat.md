@@ -15,6 +15,7 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 
 ## Sessions Sidebar (ChatSidebar.tsx, SessionItem.tsx)
 
+- If saved chats cannot load at startup, the chat screen pauses and offers **Retry loading chats**. Retrying restores the saved conversations and active chat once storage is available. This also applies when migrating history from an older installation. **Continue without saved chats** opens the chat screen anyway, with saving switched off for the rest of the run (a banner says so), so the unread history is never overwritten.
 - Sessions grouped by project (`groupSessionsByProject`). Rows are **one line** (`SessionItem`, ~28px) showing the title only — the timestamp is in the row tooltip on hover, not persistent.
 - **Folder headers carry the group's state**, so a **collapsed** folder still tells you what is inside: a green pulsing dot while any session in it is busy (count in the tooltip), otherwise a cyan dot for an unread completion; the folder holding the open chat keeps its bold cyan label/edge plus an active dot. A folder is auto-collapsed unless it holds the open chat (`storedCollapsed = toggled ?? !isActiveGroup`), and a filter query expands everything.
 - **Filter** — the search field narrows the list by chat title and project path.

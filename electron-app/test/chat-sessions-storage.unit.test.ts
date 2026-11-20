@@ -1,12 +1,15 @@
-import { IDBFactory } from 'fake-indexeddb'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { idbGetMeta } from '../src/lib/chatSessionsIndexedDb'
 import {
   deleteChatSession,
   deleteSessionsByIds,
+  flushSaveChatSessions,
   LEGACY_CHAT_SESSIONS_KEY,
   loadChatSessions,
   saveChatSessions,
+  scheduleSaveChatSessions,
+  setChatSessionsPersistence,
 } from '../src/lib/chatSessionsStorage'
 import type { ChatSession } from '../src/types/chat'
 
@@ -66,6 +69,93 @@ afterEach(() => {
 })
 
 describe('chat sessions IndexedDB storage', () => {
+  it.each([false, true])(
+    'keeps saved chats after a temporary read failure (legacy copy: %s)',
+    async (hasLegacyCopy) => {
+      const chat = makeSession({ id: 'saved', title: 'Saved chat' })
+      await saveChatSessions({ sessions: [chat], activeSessionId: chat.id })
+      if (hasLegacyCopy) {
+        const old = makeSession({ id: 'old', title: 'Old chat' })
+        localStorage.setItem(
+          LEGACY_CHAT_SESSIONS_KEY,
+          JSON.stringify({ sessions: [old], activeSessionId: old.id }),
+        )
+      }
+      const open = vi.spyOn(indexedDB, 'open').mockImplementationOnce(() => {
+        throw new Error('Temporary database failure')
+      })
+      try {
+        // A completed load reaches the same debounced autosave as startup hydration.
+        await expect(loadChatSessions().then(scheduleSaveChatSessions)).rejects.toThrow(
+          'Temporary database failure',
+        )
+      } finally {
+        open.mockRestore()
+        await flushSaveChatSessions()
+      }
+      const recovered = await loadChatSessions()
+      expect(recovered.activeSessionId).toBe(chat.id)
+      expect(recovered.sessions).toMatchObject([chat])
+    },
+  )
+
+  it('retries legacy migration after a temporary localStorage read failure', async () => {
+    const chat = makeSession({ id: 'legacy', title: 'Before migration' })
+    localStorage.setItem(
+      LEGACY_CHAT_SESSIONS_KEY,
+      JSON.stringify({ sessions: [chat], activeSessionId: chat.id }),
+    )
+    const read = vi.spyOn(localStorage, 'getItem').mockImplementationOnce(() => {
+      throw new Error('Legacy storage unavailable')
+    })
+    try {
+      await expect(loadChatSessions()).rejects.toThrow('Legacy storage unavailable')
+      expect(await idbGetMeta()).toBeUndefined()
+    } finally {
+      read.mockRestore()
+    }
+    expect((await loadChatSessions()).sessions).toMatchObject([chat])
+  })
+
+  it('starts empty instead of failing forever on an unparseable legacy copy', async () => {
+    localStorage.setItem(LEGACY_CHAT_SESSIONS_KEY, '{not json')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(await loadChatSessions()).toEqual({ sessions: [], activeSessionId: null })
+    } finally {
+      warn.mockRestore()
+    }
+    expect(await idbGetMeta()).toMatchObject({ migratedFrom: 'localStorage-v1' })
+  })
+
+  it('leaves migration pending if a parsed legacy chat cannot be normalized', async () => {
+    const chat = makeSession({ id: 'keep', title: 'Saved chat' })
+    const invalid = { ...chat, id: 'invalid', messages: [null] }
+    const raw = JSON.stringify({ sessions: [chat, invalid], activeSessionId: chat.id })
+    localStorage.setItem(LEGACY_CHAT_SESSIONS_KEY, raw)
+
+    await expect(loadChatSessions()).rejects.toThrow()
+    expect(await idbGetMeta()).toBeUndefined()
+    expect(localStorage.getItem(LEGACY_CHAT_SESSIONS_KEY)).toBe(raw)
+  })
+
+  it('writes nothing while persistence is off', async () => {
+    const chat = makeSession({ id: 'saved', title: 'Saved chat' })
+    await saveChatSessions({ sessions: [chat], activeSessionId: chat.id })
+    const fresh = makeSession({ id: 'fresh', title: 'Offline chat' })
+    scheduleSaveChatSessions({ sessions: [fresh], activeSessionId: fresh.id })
+    setChatSessionsPersistence(false)
+    try {
+      scheduleSaveChatSessions({ sessions: [fresh], activeSessionId: fresh.id })
+      await flushSaveChatSessions()
+    } finally {
+      setChatSessionsPersistence(true)
+    }
+    const loaded = await loadChatSessions()
+    expect(loaded.activeSessionId).toBe(chat.id)
+    expect(loaded.sessions).toMatchObject([chat])
+  })
+
   it('round-trips two sessions', async () => {
     const a = makeSession({ id: 'a', title: 'Alpha', updatedAt: 200 })
     const b = makeSession({ id: 'b', title: 'Beta', updatedAt: 100 })
@@ -92,6 +182,27 @@ describe('chat sessions IndexedDB storage', () => {
     expect(loaded.sessions.map((s) => s.id)).toEqual(['d'])
     expect(loaded.activeSessionId).toBeNull()
     expect(loaded.sessions[0]?.unsaved).toBeUndefined()
+  })
+
+  it('keeps the legacy copy available for retry if migration cannot commit', async () => {
+    const chat = makeSession({ id: 'legacy', title: 'Legacy chat' })
+    localStorage.setItem(
+      LEGACY_CHAT_SESSIONS_KEY,
+      JSON.stringify({ sessions: [chat], activeSessionId: chat.id }),
+    )
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(function () {
+      this.transaction.abort()
+      throw new Error('Migration interrupted')
+    })
+    try {
+      await expect(loadChatSessions()).rejects.toThrow('Migration interrupted')
+      expect(await idbGetMeta()).toBeUndefined()
+    } finally {
+      put.mockRestore()
+    }
+    const recovered = await loadChatSessions()
+    expect(recovered.activeSessionId).toBe(chat.id)
+    expect(recovered.sessions).toMatchObject([chat])
   })
 
   it('migrates once from localStorage and keeps the legacy key', async () => {

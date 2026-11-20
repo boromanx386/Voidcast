@@ -277,16 +277,23 @@ export function useVoidcastApp() {
         sessionsApiRef.current.setThinkLevelForSession(id, level),
       send: (opts) => onSendRef.current(opts),
     })
-    return bridge.onControlRequest((method, params) =>
-      handleControlRequest(method, params, {
+    return bridge.onControlRequest((method, params) => {
+      if (!sessionsApiRef.current.sessionsHydrated) {
+        return {
+          ok: false,
+          status: 503,
+          error: 'Chat history is unavailable. Try again once it has loaded.',
+        }
+      }
+      return handleControlRequest(method, params, {
         listSessions: () => sessionsRef.current,
         getSlot: (id) => sessionAgentStore.get(id),
         stop: (id) => stopSessionRun(id),
         sendAllowed: () => controlSendAllowedRef.current,
         startChat: driver.startChat,
         sendToChat: driver.sendToChat,
-      }),
-    )
+      })
+    })
   }, [])
 
   const stt = useSttInput({
@@ -369,6 +376,7 @@ export function useVoidcastApp() {
 
       const mod = e.ctrlKey || e.metaKey
       if (!mod || e.altKey || e.shiftKey) return
+      if (!sessions.sessionsHydrated) return
       const key = e.key.toLowerCase()
 
       if (key === 's') {
@@ -394,7 +402,13 @@ export function useVoidcastApp() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [screen, agent.messages.length, sessions.saveOrUpdateSession, sessions.newChat])
+  }, [
+    screen,
+    agent.messages.length,
+    sessions.sessionsHydrated,
+    sessions.saveOrUpdateSession,
+    sessions.newChat,
+  ])
 
   /**
    * Composer hint: rewrite the current draft with the coding sub-agent model, or — when the

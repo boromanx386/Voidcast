@@ -12,6 +12,7 @@ import {
   deleteSessionsByIds,
   loadChatSessions,
   scheduleSaveChatSessions,
+  setChatSessionsPersistence,
   upsertSession,
 } from '@/lib/chatSessionsStorage'
 import {
@@ -232,7 +233,11 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const [sessionsHydrated, setSessionsHydrated] = useState(false)
+  // 'offline': the user chose to chat without the history that failed to load; nothing is saved.
+  const [historyStatus, setHistoryStatus] = useState<'loading' | 'ready' | 'failed' | 'offline'>(
+    'loading',
+  )
+  const sessionsHydrated = historyStatus === 'ready' || historyStatus === 'offline'
   /** Think level for the next brand-new session (undefined = follow the global default). */
   const [pendingNewSessionThinkLevel, setPendingNewSessionThinkLevel] = useState<
     LlmThinkLevel | undefined
@@ -263,17 +268,16 @@ export function useChatSessions(deps: ChatSessionsDeps) {
 
   // Load sessions from IndexedDB (one-time localStorage migration on first run)
   useEffect(() => {
+    if (historyStatus !== 'loading') return
     let cancelled = false
     void (async () => {
       const state = await loadChatSessions()
       if (cancelled) return
       const baseSettings = loadSettings()
-      let sessionsMigrated = false
       const sessions = state.sessions.map((s) => {
         let next = s
         // Give every legacy chat its own mode so it can never follow the viewed chat.
         if (!next.agentMode) {
-          sessionsMigrated = true
           next = { ...next, agentMode: normalizeAgentChatMode(baseSettings.agentMode) }
         }
         if (!next.hiddenContextSummary?.trim()) return next
@@ -283,13 +287,9 @@ export function useChatSessions(deps: ChatSessionsDeps) {
           next.messages.length,
         )
         if ((next.contextCompressedThroughIndex ?? 0) === through) return next
-        sessionsMigrated = true
         return { ...next, contextCompressedThroughIndex: through }
       })
       setSessions(sessions)
-      if (sessionsMigrated) {
-        scheduleSaveChatSessions({ sessions, activeSessionId: state.activeSessionId })
-      }
       setActiveSession(state.activeSessionId)
       const active = state.activeSessionId
         ? sessions.find((s) => s.id === state.activeSessionId)
@@ -316,12 +316,16 @@ export function useChatSessions(deps: ChatSessionsDeps) {
       setContextUsageInfo(null)
       setContextWarnDismissed(false)
       setSessionDirty(false)
-      setSessionsHydrated(true)
-    })()
+      setHistoryStatus('ready')
+    })().catch((error: unknown) => {
+      if (cancelled) return
+      console.warn('[voidcast] Could not load saved chats.', error)
+      setHistoryStatus('failed')
+    })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [historyStatus])
 
   // Background agent runs write messages into the store — mirror into sessions[].
   // Do not bump updatedAt / re-sort on stream deltas (only length changes = new bubble).
@@ -551,7 +555,12 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   const activeUnsaved = Boolean(
     activeSessionId && sessions.find((s) => s.id === activeSessionId)?.unsaved,
   )
-  const canSaveSession = !settings.autoSaveChat && messages.length > 0 && !busy && activeUnsaved
+  const canSaveSession =
+    historyStatus === 'ready' &&
+    !settings.autoSaveChat &&
+    messages.length > 0 &&
+    !busy &&
+    activeUnsaved
 
   const applyComposerDraft = (key: string) => {
     const draft = loadComposerDraft(key)
@@ -931,7 +940,7 @@ export function useChatSessions(deps: ChatSessionsDeps) {
   }
 
   const saveOrUpdateSession = () => {
-    if (messages.length === 0) return
+    if (historyStatus !== 'ready' || messages.length === 0) return
     const now = Date.now()
     const existing = activeSessionId ? sessions.find((s) => s.id === activeSessionId) : null
     const id = existing?.id ?? uid()
@@ -1097,6 +1106,13 @@ export function useChatSessions(deps: ChatSessionsDeps) {
     renamingSessionId,
     renameValue,
     setRenameValue,
+    historyStatus,
+    retryChatHistory: () => setHistoryStatus('loading'),
+    continueWithoutHistory: () => {
+      // Off before the status flips, so the hydrated autosave effect cannot write.
+      setChatSessionsPersistence(false)
+      setHistoryStatus('offline')
+    },
     sessionsHydrated,
     hiddenContextSummary,
     setHiddenContextSummary,

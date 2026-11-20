@@ -151,67 +151,43 @@ function stripStateForPersistence(state: ChatSessionsState): ChatSessionsState {
 }
 
 function loadLegacyLocalStorage(): ChatSessionsState {
+  // A read error may be temporary, so it propagates and the caller can retry.
+  const raw = localStorage.getItem(LEGACY_CHAT_SESSIONS_KEY)
+  if (raw === null) return { ...EMPTY_STATE }
+  let parsed: unknown
   try {
-    if (typeof localStorage === 'undefined') return { ...EMPTY_STATE }
-    const raw = localStorage.getItem(LEGACY_CHAT_SESSIONS_KEY)
-    if (!raw) return { ...EMPTY_STATE }
-    return normalizeState(JSON.parse(raw))
-  } catch {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    // Unparseable content never heals, so retrying it would block startup forever.
+    console.warn('[voidcast] Ignoring unreadable legacy chat history.', err)
     return { ...EMPTY_STATE }
   }
-}
-
-async function loadFromIndexedDb(): Promise<ChatSessionsState> {
-  const [meta, rawSessions] = await Promise.all([idbGetMeta(), idbListSessions()])
-  const sessions = rawSessions
-    .filter(isSessionLike)
-    .map(normalizeSession)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-  const activeSessionId =
-    typeof meta?.activeSessionId === 'string' && sessions.some((x) => x.id === meta.activeSessionId)
-      ? meta.activeSessionId
-      : null
-  return { sessions, activeSessionId }
+  return normalizeState(parsed)
 }
 
 /**
- * One-time migration from localStorage blob → IndexedDB.
- * Legacy key is left in place for rollback. Idempotent via meta.migratedFrom.
+ * Loads chat history from IndexedDB, running the one-time localStorage → IndexedDB
+ * migration first if it has not committed yet. The legacy key is left in place for
+ * rollback. Rejects on storage errors instead of falling back, so autosave never
+ * replaces a history it could not read.
  */
-async function migrateFromLocalStorageIfNeeded(): Promise<ChatSessionsState> {
-  const meta = await idbGetMeta()
-  if (meta?.migratedFrom || (meta?.schemaVersion ?? 0) >= SCHEMA_VERSION) {
-    return loadFromIndexedDb()
-  }
-
-  const legacy = loadLegacyLocalStorage()
-  const payload = stripStateForPersistence(legacy)
-  try {
-    await idbPutSessionsAndMeta(payload.sessions, {
-      activeSessionId: payload.activeSessionId,
-      migratedFrom: MIGRATED_FROM_LOCAL_STORAGE,
-      schemaVersion: SCHEMA_VERSION,
-    })
-    return payload
-  } catch (err) {
-    console.warn(
-      '[voidcast] Chat sessions IndexedDB migration failed; using localStorage fallback.',
-      err,
-    )
-    return legacy
-  }
-}
-
 export async function loadChatSessions(): Promise<ChatSessionsState> {
-  try {
-    return await migrateFromLocalStorageIfNeeded()
-  } catch (err) {
-    console.warn(
-      '[voidcast] Chat sessions IndexedDB load failed; using localStorage fallback.',
-      err,
-    )
-    return loadLegacyLocalStorage()
+  const meta = await idbGetMeta()
+  if (meta && (meta.migratedFrom || meta.schemaVersion >= SCHEMA_VERSION)) {
+    return normalizeState({
+      sessions: await idbListSessions(),
+      activeSessionId: meta.activeSessionId,
+    })
   }
+
+  // Autosave replaces the full history. Only a committed migration is safe to edit.
+  const payload = stripStateForPersistence(loadLegacyLocalStorage())
+  await idbPutSessionsAndMeta(payload.sessions, {
+    activeSessionId: payload.activeSessionId,
+    migratedFrom: MIGRATED_FROM_LOCAL_STORAGE,
+    schemaVersion: SCHEMA_VERSION,
+  })
+  return payload
 }
 
 export async function saveChatSessions(state: ChatSessionsState): Promise<void> {
@@ -284,7 +260,24 @@ async function runPendingSave(): Promise<void> {
   }
 }
 
+let persistenceEnabled = true
+
+/**
+ * Turns autosave on or off for this app run. Off is for running without a history that
+ * failed to load: every save replaces the full stored history, so it must not run.
+ */
+export function setChatSessionsPersistence(enabled: boolean): void {
+  persistenceEnabled = enabled
+  if (enabled) return
+  pendingSave = null
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+}
+
 export function scheduleSaveChatSessions(state: ChatSessionsState): void {
+  if (!persistenceEnabled) return
   pendingSave = state
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
