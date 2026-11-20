@@ -1101,10 +1101,13 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') throw e
         if (!canUseElectronNvidiaProxy || model !== options.model) throw e
+        // NVIDIA rejects `stream_options` on a non-streaming request with a 400, which
+        // would hide the network error that sent us down this fallback.
+        const { stream_options: _streamOptions, ...proxyBody } = body
         const proxyRes = await window.voidcast!.llmChatProxy({
           api_base_url: root,
           api_key: options.apiKey,
-          body: { ...body, stream: false },
+          body: { ...proxyBody, stream: false },
         })
         if (!proxyRes.ok) {
           throw new Error(
