@@ -48,7 +48,21 @@ npm run lint         # eslint .
 npm run lint:fix     # eslint . --fix
 npm run format       # prettier --write .
 npm run format:check # prettier --check .
+npx tsc --noEmit     # type check
+npm test             # Vitest unit tests (test/)
 ```
+
+From `tts-server/`, with the repo venv:
+
+```bash
+python -m pip install -r requirements-dev.txt   # pinned Ruff
+python -m ruff check .
+python -m unittest discover -p "test_*.py"
+```
+
+### CI
+
+`.github/workflows/ci.yml` runs all of the checks above on every pull request and every push to `main`. The release workflow calls the same file first, so a tag whose checks fail never builds an installer.
 
 ### Building the production app
 
@@ -69,7 +83,7 @@ npm run release                # commit + tag vX.Y.Z + push
 npm run release -- --dry-run   # show what it would do
 ```
 
-The pushed tag makes GitHub Actions (`.github/workflows/release.yml`) build Windows and Linux on their own runners and publish **one** Release with both installers plus the `latest*.yml` update manifests.
+The pushed tag makes GitHub Actions (`.github/workflows/release.yml`) run the CI checks, then build Windows and Linux on their own runners and publish **one** Release with both installers plus the `latest*.yml` update manifests.
 
 ### Packaging Model
 

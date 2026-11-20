@@ -20,8 +20,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Same checks as pull requests; a failing tag stops here, before any installer is built.
+  checks:
+    name: Checks
+    uses: ./.github/workflows/ci.yml
+
   build:
     name: Build ${{ matrix.platform }}
+    needs: checks
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -60,7 +66,7 @@ jobs:
           else
             PY=".venv/Scripts/python.exe"
           fi
-          echo "Tools binary se gradi sa: $PY"
+          echo "Building the tools binary with: $PY"
           "$PY" -m pip install --upgrade pip
           "$PY" -m pip install -r tts-server/requirements-tools.txt pyinstaller
 

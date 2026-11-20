@@ -49,7 +49,19 @@ npm run release -- --bump minor --dry-run     # show what would happen
 npm run dev           npm run build           npm run build:ci
 npm run lint          npm run lint:fix
 npm run format        npm run format:check
+npx tsc --noEmit      npm test
 ```
+
+`tts-server/` (repo venv):
+
+```bash
+python -m pip install -r requirements-dev.txt   # pinned Ruff
+python -m ruff check .
+python -m unittest discover -p "test_*.py"
+```
+
+`.github/workflows/ci.yml` runs all of these on pull requests and pushes to `main`, and
+`release.yml` runs it before building. Keep them green before pushing.
 
 ---
 
@@ -61,7 +73,7 @@ npm run format        npm run format:check
   `electron-app/src/hooks/useAppSettings.ts`.
 - The git tag **must** equal it (`vX.Y.Z`) — `release.yml` fails the build on a mismatch.
 - `npm run release -- --bump patch|minor|major` bumps all four spots, commits, tags and
-  pushes. CI then runs a matrix (`windows-latest` + `ubuntu-latest`), each OS builds its
+  pushes. CI then runs `ci.yml`, then a matrix (`windows-latest` + `ubuntu-latest`), each OS builds its
   own installer, and one job publishes **a single GitHub Release** with the installers
   plus `latest*.yml` update manifests.
 - **PyInstaller cannot cross-compile.** Each OS freezes its own tools-server binary.

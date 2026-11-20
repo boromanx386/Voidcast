@@ -1,0 +1,2 @@
+# Dev-only tools. Pinned so local runs and CI report the same findings.
+ruff==0.14.5
