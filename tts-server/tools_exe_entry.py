@@ -35,7 +35,7 @@ def main() -> None:
 
     from tools_main import app
 
-    host = os.environ.get("VOIDCAST_TOOLS_HOST", "0.0.0.0")
+    host = os.environ.get("VOIDCAST_TOOLS_HOST", "127.0.0.1")
     port_raw = os.environ.get("VOIDCAST_TOOLS_PORT", "8765")
     try:
         port = int(port_raw)

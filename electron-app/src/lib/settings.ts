@@ -1632,11 +1632,6 @@ export type AppSettings = {
   /** If true, app should check updates automatically on startup (desktop). */
   autoUpdate: boolean
   /**
-   * Desktop only: push cloud API keys to the local TTS server so LAN/phone web
-   * clients can use the proxy. Default off — keys stay in localStorage only.
-   */
-  lanWebAccessEnabled: boolean
-  /**
    * Desktop only: expose a loopback-only control API so a local agent can list,
    * read and stop chats. Default off — it exposes chat content to local processes.
    */
@@ -1899,7 +1894,6 @@ export const defaults: AppSettings = {
   runwareMusicOutputDir: '',
   runwareAutoSaveMusic: false,
   autoUpdate: false,
-  lanWebAccessEnabled: false,
   controlApiEnabled: false,
   autoSaveChat: true,
   reminderNotificationsEnabled: true,
@@ -2605,7 +2599,6 @@ function normalizeNotificationSounds(s: AppSettings): AppSettings {
 function normalizeLanWebAccess(s: AppSettings): AppSettings {
   return {
     ...s,
-    lanWebAccessEnabled: typeof s.lanWebAccessEnabled === 'boolean' ? s.lanWebAccessEnabled : false,
     controlApiEnabled: typeof s.controlApiEnabled === 'boolean' ? s.controlApiEnabled : false,
   }
 }

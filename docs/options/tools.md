@@ -112,7 +112,6 @@ Both files use one shape: an object under `mcpServers`, keyed by server id. Each
 
 Type: `string`, default `''`.
 
-A paired phone may write PDFs only into the registered desktop folder. Local image paths must resolve inside that folder. Desktop-authenticated exports retain access to the images selected on the host.
 
 Where the `save_pdf` tool writes files **without showing a save dialog**. Empty = the tool returns an error until a directory is set. Pick via folder dialog (main process) or type a path. `effectivePdfOutputDir` is passed to this panel from `OptionsScreen` so the shown path reflects any runtime overrides.
 

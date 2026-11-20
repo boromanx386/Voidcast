@@ -1,6 +1,5 @@
 /// <reference types="vite/client" />
 
-import type { LanRegistration, LanPairing } from '@/lib/cloudSecrets'
 import type { ProgressInfo } from 'electron-updater'
 import type { CodingSearchProcessedResult } from '@/lib/codingSearch'
 
@@ -580,8 +579,6 @@ interface VoidcastBridge {
   >
 
   getToolsAuth: () => { token: string; port: number } | null
-  syncLanAccess: (registration: LanRegistration | null) => Promise<LanPairing | null>
-  getLanNetworkInfo: () => Promise<{ ips: string[] }>
 
   showWindow: () => Promise<void>
   /** OS-encrypted API keys. `getAll` is null when the OS has no real key store. */
@@ -864,9 +861,7 @@ interface VoidcastBridge {
 // ---------------------------------------------------------------------------
 
 declare global {
-  interface ImportMetaEnv {
-    readonly VITE_BUILD_TARGET?: string
-  }
+  interface ImportMetaEnv {}
 
   interface ImportMeta {
     readonly env: ImportMetaEnv

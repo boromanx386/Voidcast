@@ -1,4 +1,3 @@
-import type { LanRegistration, LanPairing } from '../../src/lib/cloudSecrets'
 import {
   app,
   BrowserWindow,
@@ -352,8 +351,8 @@ function getBundledToolsExePath(): string {
     : path.join(process.env.APP_ROOT, '..', 'tts-server', 'dist', binName)
 }
 
-/** Bind on all interfaces so LAN phones can reach the web UI and API proxy (override via VOIDCAST_TOOLS_HOST). */
-const TOOLS_SERVER_HOST = process.env.VOIDCAST_TOOLS_HOST?.trim() || '0.0.0.0'
+/** Loopback only: the server rejects non-loopback Host headers anyway (override via VOIDCAST_TOOLS_HOST). */
+const TOOLS_SERVER_HOST = process.env.VOIDCAST_TOOLS_HOST?.trim() || '127.0.0.1'
 const desktopToken =
   process.env.VOIDCAST_DESKTOP_TOKEN?.trim() || randomBytes(32).toString('base64url')
 const TOOLS_SERVER_PORT = process.env.VOIDCAST_TOOLS_PORT?.trim() || '8765'
@@ -504,13 +503,22 @@ function killTrackedToolsServerSync(): void {
   toolsServerProcess = null
 }
 
-async function isToolsServerHealthy(baseUrl = TOOLS_SERVER_HEALTH_URL): Promise<boolean> {
+type ToolsServerProbe = 'ours' | 'foreign' | 'down'
+
+async function probeToolsServer(): Promise<ToolsServerProbe> {
   try {
     // Bounded probe: a half-dead process squatting on the port must never hang us.
-    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(2000) })
-    return res.ok
+    const res = await fetch(`${TOOLS_SERVER_HEALTH_URL}/health`, {
+      headers: { 'x-voidcast-desktop-token': desktopToken },
+      signal: AbortSignal.timeout(2000),
+    })
+    if (!res.ok) return 'foreign'
+    const body = (await res.json().catch(() => null)) as { desktop?: unknown } | null
+    // A leftover server from a crashed run holds another token and would answer 403 to
+    // every tool call, so it must not count as ready.
+    return body?.desktop === true ? 'ours' : 'foreign'
   } catch {
-    return false
+    return 'down'
   }
 }
 
@@ -528,7 +536,6 @@ function startToolsServerWithCommand(
         VOIDCAST_DESKTOP_TOKEN: desktopToken,
         VOIDCAST_TOOLS_HOST: TOOLS_SERVER_HOST,
         VOIDCAST_TOOLS_PORT: TOOLS_SERVER_PORT,
-        VOIDCAST_WEB_UI_DIR: path.join(cwd, 'web-ui'),
       },
       windowsHide: true,
     })
@@ -578,11 +585,17 @@ async function ensureToolsServerRunning(): Promise<void> {
   toolsServerStarting = true
   try {
     // The Linux launcher may already be starting the server with our session credential.
+    let probe: ToolsServerProbe = 'down'
     for (let i = 0; i < 6; i++) {
-      if (await isToolsServerHealthy()) {
-        return
-      }
+      probe = await probeToolsServer()
+      if (probe === 'ours') return
       await new Promise((r) => setTimeout(r, 500))
+    }
+    if (probe === 'foreign') {
+      console.error(
+        `[tools-server] Port ${TOOLS_SERVER_PORT} is held by another tools server that does not accept this app's credential. Close it (or a leftover voidcast-tools-server process) and restart Voidcast.`,
+      )
+      return
     }
     const cwd = getToolsServerDir()
     const args = [
@@ -623,10 +636,8 @@ async function ensureToolsServerRunning(): Promise<void> {
       // the app with no server (every proxied call "Failed to fetch") until the next restart.
       const deadline = Date.now() + TOOLS_SERVER_READY_TIMEOUT_MS
       while (toolsServerProcess && Date.now() < deadline) {
-        if (await isToolsServerHealthy()) {
-          console.log(
-            `[tools-server] Ready on http://${TOOLS_SERVER_HOST}:${TOOLS_SERVER_PORT} (phone: http://<this-PC-LAN-IP>:${TOOLS_SERVER_PORT})`,
-          )
+        if ((await probeToolsServer()) === 'ours') {
+          console.log(`[tools-server] Ready on http://${TOOLS_SERVER_HOST}:${TOOLS_SERVER_PORT}`)
           return
         }
         await new Promise((r) => setTimeout(r, 500))
@@ -3967,64 +3978,6 @@ ipcMain.on('voidcast:get-tools-auth', (event) => {
   event.returnValue = isDesktopAppFrame(event)
     ? { token: desktopToken, port: Number(TOOLS_SERVER_PORT) }
     : null
-})
-
-// Serialize toggles and key updates, including requests from a reloaded renderer.
-let lanSync: Promise<unknown> = Promise.resolve()
-let lanRegistrationConfirmed = false
-ipcMain.handle('voidcast:sync-lan-access', (event, registration: LanRegistration | null) => {
-  if (!isDesktopAppFrame(event)) {
-    throw new Error('LAN settings require the desktop window.')
-  }
-  const sync = async (): Promise<LanPairing | null> => {
-    // Even an unconfirmed disable must invalidate the old pairing on the next enable.
-    if (!registration) lanRegistrationConfirmed = false
-    const adminToken = process.env.VOIDCAST_SECRETS_TOKEN?.trim()
-    const response = await fetch(`${TOOLS_SERVER_HEALTH_URL}/tools/cloud-secrets`, {
-      method: registration ? 'POST' : 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-voidcast-desktop-token': desktopToken,
-        ...(adminToken ? { 'x-voidcast-secrets-token': adminToken } : {}),
-      },
-      body: registration
-        ? JSON.stringify({ ...registration, renewPairing: !lanRegistrationConfirmed })
-        : undefined,
-      signal: AbortSignal.timeout(5000),
-      redirect: 'error',
-    })
-    if (!response.ok) throw new Error(`LAN settings update failed (HTTP ${response.status}).`)
-    const result = await response.json()
-    if (!registration) {
-      if (result.enabled !== false) throw new Error('Tools server did not confirm LAN revocation.')
-      return null
-    }
-    if (typeof result.token !== 'string' || !result.token)
-      throw new Error('Missing LAN pairing token.')
-    lanRegistrationConfirmed = true
-    return {
-      token: result.token,
-      keysAvailable: result.keysAvailable === true,
-      port: Number(TOOLS_SERVER_PORT),
-    }
-  }
-  lanSync = lanSync.then(sync, sync)
-  return lanSync
-})
-
-ipcMain.handle('voidcast:get-lan-network-info', () => {
-  const nets = os.networkInterfaces()
-  const ips: string[] = []
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name] ?? []) {
-      const fam = net.family
-      const isV4 = fam === 'IPv4'
-      if (isV4 && !net.internal) {
-        ips.push(net.address)
-      }
-    }
-  }
-  return { ips: [...new Set(ips)] }
 })
 
 ipcMain.handle('voidcast:open-path', async (_evt, filePath: string) => {

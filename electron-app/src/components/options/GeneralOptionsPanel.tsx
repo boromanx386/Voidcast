@@ -1,6 +1,5 @@
-import type { LanSyncState } from '@/lib/cloudSecrets'
 import type { AppSettings } from '@/lib/settings'
-import { isElectron, isLanWebClient } from '@/lib/platform'
+import { isElectron } from '@/lib/platform'
 import {
   useEffect,
   useRef,
@@ -13,7 +12,6 @@ import type { LongMemoryItem } from '@/types/longMemory'
 import type { Reminder } from '@/lib/reminderStorage'
 import { BrainIcon } from '@/components/icons/BrainIcon'
 import { ClockIcon } from '@/components/icons/ClockIcon'
-import { LanWebAccessPanel } from '@/components/options/LanWebAccessPanel'
 import {
   clearNotificationSound,
   loadNotificationSound,
@@ -30,7 +28,6 @@ import {
 } from '@/lib/notificationSounds'
 
 type Props = {
-  lanSync: LanSyncState
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
   useLongMemoryInActiveChat: boolean
@@ -136,12 +133,7 @@ function CloudApiKeysSection({
         <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-1">
           CLOUD_API_KEYS
         </p>
-        <p className="text-xs text-void-dim leading-relaxed">
-          Stored locally on this PC.
-          {settings.lanWebAccessEnabled
-            ? ' With LAN web access on, keys are also forwarded to the local server for phone clients.'
-            : ''}
-        </p>
+        <p className="text-xs text-void-dim leading-relaxed">Stored locally on this PC.</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -197,7 +189,6 @@ function CloudApiKeysSection({
 }
 
 export function GeneralOptionsPanel({
-  lanSync,
   settings,
   setSettings,
   useLongMemoryInActiveChat,
@@ -550,25 +541,7 @@ export function GeneralOptionsPanel({
         </p>
       </div>
 
-      {isLanWebClient() ? (
-        <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
-          <p className="text-xs font-mono text-neon-cyan uppercase tracking-wider mb-2">
-            CLOUD_API_KEYS
-          </p>
-          <p className="text-xs text-void-dim leading-relaxed">
-            API keys are configured only in the desktop Voidcast app (General options). This browser
-            session uses the local server proxy — keys never appear on your phone.
-          </p>
-        </div>
-      ) : (
-        <>
-          {isElectron() && (
-            <LanWebAccessPanel lanSync={lanSync} settings={settings} setSettings={setSettings} />
-          )}
-
-          <CloudApiKeysSection settings={settings} setSettings={setSettings} />
-        </>
-      )}
+      <CloudApiKeysSection settings={settings} setSettings={setSettings} />
 
       {isElectron() && (
         <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">

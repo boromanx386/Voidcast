@@ -17,7 +17,7 @@ Selects the visual chrome of the app. The `dystopian` and `matrix` themes also e
 
 ## Cloud API Keys (`CloudApiKeysSection`)
 
-All cloud API keys are stored locally on this device (localStorage on web, device storage in the desktop app). If **LAN web access** (`lanWebAccessEnabled`) is on, keys are additionally forwarded to the local server so phone/LAN clients can use the proxy.
+All cloud API keys are stored locally on this device (localStorage on web, device storage in the desktop app).
 
 Pick a provider chip to edit its key. A filled green dot means a key is already set.
 
@@ -60,4 +60,3 @@ The sounds are stored independently from `AppSettings` (see `electron-app/src/li
 
 In the current build the PDF output directory (`pdfOutputDir`, see Tools tab) is not edited on the General tab — it lives in the **Tools** tab (Tools panel receives `effectivePdfOutputDir`). Its default is empty; `save_pdf` returns an error until a directory is configured. If your build’s General panel ever shows it, the field is the same `pdfOutputDir` string setting.
 
-The General tab also houses the **LAN web access** panel (`LanWebAccessPanel` — `lanWebAccessEnabled`, desktop only) which pairs phones with the desktop tools server. Enabling it shows a QR code after the server confirms registration. Disabling it revokes all paired devices. To reconnect, enable sharing and scan the new code. Key edits are sent after a short typing pause. If the server cannot confirm a change, the panel reports the failure and retries. The server listens on its configured tools port (8765 by default), independently of the speech endpoint URL.

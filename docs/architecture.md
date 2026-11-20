@@ -117,7 +117,7 @@ MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gat
 ## Process boundaries
 
 - **Renderer (React)** — all UI, hooks, and the agent loop above.
-- **Main / TTS server (Electron)** — handles `save_pdf`, YouTube scraping, coding tool IPC (read/write/search + terminal execution), MCP connectivity, auto-update, and LAN web proxy. Desktop-only features (MCP, skills discovery, coding tools, auto-save output folders) are noted as such in the docs.
+- **Main / TTS server (Electron)** — handles `save_pdf`, YouTube scraping, coding tool IPC (read/write/search + terminal execution), MCP connectivity, auto-update, and the OpenCode Go and Runware proxies. Desktop-only features (MCP, skills discovery, coding tools, auto-save output folders) are noted as such in the docs.
 
 ### Built-in browser (main process)
 
@@ -142,27 +142,20 @@ MCP servers are loaded from `~/.voidcast/mcp.json` plus project `.mcp.json`, gat
 
 ## Runtime Expectations
 
-The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost-only in dev is fine too). Common endpoints:
+The bundled Python server listens on **`127.0.0.1:8765`**. Common endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /` | LAN web chat UI (static bundle) |
 | `GET /health` | Server health check |
 | `POST /tools/search` | Web search |
 | `POST /tools/scrape` | Web scraping |
 | `POST /tools/youtube` | YouTube search / transcripts |
 | `POST /tools/pdf` | PDF export (`save_pdf`) |
 | `POST /tools/runware_proxy` | Runware image / music proxy |
-| `POST /tools/cloud-secrets` | Enable LAN access or refresh desktop keys and the PDF folder. Returns the active pairing token to the local native client |
-| `DELETE /tools/cloud-secrets` | Revoke pairing and clear desktop-registered keys and the PDF folder |
-| `GET /tools/cloud-secrets-status` | Whether LAN clients can read keys from this host |
-| `POST /tools/host-tool-config` | Push host paths (e.g. PDF folder) for LAN clients |
-| `DELETE /tools/host-tool-config` | Clear desktop-registered host tool config |
-| `GET /tools/user-data` | Fetch long memory + reminders for sync |
-| `POST /tools/user-data-sync` | Merge long memory + reminders (desktop ↔ LAN) |
+| `/api/opencode-go/*` | OpenCode Go proxy (the upstream sends no CORS headers) |
 | `POST /tts` | Text-to-speech (local OmniVoice setup) |
 
-The desktop main process supplies a per-launch desktop token to the tools process and to the app's own main frame through preload. The renderer attaches it only to requests on the configured loopback tools port and rejects redirects for authenticated requests. Incoming Host values must identify loopback, the receiving IP, the machine name or a configured LAN alias. Phone clients use the same origin and pair separately.
+The desktop main process supplies a per-launch desktop token to the tools process and to the app's own main frame through preload. The renderer attaches it only to requests on the configured loopback tools port and rejects redirects for authenticated requests. Incoming Host values must name loopback. `GET /health` reports `desktop: true` only for a caller with the right token, so Electron can tell its own server from a leftover one that holds the port.
 
 Web search never runs inside the server. `POST /tools/search` hands the query to a
 separate worker process (`tts-server/search_core.py`, driven by `search_client.py`)
@@ -173,7 +166,7 @@ once, so the UI reported `fail to fetch` for search, the OpenCode Go proxy and l
 ASR together. A worker that misses its deadline is killed and respawned on the next
 search; `GET /health` keeps answering throughout.
 
-Coding tools run inside the Electron app (not as separate HTTP routes). Image edit/generation and settings updates go through the desktop agent or the LAN web proxy to the same backends.
+Coding tools run inside the Electron app (not as separate HTTP routes). Image edit/generation and settings updates go through the desktop agent.
 
 ---
 

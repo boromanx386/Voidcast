@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { scheduleSaveChatSessions } from '@/lib/chatSessionsStorage'
 import { fetchOllamaModels } from '@/lib/ollama'
 import { deleteReminder, markReminderDone } from '@/lib/reminderStorage'
-import { recordReminderDeleted, scheduleUserDataSync } from '@/lib/userDataSync'
 import { useAppSettings } from '@/hooks/useAppSettings'
 import { useChatAgent, type OnSendOptions } from '@/hooks/useChatAgent'
 import { useChatAttachments } from '@/hooks/useChatAttachments'
@@ -27,15 +26,7 @@ import type { OptionsTab, Screen } from '@/types/voidcast'
 export type { OptionsTab, Screen } from '@/types/voidcast'
 
 export function useVoidcastApp() {
-  const {
-    settings,
-    setSettings,
-    hostPdfOutputDir,
-    setHostPdfOutputDir,
-    effectivePdfOutputDir,
-    lanSync,
-    appVersion,
-  } = useAppSettings()
+  const { settings, setSettings, effectivePdfOutputDir, appVersion } = useAppSettings()
 
   const [screen, setScreen] = useState<Screen>('chat')
   const [optionsTab, setOptionsTab] = useState<OptionsTab>('general')
@@ -311,7 +302,6 @@ export function useVoidcastApp() {
     activeSessionId: sessions.activeSessionId,
     activeModelId: sessions.activeModelId,
     setError: agent.setError,
-    setHostPdfOutputDir,
     setScreen,
     setOptionsTab,
     screen,
@@ -438,27 +428,23 @@ export function useVoidcastApp() {
   const handleDeleteReminder = useCallback(
     async (id: string) => {
       await deleteReminder(id)
-      recordReminderDeleted(id)
-      scheduleUserDataSync(settings.ttsBaseUrl)
       await longMemory.refreshReminders()
     },
-    [longMemory.refreshReminders, settings.ttsBaseUrl],
+    [longMemory.refreshReminders],
   )
 
   const handleMarkDoneReminder = useCallback(
     async (id: string) => {
       await markReminderDone(id)
-      scheduleUserDataSync(settings.ttsBaseUrl)
       await longMemory.refreshReminders()
     },
-    [longMemory.refreshReminders, settings.ttsBaseUrl],
+    [longMemory.refreshReminders],
   )
 
   return {
     settings,
     setSettings,
     effectivePdfOutputDir,
-    lanSync,
     appVersion,
     screen,
     setScreen,

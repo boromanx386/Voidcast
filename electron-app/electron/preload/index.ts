@@ -1,4 +1,3 @@
-import type { LanRegistration } from '../../src/lib/cloudSecrets'
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
 
 // --------- Expose some API to the Renderer process ---------
@@ -638,13 +637,8 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
-  /** LAN IPv4 addresses of this machine (for mobile web UI URLs). */
   getToolsAuth: () =>
     ipcRenderer.sendSync('voidcast:get-tools-auth') as { token: string; port: number } | null,
-  syncLanAccess: (registration: LanRegistration | null) =>
-    ipcRenderer.invoke('voidcast:sync-lan-access', registration),
-  getLanNetworkInfo: () =>
-    ipcRenderer.invoke('voidcast:get-lan-network-info') as Promise<{ ips: string[] }>,
   showWindow: () => ipcRenderer.invoke('voidcast:show-window'),
   /** OS-encrypted API keys. `getAll` is null when the OS has no real key store. */
   secrets: {

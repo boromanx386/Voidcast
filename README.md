@@ -46,7 +46,6 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 - [Image-aware chat](#image-aware-chat)
 - [Themes & UI](#themes--ui)
 - [Speech & audio](#speech--audio)
-- [LAN web UI — chat from your phone](#lan-web-ui--chat-from-your-phone)
 - [Development](#development)
 - [License & third-party](#license--third-party)
 
@@ -79,7 +78,6 @@ Providers: **OpenRouter** · **OpenAI** · **NVIDIA NIM** · **DeepSeek** · **O
 
 - **A worker for Claude Code, Codex and Cursor** — turn on the local control API, copy [`skills/voidcast/`](skills/voidcast/) into your agent's skills folder, and your main agent can hand Voidcast a task, wait for it and check the result. Let a cheaper model do the bulk work, or use Voidcast's image, music, TTS and browser tools from another agent. See [Local control API](docs/control-api.md).
 
-- **Chat from your phone** — an opt-in **LAN web UI** served from your PC, so your own phone or tablet can use the same agent, models and memory. See [LAN web UI](#lan-web-ui--chat-from-your-phone).
 
 ---
 
@@ -160,7 +158,7 @@ In **Options → Media → Music tool**, choose the provider: **Runware ACE-Step
 
 Enable **SAVE_PDF** and set **PDF_OUTPUT_DIR** in **Options → Tools** (folder on the host running the tools server). The agent calls `save_pdf`; files land there with no save dialog.
 
-Supports Markdown-lite (headings, lists, tables, bold). Images can come from chat attachments or Runware URLs from a prior image/music turn. Works on desktop and LAN web.
+Supports Markdown-lite (headings, lists, tables, bold). Images can come from chat attachments or Runware URLs from a prior image/music turn.
 
 ### Agent Skills
 
@@ -305,7 +303,7 @@ All you need are the accounts and API keys you already have — Voidcast never r
 
 **Pricing:** OpenRouter Whisper (STT), TTS, and image models bill per request or token at low rates. Runware charges per image or audio clip at similarly small amounts. Voidcast adds no markup; see each provider’s pricing page for current numbers.
 
-**Privacy:** API keys and app settings stay on your machine; on desktop the keys are encrypted with your OS key store (Windows DPAPI, Linux keyring). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go, Runware, or Ollama from your PC (OpenCode Go via the local tools proxy). With **LAN_WEB_ACCESS** enabled, keys are registered on the local tools host for phone proxying — not baked into the phone browser build.
+**Privacy:** API keys and app settings stay on your machine; on desktop the keys are encrypted with your OS key store (Windows DPAPI, Linux keyring). Voidcast has no cloud account and never receives your keys — the desktop app talks to OpenRouter, NVIDIA NIM, DeepSeek, OpenAI, OpenCode Go, Runware, or Ollama from your PC (OpenCode Go via the local tools proxy).
 
 ---
 
@@ -344,9 +342,8 @@ Cross-chat memory is stored locally in IndexedDB:
 - Saved when you ask the agent to remember something
 - Edit or delete anytime in **Options → General**
 - Optional **USE_LONG_MEMORY_GLOBALLY** to include memories in every chat
-- **Desktop ↔ LAN sync** — when phone and PC use the same tools host, entries can merge via the user-data API (see **LAN web UI** below)
 
-**Reminders** also live locally, with optional **desktop notifications** (Windows toast when due). Reminders participate in the same LAN sync as long memory.
+**Reminders** also live locally, with optional **desktop notifications** (Windows toast when due).
 
 ---
 
@@ -359,7 +356,7 @@ Paste images into the chat, or drag-and-drop images and documents. On desktop, *
 </p>
 <p align="center"><em>Paste an image and ask the agent to transform it — results appear inline.</em></p>
 
-For **charts, diagrams, and infographics**, pick an image model in **Options → Media → Image tool** (Runware GPT Image 2, or OpenRouter Gemini Flash / GPT Image 2), describe what you want in chat, then ask the agent to export a PDF — it can pass the generated `image_url` from the prior turn into `save_pdf` so the graphic is **embedded in the document** (not just linked in markdown). Same flow works on desktop and LAN web.
+For **charts, diagrams, and infographics**, pick an image model in **Options → Media → Image tool** (Runware GPT Image 2, or OpenRouter Gemini Flash / GPT Image 2), describe what you want in chat, then ask the agent to export a PDF — it can pass the generated `image_url` from the prior turn into `save_pdf` so the graphic is **embedded in the document** (not just linked in markdown).
 
 ---
 
@@ -393,29 +390,6 @@ Other UX features:
 - **Speech-to-Text** — local **Whistle** via the bundled `cactus-needle` engine (fully offline, no API key; ~16.9 MB, 7 languages) or OpenRouter Whisper (push-to-talk; inexpensive per recording)
 
 Cloud voice options are pay-per-use; see [Providers](#providers) above for typical costs.
-
----
-
-## LAN web UI — chat from your phone
-
-Phone/tablet access is **opt-in**. On the desktop app open **Options → General → LAN_WEB_ACCESS**, turn it on, then scan the QR code (or copy the shown URL). When the toggle is off, cloud API keys stay only in desktop storage and are not registered on the tools server.
-
-The packaged app starts the tools server on **`0.0.0.0:8765`** (all interfaces). With LAN web access enabled, open on your phone:
-
-`http://<host>:8765`
-
-Use the PC’s **LAN IPv4** on home Wi‑Fi (`ipconfig` — e.g. `192.168.1.42`), or the machine’s **Tailscale** IP / configured MagicDNS name when you are away from home (install Tailscale on both the PC and the phone, same tailnet). Similar mesh VPNs (**ZeroTier**, **WireGuard**, etc.) work the same way: reach the PC on a private address, then use port **8765**. The options panel picks a LAN address automatically and can switch between interfaces (Wi‑Fi vs Tailscale).
-
-> **Not Tailwind CSS** — that is the UI framework in the repo. For remote phone access, people usually mean **Tailscale** (or another VPN), not the CSS toolkit.
-
-> **Security:** the web UI is for **your** machines on a trusted network. Non-loopback clients (phones/tablets) authenticate with a **shared access token** that rides in the connection URL (`?t=…`) and is sent as an `x-voidcast-access-token` header on every request (stripped from the address bar after first load). The token travels over plain HTTP on your LAN — anyone already on the same network can sniff it (same trust boundary as before) — so still do **not** port-forward **8765** to the public internet without extra protection. Prefer Tailscale (or similar) over raw exposure. Turning sharing off revokes the link for all paired devices. Scan the new QR code after enabling sharing again. Phone tokens are generated for each pairing session. Existing pinned links using `VOIDCAST_LAN_ACCESS_TOKEN` must be replaced. `VOIDCAST_SECRETS_TOKEN` is an optional additional credential for local desktop registration. Remote management of a standalone service is no longer supported. The server accepts its local interface addresses and machine name. For a MagicDNS or other custom hostname, add the exact name to the comma-separated `VOIDCAST_LAN_HOSTS` environment variable on the host.
-
-- **Web chat UI** — remote chat companion served from the bundled server on your PC (cloud LLM/tools via proxy; coding tools and skills discovery stay desktop-only).
-- **API keys on the phone** — the browser build does not embed secrets. Enable **LAN_WEB_ACCESS**, configure keys once on the **desktop** (**Options → General → CLOUD_API_KEYS**); the desktop pushes them to the host via **`POST /tools/cloud-secrets`** (only while the PC app is running). Turning the toggle off clears registered keys (`DELETE /tools/cloud-secrets`).
-- **Sync** — long-term memory and reminders can merge between desktop and LAN web through **`GET /tools/user-data`** / **`POST /tools/user-data-sync`** on that same host.
-- **Mobile limits** — speech-to-text is hidden on phone layouts where recording is unreliable; use desktop for STT.
-
-Firewall: allow inbound TCP **8765** on the PC if the phone cannot connect.
 
 ---
 

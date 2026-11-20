@@ -31,7 +31,6 @@ import {
 } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
 import { loadSettings, type AppSettings } from '@/lib/settings'
-import { scheduleUserDataSync } from '@/lib/userDataSync'
 import {
   audioPathKey,
   extractRunwareAudioUrls,
@@ -166,12 +165,10 @@ export function applyAgentToolResult(
     name === 'update_reminder'
   ) {
     void refreshReminders()
-    scheduleUserDataSync(settings.ttsBaseUrl)
   }
   if (name === 'update_settings') {
     setSettings(loadSettings())
     void refreshLongMemories()
-    scheduleUserDataSync(settings.ttsBaseUrl)
   }
   if (
     name === 'list_directory' ||

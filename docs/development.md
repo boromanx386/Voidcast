@@ -108,11 +108,10 @@ This approach ensures all users get the same environment without manual Python s
 │   ├── stt_whistle.py               # Offline Whistle STT (cactus-needle)
 │   ├── voidcast-tools-server.spec   # PyInstaller spec for the bundled tools exe
 │   ├── fonts/                       # Noto Sans TTFs (bundled into tools exe)
-│   ├── vendor/                      # Bundled native engines + Whistle model
-│   └── web-ui/                      # LAN web UI for phones
+│   └── vendor/                      # Bundled native engines + Whistle model
 ├── docs/                            # Docs (architecture, chat, coding, options…)
 ├── demos/                           # Screenshots & demo assets used in the README
-├── scripts/                         # Build/release helpers (tools exe, web UI copy…)
+├── scripts/                         # Build/release helpers (tools exe, release…)
 ├── site/                            # Landing page (static site)
 ├── skills/voidcast/                 # Agent skill + CLI for the local control API
 ├── CHANGELOG.md                     # Release history

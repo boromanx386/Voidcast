@@ -31,7 +31,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ports = 8765, 5173, 5174; foreach ($p in $ports) { Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue ^| ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } }"
 
 echo.
-echo Pokretanje: TTS ^(0.0.0.0:8765^) + Electron / Vite
+echo Pokretanje: TTS ^(127.0.0.1:8765^) + Electron / Vite
 echo Zaustavi: Ctrl+C
 echo.
 

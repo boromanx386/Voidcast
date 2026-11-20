@@ -4,10 +4,9 @@
 #
 # Steps:
 #   1) venv + tools-server dependencies
-#   2) LAN web UI build (electron-app -> tts-server/web-ui/)
-#   3) PyInstaller: Linux one-file binary tools server
+#   2) PyInstaller: Linux one-file binary tools server
 #      (tts-server/dist/voidcast-tools-server)
-#   4) tsc + vite build + electron-builder --linux
+#   3) tsc + vite build + electron-builder --linux
 #
 # Output: electron-app/release/<version>/
 #
@@ -105,14 +104,7 @@ if [ ! -d "$APP/node_modules" ]; then
   ( cd "$APP" && npm install )
 fi
 
-# ------------------------------------------------------------------ 2) web UI
-if [ ! -f "$TTS/web-ui/index.web.html" ]; then
-  step "Building web UI (build:web) ..."
-  ( cd "$APP" && npm run build:web )
-fi
-[ -f "$TTS/web-ui/index.web.html" ] || die "web-ui/index.web.html was not created."
-
-# ------------------------------------------------------------------ 3) freeze tools server
+# ------------------------------------------------------------------ 2) freeze tools server
 step "PyInstaller: Linux tools binary ..."
 "$PY" -m pip install pyinstaller
 rm -rf "$TTS/dist" "$TTS/build-linux"
@@ -125,7 +117,6 @@ rm -rf "$TTS/dist" "$TTS/build-linux"
   --paths "$TTS" \
   --collect-data trafilatura \
   --add-data "$TTS/fonts:fonts" \
-  --add-data "$TTS/web-ui:web-ui" \
   --exclude-module torch \
   --exclude-module torchaudio \
   --exclude-module omnivoice \
@@ -138,7 +129,7 @@ rm -rf "$TTS/dist" "$TTS/build-linux"
 chmod +x "$TTS/dist/voidcast-tools-server"
 step "OK: $TTS/dist/voidcast-tools-server"
 
-# ------------------------------------------------------------------ 4) package
+# ------------------------------------------------------------------ 3) package
 step "tsc + vite build + electron-builder --linux ${EXTRA_ARGS} ..."
 ( cd "$APP" && npx tsc && npx vite build && npx electron-builder --linux ${EXTRA_ARGS} )
 

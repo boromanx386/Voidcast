@@ -13,9 +13,6 @@ import {
   markReminderNotified,
   type Reminder,
 } from '@/lib/reminderStorage'
-import { fetchHostToolConfig } from '@/lib/hostToolConfig'
-import { recordMemoryDeleted, scheduleUserDataSync, syncUserDataNow } from '@/lib/userDataSync'
-import { isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
 import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 import { toConversationTurns } from '@/lib/chatHints'
@@ -31,7 +28,6 @@ export type UseLongMemoryUiParams = {
   /** Model picked for the chat on screen (scoped id); empty = the app default. */
   activeModelId: string
   setError: (error: string | null) => void
-  setHostPdfOutputDir: (dir: string) => void
   setScreen: (screen: Screen) => void
   setOptionsTab: (tab: OptionsTab) => void
   screen: Screen
@@ -50,7 +46,6 @@ export type UseLongMemoryUiResult = {
   confirmSaveLongMemory: () => Promise<void>
   refreshLongMemories: () => Promise<void>
   refreshReminders: () => Promise<void>
-  syncUserDataAndRefresh: () => Promise<void>
   deleteLongMemoryById: (id: string) => Promise<void>
   updateLongMemoryById: (id: string, text: string) => Promise<void>
 }
@@ -62,7 +57,6 @@ export function useLongMemoryUi({
   activeSessionId,
   activeModelId,
   setError,
-  setHostPdfOutputDir,
   setScreen,
   setOptionsTab,
   screen,
@@ -139,7 +133,6 @@ export function useLongMemoryUi({
     try {
       await upsertMemories(memoryCandidates, activeSessionId ?? 'draft')
       await dedupeMemories()
-      scheduleUserDataSync(settings.ttsBaseUrl)
       setLongMemories(await listMemories(100))
       setMemoryPreviewOpen(false)
       setMemoryCandidates([])
@@ -148,7 +141,7 @@ export function useLongMemoryUi({
     } finally {
       setLongMemoryBusy(false)
     }
-  }, [activeSessionId, memoryCandidates, setError, settings.ttsBaseUrl])
+  }, [activeSessionId, memoryCandidates, setError])
 
   const refreshLongMemories = useCallback(async () => {
     try {
@@ -166,20 +159,14 @@ export function useLongMemoryUi({
     }
   }, [])
 
-  const syncUserDataAndRefresh = useCallback(async () => {
-    await syncUserDataNow(settings.ttsBaseUrl)
-    if (isWebStandalone()) {
-      setHostPdfOutputDir(await fetchHostToolConfig(settings.ttsBaseUrl))
-    }
+  const refreshUserData = useCallback(async () => {
     await refreshLongMemories()
     await refreshReminders()
-  }, [settings.ttsBaseUrl, refreshLongMemories, refreshReminders, setHostPdfOutputDir])
+  }, [refreshLongMemories, refreshReminders])
 
   useEffect(() => {
-    void syncUserDataAndRefresh()
-    const heartbeat = window.setInterval(() => scheduleUserDataSync(settings.ttsBaseUrl), 30_000)
-    return () => window.clearInterval(heartbeat)
-  }, [settings.ttsBaseUrl, syncUserDataAndRefresh])
+    void refreshUserData()
+  }, [refreshUserData])
 
   useEffect(() => {
     if (!settings.reminderNotificationsEnabled) return
@@ -214,7 +201,6 @@ export function useLongMemoryUi({
             }
             const notifiedTs = Date.now()
             await markReminderNotified(r.id, notifiedTs)
-            scheduleUserDataSync(settings.ttsBaseUrl)
             firedAny = true
           } catch {
             // single failure shouldn't block other reminders
@@ -234,38 +220,29 @@ export function useLongMemoryUi({
       cancelled = true
       if (timer != null) window.clearInterval(timer)
     }
-  }, [
-    settings.reminderNotificationsEnabled,
-    settings.ttsBaseUrl,
-    refreshReminders,
-    setOptionsTab,
-    setScreen,
-  ])
+  }, [settings.reminderNotificationsEnabled, refreshReminders, setOptionsTab, setScreen])
 
   const deleteLongMemoryById = useCallback(
     async (id: string) => {
       await deleteMemory(id)
-      recordMemoryDeleted(id)
-      scheduleUserDataSync(settings.ttsBaseUrl)
       await refreshLongMemories()
     },
-    [refreshLongMemories, settings.ttsBaseUrl],
+    [refreshLongMemories],
   )
 
   const updateLongMemoryById = useCallback(
     async (id: string, text: string) => {
       await updateMemoryText(id, text)
-      scheduleUserDataSync(settings.ttsBaseUrl)
       await refreshLongMemories()
     },
-    [refreshLongMemories, settings.ttsBaseUrl],
+    [refreshLongMemories],
   )
 
   useEffect(() => {
     if (screen === 'options' && optionsTab === 'general') {
-      void syncUserDataAndRefresh()
+      void refreshUserData()
     }
-  }, [optionsTab, screen, syncUserDataAndRefresh])
+  }, [optionsTab, screen, refreshUserData])
 
   return {
     longMemoryBusy,
@@ -279,7 +256,6 @@ export function useLongMemoryUi({
     confirmSaveLongMemory,
     refreshLongMemories,
     refreshReminders,
-    syncUserDataAndRefresh,
     deleteLongMemoryById,
     updateLongMemoryById,
   }

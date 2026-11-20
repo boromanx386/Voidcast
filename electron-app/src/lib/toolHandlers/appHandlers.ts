@@ -16,7 +16,6 @@ import {
   updateReminder,
   searchRemindersByText,
 } from '@/lib/reminderStorage'
-import { recordReminderDeleted } from '@/lib/userDataSync'
 import {
   AGENT_EDITABLE_SETTINGS_FIELD_SET,
   CONFIGURED_RUNWARE_MODEL_IDS,
@@ -246,7 +245,6 @@ export const handleDeleteReminder: ToolHandlerFn = async (args, ctx) => {
     }
     const target = matches[0]
     await deleteReminder(target.id)
-    recordReminderDeleted(target.id)
     return `OK: deleted reminder — "${target.text}".`
   } catch (e) {
     return e instanceof Error ? `Error: failed to delete reminder: ${e.message}` : String(e)

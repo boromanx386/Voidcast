@@ -14,11 +14,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue ^| ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
 
 echo.
-echo TTS server: http://0.0.0.0:8765  ^(LAN: http://^<tvoja-IP^>:8765^)
-echo Web UI: prvo "cd electron-app ^&^& npm run build:web" ako folder web-ui nije azuriran.
+echo TTS server: http://127.0.0.1:8765
 echo Zaustavi: Ctrl+C
 echo.
 
-".venv\Scripts\python.exe" -m uvicorn tts_main:app --host 0.0.0.0 --port 8765 --app-dir "%~dp0tts-server"
+".venv\Scripts\python.exe" -m uvicorn tts_main:app --host 127.0.0.1 --port 8765 --app-dir "%~dp0tts-server"
 
 if errorlevel 1 pause

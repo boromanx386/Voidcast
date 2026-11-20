@@ -40,7 +40,7 @@ if (!python) {
 }
 
 const cwd = join(root, 'tts-server')
-const args = ['-m', 'uvicorn', which, '--host', '0.0.0.0', '--port', '8765']
+const args = ['-m', 'uvicorn', which, '--host', '127.0.0.1', '--port', '8765']
 
 if (process.env.VOIDCAST_DRY === '1') {
   console.log(`[dev:tts] python: ${python}`)

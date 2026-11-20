@@ -110,7 +110,7 @@ if [ -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] &&
 fi
 
 # ------------------------------------------------------------------ run
-TOOLS_HOST="${VOIDCAST_TOOLS_HOST:-0.0.0.0}"
+TOOLS_HOST="${VOIDCAST_TOOLS_HOST:-127.0.0.1}"
 TOOLS_PORT="${VOIDCAST_TOOLS_PORT:-8765}"
 
 # The separately launched Electron and Python processes share one launch credential.

@@ -15,7 +15,7 @@ Packaged builds are published on [Releases](https://github.com/boromanx386/Voidc
 Both packages bundle the Python tools server (port **8765**), so no Python setup is needed.
 
 - First launch opens a fresh chat session with an empty composer and the **Sessions** sidebar.
-- The app also has a **LAN web client** runtime (point a phone/tablet browser at the desktop's server) and a **web-standalone** browser mode. See [README.md](README.md) for the differences.
+- The app also has a **web-standalone** browser mode. See [README.md](README.md) for the differences.
 
 ## First Chat
 
@@ -49,13 +49,13 @@ Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.t
 - **OpenAI**: https://platform.openai.com/api-keys — `openaiApiKey`.
 - **OpenCode Go**: https://opencode.ai — `opencodeGoApiKey`.
 
-On desktop, cloud API keys are encrypted with the OS key store (Electron `safeStorage`) in `secrets.json` in `userData`; on LAN web clients `saveSettings` strips them (`stripCloudSecrets`).
+On desktop, cloud API keys are encrypted with the OS key store (Electron `safeStorage`) in `secrets.json` in `userData`.
 
 ## Using Ollama
 
 Ollama is one provider among the six, not the identity of the app: Voidcast is BYOK first — the accounts and keys you already pay for come first, and `ollama` is only the default because it needs no key at all. Ollama also serves hosted models on its own Cloud plans; that billing is Ollama's, never Voidcast's.
 
-- Default `ollamaBaseUrl` is `http://localhost:11434`. Desktop also supports a desktop proxy for web clients.
+- Default `ollamaBaseUrl` is `http://localhost:11434`.
 - **Plain HTTP to a non-loopback host is blocked by CSP**: the renderer's `connect-src` allows `https:`/`wss:` plus loopback `http:`/`ws:` only. A LAN Ollama at `http://192.168.x.x:11434` needs its origin added to `index.html` to work.
 - `ollamaModel` defaults to `llama3.2`. The model list is fetched from `/api/tags` in `electron-app/src/lib/ollama.ts`.
 - Ollama-specific LLM options: `llmTemperature`, `llmNumCtx` (`options.num_ctx`), `llmThinkLevel` (`think`), and `llmSystemPrompt`.
@@ -72,7 +72,7 @@ The `openai` provider is a plain Chat Completions client and `openaiBaseUrl` is 
 | Ollama, OpenAI-compatible route | `http://localhost:11434/v1` |
 | TGI / SGLang / LM Studio / llama-cpp-python | their own `/v1` address |
 
-Pick `openai` in **Options → LLM**, paste the URL into **OPENAI_BASE_URL**, and put the model id your server reports into **OPENAI_MODEL** — the preset list is only a preset list, the field accepts any id, so a self-hosted `--served-model-name` works. `OPENAI_BASE_URL` is read-only on LAN web clients, where requests are proxied through `/api/openai/*` on the desktop host.
+Pick `openai` in **Options → LLM**, paste the URL into **OPENAI_BASE_URL**, and put the model id your server reports into **OPENAI_MODEL** — the preset list is only a preset list, the field accepts any id, so a self-hosted `--served-model-name` works.
 
 Two caveats worth knowing: plain HTTP to a **non-loopback** host is blocked by the renderer CSP (see the Ollama note above), and Voidcast sends its volatile per-turn context merged onto the final user turn rather than as a trailing `system` message — which is exactly what local llama.cpp and Llama-3-style Jinja templates require.
 
@@ -98,8 +98,8 @@ All settings live in `electron-app/src/lib/settings.ts`:
 
 - **Storage**: renderer `localStorage` under the key **`voidcast-settings-v1`** (`STORAGE_KEY`).
 - **API keys** (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `openaiApiKey`, `opencodeGoApiKey`, `runwareApiKey`): on desktop they are kept out of `localStorage` and encrypted with Electron `safeStorage` (DPAPI on Windows, the Secret Service keyring on Linux) in `secrets.json` in `userData`, via `electron/main/secretStore.ts` and the sync `voidcast:secrets-*` IPC. Keys left in `localStorage` by older versions are moved there on load. On Linux without a keyring (`basic_text` backend) they stay in `localStorage` as before.
-- **Load**: `loadSettings()` reads `localStorage`, merges over `defaults`, runs `normalizeAll` (llm, subAgent, tts, tools, pdf dir, ui theme, agent mode, runware, notification sounds, lan web access), then `sanitizeDesktopServiceUrls` and `applyWebRuntimeOverrides`.
-- **Save**: `saveSettings(s)` writes `JSON.stringify` to `localStorage` without the API keys, which go to the encrypted store only when they changed. If the store refuses a write, the keys stay in `localStorage` so they are never lost. LAN web clients strip cloud secrets.
+- **Load**: `loadSettings()` reads `localStorage`, merges over `defaults`, runs `normalizeAll` (llm, subAgent, tts, tools, pdf dir, ui theme, agent mode, runware, notification sounds), then `sanitizeDesktopServiceUrls` and `applyWebRuntimeOverrides`.
+- **Save**: `saveSettings(s)` writes `JSON.stringify` to `localStorage` without the API keys, which go to the encrypted store only when they changed. If the store refuses a write, the keys stay in `localStorage` so they are never lost.
 - **Defaults**: `export const defaults: AppSettings` (settings.ts). See [settings-reference.md](settings-reference.md) for every key.
 
 The React state wrapper is `useAppSettings()` in `electron-app/src/hooks/useAppSettings.ts` (loads via `loadSettings`, persists via `saveSettings`).

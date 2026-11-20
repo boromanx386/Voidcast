@@ -21,7 +21,7 @@ Everything that lives in the repo is **English**:
 | Path | What it is |
 |---|---|
 | `electron-app/` | Electron main process + React/Vite renderer |
-| `tts-server/` | FastAPI "tools server" on port 8765 — search, scrape, YouTube, PDF, TTS/STT, LAN web UI |
+| `tts-server/` | FastAPI "tools server" on port 8765 — search, scrape, YouTube, PDF, TTS/STT, OpenCode Go/Runware proxies |
 | `scripts/release.mjs` | release helper (bump, commit, tag, push) |
 | `.github/workflows/release.yml` | cross-platform build + publish pipeline |
 | `start-dev.sh` / `build-linux.sh` | Linux one-shot dev / build scripts |

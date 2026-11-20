@@ -1,7 +1,7 @@
 """
 OmniVoice TTS HTTP API for the Electron chat app.
 
-Run:  python -m uvicorn main:app --host 0.0.0.0 --port 8765 --app-dir tts-server
+Run:  python -m uvicorn main:app --host 127.0.0.1 --port 8765 --app-dir tts-server
 
 Hugging Face cache (why "Fetching N files" reappears):
   - The first run downloads ~13 files. Afterwards it should use the cache.
@@ -21,8 +21,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import hmac
-import ipaddress
-import socket
 import io
 import logging
 import os
@@ -32,14 +30,12 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from scrape_tool import assert_url_safe_for_fetch, scrape_public_url_to_text
@@ -54,25 +50,6 @@ from youtube_tools import (
     youtube_tool_run,
 )
 
-from cloud_secrets import (
-    clear_registered_secrets,
-    get_deepseek_key,
-    get_lan_access_token,
-    get_nvidia_key,
-    get_openai_key,
-    get_openrouter_key,
-    get_opencode_go_key,
-    get_runware_key,
-    register_secrets,
-)
-from user_data import apply_sync, get_snapshot
-from host_tool_config import (
-    clear_host_tool_config,
-    get_pdf_output_dir,
-    get_snapshot as get_host_tool_config_snapshot,
-    register_host_tool_config,
-)
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tts-server")
 
@@ -83,52 +60,14 @@ logger = logging.getLogger("tts-server")
 _TOOLS_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="tools-net")
 _SEARCH_SEM = asyncio.Semaphore(2)
 
-def resolve_web_ui_dir() -> Path:
-    """Find Vite `web-ui` output (dev, Electron resources cwd, or VOIDCAST_WEB_UI_DIR)."""
-    env = os.environ.get("VOIDCAST_WEB_UI_DIR", "").strip()
-    if env:
-        return Path(env)
-    candidates = (
-        Path.cwd() / "web-ui",
-        Path(__file__).resolve().parent / "web-ui",
-    )
-    for directory in candidates:
-        for name in ("index.html", "index.web.html"):
-            if (directory / name).is_file():
-                return directory
-    return candidates[0]
-
-
-WEB_UI_DIR = resolve_web_ui_dir()
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip(
-    "/"
-)
-# Host only — web client paths include /api/v1/... after /api/openrouter/
-OPENROUTER_UPSTREAM = os.environ.get(
-    "OPENROUTER_BASE_URL", "https://openrouter.ai"
-).rstrip("/")
-NVIDIA_UPSTREAM = os.environ.get(
-    "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com"
-).rstrip("/")
-DEEPSEEK_UPSTREAM = os.environ.get(
-    "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
-).rstrip("/")
-OPENAI_UPSTREAM = os.environ.get(
-    "OPENAI_BASE_URL", "https://api.openai.com"
-).rstrip("/")
 # OpenCode Go OpenAI-compatible API (no browser CORS — always proxy from renderer).
 OPENCODE_GO_UPSTREAM = os.environ.get(
     "OPENCODE_GO_BASE_URL", "https://opencode.ai/zen/go"
 ).rstrip("/")
 
 
-def _web_index_file() -> Path | None:
-    """Vite web build emits `index.web.html` (multi-page) or `index.html`."""
-    for name in ("index.html", "index.web.html"):
-        p = WEB_UI_DIR / name
-        if p.is_file():
-            return p
-    return None
+def _env_key(name: str) -> str:
+    return os.environ.get(name, "").strip()
 
 
 # Quietly: symlinks are not supported on some NTFS/mount paths (e.g. Q:)
@@ -216,30 +155,6 @@ class RunwareProxyRequest(BaseModel):
     )
     api_key: str = Field(default="", max_length=2048)
     tasks: list[dict[str, Any]] = Field(..., min_length=1, max_length=8)
-
-
-class CloudSecretsRequest(BaseModel):
-    renewPairing: bool = False
-    pdfOutputDir: str | None = Field(default=None, max_length=4096)
-    openrouterApiKey: str = Field(default="", max_length=2048)
-    runwareApiKey: str = Field(default="", max_length=2048)
-    nvidiaApiKey: str = Field(default="", max_length=2048)
-    deepseekApiKey: str = Field(default="", max_length=2048)
-    openaiApiKey: str = Field(default="", max_length=2048)
-    opencodeGoApiKey: str = Field(default="", max_length=2048)
-
-
-class HostToolConfigRequest(BaseModel):
-    pdfOutputDir: str = Field(default="", max_length=4096)
-
-
-class UserDataSyncRequest(BaseModel):
-    longMemories: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
-    reminders: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
-    deletedMemoryIds: list[str] = Field(default_factory=list, max_length=500)
-    deletedReminderIds: list[str] = Field(default_factory=list, max_length=500)
-    deletedMemoryAt: dict[str, int] = Field(default_factory=dict)
-    deletedReminderAt: dict[str, int] = Field(default_factory=dict)
 
 
 class TtsRequest(BaseModel):
@@ -333,34 +248,17 @@ def _is_loopback_host(host: str | None) -> bool:
     return (host or "").lower() in ("127.0.0.1", "::1", "localhost")
 
 
-# Uvicorn supplies the actual destination IP in scope["server"], including on VPNs.
-# Additional hostnames are exact matches for deployments using custom DNS.
-_ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1", socket.gethostname().lower()}
-_ALLOWED_HOSTS.update(
-    name.strip().lower()
-    for name in os.getenv("VOIDCAST_LAN_HOSTS", "").split(",")
-    if name.strip()
-)
-
-
 @app.middleware("http")
 async def validate_tools_host(request: Request, call_next):
+    # A DNS-rebinding page reaches 127.0.0.1 under its own hostname; only loopback names pass.
     authorities = request.headers.getlist("host")
     authority = authorities[0].lower() if len(authorities) == 1 else ""
     match = re.fullmatch(
         r"(?:\[([0-9a-f:]+)\]|([a-z0-9.-]+))(?::[0-9]{1,5})?", authority
     )
     host = (match.group(1) or match.group(2)) if match else None
-    if host not in _ALLOWED_HOSTS:
-        try:
-            destination = request.scope.get("server")
-            valid_ip = destination and ipaddress.ip_address(
-                host
-            ) == ipaddress.ip_address(destination[0])
-        except ValueError:
-            valid_ip = False
-        if not valid_ip:
-            return PlainTextResponse("Invalid Host header", status_code=400)
+    if not _is_loopback_host(host):
+        return PlainTextResponse("Invalid Host header", status_code=400)
     return await call_next(request)
 
 
@@ -375,41 +273,10 @@ def _desktop_authenticated(request: Request) -> bool:
     )
 
 
-def require_desktop_registration(request: Request) -> None:
-    """Pairing also requires a native caller, independently of the renderer credential."""
-    if (
-        not _desktop_authenticated(request)
-        or "origin" in request.headers
-        or "sec-fetch-site" in request.headers
-    ):
-        raise HTTPException(status_code=403, detail="Local desktop access required")
-    expected = os.environ.get("VOIDCAST_SECRETS_TOKEN", "").strip()
-    supplied = request.headers.get("x-voidcast-secrets-token", "").strip()
-    if expected and not hmac.compare_digest(expected.encode(), supplied.encode()):
-        raise HTTPException(
-            status_code=403, detail="Invalid desktop registration credential"
-        )
-
-
-async def require_lan_access(request: Request) -> str:
-    if _desktop_authenticated(request):
-        return "desktop"
-    expected = get_lan_access_token()
-    if expected is None:
-        raise HTTPException(
-            status_code=403,
-            detail="Desktop authentication required. LAN access is off.",
-        )
-    supplied = (request.headers.get("x-voidcast-access-token") or "").strip()
-    if not supplied:
-        bearer = request.headers.get("authorization", "")
-        if bearer.lower().startswith("bearer "):
-            supplied = bearer[7:].strip()
-    if not hmac.compare_digest(supplied.encode(), expected.encode()):
-        raise HTTPException(
-            status_code=401, detail="Missing or invalid LAN access token"
-        )
-    return "lan"
+async def require_desktop(request: Request) -> None:
+    """Any web page can reach loopback, so every tool route needs the per-run desktop token."""
+    if not _desktop_authenticated(request):
+        raise HTTPException(status_code=403, detail="Desktop authentication required")
 
 
 def _generate_wav_bytes(req: TtsRequest) -> bytes:
@@ -500,8 +367,10 @@ def _generate_clone_from_b64(req: TtsRequest) -> bytes:
 
 
 @app.get("/health")
-async def health():
+async def health(request: Request):
     return {
+        # Lets Electron tell its own server from a leftover one that holds another token.
+        "desktop": _desktop_authenticated(request),
         "ok": _model is not None and _load_error is None,
         "tts_enabled": TTS_ENABLED,
         "model": MODEL_ID,
@@ -515,8 +384,6 @@ async def health():
         },
         "tools_scrape": True,
         "tools_pdf": HAS_REPORTLAB,
-        "ollama_proxy": OLLAMA_BASE_URL,
-        "web_ui": _web_index_file() is not None,
     }
 
 
@@ -732,7 +599,7 @@ def _format_results(
     return body + note
 
 
-@app.post("/tools/search", dependencies=[Depends(require_lan_access)])
+@app.post("/tools/search", dependencies=[Depends(require_desktop)])
 async def tools_search(req: SearchRequest):
     """Ranked web search (ddgs), optionally reading the top hits as full text."""
     max_results = _clamp_int(req.max_results, 1, 20, SEARCH_DEFAULT_RESULTS)
@@ -800,7 +667,7 @@ async def tools_search(req: SearchRequest):
         ) from e
 
 
-@app.post("/tools/youtube", dependencies=[Depends(require_lan_access)])
+@app.post("/tools/youtube", dependencies=[Depends(require_desktop)])
 async def tools_youtube(req: YoutubeToolRequest):
     """YouTube search (yt-dlp ytsearch) and/or video info + optional captions (yt-dlp, youtube-transcript-api)."""
     q = (req.query or "").strip()
@@ -830,7 +697,7 @@ async def tools_youtube(req: YoutubeToolRequest):
         ) from e
 
 
-@app.post("/tools/scrape", dependencies=[Depends(require_lan_access)])
+@app.post("/tools/scrape", dependencies=[Depends(require_desktop)])
 async def tools_scrape(req: ScrapeRequest):
     """Fetch a public http(s) URL → Markdown (SSRF-safe).
 
@@ -876,7 +743,7 @@ class SttWhistleRequest(BaseModel):
     format: str = Field(default="wav", max_length=16)
 
 
-@app.post("/stt/transcribe", dependencies=[Depends(require_lan_access)])
+@app.post("/stt/transcribe", dependencies=[Depends(require_desktop)])
 async def stt_transcribe(req: SttWhistleRequest):
     """Local speech-to-text via cactus-needle (Whistle). Expects 16 kHz mono WAV.
 
@@ -919,8 +786,8 @@ async def stt_transcribe(req: SttWhistleRequest):
                 pass
 
 
-@app.post("/tools/pdf")
-async def tools_pdf(req: PdfRequest, access: str = Depends(require_lan_access)):
+@app.post("/tools/pdf", dependencies=[Depends(require_desktop)])
+async def tools_pdf(req: PdfRequest):
     """Render Markdown-lite content into a PDF inside `output_dir` (no dialog)."""
     if not HAS_REPORTLAB:
         raise HTTPException(
@@ -942,37 +809,11 @@ async def tools_pdf(req: PdfRequest, access: str = Depends(require_lan_access)):
         else None
     )
 
-    output_dir = req.output_dir
-    if access == "lan":
-        configured = get_pdf_output_dir()
-        if not configured or Path(output_dir) != Path(configured):
-            raise HTTPException(status_code=403, detail="Use the desktop PDF folder")
-        folder = Path(configured).expanduser()
-        root = folder.resolve()
-        output_dir = str(root)
-        # Resolve links before passing paths to the renderer. Reject foreign absolute
-        # paths before touching the filesystem (including Windows network shares).
-        safe_images = []
-        for raw in image_paths_payload or []:
-            candidate = folder / raw
-            try:
-                if not candidate.is_relative_to(folder) or ".." in candidate.parts:
-                    raise ValueError
-                resolved = candidate.resolve()
-                resolved.relative_to(root)
-            except (ValueError, OSError, RuntimeError):
-                raise HTTPException(
-                    status_code=403,
-                    detail="Images must be inside the desktop PDF folder",
-                )
-            safe_images.append(str(resolved))
-        image_paths_payload = safe_images
-
     try:
         result = await asyncio.to_thread(
             save_pdf_to_folder,
             content=req.content,
-            output_dir=output_dir,
+            output_dir=req.output_dir,
             title=req.title,
             filename=req.filename,
             images=images_payload,
@@ -993,75 +834,6 @@ async def tools_pdf(req: PdfRequest, access: str = Depends(require_lan_access)):
         "text": result.get("text", ""),
         "file_path": result.get("file_path", ""),
     }
-
-
-@app.post("/tools/cloud-secrets", dependencies=[Depends(require_desktop_registration)])
-async def tools_cloud_secrets(req: CloudSecretsRequest, response: Response):
-    if req.pdfOutputDir is not None:
-        clear_host_tool_config()
-        register_host_tool_config({"pdfOutputDir": req.pdfOutputDir})
-    token = register_secrets(req.model_dump(exclude_unset=True), renew_pairing=req.renewPairing)
-    response.headers["Cache-Control"] = "no-store"
-    return {
-        "ok": True,
-        "token": token,
-        "keysAvailable": any((
-            get_openrouter_key(), get_openai_key(), get_nvidia_key(),
-            get_deepseek_key(), get_opencode_go_key(), get_runware_key(),
-        )),
-    }
-
-
-@app.delete("/tools/cloud-secrets", dependencies=[Depends(require_desktop_registration)])
-async def tools_cloud_secrets_clear():
-    clear_registered_secrets()
-    clear_host_tool_config()
-    return {"ok": True, "enabled": False}
-
-
-@app.get("/tools/cloud-secrets-status", dependencies=[Depends(require_lan_access)])
-async def tools_cloud_secrets_status():
-    """Whether cloud API keys are available for LAN web proxy (no secret values)."""
-    return {
-        "ok": True,
-        "openrouter": bool(get_openrouter_key()),
-        "runware": bool(get_runware_key()),
-        "nvidia": bool(get_nvidia_key()),
-        "deepseek": bool(get_deepseek_key()),
-        "openai": bool(get_openai_key()),
-        "opencode_go": bool(get_opencode_go_key()),
-    }
-
-
-@app.post("/tools/host-tool-config", dependencies=[Depends(require_desktop_registration)])
-async def tools_host_tool_config_register(req: HostToolConfigRequest):
-    register_host_tool_config(req.model_dump())
-    return {"ok": True}
-
-
-@app.delete("/tools/host-tool-config", dependencies=[Depends(require_desktop_registration)])
-async def tools_host_tool_config_clear():
-    clear_host_tool_config()
-    return {"ok": True}
-
-
-@app.get("/tools/host-tool-config", dependencies=[Depends(require_lan_access)])
-async def tools_host_tool_config_get():
-    """PDF output folder on the PC running the tools server (for LAN web UI)."""
-    return get_host_tool_config_snapshot()
-
-
-@app.get("/tools/user-data", dependencies=[Depends(require_lan_access)])
-async def tools_user_data_get():
-    """Long memory + reminders snapshot for LAN web ↔ desktop sync (no API keys)."""
-    return get_snapshot()
-
-
-@app.post("/tools/user-data-sync", dependencies=[Depends(require_lan_access)])
-async def tools_user_data_sync(req: UserDataSyncRequest):
-    """Merge long memory + reminders from any LAN client (bidirectional sync)."""
-    apply_sync(req.model_dump())
-    return get_snapshot()
 
 
 _RUNWARE_UUID_V4_RE = re.compile(
@@ -1088,7 +860,7 @@ def _normalize_runware_tasks(tasks: list[Any]) -> list[Any]:
     return out
 
 
-@app.post("/tools/runware_proxy", dependencies=[Depends(require_lan_access)])
+@app.post("/tools/runware_proxy", dependencies=[Depends(require_desktop)])
 async def tools_runware_proxy(req: RunwareProxyRequest):
     """Proxy Runware tasks through local server to avoid renderer CORS/network issues."""
     base = req.api_base_url.strip().rstrip("/")
@@ -1104,7 +876,7 @@ async def tools_runware_proxy(req: RunwareProxyRequest):
         await assert_url_safe_for_fetch(httpx.URL(base))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Runware base URL: {e}") from e
-    key = req.api_key.strip() or get_runware_key()
+    key = req.api_key.strip() or _env_key("RUNWARE_API_KEY")
     if not key:
         raise HTTPException(
             status_code=503,
@@ -1244,96 +1016,21 @@ async def _reverse_proxy(
 
 
 @app.api_route(
-    "/api/ollama/{full_path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    dependencies=[Depends(require_lan_access)],
-)
-async def ollama_proxy(request: Request, full_path: str):
-    """Reverse proxy to Ollama (default http://127.0.0.1:11434). Set OLLAMA_BASE_URL."""
-    return await _reverse_proxy(request, OLLAMA_BASE_URL, full_path)
-
-
-@app.api_route(
-    "/api/openrouter/{full_path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    dependencies=[Depends(require_lan_access)],
-)
-async def openrouter_proxy(request: Request, full_path: str):
-    """Proxy OpenRouter for LAN web clients; API key stays on server."""
-    key = get_openrouter_key()
-    if not key:
-        raise HTTPException(
-            status_code=503,
-            detail="OpenRouter API key not configured (desktop General or OPENROUTER_API_KEY env)",
-        )
-    return await _reverse_proxy(
-        request, OPENROUTER_UPSTREAM, full_path, bearer_key=key
-    )
-
-
-@app.api_route(
-    "/api/nvidia/{full_path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    dependencies=[Depends(require_lan_access)],
-)
-async def nvidia_proxy(request: Request, full_path: str):
-    """Proxy NVIDIA integrate API for LAN web clients."""
-    key = get_nvidia_key()
-    if not key:
-        raise HTTPException(
-            status_code=503,
-            detail="NVIDIA API key not configured (desktop General or NVIDIA_API_KEY env)",
-        )
-    return await _reverse_proxy(request, NVIDIA_UPSTREAM, full_path, bearer_key=key)
-
-
-@app.api_route(
-    "/api/deepseek/{full_path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    dependencies=[Depends(require_lan_access)],
-)
-async def deepseek_proxy(request: Request, full_path: str):
-    """Proxy DeepSeek API for LAN web clients."""
-    key = get_deepseek_key()
-    if not key:
-        raise HTTPException(
-            status_code=503,
-            detail="DeepSeek API key not configured (desktop General or DEEPSEEK_API_KEY env)",
-        )
-    return await _reverse_proxy(request, DEEPSEEK_UPSTREAM, full_path, bearer_key=key)
-
-
-@app.api_route(
-    "/api/openai/{full_path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    dependencies=[Depends(require_lan_access)],
-)
-async def openai_proxy(request: Request, full_path: str):
-    """Proxy OpenAI API for LAN web clients."""
-    key = get_openai_key()
-    if not key:
-        raise HTTPException(
-            status_code=503,
-            detail="OpenAI API key not configured (desktop General or OPENAI_API_KEY env)",
-        )
-    return await _reverse_proxy(request, OPENAI_UPSTREAM, full_path, bearer_key=key)
-
-
-@app.api_route(
     "/api/opencode-go/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    dependencies=[Depends(require_lan_access)],
+    dependencies=[Depends(require_desktop)],
 )
 async def opencode_go_proxy(request: Request, full_path: str):
-    """Proxy OpenCode Go (no CORS on upstream). Desktop may pass Bearer; LAN uses registered key."""
-    key = get_opencode_go_key()
-    if not key and _desktop_authenticated(request):
-        auth = (request.headers.get("authorization") or "").strip()
-        if auth.lower().startswith("bearer "):
-            key = auth[7:].strip()
-    if not key and _desktop_authenticated(request):
+    """Proxy OpenCode Go (no CORS on upstream). The desktop sends its key as Bearer or x-api-key."""
+    key = ""
+    auth = (request.headers.get("authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        key = auth[7:].strip()
+    if not key:
         # Anthropic Messages clients (/messages) send the key as x-api-key.
         key = (request.headers.get("x-api-key") or "").strip()
+    if not key:
+        key = _env_key("OPENCODE_GO_API_KEY")
     if not key:
         raise HTTPException(
             status_code=503,
@@ -1353,7 +1050,7 @@ async def opencode_go_proxy(request: Request, full_path: str):
     )
 
 
-@app.post("/tts", dependencies=[Depends(require_lan_access)])
+@app.post("/tts", dependencies=[Depends(require_desktop)])
 async def tts(req: TtsRequest):
     """JSON: auto / design, or voice clone via ref_audio_base64 + optional ref_text."""
     if not TTS_ENABLED:
@@ -1382,42 +1079,3 @@ async def tts(req: TtsRequest):
             logger.exception("TTS failed: %s", e)
             raise HTTPException(status_code=500, detail=str(e)) from e
     return Response(content=data, media_type="audio/wav")
-
-
-_assets_dir = WEB_UI_DIR / "assets"
-if _assets_dir.is_dir():
-    app.mount(
-        "/assets",
-        StaticFiles(directory=str(_assets_dir)),
-        name="web_assets",
-    )
-
-
-@app.get("/favicon.ico", include_in_schema=False)
-async def web_favicon():
-    p = WEB_UI_DIR / "favicon.ico"
-    if p.is_file():
-        return FileResponse(p)
-    raise HTTPException(status_code=404, detail="Not found")
-
-
-@app.get("/manifest.webmanifest", include_in_schema=False)
-async def web_manifest():
-    p = WEB_UI_DIR / "manifest.webmanifest"
-    if p.is_file():
-        return FileResponse(p, media_type="application/manifest+json")
-    raise HTTPException(status_code=404, detail="Not found")
-
-
-@app.get("/", include_in_schema=False)
-async def web_ui_root(request: Request):
-    """Serve the Vite web build (`npm run build:web` in electron-app) for phone / LAN browsers."""
-    if not _is_loopback_host(request.client.host if request.client else None) and get_lan_access_token() is None:
-        raise HTTPException(status_code=403, detail="LAN access is off")
-    index = _web_index_file()
-    if index is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Web UI not built. Run: cd electron-app && npm run build:web",
-        )
-    return FileResponse(index)

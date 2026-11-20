@@ -2,7 +2,7 @@
 Local TTS-enabled server entrypoint.
 
 Usage:
-  python -m uvicorn tts_main:app --host 0.0.0.0 --port 8765 --app-dir tts-server
+  python -m uvicorn tts_main:app --host 127.0.0.1 --port 8765 --app-dir tts-server
 """
 
 from __future__ import annotations

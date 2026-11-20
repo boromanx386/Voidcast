@@ -119,7 +119,6 @@ export function OptionsScreen({ app }: Props) {
 
           {optionsTab === 'general' ? (
             <GeneralOptionsPanel
-              lanSync={app.lanSync}
               settings={settings}
               setSettings={setSettings}
               useLongMemoryInActiveChat={activeSessionUseLongMemory}

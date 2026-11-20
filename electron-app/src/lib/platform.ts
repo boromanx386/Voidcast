@@ -1,7 +1,6 @@
 /**
  * Desktop shell detection. Preload exposes `window.voidcast`, but the first React paint can
- * run before contextBridge — fall back to the Electron user agent so we do not treat the
- * Vite dev URL (localhost:5173) as the LAN web client and poison service URLs in settings.
+ * run before contextBridge — fall back to the Electron user agent.
  */
 export function isElectron(): boolean {
   if (typeof window === 'undefined') return false
@@ -19,15 +18,13 @@ export function usesCustomWindowChrome(): boolean {
   return ua.includes('Windows') || ua.includes('Linux')
 }
 
-/** Set at build time in `vite.config.web.ts` — authoritative for the LAN/phone bundle. */
-export function isWebBuild(): boolean {
-  return import.meta.env.VITE_BUILD_TARGET === 'web'
-}
-
-/** Phone/browser UI (served from TTS server), never the desktop Electron shell. */
+/**
+ * The phone/LAN web client was removed; this stays false so its branches across the app
+ * lie dormant. The full feature (web build, pairing, server routes) is kept on the
+ * `archive/lan-web` branch in case it comes back.
+ */
 export function isLanWebClient(): boolean {
-  if (isWebBuild()) return true
-  return typeof window !== 'undefined' && !isElectron()
+  return false
 }
 
 /** @deprecated Prefer `isLanWebClient` — kept for existing call sites. */

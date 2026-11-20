@@ -2,7 +2,7 @@
 Tools-only server entrypoint (no local OmniVoice TTS loading).
 
 Usage:
-  python -m uvicorn tools_main:app --host 0.0.0.0 --port 8765 --app-dir tts-server
+  python -m uvicorn tools_main:app --host 127.0.0.1 --port 8765 --app-dir tts-server
 """
 
 from __future__ import annotations

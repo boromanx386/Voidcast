@@ -31,7 +31,7 @@ One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus op
 
 - **Pin the provider per model** — `openrouterProviderOnly` (string slug, e.g. `'anthropic'`, `'openai'`, `'deepinfra'`) is the lock for the **currently selected model**. When set, requests use `provider.only` and never fall back to another provider; leave it empty for OpenRouter's default load balancing.
 - **Remembered per model** — `openrouterProviderByModel` (`Record<string, string>`) stores a lock **per model id**. Selecting a model that has a saved lock restores it into `openrouterProviderOnly`; editing the lock updates both.
-- **LIST ALL** — queries OpenRouter for every provider serving the selected model and renders a table: **provider (with the tag variant, e.g. `fp8/flex`) · QUANT · IN/OUT price (per 1M) · CACHE HIT price (per 1M) · recent uptime**. Click a row to apply that provider as the current model's lock. Desktop requests hit OpenRouter directly; LAN web requests use the local proxy.
+- **LIST ALL** — queries OpenRouter for every provider serving the selected model and renders a table: **provider (with the tag variant, e.g. `fp8/flex`) · QUANT · IN/OUT price (per 1M) · CACHE HIT price (per 1M) · recent uptime**. Click a row to apply that provider as the current model's lock.
 - **Sticky routing for upstream cache** — each chat sends a stable `session_id`, so OpenRouter keeps routing the conversation to the same upstream provider and that provider's prompt cache stays warm. Cache-friendly prompt ordering (a byte-identical system prompt + history prefix, with volatile context on the final user turn) is **not** OpenRouter-specific: it holds for **every** provider, and cached-token counts are read back from Ollama, OpenAI, DeepSeek and OpenRouter alike. See [../chat.md](../chat.md).
 - **Pinned models** — `pinnedModels` (`string[]`). Provider-specific ids like `'openrouter:anthropic/claude-sonnet-5'` or `'openrouter:openai/gpt-5.6-sol'`. Pinned models appear as quick-select chips in the panel (and in the chat model picker); toggle a pin on/off per candidate model.
 
@@ -52,7 +52,7 @@ NVIDIA's free developer tier: no subscription and no paid plan to buy, so there 
 - `deepseekModel` — default `'deepseek-v4-pro'`
 
 ### OpenAI (native)
-This slot is a plain OpenAI Chat Completions client and `openaiBaseUrl` is a normal editable field, which makes it the supported way to run against any **OpenAI-compatible server**: vLLM (`http://localhost:8000/v1`), llama.cpp `llama-server` (`http://localhost:8080/v1`), LM Studio, TGI, SGLang, llama-cpp-python, or Ollama's own `/v1` route. Read-only on LAN web clients, which proxy `/api/openai/*` through the desktop app.
+This slot is a plain OpenAI Chat Completions client and `openaiBaseUrl` is a normal editable field, which makes it the supported way to run against any **OpenAI-compatible server**: vLLM (`http://localhost:8000/v1`), llama.cpp `llama-server` (`http://localhost:8080/v1`), LM Studio, TGI, SGLang, llama-cpp-python, or Ollama's own `/v1` route.
 - `openaiBaseUrl` — default `https://api.openai.com/v1` (OpenAI Chat Completions)
 - `openaiApiKey` — local key
 - `openaiModel` — default `'gpt-5.6-sol'`; any id can be typed in, so a self-hosted model name works
