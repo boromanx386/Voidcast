@@ -51,8 +51,8 @@ Open **Options** (gear icon in the header) → **LLM** tab. `llmProvider` is one
 | `ollama` | Ollama endpoint `http://localhost:11434` — models on your own machine, or Ollama's hosted models | Install [Ollama](https://ollama.com), `ollama pull <model>`, then pick the model — no API key for local models |
 | `nvidia` | NVIDIA NIM cloud, default `https://integrate.api.nvidia.com/v1` | NVIDIA API key — free developer tier at [build.nvidia.com](https://build.nvidia.com), no subscription; free capacity is shared, so it is often slow |
 | `deepseek` | DeepSeek API, default `https://api.deepseek.com`, model `deepseek-v4-pro` | DeepSeek API key |
-| `openai` | Native OpenAI Chat Completions, default `https://api.openai.com/v1`, model `gpt-5.6-sol` | OpenAI API key |
 | `opencode-go` | OpenCode Go (OpenAI-compatible), default `https://opencode.ai/zen/go/v1`, model `deepseek-v4-pro` | OpenCode Go API key |
+| `custom` | Any endpoint you type in — OpenAI or Anthropic directly, LM Studio, vLLM, llama.cpp, Groq, … — over Chat Completions, Responses or Anthropic Messages | Base URL, model, and a key only if the endpoint wants one |
 
 Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.ts`. The **chat system status** area lists the active provider and model; the model switcher popup (`ModelSwitcherPopup.tsx`) shows provider presets, Ollama model fetch, and pinned models (`pinnedModels`, stored as ids like `openrouter:openai/gpt-5.6-terra`).
 
@@ -61,7 +61,7 @@ Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.t
 - **OpenRouter**: https://openrouter.ai/keys — paste into **Options → LLM → OpenRouter API key** (or click **Manage models** in the model switcher and select a provider/model there).
 - **NVIDIA**: https://build.nvidia.com — API key field `nvidiaApiKey`.
 - **DeepSeek**: https://platform.deepseek.com/api_keys — `deepseekApiKey`.
-- **OpenAI**: https://platform.openai.com/api-keys — `openaiApiKey`.
+- **Custom**: whatever the endpoint issues (for OpenAI, https://platform.openai.com/api-keys) — `customApiKey`, entered next to the base URL in **Options → Agent**. Optional: local servers need none.
 - **OpenCode Go**: https://opencode.ai — `opencodeGoApiKey`.
 
 On desktop, cloud API keys are encrypted with the OS key store (Electron `safeStorage`) in `secrets.json` in `userData`.
@@ -76,9 +76,9 @@ Ollama is one provider among the six, not the identity of the app: Voidcast is B
 - Ollama-specific LLM options: `llmTemperature`, `llmNumCtx` (`options.num_ctx`), `llmThinkLevel` (`think`), and `llmSystemPrompt`.
 - OpenRouter/NVIDIA reasoning appears in the UI when `llmThinkLevel` is not `off`.
 
-## Using your own OpenAI-compatible server
+## Using your own server or a direct API (Custom)
 
-The `openai` provider is a plain Chat Completions client and `openaiBaseUrl` is an editable field, so it doubles as the door for anything that speaks the OpenAI API. That is the supported path for self-hosted inference — no gateway, no OpenAI account, no Voidcast account.
+The `custom` provider points the app at any endpoint you type in, in whichever of the three wire formats it speaks (see below). It replaced the old `openai` provider: OpenAI directly is just `https://api.openai.com/v1` here, and an install that had OpenAI set up moves over on its own — base URL, key and model carry across. It is also the supported path for self-hosted inference — no gateway, no OpenAI account, no Voidcast account.
 
 | Server | Typical base URL |
 |---|---|
@@ -86,14 +86,18 @@ The `openai` provider is a plain Chat Completions client and `openaiBaseUrl` is 
 | llama.cpp (`llama-server`) | `http://localhost:8080/v1` |
 | Ollama, OpenAI-compatible route | `http://localhost:11434/v1` |
 | TGI / SGLang / LM Studio / llama-cpp-python | their own `/v1` address |
+| OpenAI | `https://api.openai.com/v1` (Chat Completions or Responses) |
+| Anthropic | `https://api.anthropic.com/v1` (Messages) |
 
-Pick `openai` in **Options → LLM**, paste the URL into **OPENAI_BASE_URL**, and put the model id your server reports into **OPENAI_MODEL** — the preset list is only a preset list, the field accepts any id, so a self-hosted `--served-model-name` works.
+Pick **Custom** in **Options → Agent**, choose the **CUSTOM_API_FORMAT**, paste the root into **CUSTOM_BASE_URL** (up to and including `/v1`; Voidcast appends `/chat/completions`, `/responses` or `/messages`), and put the model id into **CUSTOM_MODEL** — **Load models** fills suggestions from the endpoint's `GET /models`, and any id can be typed, so a self-hosted `--served-model-name` works. **CUSTOM_CONTEXT_TOKENS** (default 128 000) is the window the CTX meter and auto-compress use: Voidcast cannot look it up for an arbitrary endpoint.
 
-Two caveats worth knowing: plain HTTP to a **non-loopback** host is blocked by the renderer CSP (see the Ollama note above), and Voidcast sends its volatile per-turn context merged onto the final user turn rather than as a trailing `system` message — which is exactly what local llama.cpp and Llama-3-style Jinja templates require.
+Custom requests go through the local tools server at `/api/custom-llm`, with the real base URL in an `x-voidcast-upstream` header. Servers without CORS headers therefore work, and so does a plain-HTTP server on another machine of your LAN: the renderer only ever talks to the loopback tools server. Voidcast also sends its volatile per-turn context merged onto the final user turn rather than as a trailing `system` message — which is exactly what local llama.cpp and Llama-3-style Jinja templates require.
+
+Only the model can differ between the main chat and a Custom sub-agent: both use the one Custom endpoint, format and key.
 
 ## Three wire formats, not one
 
-The `openai` slot is the Chat Completions door. The app itself speaks three protocols, each with a real adapter in `electron-app/src/lib/`, and a turn picks one per model:
+The app speaks three protocols, each with a real adapter in `electron-app/src/lib/`. **Custom** uses the one you pick; **OpenCode Go** picks one per model:
 
 | Format | Endpoint | Adapter |
 |---|---|---|
@@ -112,7 +116,7 @@ OpenCode Go requests always go through the local tools server at `/api/opencode-
 All settings live in `electron-app/src/lib/settings.ts`:
 
 - **Storage**: renderer `localStorage` under the key **`voidcast-settings-v1`** (`STORAGE_KEY`).
-- **API keys** (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `openaiApiKey`, `opencodeGoApiKey`, `runwareApiKey`): on desktop they are kept out of `localStorage` and encrypted with Electron `safeStorage` (DPAPI on Windows, the Secret Service keyring on Linux) in `secrets.json` in `userData`, via `electron/main/secretStore.ts` and the sync `voidcast:secrets-*` IPC. Keys left in `localStorage` by older versions are moved there on load. On Linux without a keyring (`basic_text` backend) they stay in `localStorage` as before.
+- **API keys** (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `customApiKey`, `opencodeGoApiKey`, `runwareApiKey`): on desktop they are kept out of `localStorage` and encrypted with Electron `safeStorage` (DPAPI on Windows, the Secret Service keyring on Linux) in `secrets.json` in `userData`, via `electron/main/secretStore.ts` and the sync `voidcast:secrets-*` IPC. Keys left in `localStorage` by older versions are moved there on load. On Linux without a keyring (`basic_text` backend) they stay in `localStorage` as before.
 - **Load**: `loadSettings()` reads `localStorage`, merges over `defaults`, runs `normalizeAll` (llm, subAgent, tts, tools, pdf dir, ui theme, agent mode, runware, notification sounds), then `sanitizeDesktopServiceUrls`.
 - **Save**: `saveSettings(s)` writes `JSON.stringify` to `localStorage` without the API keys, which go to the encrypted store only when they changed. If the store refuses a write, the keys stay in `localStorage` so they are never lost.
 - **Defaults**: `export const defaults: AppSettings` (settings.ts). See [settings-reference.md](settings-reference.md) for every key.

@@ -3,7 +3,6 @@ import type { AppSettings, LlmProvider } from '@/lib/settings'
 import {
   OPENROUTER_LLM_PRESET_MODELS,
   DEEPSEEK_LLM_PRESET_MODELS,
-  OPENAI_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
 } from '@/lib/cloudLlmPresets'
@@ -26,7 +25,7 @@ const PROVIDER_LABELS: Record<LlmProvider, string> = {
   ollama: 'Ollama',
   nvidia: 'NVIDIA',
   deepseek: 'DeepSeek',
-  openai: 'OpenAI',
+  custom: 'Custom',
   'opencode-go': 'OpenCode Go',
 }
 
@@ -101,13 +100,6 @@ export default function ModelSwitcherPopup({
         id: toScopedPinnedId('deepseek', p.id),
         label: p.label,
         provider: 'deepseek',
-      })
-    }
-    for (const p of OPENAI_LLM_PRESET_MODELS) {
-      map.push({
-        id: toScopedPinnedId('openai', p.id),
-        label: p.label,
-        provider: 'openai',
       })
     }
     for (const p of NVIDIA_LLM_PRESET_MODELS) {

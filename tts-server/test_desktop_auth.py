@@ -90,6 +90,73 @@ class DesktopAuthTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertNotIn(name, headers)
 
+    def _capture_upstream(self):
+        forwarded = []
+
+        def upstream(request):
+            forwarded.append(request)
+            return httpx.Response(200, stream=httpx.ByteStream(b"ok"))
+
+        client = httpx.AsyncClient
+        transport = httpx.MockTransport(upstream)
+        return forwarded, patch.object(
+            main.httpx, "AsyncClient", lambda **kw: client(transport=transport, **kw)
+        )
+
+    async def test_custom_proxy_targets_the_upstream_header(self):
+        forwarded, patched = self._capture_upstream()
+        with patched:
+            response = await self.desktop.post(
+                "/api/custom-llm/chat/completions",
+                headers={
+                    "x-voidcast-upstream": "http://localhost:1234/v1/",
+                    "authorization": "Bearer sk-local",
+                    "cookie": "local=session",
+                },
+                content=b"{}",
+            )
+        response.raise_for_status()
+        (request,) = forwarded
+        self.assertEqual(str(request.url), "http://localhost:1234/v1/chat/completions")
+        self.assertEqual(request.headers["authorization"], "Bearer sk-local")
+        self.assertNotIn("x-api-key", request.headers)
+        for name in ("x-voidcast-upstream", "x-voidcast-desktop-token", "cookie"):
+            self.assertNotIn(name, request.headers)
+
+    async def test_custom_proxy_keeps_the_anthropic_key_header(self):
+        forwarded, patched = self._capture_upstream()
+        with patched:
+            await self.desktop.post(
+                "/api/custom-llm/messages",
+                headers={
+                    "x-voidcast-upstream": "https://api.anthropic.com/v1",
+                    "x-api-key": "sk-ant",
+                    "anthropic-version": "2023-06-01",
+                },
+                content=b"{}",
+            )
+        (request,) = forwarded
+        self.assertEqual(str(request.url), "https://api.anthropic.com/v1/messages")
+        self.assertEqual(request.headers["x-api-key"], "sk-ant")
+        self.assertEqual(request.headers["anthropic-version"], "2023-06-01")
+        self.assertNotIn("authorization", request.headers)
+
+    async def test_custom_proxy_rejects_a_bad_upstream(self):
+        forwarded, patched = self._capture_upstream()
+        with patched:
+            for upstream in ("", "file:///etc/passwd", "localhost:1234/v1", "http://h/v1?x=1"):
+                response = await self.desktop.get(
+                    "/api/custom-llm/models", headers={"x-voidcast-upstream": upstream}
+                )
+                self.assertEqual(response.status_code, 400, upstream)
+        self.assertEqual(forwarded, [])
+
+    async def test_custom_proxy_requires_the_desktop_token(self):
+        response = await self.page.get(
+            "/api/custom-llm/models", headers={"x-voidcast-upstream": "http://localhost:1234/v1"}
+        )
+        self.assertEqual(response.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

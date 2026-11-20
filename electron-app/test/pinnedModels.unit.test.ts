@@ -37,12 +37,16 @@ describe('pinnedModels helpers', () => {
     expect(normalizePinnedModels(['crofai:deepseek-v4-pro'])).toEqual([])
   })
 
-  test('openai pins use bare model ids', () => {
-    expect(toScopedPinnedId('openai', 'gpt-5.6-sol')).toBe('openai:gpt-5.6-sol')
-    expect(parsePinnedId('openai:gpt-5.6-sol')).toEqual({
-      provider: 'openai',
-      modelId: 'gpt-5.6-sol',
+  test('custom pins use the model id as typed', () => {
+    expect(toScopedPinnedId('custom', 'qwen3-32b')).toBe('custom:qwen3-32b')
+    expect(parsePinnedId('custom:qwen3-32b')).toEqual({
+      provider: 'custom',
+      modelId: 'qwen3-32b',
     })
+  })
+
+  test('pins from the removed OpenAI provider move to Custom', () => {
+    expect(normalizePinnedModels(['openai:gpt-5.6-sol', 'openai:'])).toEqual(['custom:gpt-5.6-sol'])
   })
 
   test('openrouter and nvidia can pin the same model id', () => {
@@ -69,10 +73,10 @@ describe('pinnedModels helpers', () => {
     expect(
       currentPinnedModelId({
         ...defaults,
-        llmProvider: 'openai',
-        openaiModel: 'gpt-5.6-sol',
+        llmProvider: 'custom',
+        customModel: 'gpt-5.6-sol',
       }),
-    ).toBe('openai:gpt-5.6-sol')
+    ).toBe('custom:gpt-5.6-sol')
     expect(
       currentPinnedModelId({
         ...defaults,
@@ -129,9 +133,9 @@ describe('pinnedModels helpers', () => {
     expect(ds.llmProvider).toBe('deepseek')
     expect(ds.deepseekModel).toBe('deepseek-v4-flash')
 
-    const oa = applyModelSwitcherSelection(base, 'openai', 'openai:gpt-5.6-terra')
-    expect(oa.llmProvider).toBe('openai')
-    expect(oa.openaiModel).toBe('gpt-5.6-terra')
+    const cu = applyModelSwitcherSelection(base, 'custom', 'custom:gpt-5.6-terra')
+    expect(cu.llmProvider).toBe('custom')
+    expect(cu.customModel).toBe('gpt-5.6-terra')
 
     const og = applyModelSwitcherSelection(base, 'opencode-go', 'opencode-go:deepseek-v4-pro')
     expect(og.llmProvider).toBe('opencode-go')

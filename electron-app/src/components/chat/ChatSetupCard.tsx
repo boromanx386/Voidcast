@@ -51,11 +51,13 @@ export function ChatSetupCard({ need, app }: Props) {
   const headline =
     need.kind === 'cloud-key'
       ? `${keyLabel} is selected but has no API key yet.`
-      : need.kind === 'ollama-unreachable'
-        ? `Ollama is selected but not running at ${ollamaUrl}.`
-        : need.kind === 'ollama-no-models'
-          ? 'Ollama is running but has no models installed.'
-          : 'Ollama is selected but no model is chosen.'
+      : need.kind === 'custom-endpoint'
+        ? 'Custom is selected but has no base URL or model yet. Set them in Options → Agent, or connect one of these instead.'
+        : need.kind === 'ollama-unreachable'
+          ? `Ollama is selected but not running at ${ollamaUrl}.`
+          : need.kind === 'ollama-no-models'
+            ? 'Ollama is running but has no models installed.'
+            : 'Ollama is selected but no model is chosen.'
 
   return (
     <section
@@ -160,7 +162,7 @@ export function ChatSetupCard({ need, app }: Props) {
         className="text-xs text-neon-cyan underline decoration-neon-cyan/35 underline-offset-2 hover:decoration-neon-cyan"
         onClick={() => openOptions('general')}
       >
-        Other providers (OpenAI, DeepSeek, NVIDIA, OpenCode Go) are in Options → General
+        Other providers (DeepSeek, NVIDIA, OpenCode Go, or any custom endpoint) are in Options
       </button>
     </section>
   )

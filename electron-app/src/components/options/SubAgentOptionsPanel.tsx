@@ -3,7 +3,6 @@ import { withSubAgentOpenRouterProvider } from '@/lib/settings'
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
-  OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
   type CloudLlmPreset,
@@ -39,7 +38,7 @@ function patchSubAgent(
 function parseProvider(value: string): SubAgentProviderId {
   if (value === 'openrouter') return 'openrouter'
   if (value === 'deepseek') return 'deepseek'
-  if (value === 'openai') return 'openai'
+  if (value === 'custom') return 'custom'
   if (value === 'nvidia') return 'nvidia'
   if (value === 'opencode-go') return 'opencode-go'
   return 'ollama'
@@ -142,8 +141,8 @@ export function SubAgentEndpointPicker({
       ? OPENROUTER_LLM_PRESET_MODELS
       : provider === 'deepseek'
         ? DEEPSEEK_LLM_PRESET_MODELS
-        : provider === 'openai'
-          ? OPENAI_LLM_PRESET_MODELS
+        : provider === 'custom'
+          ? []
           : provider === 'nvidia'
             ? NVIDIA_LLM_PRESET_MODELS
             : provider === 'opencode-go'
@@ -212,10 +211,10 @@ export function SubAgentEndpointPicker({
       ? 'openrouter/free'
       : provider === 'deepseek'
         ? 'deepseek-v4-pro'
-        : provider === 'openai'
-          ? 'gpt-5.6-sol'
+        : provider === 'custom'
+          ? 'model id on your custom endpoint'
           : provider === 'nvidia'
-            ? 'nvidia/nemotron-3-super-120b-a12b'
+            ? 'nvidia/nemotron-3-ultra-550b-a55b'
             : provider === 'opencode-go'
               ? 'deepseek-v4-pro'
               : 'model id…'
@@ -235,8 +234,8 @@ export function SubAgentEndpointPicker({
           <option value="openrouter">OpenRouter (cloud)</option>
           <option value="nvidia">NVIDIA (cloud)</option>
           <option value="deepseek">DeepSeek (cloud)</option>
-          <option value="openai">OpenAI (cloud)</option>
           <option value="opencode-go">OpenCode Go (cloud)</option>
+          <option value="custom">Custom (Options → Agent endpoint)</option>
         </select>
       </div>
 
@@ -420,10 +419,34 @@ export function SubAgentEndpointPicker({
         </>
       )}
 
-      {(provider === 'deepseek' ||
-        provider === 'openai' ||
-        provider === 'nvidia' ||
-        provider === 'opencode-go') &&
+      {provider === 'custom' && (
+        <div className="form-group mb-0">
+          <label className="form-label">
+            <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
+          </label>
+          {pinnedChips(pinsForProvider(pinned, llmProv), [], scopedPinId, handleTogglePin)}
+          <div className="flex items-center gap-2">
+            <input
+              className="cyber-input flex-1"
+              placeholder={cloudManualPlaceholder}
+              value={model}
+              onChange={(e) => setModel(e.target.value, provider)}
+            />
+            <PinToggleButton
+              pinned={Boolean(scopedPinId && pinned.includes(scopedPinId))}
+              onToggle={() => {
+                if (scopedPinId) handleTogglePin(scopedPinId)
+              }}
+            />
+          </div>
+          <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
+            Uses the Custom base URL, API format and key from Options → Agent. Only the model can
+            differ from the main chat.
+          </p>
+        </div>
+      )}
+
+      {(provider === 'deepseek' || provider === 'nvidia' || provider === 'opencode-go') &&
         presets && (
           <div className="form-group mb-0">
             <label className="form-label">
@@ -460,8 +483,6 @@ export function SubAgentEndpointPicker({
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
               {provider === 'deepseek' &&
                 'Uses the DeepSeek key from Options → General and the base URL from Options → Agent.'}
-              {provider === 'openai' &&
-                'Uses the OpenAI key from Options → General and the base URL from Options → Agent.'}
               {provider === 'nvidia' &&
                 'Uses the NVIDIA key from Options → General and the base URL from Options → Agent.'}
               {provider === 'opencode-go' && 'Uses the OpenCode Go key from Options → General.'}

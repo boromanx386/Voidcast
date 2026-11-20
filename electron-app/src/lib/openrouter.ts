@@ -5,7 +5,12 @@ import type {
   OllamaToolCall,
 } from './ollama'
 import { logPromptCache, parseRetryAfterSeconds } from './ollama'
-import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
+import {
+  assertCloudLlmApiKey,
+  assertCustomLlmRoute,
+  CUSTOM_LLM_UPSTREAM_HEADER,
+  type CustomLlmRoute,
+} from '@/lib/cloudLlm'
 import { isElectron } from './platform'
 import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
@@ -88,6 +93,27 @@ export type StreamOpenRouterChatParams = {
   opencodeSessionId?: string
   /** Output cap for Anthropic `/messages` models; defaults to ANTHROPIC_DEFAULT_MAX_TOKENS. */
   maxTokens?: number
+  /**
+   * Custom provider: `baseUrl` is the local proxy root, this names the real endpoint and the
+   * wire format the user picked. Unlike OpenCode Go there is no probing between formats: a
+   * user-typed server answers an unsupported path with anything from 404 to a hang.
+   */
+  custom?: CustomLlmRoute
+}
+
+/** Label in errors and logs, and the provider whose key rules apply, for the non-chat paths. */
+function altPathIdentity(options: StreamOpenRouterChatParams): {
+  label: string
+  provider: 'custom' | 'opencode-go'
+} {
+  return options.custom
+    ? { label: 'Custom', provider: 'custom' }
+    : { label: 'OpenCode Go', provider: 'opencode-go' }
+}
+
+/** Upstream header for a Custom request; nothing for every other provider. */
+function customUpstreamHeaders(options: StreamOpenRouterChatParams): Record<string, string> {
+  return options.custom ? { [CUSTOM_LLM_UPSTREAM_HEADER]: options.custom.upstream } : {}
 }
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
@@ -369,7 +395,6 @@ function sanitizeMessagesForOpenCodeGo(messages: OpenRouterMessage[]): OpenRoute
 
 function apiLabelForBaseUrl(baseUrl: string): string {
   if (isDeepSeekApi(baseUrl)) return 'DeepSeek'
-  if (hasHost(baseUrl, 'api.openai.com') || baseUrl.includes('/api/openai')) return 'OpenAI'
   if (hasHost(baseUrl, 'integrate.api.nvidia.com') || baseUrl.includes('/api/nvidia'))
     return 'NVIDIA'
   if (isOpenCodeGoApi(baseUrl)) return 'OpenCode Go'
@@ -412,6 +437,23 @@ function applyOpenAiReasoningBody(
   if (effort === 'low' || effort === 'medium' || effort === 'high') {
     body.reasoning_effort = effort
   }
+}
+
+/**
+ * Reasoning effort for a Custom Chat Completions request. OpenAI itself needs its own rule
+ * (see applyOpenAiReasoningBody); any other server gets `reasoning_effort` only when the user
+ * asked for a level, since strict servers reject fields they do not know.
+ */
+function applyCustomReasoningBody(
+  body: Record<string, unknown>,
+  options: StreamOpenRouterChatParams,
+): void {
+  if (options.custom && hasHost(options.custom.upstream, 'api.openai.com')) {
+    applyOpenAiReasoningBody(body, options.thinkLevel, options.tools !== undefined)
+    return
+  }
+  const effort = options.thinkLevel === 'on' ? 'medium' : options.thinkLevel
+  if (effort === 'low' || effort === 'medium' || effort === 'high') body.reasoning_effort = effort
 }
 
 function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
@@ -624,8 +666,8 @@ function pickReasoningDelta(d: unknown): string {
 }
 
 /**
- * OpenCode Go Anthropic Messages path (`{base}/messages`, SSE).
- * Only reached for models listed in `openCodeGoApiStyle` as `anthropic-messages`.
+ * Anthropic Messages path (`{base}/messages`, SSE). Reached for OpenCode Go models that
+ * `openCodeGoApiStyle` lists as `anthropic-messages`, and for a Custom endpoint set to Messages.
  */
 async function streamAnthropicMessages(
   options: StreamOpenRouterChatParams,
@@ -636,7 +678,8 @@ async function streamAnthropicMessages(
   tool_calls: OpenRouterToolCall[]
   usage?: OllamaChatUsage
 }> {
-  assertCloudLlmApiKey('opencode-go', options.apiKey)
+  const who = altPathIdentity(options)
+  assertCloudLlmApiKey(who.provider, options.apiKey)
   const messages = sanitizeMessagesForOpenCodeGo(options.messages)
   let body: Record<string, unknown> = buildAnthropicMessagesBody({
     model: options.model,
@@ -645,11 +688,14 @@ async function streamAnthropicMessages(
     thinkLevel: options.thinkLevel,
     maxTokens: options.maxTokens,
   })
-  const headers = anthropicMessagesHeaders({
-    apiKey: options.apiKey,
-    sessionId: options.opencodeSessionId,
-    sendAuth: true,
-  })
+  const headers = {
+    ...anthropicMessagesHeaders({
+      apiKey: options.apiKey,
+      sessionId: options.custom ? undefined : options.opencodeSessionId,
+      sendAuth: true,
+    }),
+    ...customUpstreamHeaders(options),
+  }
 
   let res: Response | null = null
   let lastErr = ''
@@ -670,7 +716,7 @@ async function streamAnthropicMessages(
     )
     if (res.ok) break
     const err = await parseOpenRouterError(res)
-    lastErr = `OpenCode Go /messages ${res.status}: ${err.text || res.statusText}`
+    lastErr = `${who.label} /messages ${res.status}: ${err.text || res.statusText}`
     const currentMax = typeof body.max_tokens === 'number' ? body.max_tokens : 0
     const fallbackMax = anthropicMaxTokensFallback(
       res.status,
@@ -691,7 +737,7 @@ async function streamAnthropicMessages(
         : 2 ** attempt
     await sleepMs(retrySec * 1000, options.signal)
   }
-  if (!res || !res.ok) throw new Error(lastErr || 'OpenCode Go /messages request failed')
+  if (!res || !res.ok) throw new Error(lastErr || `${who.label} /messages request failed`)
   if (!res.body) throw new Error('No response body')
 
   const reader = res.body.getReader()
@@ -735,7 +781,7 @@ async function streamAnthropicMessages(
       state.stopReason === 'max_tokens'
         ? ' The output token budget was exhausted before any text or tool call — raise max tokens or lower thinking effort.'
         : ' The model returned neither text nor a tool call.'
-    throw new Error(`OpenCode Go /messages returned an empty assistant turn${reason}.${hint}`)
+    throw new Error(`${who.label} /messages returned an empty assistant turn${reason}.${hint}`)
   }
 
   return {
@@ -747,8 +793,8 @@ async function streamAnthropicMessages(
 }
 
 /**
- * OpenCode Go Responses API path (`{base}/responses`, SSE).
- * Only reached for models that `openCodeGoApiStyle` marks `opencode-responses`.
+ * OpenAI Responses API path (`{base}/responses`, SSE). Reached for OpenCode Go models that
+ * `openCodeGoApiStyle` marks `opencode-responses`, and for a Custom endpoint set to Responses.
  */
 async function streamOpenCodeResponses(
   options: StreamOpenRouterChatParams,
@@ -759,7 +805,8 @@ async function streamOpenCodeResponses(
   tool_calls: OpenRouterToolCall[]
   usage?: OllamaChatUsage
 }> {
-  assertCloudLlmApiKey('opencode-go', options.apiKey)
+  const who = altPathIdentity(options)
+  assertCloudLlmApiKey(who.provider, options.apiKey)
   const messages = sanitizeMessagesForOpenCodeGo(options.messages)
   let body: Record<string, unknown> = buildResponsesBody({
     model: options.model,
@@ -768,11 +815,14 @@ async function streamOpenCodeResponses(
     thinkLevel: options.thinkLevel,
     maxTokens: options.maxTokens,
   })
-  const headers = responsesHeaders({
-    apiKey: options.apiKey,
-    sessionId: options.opencodeSessionId,
-    sendAuth: true,
-  })
+  const headers = {
+    ...responsesHeaders({
+      apiKey: options.apiKey,
+      sessionId: options.custom ? undefined : options.opencodeSessionId,
+      sendAuth: true,
+    }),
+    ...customUpstreamHeaders(options),
+  }
 
   let res: Response | null = null
   let lastErr = ''
@@ -793,7 +843,7 @@ async function streamOpenCodeResponses(
     )
     if (res.ok) break
     const err = await parseOpenRouterError(res)
-    lastErr = `OpenCode Go /responses ${res.status}: ${err.text || res.statusText}`
+    lastErr = `${who.label} /responses ${res.status}: ${err.text || res.statusText}`
     const currentMax = typeof body.max_output_tokens === 'number' ? body.max_output_tokens : 0
     const fallbackMax = responsesMaxTokensFallback(
       res.status,
@@ -814,7 +864,7 @@ async function streamOpenCodeResponses(
         : 2 ** attempt
     await sleepMs(retrySec * 1000, options.signal)
   }
-  if (!res || !res.ok) throw new Error(lastErr || 'OpenCode Go /responses request failed')
+  if (!res || !res.ok) throw new Error(lastErr || `${who.label} /responses request failed`)
   if (!res.body) throw new Error('No response body')
 
   const reader = res.body.getReader()
@@ -862,7 +912,7 @@ async function streamOpenCodeResponses(
       state.incompleteReason === 'max_output_tokens'
         ? ' The output token budget was exhausted before any text or tool call — raise max tokens or lower reasoning effort.'
         : ' The model returned neither text nor a tool call.'
-    throw new Error(`OpenCode Go /responses returned an empty assistant turn${reason}.${hint}`)
+    throw new Error(`${who.label} /responses returned an empty assistant turn${reason}.${hint}`)
   }
 
   return {
@@ -954,6 +1004,12 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
   const canUseElectronNvidiaProxy =
     isElectron() && isNvidia && Boolean(window.voidcast?.llmChatProxy)
 
+  if (options.custom) {
+    assertCustomLlmRoute(options.custom)
+    if (options.custom.apiStyle === 'messages') return streamAnthropicMessages(options, root)
+    if (options.custom.apiStyle === 'responses') return streamOpenCodeResponses(options, root)
+  }
+
   // OpenCode Go models served only on Anthropic `/messages` (e.g. claude-haiku-5-5).
   if (isOpenCodeGoApi(root) && openCodeGoApiStyle(options.model) === 'anthropic-messages') {
     return streamAnthropicMessages(options, root)
@@ -966,13 +1022,13 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
 
   const extra = compactOpenRouterOptions(options.modelOptions)
   const models = [options.model]
-  const apiLabel = apiLabelForBaseUrl(root)
+  const apiLabel = options.custom ? 'Custom' : apiLabelForBaseUrl(root)
   const isOpenCodeGo = isOpenCodeGoApi(root)
   const cloudProvider =
-    apiLabel === 'DeepSeek'
-      ? 'deepseek'
-      : apiLabel === 'OpenAI'
-        ? 'openai'
+    apiLabel === 'Custom'
+      ? 'custom'
+      : apiLabel === 'DeepSeek'
+        ? 'deepseek'
         : apiLabel === 'NVIDIA'
           ? 'nvidia'
           : apiLabel === 'OpenCode Go'
@@ -1006,9 +1062,7 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
           body.reasoning_effort = effort
         }
       }
-      if (apiLabel === 'OpenAI') {
-        applyOpenAiReasoningBody(body, options.thinkLevel, options.tools !== undefined)
-      }
+      if (options.custom) applyCustomReasoningBody(body, options)
       if (apiLabel === 'OpenRouter') {
         const provider = openRouterProviderRoutingBody(options.providerOnly)
         if (provider) body.provider = provider
@@ -1031,6 +1085,7 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
       if (options.apiKey.trim()) {
         headers.Authorization = `Bearer ${options.apiKey.trim()}`
       }
+      Object.assign(headers, customUpstreamHeaders(options))
 
       try {
         res = await fetchWithHardAbort(

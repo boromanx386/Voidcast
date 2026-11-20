@@ -4,7 +4,7 @@ import {
   resolveCloudLlmChatConfigForProvider,
 } from '@/lib/cloudLlm'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
-import type { LlmProvider } from '@/lib/settings'
+import type { CustomLlmApiStyle, LlmProvider } from '@/lib/settings'
 import type { LongMemoryCandidate, LongMemoryKind } from '@/types/longMemory'
 
 type Turn = { role: 'user' | 'assistant'; content: string }
@@ -23,9 +23,12 @@ type ExtractParams = {
   deepseekBaseUrl?: string
   deepseekApiKey?: string
   deepseekModel?: string
-  openaiBaseUrl?: string
-  openaiApiKey?: string
-  openaiModel?: string
+  customBaseUrl?: string
+  customApiKey?: string
+  customModel?: string
+  customApiStyle?: CustomLlmApiStyle
+  /** Local tools server: Custom and OpenCode Go requests go through its proxy. */
+  ttsBaseUrl?: string
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
@@ -200,6 +203,7 @@ export async function extractLongMemoryCandidates(
       signal: params.signal,
       thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
       providerOnly: params.provider === 'openrouter' ? cfg.providerOnly : undefined,
+      custom: cfg.custom,
       opencodeSessionId: params.opencodeSessionId,
       onDelta: () => undefined,
     })

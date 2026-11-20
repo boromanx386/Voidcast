@@ -14,6 +14,7 @@ import {
 } from '@/lib/codingSubAgent'
 import { buildWorkingSetHint } from '@/lib/codingContextMemo'
 import type { OllamaChatUsage } from '@/lib/ollama'
+import type { CustomLlmRoute } from '@/lib/cloudLlm'
 import {
   ollamaMessagesToOpenRouter,
   streamOpenRouterChat,
@@ -65,6 +66,8 @@ export type RunOpenRouterChatWithToolsParams = ChatWithToolsCommonParams & {
   apiKey: string
   /** OpenRouter provider slug lock from settings. */
   providerOnly?: string
+  /** Custom provider endpoint and wire format. */
+  custom?: CustomLlmRoute
   /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). */
   onEscalateToPlan?: (ctx: { messages: OpenRouterMessage[] }) => void
 }
@@ -108,6 +111,7 @@ export async function runOpenRouterChatWithTools(
         thinkLevel: params.thinkLevel,
         providerOnly: params.providerOnly,
         opencodeSessionId: params.opencodeSessionId,
+        custom: params.custom,
       })
       return {
         content: res.content,

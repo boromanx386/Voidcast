@@ -15,15 +15,23 @@ import {
   normalizeBaseUrl,
   SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
   SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+  type CustomLlmApiStyle,
   type SubAgentConfig,
 } from './settings'
 import type { SubAgentWorkerMetrics } from './subAgentPanelState'
-import { opencodeGoApiBaseUrl } from './platform'
+import { customLlmProxyBaseUrl, opencodeGoApiBaseUrl } from './platform'
+import { customLlmRoute } from '@/lib/cloudLlm'
 import {
   detectSubAgentProvider as detectSubAgentProviderId,
   type SubAgentProviderId,
 } from '@/lib/cloudLlmPresets'
-import { openRouterProviderRoutingBody, type OpenRouterImageDetail } from '@/lib/openrouter'
+import {
+  openRouterProviderRoutingBody,
+  streamOpenRouterChat,
+  type OpenRouterContentPart,
+  type OpenRouterImageDetail,
+  type OpenRouterMessage,
+} from '@/lib/openrouter'
 import { prepareBase64ImageForUpload } from '@/lib/imageAttachment'
 import {
   imageDetailForPrompt,
@@ -77,8 +85,10 @@ export type SubAgentKeys = {
   openrouterApiKey: string
   deepseekBaseUrl: string
   deepseekApiKey: string
-  openaiBaseUrl: string
-  openaiApiKey: string
+  /** Custom provider endpoint; requests go through the local tools proxy. */
+  customBaseUrl: string
+  customApiKey: string
+  customApiStyle?: CustomLlmApiStyle
   nvidiaBaseUrl: string
   nvidiaApiKey: string
   opencodeGoApiKey: string
@@ -348,57 +358,54 @@ async function describeWithDeepSeek(
   return (data.choices?.[0]?.message?.content || '').trim()
 }
 
-// ── OpenAI path (vision via Chat Completions) ────────────────────────────
+// ── Custom path (any of the three wire formats, via the local proxy) ─────
 
-async function describeWithOpenAi(
+/**
+ * One non-tool Custom request. It goes through streamOpenRouterChat, the same code the main
+ * chat uses, so a sub-agent on a Responses or Messages endpoint needs no format of its own.
+ */
+async function textWithCustom(
+  model: string,
+  maxTokens: number,
+  keys: SubAgentKeys,
+  messages: OpenRouterMessage[],
+  signal?: AbortSignal,
+): Promise<string> {
+  const out = await streamOpenRouterChat({
+    baseUrl: customLlmProxyBaseUrl(keys.ttsBaseUrl),
+    apiKey: keys.customApiKey || '',
+    model,
+    messages,
+    modelOptions: { temperature: 0.2 },
+    maxTokens,
+    thinkLevel: 'off',
+    signal,
+    custom: customLlmRoute({
+      customBaseUrl: keys.customBaseUrl,
+      customApiStyle: keys.customApiStyle,
+    }),
+    onDelta: () => undefined,
+  })
+  return out.content.trim()
+}
+
+async function describeWithCustom(
   img: SubAgentImageInput,
   model: string,
   maxTokens: number,
-  openaiBaseUrl: string,
-  openaiApiKey: string,
+  keys: SubAgentKeys,
   prompt: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const baseUrl = normalizeBaseUrl(openaiBaseUrl || 'https://api.openai.com/v1')
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (openaiApiKey.trim()) {
-    headers.Authorization = `Bearer ${openaiApiKey.trim()}`
-  }
-
   const dataUri = await requireDataUri(img)
-
-  const body = {
+  const content = imageFirstContent(dataUri, prompt, imageDetailForPrompt(prompt))
+  return textWithCustom(
     model,
-    messages: [
-      {
-        role: 'user',
-        content: imageFirstContent(dataUri, prompt, imageDetailForPrompt(prompt)),
-      },
-    ],
-    max_tokens: maxTokens,
-    temperature: 0.2,
-    stream: false,
-  }
-
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers,
+    maxTokens,
+    keys,
+    [{ role: 'user', content: content as OpenRouterContentPart[] }],
     signal,
-    body: JSON.stringify(body),
-  })
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '')
-    throw new Error(`OpenAI sub-agent ${res.status}: ${errText || res.statusText}`)
-  }
-
-  const data2 = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>
-  }
-  return (data2.choices?.[0]?.message?.content || '').trim()
+  )
 }
 // ── NVIDIA path (vision via Chat Completions) ────────────────────────────
 
@@ -625,17 +632,8 @@ export async function callSubAgentChat(opts: {
       { thinking: { type: 'disabled' } },
     )
   }
-  if (provider === 'openai') {
-    const baseUrl = normalizeBaseUrl(opts.keys.openaiBaseUrl || 'https://api.openai.com/v1')
-    return textWithOpenAiCompatible(
-      'OpenAI',
-      opts.config.model,
-      maxTokens,
-      baseUrl,
-      opts.keys.openaiApiKey,
-      messages,
-      opts.signal,
-    )
+  if (provider === 'custom') {
+    return textWithCustom(opts.config.model, maxTokens, opts.keys, messages, opts.signal)
   }
   if (provider === 'nvidia') {
     const baseUrl = normalizeBaseUrl(
@@ -718,16 +716,8 @@ async function describeSingleImage(
       signal,
     )
   }
-  if (provider === 'openai') {
-    return describeWithOpenAi(
-      img,
-      config.model,
-      maxTokens,
-      keys.openaiBaseUrl,
-      keys.openaiApiKey,
-      prompt,
-      signal,
-    )
+  if (provider === 'custom') {
+    return describeWithCustom(img, config.model, maxTokens, keys, prompt, signal)
   }
   if (provider === 'nvidia') {
     return describeWithNvidia(

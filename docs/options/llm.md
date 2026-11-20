@@ -9,7 +9,7 @@
 
 ## Provider selector (`llmProvider`)
 
-Type: `LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'`
+Type: `LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'custom' | 'opencode-go'`
 Default: `'openrouter'`
 
 The active provider determines which provider-specific group of fields is shown and used for chat completion requests.
@@ -32,7 +32,7 @@ One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus op
 - **Pin the provider per model** — `openrouterProviderOnly` (string slug, e.g. `'anthropic'`, `'openai'`, `'deepinfra'`) is the lock for the **currently selected model**. When set, requests use `provider.only` and never fall back to another provider; leave it empty for OpenRouter's default load balancing.
 - **Remembered per model** — `openrouterProviderByModel` (`Record<string, string>`) stores a lock **per model id**. Selecting a model that has a saved lock restores it into `openrouterProviderOnly`; editing the lock updates both.
 - **LIST ALL** — queries OpenRouter for every provider serving the selected model and renders a table: **provider (with the tag variant, e.g. `fp8/flex`) · QUANT · IN/OUT price (per 1M) · CACHE HIT price (per 1M) · recent uptime**. Click a row to apply that provider as the current model's lock.
-- **Sticky routing for upstream cache** — each chat sends a stable `session_id`, so OpenRouter keeps routing the conversation to the same upstream provider and that provider's prompt cache stays warm. Cache-friendly prompt ordering (a byte-identical system prompt + history prefix, with volatile context on the final user turn) is **not** OpenRouter-specific: it holds for **every** provider, and cached-token counts are read back from Ollama, OpenAI, DeepSeek and OpenRouter alike. See [../chat.md](../chat.md).
+- **Sticky routing for upstream cache** — each chat sends a stable `session_id`, so OpenRouter keeps routing the conversation to the same upstream provider and that provider's prompt cache stays warm. Cache-friendly prompt ordering (a byte-identical system prompt + history prefix, with volatile context on the final user turn) is **not** OpenRouter-specific: it holds for **every** provider, and cached-token counts are read back from Ollama, OpenAI-style endpoints, DeepSeek and OpenRouter alike. See [../chat.md](../chat.md).
 - **Pinned models** — `pinnedModels` (`string[]`). Provider-specific ids like `'openrouter:anthropic/claude-sonnet-5'` or `'openrouter:openai/gpt-5.6-sol'`. Pinned models appear as quick-select chips in the panel (and in the chat model picker); toggle a pin on/off per candidate model.
 
 <p align="center">
@@ -44,18 +44,21 @@ One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus op
 NVIDIA's free developer tier: no subscription and no paid plan to buy, so there is nothing to cancel or upgrade. It is also the slowest of the cloud providers in practice — free capacity is shared, so throughput varies and large models can crawl. Third-party lists put the free tier at roughly 40 requests/minute, which is indicative, not a contract.
 - `nvidiaBaseUrl` — default `https://integrate.api.nvidia.com/v1`
 - `nvidiaApiKey` — local key
-- `nvidiaModel` — default `'nvidia/nemotron-3-super-120b-a12b'`
+- `nvidiaModel` — default `'nvidia/nemotron-3-ultra-550b-a55b'`
 
 ### DeepSeek
 - `deepseekBaseUrl` — default `https://api.deepseek.com`
 - `deepseekApiKey` — local key
 - `deepseekModel` — default `'deepseek-v4-pro'`
 
-### OpenAI (native)
-This slot is a plain OpenAI Chat Completions client and `openaiBaseUrl` is a normal editable field, which makes it the supported way to run against any **OpenAI-compatible server**: vLLM (`http://localhost:8000/v1`), llama.cpp `llama-server` (`http://localhost:8080/v1`), LM Studio, TGI, SGLang, llama-cpp-python, or Ollama's own `/v1` route.
-- `openaiBaseUrl` — default `https://api.openai.com/v1` (OpenAI Chat Completions)
-- `openaiApiKey` — local key
-- `openaiModel` — default `'gpt-5.6-sol'`; any id can be typed in, so a self-hosted model name works
+### Custom
+Any endpoint you type in, over the wire format you pick: OpenAI or Anthropic directly, a self-hosted server (vLLM `http://localhost:8000/v1`, llama.cpp `llama-server` `http://localhost:8080/v1`, LM Studio, TGI, SGLang, Ollama's own `/v1` route), or a gateway such as Groq. It replaced the OpenAI provider; saved OpenAI settings (base URL, key, model, pins, sub-agent provider) move to Custom on load.
+- `customApiStyle` — `'chat-completions'` (default, `{base}/chat/completions`), `'responses'` (`{base}/responses`) or `'messages'` (Anthropic, `{base}/messages` with `x-api-key`). There is no probing between formats: an arbitrary server answers a path it lacks with anything from a 404 to a hang.
+- `customBaseUrl` — default empty; the API root including `/v1`. A turn without one fails before any request.
+- `customApiKey` — optional (local servers need none); sent as `Authorization: Bearer` for the OpenAI formats and as `x-api-key` for Messages. Stored in the OS key store and hidden from the agent like the other keys.
+- `customModel` — default empty; any id. **Load models** lists the endpoint's `GET /models` as suggestions.
+- `customContextTokens` — default `128_000`; the context window the CTX meter and auto-compress use (`source: 'custom_setting'`). An id-keyed table cannot know what a custom endpoint serves.
+- Requests go through the tools server at `/api/custom-llm`, which forwards to the `x-voidcast-upstream` header, so endpoints without CORS work. With OpenAI itself on Chat Completions, tool turns still send `reasoning_effort: 'none'` (GPT-5.x rejects tools otherwise); other endpoints get `reasoning_effort` only when THINKING_LEVEL asks for one.
 
 ### OpenCode Go
 - `opencodeGoBaseUrl` — kept in settings but not used and not shown in Options: OpenCode Go sends no CORS headers, so every request goes through the tools server at `/api/opencode-go`, which forwards to `OPENCODE_GO_BASE_URL` (env, default `https://opencode.ai/zen/go`)

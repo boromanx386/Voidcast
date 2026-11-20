@@ -1,5 +1,6 @@
-import type { AppSettings, LlmProvider, LlmThinkLevel } from '@/lib/settings'
-import { opencodeGoApiBaseUrl } from '@/lib/platform'
+import type { AppSettings, CustomLlmApiStyle, LlmProvider, LlmThinkLevel } from '@/lib/settings'
+import { customLlmProxyBaseUrl, opencodeGoApiBaseUrl } from '@/lib/platform'
+import { ANTHROPIC_VERSION } from '@/lib/anthropicMessages'
 
 export function cloudLlmProviderLabel(provider: LlmProvider): string {
   switch (provider) {
@@ -9,8 +10,8 @@ export function cloudLlmProviderLabel(provider: LlmProvider): string {
       return 'NVIDIA'
     case 'deepseek':
       return 'DeepSeek'
-    case 'openai':
-      return 'OpenAI'
+    case 'custom':
+      return 'Custom'
     case 'opencode-go':
       return 'OpenCode Go'
     default:
@@ -19,7 +20,8 @@ export function cloudLlmProviderLabel(provider: LlmProvider): string {
 }
 
 export function assertCloudLlmApiKey(provider: LlmProvider, apiKey: string): void {
-  if (apiKey.trim()) return
+  // A custom endpoint is often a local server that takes no key at all.
+  if (apiKey.trim() || provider === 'custom') return
   const label = cloudLlmProviderLabel(provider)
   throw new Error(
     `${label} API key is missing. Open Options → General, paste your ${label} key, and try again. ` +
@@ -32,8 +34,74 @@ export function isOpenAiCompatibleCloudLlmProvider(provider: LlmProvider): boole
     provider === 'openrouter' ||
     provider === 'nvidia' ||
     provider === 'deepseek' ||
-    provider === 'openai' ||
+    provider === 'custom' ||
     provider === 'opencode-go'
+  )
+}
+
+/** Header that carries a Custom endpoint's real base URL to the local tools proxy. */
+export const CUSTOM_LLM_UPSTREAM_HEADER = 'x-voidcast-upstream'
+
+/** Where a Custom provider request really goes, and which wire format it speaks. */
+export type CustomLlmRoute = {
+  upstream: string
+  apiStyle: CustomLlmApiStyle
+}
+
+export function customLlmRoute(settings: {
+  customBaseUrl?: string
+  customApiStyle?: CustomLlmApiStyle
+}): CustomLlmRoute {
+  return {
+    upstream: (settings.customBaseUrl || '').trim().replace(/\/+$/, ''),
+    apiStyle: settings.customApiStyle || 'chat-completions',
+  }
+}
+
+/**
+ * Model ids a Custom endpoint lists on `GET {base}/models`. OpenAI, Anthropic and the local
+ * servers (LM Studio, vLLM, llama.cpp, Ollama's /v1) all answer `{ data: [{ id }] }`; only the
+ * auth header differs, and Anthropic wants a version header too.
+ */
+export async function fetchCustomLlmModels(opts: {
+  route: CustomLlmRoute
+  apiKey: string
+  ttsBaseUrl?: string
+  signal?: AbortSignal
+}): Promise<string[]> {
+  assertCustomLlmRoute(opts.route)
+  const headers: Record<string, string> = { [CUSTOM_LLM_UPSTREAM_HEADER]: opts.route.upstream }
+  const key = opts.apiKey.trim()
+  if (opts.route.apiStyle === 'messages') {
+    headers['anthropic-version'] = ANTHROPIC_VERSION
+    if (key) headers['x-api-key'] = key
+  } else if (key) {
+    headers.Authorization = `Bearer ${key}`
+  }
+  const res = await fetch(`${customLlmProxyBaseUrl(opts.ttsBaseUrl)}/models`, {
+    headers,
+    signal: opts.signal,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`GET /models ${res.status}: ${text.slice(0, 300) || res.statusText}`)
+  }
+  const body = (await res.json()) as {
+    data?: Array<{ id?: unknown }>
+    models?: Array<{ id?: unknown }>
+  }
+  const list = Array.isArray(body.data) ? body.data : Array.isArray(body.models) ? body.models : []
+  const ids = list
+    .map((m) => (typeof m?.id === 'string' ? m.id.trim() : ''))
+    .filter((id): id is string => Boolean(id))
+  return [...new Set(ids)].sort((a, b) => a.localeCompare(b))
+}
+
+/** A clear error before any request when Custom has no endpoint to send it to. */
+export function assertCustomLlmRoute(route: CustomLlmRoute): void {
+  if (/^https?:\/\/[^/]/i.test(route.upstream)) return
+  throw new Error(
+    'Custom provider has no base URL. Open Options → Agent, set the endpoint (for example https://api.openai.com/v1 or http://localhost:1234/v1), and try again.',
   )
 }
 
@@ -44,6 +112,8 @@ export type CloudLlmChatConfig = {
   thinkLevel?: LlmThinkLevel
   /** OpenRouter provider slug lock (provider.only, no fallbacks). */
   providerOnly?: string
+  /** Set for the Custom provider: `baseUrl` is then the local proxy root. */
+  custom?: CustomLlmRoute
 }
 
 export type CloudLlmSettingsSlice = {
@@ -57,9 +127,10 @@ export type CloudLlmSettingsSlice = {
   deepseekBaseUrl?: string
   deepseekApiKey?: string
   deepseekModel?: string
-  openaiBaseUrl?: string
-  openaiApiKey?: string
-  openaiModel?: string
+  customBaseUrl?: string
+  customApiKey?: string
+  customModel?: string
+  customApiStyle?: CustomLlmApiStyle
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
@@ -92,11 +163,13 @@ export function resolveCloudLlmChatConfig(
         model: settings.deepseekModel || '',
         thinkLevel: settings.llmThinkLevel,
       }
-    case 'openai':
+    case 'custom':
       return {
-        baseUrl: settings.openaiBaseUrl || '',
-        apiKey: settings.openaiApiKey || '',
-        model: settings.openaiModel || '',
+        baseUrl: customLlmProxyBaseUrl(settings.ttsBaseUrl),
+        apiKey: settings.customApiKey || '',
+        model: settings.customModel || '',
+        thinkLevel: settings.llmThinkLevel,
+        custom: customLlmRoute(settings),
       }
     case 'opencode-go':
       return {
@@ -138,11 +211,13 @@ export function resolveCloudLlmChatConfigForProvider(
         model: modelOverride || settings.deepseekModel || '',
         thinkLevel: settings.llmThinkLevel,
       }
-    case 'openai':
+    case 'custom':
       return {
-        baseUrl: settings.openaiBaseUrl || '',
-        apiKey: settings.openaiApiKey || '',
-        model: modelOverride || settings.openaiModel || '',
+        baseUrl: customLlmProxyBaseUrl(settings.ttsBaseUrl),
+        apiKey: settings.customApiKey || '',
+        model: modelOverride || settings.customModel || '',
+        thinkLevel: settings.llmThinkLevel,
+        custom: customLlmRoute(settings),
       }
     case 'opencode-go':
       return {

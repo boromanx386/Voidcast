@@ -51,9 +51,9 @@ describe('API keys in the OS-encrypted store', () => {
     const s = loadSettings()
     expect(s.deepseekApiKey).toBe('sk-ds')
 
-    saveSettings({ ...s, openaiApiKey: 'sk-oa' })
-    expect(env.vault.current).toEqual({ deepseekApiKey: 'sk-ds', openaiApiKey: 'sk-oa' })
-    expect(env.saved().openaiApiKey).toBeUndefined()
+    saveSettings({ ...s, customApiKey: 'sk-cu' })
+    expect(env.vault.current).toEqual({ deepseekApiKey: 'sk-ds', customApiKey: 'sk-cu' })
+    expect(env.saved().customApiKey).toBeUndefined()
     expect(env.saved().deepseekApiKey).toBeUndefined()
   })
 
@@ -67,8 +67,30 @@ describe('API keys in the OS-encrypted store', () => {
   test('keeps keys in localStorage when the store refuses a write', async () => {
     const env = setupDesktop({ stored: {}, setAllOk: false })
     const { loadSettings, saveSettings } = await freshSettings()
-    saveSettings({ ...loadSettings(), openaiApiKey: 'sk-oa' })
-    expect(env.saved().openaiApiKey).toBe('sk-oa')
+    saveSettings({ ...loadSettings(), customApiKey: 'sk-cu' })
+    expect(env.saved().customApiKey).toBe('sk-cu')
+  })
+
+  test('an OpenAI provider setup moves to Custom with its stored key', async () => {
+    const env = setupDesktop({ stored: { openaiApiKey: 'sk-oa' } })
+    env.ls.set(
+      STORAGE_KEY,
+      JSON.stringify({ llmProvider: 'openai', openaiModel: 'openai/gpt-5.6-terra' }),
+    )
+    const { loadSettings, saveSettings } = await freshSettings()
+    const s = loadSettings()
+    expect(s).toMatchObject({
+      llmProvider: 'custom',
+      customBaseUrl: 'https://api.openai.com/v1',
+      customApiKey: 'sk-oa',
+      customModel: 'gpt-5.6-terra',
+      customApiStyle: 'chat-completions',
+    })
+    expect(s).not.toHaveProperty('openaiApiKey')
+
+    saveSettings(s)
+    expect(env.vault.current).toEqual({ customApiKey: 'sk-oa' })
+    expect(env.saved()).not.toHaveProperty('openaiModel')
   })
 
   test('without a real OS key store keys stay in localStorage as before', async () => {

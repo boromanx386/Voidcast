@@ -5,8 +5,13 @@ import {
 } from '@/lib/cloudLlmPresets'
 import { anthropicMessagesHeaders, buildAnthropicMessagesBody } from '@/lib/anthropicMessages'
 import { buildResponsesBody, parseResponsesOutput, responsesHeaders } from '@/lib/openResponses'
-import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
-import { opencodeGoApiBaseUrl } from '@/lib/platform'
+import {
+  assertCloudLlmApiKey,
+  assertCustomLlmRoute,
+  CUSTOM_LLM_UPSTREAM_HEADER,
+  customLlmRoute,
+} from '@/lib/cloudLlm'
+import { customLlmProxyBaseUrl, opencodeGoApiBaseUrl } from '@/lib/platform'
 import { assertSubAgentModel, normalizeBaseUrl } from '@/lib/settings'
 import {
   openRouterProviderRoutingBody,
@@ -195,7 +200,16 @@ function cloudEndpoint(
   provider: Exclude<SubAgentProviderId, 'ollama'>,
   config: SubAgentConfig,
   keys: SubAgentKeys,
-): { label: string; baseUrl: string; apiKey: string; extraBody: Record<string, unknown> } {
+): {
+  label: string
+  baseUrl: string
+  apiKey: string
+  extraBody: Record<string, unknown>
+  /** Sent on every request to this endpoint (the Custom upstream). */
+  extraHeaders: Record<string, string>
+  /** Wire format; OpenCode Go decides it per model, Custom from settings. */
+  apiStyle: 'openai-chat' | 'anthropic-messages' | 'opencode-responses'
+} {
   const providerOnly =
     provider === 'openrouter'
       ? openRouterProviderRoutingBody(config.openrouterProviderOnly)
@@ -208,6 +222,8 @@ function cloudEndpoint(
       baseUrl,
       apiKey: keys.openrouterApiKey,
       extraBody: providerOnly ? { provider: providerOnly } : {},
+      extraHeaders: {},
+      apiStyle: 'openai-chat',
     }
   }
 
@@ -217,16 +233,32 @@ function cloudEndpoint(
       baseUrl: normalizeBaseUrl(keys.deepseekBaseUrl || 'https://api.deepseek.com'),
       apiKey: keys.deepseekApiKey,
       extraBody: { thinking: { type: 'disabled' } },
+      extraHeaders: {},
+      apiStyle: 'openai-chat',
     }
   }
 
-  if (provider === 'openai') {
+  if (provider === 'custom') {
+    const route = customLlmRoute({
+      customBaseUrl: keys.customBaseUrl,
+      customApiStyle: keys.customApiStyle,
+    })
+    assertCustomLlmRoute(route)
+    const isOpenAi = /^https:\/\/api\.openai\.com(\/|$)/i.test(route.upstream)
     return {
-      label: 'OpenAI',
-      baseUrl: normalizeBaseUrl(keys.openaiBaseUrl || 'https://api.openai.com/v1'),
-      apiKey: keys.openaiApiKey,
-      // GPT-5.x rejects function tools unless reasoning is explicitly disabled.
-      extraBody: { reasoning_effort: 'none' },
+      label: 'Custom',
+      baseUrl: customLlmProxyBaseUrl(keys.ttsBaseUrl),
+      apiKey: keys.customApiKey || '',
+      // GPT-5.x on Chat Completions rejects function tools unless reasoning is disabled.
+      extraBody:
+        isOpenAi && route.apiStyle === 'chat-completions' ? { reasoning_effort: 'none' } : {},
+      extraHeaders: { [CUSTOM_LLM_UPSTREAM_HEADER]: route.upstream },
+      apiStyle:
+        route.apiStyle === 'messages'
+          ? 'anthropic-messages'
+          : route.apiStyle === 'responses'
+            ? 'opencode-responses'
+            : 'openai-chat',
     }
   }
 
@@ -236,6 +268,8 @@ function cloudEndpoint(
       baseUrl: normalizeBaseUrl(keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1'),
       apiKey: keys.nvidiaApiKey,
       extraBody: {},
+      extraHeaders: {},
+      apiStyle: 'openai-chat',
     }
   }
 
@@ -244,6 +278,8 @@ function cloudEndpoint(
     baseUrl: opencodeGoApiBaseUrl(keys.ttsBaseUrl),
     apiKey: keys.opencodeGoApiKey || '',
     extraBody: {},
+    extraHeaders: {},
+    apiStyle: openCodeGoApiStyle(config.model),
   }
 }
 
@@ -303,12 +339,12 @@ async function callCloudToolRound(opts: {
 }): Promise<NativeSubAgentToolRound> {
   const endpoint = cloudEndpoint(opts.provider, opts.config, opts.keys)
 
-  // OpenCode Go Anthropic-style models (e.g. claude-haiku-5-5) only accept /messages.
-  if (
-    opts.provider === 'opencode-go' &&
-    openCodeGoApiStyle(opts.config.model) === 'anthropic-messages'
-  ) {
-    assertCloudLlmApiKey('opencode-go', endpoint.apiKey)
+  const keyProvider = opts.provider === 'custom' ? 'custom' : 'opencode-go'
+  const sessionId = opts.provider === 'custom' ? undefined : opts.keys.opencodeSessionId
+
+  // Anthropic Messages: OpenCode Go models like claude-haiku-5-5, or a Custom endpoint set so.
+  if (endpoint.apiStyle === 'anthropic-messages') {
+    assertCloudLlmApiKey(keyProvider, endpoint.apiKey)
     const body = buildAnthropicMessagesBody({
       model: opts.config.model,
       messages: toOpenAiMessages(opts.messages) as OpenRouterMessage[],
@@ -321,11 +357,10 @@ async function callCloudToolRound(opts: {
       `${endpoint.baseUrl}/messages`,
       {
         method: 'POST',
-        headers: anthropicMessagesHeaders({
-          apiKey: endpoint.apiKey,
-          sessionId: opts.keys.opencodeSessionId,
-          sendAuth: true,
-        }),
+        headers: {
+          ...anthropicMessagesHeaders({ apiKey: endpoint.apiKey, sessionId, sendAuth: true }),
+          ...endpoint.extraHeaders,
+        },
         signal: opts.signal,
         body: JSON.stringify({ ...body, ...endpoint.extraBody }),
       },
@@ -370,12 +405,9 @@ async function callCloudToolRound(opts: {
     return { content, thinking, toolCalls, usage: extractNativeRoundUsage(data) }
   }
 
-  // OpenCode Go Responses-style models (the Contributor tier) only accept /responses.
-  if (
-    opts.provider === 'opencode-go' &&
-    openCodeGoApiStyle(opts.config.model) === 'opencode-responses'
-  ) {
-    assertCloudLlmApiKey('opencode-go', endpoint.apiKey)
+  // Responses: OpenCode Go's Contributor tier, or a Custom endpoint set so.
+  if (endpoint.apiStyle === 'opencode-responses') {
+    assertCloudLlmApiKey(keyProvider, endpoint.apiKey)
     const body = buildResponsesBody({
       model: opts.config.model,
       messages: toOpenAiMessages(opts.messages) as OpenRouterMessage[],
@@ -388,11 +420,10 @@ async function callCloudToolRound(opts: {
       `${endpoint.baseUrl}/responses`,
       {
         method: 'POST',
-        headers: responsesHeaders({
-          apiKey: endpoint.apiKey,
-          sessionId: opts.keys.opencodeSessionId,
-          sendAuth: true,
-        }),
+        headers: {
+          ...responsesHeaders({ apiKey: endpoint.apiKey, sessionId, sendAuth: true }),
+          ...endpoint.extraHeaders,
+        },
         signal: opts.signal,
         body: JSON.stringify({ ...body, ...endpoint.extraBody }),
       },
@@ -418,6 +449,7 @@ async function callCloudToolRound(opts: {
   if (opts.provider === 'opencode-go' && opts.keys.opencodeSessionId?.trim()) {
     headers['x-opencode-session'] = opts.keys.opencodeSessionId.trim()
   }
+  Object.assign(headers, endpoint.extraHeaders)
   const { res, errorText } = await postJsonWithRetry(
     `${endpoint.baseUrl}/chat/completions`,
     {

@@ -40,20 +40,14 @@ type Props = {
   onMarkDoneReminder: (id: string) => void
 }
 
-type CloudKeyProviderId =
-  'runware' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'
+type CloudKeyProviderId = 'runware' | 'openrouter' | 'nvidia' | 'deepseek' | 'opencode-go'
 
 type CloudKeyProvider = {
   id: CloudKeyProviderId
   label: string
   field: keyof Pick<
     AppSettings,
-    | 'runwareApiKey'
-    | 'openrouterApiKey'
-    | 'nvidiaApiKey'
-    | 'deepseekApiKey'
-    | 'openaiApiKey'
-    | 'opencodeGoApiKey'
+    'runwareApiKey' | 'openrouterApiKey' | 'nvidiaApiKey' | 'deepseekApiKey' | 'opencodeGoApiKey'
   >
   placeholder: string
   href: string
@@ -68,14 +62,6 @@ const CLOUD_KEY_PROVIDERS: CloudKeyProvider[] = [
     placeholder: 'sk-or-v1-...',
     href: 'https://openrouter.ai/keys',
     linkLabel: 'Get OpenRouter API key',
-  },
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    field: 'openaiApiKey',
-    placeholder: 'sk-...',
-    href: 'https://platform.openai.com/api-keys',
-    linkLabel: 'Get OpenAI API key',
   },
   {
     id: 'deepseek',

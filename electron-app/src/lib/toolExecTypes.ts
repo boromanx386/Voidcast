@@ -1,7 +1,13 @@
 import type { McpToolInfo } from '@/lib/mcpTools'
 import type { RunwareImageConfig } from '@/lib/runware'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
-import type { SubAgentConfig, ToolsEnabled, TtsProvider, VoiceMode } from '@/lib/settings'
+import type {
+  CustomLlmApiStyle,
+  SubAgentConfig,
+  ToolsEnabled,
+  TtsProvider,
+  VoiceMode,
+} from '@/lib/settings'
 import type { SubAgentUiCallbacks } from '@/lib/subAgent'
 import type { AgentChatMode, PlanArtifact } from '@/types/chat'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
@@ -93,8 +99,9 @@ export interface ExecCtx {
   openrouterApiKey?: string
   deepseekBaseUrl?: string
   deepseekApiKey?: string
-  openaiBaseUrl?: string
-  openaiApiKey?: string
+  customBaseUrl?: string
+  customApiKey?: string
+  customApiStyle?: CustomLlmApiStyle
   nvidiaBaseUrl?: string
   nvidiaApiKey?: string
   opencodeGoApiKey?: string

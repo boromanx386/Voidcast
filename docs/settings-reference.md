@@ -26,7 +26,7 @@ These providers store their API keys/URLs here (keys are local to this device):
 | Key                                      | Provider                         |
 | ---------------------------------------- | -------------------------------- |
 | `openrouterApiKey` / `openrouterBaseUrl` | OpenRouter                       |
-| `openaiApiKey` / `openaiBaseUrl`         | OpenAI                           |
+| `customApiKey` / `customBaseUrl`         | Custom (key optional)            |
 | `deepseekApiKey` / `deepseekBaseUrl`     | DeepSeek                         |
 | `nvidiaApiKey` / `nvidiaBaseUrl`         | NVIDIA                           |
 | `opencodeGoApiKey` / `opencodeGoBaseUrl` | OpenCode Go                      |
@@ -40,7 +40,7 @@ These providers store their API keys/URLs here (keys are local to this device):
 
 | Key                        | Type            | What it controls                                                                                                                        |
 | -------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `llmProvider`              | `LlmProvider`   | Active backend: `'ollama' \| 'openrouter' \| 'nvidia' \| 'deepseek' \| 'openai' \| 'opencode-go'`. Default `'openrouter'`.                                     |
+| `llmProvider`              | `LlmProvider`   | Active backend: `'ollama' \| 'openrouter' \| 'nvidia' \| 'deepseek' \| 'custom' \| 'opencode-go'`. Default `'openrouter'`.                                     |
 | `llmTemperature`           | `number`        | Sampling temperature passed to the model (higher = more random).                                                                        |
 | `llmNumCtx`                | `number`        | Context window size in tokens (`options.num_ctx` for Ollama).                                                                           |
 | `contextAutoCompress`      | `boolean`       | Auto-run context compression when the next turn's prompt reaches ~90% of the context limit; the newest messages stay verbatim.                                                             |
@@ -57,7 +57,7 @@ These providers store their API keys/URLs here (keys are local to this device):
 | OpenRouter      | `openrouterBaseUrl`, `openrouterModel`, `openrouterProviderOnly` (provider.only lock, no fallbacks), `openrouterProviderByModel` (per-model provider slug map; empty = default routing) |
 | NVIDIA          | `nvidiaBaseUrl`, `nvidiaModel`                                                                                                                                                          |
 | DeepSeek        | `deepseekBaseUrl`, `deepseekModel`                                                                                                                                                      |
-| OpenAI (native) | `openaiBaseUrl` (`https://api.openai.com/v1`), `openaiModel`                                                                                                                            |
+| Custom          | `customBaseUrl` (empty), `customModel` (empty), `customApiStyle` (`'chat-completions'` \| `'responses'` \| `'messages'`), `customContextTokens` (`128000`)                         |
 | OpenCode Go     | `opencodeGoModel`; `opencodeGoBaseUrl` is unused (upstream is `OPENCODE_GO_BASE_URL`)                                                                                                                |
 
 ---

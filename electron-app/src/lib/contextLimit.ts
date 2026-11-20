@@ -1,18 +1,21 @@
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
-  OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
-  normalizeOpenAiModelId,
   normalizeOpenCodeGoModelId,
   normalizeOpenRouterModelId,
 } from '@/lib/cloudLlmPresets'
-import type { AppSettings, LlmProvider } from '@/lib/settings'
+import {
+  CUSTOM_LLM_DEFAULT_CONTEXT_TOKENS,
+  type AppSettings,
+  type LlmProvider,
+} from '@/lib/settings'
 
-export type ContextLimitSource = 'ollama_num_ctx' | 'preset' | 'heuristic' | 'provider_default'
+export type ContextLimitSource =
+  'ollama_num_ctx' | 'custom_setting' | 'preset' | 'heuristic' | 'provider_default'
 
 export type ResolvedContextLimit = {
   maxTokens: number
@@ -21,11 +24,10 @@ export type ResolvedContextLimit = {
   provider: LlmProvider
 }
 
-const PROVIDER_DEFAULT_CONTEXT: Record<Exclude<LlmProvider, 'ollama'>, number> = {
+const PROVIDER_DEFAULT_CONTEXT: Record<Exclude<LlmProvider, 'ollama' | 'custom'>, number> = {
   openrouter: 256_000,
   nvidia: 256_000,
   deepseek: 1_000_000,
-  openai: 256_000,
   'opencode-go': 256_000,
 }
 
@@ -45,7 +47,7 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'openai/gpt-5.6-luna-pro': 1_050_000,
   'gpt-5.6-sol': 1_050_000,
   'gpt-5.6-terra': 1_050_000,
-  'gpt-5.6-luna': 1050000,
+  'gpt-5.6-luna': 1_050_000,
   'gpt-5.6-sol-pro': 1_050_000,
   'gpt-5.6-terra-pro': 1_050_000,
   'gpt-5.6-luna-pro': 1_050_000,
@@ -57,6 +59,11 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'deepseek/deepseek-v4-pro-0813': 1_048_576,
   'deepseek/deepseek-v4-flash': 1_000_000,
   'deepseek/deepseek-v4-flash-vision-exp': 1_048_576,
+  // Both ids exist on two providers and models.dev publishes two windows for them:
+  // deepseek-v4-pro is 1,048,576 on `deepseek` but 1,000,000 on `opencode-go` (and
+  // deepseek-flash is 1,048,576 vs 1,000,000 the same way). This map is keyed by id with
+  // no provider, so the smaller window wins — deepseek-v4-pro is the Go default model and
+  // a 1M budget stays inside what Go accepts.
   'deepseek-v4-pro': 1_000_000,
   'deepseek-v4-pro-0813': 1_000_000,
   'deepseek-flash': 1_000_000,
@@ -67,16 +74,15 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'google/gemma-4-31b-it': 131_072,
   'google/gemma-4-31b-it:free': 262_144,
   'gemma-4-31b-it': 262_144,
-  'nvidia/nemotron-3.5-lightning': 262144,
+  'nvidia/nemotron-3.5-lightning': 1_048_576,
   'nvidia/nemotron-3.5-lightning:free': 1_000_000,
   'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
   'tencent/hy3-preview': 262_144,
   'tencent/hy3': 262_144,
   'kimi-k2.7-code': 262_144,
-  'kimi-k3': 1048576,
+  'kimi-k3': 1_048_576,
   'kimi-k3-eco': 1_000_000,
-  'glm-5.3': 1000000,
-  'glm-5.2': 1_000_000,
+  'glm-5.3': 1_000_000,
   'glm-5.1': 202_752,
   hy3: 262_144,
   'qwen3.8-27b': 262_144,
@@ -87,54 +93,57 @@ const MODEL_CONTEXT_OVERRIDES: Record<string, number> = {
   'greg-2-super': 229_376,
   'greg-1-mini': 229_376,
   'greg-rp': 229_376,
-  'z-ai/glm-5.3-flash': 1048576,
-  'liquid/lfm-2.5-2.6b:free': 65536,
-  'glm-5.3-flash': 1000000,
-  'qwen/qwen3.8-flash': 1000000,
-  'tencent/hy4-preview': 1048576,
-  'hy4-preview': 1024000,
-  'deepseek/deepseek-v4.1-flash': 1048576,
-  'openai/gpt-6-astra': 1050000,
-  'openai/gpt-6-astra-pro': 1050000,
-  'anthropic/claude-fable-5.1': 1000000,
-  'deepseek-v4.1-flash': 1000000,
-  'z-ai/glm-5.3-flashx': 1048576,
-  'google/gemini-3.8-flash': 1048576,
-  'openai/gpt-6-luna': 1050000,
-  'openai/gpt-6-sol': 1050000,
-  'qwen/qwen3.8-max-0902': 1000000,
-  'qwen/qwen3.8-omni-flash': 1000000,
-  'x-ai/grok-4.7': 500000,
-  'xiaomi/mimo-v2.6-flash': 1050000,
-  'mimo-v2.6-flash': 1048576,
-  'mimo-v2.6-pro': 1048576,
-  'anthropic/claude-opus-5.5': 1000000,
-  'xiaomi/mimo-v2.6-pro': 1050000,
-  'anthropic/claude-sonnet-5.5': 1000000,
-  'openai/gpt-6.1-sol': 1050000,
-  'anthropic/claude-haiku-5.5': 1000000,
-  'mistralai/mistral-large-4-0': 524288,
-  'qwen3.8-flash': 1000000,
-  'qwen3.8-max': 1000000,
-  'gpt-6-luna': 1050000,
-  'muse-spark-1.2-contributor': 1048576,
-  'muse-spark-1.3-contributor': 1048576,
-  'google/gemini-4-argon': 1048576,
-  'deepseek/deepseek-v4.1-flash-1017': 1048576,
-  'beam-free': 1048576,
-  'minimax/minimax-m3.1-flash': 1048576,
-  'meta/muse-spark-open': 1048576,
-  'meta/muse-wonder': 1048576,
-  'kimi-k3.1-pro': 1048576,
+  'z-ai/glm-5.3-flash': 1_048_576,
+  'glm-5.3-flash': 1_000_000,
+  'qwen/qwen3.8-flash': 1_000_000,
+  'tencent/hy4-preview': 1_048_576,
+  'hy4-preview': 1_024_000,
+  'deepseek/deepseek-v4.1-flash': 1_048_576,
+  'openai/gpt-6-astra': 1_050_000,
+  'openai/gpt-6-astra-pro': 1_050_000,
+  'anthropic/claude-fable-5.1': 1_000_000,
+  'deepseek-v4.1-flash': 1_000_000,
+  'z-ai/glm-5.3-flashx': 1_048_576,
+  'google/gemini-3.8-flash': 1_048_576,
+  'openai/gpt-6-luna': 1_050_000,
+  'openai/gpt-6-sol': 1_050_000,
+  'qwen/qwen3.8-max-0902': 1_000_000,
+  'qwen/qwen3.8-omni-flash': 1_000_000,
+  'x-ai/grok-4.7': 500_000,
+  'xiaomi/mimo-v2.6-flash': 1_050_000,
+  'mimo-v2.6-flash': 1_048_576,
+  'mimo-v2.6-pro': 1_048_576,
+  'anthropic/claude-opus-5.5': 1_000_000,
+  'xiaomi/mimo-v2.6-pro': 1_050_000,
+  'anthropic/claude-sonnet-5.5': 1_000_000,
+  'openai/gpt-6.1-sol': 1_050_000,
+  'anthropic/claude-haiku-5.5': 1_000_000,
+  'mistralai/mistral-large-4-0': 1_048_576,
+  'qwen3.8-flash': 1_000_000,
+  'qwen3.8-max': 1_000_000,
+  'gpt-6-luna': 1_050_000,
+  'muse-spark-1.2-contributor': 1_048_576,
+  'muse-spark-1.3-contributor': 1_048_576,
+  'google/gemini-4-argon': 1_048_576,
+  'deepseek/deepseek-v4.1-flash-1017': 1_048_576,
+  'beam-free': 1_048_576,
+  'minimax/minimax-m3.1-flash': 1_048_576,
+  'meta/muse-spark-open': 1_048_576,
+  'meta/muse-wonder': 1_048_576,
+  'kimi-k3.1-pro': 1_048_576,
   'iceman-contributor-free': 262144,
-  'step-5-preview': 1000000,
-  'grok-4.7': 500000,
-  'moonshotai/kimi-k3.1-pro': 1048576,
-  'openai/gpt-6.1-terra': 1050000,
-  'tencent/hy4': 1048576,
-  hy4: 1048576,
-  'minimax-m3.1-flash': 1000000,
-  'crouton-alpha-free': 1048576,
+  'step-5-preview': 1_000_000,
+  'grok-4.7': 500_000,
+  'moonshotai/kimi-k3.1-pro': 1_048_576,
+  'openai/gpt-6.1-terra': 1_050_000,
+  'tencent/hy4': 1_048_576,
+  hy4: 1_048_576,
+  'minimax-m3.1-flash': 1_000_000,
+  'crouton-alpha-free': 1_048_576,
+  'tencent/hy4-flash': 1_048_576,
+  'google/gemini-4-hydrogen': 1_048_576,
+  'google/gemini-4-neon': 1_048_576,
+  'google/gemini-4-carbon': 1_048_576,
 }
 
 function buildPresetLookup(
@@ -151,7 +160,6 @@ function buildPresetLookup(
 
 const OPENROUTER_PRESET_CONTEXT = buildPresetLookup(OPENROUTER_LLM_PRESET_MODELS)
 const DEEPSEEK_PRESET_CONTEXT = buildPresetLookup(DEEPSEEK_LLM_PRESET_MODELS)
-const OPENAI_PRESET_CONTEXT = buildPresetLookup(OPENAI_LLM_PRESET_MODELS)
 const NVIDIA_PRESET_CONTEXT = buildPresetLookup(NVIDIA_LLM_PRESET_MODELS)
 const OPENCODE_GO_PRESET_CONTEXT = buildPresetLookup(OPENCODE_GO_LLM_PRESET_MODELS)
 
@@ -162,7 +170,7 @@ export function activeLlmModelId(
     | 'ollamaModel'
     | 'openrouterModel'
     | 'deepseekModel'
-    | 'openaiModel'
+    | 'customModel'
     | 'nvidiaModel'
     | 'opencodeGoModel'
   >,
@@ -172,8 +180,8 @@ export function activeLlmModelId(
       return normalizeOpenRouterModelId(settings.openrouterModel)
     case 'deepseek':
       return normalizeDeepSeekModelId(settings.deepseekModel)
-    case 'openai':
-      return normalizeOpenAiModelId(settings.openaiModel)
+    case 'custom':
+      return settings.customModel.trim()
     case 'nvidia':
       return normalizeNvidiaModelId(settings.nvidiaModel)
     case 'opencode-go':
@@ -206,13 +214,12 @@ function inferCloudContextTokens(modelId: string): number | undefined {
 }
 
 function lookupPresetContext(
-  provider: Exclude<LlmProvider, 'ollama'>,
+  provider: Exclude<LlmProvider, 'ollama' | 'custom'>,
   modelId: string,
 ): number | undefined {
-  const maps: Record<Exclude<LlmProvider, 'ollama'>, Map<string, number>> = {
+  const maps: Record<Exclude<LlmProvider, 'ollama' | 'custom'>, Map<string, number>> = {
     openrouter: OPENROUTER_PRESET_CONTEXT,
     deepseek: DEEPSEEK_PRESET_CONTEXT,
-    openai: OPENAI_PRESET_CONTEXT,
     nvidia: NVIDIA_PRESET_CONTEXT,
     'opencode-go': OPENCODE_GO_PRESET_CONTEXT,
   }
@@ -227,7 +234,8 @@ export function resolveContextLimit(
     | 'ollamaModel'
     | 'openrouterModel'
     | 'deepseekModel'
-    | 'openaiModel'
+    | 'customModel'
+    | 'customContextTokens'
     | 'nvidiaModel'
     | 'opencodeGoModel'
   >,
@@ -241,6 +249,16 @@ export function resolveContextLimit(
         ? Math.round(settings.llmNumCtx)
         : 100_000
     return { maxTokens, source: 'ollama_num_ctx', modelId, provider }
+  }
+
+  // A custom endpoint can serve any model under any name, so an id-keyed table would guess;
+  // the window the user typed in Options is the only number that is known to be right.
+  if (provider === 'custom') {
+    const maxTokens =
+      Number.isFinite(settings.customContextTokens) && settings.customContextTokens > 0
+        ? Math.round(settings.customContextTokens)
+        : CUSTOM_LLM_DEFAULT_CONTEXT_TOKENS
+    return { maxTokens, source: 'custom_setting', modelId, provider }
   }
 
   const override = MODEL_CONTEXT_OVERRIDES[modelId]
@@ -270,6 +288,8 @@ export function contextLimitSourceLabel(source: ContextLimitSource): string {
   switch (source) {
     case 'ollama_num_ctx':
       return 'Ollama num_ctx'
+    case 'custom_setting':
+      return 'custom context setting'
     case 'preset':
       return 'model preset'
     case 'heuristic':

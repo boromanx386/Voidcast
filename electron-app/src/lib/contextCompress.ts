@@ -1,4 +1,4 @@
-import type { LlmProvider } from '@/lib/settings'
+import type { CustomLlmApiStyle, LlmProvider } from '@/lib/settings'
 import { streamOllamaChat, type OllamaApiMessage, type OllamaModelOptions } from '@/lib/ollama'
 import {
   isOpenAiCompatibleCloudLlmProvider,
@@ -32,9 +32,12 @@ export async function compressConversationContext(params: {
   deepseekBaseUrl?: string
   deepseekApiKey?: string
   deepseekModel?: string
-  openaiBaseUrl?: string
-  openaiApiKey?: string
-  openaiModel?: string
+  customBaseUrl?: string
+  customApiKey?: string
+  customModel?: string
+  customApiStyle?: CustomLlmApiStyle
+  /** Local tools server: Custom and OpenCode Go requests go through its proxy. */
+  ttsBaseUrl?: string
   opencodeGoBaseUrl?: string
   opencodeGoApiKey?: string
   opencodeGoModel?: string
@@ -90,6 +93,7 @@ export async function compressConversationContext(params: {
       signal: params.signal,
       thinkLevel: params.provider === 'deepseek' ? 'off' : cfg.thinkLevel,
       providerOnly: params.provider === 'openrouter' ? cfg.providerOnly : undefined,
+      custom: cfg.custom,
       opencodeSessionId: params.opencodeSessionId,
       onDelta: () => undefined,
     })

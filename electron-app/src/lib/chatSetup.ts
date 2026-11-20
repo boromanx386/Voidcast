@@ -3,10 +3,14 @@ import type { AppSettings, LlmProvider } from '@/lib/settings'
 /** What blocks the very first chat turn, so the empty chat can say how to fix it. */
 export type ChatSetupNeed =
   | { kind: 'ready' }
-  | { kind: 'cloud-key'; provider: Exclude<LlmProvider, 'ollama'> }
+  | { kind: 'cloud-key'; provider: KeyedCloudProvider }
+  | { kind: 'custom-endpoint' }
   | { kind: 'ollama-unreachable' }
   | { kind: 'ollama-no-models' }
   | { kind: 'ollama-model' }
+
+/** Cloud providers that cannot answer without a key. Custom is left out: local servers need none. */
+export type KeyedCloudProvider = Exclude<LlmProvider, 'ollama' | 'custom'>
 
 export type OllamaProbe = {
   models: string[]
@@ -14,25 +18,23 @@ export type OllamaProbe = {
   error: string | null
 }
 
-export const CLOUD_KEY_URL: Record<Exclude<LlmProvider, 'ollama'>, string> = {
+export const CLOUD_KEY_URL: Record<KeyedCloudProvider, string> = {
   openrouter: 'https://openrouter.ai/keys',
   nvidia: 'https://build.nvidia.com/',
   deepseek: 'https://platform.deepseek.com/api_keys',
-  openai: 'https://platform.openai.com/api-keys',
   'opencode-go': 'https://opencode.ai/auth',
 }
 
 export const CLOUD_KEY_FIELD: Record<
-  Exclude<LlmProvider, 'ollama'>,
+  KeyedCloudProvider,
   keyof Pick<
     AppSettings,
-    'openrouterApiKey' | 'nvidiaApiKey' | 'deepseekApiKey' | 'openaiApiKey' | 'opencodeGoApiKey'
+    'openrouterApiKey' | 'nvidiaApiKey' | 'deepseekApiKey' | 'opencodeGoApiKey'
   >
 > = {
   openrouter: 'openrouterApiKey',
   nvidia: 'nvidiaApiKey',
   deepseek: 'deepseekApiKey',
-  openai: 'openaiApiKey',
   'opencode-go': 'opencodeGoApiKey',
 }
 
@@ -44,12 +46,18 @@ export function chatSetupNeed(
     | 'openrouterApiKey'
     | 'nvidiaApiKey'
     | 'deepseekApiKey'
-    | 'openaiApiKey'
     | 'opencodeGoApiKey'
+    | 'customBaseUrl'
+    | 'customModel'
   >,
   ollama: OllamaProbe,
 ): ChatSetupNeed {
   const provider = settings.llmProvider
+  if (provider === 'custom') {
+    return settings.customBaseUrl.trim() && settings.customModel.trim()
+      ? { kind: 'ready' }
+      : { kind: 'custom-endpoint' }
+  }
   if (provider !== 'ollama') {
     return settings[CLOUD_KEY_FIELD[provider]].trim()
       ? { kind: 'ready' }

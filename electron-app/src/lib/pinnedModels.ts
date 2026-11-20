@@ -1,7 +1,6 @@
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
-  OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
 } from '@/lib/cloudLlmPresets'
@@ -12,7 +11,7 @@ const SCOPED_PROVIDERS: LlmProvider[] = [
   'opencode-go',
   'openrouter',
   'deepseek',
-  'openai',
+  'custom',
   'nvidia',
   'ollama',
 ]
@@ -75,8 +74,8 @@ export function currentPinnedModelId(settings: AppSettings): string {
       return toScopedPinnedId('nvidia', settings.nvidiaModel)
     case 'deepseek':
       return toScopedPinnedId('deepseek', settings.deepseekModel)
-    case 'openai':
-      return toScopedPinnedId('openai', settings.openaiModel)
+    case 'custom':
+      return toScopedPinnedId('custom', settings.customModel)
     case 'opencode-go':
       return toScopedPinnedId('opencode-go', settings.opencodeGoModel)
     default:
@@ -131,6 +130,11 @@ export function normalizePinnedModels(raw: unknown, fallback?: string[]): string
 function migrateLegacyPin(id: string): string | null {
   // CrofAI was retired; do not reinterpret its old scoped pins as OpenRouter.
   if (id.startsWith('crofai:')) return null
+  // The OpenAI provider became Custom, which took over its endpoint and models.
+  if (id.startsWith('openai:')) {
+    const modelId = id.slice('openai:'.length).trim()
+    return modelId ? toScopedPinnedId('custom', modelId) : null
+  }
 
   const parsed = parsePinnedId(id)
   if (parsed) return toScopedPinnedId(parsed.provider, parsed.modelId)
@@ -143,9 +147,6 @@ function migrateLegacyPin(id: string): string | null {
   }
   if (DEEPSEEK_LLM_PRESET_MODELS.some((p) => p.id === id)) {
     return toScopedPinnedId('deepseek', id)
-  }
-  if (OPENAI_LLM_PRESET_MODELS.some((p) => p.id === id)) {
-    return toScopedPinnedId('openai', id)
   }
   if (OPENCODE_GO_LLM_PRESET_MODELS.some((p) => p.id === id)) {
     return toScopedPinnedId('opencode-go', id)
@@ -180,8 +181,8 @@ export function applyModelSwitcherSelection(
   if (provider === 'deepseek') {
     return { ...settings, llmProvider: 'deepseek', deepseekModel: model }
   }
-  if (provider === 'openai') {
-    return { ...settings, llmProvider: 'openai', openaiModel: model }
+  if (provider === 'custom') {
+    return { ...settings, llmProvider: 'custom', customModel: model }
   }
   return { ...settings, llmProvider: 'opencode-go', opencodeGoModel: model }
 }

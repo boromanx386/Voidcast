@@ -34,17 +34,15 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'z-ai/glm-5.3', label: 'GLM 5.3 (reasoning · coding)' },
   { id: 'tencent/hy3', label: 'Tencent Hy3 (reasoning · agentic)' },
   { id: 'tencent/hy3-preview', label: 'Tencent Hy3 Preview (agentic · 256K)' },
-  { id: 'nvidia/nemotron-3.5-lightning', label: 'Nemotron 3.5 Lightning (262K ctx · cheap)' },
+  { id: 'nvidia/nemotron-3.5-lightning', label: 'Nemotron 3.5 Lightning (1M ctx · cheap)' },
   { id: 'nvidia/nemotron-3.5-lightning:free', label: 'Nemotron 3.5 Lightning (Free)' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron 3 Ultra (Free)' },
   {
     id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
     label: 'Nemotron 3 Nano Omni 30B (Free)',
   },
-  { id: 'cohere/north-mini-code:free', label: 'Cohere North Mini Code (Free)' },
   { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B IT (Free)' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash (1M ctx)' },
-  { id: 'liquid/lfm-2.5-2.6b:free', label: 'LFM 2.5 2.6B (Free · 66K ctx)' },
   { id: 'qwen/qwen3.8-flash', label: 'Qwen3.8 Flash (1M ctx)' },
   { id: 'tencent/hy4-preview', label: 'Hy4 Preview (1M ctx)' },
   { id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash (1M ctx)' },
@@ -64,7 +62,7 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5.5 (1M ctx)' },
   { id: 'openai/gpt-6.1-sol', label: 'GPT 6.1 Sol (1.1M ctx)' },
   { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5 (1M ctx)' },
-  { id: 'mistralai/mistral-large-4-0', label: 'Mistral Large 4 0 (524K ctx)' },
+  { id: 'mistralai/mistral-large-4-0', label: 'Mistral Large 4 0 (1M ctx)' },
   { id: 'google/gemini-4-argon', label: 'Gemini 4 Argon (1M ctx)' },
   { id: 'deepseek/deepseek-v4.1-flash-1017', label: 'DeepSeek V4.1 Flash 1017 (1M ctx)' },
   { id: 'minimax/minimax-m3.1-flash', label: 'MiniMax M3.1 Flash (1M ctx)' },
@@ -73,6 +71,10 @@ export const OPENROUTER_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'moonshotai/kimi-k3.1-pro', label: 'Kimi K3.1 Pro (1M ctx)' },
   { id: 'openai/gpt-6.1-terra', label: 'GPT 6.1 Terra (1.1M ctx)' },
   { id: 'tencent/hy4', label: 'Hy4 (1M ctx)' },
+  { id: 'tencent/hy4-flash', label: 'Hy4 Flash (1M ctx)' },
+  { id: 'google/gemini-4-hydrogen', label: 'Gemini 4 Hydrogen (1M ctx)' },
+  { id: 'google/gemini-4-neon', label: 'Gemini 4 Neon (1M ctx)' },
+  { id: 'google/gemini-4-carbon', label: 'Gemini 4 Carbon (1M ctx)' },
 ]
 
 /** Curated DeepSeek chat models (https://api.deepseek.com). */
@@ -81,28 +83,16 @@ export const DEEPSEEK_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'deepseek-flash', label: 'DeepSeek V4.1 Flash (fast)' },
 ]
 
-/** Curated OpenAI chat models (https://api.openai.com/v1). Bare ids, not OpenRouter `openai/` routes. */
-export const OPENAI_LLM_PRESET_MODELS: CloudLlmPreset[] = [
-  { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol (flagship · coding)' },
-  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra (balanced)' },
-  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna (fast · cheap)' },
-  { id: 'gpt-5.6-sol-pro', label: 'GPT-5.6 Sol Pro' },
-  { id: 'gpt-5.6-terra-pro', label: 'GPT-5.6 Terra Pro' },
-  { id: 'gpt-5.6-luna-pro', label: 'GPT-5.6 Luna Pro' },
-]
-
 /** Curated NVIDIA NIM chat models (integrate.api.nvidia.com/v1/models). */
 export const NVIDIA_LLM_PRESET_MODELS: CloudLlmPreset[] = [
-  { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B' },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b', label: 'Nemotron 3 Ultra 550B' },
-  { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
   { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B IT' },
   { id: 'meta/muse-glimmer-30b', label: 'Muse Glimmer 30B' },
   { id: 'poolside/laguna-xs-2.1', label: 'Laguna XS 2.1' },
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash' },
-  { id: 'deepseek-ai/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash' },
   { id: 'stepfun-ai/step-5-preview', label: 'Step 5 Preview' },
   { id: 'nvidia/nemotron-3.5-super-vl-120b-a12b', label: 'Nemotron 3.5 Super VL 120B A12B' },
+  { id: 'moonshotai/kimi-k3.1-pro', label: 'Kimi K3.1 Pro' },
 ]
 
 /**
@@ -120,7 +110,6 @@ export const OPENCODE_GO_LLM_PRESET_MODELS: CloudLlmPreset[] = [
   { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code' },
   { id: 'kimi-k3', label: 'Kimi K3' },
   { id: 'glm-5.3', label: 'GLM 5.3' },
-  { id: 'glm-5.2', label: 'GLM 5.2' },
   { id: 'hy3', label: 'Hy3' },
   { id: 'glm-5.3-flash', label: 'GLM 5.3 Flash (1M ctx)' },
   { id: 'hy4-preview', label: 'Hy4 Preview (1M ctx)' },
@@ -261,44 +250,9 @@ export function isDeepSeekModelId(model: string): boolean {
   )
 }
 
-const OPENAI_MODEL_ALIASES: Record<string, string> = {
-  'openai/gpt-5.6-sol': 'gpt-5.6-sol',
-  'openai/gpt-5.6-terra': 'gpt-5.6-terra',
-  'openai/gpt-5.6-luna': 'gpt-5.6-luna',
-  'openai/gpt-5.6-sol-pro': 'gpt-5.6-sol-pro',
-  'openai/gpt-5.6-terra-pro': 'gpt-5.6-terra-pro',
-  'openai/gpt-5.6-luna-pro': 'gpt-5.6-luna-pro',
-}
-
-export function normalizeOpenAiModelId(model: string): string {
-  const trimmed = model.trim()
-  if (!trimmed) return OPENAI_LLM_PRESET_MODELS[0]?.id ?? 'gpt-5.6-sol'
-  if (OPENAI_MODEL_ALIASES[trimmed]) return OPENAI_MODEL_ALIASES[trimmed]
-  if (trimmed.startsWith('openai/'))
-    return (
-      trimmed.slice('openai/'.length).trim() || OPENAI_LLM_PRESET_MODELS[0]?.id || 'gpt-5.6-sol'
-    )
-  return trimmed
-}
-
-export function isOpenAiModelId(model: string): boolean {
-  const trimmed = model.trim().toLowerCase()
-  if (!trimmed) return false
-  if (trimmed.startsWith('openai/')) return true
-  if (
-    trimmed.startsWith('gpt-') ||
-    trimmed.startsWith('o1') ||
-    trimmed.startsWith('o3') ||
-    trimmed.startsWith('o4')
-  ) {
-    return true
-  }
-  return OPENAI_LLM_PRESET_MODELS.some((m) => m.id === trimmed)
-}
-
 export function normalizeNvidiaModelId(model: string): string {
   const trimmed = model.trim()
-  if (!trimmed) return NVIDIA_LLM_PRESET_MODELS[0]?.id ?? 'nvidia/nemotron-3-super-120b-a12b'
+  if (!trimmed) return NVIDIA_LLM_PRESET_MODELS[0]?.id ?? 'nvidia/nemotron-3-ultra-550b-a55b'
   return NVIDIA_MODEL_ALIASES[trimmed] ?? trimmed
 }
 
@@ -333,13 +287,13 @@ export function normalizeOpenCodeGoModelId(model: string): string {
 const OPENROUTER_ROUTE_VARIANTS = new Set(['free', 'nitro', 'floor', 'exacto', 'extended'])
 
 export type SubAgentProviderId =
-  'ollama' | 'openrouter' | 'deepseek' | 'openai' | 'nvidia' | 'opencode-go'
+  'ollama' | 'openrouter' | 'deepseek' | 'custom' | 'nvidia' | 'opencode-go'
 
 const SUB_AGENT_PROVIDERS: ReadonlySet<SubAgentProviderId> = new Set([
   'ollama',
   'openrouter',
   'deepseek',
-  'openai',
+  'custom',
   'nvidia',
   'opencode-go',
 ])
@@ -355,7 +309,8 @@ export function isSubAgentProviderId(
  *
  * Ollama supports namespaced ids like `sorc/qwen…:9b` (both `/` and `:`).
  * OpenRouter uses `org/model` and optional route variants like `:free`.
- * Prefer an explicit provider from settings when present.
+ * Prefer an explicit provider from settings when present. Custom is never guessed from an id:
+ * any model name can live on a custom endpoint, so it is only ever chosen explicitly.
  */
 export function detectSubAgentProvider(
   model: string,
@@ -366,8 +321,6 @@ export function detectSubAgentProvider(
   }
   if (!model) return 'ollama'
   if (isDeepSeekModelId(model)) return 'deepseek'
-  // Bare gpt-* / o-series without org/ prefix → native OpenAI (not OpenRouter openai/…)
-  if (!model.includes('/') && isOpenAiModelId(model)) return 'openai'
 
   const hasColon = model.includes(':')
   const hasSlash = model.includes('/')

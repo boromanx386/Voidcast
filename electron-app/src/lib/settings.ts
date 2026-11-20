@@ -1,7 +1,6 @@
 import {
   normalizeDeepSeekModelId,
   normalizeNvidiaModelId,
-  normalizeOpenAiModelId,
   normalizeOpenCodeGoModelId,
   normalizeOpenRouterModelId,
   detectSubAgentProvider,
@@ -1162,7 +1161,19 @@ export function buildRunwareTtsSettingsPayload(
 
 /** @deprecated Use string voice ids from `runwareTtsVoicesForModel`. */
 export type RunwareXaiVoice = 'una' | 'leo' | 'eve' | 'ara' | 'sal' | 'rex'
-export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'
+export type LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'custom' | 'opencode-go'
+
+/** Wire format of a Custom endpoint: OpenAI Chat Completions, OpenAI Responses or Anthropic Messages. */
+export type CustomLlmApiStyle = 'chat-completions' | 'responses' | 'messages'
+
+export const CUSTOM_LLM_API_STYLES: readonly CustomLlmApiStyle[] = [
+  'chat-completions',
+  'responses',
+  'messages',
+]
+
+/** Context window assumed for a Custom model: the endpoint is unknown, so the user sets it. */
+export const CUSTOM_LLM_DEFAULT_CONTEXT_TOKENS = 128_000
 
 /** Ollama `think` request + UI: off sends `think: false`; on = `true`; low/medium/high for GPT-OSS. */
 export type LlmThinkLevel = 'off' | 'low' | 'medium' | 'high' | 'on'
@@ -1488,10 +1499,16 @@ export type AppSettings = {
   deepseekBaseUrl: string
   deepseekApiKey: string
   deepseekModel: string
-  /** Native OpenAI Chat Completions (https://api.openai.com/v1). */
-  openaiBaseUrl: string
-  openaiApiKey: string
-  openaiModel: string
+  /**
+   * Custom provider: any server speaking one of the three wire formats (OpenAI direct,
+   * Anthropic direct, LM Studio, vLLM, llama.cpp, Groq, ...). Replaced the OpenAI provider.
+   */
+  customBaseUrl: string
+  /** Optional: local servers usually run without a key. */
+  customApiKey: string
+  customModel: string
+  customApiStyle: CustomLlmApiStyle
+  customContextTokens: number
   /** OpenCode Go (https://opencode.ai/zen/go/v1) — OpenAI-compatible chat models. */
   opencodeGoBaseUrl: string
   opencodeGoApiKey: string
@@ -1687,10 +1704,16 @@ const AGENT_HIDDEN_SETTINGS_FIELDS = [
   'openrouterApiKey',
   'nvidiaApiKey',
   'deepseekApiKey',
-  'openaiApiKey',
+  'customApiKey',
   'opencodeGoApiKey',
   'runwareApiKey',
 ] as const
+
+/**
+ * Secret fields an older version stored. They are still read so normalizeLlm can move them
+ * to their new field, and still stripped from localStorage, but never written back.
+ */
+const LEGACY_SECRET_FIELDS = ['openaiApiKey'] as const
 
 // The shipped default before the harness core existed. Saved settings still holding this
 // exact text are moved to the new default; edited prompts are left alone.
@@ -1721,13 +1744,15 @@ export const defaults: AppSettings = {
   ],
   nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
   nvidiaApiKey: '',
-  nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
+  nvidiaModel: 'nvidia/nemotron-3-ultra-550b-a55b',
   deepseekBaseUrl: 'https://api.deepseek.com',
   deepseekApiKey: '',
   deepseekModel: 'deepseek-v4-pro',
-  openaiBaseUrl: 'https://api.openai.com/v1',
-  openaiApiKey: '',
-  openaiModel: 'gpt-5.6-sol',
+  customBaseUrl: '',
+  customApiKey: '',
+  customModel: '',
+  customApiStyle: 'chat-completions',
+  customContextTokens: CUSTOM_LLM_DEFAULT_CONTEXT_TOKENS,
   opencodeGoBaseUrl: 'https://opencode.ai/zen/go/v1',
   opencodeGoApiKey: '',
   opencodeGoModel: 'deepseek-v4-pro',
@@ -2087,8 +2112,59 @@ export function normalizeLlmThinkLevel(
   return fallback
 }
 
+type LegacyOpenAiSettings = {
+  openaiBaseUrl?: unknown
+  openaiApiKey?: unknown
+  openaiModel?: unknown
+}
+
+function trimmedString(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : ''
+}
+
+/**
+ * Custom provider fields. A settings file from before Custom existed still holds the OpenAI
+ * provider's base URL, key and model; Custom is a superset of it, so those carry over and an
+ * OpenAI user keeps working without touching Options.
+ */
+function normalizeCustomLlm(
+  s: AppSettings,
+): Pick<
+  AppSettings,
+  'customBaseUrl' | 'customApiKey' | 'customModel' | 'customApiStyle' | 'customContextTokens'
+> {
+  const legacy = s as AppSettings & LegacyOpenAiSettings
+  const legacyKey = trimmedString(legacy.openaiApiKey)
+  const wasOpenAi = (s.llmProvider as string) === 'openai' || Boolean(legacyKey)
+  const fromOpenAi = wasOpenAi && !trimmedString(s.customBaseUrl)
+
+  const customBaseUrl = fromOpenAi
+    ? trimmedString(legacy.openaiBaseUrl) || 'https://api.openai.com/v1'
+    : trimmedString(s.customBaseUrl)
+  const customApiKey = trimmedString(s.customApiKey) || (fromOpenAi ? legacyKey : '')
+  const legacyModel = trimmedString(legacy.openaiModel).replace(/^openai\//, '')
+  const customModel = trimmedString(s.customModel) || (fromOpenAi ? legacyModel : '')
+  const customApiStyle = CUSTOM_LLM_API_STYLES.includes(s.customApiStyle)
+    ? s.customApiStyle
+    : defaults.customApiStyle
+  const ctx = Number(s.customContextTokens)
+  const customContextTokens = Number.isFinite(ctx)
+    ? clamp(Math.round(ctx), 2048, 10_000_000)
+    : defaults.customContextTokens
+  return { customBaseUrl, customApiKey, customModel, customApiStyle, customContextTokens }
+}
+
+function removeLegacyOpenAiSettings(s: AppSettings): AppSettings {
+  const out = { ...s } as AppSettings & LegacyOpenAiSettings
+  delete out.openaiBaseUrl
+  delete out.openaiApiKey
+  delete out.openaiModel
+  return out
+}
+
 function normalizeLlm(s: AppSettings): AppSettings {
-  const providerRaw = typeof s.llmProvider === 'string' ? s.llmProvider : ''
+  // Widened to string: saved settings can hold providers that no longer exist ('openai').
+  const providerRaw: string = typeof s.llmProvider === 'string' ? s.llmProvider : ''
   const llmProvider: LlmProvider =
     providerRaw === 'openrouter'
       ? 'openrouter'
@@ -2096,8 +2172,8 @@ function normalizeLlm(s: AppSettings): AppSettings {
         ? 'nvidia'
         : providerRaw === 'deepseek'
           ? 'deepseek'
-          : providerRaw === 'openai'
-            ? 'openai'
+          : providerRaw === 'custom' || providerRaw === 'openai'
+            ? 'custom'
             : providerRaw === 'opencode-go'
               ? 'opencode-go'
               : 'ollama'
@@ -2145,16 +2221,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
       ? s.deepseekModel.trim()
       : defaults.deepseekModel,
   )
-  const openaiBaseUrl =
-    typeof s.openaiBaseUrl === 'string' && s.openaiBaseUrl.trim()
-      ? s.openaiBaseUrl.trim()
-      : defaults.openaiBaseUrl
-  const openaiApiKey = typeof s.openaiApiKey === 'string' ? s.openaiApiKey.trim() : ''
-  const openaiModel = normalizeOpenAiModelId(
-    typeof s.openaiModel === 'string' && s.openaiModel.trim()
-      ? s.openaiModel.trim()
-      : defaults.openaiModel,
-  )
+  const custom = normalizeCustomLlm(s)
   const opencodeGoBaseUrl =
     typeof s.opencodeGoBaseUrl === 'string' && s.opencodeGoBaseUrl.trim()
       ? s.opencodeGoBaseUrl.trim()
@@ -2166,7 +2233,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
       : defaults.opencodeGoModel,
   )
   return {
-    ...removeLegacyCrofAiSettings(s),
+    ...removeLegacyOpenAiSettings(removeLegacyCrofAiSettings(s)),
     llmProvider,
     openrouterBaseUrl,
     openrouterApiKey,
@@ -2180,9 +2247,7 @@ function normalizeLlm(s: AppSettings): AppSettings {
     deepseekBaseUrl,
     deepseekApiKey,
     deepseekModel,
-    openaiBaseUrl,
-    openaiApiKey,
-    openaiModel,
+    ...custom,
     opencodeGoBaseUrl,
     opencodeGoApiKey,
     opencodeGoModel,
@@ -2256,10 +2321,16 @@ function normalizeTts(s: AppSettings): AppSettings {
 function normalizeSubAgentModelId(rawModel: string, provider: SubAgentProviderId): string {
   if (provider === 'ollama') return rawModel
   if (provider === 'deepseek') return normalizeDeepSeekModelId(rawModel)
-  if (provider === 'openai') return normalizeOpenAiModelId(rawModel)
+  if (provider === 'custom') return rawModel.trim()
   if (provider === 'nvidia') return normalizeNvidiaModelId(rawModel)
   if (provider === 'opencode-go') return normalizeOpenCodeGoModelId(rawModel)
   return normalizeOpenRouterModelId(rawModel)
+}
+
+/** A sub-agent saved with the removed OpenAI provider now runs on Custom, which took its settings. */
+function subAgentProviderOrLegacy(value: unknown): SubAgentProviderId | undefined {
+  if (value === 'openai') return 'custom'
+  return typeof value === 'string' && isSubAgentProviderId(value) ? value : undefined
 }
 
 export function normalizeSubAgent(s: AppSettings): AppSettings {
@@ -2269,14 +2340,14 @@ export function normalizeSubAgent(s: AppSettings): AppSettings {
   const codingEnabled = raw.codingEnabled === true
   const hintEnabled = raw.hintEnabled === true
   const rawModel = (typeof raw.model === 'string' && raw.model.trim()) || defaults.subAgent.model
-  const rawProvider = isSubAgentProviderId(raw.provider) ? raw.provider : undefined
+  const rawProvider = subAgentProviderOrLegacy(raw.provider)
   const provider = detectSubAgentProvider(rawModel, rawProvider)
   const model = normalizeSubAgentModelId(rawModel, provider)
 
   const hasCodingModel = typeof raw.codingModel === 'string' && raw.codingModel.trim().length > 0
   const rawCodingModel = hasCodingModel ? raw.codingModel.trim() : model
-  const rawCodingProvider = isSubAgentProviderId(raw.codingProvider)
-    ? raw.codingProvider
+  const rawCodingProvider = subAgentProviderOrLegacy(raw.codingProvider)
+    ? subAgentProviderOrLegacy(raw.codingProvider)
     : hasCodingModel
       ? undefined
       : provider
@@ -2680,9 +2751,6 @@ function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
   if (isViteDevServerUrl(next.deepseekBaseUrl) || next.deepseekBaseUrl.includes('/api/deepseek')) {
     assign({ deepseekBaseUrl: defaults.deepseekBaseUrl })
   }
-  if (isViteDevServerUrl(next.openaiBaseUrl) || next.openaiBaseUrl.includes('/api/openai')) {
-    assign({ openaiBaseUrl: defaults.openaiBaseUrl })
-  }
   if (
     isViteDevServerUrl(next.opencodeGoBaseUrl) ||
     next.opencodeGoBaseUrl.includes('/api/opencode-go')
@@ -2715,9 +2783,21 @@ function pickSecrets(s: Partial<AppSettings>): Record<string, string> {
   return out
 }
 
+/** pickSecrets plus legacy fields, for reading only: normalizeLlm moves them to their new home. */
+function pickSecretsWithLegacy(s: Partial<AppSettings>): Record<string, string> {
+  const out = pickSecrets(s)
+  const raw = s as Record<string, unknown>
+  for (const k of LEGACY_SECRET_FIELDS) {
+    const v = raw[k]
+    if (typeof v === 'string' && v.trim()) out[k] = v
+  }
+  return out
+}
+
 function withoutSecrets<T extends Partial<AppSettings>>(s: T): T {
   const out = { ...s }
   for (const k of AGENT_HIDDEN_SETTINGS_FIELDS) delete out[k]
+  for (const k of LEGACY_SECRET_FIELDS) delete (out as Record<string, unknown>)[k]
   return out
 }
 
@@ -2738,8 +2818,8 @@ function mergeEncryptedSecrets(parsed: Partial<AppSettings>): Partial<AppSetting
   }
   if (!stored) return parsed
 
-  const plaintext = pickSecrets(parsed)
-  const secrets = { ...pickSecrets(stored), ...plaintext }
+  const plaintext = pickSecretsWithLegacy(parsed)
+  const secrets = { ...pickSecretsWithLegacy(stored), ...plaintext }
   secretBridge = bridge
   if (Object.keys(plaintext).length > 0 && bridge.setAll(secrets)) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(withoutSecrets(parsed)))

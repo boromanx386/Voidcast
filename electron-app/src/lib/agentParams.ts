@@ -1,6 +1,7 @@
 import type {
   ToolsEnabled,
   SubAgentConfig,
+  CustomLlmApiStyle,
   LlmThinkLevel,
   TtsProvider,
   VoiceMode,
@@ -74,8 +75,9 @@ export interface ChatWithToolsCommonParams {
   openrouterApiKeyForSubAgent?: string
   deepseekBaseUrlForSubAgent?: string
   deepseekApiKeyForSubAgent?: string
-  openaiBaseUrlForSubAgent?: string
-  openaiApiKeyForSubAgent?: string
+  customBaseUrlForSubAgent?: string
+  customApiKeyForSubAgent?: string
+  customApiStyleForSubAgent?: CustomLlmApiStyle
   nvidiaBaseUrlForSubAgent?: string
   nvidiaApiKeyForSubAgent?: string
   opencodeGoApiKeyForSubAgent?: string
@@ -130,8 +132,9 @@ export function buildToolExecutorOptions(
     openrouterApiKey: params.openrouterApiKeyForSubAgent,
     deepseekBaseUrl: params.deepseekBaseUrlForSubAgent,
     deepseekApiKey: params.deepseekApiKeyForSubAgent,
-    openaiBaseUrl: params.openaiBaseUrlForSubAgent,
-    openaiApiKey: params.openaiApiKeyForSubAgent,
+    customBaseUrl: params.customBaseUrlForSubAgent,
+    customApiKey: params.customApiKeyForSubAgent,
+    customApiStyle: params.customApiStyleForSubAgent,
     nvidiaBaseUrl: params.nvidiaBaseUrlForSubAgent,
     nvidiaApiKey: params.nvidiaApiKeyForSubAgent,
     opencodeGoApiKey: params.opencodeGoApiKeyForSubAgent,

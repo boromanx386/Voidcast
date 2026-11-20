@@ -9,7 +9,8 @@ function baseSettings(overrides: Record<string, unknown> = {}) {
     ollamaModel: 'qwen3:8b',
     openrouterModel: 'openrouter/free',
     deepseekModel: 'deepseek-v4-pro',
-    openaiModel: 'gpt-5.6-sol',
+    customModel: 'my-local-model',
+    customContextTokens: 32_768,
     nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
     opencodeGoModel: 'deepseek-v4-pro',
     ...overrides,
@@ -64,18 +65,15 @@ describe('resolveContextLimit', () => {
     expect(pro.maxTokens).toBe(1_000_000)
   })
 
-  test('openai gpt-5.6-sol uses 1.05M override', () => {
+  test('custom uses the context window the user set, not an id lookup', () => {
+    // A known id still follows the setting: the endpoint may serve it with a smaller window.
     const limit = resolveContextLimit(
-      baseSettings({
-        llmProvider: 'openai',
-        openaiModel: 'gpt-5.6-sol',
-      }),
+      baseSettings({ llmProvider: 'custom', customModel: 'anthropic/claude-opus-5.5' }),
     )
-    expect(limit.maxTokens).toBe(1_050_000)
-    expect(limit.source).toBe('preset')
+    expect(limit).toMatchObject({ maxTokens: 32_768, source: 'custom_setting' })
     expect(
-      activeLlmModelId(baseSettings({ llmProvider: 'openai', openaiModel: 'openai/gpt-5.6-sol' })),
-    ).toBe('gpt-5.6-sol')
+      activeLlmModelId(baseSettings({ llmProvider: 'custom', customModel: ' qwen3-32b ' })),
+    ).toBe('qwen3-32b')
   })
 
   test('unknown cloud model falls back to provider default', () => {
@@ -117,7 +115,6 @@ describe('resolveContextLimit', () => {
 
   test('manual models on other providers also default to 256k', () => {
     const cases = [
-      baseSettings({ llmProvider: 'openai', openaiModel: 'gpt-5.9-unknown' }),
       baseSettings({ llmProvider: 'nvidia', nvidiaModel: 'some-nemotron-9000' }),
       baseSettings({ llmProvider: 'opencode-go', opencodeGoModel: 'qwen3-unknown' }),
     ]

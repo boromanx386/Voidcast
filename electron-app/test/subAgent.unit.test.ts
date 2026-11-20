@@ -116,8 +116,9 @@ describe('detectSubAgentProvider', () => {
   })
 
   it('detects OpenRouter for plain model names without colon (e.g. gpt-4)', () => {
-    expect(detectSubAgentProvider('gpt-4')).toBe('openai')
-    expect(detectSubAgentProvider('gpt-5.6-sol')).toBe('openai')
+    // Custom is never guessed from an id; it only applies when chosen explicitly.
+    expect(detectSubAgentProvider('gpt-4')).toBe('openrouter')
+    expect(detectSubAgentProvider('gpt-5.6-sol', 'custom')).toBe('custom')
   })
 
   it('detects OpenRouter for plain model names (e.g. claude-3-opus)', () => {
@@ -139,7 +140,7 @@ describe('detectSubAgentProvider', () => {
   it('explicit provider overrides heuristic', () => {
     expect(detectSubAgentProvider('openai/gpt-4o', 'ollama')).toBe('ollama')
     expect(detectSubAgentProvider('llava:13b', 'openrouter')).toBe('openrouter')
-    expect(detectSubAgentProvider('nvidia/nemotron-3-super-120b-a12b', 'nvidia')).toBe('nvidia')
+    expect(detectSubAgentProvider('nvidia/nemotron-3-ultra-550b-a55b', 'nvidia')).toBe('nvidia')
     expect(detectSubAgentProvider('deepseek-v4-pro', 'opencode-go')).toBe('opencode-go')
   })
 })
@@ -157,8 +158,8 @@ describe('describeImagesWithSubAgent vision cache', () => {
     openrouterApiKey: '',
     deepseekBaseUrl: 'https://api.deepseek.com',
     deepseekApiKey: '',
-    openaiBaseUrl: 'https://api.openai.com/v1',
-    openaiApiKey: '',
+    customBaseUrl: '',
+    customApiKey: '',
     nvidiaBaseUrl: 'https://integrate.api.nvidia.com/v1',
     nvidiaApiKey: '',
     opencodeGoApiKey: '',

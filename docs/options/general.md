@@ -24,7 +24,6 @@ Pick a provider chip to edit its key. A filled green dot means a key is already 
 | Provider | Setting field | Placeholder / where to get it |
 | --- | --- | --- |
 | OpenRouter | `openrouterApiKey` | `sk-or-v1-...` — https://openrouter.ai/keys |
-| OpenAI | `openaiApiKey` | `sk-...` — https://platform.openai.com/api-keys |
 | DeepSeek | `deepseekApiKey` | `sk-...` — https://platform.deepseek.com/api_keys |
 | NVIDIA | `nvidiaApiKey` | `nvapi-...` — https://build.nvidia.com/ |
 | OpenCode Go | `opencodeGoApiKey` | `sk-...` — https://opencode.ai/auth |

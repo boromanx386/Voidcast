@@ -3,11 +3,11 @@ import { withOpenRouterModel, withOpenRouterProviderOnly } from '@/lib/settings'
 import {
   DEEPSEEK_LLM_PRESET_MODELS,
   NVIDIA_LLM_PRESET_MODELS,
-  OPENAI_LLM_PRESET_MODELS,
   OPENCODE_GO_LLM_PRESET_MODELS,
   OPENROUTER_LLM_PRESET_MODELS,
 } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
+import { CustomLlmFields } from '@/components/options/CustomLlmFields'
 import { pinnedIdLabel, pinsForProvider, toScopedPinnedId } from '@/lib/pinnedModels'
 import { useCallback, useState } from 'react'
 import {
@@ -161,8 +161,8 @@ export function LlmOptionsPanel({
                     ? 'nvidia'
                     : e.target.value === 'deepseek'
                       ? 'deepseek'
-                      : e.target.value === 'openai'
-                        ? 'openai'
+                      : e.target.value === 'custom'
+                        ? 'custom'
                         : e.target.value === 'opencode-go'
                           ? 'opencode-go'
                           : 'ollama',
@@ -173,8 +173,8 @@ export function LlmOptionsPanel({
           <option value="openrouter">OpenRouter (cloud)</option>
           <option value="nvidia">NVIDIA (cloud)</option>
           <option value="deepseek">DeepSeek (cloud)</option>
-          <option value="openai">OpenAI (cloud)</option>
           <option value="opencode-go">OpenCode Go (cloud)</option>
+          <option value="custom">Custom (any endpoint)</option>
         </select>
       </div>
 
@@ -561,7 +561,7 @@ export function LlmOptionsPanel({
               className="cyber-input mt-2"
               value={settings.nvidiaModel}
               onChange={(e) => setSettings((s) => ({ ...s, nvidiaModel: e.target.value }))}
-              placeholder="nvidia/nemotron-3-super-120b-a12b"
+              placeholder="nvidia/nemotron-3-ultra-550b-a55b"
             />
           </div>
         </>
@@ -638,73 +638,23 @@ export function LlmOptionsPanel({
         </>
       )}
 
-      {settings.llmProvider === 'openai' && (
-        <>
-          <div className="form-group">
-            <label className="form-label">
-              <span className="text-neon-purple mr-2">◇</span> OPENAI_BASE_URL
-            </label>
-            <input
-              className="cyber-input"
-              value={settings.openaiBaseUrl}
-              onChange={(e) => setSettings((s) => ({ ...s, openaiBaseUrl: e.target.value }))}
-              placeholder="https://api.openai.com/v1"
+      {settings.llmProvider === 'custom' && (
+        <CustomLlmFields
+          settings={settings}
+          setSettings={setSettings}
+          pinChips={pinnedChips(
+            pinsForProvider(pinned, 'custom'),
+            [],
+            toScopedPinnedId('custom', settings.customModel),
+            handleTogglePin,
+          )}
+          pinButton={
+            <PinToggleButton
+              pinned={pinned.includes(toScopedPinnedId('custom', settings.customModel))}
+              onToggle={() => handleTogglePin(toScopedPinnedId('custom', settings.customModel))}
             />
-          </div>
-          <div className="form-group">
-            <label className="form-label">
-              <span className="text-neon-cyan mr-2">◈</span> OPENAI_MODEL
-            </label>
-            {pinnedChips(
-              pinsForProvider(pinned, 'openai'),
-              OPENAI_LLM_PRESET_MODELS.map((m) => ({
-                id: toScopedPinnedId('openai', m.id),
-                label: m.label,
-              })),
-              toScopedPinnedId('openai', settings.openaiModel),
-              handleTogglePin,
-            )}
-            <div className="flex items-center gap-2">
-              <select
-                className="form-select flex-1"
-                value={
-                  OPENAI_LLM_PRESET_MODELS.some((m) => m.id === settings.openaiModel)
-                    ? settings.openaiModel
-                    : settings.openaiModel
-                      ? `__custom__${settings.openaiModel}`
-                      : ''
-                }
-                onChange={(e) => {
-                  const v = e.target.value
-                  if (!v || v.startsWith('__custom__')) return
-                  setSettings((s) => ({ ...s, openaiModel: v }))
-                }}
-              >
-                {OPENAI_LLM_PRESET_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-                {settings.openaiModel &&
-                  !OPENAI_LLM_PRESET_MODELS.some((m) => m.id === settings.openaiModel) && (
-                    <option value={`__custom__${settings.openaiModel}`}>
-                      {settings.openaiModel} (manual)
-                    </option>
-                  )}
-              </select>
-              <PinToggleButton
-                pinned={pinned.includes(toScopedPinnedId('openai', settings.openaiModel))}
-                onToggle={() => handleTogglePin(toScopedPinnedId('openai', settings.openaiModel))}
-              />
-            </div>
-            <input
-              className="cyber-input mt-2"
-              value={settings.openaiModel}
-              onChange={(e) => setSettings((s) => ({ ...s, openaiModel: e.target.value }))}
-              placeholder="gpt-5.6-sol"
-            />
-          </div>
-        </>
+          }
+        />
       )}
 
       {settings.llmProvider === 'opencode-go' && (
@@ -910,8 +860,8 @@ export function LlmOptionsPanel({
               ? 'NVIDIA_NOTES'
               : settings.llmProvider === 'deepseek'
                 ? 'DEEPSEEK_NOTES'
-                : settings.llmProvider === 'openai'
-                  ? 'OPENAI_NOTES'
+                : settings.llmProvider === 'custom'
+                  ? 'CUSTOM_NOTES'
                   : settings.llmProvider === 'opencode-go'
                     ? 'OPENCODE_GO_NOTES'
                     : 'RECOMMENDED_MODELS'}
@@ -994,21 +944,20 @@ export function LlmOptionsPanel({
             </li>
           </ul>
         )}
-        {settings.llmProvider === 'openai' && (
+        {settings.llmProvider === 'custom' && (
           <ul className="text-xs font-mono text-void-dim space-y-1">
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Native Chat Completions at{' '}
-              <code className="text-void-light/90">api.openai.com/v1</code>
+              OpenAI or Anthropic directly, LM Studio, vLLM, llama.cpp, Groq, or any gateway that
+              speaks one of the three formats
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Use bare model ids (e.g. <code className="text-void-light/90">gpt-5.6-sol</code>), not{' '}
-              <code className="text-void-light/90">openai/…</code> OpenRouter routes
+              The key is optional and stays with this endpoint
             </li>
-            <li className="flex items-center gap-2">
-              <span className="text-neon-green">✓</span>
-              API key in Options → General
+            <li className="flex items-center gap-2 opacity-70">
+              <span className="text-neon-yellow">!</span>
+              Tool calling and vision depend on the model behind the endpoint
             </li>
           </ul>
         )}

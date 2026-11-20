@@ -450,7 +450,7 @@ function matchesResponsesFamily(id) {
 //   grok-4.5       → superseded by grok-4.6/4.7 (which use /responses anyway)
 //   minimax-m2.5   → superseded by minimax-m2.7
 //   qwen3.5-plus   → superseded by qwen3.7-plus
-//   glm-5.1        → dropped from the presets in favour of glm-5.2 / glm-5.3
+//   glm-5.1        → dropped from the presets in favour of glm-5.3
 const OPENCODE_LEGACY_IDS = new Set([
   'deepseek-flash',
   'grok-4.5',
@@ -543,7 +543,13 @@ async function checkOpenCodeGo(curated, overrides, appMessages, appResponses) {
   // models.dev marks as responses without a matching family needs an explicit pin.
   const misroutedResponses = curated.filter((id) => {
     const ep = endpointOf(id)
-    return ep.style === 'openai-responses' && ep.verified && !matchesResponsesFamily(id)
+    // A matching family or an explicit pin both route it, so only the leftover needs a pin.
+    return (
+      ep.style === 'openai-responses' &&
+      ep.verified &&
+      !matchesResponsesFamily(id) &&
+      !responsesSet.has(id)
+    )
   })
   if (misroutedResponses.length) {
     console.log(`  MISROUTED (${misroutedResponses.length}) — /v1/responses model matching no family:`)
@@ -935,6 +941,45 @@ function applyOne(g, index, state) {
   }
 }
 
+/**
+ * Ids a preset list gives to more than one provider. Their context override cannot be
+ * auto-applied, see pullSharedContext.
+ */
+function sharedContextIds(curatedByProvider) {
+  const owners = new Map()
+  for (const [provider, ids] of Object.entries(curatedByProvider)) {
+    for (const id of ids) {
+      if (!owners.has(id)) owners.set(id, [])
+      owners.get(id).push(provider)
+    }
+  }
+  const shared = new Set()
+  for (const [id, providers] of owners) if (providers.length > 1) shared.add(id)
+  // The Go feed still returns these legacy ids, so a DeepSeek override for one is shared too.
+  for (const id of OPENCODE_LEGACY_IDS) shared.add(id)
+  return shared
+}
+
+/**
+ * MODEL_CONTEXT_OVERRIDES is keyed by model id with no provider, but one id can be served by
+ * two providers with different windows (models.dev lists deepseek-v4-pro at 1,000,000 under
+ * opencode-go and 1,048,576 under deepseek). Applying either number makes the checker
+ * flip-flop on every run, so those mismatches are pulled out of the apply lists and left for
+ * a hand decision on the smaller window.
+ */
+function pullSharedContext(results, sharedIds) {
+  const reviews = []
+  for (const r of results) {
+    if (!r?.ctx) continue
+    r.ctx = r.ctx.filter(([id, app, live]) => {
+      if (!sharedIds.has(id)) return true
+      reviews.push({ id, provider: r.provider, app, live })
+      return false
+    })
+  }
+  return reviews
+}
+
 // ---- main ----------------------------------------------------------------
 
 async function main() {
@@ -961,6 +1006,24 @@ async function main() {
     ? await checkDeepSeek(curatedDeepSeek, overrides)
     : null
   const nv = !OPENROUTER_ONLY && !OPENCODE_ONLY && !DEEPSEEK_ONLY ? await checkOpenAICompat({ title: 'NVIDIA', url: NVIDIA_URL, preset: 'NVIDIA_LLM_PRESET_MODELS', curated: curatedNvidia, overrides, filter: isNvidiaChatModel }) : null
+
+  const sharedIds = sharedContextIds({
+    openrouter: curatedOpenRouter,
+    'opencode-go': curatedOpenCode,
+    deepseek: curatedDeepSeek,
+    nvidia: curatedNvidia,
+  })
+  const reviews = pullSharedContext([or, oc, ds, nv], sharedIds)
+  if (reviews.length) {
+    console.log('=== SHARED CONTEXT ===')
+    console.log(`  REVIEW (${reviews.length}) — id served by more than one provider, not auto-applied:`)
+    for (const r of reviews) {
+      console.log(
+        `    [~] ${r.id}: app ${fmtNum(r.app)} · ${r.provider} says ${fmtNum(r.live)} — the override is keyed by id, so keep the window every provider accepts`,
+      )
+    }
+    console.log('')
+  }
 
   if (APPLY_FLAG) {
     await interactiveApply(or, oc, ds, nv, presetsSource, contextSource)

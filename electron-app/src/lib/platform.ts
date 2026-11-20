@@ -26,3 +26,13 @@ export function opencodeGoApiBaseUrl(ttsBaseUrl?: string): string {
   const tts = (ttsBaseUrl || DEFAULT_TTS_BASE_URL).trim().replace(/\/+$/, '')
   return `${tts}/api/opencode-go/v1`
 }
+
+/**
+ * Root of the local tools proxy for the Custom provider. The real endpoint travels in the
+ * `x-voidcast-upstream` header: a user-typed server rarely sends CORS headers (Anthropic needs
+ * an opt-in header, LM Studio and vLLM default to none), so the renderer never calls it directly.
+ */
+export function customLlmProxyBaseUrl(ttsBaseUrl?: string): string {
+  const tts = (ttsBaseUrl || DEFAULT_TTS_BASE_URL).trim().replace(/\/+$/, '')
+  return `${tts}/api/custom-llm`
+}

@@ -1050,6 +1050,48 @@ async def opencode_go_proxy(request: Request, full_path: str):
     )
 
 
+def _custom_llm_upstream(raw: str) -> str:
+    """Validate the Custom provider's base URL: an absolute http(s) URL with a host."""
+    from urllib.parse import urlsplit
+
+    value = (raw or "").strip().rstrip("/")
+    parts = urlsplit(value)
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        raise HTTPException(
+            status_code=400,
+            detail="Custom provider base URL must be an absolute http(s) URL (x-voidcast-upstream).",
+        )
+    if parts.query or parts.fragment:
+        raise HTTPException(
+            status_code=400,
+            detail="Custom provider base URL must not carry a query or fragment.",
+        )
+    return value
+
+
+@app.api_route(
+    "/api/custom-llm/{full_path:path}",
+    methods=["GET", "POST"],
+    dependencies=[Depends(require_desktop)],
+)
+async def custom_llm_proxy(request: Request, full_path: str):
+    """Proxy the Custom LLM provider, whose endpoint the user typed.
+
+    Such servers rarely send CORS headers, so the renderer cannot call them itself. The base
+    URL comes in `x-voidcast-upstream` (stripped like every x-voidcast-* header before
+    forwarding), and the key is forwarded in whichever header the renderer chose for the wire
+    format: Bearer for OpenAI-style APIs, x-api-key for Anthropic Messages. The route is
+    desktop-token only, so it reaches nothing the renderer could not already fetch.
+    """
+    upstream = _custom_llm_upstream(request.headers.get("x-voidcast-upstream", ""))
+    auth = {}
+    for name in ("authorization", "x-api-key"):
+        value = (request.headers.get(name) or "").strip()
+        if value:
+            auth[name] = value
+    return await _reverse_proxy(request, upstream, full_path, extra_headers=auth or None)
+
+
 @app.post("/tts", dependencies=[Depends(require_desktop)])
 async def tts(req: TtsRequest):
     """JSON: auto / design, or voice clone via ref_audio_base64 + optional ref_text."""
