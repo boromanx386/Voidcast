@@ -26,6 +26,8 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'browser_click',
   'browser_fill',
   'browser_press_key',
+  // Writes an image file, optionally at a project path the model picks.
+  'browser_take_screenshot',
   'generate_image',
   'edit_image_runware',
   'generate_music_runware',

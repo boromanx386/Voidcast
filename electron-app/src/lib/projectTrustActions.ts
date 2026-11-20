@@ -2,7 +2,11 @@ import type { Dispatch, SetStateAction } from 'react'
 import { addTrustedMcpProjectPath } from '@/lib/mcpProjectTrust'
 import type { AppSettings } from '@/lib/settings'
 
-/** Trust one project folder: unlocks its AGENTS.md / CLAUDE.md, project skills and .mcp.json. */
+/**
+ * Trust one project folder (and its subfolders): unlocks its .mcp.json servers.
+ * AGENTS.md / CLAUDE.md and project skills load without trust, and trust never
+ * lifts the Ask / Plan read-only limits.
+ */
 export function trustProjectFolder(
   setSettings: Dispatch<SetStateAction<AppSettings>>,
   projectPath: string,
