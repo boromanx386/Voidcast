@@ -151,6 +151,22 @@ class DesktopAuthTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status_code, 400, upstream)
         self.assertEqual(forwarded, [])
 
+    async def test_custom_proxy_preflight_allows_the_upstream_header(self):
+        for origin in ("http://localhost:5173", "null"):
+            response = await self.page.options(
+                "/api/custom-llm/chat/completions",
+                headers={
+                    "origin": origin,
+                    "access-control-request-method": "POST",
+                    "access-control-request-headers": (
+                        "content-type,authorization,x-voidcast-desktop-token,x-voidcast-upstream"
+                    ),
+                },
+            )
+            self.assertEqual(response.status_code, 200, origin)
+            allowed = response.headers["access-control-allow-headers"].lower()
+            self.assertIn("x-voidcast-upstream", allowed)
+
     async def test_custom_proxy_requires_the_desktop_token(self):
         response = await self.page.get(
             "/api/custom-llm/models", headers={"x-voidcast-upstream": "http://localhost:1234/v1"}

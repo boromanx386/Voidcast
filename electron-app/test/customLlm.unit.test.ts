@@ -101,3 +101,29 @@ describe('Custom provider routing', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+describe('Custom model list', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('says to add /v1 when the server has no /models at the root', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{"error":"File Not Found"}', { status: 404 })),
+    )
+    const { fetchCustomLlmModels } = await import('../src/lib/cloudLlm')
+    await expect(
+      fetchCustomLlmModels({
+        route: { upstream: 'http://localhost:18200', apiStyle: 'chat-completions' },
+        apiKey: '',
+        ttsBaseUrl: 'http://127.0.0.1:8765',
+      }),
+    ).rejects.toThrow(/end in \/v1/)
+    await expect(
+      fetchCustomLlmModels({
+        route: { upstream: 'http://localhost:18200/v1', apiStyle: 'chat-completions' },
+        apiKey: '',
+        ttsBaseUrl: 'http://127.0.0.1:8765',
+      }),
+    ).rejects.not.toThrow(/end in \/v1/)
+  })
+})

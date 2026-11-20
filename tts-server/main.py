@@ -244,6 +244,9 @@ app.add_middleware(
         "X-Voidcast-Desktop-Token",
         "X-API-Key",
         "X-Opencode-Session",
+        # The Custom provider's real base URL; without it the preflight fails and the
+        # renderer only sees "Failed to fetch".
+        "X-Voidcast-Upstream",
         "Anthropic-Version",
         "Anthropic-Beta",
     ],

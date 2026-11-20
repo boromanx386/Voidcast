@@ -84,7 +84,12 @@ export async function fetchCustomLlmModels(opts: {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`GET /models ${res.status}: ${text.slice(0, 300) || res.statusText}`)
+    // llama.cpp, LM Studio, vLLM and most others serve under /v1, which is easy to leave off.
+    const hint =
+      res.status === 404 && !/\/v\d+$/i.test(opts.route.upstream)
+        ? ' — most servers want the base URL to end in /v1'
+        : ''
+    throw new Error(`GET /models ${res.status}: ${text.slice(0, 300) || res.statusText}${hint}`)
   }
   const body = (await res.json()) as {
     data?: Array<{ id?: unknown }>
