@@ -60,8 +60,9 @@ describe('codingProcessStdio', () => {
   it('captures periodic stdout from an explicitly-background-style spawn into the ring buffer', async () => {
     let state = { buffer: '', startOffset: 0 }
     // Use process.stdout.write (not console.log) so Node pipe buffering is less likely to hide ticks.
+    // Double quotes only: the POSIX branch wraps the script in single quotes.
     const script =
-      "let n=0; const t=setInterval(()=>{ process.stdout.write('tick '+ (n++) +'\\n'); if(n>40) clearInterval(t); }, 150);"
+      'let n=0; const t=setInterval(()=>{ process.stdout.write("tick "+ (n++) +"\\n"); if(n>40) clearInterval(t); }, 150);'
     const command =
       process.platform === 'win32'
         ? `node -e "${script.replace(/"/g, '\\"')}"`
