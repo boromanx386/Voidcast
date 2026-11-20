@@ -26,8 +26,6 @@ export const PLAN_MODE_BLOCKED_TOOLS = new Set([
   'browser_click',
   'browser_fill',
   'browser_press_key',
-  // Writes an image file, optionally at a project path the model picks.
-  'browser_take_screenshot',
   'generate_image',
   'edit_image_runware',
   'generate_music_runware',
@@ -233,6 +231,24 @@ const BROWSER_TAKE_SCREENSHOT_TOOL: AgentToolDefinition = {
           description:
             'Project-relative file to save to, e.g. screenshots/home.png. The extension picks the format: .png (lossless) or .jpg/.jpeg. Folders are created.',
         },
+      },
+    },
+  },
+}
+
+// Ask / Plan: looking at the page is reading, but choosing where in the project
+// to write the file is not, so the read-only variant has no `path`.
+const BROWSER_TAKE_SCREENSHOT_READ_ONLY_TOOL: AgentToolDefinition = {
+  type: 'function',
+  function: {
+    name: BROWSER_TAKE_SCREENSHOT_TOOL.function.name,
+    description:
+      'Capture part of the current Voidcast browser page as a JPEG under .voidcast/browser/shots: the viewport by default, one element (pass uid from browser_take_snapshot) or the whole document (full_page true). RETURNS A FILE PATH (no image bytes) — to actually look at it, call image_recall with that path.',
+    parameters: {
+      type: 'object',
+      properties: {
+        uid: BROWSER_TAKE_SCREENSHOT_TOOL.function.parameters.properties!.uid,
+        full_page: BROWSER_TAKE_SCREENSHOT_TOOL.function.parameters.properties!.full_page,
       },
     },
   },
@@ -1821,6 +1837,7 @@ export function buildToolsList(
     out.push(BROWSER_LIST_PAGES_TOOL)
     out.push(BROWSER_SELECT_PAGE_TOOL)
     out.push(BROWSER_STATUS_TOOL)
+    if (readOnlyMode) out.push(BROWSER_TAKE_SCREENSHOT_READ_ONLY_TOOL)
     if (!readOnlyMode) {
       out.push(BROWSER_HANDLE_DIALOG_TOOL)
       out.push(BROWSER_NEW_PAGE_TOOL)

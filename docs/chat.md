@@ -72,7 +72,7 @@ Product overview: [multi-chat-and-team.md](multi-chat-and-team.md).
   - **Ask** — read-only Q&A (web/research/coding read/explore); no Plan card, no `enter_plan_mode`, no mutations/workers.
   - **Plan** — read-only; plan artifact + Approve & Build → **Agent** (or **Team** if composer already Team).
   - **Team** — prefers **`run_coding_workers`** (≤2 parallel); requires coding SUB. No `enter_plan_mode`.
-  - Ask and Plan hide mutating tools and the executor also refuses them (`PLAN_MODE_BLOCKED_TOOLS`), so a call from earlier Agent turns in the same chat still fails. Trusting a project folder only lets its `.mcp.json` servers start; in Ask and Plan those servers can be browsed (`mcp_list_tools`, `mcp_get_tool`) but not called.
+  - Ask and Plan hide mutating tools and the executor also refuses them (`PLAN_MODE_BLOCKED_TOOLS`), so a call from earlier Agent turns in the same chat still fails. `browser_take_screenshot` stays available there without `path`: captures go to `.voidcast/browser/shots/` and a project path is refused. Trusting a project folder only lets its `.mcp.json` servers start; in Ask and Plan those servers can be browsed (`mcp_list_tools`, `mcp_get_tool`) but not called.
 - **Think level** menu: per-chat override of `llmThinkLevel` (`off|low|medium|high|on`), stored on the session as `thinkLevel`. **Default** (shown as `think <level>*`) follows Options → LLM → `THINK_LEVEL`; the override is applied to `turnSettings` at send time, so it reaches every provider. There are no system prompt presets — behaviour is switched by the mode menu, tone by `llmSystemPrompt`.
 - **Long-memory** extract button (`extractLongMemoryNow`, `longMemoryBusy`).
 - Placeholder from theme/mode (`getChatComposerPlaceholder`).

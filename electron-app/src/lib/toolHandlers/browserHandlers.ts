@@ -1,4 +1,5 @@
 import type { ToolHandlerFn, ToolHandlerRegistry } from '@/lib/toolExecTypes'
+import { isReadOnlyAgentMode } from '@/types/chat'
 
 /** Resolve the preload browser bridge, or undefined in the standalone web build. */
 function browserBridge(): NonNullable<Window['voidcast']>['browser'] | undefined {
@@ -135,6 +136,11 @@ export const handleBrowserTakeScreenshot: ToolHandlerFn = async (args, ctx) => {
     const uid = typeof args.uid === 'string' ? args.uid.trim() : ''
     const fullPage = args.full_page === true
     const outputPath = typeof args.path === 'string' ? args.path.trim() : ''
+    // The read-only tool has no `path`, but a model can still send one (e.g. from
+    // earlier Agent turns in the same chat).
+    if (outputPath && isReadOnlyAgentMode(ctx.agentMode)) {
+      return 'Error: `path` is not available in Ask or Plan mode (read-only). Call again without it; the screenshot goes to .voidcast/browser/shots.'
+    }
     const res = await bridge.screenshot({
       ...browserContext(ctx),
       uid: uid || undefined,
