@@ -330,7 +330,7 @@ export async function buildAgentTurnContext(
             : 'write_file, edit_code, execute_command, stop_process, git_restore, git_stash, and run_coding_workers are disabled in Ask mode. For changes, the user should switch to Agent, Team, or Plan.',
           codingProjectPath
             ? `Coding project root: ${codingProjectPath}`
-            : 'No coding project path is set yet (Options → Tools).',
+            : 'No coding project folder is bound to this chat yet (the user binds one in the chat header or the coding panel).',
         ].join('\n'),
       )
     } else {

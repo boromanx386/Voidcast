@@ -27,7 +27,7 @@ The chat screen (`electron-app/src/components/chat/ChatScreen.tsx`) is the main 
 
 ### Session titles
 
-A new chat is named immediately from the first prompt (`deriveSessionTitle` in `electron-app/src/lib/chatHints.ts`: the first 60 characters, whitespace collapsed), so the sidebar is never blank and no send waits on the network. After the first reply lands, `useChatSessions` asks the **coding sub-agent** model for a real topic title — one tool-free `callSubAgentChat` call, 32 output tokens (`electron-app/src/lib/chatTitle.ts`). The seed is the first user message plus the head of the first assistant reply, with code blocks and URLs stripped.
+A new chat is named immediately from the first prompt (`deriveSessionTitle` in `electron-app/src/lib/chatHints.ts`: the first 60 characters, whitespace collapsed), so the sidebar is never blank and no send waits on the network. After the first reply lands, `useChatSessions` asks the **coding sub-agent** model for a real topic title (only once a coding model is chosen — it is empty by default, and then the derived title stays) — one tool-free `callSubAgentChat` call, 32 output tokens (`electron-app/src/lib/chatTitle.ts`). The seed is the first user message plus the head of the first assistant reply, with code blocks and URLs stripped.
 
 Rules that keep it from fighting the user:
 

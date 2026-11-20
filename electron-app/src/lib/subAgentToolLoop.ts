@@ -7,7 +7,7 @@ import { anthropicMessagesHeaders, buildAnthropicMessagesBody } from '@/lib/anth
 import { buildResponsesBody, parseResponsesOutput, responsesHeaders } from '@/lib/openResponses'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
 import { opencodeGoApiBaseUrl } from '@/lib/platform'
-import { normalizeBaseUrl } from '@/lib/settings'
+import { assertSubAgentModel, normalizeBaseUrl } from '@/lib/settings'
 import {
   openRouterProviderRoutingBody,
   postJsonWithRetry,
@@ -467,6 +467,7 @@ export async function callNativeSubAgentToolRound(opts: {
   signal?: AbortSignal
   maxTokens: number
 }): Promise<NativeSubAgentToolRound> {
+  assertSubAgentModel(opts.config)
   const provider = detectSubAgentProvider(opts.config.model, opts.config.provider)
   if (provider === 'ollama') return callOllamaToolRound(opts)
   return callCloudToolRound({ ...opts, provider })

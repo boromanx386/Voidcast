@@ -86,9 +86,9 @@ export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPa
         iconColor="text-neon-cyan"
         description={
           <>
-            Uses <code className="text-neon-cyan">POST /tools/search</code> on local server (ddgs).
-            Results are ranked and the top ones are read in full; falls back to DuckDuckGo API in
-            Electron if server unavailable.
+            Searches the web through the built-in tools server (ddgs). Results are ranked and the
+            top ones are read in full; if the tools server is down, a weaker DuckDuckGo lookup is
+            used instead.
           </>
         }
       />
@@ -179,9 +179,8 @@ export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPa
         iconColor="text-neon-red"
         description={
           <>
-            <code className="text-neon-red">search_youtube</code> via local server. Requires{' '}
-            <code className="text-void-light">yt-dlp</code> and{' '}
-            <code className="text-void-light">youtube-transcript-api</code>.
+            <code className="text-neon-red">search_youtube</code> — search YouTube and read video
+            transcripts through the built-in tools server. Nothing to install.
           </>
         }
       />
@@ -200,8 +199,8 @@ export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPa
         iconColor="text-neon-green"
         description={
           <>
-            Fetch public pages via TTS <code className="text-neon-green">POST /tools/scrape</code>{' '}
-            or Electron; strip HTML to text (~2MB). Blocks SSRF to local/private hosts.
+            Fetch a public page as plain text (up to ~2 MB) through the tools server, or the app
+            itself as a fallback. Local and private network addresses are blocked.
           </>
         }
       />
@@ -221,10 +220,10 @@ export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPa
           iconColor="text-neon-purple"
           description={
             <>
-              <code className="text-neon-purple">POST /tools/pdf</code> on local server (ReportLab):
-              headings, bullet/numbered lists (with hanging indent), tables,{' '}
+              <code className="text-neon-purple">save_pdf</code> writes a formatted PDF (ReportLab):
+              headings, bullet/numbered lists, tables,{' '}
               <code className="text-void-light">**bold**</code>, and optional embedded chat images
-              (PNG/JPEG). The file is written by the server into the configured folder.
+              (PNG/JPEG), into the folder below.
             </>
           }
           noBorder
@@ -256,9 +255,7 @@ export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPa
                   </button>
                 )}
               </div>
-              <p className="text-xs text-void-dim mt-2">
-                Required for PDF export. Path is resolved on the PC running the local server.
-              </p>
+              <p className="text-xs text-void-dim mt-2">Required for PDF export.</p>
             </>
           </div>
         )}
@@ -293,7 +290,10 @@ export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPa
               <code className="text-void-light">git_restore</code>,{' '}
               <code className="text-void-light">git_stash</code>,{' '}
               <code className="text-void-light">check_types</code>,{' '}
-              <code className="text-void-light">execute_command</code>.
+              <code className="text-void-light">execute_command</code>,{' '}
+              <code className="text-void-light">list_processes</code>,{' '}
+              <code className="text-void-light">read_process_output</code>,{' '}
+              <code className="text-void-light">stop_process</code>.
             </>
           }
           noBorder

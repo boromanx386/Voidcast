@@ -709,24 +709,13 @@ export function LlmOptionsPanel({
 
       {settings.llmProvider === 'opencode-go' && (
         <>
-          <div className="form-group">
-            <label className="form-label">
-              <span className="text-neon-purple mr-2">◇</span> OPENCODE_GO_BASE_URL
-            </label>
-            <input
-              type="text"
-              className="cyber-input"
-              value={settings.opencodeGoBaseUrl}
-              onChange={(e) => setSettings((s) => ({ ...s, opencodeGoBaseUrl: e.target.value }))}
-              placeholder="https://opencode.ai/zen/go/v1"
-              autoComplete="off"
-            />
-            <p className="mt-1 text-xs text-void-dim font-mono">
-              Upstream has no CORS — requests go through your local TTS server proxy (
-              <code className="text-void-light/90">/api/opencode-go</code>). Keep the local server
-              running. OpenAI-compatible models only (not MiniMax/Qwen).
-            </p>
-          </div>
+          {/* No base URL field: OpenCode Go refuses calls made straight from the app (no CORS),
+              so every request goes through the tools server, which alone decides the upstream. */}
+          <p className="mb-4 text-xs text-void-dim">
+            Requests go through Voidcast&apos;s built-in tools server, which the app starts on its
+            own — nothing to set up. Every OpenCode Go model works, including MiniMax, Qwen and
+            Claude: Voidcast picks the right API for each model.
+          </p>
           <div className="form-group">
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> OPENCODE_GO_MODEL
@@ -957,7 +946,7 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Keep API key in General options on this desktop
+              API key in Options → General
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
@@ -980,7 +969,7 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Keep NVIDIA API key in General options
+              API key in Options → General
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>
@@ -1001,7 +990,7 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              API key in General options; THINKING_LEVEL maps to DeepSeek reasoning mode
+              API key in Options → General; THINKING_LEVEL maps to DeepSeek reasoning mode
             </li>
           </ul>
         )}
@@ -1019,7 +1008,7 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              API key in General options
+              API key in Options → General
             </li>
           </ul>
         )}
@@ -1027,7 +1016,7 @@ export function LlmOptionsPanel({
           <ul className="text-xs font-mono text-void-dim space-y-1">
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              Proxied via local TTS server (upstream blocks browser CORS)
+              API key in Options → General
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
@@ -1040,10 +1029,6 @@ export function LlmOptionsPanel({
               >
                 opencode.ai/auth
               </a>
-            </li>
-            <li className="flex items-center gap-2 opacity-70">
-              <span className="text-neon-yellow">!</span>
-              Restart the local TTS server after updating, then retry
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>

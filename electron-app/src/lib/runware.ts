@@ -354,7 +354,7 @@ async function postRunwareTasks(args: {
   const directRoot = normalizeBaseUrl(args.apiBaseUrl || 'https://api.runware.ai/v1')
   const apiKey = (args.apiKey || '').trim().replace(/^\uFEFF/, '')
   if (!apiKey) {
-    throw new Error('Runware API key is not set. Configure it in Options -> General.')
+    throw new Error('Runware API key is not set. Configure it in Options → General.')
   }
   const tasks = normalizeRunwareTasks(args.tasks)
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -838,7 +838,7 @@ export async function invokeRunwareGenerateImage(
   if (!prompt) throw new Error('Runware generate_image requires a non-empty prompt.')
   const apiKey = (config.apiKey || '').trim()
   if (!apiKey) {
-    throw new Error('Runware API key is not set. Configure it in Options -> General.')
+    throw new Error('Runware API key is not set. Configure it in Options → General.')
   }
 
   const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')
@@ -925,7 +925,7 @@ export async function invokeRunwareEditImage(
   if (!prompt) throw new Error('Runware edit_image_runware requires a non-empty prompt.')
   const apiKey = (config.apiKey || '').trim()
   if (!apiKey) {
-    throw new Error('Runware API key is not set. Configure it in Options -> General (desktop).')
+    throw new Error('Runware API key is not set. Configure it in Options → General.')
   }
 
   const refs = (req.referenceImages || []).map((x) => toDataImageUri(x)).filter((x) => x.length > 0)
@@ -1053,7 +1053,7 @@ export async function invokeRunwareGenerateMusic(
   if (!prompt) throw new Error('Runware generate_music_runware requires a non-empty prompt.')
   const apiKey = (config.apiKey || '').trim()
   if (!apiKey) {
-    throw new Error('Runware API key is not set. Configure it in Options -> General (desktop).')
+    throw new Error('Runware API key is not set. Configure it in Options → General.')
   }
 
   const root = normalizeBaseUrl(config.apiBaseUrl || 'https://api.runware.ai/v1')

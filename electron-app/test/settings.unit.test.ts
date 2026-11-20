@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  assertSubAgentModel,
   normalizeSubAgent,
   normalizeSettingsCandidate,
   subAgentConfigForRole,
@@ -368,5 +369,19 @@ describe('openrouter provider by model', () => {
     const cleared = withOpenRouterProviderOnly({ ...base, ...set }, '  ')
     expect(cleared.openrouterProviderOnly).toBe('')
     expect(cleared.openrouterProviderByModel).toEqual({})
+  })
+})
+
+describe('sub-agent has no default model', () => {
+  test('a fresh install leaves both sub-agent models empty', () => {
+    const s = normalizeSubAgent({ ...defaults })
+    expect(s.subAgent.model).toBe('')
+    expect(s.subAgent.codingModel).toBe('')
+    expect(subAgentConfigForRole(s.subAgent, 'coding').model).toBe('')
+  })
+
+  test('a call without a model says where to pick one', () => {
+    expect(() => assertSubAgentModel({ model: ' ' })).toThrow(/Options → Sub/)
+    expect(() => assertSubAgentModel({ model: 'qwen3:8b' })).not.toThrow()
   })
 })

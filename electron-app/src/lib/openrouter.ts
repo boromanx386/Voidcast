@@ -154,6 +154,8 @@ export type OpenRouterModelEndpointsResult = {
   id: string
   name: string
   endpoints: OpenRouterModelEndpoint[]
+  /** e.g. ['text', 'image']; null when OpenRouter does not say (routers like openrouter/free). */
+  inputModalities: string[] | null
 }
 
 /**
@@ -195,13 +197,18 @@ export async function fetchOpenRouterModelEndpoints(options: {
       id?: string
       name?: string
       endpoints?: OpenRouterModelEndpoint[]
+      architecture?: { input_modalities?: unknown }
     }
   }
   const data = json.data ?? {}
+  const modalities = data.architecture?.input_modalities
   return {
     id: data.id || model,
     name: data.name || model,
     endpoints: Array.isArray(data.endpoints) ? data.endpoints : [],
+    inputModalities: Array.isArray(modalities)
+      ? modalities.filter((m): m is string => typeof m === 'string')
+      : null,
   }
 }
 

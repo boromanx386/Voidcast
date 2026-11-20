@@ -32,7 +32,15 @@ export function ChatSetupCard({ need, app }: Props) {
   const saveKey = () => {
     const value = key.trim()
     if (!value) return
-    setSettings((s) => ({ ...s, llmProvider: keyProvider, [CLOUD_KEY_FIELD[keyProvider]]: value }))
+    setSettings((s) => ({
+      ...s,
+      llmProvider: keyProvider,
+      [CLOUD_KEY_FIELD[keyProvider]]: value,
+      // Media defaults to Runware; without a Runware key the OpenRouter key is the one that works.
+      ...(keyProvider === 'openrouter' && !s.runwareApiKey.trim()
+        ? { imageProvider: 'openrouter' as const, musicProvider: 'openrouter' as const }
+        : {}),
+    }))
   }
 
   const useOllama = () => {

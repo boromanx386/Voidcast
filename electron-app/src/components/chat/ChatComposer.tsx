@@ -565,7 +565,7 @@ export function ChatComposer({ app }: Props) {
               title={
                 activeThinkLevel
                   ? 'Think level for this chat — applies from the next message'
-                  : 'Think level — follows Options → LLM default; pick one for this chat'
+                  : 'Think level — follows the Options → Agent default; pick one for this chat'
               }
             >
               <button

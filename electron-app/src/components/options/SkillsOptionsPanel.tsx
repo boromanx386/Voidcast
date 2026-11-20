@@ -166,9 +166,9 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
 
       {desktop && !loading && skills.length === 0 && !error && (
         <p className="text-xs text-void-dim">
-          No skills found. Install skills into a global folder above, or add{' '}
-          <code className="text-void-light">.cursor/skills/&lt;name&gt;/SKILL.md</code> in the
-          coding project.
+          No skills found. Add <code className="text-void-light">&lt;name&gt;/SKILL.md</code> under{' '}
+          <code className="text-void-light">~/.agents/skills</code>, or under{' '}
+          <code className="text-void-light">.agents/skills</code> in the coding project.
         </p>
       )}
 

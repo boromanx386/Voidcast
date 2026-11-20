@@ -201,7 +201,7 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
             AUTO_SAVE_GENERATED_IMAGES
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Automatically save every generated image to your selected folder (desktop app only).
+            Automatically save every generated image to your selected folder.
           </span>
         </span>
       </label>

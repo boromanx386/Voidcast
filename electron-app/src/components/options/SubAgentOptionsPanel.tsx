@@ -109,7 +109,7 @@ function PinToggleButton({ pinned, onToggle }: { pinned: boolean; onToggle: () =
   )
 }
 
-function SubAgentEndpointPicker({
+export function SubAgentEndpointPicker({
   role,
   label,
   provider,
@@ -294,6 +294,9 @@ function SubAgentEndpointPicker({
               {!modelsLoading && ollamaModels.length === 0 && (
                 <option value="">No models found</option>
               )}
+              {!modelsLoading && ollamaModels.length > 0 && !model && (
+                <option value="">Choose a model…</option>
+              )}
               {ollamaModels.map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -336,6 +339,7 @@ function SubAgentEndpointPicker({
                 value={inList ? model : model ? `__custom__${model}` : ''}
                 onChange={(e) => selectPreset(e.target.value, 'openrouter')}
               >
+                {!model && <option value="">Choose a model…</option>}
                 {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
@@ -386,8 +390,8 @@ function SubAgentEndpointPicker({
               }}
             />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-              Uses Options → LLM OpenRouter base URL and API key. Same curated presets as the main
-              model picker.
+              Uses the OpenRouter key from Options → General and the base URL from Options → Agent.
+              Same curated presets as the main model picker.
             </p>
           </div>
           <div className="form-group mb-0">
@@ -410,7 +414,7 @@ function SubAgentEndpointPicker({
               Force routing to one OpenRouter provider slug (e.g.{' '}
               <code className="text-void-light/90">anthropic</code>,{' '}
               <code className="text-void-light/90">openai</code>). Remembered per model — shared
-              with LLM tab. Leave empty for default load balancing.
+              with the Agent tab. Leave empty for default load balancing.
             </p>
           </div>
         </>
@@ -432,6 +436,7 @@ function SubAgentEndpointPicker({
                 value={inList ? model : model ? `__custom__${model}` : ''}
                 onChange={(e) => selectPreset(e.target.value, provider)}
               >
+                {!model && <option value="">Choose a model…</option>}
                 {presets.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
@@ -453,11 +458,13 @@ function SubAgentEndpointPicker({
               onChange={(e) => setModel(e.target.value, provider)}
             />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
-              {provider === 'deepseek' && 'Uses Options → LLM DeepSeek base URL and API key.'}
-              {provider === 'openai' && 'Uses Options → LLM OpenAI base URL and API key.'}
-              {provider === 'nvidia' && 'Uses Options → LLM NVIDIA base URL and API key.'}
-              {provider === 'opencode-go' &&
-                'Uses Options → LLM OpenCode Go key (local reverse proxy).'}
+              {provider === 'deepseek' &&
+                'Uses the DeepSeek key from Options → General and the base URL from Options → Agent.'}
+              {provider === 'openai' &&
+                'Uses the OpenAI key from Options → General and the base URL from Options → Agent.'}
+              {provider === 'nvidia' &&
+                'Uses the NVIDIA key from Options → General and the base URL from Options → Agent.'}
+              {provider === 'opencode-go' && 'Uses the OpenCode Go key from Options → General.'}
             </p>
           </div>
         )}
@@ -528,7 +535,7 @@ export function SubAgentOptionsPanel({
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
           Coding context management, coding_explore, and Team-mode workers (run_coding_workers) —
           all run on the coding model below (prefer text-capable, not vision-only). Same provider
-          list and pins as the main LLM picker.
+          list and pins as the main model picker.
         </p>
       </div>
 
@@ -545,13 +552,15 @@ export function SubAgentOptionsPanel({
           <span className="text-neon-cyan">⬡ ENABLE_PROMPT_HINT</span>
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-          Adds a hint button to the composer: the coding model rewrites your draft using the whole
-          text conversation (user messages and all agent replies, no tool output). One tool-free
-          call per press; the main turn is never touched.
+          Adds a hint button to the composer: the CODING model below rewrites your draft using the
+          whole text conversation (user messages and all agent replies, no tool output). One
+          tool-free call per press; the main turn is never touched. Works without the coding
+          sub-agent itself.
         </p>
       </div>
 
-      {codingActive && (
+      {/* The hint runs on the coding model, so its picker must show for either toggle. */}
+      {(codingActive || sub.hintEnabled === true) && (
         <SubAgentEndpointPicker
           role="coding"
           label="CODING"

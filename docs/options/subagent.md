@@ -47,8 +47,8 @@ All fields live under `settings.subAgent`:
 | `enabled` | `boolean`, default `false` | Vision / image sub-agent |
 | `codingEnabled` | `boolean`, default `false` | Explore + coding workers |
 | `hintEnabled` | `boolean`, default `false` | Composer hint button — rewrites the draft with the coding model, or proposes the next prompt when the field is empty but a conversation exists; whole text conversation as context |
-| `provider` / `model` | vision role | e.g. Ollama `llava:…` or cloud vision model |
-| `codingProvider` / `codingModel` | coding role | Often a strong text model for tool loops |
+| `provider` / `model` | vision role, default provider `ollama`, model empty | A vision-capable model you choose; there is no default model, and a sub-agent call without one fails with "No sub-agent model selected" |
+| `codingProvider` / `codingModel` | coding role, model empty by default | Often a strong text model for tool loops. Also used by the prompt hint and chat titles, so its picker shows when either the coding sub-agent or the hint is on |
 | `openrouterProviderOnly` / `codingOpenrouterProviderOnly` | `string` | OpenRouter provider lock per role |
 | `outputTokens` | default **2048** | Max output; **not** shown in Options UI (forced on normalize) |
 | `contextTokens` | default **16384** | Context budget; **not** shown in Options UI |

@@ -10,7 +10,7 @@
 ## Provider selector (`llmProvider`)
 
 Type: `LlmProvider = 'ollama' | 'openrouter' | 'nvidia' | 'deepseek' | 'openai' | 'opencode-go'`
-Default: `'ollama'`
+Default: `'openrouter'`
 
 The active provider determines which provider-specific group of fields is shown and used for chat completion requests.
 
@@ -58,7 +58,7 @@ This slot is a plain OpenAI Chat Completions client and `openaiBaseUrl` is a nor
 - `openaiModel` — default `'gpt-5.6-sol'`; any id can be typed in, so a self-hosted model name works
 
 ### OpenCode Go
-- `opencodeGoBaseUrl` — default `https://opencode.ai/zen/go/v1` (OpenAI-compatible chat models)
+- `opencodeGoBaseUrl` — kept in settings but not used and not shown in Options: OpenCode Go sends no CORS headers, so every request goes through the tools server at `/api/opencode-go`, which forwards to `OPENCODE_GO_BASE_URL` (env, default `https://opencode.ai/zen/go`)
 - `opencodeGoApiKey` — local key
 - `opencodeGoModel` — default `'deepseek-v4-pro'`
 - Voidcast sends a stable `x-opencode-session` header for each chat so OpenCode Go can route and cache the conversation correctly.
@@ -76,7 +76,7 @@ OpenCode Go serves its models over more than one protocol, and `openCodeGoApiSty
 - **Responses is a real adapter, not a shim.** `electron-app/src/lib/openResponses.ts` flattens Voidcast's internal OpenAI-shaped history into Responses `input` items: tools are flat (`{type:'function', name, parameters}`), an assistant tool call is its own `function_call` item whose result is a `function_call_output` linked by `call_id` (there is no `role: 'tool'`), the system prompt is `instructions`, and the output cap is `max_output_tokens` — default 16 384, stepping down to 8 192 then 4 096 if a model rejects the cap with a 400. Responses SSE events are folded back into the same tool-call/usage shapes the chat-completions parser produces, so the rest of the app never sees a difference. Only the network loop differs: it lives in `openrouter.ts`.
 - **Routing is by family, with a runtime fallback.** Go publishes no ids for Responses-only models, so the static rules match families (`grok*`, `muse-spark*`, `gpt-<ver>-luna`) plus explicit per-id pins. If a model the rules do not know answers `/chat/completions` with `ModelProtocolUnsupported`, the turn is replayed on the format that worked and `rememberOpenCodeGoApiStyle` caches it for the rest of the session (in-memory on purpose: one extra probe per model per run, never a stale hint across restarts).
 - **Contributor models are paste-in.** They are not preset entries — put the slug from the Go dashboard into the custom model field and the API style routes it to `{base}/responses`. `npm run check:models --apply` resolves the endpoint per model from models.dev, suggests the right ones and can write pins into `OPENCODE_GO_RESPONSES_MODELS`.
-- **The routing keys off the OpenCode Go URL.** `isOpenCodeGoApi()` (`electron-app/src/lib/openrouter.ts`) accepts `…/opencode.ai/zen/go…` or the local proxy path `/api/opencode-go`. Point `opencodeGoBaseUrl` at another host and the turn takes the plain Chat Completions path, adapter and all — so a self-hosted gateway that must serve all three formats has to sit behind one of those two paths.
+- **The routing keys off the OpenCode Go URL.** `isOpenCodeGoApi()` (`electron-app/src/lib/openrouter.ts`) accepts `…/opencode.ai/zen/go…` or the local proxy path `/api/opencode-go`. Since chat always uses the proxy path, all three formats work; a self-hosted gateway goes in the tools server's `OPENCODE_GO_BASE_URL`.
 
 
 ## Generation/context defaults

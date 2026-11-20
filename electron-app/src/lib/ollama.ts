@@ -113,7 +113,7 @@ export function assertOllamaModel(model: string): void {
   if (model.trim()) return
   throw new Error(
     'No Ollama model selected. Pick one of the models installed in Ollama in the model ' +
-      'switcher or Options → LLM (install one with `ollama pull <model>`).',
+      'switcher or Options → Agent (install one with `ollama pull <model>`).',
   )
 }
 
@@ -172,6 +172,26 @@ export async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   const data = (await res.json()) as { models?: OllamaModelTag[] }
   const names = (data.models ?? []).map((m) => (m.name ?? m.model ?? '').trim()).filter(Boolean)
   return [...new Set(names)].sort((a, b) => a.localeCompare(b))
+}
+
+/**
+ * POST /api/show capabilities (e.g. ['completion', 'vision']); null when this Ollama
+ * version does not report them.
+ */
+export async function fetchOllamaCapabilities(
+  baseUrl: string,
+  model: string,
+): Promise<string[] | null> {
+  const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/show`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model }),
+  })
+  if (!res.ok) throw new Error(`Ollama POST /api/show ${res.status}`)
+  const data = (await res.json()) as { capabilities?: unknown }
+  return Array.isArray(data.capabilities)
+    ? data.capabilities.filter((c): c is string => typeof c === 'string')
+    : null
 }
 
 /** Fields for Ollama `options` in /api/chat (extend as needed). */

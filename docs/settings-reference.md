@@ -58,7 +58,7 @@ These providers store their API keys/URLs here (keys are local to this device):
 | NVIDIA          | `nvidiaBaseUrl`, `nvidiaModel`                                                                                                                                                          |
 | DeepSeek        | `deepseekBaseUrl`, `deepseekModel`                                                                                                                                                      |
 | OpenAI (native) | `openaiBaseUrl` (`https://api.openai.com/v1`), `openaiModel`                                                                                                                            |
-| OpenCode Go     | `opencodeGoBaseUrl` (`https://opencode.ai/zen/go/v1`), `opencodeGoModel`                                                                                                                |
+| OpenCode Go     | `opencodeGoModel`; `opencodeGoBaseUrl` is unused (upstream is `OPENCODE_GO_BASE_URL`)                                                                                                                |
 
 ---
 
@@ -207,7 +207,7 @@ type ToolsEnabled = {
 | `subAgent.enabled`                      | `boolean`                  | When true, `image_recall` runs a sub-agent instead of returning base64.                                                                                                                                                             |
 | `subAgent.codingEnabled`                | `boolean`                  | Enables coding context management: deterministic trim of noisy tool output, clearing stale tool results from old rounds, and the read-only `coding_explore` tool.                                                                   |
 | `subAgent.hintEnabled`                  | `boolean`, default `false` | Composer hint button: rewrite the draft with the coding sub-agent model, or propose the next prompt when the field is empty and a conversation exists. Whole text conversation as context. Independent of `subAgent.codingEnabled`. |
-| `subAgent.model`                        | `string`                   | Vision (+ long-memory) model id (e.g. `llava:13b`, `gpt-4o`).                                                                                                                                                                       |
+| `subAgent.model`                        | `string`                   | Vision (+ long-memory) model id. Empty by default — the user picks one.                                                                                                                                                                       |
 | `subAgent.provider`                     | `SubAgentProviderId`       | Explicit backend for the vision model; inferred via `detectSubAgentProvider` when omitted.                                                                                                                                          |
 | `subAgent.codingModel`                  | `string`                   | Coding explore model id (text-capable); migrates from `model` when missing. Also the model behind generated chat titles (see [chat.md](chat.md)).                                                                                   |
 | `subAgent.codingProvider`               | `SubAgentProviderId`       | Explicit backend for the coding model.                                                                                                                                                                                              |
@@ -215,6 +215,7 @@ type ToolsEnabled = {
 | `subAgent.codingOpenrouterProviderOnly` | `string`                   | OpenRouter provider slug lock for the coding model.                                                                                                                                                                                 |
 | `subAgent.outputTokens`                 | `number`                   | Max generated tokens per sub-agent call (internal default 2048; not in Options UI).                                                                                                                                                 |
 | `subAgent.contextTokens`                | `number`                   | Ollama num_ctx for sub-agent calls (internal default 16384; cloud ignores).                                                                                                                                                         |
+| `setupGuide`                            | `{ dismissed, done[] }`    | First-start checklist state: `dismissed` closes it, `done` lists finished or skipped steps (`vision`, `media`, `voice`). Settings saved by an older version load as dismissed. |
 | `subAgent.showAnalysisWindow`           | `boolean`                  | Show in-chat sub-agent analysis card (vision/explore/workers); default on.                                                                                                                                                          |
 
 ---

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ToolIndicator } from '@/components/chat/ChatChrome'
 import { ChatSetupCard } from '@/components/chat/ChatSetupCard'
+import { ChatSetupGuide } from '@/components/chat/ChatSetupGuide'
 import { getEmptyStateMessage } from '@/components/chat/chatEmptyState'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { useChatMessageRender } from '@/hooks/useChatMessageRender'
@@ -80,6 +81,8 @@ export function ChatMessageList({ app }: Props) {
         {messages.length === 0 && setupNeed.kind !== 'ready' && (
           <ChatSetupCard need={setupNeed} app={app} />
         )}
+
+        {messages.length === 0 && setupNeed.kind === 'ready' && <ChatSetupGuide app={app} />}
 
         {/* Empty State */}
         {messages.length === 0 && setupNeed.kind === 'ready' && (

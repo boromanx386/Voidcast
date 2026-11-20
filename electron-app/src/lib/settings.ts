@@ -1206,6 +1206,15 @@ export const SUB_AGENT_DEFAULT_CONTEXT_TOKENS = 16384
  */
 export const SUB_AGENT_DEFAULT_OUTPUT_TOKENS = 16384
 
+export const SETUP_GUIDE_STEPS = ['vision', 'media', 'voice'] as const
+export type SetupGuideStep = (typeof SETUP_GUIDE_STEPS)[number]
+export type SetupGuideState = {
+  /** The user closed the whole checklist. */
+  dismissed: boolean
+  /** Steps the user finished or skipped. */
+  done: SetupGuideStep[]
+}
+
 /** Sub-agent config — delegates tasks (vision, coding explore, etc.) to separate models. */
 export type SubAgentConfig = {
   /** When true, image_recall runs sub-agent instead of returning base64. */
@@ -1264,6 +1273,12 @@ export type SubAgentConfig = {
  * Project vision or coding endpoint fields onto the shared `model`/`provider` slots
  * so callSubAgent* / describeImages can stay unchanged.
  */
+/** A sub-agent call with no model would hit the provider with an empty id; say what to do instead. */
+export function assertSubAgentModel(config: Pick<SubAgentConfig, 'model'>): void {
+  if (config.model?.trim()) return
+  throw new Error('No sub-agent model selected. Choose one in Options → Sub.')
+}
+
 export function subAgentConfigForRole(
   sub: SubAgentConfig,
   role: 'vision' | 'coding',
@@ -1646,6 +1661,8 @@ export type AppSettings = {
   notificationSoundVolume: number
   /** Sub-agent for delegating tasks (vision, etc.) to a separate model. */
   subAgent: SubAgentConfig
+  /** First-start checklist shown in an empty chat once a model is connected. */
+  setupGuide: SetupGuideState
 }
 
 // llmSystemPrompt is deliberately absent: web/MCP/file content flows into the context,
@@ -1893,9 +1910,10 @@ export const defaults: AppSettings = {
     enabled: false,
     codingEnabled: false,
     hintEnabled: false,
-    model: 'llava:13b',
+    // No default models: any preset ages fast, so the user picks them in Options → Sub.
+    model: '',
     provider: 'ollama',
-    codingModel: 'llava:13b',
+    codingModel: '',
     codingProvider: 'ollama',
     openrouterProviderOnly: '',
     codingOpenrouterProviderOnly: '',
@@ -1903,6 +1921,7 @@ export const defaults: AppSettings = {
     contextTokens: SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
     showAnalysisWindow: true,
   },
+  setupGuide: { dismissed: false, done: [] },
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -2593,13 +2612,23 @@ function normalizeLanWebAccess(s: AppSettings): AppSettings {
   }
 }
 
+function normalizeSetupGuide(s: AppSettings): AppSettings {
+  const raw = s.setupGuide as Partial<SetupGuideState> | undefined
+  const done = Array.isArray(raw?.done)
+    ? SETUP_GUIDE_STEPS.filter((step) => raw.done!.includes(step))
+    : []
+  return { ...s, setupGuide: { dismissed: raw?.dismissed === true, done } }
+}
+
 function normalizeAll(s: AppSettings): AppSettings {
-  return normalizeLanWebAccess(
-    normalizeNotificationSounds(
-      normalizeRunware(
-        normalizeAgentMode(
-          normalizeUiTheme(
-            normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s))))),
+  return normalizeSetupGuide(
+    normalizeLanWebAccess(
+      normalizeNotificationSounds(
+        normalizeRunware(
+          normalizeAgentMode(
+            normalizeUiTheme(
+              normalizePdfDir(normalizeTools(normalizeTts(normalizeSubAgent(normalizeLlm(s))))),
+            ),
           ),
         ),
       ),
@@ -2724,6 +2753,8 @@ export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const parsed = raw ? (JSON.parse(raw) as Partial<AppSettings>) : {}
+    // Saved settings from a version without the checklist belong to a set-up install.
+    if (raw && parsed.setupGuide === undefined) parsed.setupGuide = { dismissed: true, done: [] }
     merged = normalizeAll({ ...defaults, ...mergeEncryptedSecrets(parsed) })
   } catch {
     merged = { ...defaults }

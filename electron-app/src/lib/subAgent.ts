@@ -11,11 +11,12 @@
  */
 
 import {
+  assertSubAgentModel,
   normalizeBaseUrl,
   SUB_AGENT_DEFAULT_CONTEXT_TOKENS,
   SUB_AGENT_DEFAULT_OUTPUT_TOKENS,
+  type SubAgentConfig,
 } from './settings'
-import type { SubAgentConfig } from './settings'
 import type { SubAgentWorkerMetrics } from './subAgentPanelState'
 import { opencodeGoApiBaseUrl } from './platform'
 import {
@@ -591,6 +592,7 @@ export async function callSubAgentChat(opts: {
   signal?: AbortSignal
   maxTokens?: number
 }): Promise<string> {
+  assertSubAgentModel(opts.config)
   const provider = detectSubAgentProviderId(opts.config.model, opts.config.provider)
   const maxTokens = opts.maxTokens ?? opts.config.outputTokens ?? SUB_AGENT_DEFAULT_OUTPUT_TOKENS
   const ctxTokens = opts.config.contextTokens ?? SUB_AGENT_DEFAULT_CONTEXT_TOKENS
@@ -782,6 +784,7 @@ export async function describeImagesWithSubAgent(
   const pendingCount = images.filter(
     (img) => !lookupVisionCacheDescription(img, cache, focus),
   ).length
+  if (pendingCount > 0) assertSubAgentModel(config)
   if (pendingCount > 0) ui?.onStart?.(pendingCount)
 
   let pendingDone = 0

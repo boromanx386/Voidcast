@@ -206,7 +206,7 @@ export function RunwareMusicOptionsPanel({ settings, setSettings, variant = 'sta
             AUTO_SAVE_GENERATED_MUSIC
           </span>
           <span className="mt-1 block text-xs text-void-dim">
-            Automatically save generated music files to your selected folder (desktop app only).
+            Automatically save generated music files to your selected folder.
           </span>
         </span>
       </label>

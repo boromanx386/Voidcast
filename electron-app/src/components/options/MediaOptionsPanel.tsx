@@ -33,10 +33,9 @@ export function MediaOptionsPanel({ settings, setSettings }: Props) {
             <span>Music Generation</span>
           </p>
           <p className="mt-1 text-xs text-void-dim">
-            Text-to-audio via <span className="font-mono text-neon-purple">Runware ACE-Step</span>{' '}
-            only (Turbo / Base / XL). Uses{' '}
-            <span className="font-mono text-neon-purple">RUNWARE_API_KEY</span> from General — no
-            OpenRouter music provider.
+            Text-to-music. Choose <span className="font-mono text-void-light">Runware</span>{' '}
+            (ACE-Step) or <span className="font-mono text-void-light">OpenRouter</span> (Lyria); API
+            keys live in General.
           </p>
         </div>
         <RunwareMusicOptionsPanel

@@ -582,7 +582,7 @@ export function GeneralOptionsPanel({
                 AUTO_UPDATE
               </span>
               <span className="mt-1 block text-xs text-void-dim">
-                Automatically check updates on startup (desktop app).
+                Check for updates when the app starts.
               </span>
             </span>
           </label>
@@ -609,8 +609,7 @@ export function GeneralOptionsPanel({
           LONG_MEMORY
         </p>
         <p className="text-[10px] text-void-dim leading-relaxed">
-          Long memory and reminders sync both ways via the local server while the desktop app is
-          running (~30s).
+          Facts the agent saves to remember across chats. Stored only on this computer.
         </p>
         <label className="flex items-start gap-3">
           <input

@@ -24,6 +24,14 @@ Until a model can answer, a new chat shows a **Connect a model to start** card i
 - **Ollama** on this machine: if it is running, pick one of its installed models; if not, how to install it and **Check again**. Voidcast never picks an Ollama model for you;
 - a link to **Options → General** for the other providers.
 
+Once a model is connected, a new install shows a short **Finish setting up** checklist above the greeting (`ChatSetupGuide.tsx`, logic in `electron-app/src/lib/setupGuide.ts`). One step at a time, each with **Skip**, and **Hide guide** closes it for good:
+
+1. **Images you attach** — the app checks whether the main model can see images (OpenRouter reports it per model, Ollama through `/api/show`; other providers ask you). If it can, the vision sub-agent stays off and pictures go straight to it. If not, you can pick a helper model that describes images for it (Options → Sub).
+2. **Image and music generation** — offered when you have an OpenRouter or Runware key; it picks which one the agent uses and its image and music models (the same lists as Options → Media), or turns the tools off. Without either key it points to Options → General.
+3. **Voice** — read aloud (OpenRouter or Runware, by the keys you have) and dictation (offline Whistle, or OpenRouter Whisper).
+
+Everything it sets stays editable in Options. Installs updated from a version without the checklist never see it.
+
 Then:
 
 1. Type a message in the composer at the bottom of the chat screen and press **Send** (or `Ctrl+Enter`).
@@ -97,7 +105,7 @@ This matters for **OpenCode Go**, whose models are spread across all three forma
 
 Only the network loop lives in `openrouter.ts`. Anthropic requires `max_tokens` on every request, so that adapter sends 16 384 by default and steps down to 8 192 then 4 096 when a model rejects the cap.
 
-**The limit worth knowing before you point this somewhere else:** the per-model routing activates only for an **OpenCode Go URL** — `isOpenCodeGoApi()` accepts `…/opencode.ai/zen/go…` or the local proxy path `/api/opencode-go`. Set `opencodeGoBaseUrl` to some other host and the app treats it as a plain Chat Completions endpoint. A gateway of your own that must serve all three formats has to sit behind one of those two paths.
+OpenCode Go requests always go through the local tools server at `/api/opencode-go`, because Go sends no CORS headers. The upstream is the tools server's `OPENCODE_GO_BASE_URL` env variable (default `https://opencode.ai/zen/go`); there is no base URL field in Options for it.
 
 ## Where Settings Are Stored
 
