@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.13.0] — 2026-11-20
+
 ### Added
 
 - **Custom provider**: Options → Agent → Custom connects any endpoint you type in, over the wire format you pick — OpenAI Chat Completions, OpenAI Responses or Anthropic Messages. That covers OpenAI and Anthropic directly, LM Studio, vLLM, llama.cpp, Groq and other gateways. The key is optional for local servers, **Load models** lists the endpoint's models, and you set the context window the CTX meter uses. Requests go through the built-in tools server, so endpoints without CORS headers work, and so does a plain-HTTP server elsewhere on your network. Sub-agents can use it too, with their own model on the same endpoint.
