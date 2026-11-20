@@ -24,6 +24,7 @@ import type {
   OllamaToolCall,
 } from '@/lib/ollama'
 import {
+  assertOllamaModel,
   fetchOllamaWithRetry,
   isThinkingUiEnabled,
   logPromptCache,
@@ -139,6 +140,7 @@ export async function streamOllamaChatOnce(options: {
   tool_calls: OllamaToolCall[]
   usage?: OllamaChatUsage
 }> {
+  assertOllamaModel(options.model)
   const root = normalizeBaseUrl(options.baseUrl)
   const opts = compactModelOptions(options.modelOptions)
   const body: Record<string, unknown> = {

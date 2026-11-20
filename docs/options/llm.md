@@ -17,15 +17,15 @@ The active provider determines which provider-specific group of fields is shown 
 ## Per-provider settings
 
 ### Ollama
-One provider among the others: models on your own machine, or Ollama's hosted models (billed by Ollama, never by Voidcast). It is only the *default* because it needs no API key.
+One provider among the others: models on your own machine, or Ollama's hosted models (billed by Ollama, never by Voidcast). The default provider is OpenRouter.
 - `ollamaBaseUrl` — default `http://localhost:11434`; on desktop a local proxy may be used.
 - **CSP note:** the renderer's `connect-src` allows `https:`/`wss:` plus loopback `http:`/`ws:` only, so an Ollama server reached over plain HTTP at a **non-loopback** address (e.g. `http://192.168.1.50:11434`) is blocked until that origin is added to `index.html`.
-- `ollamaModel` — default `'llama3.2'`. A **Refresh/load models** button populates this from the Ollama server (`loadModels`, `ollamaModels`, `modelsLoading`, `modelsError`); you can also type a custom model id.
+- `ollamaModel` — default empty: Voidcast does not pick a model for you, and a chat turn without one is refused. A **Refresh/load models** button populates this from the Ollama server (`loadModels`, `ollamaModels`, `modelsLoading`, `modelsError`); you can also type a custom model id.
 
 ### OpenRouter (cloud)
 - `openrouterBaseUrl` — default `https://openrouter.ai/api/v1`
 - `openrouterApiKey` — stored locally (hidden from the agent)
-- `openrouterModel` — default `'openrouter/free'`
+- `openrouterModel` — default `'openrouter/free'`; OpenRouter is the default `llmProvider`
 
 One key for 300+ models (Claude, GPT, Gemini, DeepSeek, Llama, Qwen...), plus optional image models and TTS. OpenRouter can also serve the same model from several upstream providers, and Voidcast exposes that routing directly:
 

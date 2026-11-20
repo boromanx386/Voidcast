@@ -85,6 +85,38 @@ function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
+  } catch {
+    return false
+  }
+}
+
+function ollamaUnreachableError(url: string, cause: unknown): Error {
+  let origin = url
+  try {
+    origin = new URL(url).origin
+  } catch {
+    /* keep the raw url */
+  }
+  const detail = cause instanceof Error && cause.message ? ` (${cause.message})` : ''
+  return new Error(
+    `Can't reach Ollama at ${origin}${detail}. Install it from https://ollama.com and make sure ` +
+      'it is running, or pick another provider in the model switcher.',
+  )
+}
+
+/** Ollama has no sensible default model, so an empty one must be chosen by the user. */
+export function assertOllamaModel(model: string): void {
+  if (model.trim()) return
+  throw new Error(
+    'No Ollama model selected. Pick one of the models installed in Ollama in the model ' +
+      'switcher or Options → LLM (install one with `ollama pull <model>`).',
+  )
+}
+
 /**
  * Fetch with retry for transient Ollama failures (503 overloaded, 429, 502, 504).
  * Honors `Retry-After` header when present, otherwise uses exponential backoff
@@ -117,7 +149,11 @@ export async function fetchOllamaWithRetry(
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') throw e
       lastErr = e
-      if (attempt >= OLLAMA_MAX_RETRIES - 1) throw e
+      // A refused connection on this machine means Ollama is not running; waiting ~7s
+      // for retries only delays the one message that tells the user what to do.
+      if (isLoopbackUrl(url) || attempt >= OLLAMA_MAX_RETRIES - 1) {
+        throw ollamaUnreachableError(url, e)
+      }
       const backoffSec = 2 ** attempt
       const jitterMs = Math.floor(Math.random() * 250)
       await sleepWithAbort(backoffSec * 1000 + jitterMs, signal)
@@ -344,6 +380,7 @@ export function mergeOllamaUsage(
 export async function streamOllamaChat(
   options: StreamOllamaChatParams,
 ): Promise<{ content: string; thinking: string; usage?: OllamaChatUsage }> {
+  assertOllamaModel(options.model)
   const root = normalizeBaseUrl(options.baseUrl)
   const opts = compactModelOptions(options.modelOptions)
   const body: Record<string, unknown> = {

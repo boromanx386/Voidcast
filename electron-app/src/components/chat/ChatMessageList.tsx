@@ -1,15 +1,23 @@
 import { useMemo, useState } from 'react'
 import { ToolIndicator } from '@/components/chat/ChatChrome'
+import { ChatSetupCard } from '@/components/chat/ChatSetupCard'
 import { getEmptyStateMessage } from '@/components/chat/chatEmptyState'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { useChatMessageRender } from '@/hooks/useChatMessageRender'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
+import { chatSetupNeed } from '@/lib/chatSetup'
 import { normalizeAgentChatMode } from '@/types/chat'
 
 type Props = {
   app: Pick<
     VoidcastApp,
     | 'settings'
+    | 'setSettings'
+    | 'ollamaModels'
+    | 'modelsLoading'
+    | 'modelsError'
+    | 'loadModels'
+    | 'openOptions'
     | 'messages'
     | 'busy'
     | 'toolPhase'
@@ -52,6 +60,12 @@ export function ChatMessageList({ app }: Props) {
     [settings.uiTheme, emptyStateSeed, agentMode],
   )
 
+  const setupNeed = chatSetupNeed(settings, {
+    models: app.ollamaModels,
+    loading: app.modelsLoading,
+    error: app.modelsError,
+  })
+
   const render = useChatMessageRender(app)
 
   const { listEndRef, chatMessagesRef, onChatScroll } = render
@@ -63,8 +77,12 @@ export function ChatMessageList({ app }: Props) {
       className="voidcast-messages min-h-0 flex-1 overflow-y-auto"
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-4 2xl:max-w-6xl">
+        {messages.length === 0 && setupNeed.kind !== 'ready' && (
+          <ChatSetupCard need={setupNeed} app={app} />
+        )}
+
         {/* Empty State */}
-        {messages.length === 0 && (
+        {messages.length === 0 && setupNeed.kind === 'ready' && (
           <div
             className={`relative overflow-hidden rounded-lg p-8 text-center animate-fade-in-up ${
               agentMode === 'plan'

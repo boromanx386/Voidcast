@@ -40,7 +40,7 @@ These providers store their API keys/URLs here (keys are local to this device):
 
 | Key                        | Type            | What it controls                                                                                                                        |
 | -------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `llmProvider`              | `LlmProvider`   | Active backend: `'ollama' \| 'openrouter' \| 'nvidia' \| 'deepseek' \| 'openai' \| 'opencode-go'`.                                      |
+| `llmProvider`              | `LlmProvider`   | Active backend: `'ollama' \| 'openrouter' \| 'nvidia' \| 'deepseek' \| 'openai' \| 'opencode-go'`. Default `'openrouter'`.                                     |
 | `llmTemperature`           | `number`        | Sampling temperature passed to the model (higher = more random).                                                                        |
 | `llmNumCtx`                | `number`        | Context window size in tokens (`options.num_ctx` for Ollama).                                                                           |
 | `contextAutoCompress`      | `boolean`       | Auto-run context compression when the next turn's prompt reaches ~90% of the context limit; the newest messages stay verbatim.                                                             |

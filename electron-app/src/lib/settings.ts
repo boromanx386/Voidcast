@@ -1699,9 +1699,9 @@ const LEGACY_DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, a highly intelligent, qu
 const DEFAULT_LLM_SYSTEM_PROMPT = `You are Void, the assistant in Voidcast. Be direct and concise: answer first, add detail only when it helps. If you are unsure, say so; if a request is ambiguous, ask.`
 
 export const defaults: AppSettings = {
-  llmProvider: 'ollama',
+  llmProvider: 'openrouter',
   ollamaBaseUrl: 'http://localhost:11434',
-  ollamaModel: 'llama3.2',
+  ollamaModel: '',
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   openrouterApiKey: '',
   openrouterModel: 'openrouter/free',

@@ -293,7 +293,7 @@ Voidcast does not charge anything, takes no cut and has no cloud account. It con
 | **Any OpenAI-compatible server** (via the `openai` provider) | vLLM, llama.cpp `llama-server`, LM Studio, TGI, SGLang, llama-cpp-python — anything that speaks `/v1/chat/completions` | Your hardware or your gateway: free |
 | **Runware** | Image generation, image edit, and AI music (ACE-Step) | Pay-per-use (typically pennies) |
 
-> **Ollama is not only local.** Ollama Cloud is a paid service of its own, so Voidcast lists Ollama as one provider of six — not as "the local option". It is only the default provider because a fresh install can chat without any key.
+> **Ollama is not only local.** Ollama Cloud is a paid service of its own, so Voidcast lists Ollama as one provider of six — not as "the local option". The default provider is OpenRouter; a fresh install asks for its key, or lets you pick a model your Ollama already has.
 
 > **Bring your own endpoint.** Every provider's base URL is an editable field, so nothing here is a closed door. `openaiBaseUrl` is a plain Chat Completions client — point it at a local server (vLLM `http://localhost:8000/v1`, llama.cpp `llama-server` `http://localhost:8080/v1`, LM Studio, TGI, SGLang) and type the model id in by hand. The same holds for `ollamaBaseUrl`, `openrouterBaseUrl`, `nvidiaBaseUrl`, `deepseekBaseUrl` and `opencodeGoBaseUrl`.
 

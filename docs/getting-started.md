@@ -19,6 +19,14 @@ Both packages bundle the Python tools server (port **8765**), so no Python setup
 
 ## First Chat
 
+Until a model can answer, a new chat shows a **Connect a model to start** card instead of the greeting (`ChatSetupCard.tsx`, logic in `electron-app/src/lib/chatSetup.ts`). It names what is missing and offers:
+
+- an **OpenRouter API key** field (or the key of whichever cloud provider is selected), with a link to get one — saving it selects that provider;
+- **Ollama** on this machine: if it is running, pick one of its installed models; if not, how to install it and **Check again**. Voidcast never picks an Ollama model for you;
+- a link to **Options → General** for the other providers.
+
+Then:
+
 1. Type a message in the composer at the bottom of the chat screen and press **Send** (or `Ctrl+Enter`).
 2. The assistant reply renders as markdown in the message list. TTS auto-voice and STT input are available when enabled (see [chat.md](chat.md) and the TTS options tab).
 3. Use the mode button in the composer to switch **Agent / Team / Plan** (cycle with `Shift+Tab`).  
@@ -32,8 +40,8 @@ Open **Options** (gear icon in the header) → **LLM** tab. `llmProvider` is one
 
 | value | What it is | Setup |
 |---|---|---|
-| `ollama` | Ollama endpoint `http://localhost:11434` (default) — models on your own machine, or Ollama's hosted models | Install [Ollama](https://ollama.com), `ollama pull llama3.2` — no API key for local models |
-| `openrouter` | Cloud routing hub, default `https://openrouter.ai/api/v1`, model `openrouter/free` | OpenRouter API key |
+| `openrouter` | Cloud routing hub, default `https://openrouter.ai/api/v1`, model `openrouter/free` (default provider) | OpenRouter API key |
+| `ollama` | Ollama endpoint `http://localhost:11434` — models on your own machine, or Ollama's hosted models | Install [Ollama](https://ollama.com), `ollama pull <model>`, then pick the model — no API key for local models |
 | `nvidia` | NVIDIA NIM cloud, default `https://integrate.api.nvidia.com/v1` | NVIDIA API key — free developer tier at [build.nvidia.com](https://build.nvidia.com), no subscription; free capacity is shared, so it is often slow |
 | `deepseek` | DeepSeek API, default `https://api.deepseek.com`, model `deepseek-v4-pro` | DeepSeek API key |
 | `openai` | Native OpenAI Chat Completions, default `https://api.openai.com/v1`, model `gpt-5.6-sol` | OpenAI API key |
@@ -53,11 +61,11 @@ On desktop, cloud API keys are encrypted with the OS key store (Electron `safeSt
 
 ## Using Ollama
 
-Ollama is one provider among the six, not the identity of the app: Voidcast is BYOK first — the accounts and keys you already pay for come first, and `ollama` is only the default because it needs no key at all. Ollama also serves hosted models on its own Cloud plans; that billing is Ollama's, never Voidcast's.
+Ollama is one provider among the six, not the identity of the app: Voidcast is BYOK first — the accounts and keys you already pay for come first, so the default provider is OpenRouter. Ollama also serves hosted models on its own Cloud plans; that billing is Ollama's, never Voidcast's.
 
-- Default `ollamaBaseUrl` is `http://localhost:11434`.
+- Default `ollamaBaseUrl` is `http://localhost:11434`. When a local Ollama refuses the connection, the request fails at once with "Can't reach Ollama at …" instead of retrying; a remote one is still retried with backoff.
 - **Plain HTTP to a non-loopback host is blocked by CSP**: the renderer's `connect-src` allows `https:`/`wss:` plus loopback `http:`/`ws:` only. A LAN Ollama at `http://192.168.x.x:11434` needs its origin added to `index.html` to work.
-- `ollamaModel` defaults to `llama3.2`. The model list is fetched from `/api/tags` in `electron-app/src/lib/ollama.ts`.
+- `ollamaModel` starts empty: choose one of the models Ollama has installed. A chat turn with no model refuses with a message saying so. The model list is fetched from `/api/tags` in `electron-app/src/lib/ollama.ts`.
 - Ollama-specific LLM options: `llmTemperature`, `llmNumCtx` (`options.num_ctx`), `llmThinkLevel` (`think`), and `llmSystemPrompt`.
 - OpenRouter/NVIDIA reasoning appears in the UI when `llmThinkLevel` is not `off`.
 
