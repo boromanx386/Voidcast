@@ -501,7 +501,8 @@ export function SubAgentOptionsPanel({
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
           When enabled, image_recall delegates vision analysis to the vision model below. The main
-          agent receives text descriptions instead of raw image bytes.
+          agent receives text descriptions instead of raw image bytes. If the main model can see
+          images itself, leave this off — it looks at the picture directly, which works better.
         </p>
       </div>
 

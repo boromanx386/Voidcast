@@ -44,7 +44,7 @@ All fields live under `settings.subAgent`:
 
 | Field | Type / Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `boolean`, default `false` | Vision / image sub-agent |
+| `enabled` | `boolean`, default `false` | Vision / image sub-agent. Leave it off when the main model sees images itself: it reads the picture directly, which works better than a text description |
 | `codingEnabled` | `boolean`, default `false` | Explore + coding workers |
 | `hintEnabled` | `boolean`, default `false` | Composer hint button — rewrites the draft with the coding model, or proposes the next prompt when the field is empty but a conversation exists; whole text conversation as context |
 | `provider` / `model` | vision role, default provider `ollama`, model empty | A vision-capable model you choose; there is no default model, and a sub-agent call without one fails with "No sub-agent model selected" |
