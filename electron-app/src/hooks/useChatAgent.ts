@@ -114,6 +114,8 @@ import type {
 import { recordTurnToolUse } from '@/lib/turnToolRecord'
 import { normalizeAgentChatMode } from '@/types/chat'
 import type { TerminalLine } from '@/types/coding'
+import type { TtsReadOptions } from '@/hooks/useTtsPlayback'
+import { spokenBriefAvailable } from '@/lib/spokenBrief'
 
 export type UseChatAgentDeps = {
   settings: AppSettings
@@ -181,7 +183,7 @@ export type UseChatAgentDeps = {
   input: string
   setInput: (value: string) => void
 
-  onRead: (msg: UiMessage) => Promise<void>
+  onRead: (msg: UiMessage, opts?: TtsReadOptions) => Promise<void>
   ttsOk: boolean | null
   /** Live clone reference for local TTS (generate_tts). */
   ttsCloneRef?: { blob: Blob; fileName: string } | null
@@ -1645,7 +1647,10 @@ export function useChatAgent(deps: UseChatAgentDeps) {
         // while the window is minimized or hidden in the tray.
         notifyAgentDone(replyText)
         if (willAutoSpeak && isViewingThisRun()) {
-          void onRead({ id: asstId, role: 'assistant', content: replyText })
+          // BRIEF without a coding model would only fall back later; decide it here.
+          const brief =
+            autoSpeakSettings.autoVoiceMode === 'brief' && spokenBriefAvailable(autoSpeakSettings)
+          void onRead({ id: asstId, role: 'assistant', content: replyText }, { brief })
         }
       }
     },

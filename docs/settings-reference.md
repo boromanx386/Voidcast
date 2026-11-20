@@ -149,6 +149,8 @@ type RunwareMusicModelProfile = {
 | `voiceMode`                | `VoiceMode`      | `'design'` (instruct) \| `'clone'` (ref_audio + optional ref_text).                                                                                                 |
 | `cloneRefText`             | `string`         | Reference transcript for clone; empty = model may use Whisper (slower).                                                                                             |
 | `autoVoice`                | `boolean`        | Play TTS automatically after the assistant reply finishes.                                                                                                          |
+| `autoVoiceMode`            | `'full' \| 'brief'` | `'full'`: AUTO_VOICE reads the whole reply. `'brief'`: reads a short spoken version from the coding sub-agent model (full when no model is set). |
+| `ttsBriefEnglish`          | `boolean`        | Default `false`. BRIEF is always written in English (translated if needed), for TTS voices without the chat's language. SPEAK is unaffected. |
 | `ttsSpeed`                 | `number`         | TTS generate speed (>1 faster).                                                                                                                                     |
 | `ttsNumStep`               | `number`         | Diffusion steps (fewer = faster, lower quality).                                                                                                                    |
 | `ttsDurationSec`           | `number \| null` | Fixed duration in seconds; `null` = automatic.                                                                                                                      |

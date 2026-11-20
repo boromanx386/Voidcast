@@ -16,6 +16,7 @@ import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { isElectron } from '@/lib/platform'
 import { synthesizeSpeech } from '@/lib/tts'
+import { spokenBriefAvailable } from '@/lib/spokenBrief'
 import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
 
 const OMNIVOICE_VOICE_DESIGN_DOCS =
@@ -114,6 +115,7 @@ export function TtsOptionsPanel({
 }: Props) {
   const [bakeBusy, setBakeBusy] = useState(false)
   const [playBusy, setPlayBusy] = useState(false)
+  const briefAvailable = spokenBriefAvailable(settings)
 
   const playBakePhrase = async () => {
     if (!settings.voiceBakePhrase.trim() || playBusy) return
@@ -859,20 +861,80 @@ export function TtsOptionsPanel({
         {/* Auto voice, agent tool and chunking all depend on an active provider. */}
         {settings.ttsProvider !== 'none' && (
           <>
-            <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 accent-neon-cyan"
-                checked={settings.autoVoice}
-                onChange={(e) => setSettings((s) => ({ ...s, autoVoice: e.target.checked }))}
-              />
-              <span>
-                <span className="font-mono text-sm text-neon-green">AUTO_VOICE</span>
-                <span className="mt-1 block text-xs text-void-dim">
-                  Play TTS automatically after assistant reply completes
-                </span>
-              </span>
-            </label>
+            <div className="p-3 border border-void-muted/30 bg-void-black/50">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 accent-neon-cyan"
+                    checked={settings.autoVoice}
+                    onChange={(e) => setSettings((s) => ({ ...s, autoVoice: e.target.checked }))}
+                  />
+                  <span>
+                    <span className="font-mono text-sm text-neon-green">AUTO_VOICE</span>
+                    <span className="mt-1 block text-xs text-void-dim">
+                      Play TTS automatically after assistant reply completes
+                    </span>
+                  </span>
+                </label>
+                {/* Kept outside the label so a mode click never toggles AUTO_VOICE. */}
+                {settings.autoVoice && (
+                  <div className="flex font-mono text-xs" role="group" aria-label="AUTO_VOICE mode">
+                    {(['full', 'brief'] as const).map((mode) => {
+                      // Without a model AUTO_VOICE reads in full, so FULL must show as active.
+                      const active =
+                        (settings.autoVoiceMode === 'brief' && briefAvailable
+                          ? 'brief'
+                          : 'full') === mode
+                      const disabled = mode === 'brief' && !briefAvailable
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          disabled={disabled}
+                          aria-pressed={active}
+                          onClick={() => setSettings((s) => ({ ...s, autoVoiceMode: mode }))}
+                          className={`px-3 py-1 border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                            active
+                              ? 'border-neon-cyan/60 bg-neon-cyan/15 text-neon-cyan'
+                              : 'border-void-muted/40 text-void-dim hover:text-neon-cyan'
+                          }`}
+                        >
+                          {mode.toUpperCase()}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              {settings.autoVoice && (
+                <p className="mt-2 text-xs text-void-dim">
+                  {briefAvailable
+                    ? 'BRIEF: the CODING sub-agent model writes a short spoken version first (replies under ~400 chars are read as is). The BRIEF button in chat works either way.'
+                    : 'BRIEF needs a CODING model in Options → Sub-agent. Until then AUTO_VOICE reads the full reply.'}
+                </p>
+              )}
+              {/* Applies to the chat BRIEF button too, so it does not depend on AUTO_VOICE. */}
+              {briefAvailable && (
+                <label className="mt-3 flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 accent-neon-cyan"
+                    checked={settings.ttsBriefEnglish === true}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, ttsBriefEnglish: e.target.checked }))
+                    }
+                  />
+                  <span>
+                    <span className="font-mono text-sm text-neon-cyan">BRIEF_IN_ENGLISH</span>
+                    <span className="mt-1 block text-xs text-void-dim">
+                      Always write BRIEF in English, translating if needed. Handy when the TTS voice
+                      cannot speak the chat&apos;s language. SPEAK still reads the original reply.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
 
             <label className="flex items-start gap-3 p-3 border border-void-muted/30 bg-void-black/50">
               <input

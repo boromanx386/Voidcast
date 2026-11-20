@@ -15,6 +15,7 @@ import {
 import type { ChatMessageRenderContext } from '@/hooks/useChatMessageRender'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 import { emptyCodingTurnEvidence, formatCodingTurnEvidenceLabel } from '@/lib/codingContextMemo'
+import { spokenBriefAvailable } from '@/lib/spokenBrief'
 import type { UiMessage } from '@/types/chat'
 
 function codingTurnEvidenceLabel(ev: NonNullable<UiMessage['codingTurnEvidence']>): string {
@@ -60,6 +61,7 @@ type Props = {
     | 'approveAndBuildPlan'
     | 'revisePlanWithCustomNote'
     | 'playingId'
+    | 'playingBrief'
     | 'ttsOk'
     | 'abortTts'
     | 'onRead'
@@ -89,6 +91,7 @@ export function ChatMessage({ message: m, index, render, app }: Props) {
     approveAndBuildPlan,
     revisePlanWithCustomNote,
     playingId,
+    playingBrief,
     ttsOk,
     abortTts,
     onRead,
@@ -633,7 +636,7 @@ export function ChatMessage({ message: m, index, render, app }: Props) {
                   type="button"
                   disabled={ttsOk === false}
                   onClick={() => {
-                    if (playingId === m.id) {
+                    if (playingId === m.id && !playingBrief) {
                       abortTts()
                       return
                     }
@@ -645,10 +648,35 @@ export function ChatMessage({ message: m, index, render, app }: Props) {
                 disabled:opacity-40 disabled:cursor-not-allowed
                 transition-all"
                 >
-                  <span className={playingId === m.id ? 'animate-pulse' : ''}>
-                    {playingId === m.id ? '◼' : '▶'}
+                  <span className={playingId === m.id && !playingBrief ? 'animate-pulse' : ''}>
+                    {playingId === m.id && !playingBrief ? '◼' : '▶'}
                   </span>
-                  {playingId === m.id ? 'STOP' : 'SPEAK'}
+                  {playingId === m.id && !playingBrief ? 'STOP' : 'SPEAK'}
+                </button>
+              )}
+              {/* BRIEF: the coding sub-agent model writes a short spoken version first. */}
+              {settings.ttsProvider !== 'none' && spokenBriefAvailable(settings) && (
+                <button
+                  type="button"
+                  disabled={ttsOk === false}
+                  title="Read a short spoken summary written by the coding sub-agent model"
+                  onClick={() => {
+                    if (playingId === m.id && playingBrief) {
+                      abortTts()
+                      return
+                    }
+                    void onRead(m, { brief: true })
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono
+                border border-neon-cyan/30 text-neon-cyan
+                hover:bg-neon-cyan/10 hover:border-neon-cyan/50
+                disabled:opacity-40 disabled:cursor-not-allowed
+                transition-all"
+                >
+                  <span className={playingId === m.id && playingBrief ? 'animate-pulse' : ''}>
+                    {playingId === m.id && playingBrief ? '◼' : '▶'}
+                  </span>
+                  {playingId === m.id && playingBrief ? 'STOP' : 'BRIEF'}
                 </button>
               )}
               {dedupeNonEmpty([

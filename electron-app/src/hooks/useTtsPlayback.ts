@@ -10,19 +10,31 @@ import {
   type StoredVoiceAnchor,
 } from '@/lib/voiceAnchorStorage'
 import { sanitizeForTts } from '@/lib/chatHints'
+import { generateSpokenBrief, needsSpokenBrief } from '@/lib/spokenBrief'
+import { subAgentConfigForRole } from '@/lib/settings'
+import { subAgentKeysFromSettings } from '@/lib/subAgentKeys'
 import type { UiMessage } from '@/types/chat'
 
 export type UseTtsPlaybackParams = {
   settings: AppSettings
+  /** Session id for the sub-agent keys (OpenCode Go session affinity) used by BRIEF. */
+  runtimeKey: string
   setError: (error: string | null) => void
+}
+
+export type TtsReadOptions = {
+  /** Read a short spoken brief from the coding sub-agent instead of the whole reply. */
+  brief?: boolean
 }
 
 export type UseTtsPlaybackResult = {
   ttsOk: boolean | null
   playingId: string | null
+  /** True while the current playback (or its brief generation) is a BRIEF read. */
+  playingBrief: boolean
   audioUrl: string | null
   audioRef: RefObject<HTMLAudioElement | null>
-  onRead: (msg: UiMessage) => Promise<void>
+  onRead: (msg: UiMessage, opts?: TtsReadOptions) => Promise<void>
   playBlobUrl: (url: string, signal: AbortSignal) => Promise<void>
   refreshTts: () => Promise<void>
   cloneRef: { blob: Blob; fileName: string } | null
@@ -34,9 +46,14 @@ export type UseTtsPlaybackResult = {
   abortTts: () => void
 }
 
-export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): UseTtsPlaybackResult {
+export function useTtsPlayback({
+  settings,
+  runtimeKey,
+  setError,
+}: UseTtsPlaybackParams): UseTtsPlaybackResult {
   const [ttsOk, setTtsOk] = useState<boolean | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
+  const [playingBrief, setPlayingBrief] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [cloneRef, setCloneRef] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [voiceAnchor, setVoiceAnchor] = useState<StoredVoiceAnchor | null>(null)
@@ -45,7 +62,9 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
   const ttsRunIdRef = useRef(0)
   const ttsAudioCacheRef = useRef<Map<string, Blob>>(new Map())
   const ttsAudioCacheOrderRef = useRef<string[]>([])
-  const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
+  // Keyed by reply text: replaying a BRIEF must not cost another model call.
+  const briefCacheRef = useRef<Map<string, string>>(new Map())
+  const onReadRef = useRef<(msg: UiMessage, opts?: TtsReadOptions) => Promise<void>>(async () => {})
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const refreshTts = useCallback(async () => {
@@ -85,6 +104,7 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
     ttsRunIdRef.current += 1
     audioRef.current?.pause()
     setPlayingId(null)
+    setPlayingBrief(false)
   }, [settings.ttsProvider])
 
   useEffect(() => {
@@ -140,10 +160,40 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
     })
   }
 
-  const onRead = async (msg: UiMessage) => {
+  const resolveBrief = async (content: string, signal: AbortSignal): Promise<string | null> => {
+    const english = settings.ttsBriefEnglish === true
+    // The language is part of the key: toggling English must not replay the old brief.
+    const cacheKey = `${english ? 'en' : 'same'}|${content}`
+    const cached = briefCacheRef.current.get(cacheKey)
+    if (cached) return cached
+    try {
+      const brief = await generateSpokenBrief({
+        content,
+        config: subAgentConfigForRole(settings.subAgent, 'coding'),
+        keys: subAgentKeysFromSettings(settings, runtimeKey),
+        signal,
+        english,
+      })
+      if (!brief) return null
+      briefCacheRef.current.set(cacheKey, brief)
+      while (briefCacheRef.current.size > 64) {
+        const oldest = briefCacheRef.current.keys().next().value
+        if (oldest === undefined) break
+        briefCacheRef.current.delete(oldest)
+      }
+      return brief
+    } catch (e) {
+      if (signal.aborted) return null
+      // A failing text provider must not silence speech: fall back to the full reply.
+      console.warn('[VOIDCAST] spoken brief failed, reading full reply:', e)
+      return null
+    }
+  }
+
+  const onRead = async (msg: UiMessage, opts?: TtsReadOptions) => {
     if (settings.ttsProvider === 'none') return
     if (msg.role !== 'assistant' || !msg.content.trim()) return
-    const spoken = sanitizeForTts(msg.content)
+    let spoken = sanitizeForTts(msg.content)
     if (!spoken) return
     const ttsVoiceMode = settings.ttsProvider === 'local' ? settings.voiceMode : 'design'
     if (ttsVoiceMode === 'clone' && (!cloneRef?.blob || cloneRef.blob.size === 0)) {
@@ -159,7 +209,13 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
 
     setError(null)
     setPlayingId(msg.id)
+    setPlayingBrief(opts?.brief === true)
     try {
+      if (opts?.brief && needsSpokenBrief(msg.content)) {
+        const brief = await resolveBrief(msg.content, signal)
+        if (signal.aborted) return
+        if (brief) spoken = brief
+      }
       if (audioUrl) URL.revokeObjectURL(audioUrl)
 
       const maxC = Math.min(2000, Math.max(80, Math.round(settings.ttsChunkMaxChars) || 300))
@@ -260,7 +316,10 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
       if (!signal.aborted) setError(e instanceof Error ? e.message : String(e))
     } finally {
       if (ttsAbortRef.current === ac) ttsAbortRef.current = null
-      if (ttsRunIdRef.current === runId) setPlayingId(null)
+      if (ttsRunIdRef.current === runId) {
+        setPlayingId(null)
+        setPlayingBrief(false)
+      }
     }
   }
 
@@ -350,6 +409,7 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
   return {
     ttsOk,
     playingId,
+    playingBrief,
     audioUrl,
     audioRef,
     onRead,

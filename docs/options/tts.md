@@ -67,8 +67,18 @@ Type: `VoiceMode = 'auto' | 'design' | 'clone'`, default `'design'`.
 - `design` — use `voiceInstruct`.
 - `clone` — use a reference audio file (`cloneRef`, picked via `onPickCloneFile`, cleared with `onClearClone`) plus optional reference text `cloneRefText`. Empty `cloneRefText` means the model may fall back to Whisper transcription (slower).
 
-### Auto voice (`autoVoice`)
-`boolean`, default `false`. When on, TTS playback starts automatically after the assistant reply finishes. Agent-editable.
+### Auto voice (`autoVoice`, `autoVoiceMode`)
+`autoVoice`: `boolean`, default `false`. When on, TTS playback starts automatically after the assistant reply finishes. Agent-editable.
+
+`autoVoiceMode`: `'full' | 'brief'`, default `'full'`. A **FULL | BRIEF** switch next to `AUTO_VOICE`, shown while it is on. `full` reads the whole reply; `brief` reads a short spoken version (see below). `BRIEF` is greyed out until the coding sub-agent role resolves to a model, and with no model AUTO_VOICE reads the full reply.
+
+### SPEAK and BRIEF buttons
+Every assistant bubble has **SPEAK** (the whole reply, after `sanitizeForTts`). When the coding sub-agent role has a model (Options → Sub-agent, the same model the prompt hint uses), a **BRIEF** button sits next to it: one tool-free `callSubAgentChat` (`generateSpokenBrief` in `electron-app/src/lib/spokenBrief.ts`) rewrites the reply into at most ~60 words for listening, in the reply's language, without code, paths or new facts, and that text is spoken instead.
+
+- Replies under `BRIEF_MIN_CHARS` (400 spoken characters) are read as is, with no model call.
+- Briefs are cached in memory by reply text (64 entries), so replaying costs nothing; the cache does not survive a restart.
+- If the brief call fails, the full reply is read instead.
+- **BRIEF_IN_ENGLISH** (`ttsBriefEnglish`, `boolean`, default `false`, shown when BRIEF is available): the brief is always written in English, translated if the reply is in another language, for TTS voices that lack the chat's language. It applies to the BRIEF button and to AUTO_VOICE in `brief` mode; SPEAK still reads the original. The language is part of the brief cache key.
 
 ### Speed / steps / duration / chunking
 - `ttsSpeed` (`number`, default `1.0`) — generate speed; >1 is faster.

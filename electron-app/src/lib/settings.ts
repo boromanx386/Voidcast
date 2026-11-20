@@ -20,6 +20,8 @@ export {
 } from '@/types/chat'
 
 export type VoiceMode = 'design' | 'clone'
+export type AutoVoiceMode = 'full' | 'brief'
+
 /** 'none' disables speech output: no SPEAK button, no AUTO_VOICE, no generate_tts. */
 export type TtsProvider = 'none' | 'local' | 'runware-xai' | 'openrouter-tts'
 export type SttProvider = 'none' | 'openrouter' | 'whistle'
@@ -1547,6 +1549,13 @@ export type AppSettings = {
   cloneRefText: string
   /** Play TTS automatically after assistant reply finishes */
   autoVoice: boolean
+  /**
+   * What AUTO_VOICE reads: the whole reply, or a short spoken brief written by the coding
+   * sub-agent model. Anything other than 'brief' (or no model configured) reads in full.
+   */
+  autoVoiceMode: AutoVoiceMode
+  /** BRIEF is always written in English, for TTS voices that lack the chat's language. */
+  ttsBriefEnglish: boolean
   /** TTS generate speed (>1 faster) */
   ttsSpeed: number
   /** Diffusion steps (fewer = faster, lower quality) */
@@ -1772,6 +1781,8 @@ export const defaults: AppSettings = {
   voiceMode: 'design',
   cloneRefText: '',
   autoVoice: false,
+  autoVoiceMode: 'full',
+  ttsBriefEnglish: false,
   ttsSpeed: 1.0,
   ttsNumStep: 32,
   ttsDurationSec: null,

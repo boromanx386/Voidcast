@@ -9,7 +9,7 @@ import { useChatSessions } from '@/hooks/useChatSessions'
 import { useCodingSession } from '@/hooks/useCodingSession'
 import { useLongMemoryUi } from '@/hooks/useLongMemoryUi'
 import { useSttInput } from '@/hooks/useSttInput'
-import { useTtsPlayback } from '@/hooks/useTtsPlayback'
+import { useTtsPlayback, type TtsReadOptions } from '@/hooks/useTtsPlayback'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
 import type { CodingContextMemo } from '@/lib/codingContextMemo'
 import { handleControlRequest } from '@/lib/controlApi'
@@ -62,7 +62,7 @@ export function useVoidcastApp() {
   const busyRef = useRef(false)
   const editingMessageIdRef = useRef<string | null>(null)
   const setErrorRef = useRef<(error: string | null) => void>(() => {})
-  const onReadRef = useRef<(msg: UiMessage) => Promise<void>>(async () => {})
+  const onReadRef = useRef<(msg: UiMessage, opts?: TtsReadOptions) => Promise<void>>(async () => {})
   const refreshRemindersRef = useRef<() => void | Promise<void>>(async () => {})
   const refreshLongMemoriesRef = useRef<() => void | Promise<void>>(async () => {})
   const abortTtsRef = useRef<() => void>(() => {})
@@ -97,6 +97,7 @@ export function useVoidcastApp() {
 
   const tts = useTtsPlayback({
     settings,
+    runtimeKey,
     setError: (error) => setErrorRef.current(error),
   })
   onReadRef.current = tts.onRead
@@ -157,7 +158,7 @@ export function useVoidcastApp() {
     setPendingFiles: attachments.setPendingFiles,
     input,
     setInput,
-    onRead: (msg) => onReadRef.current(msg),
+    onRead: (msg, opts) => onReadRef.current(msg, opts),
     ttsOk: tts.ttsOk,
     ttsCloneRef: tts.cloneRef,
     ttsVoiceAnchor: tts.voiceAnchor,

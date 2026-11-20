@@ -43,6 +43,7 @@ type Props = {
     | 'activeAgentMode'
     | 'revisePlanWithCustomNote'
     | 'playingId'
+    | 'playingBrief'
     | 'ttsOk'
     | 'abortTts'
     | 'onRead'
