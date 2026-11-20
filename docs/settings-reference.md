@@ -17,7 +17,7 @@ Grouped by the Settings tab they belong to.
 | `reminderNotificationsEnabled` | `boolean` | on                                               | Renderer fires a desktop notification when a scheduled reminder becomes due.                                                                                      |
 | `notificationSoundsEnabled`    | `boolean` | off                                              | Play the user-selected reply/error sound files on chat events.                                                                                                    |
 | `notificationSoundVolume`      | `number`  | 0–1                                              | Output volume for chat notification sounds.                                                                                                                       |
-| `lanWebAccessEnabled`          | `boolean` | off (desktop only)                               | Push cloud API keys to the local TTS server so LAN/phone web clients can use the proxy. Default off — keys stay on the desktop only.                             |
+| `lanWebAccessEnabled`          | `boolean` | off (desktop only)                               | Enable phone pairing on the desktop tools server. Turning it off revokes the pairing token and clears desktop-registered keys.                             |
 | `longMemoryDefaultEnabled`     | `boolean` | on                                               | Default for new chats: whether to include long-term memory retrieval.                                                                                             |
 
 ### Cloud API keys (General → Cloud API Keys)

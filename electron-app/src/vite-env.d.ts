@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 
+import type { LanRegistration, LanPairing } from '@/lib/cloudSecrets'
 import type { ProgressInfo } from 'electron-updater'
 import type { CodingSearchProcessedResult } from '@/lib/codingSearch'
 
@@ -578,6 +579,8 @@ interface VoidcastBridge {
     | { ok: false; error?: string }
   >
 
+  getToolsAuth: () => { token: string; port: number } | null
+  syncLanAccess: (registration: LanRegistration | null) => Promise<LanPairing | null>
   getLanNetworkInfo: () => Promise<{ ips: string[] }>
 
   showWindow: () => Promise<void>

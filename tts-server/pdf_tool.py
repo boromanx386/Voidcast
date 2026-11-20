@@ -12,14 +12,14 @@ import base64
 import binascii
 import ipaddress
 import logging
-import os
 import re
 import socket
 import sys
 from datetime import datetime
 from io import BytesIO
+from itertools import count
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, BinaryIO, TypedDict
 from urllib.parse import urlparse
 
 try:
@@ -891,17 +891,17 @@ def _safe_default_filename(title: str, suggested: str | None) -> str:
     return cleaned if cleaned.lower().endswith(".pdf") else f"{cleaned}.pdf"
 
 
-def _unique_file_path(directory: Path, file_name: str) -> Path:
-    fp = directory / file_name
-    if not fp.exists():
-        return fp
-    stem = fp.stem or "document"
-    suffix = fp.suffix or ".pdf"
-    for i in range(2, 1000):
-        candidate = directory / f"{stem}-{i}{suffix}"
-        if not candidate.exists():
-            return candidate
-    return directory / f"{stem}-{int(datetime.now().timestamp())}{suffix}"
+def _open_new_pdf(directory: Path, file_name: str) -> tuple[Path, BinaryIO]:
+    name = Path(file_name)
+    for index in count(1):
+        path = directory / (
+            file_name if index == 1 else f"{name.stem}-{index}{name.suffix}"
+        )
+        try:
+            # Exclusive creation also skips dangling links and concurrent exports.
+            return path, path.open("xb")
+        except FileExistsError:
+            continue
 
 
 def _is_private_or_loopback(host: str) -> bool:
@@ -1192,15 +1192,15 @@ def _draw_title_block(ctx: _Ctx, title_text: str) -> None:
     ctx.y -= _leading(SIZE_DATE) + 16
 
 
-def _build_pdf_to_path(
-    out_path: Path,
+def _write_pdf(
+    output: BinaryIO,
     title: str,
     body: str,
     attached_images: list[dict[str, Any]] | None,
     url_images: list[dict[str, Any]] | None,
 ) -> tuple[int, int]:
     _register_fonts()
-    c = canvas.Canvas(str(out_path), pagesize=(PAGE_W, PAGE_H))
+    c = canvas.Canvas(output, pagesize=(PAGE_W, PAGE_H))
     c.setTitle(title or "Document")
     c.setCreator("Voidcast save_pdf")
 
@@ -1274,7 +1274,6 @@ def save_pdf_to_folder(
 
     title_text = (title or "Document").strip() or "Document"
     base_name = _safe_default_filename(title_text, filename)
-    out_path = _unique_file_path(directory, base_name)
 
     decoded, err = _decode_payload_images(images)
     if err is not None:
@@ -1298,21 +1297,19 @@ def save_pdf_to_folder(
             for msg in url_errors:
                 logger.info("save_pdf url skipped: %s", msg)
 
+    out_path = None
     try:
-        drawn, skipped = _build_pdf_to_path(
-            out_path,
-            title_text,
-            raw,
-            decoded or None,
-            url_decoded or None,
-        )
-    except Exception as e:  # noqa: BLE001 - any rendering failure
-        # Best-effort: clean up zero-byte file from a failed save.
-        try:
-            if out_path.exists() and out_path.stat().st_size == 0:
-                os.remove(out_path)
-        except OSError:
-            pass
+        out_path, output = _open_new_pdf(directory, base_name)
+        with output:
+            drawn, skipped = _write_pdf(
+                output, title_text, raw, decoded or None, url_decoded or None
+            )
+    except Exception as e:  # noqa: BLE001 - surface filesystem and rendering errors
+        if out_path is not None:
+            try:
+                out_path.unlink(missing_ok=True)
+            except OSError:
+                pass
         return {"ok": False, "text": str(e)}
 
     extra = ""

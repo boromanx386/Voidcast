@@ -113,6 +113,8 @@ fi
 TOOLS_HOST="${VOIDCAST_TOOLS_HOST:-0.0.0.0}"
 TOOLS_PORT="${VOIDCAST_TOOLS_PORT:-8765}"
 
+# The separately launched Electron and Python processes share one launch credential.
+export VOIDCAST_DESKTOP_TOKEN="${VOIDCAST_DESKTOP_TOKEN:-$("$PY" -c 'import secrets; print(secrets.token_urlsafe(32))')}"
 PIDS=()
 cleanup() {
   trap - EXIT INT TERM

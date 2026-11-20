@@ -153,14 +153,16 @@ The bundled Python server listens on **`0.0.0.0:8765`** in production (localhost
 | `POST /tools/youtube` | YouTube search / transcripts |
 | `POST /tools/pdf` | PDF export (`save_pdf`) |
 | `POST /tools/runware_proxy` | Runware image / music proxy |
-| `POST /tools/cloud-secrets` | Push cloud API keys to the host for LAN clients |
-| `DELETE /tools/cloud-secrets` | Clear desktop-registered cloud API keys |
+| `POST /tools/cloud-secrets` | Enable LAN access or refresh desktop keys and the PDF folder. Returns the active pairing token to the local native client |
+| `DELETE /tools/cloud-secrets` | Revoke pairing and clear desktop-registered keys and the PDF folder |
 | `GET /tools/cloud-secrets-status` | Whether LAN clients can read keys from this host |
 | `POST /tools/host-tool-config` | Push host paths (e.g. PDF folder) for LAN clients |
 | `DELETE /tools/host-tool-config` | Clear desktop-registered host tool config |
 | `GET /tools/user-data` | Fetch long memory + reminders for sync |
 | `POST /tools/user-data-sync` | Merge long memory + reminders (desktop ↔ LAN) |
 | `POST /tts` | Text-to-speech (local OmniVoice setup) |
+
+The desktop main process supplies a per-launch desktop token to the tools process and to the app's own main frame through preload. The renderer attaches it only to requests on the configured loopback tools port and rejects redirects for authenticated requests. Incoming Host values must identify loopback, the receiving IP, the machine name or a configured LAN alias. Phone clients use the same origin and pair separately.
 
 Web search never runs inside the server. `POST /tools/search` hands the query to a
 separate worker process (`tts-server/search_core.py`, driven by `search_client.py`)

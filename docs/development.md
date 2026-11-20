@@ -29,8 +29,6 @@ bash build-linux.sh   # build: freezes the Linux tools server, then AppImage + .
 cd electron-app && npm install
 ```
 
-From the repo root (optional): `npm install` pulls in `concurrently` for the dev script.
-
 ### Development mode
 
 From the **repo root**:
@@ -39,7 +37,7 @@ From the **repo root**:
 npm run dev
 ```
 
-Starts the Python tools server on `http://127.0.0.1:8765` and the Electron app with Vite HMR.
+Vite starts Electron with hot reload. Electron launches the Python tools server on `http://127.0.0.1:8765` and gives it the desktop session credential.
 
 ### Lint & format
 

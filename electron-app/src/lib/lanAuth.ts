@@ -1,11 +1,4 @@
-// LAN access token bootstrap + global fetch interceptor (web/LAN build only).
-//
-// The desktop embeds the shared access token in the phone's connection URL as
-// ?t=<token> (see LanWebAccessPanel). This module reads it once, strips it from
-// the address bar (so it doesn't linger in history/server logs), and injects the
-// `x-voidcast-access-token` header into every same-origin request. On the Electron
-// desktop build there is no ?t= and the token stays empty, so nothing is sent —
-// the desktop talks to the server over loopback, which is always allowed.
+// Attach local credentials only to their intended tools server.
 
 const TOKEN_STORAGE_KEY = 'voidcast_lan_token'
 const AUTH_HEADER = 'x-voidcast-access-token'
@@ -50,31 +43,41 @@ function bootstrapTokenFromUrl(): void {
   }
 }
 
-function shouldAttach(input: RequestInfo | URL): boolean {
-  if (!accessToken) return false
-  let url: URL
-  try {
-    url = new URL(requestUrl(input), window.location.href)
-  } catch {
-    return false
+type DesktopAuth = { token: string; port: number }
+
+export function toolsAuthHeader(
+  url: URL,
+  desktop: DesktopAuth | null,
+  pageOrigin: string,
+  phoneToken: string,
+): [string, string] | null {
+  if (desktop) {
+    if (
+      url.protocol !== 'http:' ||
+      !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+      Number(url.port || '80') !== desktop.port
+    )
+      return null
+    return ['x-voidcast-desktop-token', desktop.token]
   }
-  // Only attach to same-origin requests (the LAN server), not external APIs.
-  return url.origin === window.location.origin
+  return phoneToken && url.origin === pageOrigin ? [AUTH_HEADER, phoneToken] : null
 }
 
 export function initLanAccess(): void {
   if (typeof window === 'undefined') return
-  bootstrapTokenFromUrl()
-  if (!accessToken) return
+  const desktop = window.voidcast?.getToolsAuth() ?? null
+  if (!desktop) bootstrapTokenFromUrl()
+  if (!desktop && !accessToken) return
   const originalFetch = window.fetch.bind(window)
   window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-    if (shouldAttach(input)) {
-      const headers = new Headers(init?.headers)
-      if (!headers.has(AUTH_HEADER)) {
-        headers.set(AUTH_HEADER, accessToken)
-      }
-      init = { ...(init ?? {}), headers }
-    }
-    return originalFetch(input, init)
+    const url = new URL(requestUrl(input), window.location.href)
+    const auth = toolsAuthHeader(url, desktop, window.location.origin, accessToken)
+    if (!auth) return originalFetch(input, init)
+    const headers = new Headers(
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
+    )
+    headers.set(...auth)
+    // Custom authentication headers can survive a cross-origin redirect.
+    return originalFetch(input, { ...init, headers, redirect: 'error' })
   }) as typeof fetch
 }

@@ -33,6 +33,7 @@ export function useVoidcastApp() {
     hostPdfOutputDir,
     setHostPdfOutputDir,
     effectivePdfOutputDir,
+    lanSync,
     appVersion,
   } = useAppSettings()
 
@@ -457,6 +458,7 @@ export function useVoidcastApp() {
     settings,
     setSettings,
     effectivePdfOutputDir,
+    lanSync,
     appVersion,
     screen,
     setScreen,

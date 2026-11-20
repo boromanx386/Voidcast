@@ -1,4 +1,3 @@
-import { isElectron } from '@/lib/platform'
 import { normalizeBaseUrl } from '@/lib/settings'
 
 export type HostToolConfigSnapshot = {
@@ -23,27 +22,4 @@ export function resolvePdfOutputDir(localDir: string, hostDir: string): string {
   const local = localDir.trim()
   if (local) return local
   return hostDir.trim()
-}
-
-/** Push PDF folder from desktop so the phone web UI does not need a local path. */
-export async function pushHostToolConfigToServer(
-  ttsBaseUrl: string,
-  config: { pdfOutputDir: string },
-): Promise<void> {
-  if (!isElectron()) return
-  const dir = config.pdfOutputDir.trim()
-  if (!dir) return
-  const root = normalizeBaseUrl(ttsBaseUrl.trim() || 'http://127.0.0.1:8765')
-  await fetch(`${root}/tools/host-tool-config`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pdfOutputDir: dir }),
-  })
-}
-
-/** Clear desktop-registered host paths from the TTS server. */
-export async function clearHostToolConfigFromServer(ttsBaseUrl: string): Promise<void> {
-  if (!isElectron()) return
-  const root = normalizeBaseUrl(ttsBaseUrl.trim() || 'http://127.0.0.1:8765')
-  await fetch(`${root}/tools/host-tool-config`, { method: 'DELETE' })
 }

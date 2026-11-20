@@ -1,3 +1,4 @@
+import type { LanSyncState } from '@/lib/cloudSecrets'
 import type { AppSettings } from '@/lib/settings'
 import { isElectron, isLanWebClient } from '@/lib/platform'
 import {
@@ -29,6 +30,7 @@ import {
 } from '@/lib/notificationSounds'
 
 type Props = {
+  lanSync: LanSyncState
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
   useLongMemoryInActiveChat: boolean
@@ -195,6 +197,7 @@ function CloudApiKeysSection({
 }
 
 export function GeneralOptionsPanel({
+  lanSync,
   settings,
   setSettings,
   useLongMemoryInActiveChat,
@@ -559,7 +562,9 @@ export function GeneralOptionsPanel({
         </div>
       ) : (
         <>
-          {isElectron() && <LanWebAccessPanel settings={settings} setSettings={setSettings} />}
+          {isElectron() && (
+            <LanWebAccessPanel lanSync={lanSync} settings={settings} setSettings={setSettings} />
+          )}
 
           <CloudApiKeysSection settings={settings} setSettings={setSettings} />
         </>

@@ -1,11 +1,7 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { mergeExternalSettings } from '@/lib/externalSettingsSync'
-import { clearCloudSecretsFromServer, pushCloudSecretsToServer } from '@/lib/cloudSecrets'
-import {
-  clearHostToolConfigFromServer,
-  pushHostToolConfigToServer,
-  resolvePdfOutputDir,
-} from '@/lib/hostToolConfig'
+import type { LanSyncState } from '@/lib/cloudSecrets'
+import { resolvePdfOutputDir } from '@/lib/hostToolConfig'
 import { isElectron } from '@/lib/platform'
 import { loadSettings, saveSettings, type AppSettings } from '@/lib/settings'
 
@@ -68,72 +64,64 @@ export function useAppSettings() {
     })
   }, [settings.controlApiEnabled])
 
-  // Register cloud API keys on the local TTS server for LAN web proxy (keys never sent to phone).
+  const lastLanEnabled = useRef<boolean | undefined>(undefined)
+  const [lanSync, setLanSync] = useState<LanSyncState>({ pairing: null, error: false })
+  const registration = useMemo(
+    () =>
+      settings.lanWebAccessEnabled
+        ? {
+            openrouterApiKey: settings.openrouterApiKey,
+            runwareApiKey: settings.runwareApiKey,
+            nvidiaApiKey: settings.nvidiaApiKey,
+            deepseekApiKey: settings.deepseekApiKey,
+            openaiApiKey: settings.openaiApiKey,
+            opencodeGoApiKey: settings.opencodeGoApiKey,
+            pdfOutputDir: settings.toolsEnabled.pdf ? settings.pdfOutputDir : '',
+          }
+        : null,
+    [
+      settings.lanWebAccessEnabled,
+      settings.openrouterApiKey,
+      settings.runwareApiKey,
+      settings.nvidiaApiKey,
+      settings.deepseekApiKey,
+      settings.openaiApiKey,
+      settings.opencodeGoApiKey,
+      settings.toolsEnabled.pdf,
+      settings.pdfOutputDir,
+    ],
+  )
   useEffect(() => {
-    if (!isElectron()) return
-    const root = settings.ttsBaseUrl.trim().replace(/\/+$/, '')
-    if (!root) return
-
-    if (!settings.lanWebAccessEnabled) {
-      void clearCloudSecretsFromServer(root).catch(() => {})
-      return
+    const bridge = window.voidcast
+    if (!isElectron() || !bridge) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+    const sync = async () => {
+      try {
+        const pairing = await bridge.syncLanAccess(registration)
+        if (cancelled) return
+        setLanSync({ pairing, error: false })
+        // Restore the registration if the tools server restarts while sharing.
+        if (registration) timer = setTimeout(sync, 30000)
+      } catch {
+        if (cancelled) return
+        setLanSync({ pairing: null, error: true })
+        timer = setTimeout(sync, 3000)
+      }
     }
-
-    const push = () =>
-      void pushCloudSecretsToServer(root, {
-        openrouterApiKey: settings.openrouterApiKey,
-        runwareApiKey: settings.runwareApiKey,
-        nvidiaApiKey: settings.nvidiaApiKey,
-        deepseekApiKey: settings.deepseekApiKey,
-        openaiApiKey: settings.openaiApiKey,
-        opencodeGoApiKey: settings.opencodeGoApiKey,
-      }).catch(() => {
-        // Best-effort; web client shows 503 if keys were not registered.
-      })
-    const timer = window.setTimeout(push, 250)
-    const heartbeat = window.setInterval(push, 30000)
+    const toggleChanged = lastLanEnabled.current !== Boolean(registration)
+    lastLanEnabled.current = Boolean(registration)
+    if (toggleChanged || !registration) {
+      setLanSync({ pairing: null, error: false })
+      void sync()
+    } else {
+      timer = setTimeout(sync, 250)
+    }
     return () => {
-      window.clearTimeout(timer)
-      window.clearInterval(heartbeat)
+      cancelled = true
+      clearTimeout(timer)
     }
-  }, [
-    settings.lanWebAccessEnabled,
-    settings.ttsBaseUrl,
-    settings.openrouterApiKey,
-    settings.runwareApiKey,
-    settings.nvidiaApiKey,
-    settings.deepseekApiKey,
-    settings.openaiApiKey,
-    settings.opencodeGoApiKey,
-  ])
-
-  useEffect(() => {
-    if (!isElectron()) return
-    const root = settings.ttsBaseUrl.trim().replace(/\/+$/, '')
-    if (!root) return
-
-    if (!settings.lanWebAccessEnabled) {
-      void clearHostToolConfigFromServer(root).catch(() => {})
-      return
-    }
-
-    if (!settings.toolsEnabled.pdf) return
-    const push = () =>
-      void pushHostToolConfigToServer(root, {
-        pdfOutputDir: settings.pdfOutputDir,
-      }).catch(() => {})
-    const timer = window.setTimeout(push, 300)
-    const heartbeat = window.setInterval(push, 30000)
-    return () => {
-      window.clearTimeout(timer)
-      window.clearInterval(heartbeat)
-    }
-  }, [
-    settings.lanWebAccessEnabled,
-    settings.ttsBaseUrl,
-    settings.toolsEnabled.pdf,
-    settings.pdfOutputDir,
-  ])
+  }, [registration])
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute('data-ui-theme', settings.uiTheme)
@@ -145,6 +133,7 @@ export function useAppSettings() {
     hostPdfOutputDir,
     setHostPdfOutputDir,
     effectivePdfOutputDir,
+    lanSync,
     appVersion,
   }
 }

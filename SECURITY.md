@@ -55,7 +55,13 @@ The trust model is simple: **the agent acts with your user account's permissions
   account system and no telemetry; keys are only sent to the provider you configured.
 - **LAN web UI** (off by default). When **LAN_WEB_ACCESS** is on, the desktop app
   registers your keys with the local tools server so a phone can use them, and turning it
-  off clears them. Phones authenticate with a shared access token that travels over plain
+  off clears the desktop-registered keys and rejects subsequent LAN tool and data requests.
+  Enabling sharing again issues a fresh link. Removing a key in desktop settings clears its
+  registered value. A separately configured provider key in the server environment still applies.
+  The main process passes a launch credential to the Python server and the desktop renderer.
+  Protected routes require it even on loopback. The built-in browser has a separate view and
+  receives no desktop credential. LAN PDF output and local image inputs are confined to the
+  folder selected on the desktop. Internal credentials are stripped before requests reach a provider. Phones authenticate with a shared access token that travels over plain
   HTTP on your network. Use it only on a network you trust or over a private VPN such as
   Tailscale, and **never port-forward 8765 to the internet**.
 - **Control API** (off by default). It listens on a random port on `127.0.0.1` only,

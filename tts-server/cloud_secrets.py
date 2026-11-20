@@ -8,8 +8,7 @@ from typing import Any
 
 _registered: dict[str, str] = {}
 
-# Shared access token required from non-loopback LAN web clients (phones/tablets).
-# Priority: VOIDCAST_LAN_ACCESS_TOKEN > VOIDCAST_SECRETS_TOKEN > random per-process.
+# None means pairing is off. Reading the token must never enable access.
 _lan_access_token: str | None = None
 
 
@@ -17,19 +16,7 @@ def _env_key(name: str) -> str:
     return os.environ.get(name, "").strip()
 
 
-def get_lan_access_token() -> str:
-    """Return the token LAN web clients must send to use the proxy/data endpoints.
-
-    Loopback (the desktop app) is always allowed and does not need this token; it is
-    fetched by the desktop LAN panel and embedded in the phone's QR / connection URL.
-    """
-    global _lan_access_token
-    if _lan_access_token is None:
-        _lan_access_token = (
-            _env_key("VOIDCAST_LAN_ACCESS_TOKEN")
-            or _env_key("VOIDCAST_SECRETS_TOKEN")
-            or _secrets.token_urlsafe(24)
-        )
+def get_lan_access_token() -> str | None:
     return _lan_access_token
 
 
@@ -48,8 +35,9 @@ def _merged() -> dict[str, str]:
     return out
 
 
-def register_secrets(payload: dict[str, Any]) -> None:
-    """Desktop-only registration; overwrites in-memory keys until process exit."""
+def register_secrets(payload: dict[str, Any], *, renew_pairing: bool = False) -> str:
+    """Refresh desktop keys and issue one pairing token per enabled session."""
+    global _lan_access_token
     mapping = {
         "openrouterApiKey": "openrouter",
         "runwareApiKey": "runware",
@@ -60,12 +48,20 @@ def register_secrets(payload: dict[str, Any]) -> None:
     }
     for field, slot in mapping.items():
         raw = payload.get(field)
-        if isinstance(raw, str) and raw.strip():
-            _registered[slot] = raw.strip()
+        if isinstance(raw, str):
+            if raw.strip():
+                _registered[slot] = raw.strip()
+            else:
+                _registered.pop(slot, None)
+    if renew_pairing or _lan_access_token is None:
+        _lan_access_token = _secrets.token_urlsafe(32)
+    return _lan_access_token
 
 
 def clear_registered_secrets() -> None:
     """Drop desktop-pushed keys from memory (env fallbacks still apply if set)."""
+    global _lan_access_token
+    _lan_access_token = None
     _registered.clear()
 
 
@@ -91,13 +87,3 @@ def get_openai_key() -> str:
 
 def get_opencode_go_key() -> str:
     return _merged().get("opencode_go", "")
-
-
-
-
-def client_may_register(client_host: str | None, token_header: str | None) -> bool:
-    expected = _env_key("VOIDCAST_SECRETS_TOKEN")
-    if expected:
-        return (token_header or "").strip() == expected
-    host = (client_host or "").strip().lower()
-    return host in ("127.0.0.1", "::1", "localhost")

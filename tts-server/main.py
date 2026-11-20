@@ -21,6 +21,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import hmac
+import ipaddress
+import socket
 import io
 import logging
 import os
@@ -36,7 +38,7 @@ from typing import Any
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -53,7 +55,6 @@ from youtube_tools import (
 )
 
 from cloud_secrets import (
-    client_may_register,
     clear_registered_secrets,
     get_deepseek_key,
     get_lan_access_token,
@@ -67,6 +68,7 @@ from cloud_secrets import (
 from user_data import apply_sync, get_snapshot
 from host_tool_config import (
     clear_host_tool_config,
+    get_pdf_output_dir,
     get_snapshot as get_host_tool_config_snapshot,
     register_host_tool_config,
 )
@@ -217,6 +219,8 @@ class RunwareProxyRequest(BaseModel):
 
 
 class CloudSecretsRequest(BaseModel):
+    renewPairing: bool = False
+    pdfOutputDir: str | None = Field(default=None, max_length=4096)
     openrouterApiKey: str = Field(default="", max_length=2048)
     runwareApiKey: str = Field(default="", max_length=2048)
     nvidiaApiKey: str = Field(default="", max_length=2048)
@@ -309,38 +313,103 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="OmniVoice TTS", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    # Auth is header-based (x-voidcast-access-token), not cookie-based, so wildcard
-    # origin is safe here. allow_credentials MUST stay False (True + ["*"] is invalid).
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["null", "file://"],
+    allow_origin_regex=r"http://(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]+",
+    allow_methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "User-Agent",
+        "X-Voidcast-Desktop-Token",
+        "X-API-Key",
+        "X-Opencode-Session",
+        "Anthropic-Version",
+        "Anthropic-Beta",
+    ],
 )
 
 
 def _is_loopback_host(host: str | None) -> bool:
-    return (host or "").strip().lower() in ("127.0.0.1", "::1", "localhost")
+    return (host or "").lower() in ("127.0.0.1", "::1", "localhost")
 
 
-async def require_lan_access(request: Request) -> None:
-    """Gate phone/LAN-reachable routes behind the shared access token.
+# Uvicorn supplies the actual destination IP in scope["server"], including on VPNs.
+# Additional hostnames are exact matches for deployments using custom DNS.
+_ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1", socket.gethostname().lower()}
+_ALLOWED_HOSTS.update(
+    name.strip().lower()
+    for name in os.getenv("VOIDCAST_LAN_HOSTS", "").split(",")
+    if name.strip()
+)
 
-    Loopback (the desktop app) is always allowed so the desktop never needs the token.
-    Non-loopback callers must send `x-voidcast-access-token` (or Authorization: Bearer)
-    matching the server's token. CORS preflight (OPTIONS) is short-circuited by the
-    CORSMiddleware before this dependency runs, so browsers can negotiate the header.
-    """
-    if _is_loopback_host(request.client.host if request.client else None):
-        return
+
+@app.middleware("http")
+async def validate_tools_host(request: Request, call_next):
+    authorities = request.headers.getlist("host")
+    authority = authorities[0].lower() if len(authorities) == 1 else ""
+    match = re.fullmatch(
+        r"(?:\[([0-9a-f:]+)\]|([a-z0-9.-]+))(?::[0-9]{1,5})?", authority
+    )
+    host = (match.group(1) or match.group(2)) if match else None
+    if host not in _ALLOWED_HOSTS:
+        try:
+            destination = request.scope.get("server")
+            valid_ip = destination and ipaddress.ip_address(
+                host
+            ) == ipaddress.ip_address(destination[0])
+        except ValueError:
+            valid_ip = False
+        if not valid_ip:
+            return PlainTextResponse("Invalid Host header", status_code=400)
+    return await call_next(request)
+
+
+def _desktop_authenticated(request: Request) -> bool:
+    expected = os.environ.get("VOIDCAST_DESKTOP_TOKEN", "").strip()
+    supplied = request.headers.get("x-voidcast-desktop-token", "")
+    return bool(
+        expected
+        and _is_loopback_host(request.client.host if request.client else None)
+        and _is_loopback_host(request.url.hostname)
+        and hmac.compare_digest(expected.encode(), supplied.encode())
+    )
+
+
+def require_desktop_registration(request: Request) -> None:
+    """Pairing also requires a native caller, independently of the renderer credential."""
+    if (
+        not _desktop_authenticated(request)
+        or "origin" in request.headers
+        or "sec-fetch-site" in request.headers
+    ):
+        raise HTTPException(status_code=403, detail="Local desktop access required")
+    expected = os.environ.get("VOIDCAST_SECRETS_TOKEN", "").strip()
+    supplied = request.headers.get("x-voidcast-secrets-token", "").strip()
+    if expected and not hmac.compare_digest(expected.encode(), supplied.encode()):
+        raise HTTPException(
+            status_code=403, detail="Invalid desktop registration credential"
+        )
+
+
+async def require_lan_access(request: Request) -> str:
+    if _desktop_authenticated(request):
+        return "desktop"
     expected = get_lan_access_token()
+    if expected is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Desktop authentication required. LAN access is off.",
+        )
     supplied = (request.headers.get("x-voidcast-access-token") or "").strip()
     if not supplied:
-        supplied = (request.headers.get("authorization") or "").strip()
-        if supplied.lower().startswith("bearer "):
-            supplied = supplied[7:].strip()
-    # Constant-time compare so the token cannot be guessed byte by byte from timing.
-    if not expected or not hmac.compare_digest(supplied.encode(), expected.encode()):
-        raise HTTPException(status_code=401, detail="Missing or invalid LAN access token")
+        bearer = request.headers.get("authorization", "")
+        if bearer.lower().startswith("bearer "):
+            supplied = bearer[7:].strip()
+    if not hmac.compare_digest(supplied.encode(), expected.encode()):
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid LAN access token"
+        )
+    return "lan"
 
 
 def _generate_wav_bytes(req: TtsRequest) -> bytes:
@@ -850,8 +919,8 @@ async def stt_transcribe(req: SttWhistleRequest):
                 pass
 
 
-@app.post("/tools/pdf", dependencies=[Depends(require_lan_access)])
-async def tools_pdf(req: PdfRequest):
+@app.post("/tools/pdf")
+async def tools_pdf(req: PdfRequest, access: str = Depends(require_lan_access)):
     """Render Markdown-lite content into a PDF inside `output_dir` (no dialog)."""
     if not HAS_REPORTLAB:
         raise HTTPException(
@@ -873,11 +942,37 @@ async def tools_pdf(req: PdfRequest):
         else None
     )
 
+    output_dir = req.output_dir
+    if access == "lan":
+        configured = get_pdf_output_dir()
+        if not configured or Path(output_dir) != Path(configured):
+            raise HTTPException(status_code=403, detail="Use the desktop PDF folder")
+        folder = Path(configured).expanduser()
+        root = folder.resolve()
+        output_dir = str(root)
+        # Resolve links before passing paths to the renderer. Reject foreign absolute
+        # paths before touching the filesystem (including Windows network shares).
+        safe_images = []
+        for raw in image_paths_payload or []:
+            candidate = folder / raw
+            try:
+                if not candidate.is_relative_to(folder) or ".." in candidate.parts:
+                    raise ValueError
+                resolved = candidate.resolve()
+                resolved.relative_to(root)
+            except (ValueError, OSError, RuntimeError):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Images must be inside the desktop PDF folder",
+                )
+            safe_images.append(str(resolved))
+        image_paths_payload = safe_images
+
     try:
         result = await asyncio.to_thread(
             save_pdf_to_folder,
             content=req.content,
-            output_dir=req.output_dir,
+            output_dir=output_dir,
             title=req.title,
             filename=req.filename,
             images=images_payload,
@@ -900,28 +995,28 @@ async def tools_pdf(req: PdfRequest):
     }
 
 
-@app.post("/tools/cloud-secrets")
-async def tools_cloud_secrets(request: Request, req: CloudSecretsRequest):
-    """Register cloud API keys from the desktop app (loopback or VOIDCAST_SECRETS_TOKEN)."""
-    if not client_may_register(
-        request.client.host if request.client else None,
-        request.headers.get("x-voidcast-secrets-token"),
-    ):
-        raise HTTPException(status_code=403, detail="Not allowed to register cloud secrets")
-    register_secrets(req.model_dump())
-    return {"ok": True}
+@app.post("/tools/cloud-secrets", dependencies=[Depends(require_desktop_registration)])
+async def tools_cloud_secrets(req: CloudSecretsRequest, response: Response):
+    if req.pdfOutputDir is not None:
+        clear_host_tool_config()
+        register_host_tool_config({"pdfOutputDir": req.pdfOutputDir})
+    token = register_secrets(req.model_dump(exclude_unset=True), renew_pairing=req.renewPairing)
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "ok": True,
+        "token": token,
+        "keysAvailable": any((
+            get_openrouter_key(), get_openai_key(), get_nvidia_key(),
+            get_deepseek_key(), get_opencode_go_key(), get_runware_key(),
+        )),
+    }
 
 
-@app.delete("/tools/cloud-secrets")
-async def tools_cloud_secrets_clear(request: Request):
-    """Clear desktop-registered cloud API keys (loopback or VOIDCAST_SECRETS_TOKEN)."""
-    if not client_may_register(
-        request.client.host if request.client else None,
-        request.headers.get("x-voidcast-secrets-token"),
-    ):
-        raise HTTPException(status_code=403, detail="Not allowed to clear cloud secrets")
+@app.delete("/tools/cloud-secrets", dependencies=[Depends(require_desktop_registration)])
+async def tools_cloud_secrets_clear():
     clear_registered_secrets()
-    return {"ok": True}
+    clear_host_tool_config()
+    return {"ok": True, "enabled": False}
 
 
 @app.get("/tools/cloud-secrets-status", dependencies=[Depends(require_lan_access)])
@@ -938,37 +1033,14 @@ async def tools_cloud_secrets_status():
     }
 
 
-@app.get("/tools/access-token", dependencies=[Depends(require_lan_access)])
-async def tools_access_token():
-    """Desktop LAN panel reads the LAN access token.
-
-    Gated by require_lan_access: the loopback desktop is always allowed (no header
-    needed), and any non-loopback caller must already present the token — which is
-    exactly the value returned, so nothing extra is exposed.
-    """
-    return {"token": get_lan_access_token()}
-
-
-@app.post("/tools/host-tool-config")
-async def tools_host_tool_config_register(request: Request, req: HostToolConfigRequest):
-    """Register host paths (e.g. PDF folder) from the desktop app (loopback or VOIDCAST_SECRETS_TOKEN)."""
-    if not client_may_register(
-        request.client.host if request.client else None,
-        request.headers.get("x-voidcast-secrets-token"),
-    ):
-        raise HTTPException(status_code=403, detail="Not allowed to register host tool config")
+@app.post("/tools/host-tool-config", dependencies=[Depends(require_desktop_registration)])
+async def tools_host_tool_config_register(req: HostToolConfigRequest):
     register_host_tool_config(req.model_dump())
     return {"ok": True}
 
 
-@app.delete("/tools/host-tool-config")
-async def tools_host_tool_config_clear(request: Request):
-    """Clear desktop-registered host tool config (loopback or VOIDCAST_SECRETS_TOKEN)."""
-    if not client_may_register(
-        request.client.host if request.client else None,
-        request.headers.get("x-voidcast-secrets-token"),
-    ):
-        raise HTTPException(status_code=403, detail="Not allowed to clear host tool config")
+@app.delete("/tools/host-tool-config", dependencies=[Depends(require_desktop_registration)])
+async def tools_host_tool_config_clear():
     clear_host_tool_config()
     return {"ok": True}
 
@@ -1096,6 +1168,8 @@ _STRIP_FWD = frozenset(
         "transfer-encoding",
         "authorization",
         "x-api-key",
+        "cookie",
+        "referer",
     }
 )
 
@@ -1116,7 +1190,7 @@ async def _reverse_proxy(
     fwd_headers = {
         k: v
         for k, v in request.headers.items()
-        if k.lower() not in _STRIP_FWD
+        if k.lower() not in _STRIP_FWD and not k.lower().startswith("x-voidcast-")
     }
     if bearer_key:
         fwd_headers["Authorization"] = f"Bearer {bearer_key}"
@@ -1253,11 +1327,11 @@ async def openai_proxy(request: Request, full_path: str):
 async def opencode_go_proxy(request: Request, full_path: str):
     """Proxy OpenCode Go (no CORS on upstream). Desktop may pass Bearer; LAN uses registered key."""
     key = get_opencode_go_key()
-    if not key:
+    if not key and _desktop_authenticated(request):
         auth = (request.headers.get("authorization") or "").strip()
         if auth.lower().startswith("bearer "):
             key = auth[7:].strip()
-    if not key:
+    if not key and _desktop_authenticated(request):
         # Anthropic Messages clients (/messages) send the key as x-api-key.
         key = (request.headers.get("x-api-key") or "").strip()
     if not key:
@@ -1336,8 +1410,10 @@ async def web_manifest():
 
 
 @app.get("/", include_in_schema=False)
-async def web_ui_root():
+async def web_ui_root(request: Request):
     """Serve the Vite web build (`npm run build:web` in electron-app) for phone / LAN browsers."""
+    if not _is_loopback_host(request.client.host if request.client else None) and get_lan_access_token() is None:
+        raise HTTPException(status_code=403, detail="LAN access is off")
     index = _web_index_file()
     if index is None:
         raise HTTPException(

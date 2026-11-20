@@ -10,7 +10,7 @@
   },
   "scripts": {
     "postinstall": "node -e \"console.log('\\n  Ovo je workspace root. Aplikacija je u electron-app/ - cd electron-app && npm install\\n')\"",
-    "dev": "concurrently -n tts,ui -c blue,green \"npm run dev:tts\" \"npm run dev:electron\"",
+    "dev": "npm run dev:electron",
     "dev:tts": "node scripts/dev-tts.mjs tools",
     "dev:tts:win": "cd tts-server && ..\\.venv\\Scripts\\python.exe -m uvicorn tools_main:app --host 0.0.0.0 --port 8765",
     "dev:tts:unix": "cd tts-server && ../.venv/bin/python -m uvicorn tools_main:app --host 0.0.0.0 --port 8765",

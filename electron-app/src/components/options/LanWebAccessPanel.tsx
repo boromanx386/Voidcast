@@ -1,38 +1,13 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from 'react'
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import QRCode from 'qrcode'
 import { isElectron } from '@/lib/platform'
-import { normalizeBaseUrl, type AppSettings } from '@/lib/settings'
+import type { LanSyncState } from '@/lib/cloudSecrets'
+import type { AppSettings } from '@/lib/settings'
 
 type Props = {
+  lanSync: LanSyncState
   settings: AppSettings
   setSettings: Dispatch<SetStateAction<AppSettings>>
-}
-
-type SecretsStatus = {
-  openrouter: boolean
-  runware: boolean
-  nvidia: boolean
-  deepseek: boolean
-  openai: boolean
-  opencode_go: boolean
-}
-
-function portFromTtsBaseUrl(ttsBaseUrl: string): number {
-  const raw = normalizeBaseUrl(ttsBaseUrl.trim() || 'http://127.0.0.1:8765')
-  try {
-    const u = new URL(raw.includes('://') ? raw : `http://${raw}`)
-    if (u.port) return Number(u.port)
-    return u.protocol === 'https:' ? 443 : 80
-  } catch {
-    return 8765
-  }
 }
 
 function pickPreferredIp(ips: string[]): string {
@@ -42,26 +17,18 @@ function pickPreferredIp(ips: string[]): string {
   return wifi ?? ips[0] ?? ''
 }
 
-export function LanWebAccessPanel({ settings, setSettings }: Props) {
+export function LanWebAccessPanel({ lanSync, settings, setSettings }: Props) {
   const enabled = settings.lanWebAccessEnabled
   const [ips, setIps] = useState<string[]>([])
   const [selectedIp, setSelectedIp] = useState('')
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [lanError, setLanError] = useState<string | null>(null)
-  const [secretsStatus, setSecretsStatus] = useState<SecretsStatus | null>(null)
-  const [accessToken, setAccessToken] = useState('')
-
-  const port = useMemo(() => portFromTtsBaseUrl(settings.ttsBaseUrl), [settings.ttsBaseUrl])
-  const root = useMemo(
-    () => normalizeBaseUrl(settings.ttsBaseUrl.trim() || 'http://127.0.0.1:8765'),
-    [settings.ttsBaseUrl],
-  )
-  const baseUrl = selectedIp ? `http://${selectedIp}:${port}/` : ''
-  // The shared access token rides in the URL so the phone can authenticate to the
-  // proxies/data endpoints; the phone's lanAuth interceptor strips it from the bar.
+  const pairing = lanSync.pairing
   const lanUrl =
-    baseUrl && accessToken ? `${baseUrl}?t=${encodeURIComponent(accessToken)}` : baseUrl
+    enabled && selectedIp && pairing
+      ? `http://${selectedIp}:${pairing.port}/?t=${encodeURIComponent(pairing.token)}`
+      : ''
 
   const refreshIps = useCallback(async () => {
     if (!isElectron() || !window.voidcast?.getLanNetworkInfo) {
@@ -88,34 +55,10 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
   useEffect(() => {
     if (!enabled) {
       setQrDataUrl('')
-      setSecretsStatus(null)
       return
     }
     void refreshIps()
   }, [enabled, refreshIps])
-
-  useEffect(() => {
-    if (!enabled) {
-      setAccessToken('')
-      return
-    }
-    // Fetch the shared access token from the loopback server (desktop is loopback → allowed).
-    let cancelled = false
-    fetch(`${root}/tools/access-token`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return (await res.json()) as { token?: string }
-      })
-      .then((data) => {
-        if (!cancelled && data?.token) setAccessToken(data.token)
-      })
-      .catch(() => {
-        if (!cancelled) setAccessToken('')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [enabled, root])
 
   useEffect(() => {
     if (!enabled || !lanUrl) {
@@ -138,47 +81,6 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
       cancelled = true
     }
   }, [enabled, lanUrl])
-
-  useEffect(() => {
-    if (!enabled) return
-    let cancelled = false
-    const poll = () => {
-      void fetch(`${root}/tools/cloud-secrets-status`)
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          return (await res.json()) as SecretsStatus & { ok?: boolean }
-        })
-        .then((data) => {
-          if (cancelled) return
-          setSecretsStatus({
-            openrouter: Boolean(data.openrouter),
-            runware: Boolean(data.runware),
-            nvidia: Boolean(data.nvidia),
-            deepseek: Boolean(data.deepseek),
-            openai: Boolean(data.openai),
-            opencode_go: Boolean(data.opencode_go),
-          })
-        })
-        .catch(() => {
-          if (!cancelled) setSecretsStatus(null)
-        })
-    }
-    poll()
-    const interval = window.setInterval(poll, 5000)
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [enabled, root])
-
-  const anyKeyRegistered =
-    secretsStatus &&
-    (secretsStatus.openrouter ||
-      secretsStatus.runware ||
-      secretsStatus.nvidia ||
-      secretsStatus.deepseek ||
-      secretsStatus.openai ||
-      secretsStatus.opencode_go)
 
   const copyUrl = async () => {
     if (!lanUrl) return
@@ -212,6 +114,11 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
         </span>
       </label>
 
+      {lanSync.error && (
+        <p role="alert" className="text-xs text-neon-yellow">
+          The tools server has not confirmed this LAN setting. Retrying…
+        </p>
+      )}
       {enabled && (
         <div className="border-t border-void-muted/25 pt-3 space-y-3">
           <p className="text-xs text-void-dim leading-relaxed">
@@ -230,10 +137,10 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
             <p className="text-xs text-neon-yellow/90">{lanError}</p>
           ) : (
             <div className="flex flex-wrap items-start gap-4">
-              {qrDataUrl ? (
+              {lanUrl && qrDataUrl ? (
                 <img
                   src={qrDataUrl}
-                  alt={`QR code for ${lanUrl}`}
+                  alt="Scan to pair your phone"
                   className="w-[200px] h-[200px] rounded border border-void-muted/40 bg-white"
                 />
               ) : (
@@ -274,6 +181,7 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
                     <button
                       type="button"
                       className="cyber-btn text-xs"
+                      disabled={!lanUrl}
                       onClick={() => void copyUrl()}
                     >
                       {copied ? 'COPIED' : 'COPY'}
@@ -288,9 +196,9 @@ export function LanWebAccessPanel({ settings, setSettings }: Props) {
                   </div>
                 </div>
                 <p className="text-[10px] font-mono text-void-dim">
-                  {secretsStatus == null
-                    ? 'Keys status: unreachable (is the local server running?)'
-                    : anyKeyRegistered
+                  {!pairing
+                    ? 'Waiting for the tools server…'
+                    : pairing.keysAvailable
                       ? 'Keys registered on local server ✓'
                       : 'Waiting for keys… (enter API keys below)'}
                 </p>

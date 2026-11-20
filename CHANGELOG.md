@@ -16,7 +16,14 @@ All notable changes to this project will be documented in this file.
 - **LIST ALL shows quantization and cache-hit price**: the OpenRouter provider table in Options → Agent now has QUANT (fp8, fp4, bf16…; a dash when the host does not say) and CACHE HIT (price of a cached prompt token, per 1M) columns. CTX is gone. Rows of one host carry their variant (DeepInfra `fp8`, `fp8/flex`, `fp8/priority`), so same-name rows can be told apart, and sub-cent prices keep two significant digits instead of showing 0.00.
 - **Coding agent keeps to the task**: the coding prompt now asks the agent to do what was asked, suggest extra features or polish instead of adding them, verify with the project's own tests, build or `check_types` rather than tooling it builds itself (headless browsers, screenshot scripts, simulations), and remove its temporary files. In one benchmark run a model built a headless-browser screenshot setup and a game simulation for a small Breakout task and kept polishing for 44 rounds. The tool list in the same prompt now keeps only what the tool descriptions cannot say, so the prompt is about 1,100 characters shorter.
 
+### Breaking changes
+
+- **Remote registration and fixed phone tokens removed.** A standalone tools service on another machine can no longer enable LAN sharing through `VOIDCAST_SECRETS_TOKEN` or `VOIDCAST_LAN_ACCESS_TOKEN`. Use the desktop app on the tools host to enable sharing and pair phones. Separately launched local Voidcast tools or OmniVoice servers must share a `VOIDCAST_DESKTOP_TOKEN` with Electron. Normal desktop launches generate it automatically.
+
 ### Fixed
+
+- **Desktop tools authentication.** Tool, proxy and memory requests now require a desktop or paired-phone credential, including requests from localhost. LAN PDF exports and host image reads use the PDF folder selected on the desktop.
+- **LAN pairing revocation.** Turning off LAN sharing revokes all paired phones. Enable sharing and scan the new QR code to reconnect. Desktop key removal also clears the registered key on the tools server, and the proxy strips local credentials before contacting a provider. Previously pinned phone tokens must be replaced with a new pairing link.
 
 - **Chat history survives storage errors at startup**: if saved chats failed to load, the app fell back to an old copy, and autosave could then overwrite the real history with it. Chat saving now waits for the saved history to load. If loading fails, **Retry loading chats** tries again, and **Continue without saved chats** opens the chat with saving switched off until the next start.
 - **WAV and FLAC songs play right away**: a Runware song in WAV or FLAC got a player on the remote file, which would not play, and only after a restart did the player use the copy saved to disk. The player now switches to the saved copy as soon as the download finishes.

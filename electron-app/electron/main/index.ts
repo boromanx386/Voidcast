@@ -1,3 +1,4 @@
+import type { LanRegistration, LanPairing } from '../../src/lib/cloudSecrets'
 import {
   app,
   BrowserWindow,
@@ -17,10 +18,10 @@ import {
   type WebContents,
 } from 'electron'
 import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
@@ -353,6 +354,8 @@ function getBundledToolsExePath(): string {
 
 /** Bind on all interfaces so LAN phones can reach the web UI and API proxy (override via VOIDCAST_TOOLS_HOST). */
 const TOOLS_SERVER_HOST = process.env.VOIDCAST_TOOLS_HOST?.trim() || '0.0.0.0'
+const desktopToken =
+  process.env.VOIDCAST_DESKTOP_TOKEN?.trim() || randomBytes(32).toString('base64url')
 const TOOLS_SERVER_PORT = process.env.VOIDCAST_TOOLS_PORT?.trim() || '8765'
 
 /** Matches default `--color-void-black` in `index.css` (rgb 10 10 15). */
@@ -522,6 +525,7 @@ function startToolsServerWithCommand(
       env: {
         ...process.env,
         OMNIVOICE_ENABLE_TTS: '0',
+        VOIDCAST_DESKTOP_TOKEN: desktopToken,
         VOIDCAST_TOOLS_HOST: TOOLS_SERVER_HOST,
         VOIDCAST_TOOLS_PORT: TOOLS_SERVER_PORT,
         VOIDCAST_WEB_UI_DIR: path.join(cwd, 'web-ui'),
@@ -573,8 +577,7 @@ async function ensureToolsServerRunning(): Promise<void> {
   if (toolsServerStarting) return
   toolsServerStarting = true
   try {
-    // Give an already-starting server (e.g. the `dev:tts` script that runs
-    // alongside Electron in `npm run dev`) a moment to bind before we race it.
+    // The Linux launcher may already be starting the server with our session credential.
     for (let i = 0; i < 6; i++) {
       if (await isToolsServerHealthy()) {
         return
@@ -600,7 +603,12 @@ async function ensureToolsServerRunning(): Promise<void> {
     } else {
       // Dev: NEVER launch the (possibly stale) bundled exe first — it would bind
       // the port before `dev:tts` and silently serve an old build.
-      const devPython = path.join(process.env.APP_ROOT, '..', '.venv', 'Scripts', 'python.exe')
+      const devPython = path.join(
+        process.env.APP_ROOT,
+        '..',
+        '.venv',
+        process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
+      )
       candidates.push({ command: devPython, args })
       candidates.push({ command: 'py', args: ['-3', ...args] })
       candidates.push({ command: 'python', args })
@@ -3943,6 +3951,65 @@ ipcMain.handle('voidcast:control-set-enabled', async (_event, enabled: boolean) 
 ipcMain.handle('voidcast:quit-app', () => {
   isQuitting = true
   app.quit()
+})
+
+function isDesktopAppFrame(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean {
+  const frame = event.senderFrame
+  if (!frame || event.sender !== win?.webContents || frame !== event.sender.mainFrame) return false
+  const url = new URL(frame.url)
+  if (VITE_DEV_SERVER_URL) return url.origin === new URL(VITE_DEV_SERVER_URL).origin
+  url.hash = ''
+  url.search = ''
+  return url.href === pathToFileURL(indexHtml).href
+}
+
+ipcMain.on('voidcast:get-tools-auth', (event) => {
+  event.returnValue = isDesktopAppFrame(event)
+    ? { token: desktopToken, port: Number(TOOLS_SERVER_PORT) }
+    : null
+})
+
+// Serialize toggles and key updates, including requests from a reloaded renderer.
+let lanSync: Promise<unknown> = Promise.resolve()
+let lanRegistrationConfirmed = false
+ipcMain.handle('voidcast:sync-lan-access', (event, registration: LanRegistration | null) => {
+  if (!isDesktopAppFrame(event)) {
+    throw new Error('LAN settings require the desktop window.')
+  }
+  const sync = async (): Promise<LanPairing | null> => {
+    // Even an unconfirmed disable must invalidate the old pairing on the next enable.
+    if (!registration) lanRegistrationConfirmed = false
+    const adminToken = process.env.VOIDCAST_SECRETS_TOKEN?.trim()
+    const response = await fetch(`${TOOLS_SERVER_HEALTH_URL}/tools/cloud-secrets`, {
+      method: registration ? 'POST' : 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-voidcast-desktop-token': desktopToken,
+        ...(adminToken ? { 'x-voidcast-secrets-token': adminToken } : {}),
+      },
+      body: registration
+        ? JSON.stringify({ ...registration, renewPairing: !lanRegistrationConfirmed })
+        : undefined,
+      signal: AbortSignal.timeout(5000),
+      redirect: 'error',
+    })
+    if (!response.ok) throw new Error(`LAN settings update failed (HTTP ${response.status}).`)
+    const result = await response.json()
+    if (!registration) {
+      if (result.enabled !== false) throw new Error('Tools server did not confirm LAN revocation.')
+      return null
+    }
+    if (typeof result.token !== 'string' || !result.token)
+      throw new Error('Missing LAN pairing token.')
+    lanRegistrationConfirmed = true
+    return {
+      token: result.token,
+      keysAvailable: result.keysAvailable === true,
+      port: Number(TOOLS_SERVER_PORT),
+    }
+  }
+  lanSync = lanSync.then(sync, sync)
+  return lanSync
 })
 
 ipcMain.handle('voidcast:get-lan-network-info', () => {
