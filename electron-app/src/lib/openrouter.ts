@@ -6,7 +6,7 @@ import type {
 } from './ollama'
 import { logPromptCache, parseRetryAfterSeconds } from './ollama'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
-import { isElectron, openRouterApiBaseForRuntime, usesServerCloudProxy } from './platform'
+import { isElectron } from './platform'
 import type { LlmThinkLevel } from './settings'
 import { normalizeBaseUrl } from './settings'
 import type { CloudLlmApiStyle } from './cloudLlmPresets'
@@ -173,15 +173,12 @@ export async function fetchOpenRouterModelEndpoints(options: {
   const slug = rest.join('/')
   if (!author || !slug) throw new Error(`Invalid model id: ${model}`)
 
-  const viaProxy = usesServerCloudProxy()
-  const baseUrl = viaProxy
-    ? openRouterApiBaseForRuntime(options.baseUrl)
-    : normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1')
+  const baseUrl = normalizeBaseUrl(options.baseUrl || 'https://openrouter.ai/api/v1')
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
   }
-  if (!viaProxy && (options.apiKey || '').trim()) {
+  if ((options.apiKey || '').trim()) {
     headers.Authorization = `Bearer ${(options.apiKey || '').trim()}`
   }
 
@@ -644,7 +641,7 @@ async function streamAnthropicMessages(
   const headers = anthropicMessagesHeaders({
     apiKey: options.apiKey,
     sessionId: options.opencodeSessionId,
-    sendAuth: !usesServerCloudProxy(),
+    sendAuth: true,
   })
 
   let res: Response | null = null
@@ -767,7 +764,7 @@ async function streamOpenCodeResponses(
   const headers = responsesHeaders({
     apiKey: options.apiKey,
     sessionId: options.opencodeSessionId,
-    sendAuth: !usesServerCloudProxy(),
+    sendAuth: true,
   })
 
   let res: Response | null = null
@@ -1024,7 +1021,7 @@ async function streamOpenRouterChatInner(options: StreamOpenRouterChatParams): P
       if (isOpenCodeGo && options.opencodeSessionId?.trim()) {
         headers['x-opencode-session'] = options.opencodeSessionId.trim()
       }
-      if (!usesServerCloudProxy() && options.apiKey.trim()) {
+      if (options.apiKey.trim()) {
         headers.Authorization = `Bearer ${options.apiKey.trim()}`
       }
 

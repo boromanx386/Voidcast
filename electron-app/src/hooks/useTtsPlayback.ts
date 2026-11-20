@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
 import { bakeVoiceSample, checkTtsHealth, synthesizeSpeech } from '@/lib/tts'
 import { splitIntoTtsChunks } from '@/lib/textChunks'
-import { isWebStandalone } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
 import { clearCloneRef, loadCloneRef, saveCloneRef } from '@/lib/cloneRefStorage'
 import {
@@ -146,12 +145,7 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
     if (msg.role !== 'assistant' || !msg.content.trim()) return
     const spoken = sanitizeForTts(msg.content)
     if (!spoken) return
-    const ttsVoiceMode =
-      settings.ttsProvider === 'local'
-        ? isWebStandalone()
-          ? 'design'
-          : settings.voiceMode
-        : 'design'
+    const ttsVoiceMode = settings.ttsProvider === 'local' ? settings.voiceMode : 'design'
     if (ttsVoiceMode === 'clone' && (!cloneRef?.blob || cloneRef.blob.size === 0)) {
       setError('VOICE_CLONE: Load reference audio in Settings → TTS/STT')
       return
@@ -173,10 +167,9 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
       const multi = chunks.length > 1
       const durationForChunk = multi ? null : settings.ttsDurationSec
 
-      const cloneRefKey =
-        !isWebStandalone() && cloneRef
-          ? `${cloneRef.fileName || ''}:${cloneRef.blob.size}:${cloneRef.blob.type}`
-          : 'none'
+      const cloneRefKey = cloneRef
+        ? `${cloneRef.fileName || ''}:${cloneRef.blob.size}:${cloneRef.blob.type}`
+        : 'none'
       const voiceAnchorKey = voiceAnchor
         ? `${voiceAnchor.refText}:${voiceAnchor.sourceMode}:${voiceAnchor.instructSnapshot || ''}:${voiceAnchor.blob.size}`
         : 'none'
@@ -195,7 +188,7 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
         `numStep=${settings.ttsNumStep}`,
         `duration=${durationForChunk == null ? 'null' : String(durationForChunk)}`,
         `cloneRef=${cloneRefKey}`,
-        `cloneRefText=${isWebStandalone() ? '' : settings.cloneRefText || ''}`,
+        `cloneRefText=${settings.cloneRefText || ''}`,
         `voiceAnchor=${voiceAnchorKey}`,
       ].join('|')
 
@@ -222,8 +215,8 @@ export function useTtsPlayback({ settings, setError }: UseTtsPlaybackParams): Us
           speed: settings.ttsSpeed,
           numStep: settings.ttsNumStep,
           durationSec: durationForChunk,
-          cloneRef: isWebStandalone() ? null : (cloneRef ?? null),
-          cloneRefText: isWebStandalone() ? null : settings.cloneRefText || null,
+          cloneRef: cloneRef ?? null,
+          cloneRefText: settings.cloneRefText || null,
           voiceAnchor: voiceAnchor ?? null,
           signal,
         }).then((blob) => {

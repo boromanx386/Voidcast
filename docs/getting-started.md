@@ -15,7 +15,6 @@ Packaged builds are published on [Releases](https://github.com/boromanx386/Voidc
 Both packages bundle the Python tools server (port **8765**), so no Python setup is needed.
 
 - First launch opens a fresh chat session with an empty composer and the **Sessions** sidebar.
-- The app also has a **web-standalone** browser mode. See [README.md](README.md) for the differences.
 
 ## First Chat
 
@@ -106,7 +105,7 @@ All settings live in `electron-app/src/lib/settings.ts`:
 
 - **Storage**: renderer `localStorage` under the key **`voidcast-settings-v1`** (`STORAGE_KEY`).
 - **API keys** (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `openaiApiKey`, `opencodeGoApiKey`, `runwareApiKey`): on desktop they are kept out of `localStorage` and encrypted with Electron `safeStorage` (DPAPI on Windows, the Secret Service keyring on Linux) in `secrets.json` in `userData`, via `electron/main/secretStore.ts` and the sync `voidcast:secrets-*` IPC. Keys left in `localStorage` by older versions are moved there on load. On Linux without a keyring (`basic_text` backend) they stay in `localStorage` as before.
-- **Load**: `loadSettings()` reads `localStorage`, merges over `defaults`, runs `normalizeAll` (llm, subAgent, tts, tools, pdf dir, ui theme, agent mode, runware, notification sounds), then `sanitizeDesktopServiceUrls` and `applyWebRuntimeOverrides`.
+- **Load**: `loadSettings()` reads `localStorage`, merges over `defaults`, runs `normalizeAll` (llm, subAgent, tts, tools, pdf dir, ui theme, agent mode, runware, notification sounds), then `sanitizeDesktopServiceUrls`.
 - **Save**: `saveSettings(s)` writes `JSON.stringify` to `localStorage` without the API keys, which go to the encrypted store only when they changed. If the store refuses a write, the keys stay in `localStorage` so they are never lost.
 - **Defaults**: `export const defaults: AppSettings` (settings.ts). See [settings-reference.md](settings-reference.md) for every key.
 

@@ -7,7 +7,6 @@ import { SkillsOptionsPanel } from '@/components/options/SkillsOptionsPanel'
 import { TtsOptionsPanel } from '@/components/options/TtsOptionsPanel'
 import { SubAgentOptionsPanel } from '@/components/options/SubAgentOptionsPanel'
 import { WindowControls } from '@/components/WindowControls'
-import { isWebStandalone } from '@/lib/platform'
 import type { VoidcastApp } from '@/hooks/useVoidcastApp'
 import type { OptionsTab } from '@/types/voidcast'
 
@@ -40,7 +39,6 @@ export function OptionsScreen({ app }: Props) {
     onBakeVoiceAnchor,
     onClearVoiceAnchor,
     activeCodingProjectPath,
-    effectivePdfOutputDir,
   } = app
 
   const uiDystopian = settings.uiTheme === 'dystopian'
@@ -100,7 +98,7 @@ export function OptionsScreen({ app }: Props) {
                 {tab === 'llm' && '◇ AGENT'}
                 {tab === 'subAgent' && '⬢ SUB'}
                 {tab === 'media' && '◌ MEDIA'}
-                {tab === 'tts' && (isWebStandalone() ? '◉ TTS' : '◉ TTS/STT')}
+                {tab === 'tts' && '◉ TTS/STT'}
                 {tab === 'tools' && '⬡ TOOLS'}
                 {tab === 'skills' && '✦ SKILLS'}
               </button>
@@ -173,7 +171,6 @@ export function OptionsScreen({ app }: Props) {
               settings={settings}
               setSettings={setSettings}
               activeCodingProjectPath={activeCodingProjectPath}
-              effectivePdfOutputDir={effectivePdfOutputDir}
             />
           )}
         </div>

@@ -1663,17 +1663,7 @@ export const AGENT_EDITABLE_SETTINGS_FIELDS = [
 
 export type AgentEditableSettingsField = (typeof AGENT_EDITABLE_SETTINGS_FIELDS)[number]
 
-import {
-  deepseekApiBaseForRuntime,
-  defaultOllamaBaseUrlForRuntime,
-  defaultTtsBaseUrlForRuntime,
-  isElectron,
-  isLanWebClient,
-  nvidiaApiBaseForRuntime,
-  openaiApiBaseForRuntime,
-  openRouterApiBaseForRuntime,
-  opencodeGoApiBaseForRuntime,
-} from '@/lib/platform'
+import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_TTS_BASE_URL, isElectron } from '@/lib/platform'
 
 const STORAGE_KEY = 'voidcast-settings-v1'
 const AGENT_HIDDEN_SETTINGS_FIELDS = [
@@ -2617,18 +2607,6 @@ function normalizeAll(s: AppSettings): AppSettings {
   )
 }
 
-function stripCloudSecrets(s: AppSettings): AppSettings {
-  return {
-    ...removeLegacyCrofAiSettings(s),
-    openrouterApiKey: '',
-    runwareApiKey: '',
-    nvidiaApiKey: '',
-    deepseekApiKey: '',
-    openaiApiKey: '',
-    opencodeGoApiKey: '',
-  }
-}
-
 /** Vite dev / preview ports — must never be persisted as tools or API base URLs in desktop. */
 function isViteDevServerUrl(url: string): boolean {
   const raw = url.trim()
@@ -2656,10 +2634,10 @@ function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
   }
 
   if (isViteDevServerUrl(next.ttsBaseUrl)) {
-    assign({ ttsBaseUrl: defaultTtsBaseUrlForRuntime() })
+    assign({ ttsBaseUrl: DEFAULT_TTS_BASE_URL })
   }
   if (isViteDevServerUrl(next.ollamaBaseUrl) || next.ollamaBaseUrl.includes('/api/ollama')) {
-    assign({ ollamaBaseUrl: defaultOllamaBaseUrlForRuntime() })
+    assign({ ollamaBaseUrl: DEFAULT_OLLAMA_BASE_URL })
   }
   if (
     isViteDevServerUrl(next.openrouterBaseUrl) ||
@@ -2686,44 +2664,8 @@ function sanitizeDesktopServiceUrls(s: AppSettings): AppSettings {
   return next
 }
 
-function applyWebRuntimeOverrides(s: AppSettings): AppSettings {
-  if (typeof window !== 'undefined' && isElectron()) {
-    return s
-  }
-  if (typeof window !== 'undefined' && isLanWebClient()) {
-    return stripCloudSecrets({
-      ...s,
-      ttsBaseUrl: defaultTtsBaseUrlForRuntime(),
-      ollamaBaseUrl: ollamaUrlShouldUseDesktopProxy(s.ollamaBaseUrl)
-        ? defaultOllamaBaseUrlForRuntime()
-        : s.ollamaBaseUrl,
-      openrouterBaseUrl: openRouterApiBaseForRuntime(),
-      nvidiaBaseUrl: nvidiaApiBaseForRuntime(),
-      deepseekBaseUrl: deepseekApiBaseForRuntime(),
-      openaiBaseUrl: openaiApiBaseForRuntime(),
-      opencodeGoBaseUrl: opencodeGoApiBaseForRuntime(),
-      voiceMode: 'design',
-      sttProvider: 'none',
-    })
-  }
-  return s
-}
-
 export function normalizeSettingsCandidate(candidate: Partial<AppSettings>): AppSettings {
-  return applyWebRuntimeOverrides(normalizeAll({ ...defaults, ...candidate }))
-}
-
-/** On phone browser, localhost / 127.0.0.1 point at the device — never reach the desktop server. */
-function ollamaUrlShouldUseDesktopProxy(url: string): boolean {
-  const u = url.trim()
-  if (!u) return true
-  try {
-    const parsed = new URL(u.includes('://') ? u : `http://${u}`)
-    const h = parsed.hostname.toLowerCase()
-    return h === 'localhost' || h === '127.0.0.1'
-  } catch {
-    return true
-  }
+  return normalizeAll({ ...defaults, ...candidate })
 }
 
 type SecretBridge = { setAll: (secrets: Record<string, string>) => boolean }
@@ -2787,7 +2729,7 @@ export function loadSettings(): AppSettings {
     merged = { ...defaults }
   }
 
-  return applyWebRuntimeOverrides(sanitizeDesktopServiceUrls(merged))
+  return sanitizeDesktopServiceUrls(merged)
 }
 
 export function saveSettings(s: AppSettings): void {
@@ -2807,9 +2749,7 @@ export function saveSettings(s: AppSettings): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored ? withoutSecrets(s) : s))
     return
   }
-  const toSave =
-    typeof window !== 'undefined' && isLanWebClient() && !isElectron() ? stripCloudSecrets(s) : s
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
 }
 
 export function getAgentVisibleSettings(settings: AppSettings): Partial<AppSettings> {

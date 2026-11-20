@@ -17,13 +17,7 @@ import {
 } from './settings'
 import type { SubAgentConfig } from './settings'
 import type { SubAgentWorkerMetrics } from './subAgentPanelState'
-import {
-  deepseekApiBaseForRuntime,
-  nvidiaApiBaseForRuntime,
-  openaiApiBaseForRuntime,
-  opencodeGoApiBaseForRuntime,
-  usesServerCloudProxy,
-} from './platform'
+import { opencodeGoApiBaseUrl } from './platform'
 import {
   detectSubAgentProvider as detectSubAgentProviderId,
   type SubAgentProviderId,
@@ -255,15 +249,12 @@ async function describeWithOpenRouter(
   signal?: AbortSignal,
   providerOnly?: string,
 ): Promise<string> {
-  const viaProxy = usesServerCloudProxy()
-  const baseUrl = viaProxy
-    ? `${normalizeBaseUrl(openrouterBaseUrl || window.location.origin)}/api/openrouter/api/v1`
-    : normalizeBaseUrl(openrouterBaseUrl || 'https://openrouter.ai/api/v1')
+  const baseUrl = normalizeBaseUrl(openrouterBaseUrl || 'https://openrouter.ai/api/v1')
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  if (!viaProxy && openrouterApiKey.trim()) {
+  if (openrouterApiKey.trim()) {
     headers.Authorization = `Bearer ${openrouterApiKey.trim()}`
   }
 
@@ -313,15 +304,12 @@ async function describeWithDeepSeek(
   prompt: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const viaProxy = usesServerCloudProxy()
-  const baseUrl = viaProxy
-    ? deepseekApiBaseForRuntime()
-    : normalizeBaseUrl(deepseekBaseUrl || 'https://api.deepseek.com')
+  const baseUrl = normalizeBaseUrl(deepseekBaseUrl || 'https://api.deepseek.com')
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  if (!viaProxy && deepseekApiKey.trim()) {
+  if (deepseekApiKey.trim()) {
     headers.Authorization = `Bearer ${deepseekApiKey.trim()}`
   }
 
@@ -370,15 +358,12 @@ async function describeWithOpenAi(
   prompt: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const viaProxy = usesServerCloudProxy()
-  const baseUrl = viaProxy
-    ? openaiApiBaseForRuntime()
-    : normalizeBaseUrl(openaiBaseUrl || 'https://api.openai.com/v1')
+  const baseUrl = normalizeBaseUrl(openaiBaseUrl || 'https://api.openai.com/v1')
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  if (!viaProxy && openaiApiKey.trim()) {
+  if (openaiApiKey.trim()) {
     headers.Authorization = `Bearer ${openaiApiKey.trim()}`
   }
 
@@ -425,15 +410,12 @@ async function describeWithNvidia(
   prompt: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const viaProxy = usesServerCloudProxy()
-  const baseUrl = viaProxy
-    ? nvidiaApiBaseForRuntime()
-    : normalizeBaseUrl(nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1')
+  const baseUrl = normalizeBaseUrl(nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1')
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  if (!viaProxy && nvidiaApiKey.trim()) {
+  if (nvidiaApiKey.trim()) {
     headers.Authorization = `Bearer ${nvidiaApiKey.trim()}`
   }
 
@@ -482,7 +464,7 @@ async function describeWithOpenCodeGo(
   signal?: AbortSignal,
   opencodeSessionId?: string,
 ): Promise<string> {
-  const baseUrl = opencodeGoApiBaseForRuntime(undefined, ttsBaseUrl)
+  const baseUrl = opencodeGoApiBaseUrl(ttsBaseUrl)
   const dataUri = await requireDataUri(img)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -615,64 +597,54 @@ export async function callSubAgentChat(opts: {
   const messages = opts.messages.filter((m) => m.content.trim())
 
   if (provider === 'openrouter') {
-    const viaProxy = usesServerCloudProxy()
-    const baseUrl = viaProxy
-      ? `${normalizeBaseUrl(opts.keys.openrouterBaseUrl || window.location.origin)}/api/openrouter/api/v1`
-      : normalizeBaseUrl(opts.keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
+    const baseUrl = normalizeBaseUrl(opts.keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
     const routing = openRouterProviderRoutingBody(opts.config.openrouterProviderOnly)
     return textWithOpenAiCompatible(
       'OpenRouter',
       opts.config.model,
       maxTokens,
       baseUrl,
-      viaProxy ? '' : opts.keys.openrouterApiKey,
+      opts.keys.openrouterApiKey,
       messages,
       opts.signal,
       routing ? { provider: routing } : undefined,
     )
   }
   if (provider === 'deepseek') {
-    const viaProxy = usesServerCloudProxy()
-    const baseUrl = viaProxy
-      ? deepseekApiBaseForRuntime()
-      : normalizeBaseUrl(opts.keys.deepseekBaseUrl || 'https://api.deepseek.com')
+    const baseUrl = normalizeBaseUrl(opts.keys.deepseekBaseUrl || 'https://api.deepseek.com')
     return textWithOpenAiCompatible(
       'DeepSeek',
       opts.config.model,
       maxTokens,
       baseUrl,
-      viaProxy ? '' : opts.keys.deepseekApiKey,
+      opts.keys.deepseekApiKey,
       messages,
       opts.signal,
       { thinking: { type: 'disabled' } },
     )
   }
   if (provider === 'openai') {
-    const viaProxy = usesServerCloudProxy()
-    const baseUrl = viaProxy
-      ? openaiApiBaseForRuntime()
-      : normalizeBaseUrl(opts.keys.openaiBaseUrl || 'https://api.openai.com/v1')
+    const baseUrl = normalizeBaseUrl(opts.keys.openaiBaseUrl || 'https://api.openai.com/v1')
     return textWithOpenAiCompatible(
       'OpenAI',
       opts.config.model,
       maxTokens,
       baseUrl,
-      viaProxy ? '' : opts.keys.openaiApiKey,
+      opts.keys.openaiApiKey,
       messages,
       opts.signal,
     )
   }
   if (provider === 'nvidia') {
-    const viaProxy = usesServerCloudProxy()
-    const baseUrl = viaProxy
-      ? nvidiaApiBaseForRuntime()
-      : normalizeBaseUrl(opts.keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1')
+    const baseUrl = normalizeBaseUrl(
+      opts.keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1',
+    )
     return textWithOpenAiCompatible(
       'NVIDIA',
       opts.config.model,
       maxTokens,
       baseUrl,
-      viaProxy ? '' : opts.keys.nvidiaApiKey,
+      opts.keys.nvidiaApiKey,
       messages,
       opts.signal,
     )
@@ -680,7 +652,7 @@ export async function callSubAgentChat(opts: {
   if (provider === 'opencode-go') {
     // Always reverse-proxied (no CORS). TTS accepts desktop Bearer when env/file
     // key is empty; main LLM already does this — sub-agent must not drop the key.
-    const baseUrl = opencodeGoApiBaseForRuntime(undefined, opts.keys.ttsBaseUrl)
+    const baseUrl = opencodeGoApiBaseUrl(opts.keys.ttsBaseUrl)
     return textWithOpenAiCompatible(
       'OpenCode Go',
       opts.config.model,

@@ -6,13 +6,7 @@ import {
 import { anthropicMessagesHeaders, buildAnthropicMessagesBody } from '@/lib/anthropicMessages'
 import { buildResponsesBody, parseResponsesOutput, responsesHeaders } from '@/lib/openResponses'
 import { assertCloudLlmApiKey } from '@/lib/cloudLlm'
-import {
-  deepseekApiBaseForRuntime,
-  nvidiaApiBaseForRuntime,
-  openaiApiBaseForRuntime,
-  opencodeGoApiBaseForRuntime,
-  usesServerCloudProxy,
-} from '@/lib/platform'
+import { opencodeGoApiBaseUrl } from '@/lib/platform'
 import { normalizeBaseUrl } from '@/lib/settings'
 import {
   openRouterProviderRoutingBody,
@@ -202,20 +196,17 @@ function cloudEndpoint(
   config: SubAgentConfig,
   keys: SubAgentKeys,
 ): { label: string; baseUrl: string; apiKey: string; extraBody: Record<string, unknown> } {
-  const viaProxy = usesServerCloudProxy()
   const providerOnly =
     provider === 'openrouter'
       ? openRouterProviderRoutingBody(config.openrouterProviderOnly)
       : undefined
 
   if (provider === 'openrouter') {
-    const baseUrl = viaProxy
-      ? `${normalizeBaseUrl(keys.openrouterBaseUrl || (typeof window !== 'undefined' ? window.location.origin : ''))}/api/openrouter/api/v1`
-      : normalizeBaseUrl(keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
+    const baseUrl = normalizeBaseUrl(keys.openrouterBaseUrl || 'https://openrouter.ai/api/v1')
     return {
       label: 'OpenRouter',
       baseUrl,
-      apiKey: viaProxy ? '' : keys.openrouterApiKey,
+      apiKey: keys.openrouterApiKey,
       extraBody: providerOnly ? { provider: providerOnly } : {},
     }
   }
@@ -223,10 +214,8 @@ function cloudEndpoint(
   if (provider === 'deepseek') {
     return {
       label: 'DeepSeek',
-      baseUrl: viaProxy
-        ? deepseekApiBaseForRuntime()
-        : normalizeBaseUrl(keys.deepseekBaseUrl || 'https://api.deepseek.com'),
-      apiKey: viaProxy ? '' : keys.deepseekApiKey,
+      baseUrl: normalizeBaseUrl(keys.deepseekBaseUrl || 'https://api.deepseek.com'),
+      apiKey: keys.deepseekApiKey,
       extraBody: { thinking: { type: 'disabled' } },
     }
   }
@@ -234,10 +223,8 @@ function cloudEndpoint(
   if (provider === 'openai') {
     return {
       label: 'OpenAI',
-      baseUrl: viaProxy
-        ? openaiApiBaseForRuntime()
-        : normalizeBaseUrl(keys.openaiBaseUrl || 'https://api.openai.com/v1'),
-      apiKey: viaProxy ? '' : keys.openaiApiKey,
+      baseUrl: normalizeBaseUrl(keys.openaiBaseUrl || 'https://api.openai.com/v1'),
+      apiKey: keys.openaiApiKey,
       // GPT-5.x rejects function tools unless reasoning is explicitly disabled.
       extraBody: { reasoning_effort: 'none' },
     }
@@ -246,18 +233,16 @@ function cloudEndpoint(
   if (provider === 'nvidia') {
     return {
       label: 'NVIDIA',
-      baseUrl: viaProxy
-        ? nvidiaApiBaseForRuntime()
-        : normalizeBaseUrl(keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1'),
-      apiKey: viaProxy ? '' : keys.nvidiaApiKey,
+      baseUrl: normalizeBaseUrl(keys.nvidiaBaseUrl || 'https://integrate.api.nvidia.com/v1'),
+      apiKey: keys.nvidiaApiKey,
       extraBody: {},
     }
   }
 
   return {
     label: 'OpenCode Go',
-    baseUrl: opencodeGoApiBaseForRuntime(undefined, keys.ttsBaseUrl),
-    apiKey: viaProxy ? '' : keys.opencodeGoApiKey || '',
+    baseUrl: opencodeGoApiBaseUrl(keys.ttsBaseUrl),
+    apiKey: keys.opencodeGoApiKey || '',
     extraBody: {},
   }
 }
@@ -339,7 +324,7 @@ async function callCloudToolRound(opts: {
         headers: anthropicMessagesHeaders({
           apiKey: endpoint.apiKey,
           sessionId: opts.keys.opencodeSessionId,
-          sendAuth: !usesServerCloudProxy(),
+          sendAuth: true,
         }),
         signal: opts.signal,
         body: JSON.stringify({ ...body, ...endpoint.extraBody }),
@@ -406,7 +391,7 @@ async function callCloudToolRound(opts: {
         headers: responsesHeaders({
           apiKey: endpoint.apiKey,
           sessionId: opts.keys.opencodeSessionId,
-          sendAuth: !usesServerCloudProxy(),
+          sendAuth: true,
         }),
         signal: opts.signal,
         body: JSON.stringify({ ...body, ...endpoint.extraBody }),

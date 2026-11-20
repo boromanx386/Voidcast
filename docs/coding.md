@@ -6,7 +6,7 @@ The coding panel is a standalone workspace beside the chat for editing real proj
 
 ## Enabling
 
-- The panel is available when the desktop runtime can access local files (`app.codingPanelAvailable`); web-standalone cannot.
+- The panel is available when the desktop runtime can access local files (`app.codingPanelAvailable`).
 - The header shows a **code/coding toggle button** that calls `setShowCodingPanel`; the chat screen renders `CodingPanel` beside the chat only when `showCodingPanel && codingPanelAvailable`.
 - The `coding.enabled` setting also gates tool availability: the agent's local coding tools (file read/write/search/terminal/git) are only registered when `toolsEnabled.coding` is on **and the chat has a bound project folder**. A General chat (no folder) sends no coding tools at all — it receives an explicit "enabled in Options but unavailable in this chat" note instead, and the chat header shows a `⚠ coding off · no folder` chip that binds a folder in one click. `buildToolsList` treats an unstated folder (`codingProjectPath === undefined`) as available, which is how the parallel workers and the sub-agent keep their tools.
 - Defaults: `enabled: true`, `showFileTree: true`, `showFilePreview: true`, `showTerminal: true`, `showWeb: false`.

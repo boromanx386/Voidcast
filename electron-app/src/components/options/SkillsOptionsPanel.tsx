@@ -6,7 +6,7 @@ import {
   type AgentSkillMeta,
   type ProjectAgentInstructions,
 } from '@/lib/agentSkills'
-import { isElectron, isWebStandalone } from '@/lib/platform'
+import { isElectron } from '@/lib/platform'
 import type { AppSettings } from '@/lib/settings'
 
 type Props = {
@@ -90,13 +90,6 @@ export function SkillsOptionsPanel({ settings, setSettings, activeCodingProjectP
         to steer the agent. Trust is shared with the project{' '}
         <code className="text-void-light">.mcp.json</code> trust in Options → Tools.
       </p>
-
-      {isWebStandalone() && (
-        <p className="text-xs text-void-dim border border-void-muted/30 bg-void-black/40 p-3">
-          Skills discovery requires the desktop app (filesystem access). The LAN web client cannot
-          read skill folders on this device.
-        </p>
-      )}
 
       <label
         className={`flex items-start gap-3 p-4 transition-all cursor-pointer ${

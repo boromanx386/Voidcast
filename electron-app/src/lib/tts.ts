@@ -11,7 +11,7 @@ import {
 import type { VoiceMode } from './settings'
 import type { TtsProvider } from './settings'
 import type { StoredVoiceAnchor, VoiceAnchorSourceMode } from './voiceAnchorStorage'
-import { cloudProxySetupHint, isElectron, usesServerCloudProxy } from './platform'
+import { isElectron } from './platform'
 import { makeRunwareTaskUuid } from './runwareUuid'
 
 /** Electron/Chromium often mishandles Blob in FormData; JSON+base64 is reliable. */
@@ -144,15 +144,12 @@ export async function synthesizeSpeech(options: {
     throw new Error('TTS is disabled. Enable it in Options -> TTS.')
   }
   if (options.ttsProvider === 'openrouter-tts') {
-    const viaProxy = usesServerCloudProxy()
     const apiKey = (options.openrouterApiKey || '').trim()
-    if (!viaProxy && !apiKey) {
+    if (!apiKey) {
       throw new Error('OpenRouter API key is missing. Set it in Options -> General.')
     }
     const model = options.openrouterTtsModel?.trim() || OPENROUTER_TTS_MODEL_DEFAULT
-    const root = viaProxy
-      ? `${normalizeBaseUrl(options.ttsBaseUrl || '')}/api/openrouter/api/v1`
-      : 'https://openrouter.ai/api/v1'
+    const root = 'https://openrouter.ai/api/v1'
     const responseFormat = openRouterTtsResponseFormat(model)
     const payload: Record<string, unknown> = {
       model,
@@ -167,7 +164,7 @@ export async function synthesizeSpeech(options: {
       payload.voice = voice
     }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (!viaProxy && apiKey) {
+    if (apiKey) {
       headers.Authorization = `Bearer ${apiKey}`
     }
     try {
@@ -196,9 +193,8 @@ export async function synthesizeSpeech(options: {
   }
 
   if (options.ttsProvider === 'runware-xai') {
-    const viaProxy = usesServerCloudProxy()
     const apiKey = (options.runwareApiKey || '').trim()
-    if (!viaProxy && !apiKey) {
+    if (!apiKey) {
       throw new Error('Runware API key is missing. Set it in Options -> General.')
     }
     const root = normalizeBaseUrl(options.runwareApiBaseUrl || 'https://api.runware.ai/v1')
@@ -287,7 +283,7 @@ export async function synthesizeSpeech(options: {
         api_base_url: root,
         tasks: [payload],
       }
-      if (!viaProxy && apiKey) {
+      if (apiKey) {
         proxyBodyPayload.api_key = apiKey
       }
       const proxyRes = await fetch(`${proxyRoot}/tools/runware_proxy`, {
@@ -462,33 +458,6 @@ export async function synthesizeSpeech(options: {
   return await res.blob()
 }
 
-async function checkServerCloudSecret(
-  ttsBaseUrl: string,
-  slot: 'openrouter' | 'runware',
-): Promise<{ ok: boolean; detail?: string }> {
-  const root = normalizeBaseUrl(ttsBaseUrl || '')
-  if (!root) {
-    return { ok: false, detail: 'TTS server URL is missing' }
-  }
-  try {
-    const res = await fetch(`${root}/tools/cloud-secrets-status`)
-    if (!res.ok) {
-      return { ok: false, detail: `Server status HTTP ${res.status}` }
-    }
-    const body = (await res.json()) as {
-      openrouter?: boolean
-      runware?: boolean
-    }
-    const ready = slot === 'openrouter' ? Boolean(body.openrouter) : Boolean(body.runware)
-    return ready ? { ok: true } : { ok: false, detail: cloudProxySetupHint() }
-  } catch (e) {
-    return {
-      ok: false,
-      detail: e instanceof Error ? e.message : String(e),
-    }
-  }
-}
-
 export async function checkTtsHealth(options: {
   ttsBaseUrl: string
   ttsProvider?: TtsProvider
@@ -500,16 +469,10 @@ export async function checkTtsHealth(options: {
 }> {
   if (options.ttsProvider === 'none') return { ok: false, detail: 'TTS disabled' }
   if (options.ttsProvider === 'runware-xai') {
-    if (usesServerCloudProxy()) {
-      return checkServerCloudSecret(options.ttsBaseUrl, 'runware')
-    }
     const hasKey = Boolean((options.runwareApiKey || '').trim())
     return hasKey ? { ok: true } : { ok: false, detail: 'Runware API key missing' }
   }
   if (options.ttsProvider === 'openrouter-tts') {
-    if (usesServerCloudProxy()) {
-      return checkServerCloudSecret(options.ttsBaseUrl, 'openrouter')
-    }
     const hasKey = Boolean((options.openrouterApiKey || '').trim())
     return hasKey ? { ok: true } : { ok: false, detail: 'OpenRouter API key missing' }
   }

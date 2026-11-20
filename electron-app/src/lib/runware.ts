@@ -11,7 +11,7 @@ import {
   type GptImageQuality,
   type ImageProvider,
 } from '@/lib/settings'
-import { cloudProxySetupHint, isElectron, usesServerCloudProxy } from '@/lib/platform'
+import { isElectron } from '@/lib/platform'
 import { makeRunwareTaskUuid, normalizeRunwareTasks } from '@/lib/runwareUuid'
 import { toDataImageUri } from '@/lib/imageMime'
 
@@ -341,11 +341,7 @@ function errorMessage(e: unknown): string {
 
 function resolveRunwareProxyBaseUrl(proxyBaseUrl?: string): string {
   const raw = (proxyBaseUrl || '').trim()
-  if (raw) return normalizeBaseUrl(raw)
-  if (usesServerCloudProxy() && typeof window !== 'undefined') {
-    return window.location.origin
-  }
-  return ''
+  return raw ? normalizeBaseUrl(raw) : ''
 }
 
 async function postRunwareTasks(args: {
@@ -357,8 +353,7 @@ async function postRunwareTasks(args: {
 }): Promise<RunwareApiBody> {
   const directRoot = normalizeBaseUrl(args.apiBaseUrl || 'https://api.runware.ai/v1')
   const apiKey = (args.apiKey || '').trim().replace(/^\uFEFF/, '')
-  const viaProxy = usesServerCloudProxy()
-  if (!apiKey && !viaProxy) {
+  if (!apiKey) {
     throw new Error('Runware API key is not set. Configure it in Options -> General.')
   }
   const tasks = normalizeRunwareTasks(args.tasks)
@@ -372,17 +367,13 @@ async function postRunwareTasks(args: {
 
   async function postViaProxy(): Promise<RunwareApiBody> {
     if (!proxyRoot) {
-      throw new Error(
-        viaProxy
-          ? cloudProxySetupHint()
-          : 'Runware proxy URL is missing. Open the app from your desktop TTS server address (same host as this page) so image requests can be forwarded server-side.',
-      )
+      throw new Error('Runware proxy URL is missing.')
     }
     const proxyPayload: Record<string, unknown> = {
       api_base_url: directRoot,
       tasks,
     }
-    if (!viaProxy && apiKey) {
+    if (apiKey) {
       proxyPayload.api_key = apiKey
     }
     const proxyRes = await fetch(`${proxyRoot}/tools/runware_proxy`, {
@@ -398,9 +389,6 @@ async function postRunwareTasks(args: {
     }
     if (!proxyRes.ok || !proxyBody.ok || !proxyBody.data) {
       const detail = proxyBody.detail || `Runware proxy HTTP ${proxyRes.status}`
-      if (viaProxy && (proxyRes.status === 503 || /not configured|api key/i.test(String(detail)))) {
-        throw new Error(cloudProxySetupHint())
-      }
       throw new Error(detail)
     }
     return proxyBody.data
@@ -419,10 +407,6 @@ async function postRunwareTasks(args: {
     return (res.data || {}) as RunwareApiBody
   }
 
-  if (viaProxy) {
-    return postViaProxy()
-  }
-
   // Most stable path in desktop app: Electron main-process proxy.
   if (isElectron() && window.voidcast?.runwareProxy) {
     try {
@@ -439,18 +423,7 @@ async function postRunwareTasks(args: {
       return await postViaProxy()
     } catch (e) {
       proxyFailureMessage = errorMessage(e)
-      if (!apiKey) {
-        throw e instanceof Error ? e : new Error(proxyFailureMessage)
-      }
     }
-  }
-
-  if (!apiKey) {
-    throw new Error(
-      viaProxy || proxyRoot
-        ? cloudProxySetupHint()
-        : 'Runware API key is not set. Configure it in Options -> General.',
-    )
   }
 
   try {
@@ -516,7 +489,7 @@ export async function fetchRunwareImageModels(options: {
   signal?: AbortSignal
 }): Promise<string[]> {
   const apiKey = (options.apiKey || '').trim()
-  if (!apiKey && !usesServerCloudProxy()) {
+  if (!apiKey) {
     throw new Error('Runware API key is required to load models.')
   }
   const root = normalizeBaseUrl(options.apiBaseUrl || 'https://api.runware.ai/v1')
@@ -596,7 +569,7 @@ export async function fetchRunwareImageModelOptions(options: {
   signal?: AbortSignal
 }): Promise<RunwareModelOption[]> {
   const apiKey = (options.apiKey || '').trim()
-  if (!apiKey && !usesServerCloudProxy()) {
+  if (!apiKey) {
     throw new Error('Runware API key is required to load models.')
   }
   const root = normalizeBaseUrl(options.apiBaseUrl || 'https://api.runware.ai/v1')
@@ -864,7 +837,7 @@ export async function invokeRunwareGenerateImage(
   const prompt = (req.prompt || '').trim()
   if (!prompt) throw new Error('Runware generate_image requires a non-empty prompt.')
   const apiKey = (config.apiKey || '').trim()
-  if (!apiKey && !usesServerCloudProxy()) {
+  if (!apiKey) {
     throw new Error('Runware API key is not set. Configure it in Options -> General.')
   }
 
@@ -951,7 +924,7 @@ export async function invokeRunwareEditImage(
   const prompt = (req.prompt || '').trim()
   if (!prompt) throw new Error('Runware edit_image_runware requires a non-empty prompt.')
   const apiKey = (config.apiKey || '').trim()
-  if (!apiKey && !usesServerCloudProxy()) {
+  if (!apiKey) {
     throw new Error('Runware API key is not set. Configure it in Options -> General (desktop).')
   }
 
@@ -1079,7 +1052,7 @@ export async function invokeRunwareGenerateMusic(
   const prompt = (req.prompt || '').trim()
   if (!prompt) throw new Error('Runware generate_music_runware requires a non-empty prompt.')
   const apiKey = (config.apiKey || '').trim()
-  if (!apiKey && !usesServerCloudProxy()) {
+  if (!apiKey) {
     throw new Error('Runware API key is not set. Configure it in Options -> General (desktop).')
   }
 

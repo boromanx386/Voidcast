@@ -8,7 +8,6 @@ import {
   OPENROUTER_LLM_PRESET_MODELS,
 } from '@/lib/cloudLlmPresets'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
-import { isWebStandalone } from '@/lib/platform'
 import { pinnedIdLabel, pinsForProvider, toScopedPinnedId } from '@/lib/pinnedModels'
 import { useCallback, useState } from 'react'
 import {
@@ -186,18 +185,10 @@ export function LlmOptionsPanel({
             <span className="text-neon-purple mr-2">◇</span> OLLAMA_BASE_URL
           </label>
           <input
-            className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
-            readOnly={isWebStandalone()}
+            className="cyber-input"
             value={settings.ollamaBaseUrl}
             onChange={(e) => setSettings((s) => ({ ...s, ollamaBaseUrl: e.target.value }))}
           />
-          {isWebStandalone() && (
-            <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-              Proxied through the local server at{' '}
-              <code className="text-neon-purple">/api/ollama/*</code> to the desktop&apos;s Ollama.
-              Same LAN as the phone browser.
-            </p>
-          )}
         </div>
       )}
 
@@ -310,19 +301,11 @@ export function LlmOptionsPanel({
               <span className="text-neon-purple mr-2">◇</span> OPENROUTER_BASE_URL
             </label>
             <input
-              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
-              readOnly={isWebStandalone()}
+              className="cyber-input"
               value={settings.openrouterBaseUrl}
               onChange={(e) => setSettings((s) => ({ ...s, openrouterBaseUrl: e.target.value }))}
               placeholder="https://openrouter.ai/api/v1"
             />
-            {isWebStandalone() && (
-              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-                Proxied through the local server at{' '}
-                <code className="text-neon-purple">/api/openrouter/*</code> using keys from the
-                desktop app.
-              </p>
-            )}
           </div>
           <div className="form-group">
             <label className="form-label">
@@ -522,19 +505,11 @@ export function LlmOptionsPanel({
               <span className="text-neon-purple mr-2">◇</span> NVIDIA_BASE_URL
             </label>
             <input
-              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
-              readOnly={isWebStandalone()}
+              className="cyber-input"
               value={settings.nvidiaBaseUrl}
               onChange={(e) => setSettings((s) => ({ ...s, nvidiaBaseUrl: e.target.value }))}
               placeholder="https://integrate.api.nvidia.com/v1"
             />
-            {isWebStandalone() && (
-              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-                Proxied through the local server at{' '}
-                <code className="text-neon-purple">/api/nvidia/*</code> using keys from the desktop
-                app.
-              </p>
-            )}
           </div>
           <div className="form-group">
             <label className="form-label">
@@ -599,19 +574,11 @@ export function LlmOptionsPanel({
               <span className="text-neon-purple mr-2">◇</span> DEEPSEEK_BASE_URL
             </label>
             <input
-              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
-              readOnly={isWebStandalone()}
+              className="cyber-input"
               value={settings.deepseekBaseUrl}
               onChange={(e) => setSettings((s) => ({ ...s, deepseekBaseUrl: e.target.value }))}
               placeholder="https://api.deepseek.com"
             />
-            {isWebStandalone() && (
-              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-                Proxied through the local server at{' '}
-                <code className="text-neon-purple">/api/deepseek/*</code> using keys from the
-                desktop app.
-              </p>
-            )}
           </div>
           <div className="form-group">
             <label className="form-label">
@@ -678,19 +645,11 @@ export function LlmOptionsPanel({
               <span className="text-neon-purple mr-2">◇</span> OPENAI_BASE_URL
             </label>
             <input
-              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
-              readOnly={isWebStandalone()}
+              className="cyber-input"
               value={settings.openaiBaseUrl}
               onChange={(e) => setSettings((s) => ({ ...s, openaiBaseUrl: e.target.value }))}
               placeholder="https://api.openai.com/v1"
             />
-            {isWebStandalone() && (
-              <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-                Proxied through the local server at{' '}
-                <code className="text-neon-purple">/api/openai/*</code> using keys from the desktop
-                app.
-              </p>
-            )}
           </div>
           <div className="form-group">
             <label className="form-label">
@@ -998,9 +957,7 @@ export function LlmOptionsPanel({
             </li>
             <li className="flex items-center gap-2">
               <span className="text-neon-green">✓</span>
-              {isWebStandalone()
-                ? 'API key stays on desktop; requests use the local server proxy'
-                : 'Keep API key in General options on this desktop'}
+              Keep API key in General options on this desktop
             </li>
             <li className="flex items-center gap-2 opacity-70">
               <span className="text-neon-yellow">!</span>

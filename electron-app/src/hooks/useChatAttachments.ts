@@ -15,7 +15,6 @@ import {
   splitChatAttachmentFiles,
 } from '@/lib/imageAttachment'
 import { extFromName, isSupportedChatFileName } from '@/lib/fileAttachment'
-import { isWebStandalone } from '@/lib/platform'
 import type { PendingChatImage } from '@/lib/chatImageCatalog'
 import type { FileAttachmentSnapshot } from '@/types/chat'
 
@@ -369,9 +368,7 @@ export function useChatAttachments({
         setError(e instanceof Error ? e.message : String(e))
       }
     }
-    if (!isWebStandalone()) {
-      chatAttachmentInputRef.current?.click()
-    }
+    chatAttachmentInputRef.current?.click()
   }, [busyRef, editingMessageIdRef, setError])
 
   return {

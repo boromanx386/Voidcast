@@ -38,7 +38,7 @@ import {
   normalizeSlashes,
   validateProjectRelativeAudioPath,
 } from '@/lib/generatedAssetPath'
-import { isElectron, isWebStandalone } from '@/lib/platform'
+import { isElectron } from '@/lib/platform'
 import {
   audioPathKey,
   extractRunwareImageUrls,
@@ -115,7 +115,6 @@ export const handleGenerateImage: ToolHandlerFn = async (args, ctx) => {
           height: ctx.runware.height,
           gptQuality: ctx.runware.gptQuality,
           transparentBackground: ctx.runware.transparentBackground,
-          proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
         },
         ctx.signal,
       )
@@ -223,7 +222,6 @@ export const handleEditImageRunware: ToolHandlerFn = async (args, ctx) => {
           height: editH,
           gptQuality: ctx.runware.editDefaults?.gptQuality ?? ctx.runware.gptQuality,
           transparentBackground: ctx.runware.editDefaults?.transparentBackground,
-          proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
         },
         ctx.signal,
       )
@@ -392,7 +390,6 @@ export const handleGenerateMusicRunware: ToolHandlerFn = async (args, ctx) => {
           baseUrl: or.baseUrl,
           model: or.musicModel || '',
           outputDir: ctx.runware.musicOutputDir,
-          proxyBaseUrl: ctx.runware.proxyBaseUrl || ctx.ttsBaseUrl,
         },
         ctx.signal,
       )
@@ -493,8 +490,7 @@ export const handleGenerateTts: ToolHandlerFn = async (args, ctx) => {
     relativePath = validated.relativePath
   }
 
-  const voiceMode =
-    tts.ttsProvider === 'local' ? (isWebStandalone() ? 'design' : tts.voiceMode) : 'design'
+  const voiceMode = tts.ttsProvider === 'local' ? tts.voiceMode : 'design'
   if (voiceMode === 'clone' && (!tts.cloneRef?.blob || tts.cloneRef.blob.size === 0)) {
     return 'Error: VOICE_CLONE is selected but no reference audio is loaded (Options → TTS/STT).'
   }
@@ -524,8 +520,8 @@ export const handleGenerateTts: ToolHandlerFn = async (args, ctx) => {
       speed: tts.ttsSpeed,
       numStep: tts.ttsNumStep,
       durationSec: tts.ttsDurationSec ?? null,
-      cloneRef: isWebStandalone() ? null : (tts.cloneRef ?? null),
-      cloneRefText: isWebStandalone() ? null : (tts.cloneRefText ?? null),
+      cloneRef: tts.cloneRef ?? null,
+      cloneRefText: tts.cloneRefText ?? null,
       voiceAnchor: tts.voiceAnchor ?? null,
       signal: ctx.signal,
     })

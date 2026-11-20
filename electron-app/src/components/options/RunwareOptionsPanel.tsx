@@ -10,7 +10,7 @@ import {
   type AppSettings,
   type RunwareModelProfile,
 } from '@/lib/settings'
-import { isElectron, isWebStandalone } from '@/lib/platform'
+import { isElectron } from '@/lib/platform'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 
@@ -194,7 +194,6 @@ export function RunwareOptionsPanel({ settings, setSettings, variant = 'standalo
               runwareAutoSaveImages: e.target.checked,
             }))
           }
-          disabled={isWebStandalone()}
         />
         <span className="flex-1">
           <span className="font-mono text-sm text-void-light">

@@ -17,7 +17,7 @@ Selects the visual chrome of the app. The `dystopian` and `matrix` themes also e
 
 ## Cloud API Keys (`CloudApiKeysSection`)
 
-All cloud API keys are stored locally on this device (localStorage on web, device storage in the desktop app).
+All cloud API keys are stored locally on this device (device storage in the desktop app, encrypted with the OS key store).
 
 Pick a provider chip to edit its key. A filled green dot means a key is already set.
 
@@ -58,5 +58,5 @@ The sounds are stored independently from `AppSettings` (see `electron-app/src/li
 
 ## PDF Output Directory
 
-In the current build the PDF output directory (`pdfOutputDir`, see Tools tab) is not edited on the General tab — it lives in the **Tools** tab (Tools panel receives `effectivePdfOutputDir`). Its default is empty; `save_pdf` returns an error until a directory is configured. If your build’s General panel ever shows it, the field is the same `pdfOutputDir` string setting.
+In the current build the PDF output directory (`pdfOutputDir`, see Tools tab) is not edited on the General tab — it lives in the **Tools** tab. Its default is empty; `save_pdf` returns an error until a directory is configured. If your build’s General panel ever shows it, the field is the same `pdfOutputDir` string setting.
 

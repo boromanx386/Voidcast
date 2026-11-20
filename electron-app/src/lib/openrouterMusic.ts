@@ -8,7 +8,6 @@
  */
 
 import { invokeSaveAudioBytes } from '@/lib/saveAudio'
-import { usesServerCloudProxy } from '@/lib/platform'
 import { normalizeOpenRouterMusicModel } from '@/lib/settings'
 
 export type OpenRouterMusicConfig = {
@@ -17,7 +16,6 @@ export type OpenRouterMusicConfig = {
   model: string
   /** Folder for the song; empty = the app's generated-audio folder. */
   outputDir?: string
-  proxyBaseUrl?: string
 }
 
 export type OpenRouterMusicRequest = {
@@ -111,10 +109,6 @@ function base64ToBytes(b64: string): Uint8Array {
 
 function openRouterRoot(config: OpenRouterMusicConfig): string {
   const trim = (u: string) => u.trim().replace(/\/+$/, '')
-  if (usesServerCloudProxy()) {
-    const proxy = trim(config.proxyBaseUrl || '')
-    return `${proxy || trim(config.baseUrl || window.location.origin)}/api/openrouter/api/v1`
-  }
   return trim(config.baseUrl || 'https://openrouter.ai/api/v1')
 }
 
@@ -140,14 +134,13 @@ export async function invokeOpenRouterGenerateMusic(
 ): Promise<string> {
   const prompt = req.prompt.trim()
   if (!prompt) throw new Error('generate_music_runware requires a non-empty prompt.')
-  const viaProxy = usesServerCloudProxy()
   const apiKey = (config.apiKey || '').trim()
-  if (!viaProxy && !apiKey) {
+  if (!apiKey) {
     throw new Error('OpenRouter API key is missing. Set it in Options → General.')
   }
   const model = normalizeOpenRouterMusicModel(config.model)
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (!viaProxy && apiKey) headers.Authorization = `Bearer ${apiKey}`
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
   const started = Date.now()
   const res = await fetch(`${openRouterRoot(config)}/chat/completions`, {

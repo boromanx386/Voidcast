@@ -7,7 +7,6 @@ import {
   type GptImageQuality,
   type ImageProvider,
 } from '@/lib/settings'
-import { usesServerCloudProxy } from '@/lib/platform'
 import { sniffImageMime } from '@/lib/imageMime'
 
 export type OpenRouterImageConfig = {
@@ -19,8 +18,6 @@ export type OpenRouterImageConfig = {
   gptQuality?: GptImageQuality
   /** Default transparent background (GPT Image models only). */
   transparentBackground?: boolean
-  /** Optional LAN proxy root (TTS server origin). */
-  proxyBaseUrl?: string
 }
 
 const ASPECT_RATIOS: Array<{ id: string; value: number }> = [
@@ -119,11 +116,6 @@ export function resolveOpenRouterImageRequest(payload: {
 }
 
 function resolveOpenRouterRoot(config: OpenRouterImageConfig): string {
-  if (usesServerCloudProxy()) {
-    const proxy = (config.proxyBaseUrl || '').trim()
-    if (proxy) return `${normalizeBaseUrl(proxy)}/api/openrouter/api/v1`
-    return `${normalizeBaseUrl(config.baseUrl || window.location.origin)}/api/openrouter/api/v1`
-  }
   return normalizeBaseUrl(config.baseUrl || 'https://openrouter.ai/api/v1')
 }
 
@@ -258,15 +250,14 @@ async function postOpenRouterDedicatedImage(
   body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<OpenRouterImageResponse> {
-  const viaProxy = usesServerCloudProxy()
   const apiKey = (config.apiKey || '').trim()
-  if (!viaProxy && !apiKey) {
+  if (!apiKey) {
     throw new Error('OpenRouter API key is missing. Set it in Options → General.')
   }
   const model = normalizeOpenRouterImageModel(config.model || OPENROUTER_IMAGE_MODEL_DEFAULT)
   const root = resolveOpenRouterRoot(config)
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (!viaProxy && apiKey) headers.Authorization = `Bearer ${apiKey}`
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
   const started = Date.now()
   const res = await fetch(`${root}/images`, {
@@ -301,15 +292,14 @@ async function postOpenRouterImageChat(
   body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<OpenRouterImageResponse> {
-  const viaProxy = usesServerCloudProxy()
   const apiKey = (config.apiKey || '').trim()
-  if (!viaProxy && !apiKey) {
+  if (!apiKey) {
     throw new Error('OpenRouter API key is missing. Set it in Options → General.')
   }
   const model = normalizeOpenRouterImageModel(config.model || OPENROUTER_IMAGE_MODEL_DEFAULT)
   const root = resolveOpenRouterRoot(config)
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (!viaProxy && apiKey) headers.Authorization = `Bearer ${apiKey}`
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
   const started = Date.now()
   const res = await fetch(`${root}/chat/completions`, {

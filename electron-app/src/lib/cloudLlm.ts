@@ -1,5 +1,5 @@
 import type { AppSettings, LlmProvider, LlmThinkLevel } from '@/lib/settings'
-import { opencodeGoApiBaseForRuntime, usesServerCloudProxy } from '@/lib/platform'
+import { opencodeGoApiBaseUrl } from '@/lib/platform'
 
 export function cloudLlmProviderLabel(provider: LlmProvider): string {
   switch (provider) {
@@ -19,7 +19,6 @@ export function cloudLlmProviderLabel(provider: LlmProvider): string {
 }
 
 export function assertCloudLlmApiKey(provider: LlmProvider, apiKey: string): void {
-  if (usesServerCloudProxy()) return
   if (apiKey.trim()) return
   const label = cloudLlmProviderLabel(provider)
   throw new Error(
@@ -102,7 +101,7 @@ export function resolveCloudLlmChatConfig(
     case 'opencode-go':
       return {
         // Upstream has no CORS; always use local TTS reverse proxy (desktop + LAN).
-        baseUrl: opencodeGoApiBaseForRuntime(settings.opencodeGoBaseUrl, settings.ttsBaseUrl),
+        baseUrl: opencodeGoApiBaseUrl(settings.ttsBaseUrl),
         apiKey: settings.opencodeGoApiKey || '',
         model: settings.opencodeGoModel || '',
         // Keep thinking on by default (DeepSeek/Kimi via Go); respect user think level.
@@ -147,7 +146,7 @@ export function resolveCloudLlmChatConfigForProvider(
       }
     case 'opencode-go':
       return {
-        baseUrl: opencodeGoApiBaseForRuntime(settings.opencodeGoBaseUrl, settings.ttsBaseUrl),
+        baseUrl: opencodeGoApiBaseUrl(settings.ttsBaseUrl),
         apiKey: settings.opencodeGoApiKey || '',
         model: modelOverride || settings.opencodeGoModel || '',
         thinkLevel: settings.llmThinkLevel,

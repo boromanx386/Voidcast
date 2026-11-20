@@ -14,7 +14,7 @@ import {
 } from '@/lib/settings'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
-import { isElectron, isWebStandalone } from '@/lib/platform'
+import { isElectron } from '@/lib/platform'
 import { synthesizeSpeech } from '@/lib/tts'
 import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
 
@@ -119,8 +119,7 @@ export function TtsOptionsPanel({
     if (!settings.voiceBakePhrase.trim() || playBusy) return
     setPlayBusy(true)
     try {
-      const web = isWebStandalone()
-      const voiceMode = web ? 'design' : settings.voiceMode
+      const voiceMode = settings.voiceMode
       const blob = await synthesizeSpeech({
         ttsBaseUrl: settings.ttsBaseUrl,
         ttsProvider: settings.ttsProvider,
@@ -138,7 +137,6 @@ export function TtsOptionsPanel({
         voiceMode,
         instruct: voiceMode === 'design' ? settings.voiceInstruct : undefined,
         voiceAnchor: voiceAnchor,
-        ...(web ? { cloneRef: null, cloneRefText: null } : {}),
       })
       const url = URL.createObjectURL(blob)
       const audio = new Audio(url)
@@ -174,71 +172,64 @@ export function TtsOptionsPanel({
             Microphone input for the composer. This section only affects speech-to-text.
           </p>
         </div>
-        {isWebStandalone() ? (
-          <p className="rounded border border-void-muted/30 bg-void-black/30 px-3 py-2 text-xs text-void-dim">
-            Voice input (STT) is not available in the phone/browser build. Use the desktop app if
-            you need microphone transcription.
-          </p>
-        ) : (
-          <>
-            <div className="form-group">
-              <label className="form-label">
-                <span className="text-neon-green">◉</span> STT_PROVIDER
-              </label>
-              <select
-                className="form-select"
-                value={settings.sttProvider}
-                onChange={(e) =>
-                  setSettings((s) => ({
-                    ...s,
-                    sttProvider:
-                      e.target.value === 'openrouter'
-                        ? 'openrouter'
-                        : e.target.value === 'whistle'
-                          ? 'whistle'
-                          : 'none',
-                  }))
-                }
-              >
-                <option value="none">Disabled</option>
-                <option value="openrouter">OpenRouter Whisper</option>
-                <option value="whistle">Whistle (local, 16.9 MB)</option>
-              </select>
+        <>
+          <div className="form-group">
+            <label className="form-label">
+              <span className="text-neon-green">◉</span> STT_PROVIDER
+            </label>
+            <select
+              className="form-select"
+              value={settings.sttProvider}
+              onChange={(e) =>
+                setSettings((s) => ({
+                  ...s,
+                  sttProvider:
+                    e.target.value === 'openrouter'
+                      ? 'openrouter'
+                      : e.target.value === 'whistle'
+                        ? 'whistle'
+                        : 'none',
+                }))
+              }
+            >
+              <option value="none">Disabled</option>
+              <option value="openrouter">OpenRouter Whisper</option>
+              <option value="whistle">Whistle (local, 16.9 MB)</option>
+            </select>
+          </div>
+
+          {settings.sttProvider === 'openrouter' && (
+            <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
+              <p className="text-xs text-void-dim">
+                Uses <span className="font-mono text-neon-green">OPENROUTER_API_KEY</span> from
+                General settings. Click the microphone button in the composer to record and
+                transcribe.
+              </p>
+              <div className="form-group mt-3">
+                <label className="form-label">OPENROUTER_STT_MODEL</label>
+                <input
+                  className="cyber-input"
+                  value={settings.openrouterSttModel}
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, openrouterSttModel: e.target.value }))
+                  }
+                  placeholder="openai/whisper-large-v3-turbo"
+                />
+              </div>
             </div>
+          )}
 
-            {settings.sttProvider === 'openrouter' && (
-              <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
-                <p className="text-xs text-void-dim">
-                  Uses <span className="font-mono text-neon-green">OPENROUTER_API_KEY</span> from
-                  General settings. Click the microphone button in the composer to record and
-                  transcribe.
-                </p>
-                <div className="form-group mt-3">
-                  <label className="form-label">OPENROUTER_STT_MODEL</label>
-                  <input
-                    className="cyber-input"
-                    value={settings.openrouterSttModel}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, openrouterSttModel: e.target.value }))
-                    }
-                    placeholder="openai/whisper-large-v3-turbo"
-                  />
-                </div>
-              </div>
-            )}
-
-            {settings.sttProvider === 'whistle' && (
-              <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
-                <p className="text-xs text-void-dim">
-                  Runs fully offline with the bundled{' '}
-                  <span className="font-mono text-neon-green">Whistle</span> model (~16.9 MB,
-                  cactus-needle). No API key or internet needed. Click the microphone button in the
-                  composer to record and transcribe.
-                </p>
-              </div>
-            )}
-          </>
-        )}
+          {settings.sttProvider === 'whistle' && (
+            <div className="bg-void-black/50 border border-neon-green/25 p-4 rounded">
+              <p className="text-xs text-void-dim">
+                Runs fully offline with the bundled{' '}
+                <span className="font-mono text-neon-green">Whistle</span> model (~16.9 MB,
+                cactus-needle). No API key or internet needed. Click the microphone button in the
+                composer to record and transcribe.
+              </p>
+            </div>
+          )}
+        </>
       </div>
 
       <div className="rounded border border-neon-cyan/25 bg-neon-cyan/[0.03] p-4 space-y-4">
@@ -302,18 +293,10 @@ export function TtsOptionsPanel({
         {settings.ttsProvider === 'runware-xai' && (
           <div className="bg-void-black/50 border border-neon-yellow/25 p-4 rounded">
             <p className="text-xs text-void-dim">
-              {isWebStandalone() ? (
-                <>
-                  Runware TTS via server proxy (key from desktop General). Default model{' '}
-                  <span className="font-mono text-void-light">{RUNWARE_TTS_MODEL_DEFAULT}</span>.
-                  Local clone/anchor options are ignored.
-                </>
-              ) : (
-                <>
-                  Uses <span className="font-mono text-neon-yellow">RUNWARE_API_KEY</span> from
-                  General settings. Local TTS URL/clone/anchor options are ignored in this mode.
-                </>
-              )}
+              <>
+                Uses <span className="font-mono text-neon-yellow">RUNWARE_API_KEY</span> from
+                General settings. Local TTS URL/clone/anchor options are ignored in this mode.
+              </>
             </p>
             <div className="grid sm:grid-cols-2 gap-3 mt-3">
               <div className="form-group">
@@ -453,20 +436,13 @@ export function TtsOptionsPanel({
         {settings.ttsProvider === 'openrouter-tts' && (
           <div className="bg-void-black/50 border border-neon-cyan/25 p-4 rounded">
             <p className="text-xs text-void-dim">
-              {isWebStandalone() ? (
-                <>
-                  OpenRouter TTS via server proxy (key from desktop General). Default model{' '}
-                  <span className="font-mono text-void-light">{OPENROUTER_TTS_MODEL_DEFAULT}</span>.
-                </>
-              ) : (
-                <>
-                  Uses <span className="font-mono text-neon-cyan">OPENROUTER_API_KEY</span> from
-                  General settings to call OpenRouter TTS (
-                  <span className="font-mono">{OPENROUTER_TTS_MODEL_DEFAULT}</span> by default).
-                  OpenAI GPT-4o Mini TTS was removed from OpenRouter; saved settings migrate
-                  automatically.
-                </>
-              )}
+              <>
+                Uses <span className="font-mono text-neon-cyan">OPENROUTER_API_KEY</span> from
+                General settings to call OpenRouter TTS (
+                <span className="font-mono">{OPENROUTER_TTS_MODEL_DEFAULT}</span> by default).
+                OpenAI GPT-4o Mini TTS was removed from OpenRouter; saved settings migrate
+                automatically.
+              </>
             </p>
             <div className="grid sm:grid-cols-2 gap-3 mt-3">
               <div className="form-group">
@@ -565,35 +541,27 @@ export function TtsOptionsPanel({
               <span className="text-neon-cyan">◈</span> TTS_SERVER_URL
             </label>
             <input
-              className={`cyber-input ${isWebStandalone() ? 'opacity-90' : ''}`}
-              readOnly={isWebStandalone()}
+              className="cyber-input"
               value={settings.ttsBaseUrl}
               onChange={(e) => setSettings((s) => ({ ...s, ttsBaseUrl: e.target.value }))}
             />
-            {isWebStandalone() && (
-              <p className="text-xs text-void-dim mt-1 font-mono">
-                Served from this host; voice and tools use the same local server.
+            <div className="text-xs text-void-dim mt-1 leading-snug">
+              <p>
+                Local TTS is distributed as a separate installer. Keep this URL pointed to your
+                external Local TTS server instance.
               </p>
-            )}
-            {!isWebStandalone() && (
-              <div className="text-xs text-void-dim mt-1 leading-snug">
-                <p>
-                  Local TTS is distributed as a separate installer. Keep this URL pointed to your
-                  external Local TTS server instance.
-                </p>
-                <p className="mt-1 font-mono">
-                  Required API: GET /health and POST /tts (default: http://127.0.0.1:8765)
-                </p>
-                <a
-                  href={LOCAL_TTS_SETUP_DOCS}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block mt-1 text-neon-cyan underline decoration-neon-cyan/30 underline-offset-2 hover:decoration-neon-cyan"
-                >
-                  Open Local TTS setup guide
-                </a>
-              </div>
-            )}
+              <p className="mt-1 font-mono">
+                Required API: GET /health and POST /tts (default: http://127.0.0.1:8765)
+              </p>
+              <a
+                href={LOCAL_TTS_SETUP_DOCS}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-1 text-neon-cyan underline decoration-neon-cyan/30 underline-offset-2 hover:decoration-neon-cyan"
+              >
+                Open Local TTS setup guide
+              </a>
+            </div>
           </div>
         )}
 
@@ -614,46 +582,35 @@ export function TtsOptionsPanel({
             <p className="text-xs font-mono text-neon-magenta uppercase tracking-wider mb-3">
               <span className="mr-2">◉</span>VOICE_MODE
             </p>
-            {isWebStandalone() ? (
-              <div className="rounded border border-void-muted/30 bg-void-mid/20 px-3 py-2 text-xs text-void-dim leading-snug">
-                <span className="font-mono text-neon-cyan">Voice Design</span> only in this browser
-                build (instruct + optional anchor baked here).{' '}
-                <span className="text-void-text">
-                  Voice Clone with a WAV file stays on the desktop app — there is no shared
-                  reference audio from the PC.
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {(
-                  [
-                    ['design', 'Voice Design', 'Describe voice characteristics.'],
-                    ['clone', 'Voice Clone', 'Clone from reference audio clip.'],
-                  ] as const
-                ).map(([value, label, hint]) => (
-                  <label
-                    key={value}
-                    className={`flex cursor-pointer items-start gap-3 px-3 py-2 border transition-all ${
-                      settings.voiceMode === value
-                        ? 'border-neon-cyan/50 bg-neon-cyan/5 text-neon-cyan'
-                        : 'border-void-muted/30 text-void-text hover:border-void-dim hover:bg-void-mid/30'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="voiceMode"
-                      className="mt-1 accent-neon-cyan"
-                      checked={settings.voiceMode === value}
-                      onChange={() => setSettings((s) => ({ ...s, voiceMode: value }))}
-                    />
-                    <span>
-                      <span className="font-mono text-sm">{label}</span>
-                      <span className="mt-0.5 block text-xs opacity-70">{hint}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
+            <div className="flex flex-col gap-2">
+              {(
+                [
+                  ['design', 'Voice Design', 'Describe voice characteristics.'],
+                  ['clone', 'Voice Clone', 'Clone from reference audio clip.'],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <label
+                  key={value}
+                  className={`flex cursor-pointer items-start gap-3 px-3 py-2 border transition-all ${
+                    settings.voiceMode === value
+                      ? 'border-neon-cyan/50 bg-neon-cyan/5 text-neon-cyan'
+                      : 'border-void-muted/30 text-void-text hover:border-void-dim hover:bg-void-mid/30'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="voiceMode"
+                    className="mt-1 accent-neon-cyan"
+                    checked={settings.voiceMode === value}
+                    onChange={() => setSettings((s) => ({ ...s, voiceMode: value }))}
+                  />
+                  <span>
+                    <span className="font-mono text-sm">{label}</span>
+                    <span className="mt-0.5 block text-xs opacity-70">{hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
 
@@ -740,74 +697,72 @@ export function TtsOptionsPanel({
           </div>
         )}
 
-        {/* Voice Clone Panel (desktop / Electron only) */}
-        {!isWebStandalone() &&
-          settings.ttsProvider === 'local' &&
-          settings.voiceMode === 'clone' && (
-            <div className="bg-void-black/50 border border-neon-purple/30 p-4">
-              <p className="text-xs font-mono text-neon-purple mb-3">
-                <span className="mr-2">⬡</span>REFERENCE_CLONE
-              </p>
-              <p className="text-xs text-void-dim mb-3">
-                Upload 3-10s WAV clip. Stored locally in IndexedDB.
-              </p>
+        {/* Voice Clone Panel */}
+        {settings.ttsProvider === 'local' && settings.voiceMode === 'clone' && (
+          <div className="bg-void-black/50 border border-neon-purple/30 p-4">
+            <p className="text-xs font-mono text-neon-purple mb-3">
+              <span className="mr-2">⬡</span>REFERENCE_CLONE
+            </p>
+            <p className="text-xs text-void-dim mb-3">
+              Upload 3-10s WAV clip. Stored locally in IndexedDB.
+            </p>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="cyber-btn text-xs cursor-pointer">
-                  SELECT_AUDIO
-                  <input
-                    type="file"
-                    accept="audio/*,.wav,audio/wav"
-                    className="hidden"
-                    onChange={(e) => void onPickCloneFile(e)}
-                  />
-                </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="cyber-btn text-xs cursor-pointer">
+                SELECT_AUDIO
+                <input
+                  type="file"
+                  accept="audio/*,.wav,audio/wav"
+                  className="hidden"
+                  onChange={(e) => void onPickCloneFile(e)}
+                />
+              </label>
 
-                {cloneRef && (
-                  <div className="flex items-center gap-2 text-xs font-mono text-neon-green">
-                    <span className="text-neon-green">✓</span>
-                    <span className="truncate max-w-[150px]" title={cloneRef.fileName}>
-                      {cloneRef.fileName}
-                    </span>
-                    <button
-                      type="button"
-                      className="text-neon-red hover:underline"
-                      onClick={() => void onClearClone()}
-                    >
-                      REMOVE
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Clone waveform visualization */}
               {cloneRef && (
-                <div className="clone-waveform mt-4">
-                  {Array.from({ length: 15 }).map((_, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        animationDelay: `${i * 50}ms`,
-                        height: `${20 + Math.random() * 60}%`,
-                      }}
-                    />
-                  ))}
+                <div className="flex items-center gap-2 text-xs font-mono text-neon-green">
+                  <span className="text-neon-green">✓</span>
+                  <span className="truncate max-w-[150px]" title={cloneRef.fileName}>
+                    {cloneRef.fileName}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-neon-red hover:underline"
+                    onClick={() => void onClearClone()}
+                  >
+                    REMOVE
+                  </button>
                 </div>
               )}
-
-              {/* Reference Transcript */}
-              <div className="form-group mt-4">
-                <label className="form-label text-void-dim">REF_TRANSCRIPT (optional)</label>
-                <textarea
-                  rows={2}
-                  className="cyber-input text-sm resize-none"
-                  value={settings.cloneRefText}
-                  onChange={(e) => setSettings((s) => ({ ...s, cloneRefText: e.target.value }))}
-                  placeholder="Text from the clip — improves accuracy"
-                />
-              </div>
             </div>
-          )}
+
+            {/* Clone waveform visualization */}
+            {cloneRef && (
+              <div className="clone-waveform mt-4">
+                {Array.from({ length: 15 }).map((_, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      animationDelay: `${i * 50}ms`,
+                      height: `${20 + Math.random() * 60}%`,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Reference Transcript */}
+            <div className="form-group mt-4">
+              <label className="form-label text-void-dim">REF_TRANSCRIPT (optional)</label>
+              <textarea
+                rows={2}
+                className="cyber-input text-sm resize-none"
+                value={settings.cloneRefText}
+                onChange={(e) => setSettings((s) => ({ ...s, cloneRefText: e.target.value }))}
+                placeholder="Text from the clip — improves accuracy"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Speed / Steps / Duration — only the local OmniVoice server honors these. */}
         {settings.ttsProvider === 'local' && (

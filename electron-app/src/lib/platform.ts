@@ -18,72 +18,11 @@ export function usesCustomWindowChrome(): boolean {
   return ua.includes('Windows') || ua.includes('Linux')
 }
 
-/**
- * The phone/LAN web client was removed; this stays false so its branches across the app
- * lie dormant. The full feature (web build, pairing, server routes) is kept on the
- * `archive/lan-web` branch in case it comes back.
- */
-export function isLanWebClient(): boolean {
-  return false
-}
+export const DEFAULT_TTS_BASE_URL = 'http://127.0.0.1:8765'
+export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 
-/** @deprecated Prefer `isLanWebClient` — kept for existing call sites. */
-export function isWebStandalone(): boolean {
-  return isLanWebClient()
-}
-
-export function defaultTtsBaseUrlForRuntime(): string {
-  if (typeof window === 'undefined') return 'http://127.0.0.1:8765'
-  if (isLanWebClient()) return window.location.origin
-  return 'http://127.0.0.1:8765'
-}
-
-/** When using the web UI served from the TTS host, Ollama is proxied at this path. */
-export function defaultOllamaBaseUrlForRuntime(): string {
-  if (typeof window === 'undefined') return 'http://localhost:11434'
-  if (isLanWebClient()) return `${window.location.origin}/api/ollama`
-  return 'http://localhost:11434'
-}
-
-/** Cloud LLM/TTS/STT calls go through TTS server; keys never reach the browser. */
-export function usesServerCloudProxy(): boolean {
-  return isLanWebClient()
-}
-
-export function cloudProxySetupHint(): string {
-  return (
-    'Cloud API keys are set only in the desktop Voidcast app (General options). ' +
-    'Keep the desktop app and local server running on the same PC — do not enter keys on the phone.'
-  )
-}
-
-export function openRouterApiBaseForRuntime(desktopUrl?: string): string {
-  if (isLanWebClient()) return `${window.location.origin}/api/openrouter/api/v1`
-  const u = (desktopUrl || '').trim()
-  return u || 'https://openrouter.ai/api/v1'
-}
-
-export function nvidiaApiBaseForRuntime(desktopUrl?: string): string {
-  if (isLanWebClient()) return `${window.location.origin}/api/nvidia/v1`
-  const u = (desktopUrl || '').trim()
-  return u || 'https://integrate.api.nvidia.com/v1'
-}
-
-export function deepseekApiBaseForRuntime(desktopUrl?: string): string {
-  if (isLanWebClient()) return `${window.location.origin}/api/deepseek`
-  const u = (desktopUrl || '').trim()
-  return u || 'https://api.deepseek.com'
-}
-
-export function openaiApiBaseForRuntime(desktopUrl?: string): string {
-  if (isLanWebClient()) return `${window.location.origin}/api/openai/v1`
-  const u = (desktopUrl || '').trim()
-  return u || 'https://api.openai.com/v1'
-}
-
-/** OpenCode Go has no browser CORS — always hit local TTS reverse proxy. */
-export function opencodeGoApiBaseForRuntime(_desktopUrl?: string, ttsBaseUrl?: string): string {
-  if (isLanWebClient()) return `${window.location.origin}/api/opencode-go/v1`
-  const tts = (ttsBaseUrl || defaultTtsBaseUrlForRuntime()).trim().replace(/\/+$/, '')
+/** OpenCode Go sends no CORS headers, so the renderer always goes through the local tools proxy. */
+export function opencodeGoApiBaseUrl(ttsBaseUrl?: string): string {
+  const tts = (ttsBaseUrl || DEFAULT_TTS_BASE_URL).trim().replace(/\/+$/, '')
   return `${tts}/api/opencode-go/v1`
 }

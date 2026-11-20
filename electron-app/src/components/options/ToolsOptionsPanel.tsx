@@ -6,7 +6,7 @@ import {
   clampAgentMaxToolRounds,
 } from '@/lib/settings'
 import { NumericSettingInput } from '@/components/options/NumericSettingInput'
-import { isElectron, isWebStandalone } from '@/lib/platform'
+import { isElectron } from '@/lib/platform'
 import {
   addTrustedMcpProjectPath,
   isMcpProjectTrusted,
@@ -19,16 +19,9 @@ type Props = {
   setSettings: Dispatch<SetStateAction<AppSettings>>
   /** Folder of the chat on screen — the project whose `.mcp.json` this tab edits. */
   activeCodingProjectPath: string
-  /** Resolved folder for save_pdf (local on desktop, or host path pushed from desktop on phone). */
-  effectivePdfOutputDir?: string
 }
 
-export function ToolsOptionsPanel({
-  settings,
-  setSettings,
-  activeCodingProjectPath,
-  effectivePdfOutputDir = '',
-}: Props) {
+export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPath }: Props) {
   const [pickBusy, setPickBusy] = useState(false)
 
   const browsePdfFolder = useCallback(async () => {
@@ -242,49 +235,31 @@ export function ToolsOptionsPanel({
             <label className="form-label text-void-dim">
               <span className="mr-2">▸</span>PDF_OUTPUT_DIR
             </label>
-            {isWebStandalone() ? (
-              <>
-                <p className="text-xs text-void-dim mt-1">
-                  PDFs are saved on your PC (where Voidcast desktop and the local server run), not
-                  on the phone. Set the folder in the desktop app: Options → Tools → Save as PDF →
-                  BROWSE. Keep the desktop app open so the path syncs here.
-                </p>
+            <>
+              <div className="flex flex-wrap gap-2">
                 <input
                   type="text"
-                  readOnly
                   spellCheck={false}
-                  className="cyber-input flex-1 min-w-[12rem] mt-2 opacity-90"
-                  placeholder="Not set on desktop yet"
-                  value={effectivePdfOutputDir}
+                  className="cyber-input flex-1 min-w-[12rem]"
+                  placeholder="C:\Users\...\Documents\VoidcastPDF"
+                  value={settings.pdfOutputDir}
+                  onChange={(e) => setSettings((s) => ({ ...s, pdfOutputDir: e.target.value }))}
                 />
-              </>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    spellCheck={false}
-                    className="cyber-input flex-1 min-w-[12rem]"
-                    placeholder="C:\Users\...\Documents\VoidcastPDF"
-                    value={settings.pdfOutputDir}
-                    onChange={(e) => setSettings((s) => ({ ...s, pdfOutputDir: e.target.value }))}
-                  />
-                  {isElectron() && (
-                    <button
-                      type="button"
-                      disabled={pickBusy}
-                      className="cyber-btn text-xs"
-                      onClick={() => void browsePdfFolder()}
-                    >
-                      {pickBusy ? '...' : 'BROWSE'}
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-void-dim mt-2">
-                  Required for PDF export. Path is resolved on the PC running the local server.
-                </p>
-              </>
-            )}
+                {isElectron() && (
+                  <button
+                    type="button"
+                    disabled={pickBusy}
+                    className="cyber-btn text-xs"
+                    onClick={() => void browsePdfFolder()}
+                  >
+                    {pickBusy ? '...' : 'BROWSE'}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-void-dim mt-2">
+                Required for PDF export. Path is resolved on the PC running the local server.
+              </p>
+            </>
           </div>
         )}
       </div>
@@ -302,7 +277,6 @@ export function ToolsOptionsPanel({
           label="CODING_TOOLS"
           icon="⌘"
           iconColor="text-neon-cyan"
-          disabled={isWebStandalone()}
           description={
             <>
               Enable LLM coding tools: <code className="text-void-light">list_directory</code>,{' '}

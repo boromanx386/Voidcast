@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { CHAT_IMAGE_ACCEPT, imageDataUrl } from '@/lib/imageAttachment'
 import { chatFileAcceptList } from '@/lib/fileAttachment'
-import { isWebStandalone } from '@/lib/platform'
 import { resolveHintMode } from '@/lib/promptHint'
 import { getChatComposerPlaceholder } from '@/components/chat/chatEmptyState'
 import { BrainIcon } from '@/components/icons/BrainIcon'
@@ -255,12 +254,10 @@ export function ChatComposer({ app }: Props) {
           id="voidcast-chat-attach-input"
           ref={chatAttachmentInputRef as RefObject<HTMLInputElement>}
           type="file"
-          accept={
-            isWebStandalone() ? CHAT_IMAGE_ACCEPT : `${CHAT_IMAGE_ACCEPT},${chatFileAcceptList()}`
-          }
+          accept={`${CHAT_IMAGE_ACCEPT},${chatFileAcceptList()}`}
           multiple
-          className={isWebStandalone() ? 'sr-only' : 'hidden'}
-          aria-hidden={!isWebStandalone()}
+          className="hidden"
+          aria-hidden
           onChange={(e) => void onPickChatAttachments(e)}
         />
         {pendingImages.length > 0 && (
@@ -492,92 +489,74 @@ export function ChatComposer({ app }: Props) {
               ) : null}
             </div>
 
-            {isWebStandalone() ? (
-              <label
-                htmlFor="voidcast-chat-attach-input"
-                className={`composer-toolbar-btn text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5 cursor-pointer ${
-                  busy || compressing ? 'opacity-40 pointer-events-none' : ''
-                }`}
-                title="Attach image from gallery"
-                aria-label="Attach image from gallery"
-              >
-                +
-              </label>
-            ) : (
+            <button
+              type="button"
+              disabled={busy || compressing}
+              onClick={() => void openChatAttachmentPicker()}
+              className="composer-toolbar-btn text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5"
+              title="Attach image or file"
+              aria-label="Attach files and images"
+            >
+              +
+            </button>
+
+            {(settings.sttProvider === 'openrouter' || settings.sttProvider === 'whistle') && (
               <button
                 type="button"
-                disabled={busy || compressing}
-                onClick={() => void openChatAttachmentPicker()}
-                className="composer-toolbar-btn text-neon-cyan hover:border-neon-cyan/50 hover:bg-neon-cyan/5"
-                title="Attach image or file"
-                aria-label="Attach files and images"
+                disabled={busy || compressing || sttPending}
+                onClick={() => void toggleSttRecording()}
+                className={`composer-toolbar-btn ${
+                  isRecording
+                    ? 'border-neon-red bg-neon-red/10 text-neon-red animate-pulse'
+                    : 'text-neon-green hover:border-neon-green/50 hover:bg-neon-green/5'
+                }`}
+                title={
+                  isRecording
+                    ? `Recording ${recordingDuration}s (click to stop)`
+                    : sttPending
+                      ? 'Transcribing...'
+                      : 'Voice input'
+                }
+                aria-label={
+                  isRecording ? 'Stop recording' : sttPending ? 'Transcribing' : 'Start voice input'
+                }
               >
-                +
+                {sttPending ? (
+                  <svg
+                    className="h-3.5 w-3.5 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                  </svg>
+                ) : isRecording ? (
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                ) : (
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                )}
               </button>
             )}
-
-            {(settings.sttProvider === 'openrouter' || settings.sttProvider === 'whistle') &&
-              !isWebStandalone() && (
-                <button
-                  type="button"
-                  disabled={busy || compressing || sttPending}
-                  onClick={() => void toggleSttRecording()}
-                  className={`composer-toolbar-btn ${
-                    isRecording
-                      ? 'border-neon-red bg-neon-red/10 text-neon-red animate-pulse'
-                      : 'text-neon-green hover:border-neon-green/50 hover:bg-neon-green/5'
-                  }`}
-                  title={
-                    isRecording
-                      ? `Recording ${recordingDuration}s (click to stop)`
-                      : sttPending
-                        ? 'Transcribing...'
-                        : 'Voice input'
-                  }
-                  aria-label={
-                    isRecording
-                      ? 'Stop recording'
-                      : sttPending
-                        ? 'Transcribing'
-                        : 'Start voice input'
-                  }
-                >
-                  {sttPending ? (
-                    <svg
-                      className="h-3.5 w-3.5 animate-spin"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
-                  ) : isRecording ? (
-                    <svg
-                      className="h-3.5 w-3.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="6" y="6" width="12" height="12" rx="2" />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="h-3.5 w-3.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" y1="19" x2="12" y2="23" />
-                      <line x1="8" y1="23" x2="16" y2="23" />
-                    </svg>
-                  )}
-                </button>
-              )}
 
             {/* Per-chat think level — chip like pinned LLM models, opens upward */}
             <div

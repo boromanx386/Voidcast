@@ -3,7 +3,6 @@ import { LockIcon } from '@/components/icons/LockIcon'
 import { RobotIcon } from '@/components/icons/RobotIcon'
 import ModelSwitcherPopup from '@/components/chat/ModelSwitcherPopup'
 import { contextLimitSourceLabel } from '@/lib/contextLimit'
-import { isWebStandalone } from '@/lib/platform'
 import { llmModelLabel, llmProviderTitle } from '@/lib/llmProviderDisplay'
 import { applyScopedModelToSettings, toScopedPinnedId } from '@/lib/pinnedModels'
 import type { AppSettings, LlmProvider } from '@/lib/settings'
@@ -156,9 +155,7 @@ export function ChatSystemStatus({ app }: Props) {
           </button>
         )}
         <span className="select-none text-void-dim/30">|</span>
-        <span className="text-[10px] text-void-dim/60">
-          {isWebStandalone() ? 'TTS' : 'TTS/STT'}
-        </span>
+        <span className="text-[10px] text-void-dim/60">TTS/STT</span>
         <span
           className={`dot ${
             settings.ttsProvider === 'none'

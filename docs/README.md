@@ -44,11 +44,8 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 5. **Team workers:** Options → SUB → enable coding sub-agent; set a project path; Team mode; multi-area task.
 6. Enable the **Coding panel** and set a project path for the tree/terminal — see [coding.md](coding.md).
 
-## Web-Standalone vs Desktop (Electron)
+## Runtime
 
-The same UI runs in two environments:
-
-- **Desktop (Electron)** — full experience: cloud API keys stored locally, encrypted with the OS key store, Ollama access (your machine or Ollama's hosted models) + local TTS server, coding tools (file read/write/terminal), skills discovery, MCP servers, auto-update (Windows installer and Linux AppImage).
-- **Web standalone** (browser-only) — no Electron preload, no local file access, no skills/MCP/terminal; cloud providers work if you enter keys (they persist only in that browser's `localStorage`).
+Voidcast runs only as the Electron desktop app: cloud API keys stored locally, encrypted with the OS key store, Ollama access (your machine or Ollama's hosted models) + local TTS server, coding tools (file read/write/terminal), skills discovery, MCP servers, auto-update (Windows installer and Linux AppImage).
 
 Settings normalization lives in `electron-app/src/lib/settings.ts` (`loadSettings` / `saveSettings` / `normalizeSettingsCandidate`). See [architecture.md](architecture.md) for details.
