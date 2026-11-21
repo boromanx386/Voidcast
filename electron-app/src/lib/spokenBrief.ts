@@ -15,8 +15,11 @@ import { callSubAgentChat, type SubAgentKeys } from '@/lib/subAgent'
 export const BRIEF_MIN_CHARS = 400
 /** Cloud providers do not trim for us; a reply longer than this is cut from the end. */
 const BRIEF_INPUT_MAX_CHARS = 16000
-/** ~60 words of output plus headroom for models that think out loud anyway. */
-const BRIEF_MAX_OUTPUT_TOKENS = 512
+/**
+ * ~60 words need ~100 tokens, but reasoning counts against max_tokens and some gateways
+ * (OpenCode Go) cannot switch thinking off; 512 left DeepSeek with empty content at times.
+ */
+const BRIEF_MAX_OUTPUT_TOKENS = 4096
 
 const BRIEF_RULES = [
   'You turn an assistant reply into a short version meant to be read aloud by text-to-speech.',

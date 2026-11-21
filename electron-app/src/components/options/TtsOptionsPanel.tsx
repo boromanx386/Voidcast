@@ -254,6 +254,11 @@ export function TtsOptionsPanel({
               Global shortcut: <code className="text-neon-cyan">Ctrl+Alt+Shift+V</code>. Reads
               current clipboard text with the active TTS settings while Voidcast is running.
             </p>
+            <p className="mt-1 text-xs text-void-dim">
+              <code className="text-neon-cyan">Ctrl+Alt+Shift+B</code> reads a short BRIEF of the
+              clipboard instead (CODING sub-agent model; full text when none is set, or when the
+              text is already short).
+            </p>
           </div>
         )}
 

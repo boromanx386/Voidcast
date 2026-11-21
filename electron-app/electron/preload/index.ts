@@ -708,6 +708,12 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.on('voidcast:read-clipboard-tts', listener)
     return () => ipcRenderer.removeListener('voidcast:read-clipboard-tts', listener)
   },
+  onClipboardBrief: (callback: (text: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, text: unknown) =>
+      callback(String(text ?? ''))
+    ipcRenderer.on('voidcast:read-clipboard-brief', listener)
+    return () => ipcRenderer.removeListener('voidcast:read-clipboard-brief', listener)
+  },
   /** Local control API: toggle the main-process server (opt-in, loopback only). */
   setControlApiEnabled: (enabled: boolean) =>
     ipcRenderer.invoke('voidcast:control-set-enabled', enabled) as Promise<{

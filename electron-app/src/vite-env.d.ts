@@ -632,6 +632,8 @@ interface VoidcastBridge {
   onUpdateDownloaded: (callback: () => void) => () => void
 
   onClipboardTts: (callback: (text: string) => void) => () => void
+  /** Ctrl+Alt+Shift+B: clipboard text for a BRIEF read (full read when no sub-agent model). */
+  onClipboardBrief: (callback: (text: string) => void) => () => void
 
   onNewChat: (callback: () => void) => () => void
 

@@ -885,18 +885,23 @@ async function createWindow() {
   // Auto update
   update(win)
 
-  // Register clipboard TTS shortcut
-  const readClipboardTtsShortcut = 'CommandOrControl+Alt+Shift+V'
+  // Clipboard TTS shortcuts: V reads the text in full, B reads a short spoken brief.
+  const clipboardShortcuts = [
+    { accelerator: 'CommandOrControl+Alt+Shift+V', channel: 'voidcast:read-clipboard-tts' },
+    { accelerator: 'CommandOrControl+Alt+Shift+B', channel: 'voidcast:read-clipboard-brief' },
+  ]
   win.webContents.once('did-finish-load', () => {
-    const ok = globalShortcut.register(readClipboardTtsShortcut, async () => {
-      if (!win) return
-      const text = (await clipboard.readText()).trim()
-      if (!text) return
-      // TTS can run in the tray: do not show/focus the window
-      win.webContents.send('voidcast:read-clipboard-tts', text)
-    })
-    if (!ok) {
-      console.warn(`Voidcast: could not register global shortcut ${readClipboardTtsShortcut}`)
+    for (const { accelerator, channel } of clipboardShortcuts) {
+      const ok = globalShortcut.register(accelerator, async () => {
+        if (!win) return
+        const text = (await clipboard.readText()).trim()
+        if (!text) return
+        // TTS can run in the tray: do not show/focus the window
+        win.webContents.send(channel, text)
+      })
+      if (!ok) {
+        console.warn(`Voidcast: could not register global shortcut ${accelerator}`)
+      }
     }
   })
 }

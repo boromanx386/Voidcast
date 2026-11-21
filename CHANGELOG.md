@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **BRIEF read-aloud**: assistant bubbles get a **BRIEF** button next to **SPEAK**. The coding sub-agent model (the same one the prompt hint uses, no new picker) rewrites the reply into a short spoken version of about 60 words — no code, paths or lists — and that is read instead of the whole reply. Short replies are read as is, briefs are cached so replaying is free, and a failed call falls back to the full reply. Options → TTS adds a **FULL | BRIEF** switch next to `AUTO_VOICE`; it stays on FULL until you change it, and BRIEF needs a coding model. **BRIEF_IN_ENGLISH** makes the brief always come out in English, for TTS voices that cannot speak the chat's language.
+- **BRIEF read-aloud**: assistant bubbles get a **BRIEF** button next to **SPEAK**. The coding sub-agent model (the same one the prompt hint uses, no new picker) rewrites the reply into a short spoken version of about 60 words — no code, paths or lists — and that is read instead of the whole reply. Short replies are read as is, briefs are cached so replaying is free, and a failed call falls back to the full reply. Options → TTS adds a **FULL | BRIEF** switch next to `AUTO_VOICE`; it stays on FULL until you change it, and BRIEF needs a coding model. **BRIEF_IN_ENGLISH** makes the brief always come out in English, for TTS voices that cannot speak the chat's language; with it on, short text is translated too instead of being read as is, and a failed brief shows an error instead of reading the untranslated original. A new global shortcut, `Ctrl+Alt+Shift+B`, reads a BRIEF of the clipboard, next to `Ctrl+Alt+Shift+V` for the full text.
+- **Mic shortcut**: `Ctrl+Alt+Shift+M` starts and stops voice input in the composer while the window is focused, same as the mic button. It follows the physical M key, so it works on any keyboard layout.
 
 ## [2.13.0] — 2026-11-20
 

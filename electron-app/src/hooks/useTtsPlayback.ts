@@ -160,12 +160,15 @@ export function useTtsPlayback({
     })
   }
 
-  const resolveBrief = async (content: string, signal: AbortSignal): Promise<string | null> => {
+  const resolveBrief = async (
+    content: string,
+    signal: AbortSignal,
+  ): Promise<{ text: string | null; error?: string }> => {
     const english = settings.ttsBriefEnglish === true
     // The language is part of the key: toggling English must not replay the old brief.
     const cacheKey = `${english ? 'en' : 'same'}|${content}`
     const cached = briefCacheRef.current.get(cacheKey)
-    if (cached) return cached
+    if (cached) return { text: cached }
     try {
       const brief = await generateSpokenBrief({
         content,
@@ -174,19 +177,22 @@ export function useTtsPlayback({
         signal,
         english,
       })
-      if (!brief) return null
+      if (!brief) {
+        // Reasoning models on gateways that cannot switch thinking off (OpenCode Go) can spend
+        // the whole budget thinking and return empty content.
+        return { text: null, error: 'the sub-agent model returned no text' }
+      }
       briefCacheRef.current.set(cacheKey, brief)
       while (briefCacheRef.current.size > 64) {
         const oldest = briefCacheRef.current.keys().next().value
         if (oldest === undefined) break
         briefCacheRef.current.delete(oldest)
       }
-      return brief
+      return { text: brief }
     } catch (e) {
-      if (signal.aborted) return null
-      // A failing text provider must not silence speech: fall back to the full reply.
-      console.warn('[VOIDCAST] spoken brief failed, reading full reply:', e)
-      return null
+      if (signal.aborted) return { text: null }
+      console.warn('[VOIDCAST] spoken brief failed:', e)
+      return { text: null, error: e instanceof Error ? e.message : String(e) }
     }
   }
 
@@ -211,10 +217,20 @@ export function useTtsPlayback({
     setPlayingId(msg.id)
     setPlayingBrief(opts?.brief === true)
     try {
-      if (opts?.brief && needsSpokenBrief(msg.content)) {
+      // English mode must translate even short text, or an English-only voice gets the original.
+      if (opts?.brief && (settings.ttsBriefEnglish === true || needsSpokenBrief(msg.content))) {
         const brief = await resolveBrief(msg.content, signal)
         if (signal.aborted) return
-        if (brief) spoken = brief
+        if (brief.text) {
+          spoken = brief.text
+        } else if (settings.ttsBriefEnglish === true) {
+          // The original through an English-only voice is exactly the garble this mode avoids.
+          setError(`BRIEF: ${brief.error || 'no brief'}. English mode does not read the original.`)
+          return
+        } else if (brief.error) {
+          // Not silent: a quiet fallback made a failing model look like a random BRIEF/SPEAK.
+          setError(`BRIEF: ${brief.error}. Reading the full reply instead.`)
+        }
       }
       if (audioUrl) URL.revokeObjectURL(audioUrl)
 
@@ -328,11 +344,24 @@ export function useTtsPlayback({
   useEffect(() => {
     const bridge = window.voidcast
     if (!bridge) return
-    return bridge.onClipboardTts((text) => {
+    const offFull = bridge.onClipboardTts((text) => {
       const t = String(text ?? '').trim()
       if (!t) return
       void onReadRef.current({ id: '_clipboard-tts', role: 'assistant', content: t })
     })
+    // Older preloads lack the brief channel; the full-read shortcut still works.
+    const offBrief = bridge.onClipboardBrief?.((text) => {
+      const t = String(text ?? '').trim()
+      if (!t) return
+      void onReadRef.current(
+        { id: '_clipboard-tts', role: 'assistant', content: t },
+        { brief: true },
+      )
+    })
+    return () => {
+      offFull()
+      offBrief?.()
+    }
   }, [])
 
   const onPickCloneFile = async (e: ChangeEvent<HTMLInputElement>) => {

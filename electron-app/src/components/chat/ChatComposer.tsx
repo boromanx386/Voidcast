@@ -173,6 +173,22 @@ export function ChatComposer({ app }: Props) {
     }
   }, [modeMenuOpen])
 
+  // Ctrl+Alt+Shift+M toggles the mic like the composer button. `code` instead of `key`, so it
+  // still fires on non-Latin keyboard layouts.
+  const sttAvailable = settings.sttProvider === 'openrouter' || settings.sttProvider === 'whistle'
+  useEffect(() => {
+    if (!sttAvailable) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || !e.altKey || e.code !== 'KeyM') return
+      if (e.repeat) return
+      e.preventDefault()
+      if (compressing) return
+      void toggleSttRecording()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [sttAvailable, compressing, toggleSttRecording])
+
   const [thinkMenuOpen, setThinkMenuOpen] = useState(false)
   const thinkMenuRef = useRef<HTMLDivElement>(null)
 
@@ -500,7 +516,7 @@ export function ChatComposer({ app }: Props) {
               +
             </button>
 
-            {(settings.sttProvider === 'openrouter' || settings.sttProvider === 'whistle') && (
+            {sttAvailable && (
               <button
                 type="button"
                 disabled={busy || compressing || sttPending}
@@ -512,10 +528,10 @@ export function ChatComposer({ app }: Props) {
                 }`}
                 title={
                   isRecording
-                    ? `Recording ${recordingDuration}s (click to stop)`
+                    ? `Recording ${recordingDuration}s (click or Ctrl+Alt+Shift+M to stop)`
                     : sttPending
                       ? 'Transcribing...'
-                      : 'Voice input'
+                      : 'Voice input (Ctrl+Alt+Shift+M)'
                 }
                 aria-label={
                   isRecording ? 'Stop recording' : sttPending ? 'Transcribing' : 'Start voice input'

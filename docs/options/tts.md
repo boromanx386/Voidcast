@@ -50,7 +50,7 @@ Type: `SttProvider = 'none' | 'openrouter' | 'whistle'`, default `'none'`.
 
 - **`none`** — speech-to-text disabled.
 - **`openrouter`** — OpenRouter Whisper transcription. Model field: `openrouterSttModel`, default `'openai/whisper-large-v3-turbo'`. Requires an API key and internet.
-- **`whistle`** — fully offline transcription via the bundled **cactus-needle** engine and the **Whistle** model (~16.9 MB, Apache-2.0). No API key or internet needed; runs on CPU through the local tools-server (`POST /stt/transcribe`). The renderer records with `MediaRecorder` (WebM/Opus), resamples the clip to 16 kHz mono WAV (`encodeWav16k` in `electron-app/src/lib/stt.ts`), and POSTs it to the server, which calls `needle.transcribe`. The record button appears for both `openrouter` and `whistle`. Desktop-only (hidden in web standalone). Supports English, German, French, Spanish, Italian, Dutch and Polish — **not Serbian**; use `openrouter` for Serbian.
+- **`whistle`** — fully offline transcription via the bundled **cactus-needle** engine and the **Whistle** model (~16.9 MB, Apache-2.0). No API key or internet needed; runs on CPU through the local tools-server (`POST /stt/transcribe`). The renderer records with `MediaRecorder` (WebM/Opus), resamples the clip to 16 kHz mono WAV (`encodeWav16k` in `electron-app/src/lib/stt.ts`), and POSTs it to the server, which calls `needle.transcribe`. The record button appears for both `openrouter` and `whistle`, and `Ctrl+Alt+Shift+M` toggles it while the window is focused. Desktop-only (hidden in web standalone). Supports English, German, French, Spanish, Italian, Dutch and Polish — **not Serbian**; use `openrouter` for Serbian.
 
 Weights lookup order: `VOIDCAST_WHISTLE_WEIGHTS` env var → `<sys._MEIPASS>/whistle.cact` (packaged) → `~/.cache/cactus-needle/whistle/2.0.0/whistle.cact`. See [Third-Party Notices](../../THIRD_PARTY_NOTICES.md).
 
@@ -75,9 +75,10 @@ Type: `VoiceMode = 'auto' | 'design' | 'clone'`, default `'design'`.
 ### SPEAK and BRIEF buttons
 Every assistant bubble has **SPEAK** (the whole reply, after `sanitizeForTts`). When the coding sub-agent role has a model (Options → Sub-agent, the same model the prompt hint uses), a **BRIEF** button sits next to it: one tool-free `callSubAgentChat` (`generateSpokenBrief` in `electron-app/src/lib/spokenBrief.ts`) rewrites the reply into at most ~60 words for listening, in the reply's language, without code, paths or new facts, and that text is spoken instead.
 
-- Replies under `BRIEF_MIN_CHARS` (400 spoken characters) are read as is, with no model call.
+- Replies under `BRIEF_MIN_CHARS` (400 spoken characters) are read as is, with no model call — unless `BRIEF_IN_ENGLISH` is on, where even short text goes through the model so it comes out in English.
 - Briefs are cached in memory by reply text (64 entries), so replaying costs nothing; the cache does not survive a restart.
-- If the brief call fails, the full reply is read instead.
+- If the brief call fails or returns no text, an error says why and the full reply is read instead — except with `BRIEF_IN_ENGLISH` on, where nothing is read (the original would only garble through an English-only voice). The output cap is 4096 tokens because reasoning counts against it and OpenCode Go cannot switch thinking off.
+- Desktop only: the global shortcut `Ctrl+Alt+Shift+V` reads the clipboard in full, and `Ctrl+Alt+Shift+B` reads a BRIEF of it (same rules: full text when no model is set or the text is short). Both work while the window is hidden in the tray.
 - **BRIEF_IN_ENGLISH** (`ttsBriefEnglish`, `boolean`, default `false`, shown when BRIEF is available): the brief is always written in English, translated if the reply is in another language, for TTS voices that lack the chat's language. It applies to the BRIEF button and to AUTO_VOICE in `brief` mode; SPEAK still reads the original. The language is part of the brief cache key.
 
 ### Speed / steps / duration / chunking
