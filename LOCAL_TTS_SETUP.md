@@ -31,8 +31,8 @@ From repository root:
 3. Install local TTS requirements (external/heavy):
    - `pip install -r tts-server/requirements-tts.txt`
 4. Start TTS-enabled server:
-   - Set `VOIDCAST_DESKTOP_TOKEN` to the same fresh random secret in the environments of the standalone local server and Voidcast before starting either. Alternatively, launch both from the same PowerShell session after running `$env:VOIDCAST_DESKTOP_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"`. Keep the server on the configured loopback tools port (`VOIDCAST_TOOLS_PORT`, default 8765).
-   - Run `start-tts-local.bat`.
+   - Run `start-tts-local.bat`. The server and Voidcast must share `VOIDCAST_DESKTOP_TOKEN`, or every call answers `403`. On first run the script creates a random token and saves it as a persistent user environment variable, so Voidcast started from the Start menu or Explorer afterwards picks it up. Restart Voidcast if it was already running.
+   - Started some other way, set `VOIDCAST_DESKTOP_TOKEN` to the same secret in the environments of the server and Voidcast before starting either, for example by launching both from one PowerShell session after `$env:VOIDCAST_DESKTOP_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"`. Keep the server on the configured loopback tools port (`VOIDCAST_TOOLS_PORT`, default 8765).
 
 Then in Voidcast:
 
