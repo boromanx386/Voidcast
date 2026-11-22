@@ -1278,11 +1278,8 @@ html[data-win-chrome] .voidcast-header [role='button'] {
 .chat-audio-mute svg path:first-child {
   stroke: none;
 }
-.tool-indicator.settings {
+.tool-indicator.memory {
   @apply text-neon-yellow border-neon-yellow/30;
-}
-.tool-indicator.reminder {
-  @apply text-neon-orange border-neon-orange/30;
 }
 .tool-indicator.skill {
   @apply text-neon-purple border-neon-purple/30;

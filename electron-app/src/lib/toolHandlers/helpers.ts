@@ -1,9 +1,3 @@
-import {
-  AGENT_EDITABLE_SETTINGS_FIELDS,
-  RUNWARE_CONFIGURED_MODELS,
-  type UiTheme,
-} from '@/lib/settings'
-import type { LongMemoryKind } from '@/types/longMemory'
 import { imageCatalogId } from '@/lib/imageVisionCache'
 
 /** Pick chat images for save_pdf — uses `attached_image_indices` when set; else `embed_attached_images` for all. */
@@ -123,85 +117,10 @@ export function resolvePdfImagePaths(
   }
 }
 
-export const AGENT_EDITABLE_SETTINGS_FIELD_SET = new Set<string>(AGENT_EDITABLE_SETTINGS_FIELDS)
-export const CONFIGURED_RUNWARE_MODEL_IDS = new Set<string>(
-  RUNWARE_CONFIGURED_MODELS.map((x) => x.id),
-)
-export const UI_THEME_SET = new Set<UiTheme>([
-  'dystopian',
-  'minimal',
-  'matrix',
-  'light',
-  'blood-moon',
-  'obsidian',
-  'terminal',
-])
-const LONG_MEMORY_KIND_SET = new Set<LongMemoryKind>([
-  'preference',
-  'project',
-  'fact',
-  'constraint',
-  'task',
-])
-
 export function parseToolValueAsString(raw: unknown): string {
   if (typeof raw === 'string') return raw
   if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw)
   return ''
-}
-
-export function parseToolValueAsNumber(raw: unknown): number | null {
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
-  if (typeof raw === 'string') {
-    const n = Number(raw.trim())
-    if (Number.isFinite(n)) return n
-  }
-  return null
-}
-
-export function parseResolutionPair(raw: unknown): { width: number; height: number } | null {
-  const s = parseToolValueAsString(raw).trim().toLowerCase()
-  if (!s) return null
-  const m = s.match(/^(\d{2,5})\s*[x,]\s*(\d{2,5})$/)
-  if (!m) return null
-  const width = Number(m[1])
-  const height = Number(m[2])
-  if (!Number.isFinite(width) || !Number.isFinite(height)) return null
-  return { width: Math.round(width), height: Math.round(height) }
-}
-
-export function parseLongMemoryCandidate(raw: unknown): {
-  text: string
-  kind: LongMemoryKind
-  importance?: number
-  confidence?: number
-  tags?: string[]
-} | null {
-  const textValue = parseToolValueAsString(raw).trim()
-  if (!textValue) return null
-  if (textValue.startsWith('{') && textValue.endsWith('}')) {
-    try {
-      const obj = JSON.parse(textValue) as Record<string, unknown>
-      const text = parseToolValueAsString(obj.text).trim()
-      if (!text) return null
-      const kindRaw = parseToolValueAsString(obj.kind).trim().toLowerCase() as LongMemoryKind
-      const kind: LongMemoryKind = LONG_MEMORY_KIND_SET.has(kindRaw) ? kindRaw : 'fact'
-      const importance = parseToolValueAsNumber(obj.importance) ?? undefined
-      const confidence = parseToolValueAsNumber(obj.confidence) ?? undefined
-      const tagsRaw = Array.isArray(obj.tags) ? obj.tags : []
-      const tags = tagsRaw.map((x) => parseToolValueAsString(x).trim()).filter(Boolean)
-      return {
-        text,
-        kind,
-        importance,
-        confidence,
-        tags: tags.length ? tags : undefined,
-      }
-    } catch {
-      return null
-    }
-  }
-  return { text: textValue, kind: 'fact' }
 }
 
 export function userRequestedStepsOverride(text: string): boolean {

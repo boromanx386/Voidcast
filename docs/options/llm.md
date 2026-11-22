@@ -101,8 +101,4 @@ This is the **default**. Each chat can override it from the think-level menu in 
 
 Default is a short neutral “Void” prompt that only sets tone — operating rules live in the app's harness core, so put your own always-on preferences here (language, tone, answer length). Long-term memory is retrieved by relevance per turn, so it is not reliable for rules that must apply every time. Settings still holding the old long default text are moved to the new one on load; an edited prompt is kept. The text you type here is sent as the `<persona>` section of the system message, after the app's fixed `<harness_core>` rules (which always come first and take precedence over the persona).
 
-The agent **cannot** change this field: `update_settings` does not accept it, because web, MCP and file content flows into the context and a self-editable system prompt would let injected text persist into every future chat. Edit it here.
-
-## Agent-editable / hidden reminder
-
-`llmNumCtx` and `llmTemperature` are in `AGENT_EDITABLE_SETTINGS_FIELDS`; `llmSystemPrompt` is not. API keys are hidden from the agent (`AGENT_HIDDEN_SETTINGS_FIELDS`).
+The agent **cannot** change this field, or any other setting: there is no settings tool. Web, MCP and file content flows into the context, and a self-editable system prompt would let injected text persist into every future chat. Edit it here. API keys are hidden from the agent (`AGENT_HIDDEN_SETTINGS_FIELDS`).

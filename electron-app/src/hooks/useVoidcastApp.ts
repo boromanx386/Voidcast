@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { scheduleSaveChatSessions } from '@/lib/chatSessionsStorage'
 import { fetchOllamaModels } from '@/lib/ollama'
-import { deleteReminder, markReminderDone } from '@/lib/reminderStorage'
 import { useAppSettings } from '@/hooks/useAppSettings'
 import { useChatAgent, type OnSendOptions } from '@/hooks/useChatAgent'
 import { useChatAttachments } from '@/hooks/useChatAttachments'
@@ -63,7 +62,6 @@ export function useVoidcastApp() {
   const editingMessageIdRef = useRef<string | null>(null)
   const setErrorRef = useRef<(error: string | null) => void>(() => {})
   const onReadRef = useRef<(msg: UiMessage, opts?: TtsReadOptions) => Promise<void>>(async () => {})
-  const refreshRemindersRef = useRef<() => void | Promise<void>>(async () => {})
   const refreshLongMemoriesRef = useRef<() => void | Promise<void>>(async () => {})
   const abortTtsRef = useRef<() => void>(() => {})
 
@@ -111,7 +109,6 @@ export function useVoidcastApp() {
 
   const agent = useChatAgent({
     settings,
-    setSettings,
     effectivePdfOutputDir,
     runtimeKey,
     runtimeKeyRef,
@@ -162,7 +159,6 @@ export function useVoidcastApp() {
     ttsOk: tts.ttsOk,
     ttsCloneRef: tts.cloneRef,
     ttsVoiceAnchor: tts.voiceAnchor,
-    refreshReminders: () => refreshRemindersRef.current(),
     refreshLongMemories: () => refreshLongMemoriesRef.current(),
     activeSessionUseLongMemory: settings.longMemoryDefaultEnabled,
     setCodingContextMemo: coding.setCodingContextMemo,
@@ -303,12 +299,9 @@ export function useVoidcastApp() {
     activeSessionId: sessions.activeSessionId,
     activeModelId: sessions.activeModelId,
     setError: agent.setError,
-    setScreen,
-    setOptionsTab,
     screen,
     optionsTab,
   })
-  refreshRemindersRef.current = longMemory.refreshReminders
   refreshLongMemoriesRef.current = longMemory.refreshLongMemories
 
   const loadOllamaModels = useCallback(async () => {
@@ -426,22 +419,6 @@ export function useVoidcastApp() {
     }
   }, [settings, input, agent.busy, agent.messages, runtimeKey])
 
-  const handleDeleteReminder = useCallback(
-    async (id: string) => {
-      await deleteReminder(id)
-      await longMemory.refreshReminders()
-    },
-    [longMemory.refreshReminders],
-  )
-
-  const handleMarkDoneReminder = useCallback(
-    async (id: string) => {
-      await markReminderDone(id)
-      await longMemory.refreshReminders()
-    },
-    [longMemory.refreshReminders],
-  )
-
   return {
     settings,
     setSettings,
@@ -466,8 +443,6 @@ export function useVoidcastApp() {
     ...stt,
     ...longMemory,
     setInput: setInputState,
-    handleDeleteReminder,
-    handleMarkDoneReminder,
     sessionsSidebarCollapsed,
     setSessionsSidebarCollapsed,
   }

@@ -162,7 +162,6 @@ export const PARALLEL_SAFE_AGENT_TOOLS: ReadonlySet<string> = new Set([
   'find_symbols',
   'list_processes',
   'read_process_output',
-  'list_reminders',
   'read_skill',
   'browser_take_snapshot',
   'browser_list_console_messages',

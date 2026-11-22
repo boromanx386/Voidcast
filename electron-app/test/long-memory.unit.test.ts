@@ -4,7 +4,13 @@ import {
   extractJsonArray,
   sanitizeCandidate,
 } from '../src/lib/longMemoryExtract'
-import { scoreMemoryForQuery } from '../src/lib/longMemoryStorage'
+import {
+  formatLongMemoryContext,
+  mergeMemoryCandidates,
+  rankMemoriesForQuery,
+  scoreMemoryForQuery,
+} from '../src/lib/longMemoryStorage'
+import type { LongMemoryItem } from '../src/types/longMemory'
 
 describe('long memory extraction parsing', () => {
   test('extractJsonArray parses fenced json payload', () => {
@@ -130,5 +136,79 @@ describe('long memory ranking score', () => {
       now,
     )
     expect(relevant).toBeGreaterThan(weak)
+  })
+})
+
+function mem(over: Partial<LongMemoryItem>): LongMemoryItem {
+  return {
+    id: over.id ?? over.text ?? 'id',
+    kind: 'fact',
+    text: 'x',
+    tags: [],
+    importance: 0.5,
+    confidence: 0.8,
+    createdAt: 1,
+    updatedAt: 1,
+    lastUsedAt: 0,
+    sourceSessionId: 's',
+    ...over,
+  }
+}
+
+describe('long memory retrieval', () => {
+  test('Serbian words with diacritics match whole', () => {
+    const rows = [mem({ text: 'Korisnik pravi aplikaciju za čitanje vesti.' })]
+    expect(
+      rankMemoriesForQuery(rows, 'koja je ona za čitanje', { limit: 8, minConfidence: 0.3 }),
+    ).toHaveLength(1)
+  })
+
+  test('an unrelated fact is not retrieved just for being important', () => {
+    const rows = [mem({ text: 'User owns a red bicycle.', importance: 1, confidence: 1 })]
+    expect(
+      rankMemoriesForQuery(rows, 'fix the electron build', { limit: 8, minConfidence: 0.3 }),
+    ).toHaveLength(0)
+  })
+
+  test('preferences apply to every query', () => {
+    const rows = [mem({ kind: 'preference', text: 'User prefers answers in Serbian.' })]
+    expect(
+      rankMemoriesForQuery(rows, 'fix the electron build', { limit: 8, minConfidence: 0.3 }),
+    ).toHaveLength(1)
+  })
+
+  test('the prompt block drops whole items instead of cutting one', () => {
+    const rows = [mem({ text: 'a'.repeat(50) }), mem({ id: '2', text: 'b'.repeat(50) })]
+    const out = formatLongMemoryContext(rows, 80)
+    expect(out).toBe(`- 1. [fact] ${'a'.repeat(50)}`)
+  })
+})
+
+describe('long memory merge', () => {
+  test('saving an existing text refreshes it instead of adding a copy', () => {
+    const existing = [mem({ id: 'old', text: 'User prefers  dark mode.', importance: 0.4 })]
+    const out = mergeMemoryCandidates(
+      existing,
+      [{ kind: 'preference', text: 'user prefers dark mode.', importance: 0.9, tags: ['UI'] }],
+      'agent-tool',
+      100,
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe('old')
+    expect(out[0].importance).toBe(0.9)
+    expect(out[0].tags).toEqual(['ui'])
+    expect(out[0].updatedAt).toBe(100)
+  })
+
+  test('two copies in one batch become one row', () => {
+    const out = mergeMemoryCandidates(
+      [],
+      [
+        { kind: 'fact', text: 'User lives in Novi Sad.' },
+        { kind: 'fact', text: 'user lives in novi sad.' },
+      ],
+      's',
+    )
+    expect(out).toHaveLength(1)
   })
 })

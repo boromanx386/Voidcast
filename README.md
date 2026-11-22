@@ -72,7 +72,7 @@ Providers: **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** �
 
 - **Pick who serves each model on OpenRouter** — the same open model is hosted by many providers at different prices, speeds and quantizations. **LIST ALL** shows every host for the selected model with its quantization (fp8, fp4…), input/output and cache-hit price and uptime; click one and requests go **only** there, no fallbacks. The choice is remembered per model, and each chat keeps its upstream prompt cache warm. See [OpenRouter support](#openrouter-support-per-model-provider-routing).
 
-- **Tools that do things** — web search, YouTube search + transcripts, web scraping, PDF export, image generation and edit, music generation, TTS/STT, reminders, settings control, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
+- **Tools that do things** — web search, YouTube search + transcripts, web scraping, PDF export, image generation and edit, music generation, TTS/STT, long-term memory, plus **MCP servers** (stdio or remote URL, including OAuth). See [The agent & tools](#the-agent--tools).
 
 - **Watch it think** — adjacent read-only tool calls run in parallel (up to ten) while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts in collapsible round blocks.
 
@@ -137,8 +137,6 @@ Available tools:
 - **Image Edit** — Runware or OpenRouter; reference images from chat
 - **Music / Audio Generation** — Runware ACE-Step v1.5 (Turbo, Base, XL Turbo/Base/SFT) or Google Lyria 3 through OpenRouter; see below
 - **Text-to-Speech** — `generate_tts` uses the active TTS provider and saves a real audio file; project-relative output paths are supported on desktop
-- **Reminders** — set, list, update, delete scheduled notes
-- **Settings Agent** — change app config via chat commands
 - **Plan Mode** — `enter_plan_mode` switches the chat into a read-only plan flow (explore first, then approve) before coding
 - **Coding Tools** — read, write, edit files; run git and shell commands (see below)
 - **MCP Servers (desktop)** — connect external MCP tools from `~/.voidcast/mcp.json` (see below)
@@ -342,8 +340,6 @@ Cross-chat memory is stored locally in IndexedDB:
 - Edit or delete anytime in **Options → General**
 - Optional **USE_LONG_MEMORY_GLOBALLY** to include memories in every chat
 
-**Reminders** also live locally, with optional **desktop notifications** (Windows toast when due).
-
 ---
 
 ## Image-Aware Chat
@@ -373,7 +369,6 @@ Other UX features:
 - **Export to Markdown** — entire chat as `.md`
 - **Thinking blocks** — collapsible reasoning; for Ollama, choose **off / low / medium / high / on** in LLM options
 - **Chat sounds** — optional local audio files for reply done and errors (**Options → General**)
-- **Reminder toasts** — native notification when a reminder is due (toggle in General)
 - **Chat keyboard shortcuts** — Ctrl+S save session, Ctrl+N new chat, Shift+Tab cycle Agent → Ask → Plan → Team
 - **Chat sessions grouped by project folder** — General chats at top, project-specific groups below
 - **Start a chat for a project** — each project-folder group has a `+` button (revealed on hover) that starts a fresh chat already bound to that folder

@@ -154,10 +154,6 @@ Composer cycles Agent → Ask → Plan → Team (`Shift+Tab` or mode chip).
 - **TTS**: `useTtsPlayback` reads replies when `autoVoice` on; `ttsProvider` (`none` disables speech output entirely, `local` OmniVoice HTTP, `runware-xai`, `openrouter-tts`), `voiceMode` (`design`/`clone`), `voiceInstruct`, `cloneRefText`, `ttsSpeed`, `ttsNumStep`, `ttsDurationSec`, `ttsChunkMaxChars`, `runwareXaiVoice`, `runwareTtsModel`, `runwareTtsSpeed`. A read/speaker icon per assistant message triggers `onRead`/`abortTts`; with `ttsProvider === 'none'` it is not rendered at all.
 - **STT**: `useSttInput` with `sttProvider` (`none`/`openrouter`/`whistle`; Whisper model `openrouterSttModel`, `whistle` runs offline via the bundled cactus-needle engine); record button shows `isRecording`, `recordingDuration`, `sttPending`; transcript fills composer. `Ctrl+Alt+Shift+M` (window focused) starts and stops recording like the button; it matches the physical M key, so it works on any keyboard layout.
 
-## Reminders
-
-- `reminderNotificationsEnabled` fires a desktop notification when a scheduled reminder is due; reminders are stored in `lib/reminderStorage.ts` and managed from `useVoidcastApp` (`deleteReminder`, `markReminderDone`). `reminderNotificationsEnabled` + `notificationSoundsEnabled` + `notificationSoundVolume` control alerting (see settings-reference).
-
 ## Desktop Notification (reply finished)
 
 - When a reply finishes while the window is minimized or hidden in the tray, the desktop app shows an OS toast titled **Voidcast** with a one-line preview of the answer (first non-empty line, light markdown stripped, clamped to 160 chars).

@@ -1,30 +1,8 @@
 import { readAgentSkillBody } from '@/lib/agentSkills'
 import { formatPlanProgressToolResult, planArtifactFromSubmitArgs } from '@/lib/planArtifact'
-import {
-  loadSettings,
-  normalizeSettingsCandidate,
-  saveSettings,
-  type AppSettings,
-  type AgentEditableSettingsField,
-  type UiTheme,
-} from '@/lib/settings'
+import { sanitizeCandidate } from '@/lib/longMemoryExtract'
 import { upsertMemories } from '@/lib/longMemoryStorage'
-import {
-  addReminder,
-  listReminders,
-  deleteReminder,
-  updateReminder,
-  searchRemindersByText,
-} from '@/lib/reminderStorage'
-import {
-  AGENT_EDITABLE_SETTINGS_FIELD_SET,
-  CONFIGURED_RUNWARE_MODEL_IDS,
-  UI_THEME_SET,
-  parseLongMemoryCandidate,
-  parseResolutionPair,
-  parseToolValueAsNumber,
-  parseToolValueAsString,
-} from '@/lib/toolHandlers/helpers'
+import { parseToolValueAsString } from '@/lib/toolHandlers/helpers'
 import type { ToolHandlerFn, ToolHandlerRegistry } from '@/lib/toolExecTypes'
 
 export const handleEnterPlanMode: ToolHandlerFn = async (_args, ctx) => {
@@ -68,229 +46,27 @@ export const handleReadSkill: ToolHandlerFn = async (args, ctx) => {
   return `Skill "${res.name}" instructions:\n\n${res.content}`
 }
 
-export const handleUpdateSettings: ToolHandlerFn = async (args, ctx) => {
-  const fieldRaw = parseToolValueAsString(args.field).trim()
-  const valueRaw = args.value
-  if (!fieldRaw) return 'Error: missing field parameter for update_settings.'
-  if (!AGENT_EDITABLE_SETTINGS_FIELD_SET.has(fieldRaw)) {
-    return `Error: field "${fieldRaw}" is not editable by update_settings.`
-  }
-  const field = fieldRaw as AgentEditableSettingsField
-  const current = loadSettings()
-  const candidate: AppSettings = { ...current }
-  if (field === 'llmNumCtx') {
-    const n = parseToolValueAsNumber(valueRaw)
-    if (n === null) return 'Error: llmNumCtx expects a numeric value.'
-    candidate.llmNumCtx = Math.round(n)
-  } else if (field === 'llmTemperature') {
-    const n = parseToolValueAsNumber(valueRaw)
-    if (n === null) return 'Error: llmTemperature expects a numeric value.'
-    candidate.llmTemperature = n
-  } else if (field === 'uiTheme') {
-    const next = parseToolValueAsString(valueRaw).trim().toLowerCase() as UiTheme
-    if (!UI_THEME_SET.has(next)) {
-      return 'Error: uiTheme must be one of: dystopian, minimal, matrix, light, blood-moon, obsidian, terminal.'
-    }
-    candidate.uiTheme = next
-  } else if (field === 'longMemoryAdd') {
-    const parsed = parseLongMemoryCandidate(valueRaw)
-    if (!parsed) {
-      return 'Error: longMemoryAdd expects plain text or JSON with at least {"text":"..."}'
-    }
-    try {
-      const saved = await upsertMemories(
-        [
-          {
-            kind: parsed.kind,
-            text: parsed.text,
-            importance: parsed.importance,
-            confidence: parsed.confidence,
-            tags: parsed.tags,
-          },
-        ],
-        'agent-tool',
-      )
-      if (saved.length === 0) {
-        return 'Error: long memory entry was empty and was not saved.'
-      }
-      return `OK: added long memory (${saved[0].kind}): ${saved[0].text}`
-    } catch (e) {
-      return e instanceof Error ? `Error: failed to add long memory: ${e.message}` : String(e)
-    }
-  } else if (field === 'autoVoice') {
-    const next = parseToolValueAsString(valueRaw).trim().toLowerCase()
-    if (next === 'true' || next === '1' || next === 'yes' || next === 'on') {
-      candidate.autoVoice = true
-    } else if (next === 'false' || next === '0' || next === 'no' || next === 'off') {
-      candidate.autoVoice = false
-    } else {
-      return 'Error: autoVoice expects a boolean value (true/false, on/off, yes/no, 1/0).'
-    }
-  } else if (field === 'runwareImageModel') {
-    const next = parseToolValueAsString(valueRaw).trim()
-    if (!next) return 'Error: runwareImageModel cannot be empty.'
-    if (!CONFIGURED_RUNWARE_MODEL_IDS.has(next)) {
-      return `Error: unsupported runwareImageModel "${next}".`
-    }
-    candidate.runwareImageModel = next
-  } else if (field === 'runwareEditModel') {
-    const next = parseToolValueAsString(valueRaw).trim()
-    if (!next) return 'Error: runwareEditModel cannot be empty.'
-    if (!CONFIGURED_RUNWARE_MODEL_IDS.has(next)) {
-      return `Error: unsupported runwareEditModel "${next}".`
-    }
-    candidate.runwareEditModel = next
-  } else {
-    return `Error: unsupported field "${fieldRaw}".`
-  }
-  const normalized = normalizeSettingsCandidate(candidate)
-  saveSettings(normalized)
-  const applied = normalized[field]
-  return `OK: updated ${field} to ${String(applied)}.`
-}
-
-export const handleAddReminder: ToolHandlerFn = async (args, ctx) => {
-  const text = parseToolValueAsString(args.text).trim()
-  if (!text) return 'Error: missing text parameter for add_reminder.'
-  const whenRaw = parseToolValueAsString(args.when).trim()
-  let when: number | null = null
-  if (whenRaw) {
-    const parsed = new Date(whenRaw).getTime()
-    if (Number.isNaN(parsed)) {
-      return 'Error: when must be a valid ISO datetime (e.g. 2026-05-10T09:00).'
-    }
-    when = parsed
-  }
-  const tagsRaw = Array.isArray(args.tags) ? args.tags : []
-  const tags = tagsRaw.map((x) => parseToolValueAsString(x).trim()).filter(Boolean)
-  try {
-    const item = await addReminder({
-      text,
-      when: when ?? undefined,
-      tags,
-      source: 'agent-tool',
-    })
-    if (item.when != null) {
-      const dateStr = new Date(item.when).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-      return `OK: reminder set for ${dateStr} — "${item.text}".`
-    }
-    return `OK: reminder added — "${item.text}".`
-  } catch (e) {
-    return e instanceof Error ? `Error: failed to add reminder: ${e.message}` : String(e)
-  }
-}
-
-export const handleListReminders: ToolHandlerFn = async (args, ctx) => {
-  const fromRaw = parseToolValueAsString(args.from).trim()
-  const toRaw = parseToolValueAsString(args.to).trim()
-  const includeGeneral = args.include_general !== false
-  let fromMs: number | undefined
-  let toMs: number | undefined
-  if (fromRaw) {
-    const d = new Date(fromRaw)
-    if (Number.isNaN(d.getTime())) {
-      return 'Error: from must be a valid date (e.g. 2026-05-10 or today).'
-    }
-    fromMs = d.setHours(0, 0, 0, 0)
-  }
-  if (toRaw) {
-    const d = new Date(toRaw)
-    if (Number.isNaN(d.getTime())) {
-      return 'Error: to must be a valid date (e.g. 2026-05-10 or tomorrow).'
-    }
-    toMs = d.setHours(23, 59, 59, 999)
-  } else if (fromMs != null) {
-    toMs = new Date(fromMs).setHours(23, 59, 59, 999)
+export const handleSaveMemory: ToolHandlerFn = async (args) => {
+  // Same filter as the extract flow, so the agent cannot store secret-shaped values.
+  const candidate = sanitizeCandidate({
+    kind: parseToolValueAsString(args.kind).trim() || 'fact',
+    text: parseToolValueAsString(args.text),
+    tags: Array.isArray(args.tags) ? args.tags : [],
+    importance: args.importance,
+    confidence: 0.8,
+  })
+  if (!candidate) {
+    return (
+      'Error: memory not saved. It needs a "text" of at least 6 characters, a kind of ' +
+      'preference / project / fact / constraint / task, and no secret-looking values.'
+    )
   }
   try {
-    const items = await listReminders({
-      from: fromMs,
-      to: toMs,
-      includeGeneral,
-    })
-    if (items.length === 0) {
-      return 'No reminders found for that period.'
-    }
-    const lines = items.map((r) => {
-      const time =
-        r.when != null
-          ? new Date(r.when).toLocaleString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-          : 'General'
-      const tags = r.tags.length ? ` [${r.tags.join(', ')}]` : ''
-      return `• ${time} — "${r.text}"${tags}`
-    })
-    return `Reminders:\n${lines.join('\n')}`
+    const saved = await upsertMemories([candidate], 'agent-tool')
+    if (saved.length === 0) return 'Error: memory was empty and was not saved.'
+    return `OK: remembered (${saved[0].kind}): ${saved[0].text}`
   } catch (e) {
-    return e instanceof Error ? `Error: failed to list reminders: ${e.message}` : String(e)
-  }
-}
-
-export const handleDeleteReminder: ToolHandlerFn = async (args, ctx) => {
-  const searchText = parseToolValueAsString(args.search_text).trim()
-  if (!searchText) return 'Error: missing search_text parameter for delete_reminder.'
-  try {
-    const matches = await searchRemindersByText(searchText)
-    if (matches.length === 0) {
-      return `Error: no reminder found matching "${searchText}".`
-    }
-    const target = matches[0]
-    await deleteReminder(target.id)
-    return `OK: deleted reminder — "${target.text}".`
-  } catch (e) {
-    return e instanceof Error ? `Error: failed to delete reminder: ${e.message}` : String(e)
-  }
-}
-
-export const handleUpdateReminder: ToolHandlerFn = async (args, ctx) => {
-  const searchText = parseToolValueAsString(args.search_text).trim()
-  if (!searchText) return 'Error: missing search_text parameter for update_reminder.'
-  const newTextRaw = parseToolValueAsString(args.text).trim()
-  const whenRaw = parseToolValueAsString(args.when).trim()
-  const tagsRaw = Array.isArray(args.tags) ? args.tags : []
-  try {
-    const matches = await searchRemindersByText(searchText)
-    if (matches.length === 0) {
-      return `Error: no reminder found matching "${searchText}".`
-    }
-    const target = matches[0]
-    const patch: Parameters<typeof updateReminder>[1] = {}
-    if (newTextRaw) patch.text = newTextRaw
-    if (whenRaw === '') {
-      patch.when = null
-    } else if (whenRaw) {
-      const parsed = new Date(whenRaw).getTime()
-      if (Number.isNaN(parsed)) {
-        return 'Error: when must be a valid ISO datetime (e.g. 2026-05-10T09:00) or empty string to remove time.'
-      }
-      patch.when = parsed
-    }
-    if (tagsRaw.length > 0) {
-      patch.tags = tagsRaw.map((x) => parseToolValueAsString(x).trim()).filter(Boolean)
-    }
-    const updated = await updateReminder(target.id, patch)
-    if (!updated) return 'Error: reminder was not found during update.'
-    const timeStr =
-      updated.when != null
-        ? new Date(updated.when).toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        : 'General'
-    return `OK: updated reminder — "${updated.text}" (${timeStr}).`
-  } catch (e) {
-    return e instanceof Error ? `Error: failed to update reminder: ${e.message}` : String(e)
+    return e instanceof Error ? `Error: failed to save memory: ${e.message}` : String(e)
   }
 }
 
@@ -299,9 +75,5 @@ export const appHandlersRegistry: ToolHandlerRegistry = {
   ['update_plan_progress']: handleUpdatePlanProgress,
   ['submit_plan']: handleSubmitPlan,
   ['read_skill']: handleReadSkill,
-  ['update_settings']: handleUpdateSettings,
-  ['add_reminder']: handleAddReminder,
-  ['list_reminders']: handleListReminders,
-  ['delete_reminder']: handleDeleteReminder,
-  ['update_reminder']: handleUpdateReminder,
+  ['save_memory']: handleSaveMemory,
 }

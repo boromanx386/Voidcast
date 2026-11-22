@@ -44,16 +44,15 @@ These keys are in `AGENT_HIDDEN_SETTINGS_FIELDS` in `settings.ts` — the agent 
 
 The sounds are stored independently from `AppSettings` (see `electron-app/src/lib/notificationSoundStorage.ts`).
 
-## Reminder Notifications + Reminders Panel
-
-- **Reminder notifications** — `reminderNotificationsEnabled` (`boolean`, default `true`). When a scheduled reminder becomes due, the renderer fires a desktop notification (requires the browser/OS notification permission — this panel includes a “request permission” flow).
-- **Reminders panel** — lists current reminders (managed via `electron-app/src/lib/reminderStorage.ts`). Each reminder can be marked done (`onMarkDoneReminder`) or deleted (`onDeleteReminder`). Reminders are typically created from chat (e.g. “remind me in 10 minutes”).
-
 ## Long-Term Memory
+
+Meant for simple, lasting facts about you that every chat should know: what to call you, your answer language, the tools and stack you use daily, how you like answers. Rules for one codebase belong in that project's `AGENTS.md`, not here. The panel says this above the toggle.
 
 - **Use long memory in active chat** — `activeSessionUseLongMemory` (chat-level toggle, not part of `AppSettings`; backed by `useLongMemoryInActiveChat`/`onToggleUseLongMemoryInActiveChat`). Controls whether the current chat retrieves long-term memories.
 - **Default for new chats** — see `longMemoryDefaultEnabled` in the LLM tab; the General tab manages the *current session* toggle and the stored memories.
 - **Memory list** — `longMemories` (`LongMemoryItem[]`). You can edit an entry’s text (`onUpdateLongMemory`) or delete it (`onDeleteLongMemory`). Long-term memories are surfaced to the agent in later conversations.
+- **Saved by the agent** — when you ask it to remember something, the agent calls `save_memory` (`text`, `kind`, `importance`, `tags`). Secret-looking values are refused, and a text that is already stored is refreshed instead of saved twice.
+- **Retrieval** — each turn picks up to 8 memories. Preferences and constraints are always eligible; other kinds must share a word with your message. Matching is by whole words, including Serbian letters and Cyrillic.
 
 ## PDF Output Directory
 

@@ -49,9 +49,15 @@ function normalizeTags(tags: string[] | undefined): string[] {
   return Array.from(out).slice(0, 20)
 }
 
+/** Identity of a memory for duplicate checks: the text, case- and whitespace-insensitive. */
+export function memoryKey(text: string): string {
+  return normalizeText(text).toLowerCase()
+}
+
 function tokens(input: string): Set<string> {
   const out = new Set<string>()
-  for (const p of input.toLowerCase().split(/[^a-z0-9_]+/g)) {
+  // Unicode letters, so Serbian (č, ć, š, ž, đ) and Cyrillic words stay whole.
+  for (const p of input.toLowerCase().split(/[^\p{L}\p{N}_]+/gu)) {
     if (!p || p.length < 2) continue
     out.add(p)
   }
@@ -65,6 +71,13 @@ function overlapScore(a: Set<string>, b: Set<string>): number {
   return common / Math.max(1, Math.min(a.size, b.size))
 }
 
+export function memoryRelevance(
+  query: string,
+  memory: Pick<LongMemoryItem, 'text' | 'tags'>,
+): number {
+  return overlapScore(tokens(query || ''), tokens(`${memory.text} ${memory.tags.join(' ')}`))
+}
+
 export function scoreMemoryForQuery(
   query: string,
   memory: Pick<
@@ -73,14 +86,12 @@ export function scoreMemoryForQuery(
   >,
   now = Date.now(),
 ): number {
-  const queryTokens = tokens(query || '')
   const recencyHours = Math.max(
     1,
     (now - Math.max(memory.lastUsedAt, memory.updatedAt)) / (1000 * 60 * 60),
   )
   const recency = 1 / Math.log2(recencyHours + 2)
-  const textTokens = tokens(`${memory.text} ${memory.tags.join(' ')}`)
-  const relevance = overlapScore(queryTokens, textTokens)
+  const relevance = memoryRelevance(query, memory)
   return relevance * 0.6 + memory.importance * 0.2 + memory.confidence * 0.15 + recency * 0.05
 }
 
@@ -97,29 +108,58 @@ export async function listMemories(limit = 200): Promise<LongMemoryItem[]> {
   return rows.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, Math.max(1, limit))
 }
 
+/**
+ * Rows to write for new candidates. A candidate whose text is already stored refreshes that
+ * row instead of adding a copy, so saving the same fact twice keeps one memory.
+ */
+export function mergeMemoryCandidates(
+  existing: LongMemoryItem[],
+  candidates: LongMemoryCandidate[],
+  sourceSessionId: string,
+  now = Date.now(),
+): LongMemoryItem[] {
+  const byKey = new Map<string, LongMemoryItem>()
+  for (const row of existing) byKey.set(memoryKey(row.text), row)
+  const out = new Map<string, LongMemoryItem>()
+  for (const c of candidates) {
+    const text = normalizeText(c.text).slice(0, 400)
+    if (!text) continue
+    const key = memoryKey(text)
+    const prev = out.get(key) ?? byKey.get(key)
+    const importance = clamp01(c.importance, 0.5)
+    const confidence = clamp01(c.confidence, 0.7)
+    if (prev) {
+      out.set(key, {
+        ...prev,
+        tags: normalizeTags([...prev.tags, ...(c.tags ?? [])]),
+        importance: Math.max(prev.importance, importance),
+        confidence: Math.max(prev.confidence, confidence),
+        updatedAt: now,
+      })
+      continue
+    }
+    out.set(key, {
+      id: makeUuidV4(),
+      kind: c.kind,
+      text,
+      tags: normalizeTags(c.tags),
+      importance,
+      confidence,
+      createdAt: now,
+      updatedAt: now,
+      lastUsedAt: 0,
+      sourceSessionId,
+    })
+  }
+  return [...out.values()]
+}
+
 export async function upsertMemories(
   candidates: LongMemoryCandidate[],
   sourceSessionId: string,
 ): Promise<LongMemoryItem[]> {
-  const now = Date.now()
-  const prepared = candidates
-    .map((c): LongMemoryItem | null => {
-      const text = normalizeText(c.text)
-      if (!text) return null
-      return {
-        id: makeUuidV4(),
-        kind: c.kind,
-        text: text.slice(0, 400),
-        tags: normalizeTags(c.tags),
-        importance: clamp01(c.importance, 0.5),
-        confidence: clamp01(c.confidence, 0.7),
-        createdAt: now,
-        updatedAt: now,
-        lastUsedAt: 0,
-        sourceSessionId,
-      }
-    })
-    .filter((x): x is LongMemoryItem => Boolean(x))
+  if (candidates.length === 0) return []
+  const prepared = mergeMemoryCandidates(await listMemories(5000), candidates, sourceSessionId)
   if (prepared.length === 0) return []
 
   const db = await openDb()
@@ -184,7 +224,7 @@ export async function dedupeMemories(): Promise<number> {
   const seen = new Map<string, LongMemoryItem>()
   const toDelete: string[] = []
   for (const row of all) {
-    const key = `${row.kind}::${normalizeText(row.text).toLowerCase()}`
+    const key = memoryKey(row.text)
     const prev = seen.get(key)
     if (!prev) {
       seen.set(key, row)
@@ -243,24 +283,51 @@ export async function applyMemoryDeletes(
   await txDone(tx)
 }
 
+/**
+ * Preferences and constraints shape every answer, so they are always eligible. Other kinds
+ * must share at least one word with the query; importance alone used to let unrelated
+ * memories through.
+ */
+export function rankMemoriesForQuery(
+  memories: LongMemoryItem[],
+  query: string,
+  opts: { limit: number; minConfidence: number; now?: number },
+): LongMemoryItem[] {
+  const now = opts.now ?? Date.now()
+  return memories
+    .filter((m) => m.confidence >= opts.minConfidence)
+    .filter(
+      (m) => m.kind === 'preference' || m.kind === 'constraint' || memoryRelevance(query, m) > 0,
+    )
+    .map((m) => ({ m, score: scoreMemoryForQuery(query, m, now) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(1, opts.limit))
+    .map((x) => x.m)
+}
+
+/** Prompt block for retrieved memories; drops whole items rather than cutting one mid-text. */
+export function formatLongMemoryContext(
+  memories: LongMemoryItem[],
+  maxChars = 1200,
+): string | undefined {
+  const lines: string[] = []
+  let used = 0
+  for (const m of memories) {
+    const line = `- ${lines.length + 1}. [${m.kind}] ${m.text}`
+    if (lines.length > 0 && used + line.length + 1 > maxChars) break
+    lines.push(line)
+    used += line.length + 1
+  }
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
 export async function searchMemories(params: {
   query: string
   limit?: number
   minConfidence?: number
 }): Promise<LongMemoryItem[]> {
-  const minConfidence = clamp01(params.minConfidence, 0.25)
-  const limit = Math.max(1, params.limit ?? 8)
-  const all = await listMemories(1500)
-  const now = Date.now()
-  const scored = all
-    .filter((m) => m.confidence >= minConfidence)
-    .map((m) => {
-      const score = scoreMemoryForQuery(params.query, m, now)
-      return { m, score }
-    })
-    .filter((x) => x.score > 0.05)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((x) => x.m)
-  return scored
+  return rankMemoriesForQuery(await listMemories(1500), params.query, {
+    limit: params.limit ?? 8,
+    minConfidence: clamp01(params.minConfidence, 0.25),
+  })
 }

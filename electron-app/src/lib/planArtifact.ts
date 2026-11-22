@@ -255,7 +255,7 @@ export function buildPlanModeSystemHint(opts?: {
   submitTool?: boolean
 }): string {
   const lines = [
-    'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or mutate settings/reminders.',
+    'You are in PLAN mode (read-only). Explore the codebase or web with available tools, but do NOT implement changes, write files, run shell commands, generate media, or save memories.',
   ]
   if (opts?.hasHandoff) {
     lines.push(
@@ -326,7 +326,7 @@ export function buildPlanModeSystemHint(opts?: {
 export function buildAskModeSystemHint(): string {
   return (
     'You are in ASK mode (read-only Q&A). Use available read-only and web/research tools to answer the user’s question accurately, ' +
-    'but do NOT implement changes, write or edit files, run shell commands, generate media, mutate settings/reminders, ' +
+    'but do NOT implement changes, write or edit files, run shell commands, generate media, save memories, ' +
     'call MCP mutating tools, or dispatch coding workers. ' +
     'Do not produce a plan JSON fence or a Plan artifact — just answer the question directly. ' +
     'enter_plan_mode is not available in Ask mode; if the user wants a structured plan card, tell them to switch the composer to Plan. ' +

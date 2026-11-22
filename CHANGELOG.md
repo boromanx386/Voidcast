@@ -8,6 +8,17 @@ All notable changes to this project will be documented in this file.
 
 - **BRIEF read-aloud**: assistant bubbles get a **BRIEF** button next to **SPEAK**. The coding sub-agent model (the same one the prompt hint uses, no new picker) rewrites the reply into a short spoken version of about 60 words — no code, paths or lists — and that is read instead of the whole reply. Short replies are read as is, briefs are cached so replaying is free, and a failed call falls back to the full reply. Options → TTS adds a **FULL | BRIEF** switch next to `AUTO_VOICE`; it stays on FULL until you change it, and BRIEF needs a coding model. **BRIEF_IN_ENGLISH** makes the brief always come out in English, for TTS voices that cannot speak the chat's language; with it on, short text is translated too instead of being read as is, and a failed brief shows an error instead of reading the untranslated original. A new global shortcut, `Ctrl+Alt+Shift+B`, reads a BRIEF of the clipboard, next to `Ctrl+Alt+Shift+V` for the full text.
 - **Mic shortcut**: `Ctrl+Alt+Shift+M` starts and stops voice input in the composer while the window is focused, same as the mic button. It follows the physical M key, so it works on any keyboard layout.
+- **`save_memory` tool**: the agent saves a long-term memory with its own tool (`text`, `kind`, `importance`, `tags`) instead of the `longMemoryAdd` field of `update_settings`. Values that look like secrets are refused, as in **Extract**.
+
+### Changed
+
+- **Long-term memory retrieval**: Serbian words with č, ć, š, ž, đ and Cyrillic now match whole; before, retrieval split them apart and Cyrillic never matched at all. A memory has to share a word with the message to be retrieved, except preferences and constraints, which apply to every turn; before, importance alone let unrelated memories into every prompt. Saving a text that is already stored refreshes it instead of adding a copy, and the prompt block drops whole memories instead of cutting the last one mid-sentence.
+- **Options → General → LONG_MEMORY explains what to save**: what to call you, answer language, daily tools, answer style, with an example of asking the agent to remember it, and a pointer to `AGENTS.md` for per-project rules.
+
+### Removed
+
+- **Reminders**: the `add_reminder`, `list_reminders`, `update_reminder` and `delete_reminder` tools, the reminders list and desktop notifications in Options → General, and the `reminderNotificationsEnabled` setting. Four tools in every request for a rarely used feature was not worth it. Saved reminders are not deleted, just no longer shown.
+- **`update_settings` tool**: the agent can no longer change temperature, context window, theme, auto-voice or image models; set them in Options. Long-term memory moved to `save_memory`.
 
 ### Fixed
 

@@ -25,8 +25,7 @@ export type AgentToolUiPhase =
   | 'coding_typecheck'
   | 'coding_shell'
   | 'coding_explore'
-  | 'settings'
-  | 'reminder'
+  | 'memory'
   | 'skill'
   | 'plan'
   | 'plan_progress'
@@ -110,13 +109,8 @@ export function toolPhaseForAgentTool(name: string): AgentToolUiPhase {
       return 'coding_explore'
     case 'run_coding_workers':
       return 'coding_explore'
-    case 'update_settings':
-      return 'settings'
-    case 'add_reminder':
-    case 'list_reminders':
-    case 'delete_reminder':
-    case 'update_reminder':
-      return 'reminder'
+    case 'save_memory':
+      return 'memory'
     case 'read_skill':
       return 'skill'
     case 'enter_plan_mode':

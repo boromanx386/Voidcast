@@ -30,7 +30,7 @@ import {
   resolveGeneratedImageOutputDir,
 } from '@/lib/saveImage'
 import { invokeSaveAudioFromUrl } from '@/lib/saveAudio'
-import { loadSettings, type AppSettings } from '@/lib/settings'
+import type { AppSettings } from '@/lib/settings'
 import {
   audioPathKey,
   extractRunwareAudioUrls,
@@ -51,9 +51,7 @@ import { isMcpToolName, MCP_CALL_NAME } from '@/lib/mcpTools'
 export type AgentToolResultHandlerDeps = {
   asstId: string
   settings: AppSettings
-  setSettings: Dispatch<SetStateAction<AppSettings>>
   setToolPhase: (phase: ReturnType<typeof toolPhaseForAgentTool>) => void
-  refreshReminders: () => void | Promise<void>
   refreshLongMemories: () => void | Promise<void>
   setCodingContextMemo: Dispatch<SetStateAction<CodingContextMemo>>
   /** Mutable ref for the per-turn working-set file cache, updated on read/write/edit. */
@@ -131,9 +129,7 @@ export function applyAgentToolResult(
   const {
     asstId,
     settings,
-    setSettings,
     setToolPhase,
-    refreshReminders,
     refreshLongMemories,
     setCodingContextMemo,
     codingFileCacheRef,
@@ -158,16 +154,7 @@ export function applyAgentToolResult(
 
   setToolPhase(toolPhaseForAgentTool(name))
 
-  if (
-    name === 'add_reminder' ||
-    name === 'list_reminders' ||
-    name === 'delete_reminder' ||
-    name === 'update_reminder'
-  ) {
-    void refreshReminders()
-  }
-  if (name === 'update_settings') {
-    setSettings(loadSettings())
+  if (name === 'save_memory') {
     void refreshLongMemories()
   }
   if (

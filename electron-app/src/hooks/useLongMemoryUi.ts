@@ -7,12 +7,6 @@ import {
   updateMemoryText,
   upsertMemories,
 } from '@/lib/longMemoryStorage'
-import {
-  listDueUnnotifiedReminders,
-  listReminders,
-  markReminderNotified,
-  type Reminder,
-} from '@/lib/reminderStorage'
 import type { AppSettings } from '@/lib/settings'
 import { applyScopedModelToSettings, currentPinnedModelId } from '@/lib/pinnedModels'
 import { toConversationTurns } from '@/lib/chatHints'
@@ -28,8 +22,6 @@ export type UseLongMemoryUiParams = {
   /** Model picked for the chat on screen (scoped id); empty = the app default. */
   activeModelId: string
   setError: (error: string | null) => void
-  setScreen: (screen: Screen) => void
-  setOptionsTab: (tab: OptionsTab) => void
   screen: Screen
   optionsTab: OptionsTab
 }
@@ -41,11 +33,9 @@ export type UseLongMemoryUiResult = {
   setMemoryPreviewOpen: React.Dispatch<React.SetStateAction<boolean>>
   setMemoryCandidates: React.Dispatch<React.SetStateAction<LongMemoryCandidate[]>>
   longMemories: LongMemoryItem[]
-  reminders: Reminder[]
   extractLongMemoryNow: () => Promise<void>
   confirmSaveLongMemory: () => Promise<void>
   refreshLongMemories: () => Promise<void>
-  refreshReminders: () => Promise<void>
   deleteLongMemoryById: (id: string) => Promise<void>
   updateLongMemoryById: (id: string, text: string) => Promise<void>
 }
@@ -57,8 +47,6 @@ export function useLongMemoryUi({
   activeSessionId,
   activeModelId,
   setError,
-  setScreen,
-  setOptionsTab,
   screen,
   optionsTab,
 }: UseLongMemoryUiParams): UseLongMemoryUiResult {
@@ -66,7 +54,6 @@ export function useLongMemoryUi({
   const [memoryCandidates, setMemoryCandidates] = useState<LongMemoryCandidate[]>([])
   const [memoryPreviewOpen, setMemoryPreviewOpen] = useState(false)
   const [longMemories, setLongMemories] = useState<LongMemoryItem[]>([])
-  const [reminders, setReminders] = useState<Reminder[]>([])
 
   const extractLongMemoryNow = useCallback(async () => {
     if (busy || longMemoryBusy) return
@@ -153,76 +140,9 @@ export function useLongMemoryUi({
     }
   }, [])
 
-  const refreshReminders = useCallback(async () => {
-    try {
-      setReminders(await listReminders())
-    } catch {
-      // ignore
-    }
-  }, [])
-
-  const refreshUserData = useCallback(async () => {
-    await refreshLongMemories()
-    await refreshReminders()
-  }, [refreshLongMemories, refreshReminders])
-
   useEffect(() => {
-    void refreshUserData()
-  }, [refreshUserData])
-
-  useEffect(() => {
-    if (!settings.reminderNotificationsEnabled) return
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') return
-
-    let cancelled = false
-    let timer: number | null = null
-
-    const tick = async () => {
-      if (cancelled) return
-      if (Notification.permission !== 'granted') return
-      try {
-        const due = await listDueUnnotifiedReminders(Date.now())
-        if (cancelled || due.length === 0) return
-        let firedAny = false
-        for (const r of due) {
-          try {
-            const n = new Notification('VOIDCAST reminder', {
-              body: r.text,
-              tag: r.id,
-              requireInteraction: false,
-            })
-            n.onclick = () => {
-              try {
-                window.focus()
-                setScreen('options')
-                setOptionsTab('general')
-              } catch {
-                // ignore focus errors
-              }
-              n.close()
-            }
-            const notifiedTs = Date.now()
-            await markReminderNotified(r.id, notifiedTs)
-            firedAny = true
-          } catch {
-            // single failure shouldn't block other reminders
-          }
-        }
-        if (firedAny) {
-          void refreshReminders()
-        }
-      } catch {
-        // ignore tick errors
-      }
-    }
-
-    void tick()
-    timer = window.setInterval(() => void tick(), 30_000)
-    return () => {
-      cancelled = true
-      if (timer != null) window.clearInterval(timer)
-    }
-  }, [settings.reminderNotificationsEnabled, refreshReminders, setOptionsTab, setScreen])
+    void refreshLongMemories()
+  }, [refreshLongMemories])
 
   const deleteLongMemoryById = useCallback(
     async (id: string) => {
@@ -242,9 +162,9 @@ export function useLongMemoryUi({
 
   useEffect(() => {
     if (screen === 'options' && optionsTab === 'general') {
-      void refreshUserData()
+      void refreshLongMemories()
     }
-  }, [optionsTab, screen, refreshUserData])
+  }, [optionsTab, screen, refreshLongMemories])
 
   return {
     longMemoryBusy,
@@ -253,11 +173,9 @@ export function useLongMemoryUi({
     setMemoryPreviewOpen,
     setMemoryCandidates,
     longMemories,
-    reminders,
     extractLongMemoryNow,
     confirmSaveLongMemory,
     refreshLongMemories,
-    refreshReminders,
     deleteLongMemoryById,
     updateLongMemoryById,
   }

@@ -64,7 +64,7 @@ src/components/
 
 Specialized state hooks live in `src/hooks/`:
 
-- `useVoidcastApp` — top-level app wiring (screen switching, options, reminders).
+- `useVoidcastApp` — top-level app wiring (screen switching, options).
 - `useAppSettings` — loads/normalizes/saves settings and exposes an update function.
 - `useChatSessions` — chat session list, active session, CRUD (new / rename / delete / fork / export); sticky unsaved drafts when auto-save is off.
 - `useChatAgent` — runs the agent loop for the **visible** runtime key; binds mid-run rekey draft → session.
@@ -86,7 +86,7 @@ Specialized state hooks live in `src/hooks/`:
 - **Model types:** `AppSettings` and `CodingSettings`, plus provider enums (`LlmProvider`, `TtsProvider`, `SttProvider`, `ImageProvider`), `VoiceMode`, `LlmThinkLevel`, `AgentChatMode` (`agent` | `plan` | `team`), `UiTheme`, `ToolsEnabled`, `SubAgentConfig`, and the image/music profile types.
 - **Storage:** settings persist in `localStorage` under `voidcast-settings-v1`.
 - **Pipeline:** `loadSettings()` reads + normalizes (migrating legacy shapes, applying clamps), `saveSettings()` writes back, and normalizer functions produce a complete well-typed settings object. Clamp helpers enforce bounds (e.g. `clampCodingPanelWidth`, `clampCodingFileTreeHeight`).
-- **Agent editability:** `AGENT_EDITABLE_SETTINGS_FIELDS` lists which settings the agent may change; API-key fields are excluded.
+- **Agent editability:** the agent has no settings tool; it writes only long-term memory (`save_memory`). API-key fields are hidden from it (`AGENT_HIDDEN_SETTINGS_FIELDS`).
 - **Cross-cutting constants:** coding splitter defaults/bounds, OpenRouter TTS/image model defaults, Runware configured image/music models, sub-agent token defaults (16K/ctx, 2K out).
 
 `src/types/` holds the shared domain types: `voidcast.ts` (Screen), `chat.ts` (AgentChatMode, `normalizeChatThinkLevel`, `UiMessage` including `plan`, `subAgentActivity`, and `agentProgress`), `coding.ts`, and `longMemory.ts`.

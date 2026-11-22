@@ -1679,8 +1679,6 @@ export type AppSettings = {
   controlApiEnabled: boolean
   /** If true, chat sessions are auto-saved. When off, a manual save button appears. */
   autoSaveChat: boolean
-  /** If true, the renderer fires a desktop notification when a scheduled reminder becomes due. */
-  reminderNotificationsEnabled: boolean
   /** If true, play the user-selected reply/error sound files on chat events. */
   notificationSoundsEnabled: boolean
   /** Output volume (0–1) for chat notification sounds. */
@@ -1690,21 +1688,6 @@ export type AppSettings = {
   /** First-start checklist shown in an empty chat once a model is connected. */
   setupGuide: SetupGuideState
 }
-
-// llmSystemPrompt is deliberately absent: web/MCP/file content flows into the context,
-// and a tool that rewrites the system prompt would let injected text persist into every
-// future chat. The user edits it in Options only.
-export const AGENT_EDITABLE_SETTINGS_FIELDS = [
-  'llmNumCtx',
-  'llmTemperature',
-  'uiTheme',
-  'longMemoryAdd',
-  'autoVoice',
-  'runwareImageModel',
-  'runwareEditModel',
-] as const
-
-export type AgentEditableSettingsField = (typeof AGENT_EDITABLE_SETTINGS_FIELDS)[number]
 
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_TTS_BASE_URL, isElectron } from '@/lib/platform'
 
@@ -1939,7 +1922,6 @@ export const defaults: AppSettings = {
   autoUpdate: false,
   controlApiEnabled: false,
   autoSaveChat: true,
-  reminderNotificationsEnabled: true,
   notificationSoundsEnabled: true,
   notificationSoundVolume: 0.8,
   subAgent: {

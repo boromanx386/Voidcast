@@ -119,7 +119,6 @@ import { spokenBriefAvailable } from '@/lib/spokenBrief'
 
 export type UseChatAgentDeps = {
   settings: AppSettings
-  setSettings: Dispatch<SetStateAction<AppSettings>>
   effectivePdfOutputDir: string
 
   /**
@@ -190,7 +189,6 @@ export type UseChatAgentDeps = {
   /** Live voice anchor for local TTS design mode. */
   ttsVoiceAnchor?: import('@/lib/voiceAnchorStorage').StoredVoiceAnchor | null
 
-  refreshReminders: () => void | Promise<void>
   refreshLongMemories: () => void | Promise<void>
   activeSessionUseLongMemory: boolean
 
@@ -301,7 +299,6 @@ function resolveAction<T>(prev: T, action: SetStateAction<T>): T {
 export function useChatAgent(deps: UseChatAgentDeps) {
   const {
     settings,
-    setSettings,
     effectivePdfOutputDir,
     runtimeKey,
     runtimeKeyRef,
@@ -334,7 +331,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
     ttsOk,
     ttsCloneRef,
     ttsVoiceAnchor,
-    refreshReminders,
     refreshLongMemories,
     activeSessionUseLongMemory,
     setCodingContextMemo,
@@ -1276,9 +1272,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 {
                   asstId,
                   settings: turnSettings,
-                  setSettings,
                   setToolPhase: setPhase,
-                  refreshReminders,
                   refreshLongMemories,
                   setCodingContextMemo: applyCodingMemo,
                   codingFileCacheRef: turnFileCacheRef,
@@ -1672,7 +1666,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       pendingFiles,
       pendingImages,
       refreshLongMemories,
-      refreshReminders,
       revealCodingFile,
       runtimeKey,
       runtimeKeyRef,
@@ -1684,7 +1677,6 @@ export function useChatAgent(deps: UseChatAgentDeps) {
       setInput,
       setPendingFiles,
       setPendingImages,
-      setSettings,
       settings,
       thinkLevelRef,
       ttsCloneRef,

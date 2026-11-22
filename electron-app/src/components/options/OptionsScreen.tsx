@@ -24,9 +24,6 @@ export function OptionsScreen({ app }: Props) {
     longMemories,
     deleteLongMemoryById,
     updateLongMemoryById,
-    reminders,
-    handleDeleteReminder,
-    handleMarkDoneReminder,
     loadModels,
     modelsLoading,
     ollamaModels,
@@ -124,9 +121,6 @@ export function OptionsScreen({ app }: Props) {
               longMemories={longMemories}
               onDeleteLongMemory={deleteLongMemoryById}
               onUpdateLongMemory={updateLongMemoryById}
-              reminders={reminders}
-              onDeleteReminder={(id) => void handleDeleteReminder(id)}
-              onMarkDoneReminder={(id) => void handleMarkDoneReminder(id)}
             />
           ) : optionsTab === 'llm' ? (
             <LlmOptionsPanel

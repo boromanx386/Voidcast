@@ -3,7 +3,8 @@ import { buildProjectInstructionsHint } from '../src/lib/agentSkills'
 import { buildOllamaMessages, HARNESS_CORE, SUB_AGENT_CORE } from '../src/lib/chatMessages'
 import { exploreSystemPrompt } from '../src/lib/codingSubAgent'
 import { workerSystemPrompt } from '../src/lib/codingWorkers'
-import { AGENT_EDITABLE_SETTINGS_FIELDS } from '../src/lib/settings'
+import type { ToolsEnabled } from '../src/lib/settings'
+import { buildToolsList } from '../src/lib/toolDefinitions'
 
 describe('system prompt sections', () => {
   test('harness core comes first and the persona follows in its own tag', () => {
@@ -65,8 +66,12 @@ describe('system prompt sections', () => {
     expect(buildProjectInstructionsHint(files)).toContain('Use pnpm, not npm.')
   })
 
-  test('the agent cannot edit the system prompt', () => {
-    expect(AGENT_EDITABLE_SETTINGS_FIELDS as readonly string[]).not.toContain('llmSystemPrompt')
+  test('the agent has no tool that edits app settings', () => {
+    const names = buildToolsList({} as ToolsEnabled, false, { agentMode: 'agent' }).map(
+      (t) => t.function.name,
+    )
+    expect(names).not.toContain('update_settings')
+    expect(names).toContain('save_memory')
   })
 })
 

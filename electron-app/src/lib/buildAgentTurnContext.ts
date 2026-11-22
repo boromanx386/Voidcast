@@ -22,7 +22,7 @@ import { buildCodingMemoHint, type CodingContextMemo } from '@/lib/codingContext
 import { formatTurnToolRecord } from '@/lib/turnToolRecord'
 import { buildActiveProcessesHint, type ActiveCodingProcess } from '@/lib/codingActiveProcesses'
 import type { ImageVisionCache } from '@/lib/imageVisionCache'
-import { searchMemories } from '@/lib/longMemoryStorage'
+import { formatLongMemoryContext, searchMemories } from '@/lib/longMemoryStorage'
 import type { OllamaApiMessage } from '@/lib/ollama'
 import {
   getAgentVisibleSettings,
@@ -368,10 +368,6 @@ export async function buildAgentTurnContext(
         ].join(' '),
       )
     }
-  } else if (useTools && readOnlyMode) {
-    toolsHintParts.push(
-      `Reminder tools: only list_reminders is available in ${modeLabel} mode (read-only).`,
-    )
   }
 
   const retrievedLongMemory = activeSessionUseLongMemory
@@ -381,13 +377,7 @@ export async function buildAgentTurnContext(
         minConfidence: 0.35,
       })
     : []
-  const longMemoryContext =
-    retrievedLongMemory.length > 0
-      ? retrievedLongMemory
-          .map((m, idx) => `- ${idx + 1}. [${m.kind}] ${m.text}`)
-          .join('\n')
-          .slice(0, 1200)
-      : undefined
+  const longMemoryContext = formatLongMemoryContext(retrievedLongMemory)
 
   const lastToolRecord = takeToolRecord()
   const userTextWithRecord = lastToolRecord

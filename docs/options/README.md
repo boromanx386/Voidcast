@@ -2,7 +2,7 @@
 
 This is the reference documentation for the **Settings** screen in the desktop/web app. The screen is rendered by `electron-app/src/components/options/OptionsScreen.tsx` and contains **exactly seven tabs**, in this order:
 
-1. [General](general.md) — interface theme, cloud API keys, notification sounds, auto-save chat, auto-update, reminders, long-term memory.
+1. [General](general.md) — interface theme, cloud API keys, notification sounds, auto-save chat, auto-update, long-term memory.
 2. [LLM](llm.md) — chat model provider and per-provider endpoints/models, generation defaults, think level, system prompt.
 3. [Media](media.md) — image generation (OpenRouter vs Runware) and music generation (Runware ACE-Step or Google Lyria 3 through OpenRouter).
 4. [TTS](tts.md) — text-to-speech & speech-to-text (labeled **TTS/STT** in desktop builds).
@@ -19,22 +19,11 @@ This is the reference documentation for the **Settings** screen in the desktop/w
 
 Options **auto-save as you change them**. There is no Save button — every toggle, text field, and selector writes immediately to the settings store (`electron-app/src/lib/settings.ts`, `saveSettings`, localStorage key `voidcast-settings-v1`). The UI state updates via the `setSettings` dispatch passed to each panel.
 
-## Agent-editable vs hidden settings
+## Agent access to settings
 
-Some settings are **agent-editable** — the chat agent is allowed to view/change them — while others are hidden from the agent entirely.
+The chat agent cannot change settings: there is no settings tool. Everything on this screen is set by you. The one thing the agent can write is long-term memory, through `save_memory` (see [General](general.md#long-term-memory)).
 
-Agent-editable fields are listed in `AGENT_EDITABLE_SETTINGS_FIELDS` in `electron-app/src/lib/settings.ts`:
-
-- `llmNumCtx`, `llmTemperature` (LLM defaults; `llmSystemPrompt` is user-only)
-- `uiTheme` (interface theme)
-- `longMemoryAdd` (add long-term memory)
-- `autoVoice` (auto text-to-speech)
-- `runwareImageModel`, `runwareEditModel` (image generation; resolution is not agent-settable, use per-call `width`/`height`)
-
-Agent-hidden fields are listed in `AGENT_HIDDEN_SETTINGS_FIELDS` — currently all cloud API keys (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `customApiKey`, `opencodeGoApiKey`, `runwareApiKey`).
-
-
-Everything else is configurable only from this Settings screen (or via the local settings store) and is not exposed to the agent.
+Cloud API keys are listed in `AGENT_HIDDEN_SETTINGS_FIELDS` (`openrouterApiKey`, `nvidiaApiKey`, `deepseekApiKey`, `customApiKey`, `opencodeGoApiKey`, `runwareApiKey`) and are never shown to the agent.
 
 ## Under the hood
 
