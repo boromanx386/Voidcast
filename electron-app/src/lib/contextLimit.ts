@@ -13,9 +13,10 @@ import {
   type AppSettings,
   type LlmProvider,
 } from '@/lib/settings'
+import { liveCatalogProviderFor, liveContextTokens } from '@/lib/liveModels'
 
 export type ContextLimitSource =
-  'ollama_num_ctx' | 'custom_setting' | 'preset' | 'heuristic' | 'provider_default'
+  'ollama_num_ctx' | 'custom_setting' | 'preset' | 'live_catalog' | 'heuristic' | 'provider_default'
 
 export type ResolvedContextLimit = {
   maxTokens: number
@@ -271,6 +272,13 @@ export function resolveContextLimit(
     return { maxTokens: preset, source: 'preset', modelId, provider }
   }
 
+  // The provider's own catalog beats a name-based guess, and covers models newer than the app.
+  const liveProvider = liveCatalogProviderFor(provider)
+  const live = liveProvider ? liveContextTokens(liveProvider, modelId) : undefined
+  if (live) {
+    return { maxTokens: live, source: 'live_catalog', modelId, provider }
+  }
+
   const inferred = inferCloudContextTokens(modelId)
   if (inferred) {
     return { maxTokens: inferred, source: 'heuristic', modelId, provider }
@@ -292,6 +300,8 @@ export function contextLimitSourceLabel(source: ContextLimitSource): string {
       return 'custom context setting'
     case 'preset':
       return 'model preset'
+    case 'live_catalog':
+      return 'provider model list'
     case 'heuristic':
       return 'model heuristic'
     case 'provider_default':

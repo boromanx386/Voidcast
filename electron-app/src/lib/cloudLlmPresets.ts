@@ -195,11 +195,23 @@ export function isOpenCodeGoResponsesModel(model: string): boolean {
   return OPENCODE_GO_RESPONSES_FAMILIES.some((re) => re.test(id))
 }
 
+/**
+ * Wire formats the live Go catalog (`GET /v1/models`, field `api`) names per model. Upstream
+ * truth, so it outranks the static lists below; only a format a real request proved wins over it.
+ */
+let catalogOpenCodeGoStyles: ReadonlyMap<string, CloudLlmApiStyle> = new Map()
+
+export function setOpenCodeGoCatalogStyles(styles: ReadonlyMap<string, CloudLlmApiStyle>): void {
+  catalogOpenCodeGoStyles = styles
+}
+
 export function openCodeGoApiStyle(model: string): CloudLlmApiStyle {
   const id = normalizeOpenCodeGoModelId(model)
-  if (OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS.has(id)) return 'anthropic-messages'
   const discovered = discoveredOpenCodeGoStyles.get(id)
   if (discovered) return discovered
+  const fromCatalog = catalogOpenCodeGoStyles.get(id)
+  if (fromCatalog) return fromCatalog
+  if (OPENCODE_GO_ANTHROPIC_MESSAGES_MODELS.has(id)) return 'anthropic-messages'
   if (isOpenCodeGoResponsesModel(id)) return 'opencode-responses'
   return 'openai-chat'
 }

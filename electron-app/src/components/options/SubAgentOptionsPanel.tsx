@@ -16,6 +16,14 @@ import {
   unwrapPinnedModelId,
 } from '@/lib/pinnedModels'
 import { useCallback, type Dispatch, type SetStateAction } from 'react'
+import { useProviderModels } from '@/hooks/useProviderModels'
+import {
+  LiveCatalogStatus,
+  LiveModelDatalist,
+  LiveModelOptions,
+} from '@/components/options/LiveModelOptions'
+
+const NO_PRESETS: CloudLlmPreset[] = []
 
 type Props = {
   settings: AppSettings
@@ -149,8 +157,15 @@ export function SubAgentEndpointPicker({
               ? OPENCODE_GO_LLM_PRESET_MODELS
               : null
 
+  const liveModels = useProviderModels(provider, presets ?? NO_PRESETS, {
+    openrouterBaseUrl: settings.openrouterBaseUrl,
+    ttsBaseUrl: settings.ttsBaseUrl,
+    opencodeGoApiKey: settings.opencodeGoApiKey,
+  })
+  const datalistId = `${role}-${provider}-live-models`
+
   const ollamaInList = ollamaModels.includes(model)
-  const presetInList = Boolean(presets?.some((m) => m.id === model))
+  const presetInList = liveModels.all.some((m) => m.id === model)
   const inList = provider === 'ollama' ? ollamaInList : presetInList
 
   const handleTogglePin = useCallback(
@@ -328,7 +343,7 @@ export function SubAgentEndpointPicker({
             </label>
             {pinnedChips(
               pinsForProvider(pinned, 'openrouter'),
-              OPENROUTER_LLM_PRESET_MODELS,
+              liveModels.all,
               scopedPinId,
               handleTogglePin,
             )}
@@ -339,11 +354,7 @@ export function SubAgentEndpointPicker({
                 onChange={(e) => selectPreset(e.target.value, 'openrouter')}
               >
                 {!model && <option value="">Choose a model…</option>}
-                {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
+                <LiveModelOptions models={liveModels} />
                 {model && !inList && <option value={`__custom__${model}`}>{model} (manual)</option>}
               </select>
               <PinToggleButton
@@ -357,6 +368,7 @@ export function SubAgentEndpointPicker({
               className="cyber-input mt-2"
               placeholder={cloudManualPlaceholder}
               value={model}
+              list={datalistId}
               onChange={(e) => {
                 const nextModel = e.target.value
                 const key = nextModel.trim()
@@ -388,9 +400,11 @@ export function SubAgentEndpointPicker({
                 }
               }}
             />
+            <LiveModelDatalist id={datalistId} models={liveModels} />
+            <LiveCatalogStatus models={liveModels} />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
               Uses the OpenRouter key from Options → General and the base URL from Options → Agent.
-              Same curated presets as the main model picker.
+              Same model list as the main model picker.
             </p>
           </div>
           <div className="form-group mb-0">
@@ -452,7 +466,12 @@ export function SubAgentEndpointPicker({
             <label className="form-label">
               <span className="text-neon-cyan mr-2">◈</span> {label}_MODEL
             </label>
-            {pinnedChips(pinsForProvider(pinned, llmProv), presets, scopedPinId, handleTogglePin)}
+            {pinnedChips(
+              pinsForProvider(pinned, llmProv),
+              liveModels.all,
+              scopedPinId,
+              handleTogglePin,
+            )}
             <div className="flex items-center gap-2">
               <select
                 className="form-select mb-0 flex-1"
@@ -460,11 +479,7 @@ export function SubAgentEndpointPicker({
                 onChange={(e) => selectPreset(e.target.value, provider)}
               >
                 {!model && <option value="">Choose a model…</option>}
-                {presets.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
+                <LiveModelOptions models={liveModels} />
                 {model && !inList && <option value={`__custom__${model}`}>{model} (manual)</option>}
               </select>
               <PinToggleButton
@@ -478,8 +493,11 @@ export function SubAgentEndpointPicker({
               className="cyber-input mt-2"
               placeholder={cloudManualPlaceholder}
               value={model}
+              list={liveModels.live ? datalistId : undefined}
               onChange={(e) => setModel(e.target.value, provider)}
             />
+            <LiveModelDatalist id={datalistId} models={liveModels} />
+            <LiveCatalogStatus models={liveModels} />
             <p className="text-xs text-void-dim mt-2 font-mono leading-relaxed">
               {provider === 'deepseek' &&
                 'Uses the DeepSeek key from Options → General and the base URL from Options → Agent.'}

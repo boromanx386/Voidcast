@@ -7,6 +7,7 @@ import {
   OPENCODE_GO_LLM_PRESET_MODELS,
 } from '@/lib/cloudLlmPresets'
 import { fetchOllamaModels } from '@/lib/ollama'
+import { getLiveCatalog } from '@/lib/liveModels'
 import {
   currentPinnedModelId,
   parsePinnedId,
@@ -121,7 +122,16 @@ export default function ModelSwitcherPopup({
   }, [ollamaModels])
 
   const pinnedItems = useMemo(() => {
-    const byId = new Map(allPresets.map((item) => [item.id, item]))
+    // The quick switcher stays short (pins or curated presets); the cached live catalogs only
+    // name a pinned model the presets do not know, instead of showing its raw id.
+    const byId = new Map<string, PinnedItem>()
+    for (const provider of ['openrouter', 'opencode-go'] as const) {
+      for (const m of getLiveCatalog(provider).models) {
+        const id = toScopedPinnedId(provider, m.id)
+        byId.set(id, { id, label: m.label, provider })
+      }
+    }
+    for (const item of allPresets) byId.set(item.id, item)
     const items: PinnedItem[] = []
     for (const id of pinned) {
       const found = byId.get(id)

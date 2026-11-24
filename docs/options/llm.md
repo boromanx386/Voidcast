@@ -22,6 +22,16 @@ One provider among the others: models on your own machine, or Ollama's hosted mo
 - **CSP note:** the renderer's `connect-src` allows `https:`/`wss:` plus loopback `http:`/`ws:` only, so an Ollama server reached over plain HTTP at a **non-loopback** address (e.g. `http://192.168.1.50:11434`) is blocked until that origin is added to `index.html`.
 - `ollamaModel` — default empty: Voidcast does not pick a model for you, and a chat turn without one is refused. A **Refresh/load models** button populates this from the Ollama server (`loadModels`, `ollamaModels`, `modelsLoading`, `modelsError`); you can also type a custom model id.
 
+### Live model lists (OpenRouter, OpenCode Go)
+
+The OpenRouter and OpenCode Go model pickers (Options → Agent and Options → Sub) list the curated presets under **Recommended**, then every other model the provider's own catalog lists under **All models (N more, live)**, newest first. New upstream models show up without a Voidcast update.
+
+- **Sources** — OpenRouter `GET {openrouterBaseUrl}/models` (public, no key), filtered to models that answer in text and accept tools, since the rest cannot run the agent loop. OpenCode Go `GET /zen/go/v1/models` through the tools server (no CORS upstream); the tools server lets that one public route through without a key. Go models are kept only if their catalog `api` is chat-completions, messages or responses — embeddings, decision models and Google-only APIs are dropped.
+- **Cache** — one shared list per provider in `localStorage` (`voidcast.liveModels.v1.<provider>`), refetched when older than 24 hours or on **↻** under the picker. If the fetch fails the last list (or just the presets) stays, and the line under the picker says so.
+- **Search** — the model id field below the picker suggests ids from the whole list as you type.
+- **Context window** — a model the live catalog lists gets its window from there (`source: 'live_catalog'`, shown as *provider model list*), after the hand-set overrides and before the name heuristics.
+- `electron-app/src/lib/liveModels.ts` (fetch, parse, cache) and `electron-app/src/hooks/useProviderModels.ts` (picker hook). `npm run check:models` is still how the **Recommended** list and its labels are curated.
+
 ### OpenRouter (cloud)
 - `openrouterBaseUrl` — default `https://openrouter.ai/api/v1`
 - `openrouterApiKey` — stored locally (hidden from the agent)
@@ -68,7 +78,7 @@ Any endpoint you type in, over the wire format you pick: OpenAI or Anthropic dir
 
 #### Three wire formats (`openCodeGoApiStyle`)
 
-OpenCode Go serves its models over more than one protocol, and `openCodeGoApiStyle(model)` (`electron-app/src/lib/cloudLlmPresets.ts`) picks the endpoint per model — it is derived from the model id, not a setting:
+OpenCode Go serves its models over more than one protocol, and `openCodeGoApiStyle(model)` (`electron-app/src/lib/cloudLlmPresets.ts`) picks the endpoint per model — it is not a setting. In order: a format a real request proved this run, then the `api` the live Go catalog names for the model (`setOpenCodeGoCatalogStyles`), then the static lists below:
 
 | Style | Endpoint | Models |
 | --- | --- | --- |
@@ -77,7 +87,7 @@ OpenCode Go serves its models over more than one protocol, and `openCodeGoApiSty
 | `opencode-responses` | `{base}/responses` | the Contributor tier — `grok-4.6`, `grok-4.7`, `muse-spark-1.2-contributor`, `muse-spark-1.3-contributor`, `gpt-5.6-luna`, `gpt-6-luna` |
 
 - **Responses is a real adapter, not a shim.** `electron-app/src/lib/openResponses.ts` flattens Voidcast's internal OpenAI-shaped history into Responses `input` items: tools are flat (`{type:'function', name, parameters}`), an assistant tool call is its own `function_call` item whose result is a `function_call_output` linked by `call_id` (there is no `role: 'tool'`), the system prompt is `instructions`, and the output cap is `max_output_tokens` — default 16 384, stepping down to 8 192 then 4 096 if a model rejects the cap with a 400. Responses SSE events are folded back into the same tool-call/usage shapes the chat-completions parser produces, so the rest of the app never sees a difference. Only the network loop differs: it lives in `openrouter.ts`.
-- **Routing is by family, with a runtime fallback.** Go publishes no ids for Responses-only models, so the static rules match families (`grok*`, `muse-spark*`, `gpt-<ver>-luna`) plus explicit per-id pins. If a model the rules do not know answers `/chat/completions` with `ModelProtocolUnsupported`, the turn is replayed on the format that worked and `rememberOpenCodeGoApiStyle` caches it for the rest of the session (in-memory on purpose: one extra probe per model per run, never a stale hint across restarts).
+- **Routing is by catalog, then family, with a runtime fallback.** The live catalog names each model's API, so a new model routes right on its first turn. Without a catalog (offline, first run before the fetch) the static rules match families (`grok*`, `muse-spark*`, `gpt-<ver>-luna`) plus explicit per-id pins. If a model the rules do not know answers `/chat/completions` with `ModelProtocolUnsupported`, the turn is replayed on the format that worked and `rememberOpenCodeGoApiStyle` caches it for the rest of the session (in-memory on purpose: one extra probe per model per run, never a stale hint across restarts).
 - **Contributor models are paste-in.** They are not preset entries — put the slug from the Go dashboard into the custom model field and the API style routes it to `{base}/responses`. `npm run check:models --apply` resolves the endpoint per model from models.dev, suggests the right ones and can write pins into `OPENCODE_GO_RESPONSES_MODELS`.
 - **The routing keys off the OpenCode Go URL.** `isOpenCodeGoApi()` (`electron-app/src/lib/openrouter.ts`) accepts `…/opencode.ai/zen/go…` or the local proxy path `/api/opencode-go`. Since chat always uses the proxy path, all three formats work; a self-hosted gateway goes in the tools server's `OPENCODE_GO_BASE_URL`.
 

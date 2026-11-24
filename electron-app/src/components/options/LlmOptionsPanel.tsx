@@ -19,6 +19,12 @@ import {
 } from '@/lib/openrouter'
 import type { Dispatch, SetStateAction } from 'react'
 import type { CloudLlmPreset } from '@/lib/cloudLlmPresets'
+import { useProviderModels } from '@/hooks/useProviderModels'
+import {
+  LiveCatalogStatus,
+  LiveModelDatalist,
+  LiveModelOptions,
+} from '@/components/options/LiveModelOptions'
 
 function pinnedChips(
   pinnedModels: string[],
@@ -97,6 +103,18 @@ export function LlmOptionsPanel({
   modelsError,
 }: Props) {
   const pinned = settings.pinnedModels ?? []
+  // Only the active provider's catalog is fetched; the others keep their curated presets.
+  const liveModels = useProviderModels(
+    settings.llmProvider,
+    settings.llmProvider === 'opencode-go'
+      ? OPENCODE_GO_LLM_PRESET_MODELS
+      : OPENROUTER_LLM_PRESET_MODELS,
+    {
+      openrouterBaseUrl: settings.openrouterBaseUrl,
+      ttsBaseUrl: settings.ttsBaseUrl,
+      opencodeGoApiKey: settings.opencodeGoApiKey,
+    },
+  )
 
   const handleTogglePin = useCallback(
     (modelId: string) => {
@@ -313,7 +331,7 @@ export function LlmOptionsPanel({
             </label>
             {pinnedChips(
               pinsForProvider(pinned, 'openrouter'),
-              OPENROUTER_LLM_PRESET_MODELS.map((m) => ({
+              liveModels.all.map((m) => ({
                 id: toScopedPinnedId('openrouter', m.id),
                 label: m.label,
               })),
@@ -324,7 +342,7 @@ export function LlmOptionsPanel({
               <select
                 className="form-select flex-1"
                 value={
-                  OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel)
+                  liveModels.all.some((m) => m.id === settings.openrouterModel)
                     ? settings.openrouterModel
                     : settings.openrouterModel
                       ? `__custom__${settings.openrouterModel}`
@@ -336,13 +354,9 @@ export function LlmOptionsPanel({
                   setSettings((s) => ({ ...s, ...withOpenRouterModel(s, v) }))
                 }}
               >
-                {OPENROUTER_LLM_PRESET_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
+                <LiveModelOptions models={liveModels} />
                 {settings.openrouterModel &&
-                  !OPENROUTER_LLM_PRESET_MODELS.some((m) => m.id === settings.openrouterModel) && (
+                  !liveModels.all.some((m) => m.id === settings.openrouterModel) && (
                     <option value={`__custom__${settings.openrouterModel}`}>
                       {settings.openrouterModel} (manual)
                     </option>
@@ -376,7 +390,10 @@ export function LlmOptionsPanel({
                 })
               }}
               placeholder="openrouter/free"
+              list="openrouter-live-models"
             />
+            <LiveModelDatalist id="openrouter-live-models" models={liveModels} />
+            <LiveCatalogStatus models={liveModels} />
           </div>
           <div className="form-group">
             <label className="form-label">
@@ -672,7 +689,7 @@ export function LlmOptionsPanel({
             </label>
             {pinnedChips(
               pinsForProvider(pinned, 'opencode-go'),
-              OPENCODE_GO_LLM_PRESET_MODELS.map((m) => ({
+              liveModels.all.map((m) => ({
                 id: toScopedPinnedId('opencode-go', m.id),
                 label: m.label,
               })),
@@ -683,7 +700,7 @@ export function LlmOptionsPanel({
               <select
                 className="form-select flex-1"
                 value={
-                  OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel)
+                  liveModels.all.some((m) => m.id === settings.opencodeGoModel)
                     ? settings.opencodeGoModel
                     : settings.opencodeGoModel
                       ? `__custom__${settings.opencodeGoModel}`
@@ -696,13 +713,9 @@ export function LlmOptionsPanel({
                   setSettings((s) => ({ ...s, opencodeGoModel: v }))
                 }}
               >
-                {OPENCODE_GO_LLM_PRESET_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
+                <LiveModelOptions models={liveModels} />
                 {settings.opencodeGoModel &&
-                  !OPENCODE_GO_LLM_PRESET_MODELS.some((m) => m.id === settings.opencodeGoModel) && (
+                  !liveModels.all.some((m) => m.id === settings.opencodeGoModel) && (
                     <option value={`__custom__${settings.opencodeGoModel}`}>
                       {settings.opencodeGoModel} (manual)
                     </option>
@@ -720,7 +733,10 @@ export function LlmOptionsPanel({
               value={settings.opencodeGoModel}
               onChange={(e) => setSettings((s) => ({ ...s, opencodeGoModel: e.target.value }))}
               placeholder="deepseek-v4-pro"
+              list="opencode-go-live-models"
             />
+            <LiveModelDatalist id="opencode-go-live-models" models={liveModels} />
+            <LiveCatalogStatus models={liveModels} />
           </div>
         </>
       )}

@@ -1040,6 +1040,10 @@ async def opencode_go_proxy(request: Request, full_path: str):
         key = (request.headers.get("x-api-key") or "").strip()
     if not key:
         key = _env_key("OPENCODE_GO_API_KEY")
+    # The model catalog is public, so the picker can list models before a key is pasted.
+    is_catalog = request.method == "GET" and full_path.strip("/") == "v1/models"
+    if not key and is_catalog:
+        return await _reverse_proxy(request, OPENCODE_GO_UPSTREAM, full_path)
     if not key:
         raise HTTPException(
             status_code=503,
