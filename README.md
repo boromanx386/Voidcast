@@ -14,8 +14,6 @@
 
 Providers: **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** · **Ollama** · **Custom** (any endpoint) — plus **Runware** for image and music. See [Providers](#providers).
 
-> **Status: beta and early.** Voidcast is a solo hobby project — I built it for myself to learn more about AI and programming, and I’m sharing it in case it helps others too. Expect rough edges; issues, ideas and PRs are genuinely welcome.
-
 <p align="center">
   <img src="demos/voidcast-agent-demo.gif" width="1000" alt="Voidcast agent building a neon Breakout game from one prompt and opening it in the built-in browser"/>
 </p>
@@ -33,7 +31,6 @@ Providers: **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** �
 
 - [Why Voidcast](#why-voidcast)
 - [Main features](#main-features)
-- [Quick demo (~39s)](#quick-demo-39s)
 - [Get started (one click)](#get-started-one-click)
 - [Updates (desktop)](#updates-desktop)
 - [The agent & tools](#the-agent--tools)
@@ -77,15 +74,6 @@ Providers: **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** �
 - **Watch it think** — adjacent read-only tool calls run in parallel (up to ten) while serial and mutating calls stay ordered. The chat shows active tool names and keeps intermediate drafts in collapsible round blocks.
 
 - **A worker for Claude Code, Codex and Cursor** — turn on the local control API, copy [`skills/voidcast/`](skills/voidcast/) into your agent's skills folder, and your main agent can hand Voidcast a task, wait for it and check the result. Let a cheaper model do the bulk work, or use Voidcast's image, music, TTS and browser tools from another agent. See [Local control API](docs/control-api.md).
-
-
----
-
-## Quick demo (~39s) — sound on!
-
-https://github.com/user-attachments/assets/e7700e45-ca2c-40a0-b3d0-ffbdd3cf1c1c
-
-<p align="center"><em>User: switch theme to Blood Moon and turn voice on — the agent replies with TTS and changes the UI live.</em></p>
 
 ---
 
