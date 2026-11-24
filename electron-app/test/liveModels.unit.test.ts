@@ -91,17 +91,25 @@ describe('openCodeGoApiStyle with a live catalog', () => {
 })
 
 describe('mergeModelLists', () => {
-  it('keeps curated first and adds only new live models, newest first', () => {
-    const { recommended, more } = mergeModelLists(
-      [{ id: 'a', label: 'A curated' }],
+  it('makes one A-Z list, preferring catalog labels', () => {
+    const { all, added } = mergeModelLists(
       [
-        { id: 'a', label: 'A live' },
-        { id: 'old', label: 'Old', created: 1 },
-        { id: 'new', label: 'New', created: 9 },
+        { id: 'z', label: 'Zeta curated' },
+        { id: 'gone', label: 'Gone (curated only)' },
+      ],
+      [
+        { id: 'z', label: 'Acme: Zeta' },
+        { id: 'v10', label: 'Model 10' },
+        { id: 'v9', label: 'model 9' },
       ],
     )
-    expect(recommended).toEqual([{ id: 'a', label: 'A curated' }])
-    expect(more.map((m) => m.id)).toEqual(['new', 'old'])
+    expect(all.map((m) => m.label)).toEqual([
+      'Acme: Zeta',
+      'Gone (curated only)',
+      'model 9',
+      'Model 10',
+    ])
+    expect(added).toBe(2)
   })
 })
 

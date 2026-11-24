@@ -161,20 +161,28 @@ export function parseOpenCodeGoCatalog(body: unknown): LiveModel[] {
 }
 
 /**
- * Curated presets first, under their hand-written labels; every live model the presets do not
- * already cover follows, newest first. A curated id the catalog no longer lists stays: the
- * catalog can lag, and the OpenCode feed is known to omit some models.
+ * One list, A–Z by label. A model the catalog lists takes the catalog's label, so every entry
+ * is named the same way and sorting means something; a curated id the catalog does not list
+ * keeps its hand-written label and stays (the catalog can lag, and the OpenCode feed is known
+ * to omit some models). `added` counts the models the presets did not have.
  */
 export function mergeModelLists(
   curated: CloudLlmPreset[],
   live: LiveModel[],
-): { recommended: CloudLlmPreset[]; more: CloudLlmPreset[] } {
-  const known = new Set(curated.map((m) => m.id))
-  const more = live
-    .filter((m) => !known.has(m.id))
-    .sort((a, b) => (b.created ?? 0) - (a.created ?? 0) || a.id.localeCompare(b.id))
-    .map((m) => ({ id: m.id, label: m.label }))
-  return { recommended: curated, more }
+): { all: CloudLlmPreset[]; added: number } {
+  const byId = new Map<string, CloudLlmPreset>()
+  for (const m of curated) byId.set(m.id, m)
+  let added = 0
+  for (const m of live) {
+    if (!byId.has(m.id)) added++
+    byId.set(m.id, { id: m.id, label: m.label })
+  }
+  const all = [...byId.values()].sort(
+    (a, b) =>
+      a.label.localeCompare(b.label, 'en', { numeric: true, sensitivity: 'base' }) ||
+      a.id.localeCompare(b.id),
+  )
+  return { all, added }
 }
 
 // ---------------------------------------------------------------------------------------------

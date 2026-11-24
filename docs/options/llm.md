@@ -24,13 +24,13 @@ One provider among the others: models on your own machine, or Ollama's hosted mo
 
 ### Live model lists (OpenRouter, OpenCode Go)
 
-The OpenRouter and OpenCode Go model pickers (Options → Agent and Options → Sub) list the curated presets under **Recommended**, then every other model the provider's own catalog lists under **All models (N more, live)**, newest first. New upstream models show up without a Voidcast update.
+The OpenRouter and OpenCode Go model pickers (Options → Agent and Options → Sub) show one list, A–Z by name: the curated presets plus every other model the provider's own catalog lists. A model the catalog lists is named as the catalog names it (OpenRouter: `Vendor: Model (ctx)`), so the order is consistent; a preset the catalog does not list keeps its hand-written label. New upstream models show up without a Voidcast update.
 
 - **Sources** — OpenRouter `GET {openrouterBaseUrl}/models` (public, no key), filtered to models that answer in text and accept tools, since the rest cannot run the agent loop. OpenCode Go `GET /zen/go/v1/models` through the tools server (no CORS upstream); the tools server lets that one public route through without a key. Go models are kept only if their catalog `api` is chat-completions, messages or responses — embeddings, decision models and Google-only APIs are dropped.
 - **Cache** — one shared list per provider in `localStorage` (`voidcast.liveModels.v1.<provider>`), refetched when older than 24 hours or on **↻** under the picker. If the fetch fails the last list (or just the presets) stays, and the line under the picker says so.
 - **Search** — the model id field below the picker suggests ids from the whole list as you type.
 - **Context window** — a model the live catalog lists gets its window from there (`source: 'live_catalog'`, shown as *provider model list*), after the hand-set overrides and before the name heuristics.
-- `electron-app/src/lib/liveModels.ts` (fetch, parse, cache) and `electron-app/src/hooks/useProviderModels.ts` (picker hook). `npm run check:models` is still how the **Recommended** list and its labels are curated.
+- `electron-app/src/lib/liveModels.ts` (fetch, parse, cache) and `electron-app/src/hooks/useProviderModels.ts` (picker hook). `npm run check:models` still curates the presets, which are the offline fallback.
 
 ### OpenRouter (cloud)
 - `openrouterBaseUrl` — default `https://openrouter.ai/api/v1`

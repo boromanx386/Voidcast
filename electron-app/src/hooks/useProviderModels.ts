@@ -11,16 +11,15 @@ import {
 } from '@/lib/liveModels'
 
 export type ProviderModels = {
-  /** Curated presets, under their hand-written labels. */
-  recommended: CloudLlmPreset[]
-  /** Live catalog models the presets do not cover, newest first. */
-  more: CloudLlmPreset[]
+  /** Curated presets and the live catalog in one list, A–Z by label. */
   all: CloudLlmPreset[]
+  /** How many of `all` came from the live catalog alone. */
+  added: number
   loading: boolean
   error: string | null
   fetchedAt: number
   refresh: () => void
-  /** False for providers without a live catalog: `more` is then always empty. */
+  /** False for providers without a live catalog: `all` is then just the presets, sorted. */
   live: boolean
 }
 
@@ -58,9 +57,8 @@ export function useProviderModels(
   const merged = useMemo(() => mergeModelLists(curated, state.models), [curated, state.models])
 
   return {
-    recommended: merged.recommended,
-    more: merged.more,
-    all: useMemo(() => [...merged.recommended, ...merged.more], [merged]),
+    all: merged.all,
+    added: merged.added,
     loading: state.loading,
     error: state.error,
     fetchedAt: state.fetchedAt,

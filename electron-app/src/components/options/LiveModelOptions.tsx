@@ -1,20 +1,14 @@
 import type { ProviderModels } from '@/hooks/useProviderModels'
 
-/** `<option>`s for a model `<select>`: curated presets, then the live catalog in its own group. */
+/** `<option>`s for a model `<select>`: presets and the live catalog in one A–Z list. */
 export function LiveModelOptions({ models }: { models: ProviderModels }) {
-  const options = (list: ProviderModels['recommended']) =>
-    list.map((m) => (
-      <option key={m.id} value={m.id}>
-        {m.label}
-      </option>
-    ))
-  if (models.more.length === 0) return <>{options(models.recommended)}</>
   return (
     <>
-      <optgroup label="Recommended">{options(models.recommended)}</optgroup>
-      <optgroup label={`All models (${models.more.length} more, live)`}>
-        {options(models.more)}
-      </optgroup>
+      {models.all.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.label}
+        </option>
+      ))}
     </>
   )
 }
@@ -50,7 +44,7 @@ export function LiveCatalogStatus({ models }: { models: ProviderModels }) {
           : models.error
             ? `⚠ Live model list unavailable (${models.error}) — showing presets`
             : models.fetchedAt
-              ? `${models.more.length} more models from the live catalog · updated ${ago(models.fetchedAt)} · type in the model field to search`
+              ? `${models.all.length} models (${models.added} from the live catalog) · updated ${ago(models.fetchedAt)} · type in the model field to search`
               : 'Live model list not loaded yet'}
       </span>
       <button
