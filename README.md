@@ -348,7 +348,7 @@ For **charts, diagrams, and infographics**, pick an image model in **Options →
 
 ## Themes & UI
 
-Eight built-in themes: **Minimal** (default), **Dystopian**, **Matrix** (classic green-black with digital code rain), **Light**, **Blood Moon**, **Obsidian** (dark violet accents), **Terminal** (amber-phosphor CLI look with CRT scanline texture), and **Neutrino** (ultra-minimal gray with no neon — pure function). Switch anytime in **Options → General**. Empty-state hints and the composer placeholder adapt to the active theme.
+Seven built-in themes: **Obsidian** (default, dark violet accents), **Minimal**, **Dystopian**, **Matrix** (classic green-black with digital code rain), **Light**, **Blood Moon** and **Terminal** (amber-phosphor CLI look with CRT scanline texture). Switch anytime in **Options → General**. Empty-state hints and the composer placeholder adapt to the active theme.
 
 Other UX features:
 - **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens). Project folder groups default collapsed. Session history is stored in **IndexedDB** (migrated automatically from older `localStorage` data on first launch).
