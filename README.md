@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Status: beta">
 </p>
 
-**One window for chat, code and creation.** Voidcast is a desktop AI agent (Electron + React + Python) that puts a multi-provider chat, a real coding agent, a browser it drives for you, and generative media tools in a single app. It runs on **your provider** — bring a key you already pay for (**OpenRouter**, **NVIDIA NIM**, **DeepSeek**, **OpenCode Go**, or **any endpoint** — OpenAI, Anthropic, LM Studio, vLLM — through **Custom**), or run models on your own hardware with **Ollama**. No account with us, no credits to buy, no markup, no telemetry.
+**A desktop coding agent that checks its own work — on your own keys.** Voidcast is a desktop AI agent (Electron + React + Python) that puts a multi-provider chat, a real coding agent, a browser it drives for you, and generative media tools in a single app. It runs on **your provider** — bring a key you already pay for (**OpenRouter**, **NVIDIA NIM**, **DeepSeek**, **OpenCode Go**, or **any endpoint** — OpenAI, Anthropic, LM Studio, vLLM — through **Custom**), or run models on your own hardware with **Ollama**. No account with us, no credits to buy, no markup, no telemetry.
 
 Providers: **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** · **Ollama** · **Custom** (any endpoint) — plus **Runware** for image and music. See [Providers](#providers).
 
@@ -21,7 +21,8 @@ Providers: **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** �
 
 ## Why Voidcast
 
-- **Cheap models, real coding agent.** On the same models through the same provider, Voidcast passed every hidden check that OpenCode passed and used about 22% fewer prompt tokens across three tasks. A $10/month OpenCode Go plan or a DeepSeek key is enough to do real work. Method and numbers: [Benchmark](docs/benchmark.md).
+- **Made for models you can afford.** The coding prompt is short and keeps the agent on the task, so DeepSeek or GLM on a $10/month OpenCode Go plan does real work: building, fixing, testing. How it does on real tasks: [Benchmark](docs/benchmark.md).
+- **It checks its own work.** The agent runs your tests, build and type checks after it edits, and for anything with a UI it can open the result in its own browser and click through it. You watch the same view and can take over any time.
 - **More than code.** The same agent searches the web, reads YouTube transcripts, drives a browser you can take over, generates images and music, speaks with TTS and writes PDFs, all inline in the chat.
 - **A worker for your main agent.** Claude Code, Codex or Cursor can hand Voidcast a task through the [local control API](docs/control-api.md) and read the result: cheap bulk work, or tools your main agent lacks.
 - **Your keys, your machine.** No account with us, no credits, no markup, no telemetry.

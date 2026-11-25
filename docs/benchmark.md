@@ -1,17 +1,16 @@
-# Benchmark: Voidcast vs OpenCode
+# Benchmark: cheap models on real tasks
 
-Same models, same provider, same tasks, two agent harnesses. The question: on cheap coding
-models, does the harness change the result or the token bill?
+Can a cheap coding model, driven by Voidcast, finish real work? Three small tasks, two
+low-cost models, hidden checks the agent never sees.
 
 ## Setup
 
 - **Models:** DeepSeek v4.1 Flash and GLM 5.3 Flash, both through an
-  [OpenCode Go](https://opencode.ai) subscription, so both harnesses hit the same endpoint.
+  [OpenCode Go](https://opencode.ai/docs/go) subscription (from $10/month).
 - **Voidcast:** Agent mode, think level "on" (sends `reasoning_effort: medium`), built-in
   browser off, started through the [local control API](control-api.md).
-- **OpenCode:** CLI 1.19.6, `opencode run` with no `--variant` (sends no `reasoning_effort`).
-- **Tokens:** prompt tokens summed over every model round, cached tokens included. Voidcast
-  reads them from its turn usage, OpenCode from the `step-finish` parts in its local database.
+- **Tokens:** prompt tokens summed over every model round, cached tokens included, read from
+  Voidcast's turn usage.
 - **Checks:** the cart and notes tasks are scored by hidden test scripts the agent never
   sees. Breakout is play-tested in a browser.
 
@@ -29,20 +28,19 @@ models, does the harness change the result or the token bill?
 
 ## Results
 
-Rounds / prompt tokens. Voidcast numbers are from the current coding prompt (2026-11-19).
+Rounds / prompt tokens, with the current coding prompt (2026-11-19).
 
-| Task | Model | Voidcast | OpenCode | Both pass |
-|---|---|---|---|---|
-| Cart | DeepSeek | 11 / 186k | 7 / 132k | 7/7 |
-| Cart | GLM | 9 / 134k | 8 / 144k | 7/7 |
-| Breakout | DeepSeek | 8 / 293k (median of 3: 145k–348k) | 18 / 576k | game works |
-| Breakout | GLM | 4 / 65k | 2 / 36k | game works |
-| Notes | DeepSeek | 7 / 155k | 8 / 165k | 11/11 |
-| Notes | GLM | 10 / 185k | 13 / 259k | 11/11 |
-| **Total** | | **1.02M** | **1.31M** | |
+| Task | Model | Rounds / prompt tokens | Result |
+|---|---|---|---|
+| Cart | DeepSeek | 11 / 186k | 7/7 hidden checks |
+| Cart | GLM | 9 / 134k | 7/7 hidden checks |
+| Breakout | DeepSeek | 8 / 293k (3 runs: 145k–348k) | game works |
+| Breakout | GLM | 4 / 65k | game works |
+| Notes | DeepSeek | 7 / 155k | 11/11 hidden checks |
+| Notes | GLM | 10 / 185k | 11/11 hidden checks |
 
-- Both harnesses passed every hidden check, and every game ran.
-- Voidcast used about 22% fewer prompt tokens in total. Most of the gap is DeepSeek
-  Breakout; on the smaller tasks each harness wins some cells.
-- Wall times are left out: the two harnesses did not run at the same hour, and the
-  provider's speed changed a lot during the day.
+- Every task passed its hidden checks, and every game ran.
+- All six cells together used about 1M prompt tokens.
+- Breakout was run three times on DeepSeek; the other cells are single runs, so read them as
+  typical, not exact.
+- Wall times are left out: the provider's speed changed a lot during the day.

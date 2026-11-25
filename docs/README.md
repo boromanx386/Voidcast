@@ -22,7 +22,7 @@ See [**multi-chat-and-team.md**](multi-chat-and-team.md) for multi-chat + worker
 - [**settings-reference.md**](settings-reference.md) — full field-by-field settings reference
 - [**architecture.md**](architecture.md) — screens, hooks, `sessionAgentStore`, agent loop, workers, types
 - [**development.md**](development.md) — run from source, lint, build for Windows and Linux, release, repository layout
-- [**benchmark.md**](benchmark.md) — Voidcast vs OpenCode on the same models: tasks, tokens, hidden checks
+- [**benchmark.md**](benchmark.md) — cheap models on real tasks: tasks, tokens, hidden checks
 - [**options/README.md**](options/README.md) — Options screen overview: seven tabs, auto-save, agent-editable vs hidden settings
 
 ### Options tabs
