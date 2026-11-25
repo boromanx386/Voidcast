@@ -6,7 +6,7 @@ import { loadSettings, saveSettings, type AppSettings } from '@/lib/settings'
 export function useAppSettings() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
   const effectivePdfOutputDir = settings.pdfOutputDir.trim()
-  const [appVersion, setAppVersion] = useState('2.13.0')
+  const [appVersion, setAppVersion] = useState('2.14.0')
 
   useEffect(() => {
     saveSettings(settings)
