@@ -86,8 +86,10 @@ Providers: **OpenRouter** · **NVIDIA NIM** · **DeepSeek** · **OpenCode Go** �
 
 1. Download the build for your platform from [Releases](https://github.com/boromanx386/Voidcast/releases/latest)
 2. Install it: Windows — run the setup, Next → Next → Done. Linux — `chmod +x Voidcast_*.AppImage && ./Voidcast_*.AppImage`, or `sudo apt install ./Voidcast_*.deb`.
-3. Add your API keys in **Options → General → CLOUD_API_KEYS** (stored only on your PC).
+3. On first launch the chat asks how to connect a model: paste an OpenRouter key (or the key of another cloud provider), or pick a model your local Ollama already has. Keys are stored only on your PC; more go in **Options → General → CLOUD_API_KEYS**.
 4. Start the agent.
+
+> ⚠️ **Windows SmartScreen:** the installer is not code-signed yet, so Windows may show "Windows protected your PC". Click **More info → Run anyway**. The build comes straight from the [release workflow](.github/workflows/release.yml) on GitHub Actions.
 
 > 💡 **Already have a key? First launch to first chat is under a minute.** The packaged app bundles the Python tools server, so there is no Python/pip setup — just add keys and go.
 
@@ -134,7 +136,7 @@ All providers share the same tool catalog and executor. See [Providers](#provide
 <p align="center">
   <img src="demos/voidcast-options-all.png" width="900" alt="Voidcast Options tabs"/>
 </p>
-<p align="center"><em>Options — General, LLM, Media, TTS/STT, Tools, Skills and Sub-Agent in one composite. Every tab is documented in <a href="docs/options/README.md">docs/options</a>.</em></p>
+<p align="center"><em>Options — General, Agent, Sub, Media, TTS/STT, Tools and Skills in one composite. Every tab is documented in <a href="docs/options/README.md">docs/options</a>.</em></p>
 
 ### Music (Runware or Lyria)
 
@@ -294,7 +296,7 @@ All you need are the accounts and API keys you already have — Voidcast never r
 
 ## OpenRouter support (per-model provider routing)
 
-OpenRouter is a first-class provider in Voidcast: **one key, 300+ models** (Claude, GPT, Gemini, DeepSeek, Llama, Qwen…), plus optional image models and TTS. What most tools don't expose, Voidcast does — OpenRouter's **provider routing** is right in **Options → LLM**:
+OpenRouter is a first-class provider in Voidcast: **one key, 300+ models** (Claude, GPT, Gemini, DeepSeek, Llama, Qwen…), plus optional image models and TTS. What most tools don't expose, Voidcast does — OpenRouter's **provider routing** is right in **Options → Agent**:
 
 - **Pin the provider per model** — set `OPENROUTER_PROVIDER` to a slug (`anthropic`, `openai`, `deepinfra`, `deepseek`, …). Requests then go **only** to that provider (`provider.only`, no fallbacks), so latency, price and behaviour stop moving under you.
 - **Remembered per model** — the lock is stored per model id (`openrouterProviderByModel`). Switch to another model and Voidcast restores *that* model's provider; switch back and it comes with it.
@@ -304,9 +306,9 @@ OpenRouter is a first-class provider in Voidcast: **one key, 300+ models** (Clau
 Leave `OPENROUTER_PROVIDER` empty for OpenRouter's default load balancing across providers.
 
 <p align="center">
-  <img src="demos/voidcast-options-openrouter.png" width="820" alt="Options → LLM: OpenRouter provider, model, OPENROUTER_PROVIDER lock and the LIST ALL provider table"/>
+  <img src="demos/voidcast-options-openrouter.png" width="820" alt="Options → Agent: OpenRouter provider, model, OPENROUTER_PROVIDER lock and the LIST ALL provider table"/>
 </p>
-<p align="center"><em>Options → LLM — OpenRouter model picker, the optional <code>OPENROUTER_PROVIDER</code> lock, and the <strong>LIST ALL</strong> table (provider · quant · price · cache hit · uptime). Click a row to pin it.</em></p>
+<p align="center"><em>Options → Agent — OpenRouter model picker, the optional <code>OPENROUTER_PROVIDER</code> lock, and the <strong>LIST ALL</strong> table (provider · quant · price · cache hit · uptime). Click a row to pin it.</em></p>
 
 Full field reference: [docs/options/llm.md](docs/options/llm.md).
 
@@ -314,7 +316,7 @@ Full field reference: [docs/options/llm.md](docs/options/llm.md).
 
 ## Context Compression
 
-Local and small-context models hit a wall after long chats. When prompt usage nears the model limit (~90%), Voidcast can **auto-compress** (toggle in **Options → LLM**, or from the footer **CTX** popup): it summarizes older turns into a hidden memory buffer (provider-aware) and injects that into the system prompt on later turns. **The full chat stays visible in the UI**; only new messages after compression are sent again as raw turns to the model. Click the footer CTX meter for **COMPRESS NOW** anytime (including early on large-context models), or use the yellow warning banner when auto is off.
+Local and small-context models hit a wall after long chats. When prompt usage nears the model limit (~90%), Voidcast can **auto-compress** (toggle in **Options → Agent**, or from the footer **CTX** popup): it summarizes older turns into a hidden memory buffer (provider-aware) and injects that into the system prompt on later turns. **The full chat stays visible in the UI**; only new messages after compression are sent again as raw turns to the model. Click the footer CTX meter for **COMPRESS NOW** anytime (including early on large-context models), or use the yellow warning banner when auto is off.
 
 Prompts are ordered for **prompt-cache hits** (stable system prompt + history prefix, volatile context on the final user turn) — details in [docs/architecture.md](docs/architecture.md).
 
@@ -345,12 +347,11 @@ For **charts, diagrams, and infographics**, pick an image model in **Options →
 
 ## Themes & UI
 
-Eight built-in themes: **Minimal** (default), **Dystopian**, **Matrix** (classic green-black with digital code rain), **Light**, **Blood Moon**, **Obsidian** (dark violet accents), **Terminal** (amber-phosphor CLI look with CRT scanline texture), and **Neutrino** (ultra-minimal gray with no neon — pure function). Switch anytime in Options or via chat. Empty-state hints and the composer placeholder adapt to the active theme.
+Eight built-in themes: **Minimal** (default), **Dystopian**, **Matrix** (classic green-black with digital code rain), **Light**, **Blood Moon**, **Obsidian** (dark violet accents), **Terminal** (amber-phosphor CLI look with CRT scanline texture), and **Neutrino** (ultra-minimal gray with no neon — pure function). Switch anytime in **Options → General**. Empty-state hints and the composer placeholder adapt to the active theme.
 
 Other UX features:
 - **Pinned sessions sidebar** — chat sessions in a left column; toggle from the header (collapsed by default on narrow screens). Project folder groups default collapsed. Session history is stored in **IndexedDB** (migrated automatically from older `localStorage` data on first launch).
-- **Pinned model switcher** — status-bar popup to jump between pinned models; pins are scoped per provider so the same slug on OpenRouter vs NVIDIA / DeepSeek / OpenAI / OpenCode Go does not collide.
-- **Per-chat system prompt presets** — composer chip with **default / code / creative / teacher** personas (dropup styled like the pinned-model chips); the choice is stored per chat session.
+- **Pinned model switcher** — status-bar popup to jump between pinned models; pins are scoped per provider so the same slug on OpenRouter vs NVIDIA / DeepSeek / OpenCode Go / Custom does not collide.
 - **Drag-and-drop** — drop images and supported files (TXT, MD, PDF, DOCX, CSV, JSON, code) onto the chat (same limits as the file picker); PDF/DOCX text is extracted on desktop
 - **Edit any message inline** — history regenerates from that point
 - **Fork chat session** — explore a different branch of the conversation

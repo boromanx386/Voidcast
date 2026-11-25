@@ -58,7 +58,7 @@ Provider default/model presets come from `electron-app/src/lib/cloudLlmPresets.t
 
 ### Creating API keys
 
-- **OpenRouter**: https://openrouter.ai/keys — paste into **Options → LLM → OpenRouter API key** (or click **Manage models** in the model switcher and select a provider/model there).
+- **OpenRouter**: https://openrouter.ai/keys — paste into **Options → General → CLOUD_API_KEYS** (or click **Manage models** in the model switcher and select a provider/model there).
 - **NVIDIA**: https://build.nvidia.com — API key field `nvidiaApiKey`.
 - **DeepSeek**: https://platform.deepseek.com/api_keys — `deepseekApiKey`.
 - **Custom**: whatever the endpoint issues (for OpenAI, https://platform.openai.com/api-keys) — `customApiKey`, entered next to the base URL in **Options → Agent**. Optional: local servers need none.

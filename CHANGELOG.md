@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.14.0] — 2026-11-25
+
 ### Added
 
 - **Live model lists for OpenRouter and OpenCode Go**: the model pickers in Options → Agent and Options → Sub now list every model the provider offers, not just the curated presets. Presets and the live list are one list sorted A–Z, named the way the provider names them, so new models appear the day they launch without a Voidcast update. OpenRouter shows only models that support tools. The list is cached for a day, **↻** refetches it, and typing in the model id field searches it. A model from the live list also gets its real context window, and OpenCode Go routes each model to the API its catalog names, so new Messages or Responses models work on the first turn.

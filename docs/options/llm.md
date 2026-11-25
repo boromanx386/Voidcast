@@ -3,9 +3,9 @@
 > Grounded in `electron-app/src/components/options/LlmOptionsPanel.tsx` and `electron-app/src/lib/settings.ts`. All settings auto-save as you change them; see the README for agent-editable vs hidden fields.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-llm.png" width="720" alt="Options → LLM tab"/>
+  <img src="https://raw.githubusercontent.com/boromanx386/Voidcast/main/demos/voidcast-options-llm.png" width="720" alt="Options → Agent tab"/>
 </p>
-<p align="center"><em>Options → LLM.</em></p>
+<p align="center"><em>Options → Agent.</em></p>
 
 ## Provider selector (`llmProvider`)
 
