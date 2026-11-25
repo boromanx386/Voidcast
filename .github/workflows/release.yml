@@ -129,10 +129,29 @@ jobs:
       - name: List
         run: find dist -type f | sort
 
+      # The Releases page is what most visitors read, so it carries the CHANGELOG section
+      # instead of only a compare link. A tag without a section fails rather than ship empty notes.
+      - name: Release notes from CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no section for $VERSION"
+            exit 1
+          fi
+          cat release-notes.md
+
       # To review before publishing: set draft: true.
       - name: Create / update release
         uses: softprops/action-gh-release@v3
         with:
+          body_path: release-notes.md
           files: |
             dist/**/*_Setup.exe
             dist/**/*.blockmap
