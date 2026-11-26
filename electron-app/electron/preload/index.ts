@@ -442,6 +442,10 @@ contextBridge.exposeInMainWorld('voidcast', {
     ipcRenderer.invoke('voidcast:coding-read-file', payload) as Promise<
       { ok: true; content: string; lineEndings: 'crlf' | 'lf' } | { ok: false; error?: string }
     >,
+  agentDebugAppend: (payload: { file: string; lines: string[] }) =>
+    ipcRenderer.invoke('voidcast:agent-debug-append', payload) as Promise<
+      { ok: true; path: string } | { ok: false; error?: string }
+    >,
   codingWriteFile: (payload: { projectPath: string; path: string; content: string }) =>
     ipcRenderer.invoke('voidcast:coding-write-file', payload) as Promise<
       { ok: true; path: string } | { ok: false; error?: string }

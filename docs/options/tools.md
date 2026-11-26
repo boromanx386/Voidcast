@@ -72,6 +72,20 @@ Type: `number`, default `50`, clamped to `AGENT_MAX_TOOL_ROUNDS_MIN = 5` .. `AGE
 
 Max agent↔tool loop rounds per assistant turn (main agent only). Nested **workers** have a separate round budget (default/max **100**); **explore** uses a lower cap (default **8** / max **12**). A soft wrap-up warning fires near the main limit and a hard wrap-up after exhaustion.
 
+## Agent debug log (`agentDebugLog`)
+
+Type: `boolean`, default `false`. Desktop only.
+
+When on, every main-agent turn appends one JSON line per event to `~/.voidcast/agent-debug/<chat>.jsonl`, outside the project so the agent never sees it. A turn opens with a `turn-start` line (model, agent mode, project), then:
+
+- `round` — one model call: prompt, cached and completion tokens, reply and thinking length, the tools it called.
+- `tool` — one tool result: arguments (first 500 characters, plus `argsChars`, their full length), full and LLM-side result length, and the first 300 characters the model saw.
+- `cleared` — an old tool result was replaced by a placeholder to save context, with the round it came from and the prompt size (`promptTokens`) that triggered it.
+- `working-set` — the cached copy of files read this turn was put in context; `unchanged: true` when it matched the copy already there and nothing was added.
+- `image-stripped`, `reprompt` (`tool-required`, `budget-warning`, `budget-exhausted`).
+
+It exists to answer what the model had in front of it at a given round, which the saved chat (reply text only) cannot. Tool results can contain secrets from your files, so leave it off unless you are diagnosing something. Nested workers and the explore sub-agent are not logged.
+
 ## MCP servers
 
 - **`mcpEnabled`** (`boolean`, default `false`) — connect to MCP servers from `~/.voidcast/mcp.json` plus project `.mcp.json` files and register their tools with the agent (desktop only).

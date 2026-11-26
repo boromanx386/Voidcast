@@ -62,6 +62,7 @@ import { isTimeoutMessage, readToolTimeoutSec } from '@/lib/turnTimer'
 import { streamOllamaChat, isThinkingUiEnabled, type OllamaChatUsage } from '@/lib/ollama'
 import { runOpenRouterChatWithTools } from '@/lib/openrouterAgent'
 import { resolveCloudLlmChatConfig } from '@/lib/cloudLlm'
+import { createAgentDebugSink } from '@/lib/agentDebugLog'
 import { ollamaMessagesToOpenRouter, streamOpenRouterChat } from '@/lib/openrouter'
 import { playNotificationSound } from '@/lib/notificationSounds'
 import { notifyAgentDone } from '@/lib/agentDoneNotification'
@@ -1054,6 +1055,7 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             },
             toolsEnabled: turnSettings.toolsEnabled,
             maxToolRounds: turnSettings.agentMaxToolRounds,
+            contextMaxTokens: resolveContextLimit(turnSettings).maxTokens,
             skillsEnabled: skillsActive,
             mcpEnabled: mcpActive,
             mcpTools,
@@ -1324,6 +1326,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
             },
           }
           const cloudCfg = resolveCloudLlmChatConfig(turnSettings)
+          const onDebugEvent = turnSettings.agentDebugLog
+            ? createAgentDebugSink({
+                chatKey: keyOf(),
+                model: cloudCfg ? cloudCfg.model : `ollama:${turnSettings.ollamaModel}`,
+                agentMode: turnAgentMode,
+                projectPath: turnCodingProjectPath || undefined,
+              })
+            : undefined
           const out = cloudCfg
             ? await runOpenRouterChatWithTools({
                 baseUrl: cloudCfg.baseUrl,
@@ -1333,12 +1343,14 @@ export function useChatAgent(deps: UseChatAgentDeps) {
                 providerOnly: cloudCfg.providerOnly,
                 custom: cloudCfg.custom,
                 ...commonToolParams,
+                onDebugEvent,
               })
             : await runOllamaChatWithTools({
                 baseUrl: turnSettings.ollamaBaseUrl,
                 model: turnSettings.ollamaModel,
                 thinkLevel: turnSettings.llmThinkLevel,
                 ...commonToolParams,
+                onDebugEvent,
               })
           replyText = out.content
           usage = out.usage

@@ -67,6 +67,27 @@ export function trimNoisyCodingResult(raw: string): string {
 // ── Layer 2: clearing of old, re-fetchable tool results ──────────────────
 
 export const CODING_CLEAR_MIN_CHARS = 2_000
+/** Clearing starts at this share of the model's context window... */
+export const CODING_CLEAR_TRIGGER_RATIO = 0.5
+/** ...but never later than this, so a 1M-token window does not haul 500k tokens a round. */
+export const CODING_CLEAR_TRIGGER_MAX_TOKENS = 150_000
+/** Used when the context window is unknown. */
+export const CODING_CLEAR_TRIGGER_DEFAULT_TOKENS = 100_000
+
+/**
+ * Prompt size at which old tool results start being cleared. Below it nothing is
+ * cleared: clearing a small context saves nothing, drops the task spec the model is
+ * still working from, and invalidates the provider's prompt cache from that point on.
+ */
+export function codingClearTriggerTokens(contextMaxTokens?: number): number {
+  if (!contextMaxTokens || !Number.isFinite(contextMaxTokens) || contextMaxTokens <= 0) {
+    return CODING_CLEAR_TRIGGER_DEFAULT_TOKENS
+  }
+  return Math.min(
+    Math.floor(contextMaxTokens * CODING_CLEAR_TRIGGER_RATIO),
+    CODING_CLEAR_TRIGGER_MAX_TOKENS,
+  )
+}
 /** Default: keep last 4 rounds of clearable tools full (was 2 — caused thrashing). */
 export const CODING_CLEAR_KEEP_RECENT_ROUNDS = 4
 /** Keep read_file / find_symbols longer — these are the working set for edits. */

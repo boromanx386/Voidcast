@@ -176,7 +176,7 @@ export function isParallelSafeAgentTool(name: string): boolean {
 /** Soft nudge near the end of the tool-call budget (model-only). */
 export const TOOL_BUDGET_WARNING_REPROMPT_MESSAGE = [
   '[Internal — not for the user] You are nearing the tool-call budget for this turn.',
-  'Prefer finishing soon: only essential remaining tool calls, then give the user a clear final answer without more tools.',
+  'Start no new work. Spend the remaining calls checking the real state of what you claim is done (a status endpoint, a test run, a file listing), then give the user a clear final answer without more tools.',
   'Do not mention this budget warning in the user-visible reply.',
 ].join(' ')
 
@@ -184,7 +184,7 @@ export const TOOL_BUDGET_WARNING_REPROMPT_MESSAGE = [
 export const TOOL_BUDGET_EXHAUSTED_REPROMPT_MESSAGE = [
   '[Internal — not for the user] The tool-call budget for this turn is exhausted. Do NOT call any more tools.',
   'Write a final user-visible reply now: what you completed, what is still incomplete, and one concrete next step for the user.',
-  'Do not apologize at length about limits; keep it practical and grounded in tool results already received.',
+  'Do not apologize at length about limits; keep it practical and grounded in tool results already received. Any count or "done" you did not confirm with a tool result is unverified: say so.',
 ].join(' ')
 
 export const TOOL_BUDGET_EXHAUSTED_FALLBACK_REPLY =

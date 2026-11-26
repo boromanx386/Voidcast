@@ -388,6 +388,12 @@ interface VoidcastBridge {
     permanent?: boolean
   }) => Promise<{ ok: true } | { ok: false; error?: string }>
 
+  /** Append JSONL lines to ~/.voidcast/agent-debug/<file> (Options → Tools → AGENT_DEBUG_LOG). */
+  agentDebugAppend?: (payload: {
+    file: string
+    lines: string[]
+  }) => Promise<{ ok: true; path: string } | { ok: false; error?: string }>
+
   codingWriteFile: (payload: {
     projectPath: string
     path: string

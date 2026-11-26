@@ -72,6 +72,26 @@ export function ToolsOptionsPanel({ settings, setSettings, activeCodingProjectPa
         </p>
       </div>
 
+      {isElectron() && (
+        <ToolToggle
+          checked={settings.agentDebugLog}
+          onChange={(v) => setSettings((s) => ({ ...s, agentDebugLog: v }))}
+          label="AGENT_DEBUG_LOG"
+          icon="◇"
+          iconColor="text-neon-yellow"
+          description={
+            <>
+              Writes every agent round to{' '}
+              <code className="text-void-light">~/.voidcast/agent-debug/&lt;chat&gt;.jsonl</code>:
+              tool calls with their arguments, result sizes and the first 300 characters, which old
+              results were cleared from context, and token usage. For diagnosing what the model had
+              in front of it. Results can contain secrets from your files, so leave it off unless
+              you need it.
+            </>
+          }
+        />
+      )}
+
       {/* Web Search */}
       <ToolToggle
         checked={settings.toolsEnabled.webSearch}

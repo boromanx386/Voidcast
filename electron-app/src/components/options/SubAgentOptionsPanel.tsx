@@ -573,9 +573,9 @@ export function SubAgentOptionsPanel({
           <span className="text-neon-cyan">⬡ ENABLE_CODING_SUB_AGENT</span>
         </label>
         <p className="text-xs text-void-dim mt-1 font-mono leading-relaxed">
-          Coding context management, coding_explore, and Team-mode workers (run_coding_workers) —
-          all run on the coding model below (prefer text-capable, not vision-only). Same provider
-          list and pins as the main model picker.
+          coding_explore and Team-mode workers (run_coding_workers) — both run on the coding model
+          below (prefer text-capable, not vision-only). Same provider list and pins as the main
+          model picker.
         </p>
       </div>
 

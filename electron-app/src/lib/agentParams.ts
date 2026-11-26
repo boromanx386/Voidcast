@@ -17,6 +17,7 @@ import type { AgentTtsConfig, ExecCtx } from '@/lib/toolExecTypes'
 import type { CodingContextMemo, CodingFileCache } from '@/lib/codingContextMemo'
 import type { StoredVoiceAnchor } from '@/lib/voiceAnchorStorage'
 import type { WorkerSteerQueue } from '@/lib/workerSteer'
+import type { AgentLoopDebugEvent } from '@/lib/agentToolLoop'
 
 /**
  * Fields shared by both Ollama and OpenRouter chat-with-tools param types.
@@ -40,6 +41,10 @@ export interface ChatWithToolsCommonParams {
   agentMode?: AgentChatMode
   getActiveBuildPlan?: () => PlanArtifact | undefined
   maxToolRounds?: number
+  /** Model context window in tokens; sets when old tool results start being cleared. */
+  contextMaxTokens?: number
+  /** Per-round debug log sink (Options → Tools → AGENT_DEBUG_LOG). */
+  onDebugEvent?: (event: AgentLoopDebugEvent) => void
   ttsBaseUrl: string
   signal?: AbortSignal
   onDelta: (fullText: string) => void

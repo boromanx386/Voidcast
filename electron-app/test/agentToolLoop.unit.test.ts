@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runSharedToolLoop } from '../src/lib/agentToolLoop'
+import { runSharedToolLoop, WORKING_SET_SUPERSEDED_PLACEHOLDER } from '../src/lib/agentToolLoop'
 import { TOOL_BUDGET_NO_REPO_ACTION_FALLBACK_REPLY } from '../src/lib/agentToolUtils'
 
 type Message = { role: string; content: string }
@@ -399,5 +399,176 @@ describe('runSharedToolLoop submit_plan', () => {
     )
     expect(result.content).toBe('done')
     expect(result.committedResults).toEqual(['submit_plan:Error: the plan needs steps.'])
+  })
+})
+
+describe('runSharedToolLoop debug events', () => {
+  it('logs rounds, tool results and the round an old result was cleared', async () => {
+    const events: Array<Record<string, unknown>> = []
+    let round = 0
+    const big = 'x'.repeat(3000)
+    await runSharedToolLoop<Message, ProviderCall>({
+      initialMessages: [],
+      maxToolRounds: 10,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      streamRound: async () => {
+        round += 1
+        if (round <= 4) {
+          return {
+            content: '',
+            thinking: '',
+            toolCalls: [{ id: `c${round}`, name: 'execute_command', args: { command: 'curl x' } }],
+            usage: { prompt_eval_count: 100, eval_count: 5 },
+          }
+        }
+        return { content: 'done', thinking: '', toolCalls: [] }
+      },
+      toSharedToolCalls: (calls) =>
+        calls.map((call) => ({ name: call.name, argsRaw: call.args, raw: call })),
+      appendAssistantWithToolCalls: ({ messages: target, content }) => {
+        target.push({ role: 'assistant', content })
+      },
+      appendToolResult: ({ messages: target, result }) => {
+        target.push({ role: 'tool', content: result })
+      },
+      appendToolRequiredReprompt: () => {},
+      executeToolCall: async () => big,
+      oldToolResultClearing: {
+        keepRecentRounds: 2,
+        minChars: 2000,
+        shouldClear: () => true,
+        placeholder: () => '[cleared]',
+      },
+      onDelta: () => {},
+      onDebugEvent: (e) => events.push(e as Record<string, unknown>),
+    })
+
+    const tools = events.filter((e) => e.t === 'tool')
+    expect(tools).toHaveLength(4)
+    expect(tools[0]).toMatchObject({ round: 0, name: 'execute_command', resultChars: 3000 })
+    expect(tools[0]!.args).toContain('curl x')
+    expect(tools[0]!.argsChars).toBe(JSON.stringify({ command: 'curl x' }).length)
+    expect(String(tools[0]!.head)).toHaveLength(300)
+
+    const cleared = events.filter((e) => e.t === 'cleared')
+    expect(cleared[0]).toMatchObject({ round: 3, fromRound: 0, name: 'execute_command' })
+
+    const rounds = events.filter((e) => e.t === 'round')
+    expect(rounds).toHaveLength(5)
+    expect(rounds[0]).toMatchObject({ round: 0, promptTokens: 100, toolCalls: ['execute_command'] })
+  })
+
+  it('clears nothing while the prompt is under the trigger, then clears once over it', async () => {
+    const big = 'x'.repeat(3000)
+    const run = async (promptTokens: number) => {
+      const events: Array<Record<string, unknown>> = []
+      let round = 0
+      await runSharedToolLoop<Message, ProviderCall>({
+        initialMessages: [],
+        maxToolRounds: 10,
+        maxRequiredToolReprompts: 0,
+        mustCallTool: false,
+        streamRound: async () => {
+          round += 1
+          if (round <= 6) {
+            return {
+              content: '',
+              thinking: '',
+              toolCalls: [{ id: `c${round}`, name: 'execute_command', args: {} }],
+              usage: { prompt_eval_count: promptTokens, eval_count: 5 },
+            }
+          }
+          return { content: 'done', thinking: '', toolCalls: [] }
+        },
+        toSharedToolCalls: (calls) =>
+          calls.map((call) => ({ name: call.name, argsRaw: call.args, raw: call })),
+        appendAssistantWithToolCalls: ({ messages: target, content }) => {
+          target.push({ role: 'assistant', content })
+        },
+        appendToolResult: ({ messages: target, result }) => {
+          target.push({ role: 'tool', content: result })
+        },
+        appendToolRequiredReprompt: () => {},
+        executeToolCall: async () => big,
+        oldToolResultClearing: {
+          keepRecentRounds: 2,
+          minChars: 2000,
+          triggerPromptTokens: 50_000,
+          shouldClear: () => true,
+          placeholder: () => '[cleared]',
+        },
+        onDelta: () => {},
+        onDebugEvent: (e) => events.push(e as Record<string, unknown>),
+      })
+      return events.filter((e) => e.t === 'cleared')
+    }
+
+    expect(await run(20_000)).toHaveLength(0)
+    const cleared = await run(60_000)
+    expect(cleared.length).toBeGreaterThan(0)
+    expect(cleared[0]).toMatchObject({ fromRound: 0, promptTokens: 60_000 })
+  })
+
+  it('keeps one working-set message in context instead of one per round', async () => {
+    const hints = ['A', 'A', 'B', 'B', 'B']
+    let round = 0
+    const sent: Message[][] = []
+    await runSharedToolLoop<Message, ProviderCall>({
+      initialMessages: [],
+      maxToolRounds: 10,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      streamRound: async ({ messages }) => {
+        sent.push((messages as Message[]).map((m) => ({ ...m })))
+        round += 1
+        if (round <= 5) {
+          return {
+            content: '',
+            thinking: '',
+            toolCalls: [{ id: `c${round}`, name: 'write_file', args: {} }],
+          }
+        }
+        return { content: 'done', thinking: '', toolCalls: [] }
+      },
+      toSharedToolCalls: (calls) =>
+        calls.map((call) => ({ name: call.name, argsRaw: call.args, raw: call })),
+      appendAssistantWithToolCalls: ({ messages: target, content }) => {
+        target.push({ role: 'assistant', content })
+      },
+      appendToolResult: ({ messages: target, result }) => {
+        target.push({ role: 'tool', content: result })
+      },
+      appendToolRequiredReprompt: () => {},
+      executeToolCall: async () => 'ok',
+      injectWorkingSet: () => `[Working memory] ${hints[round - 1] ?? 'B'}`,
+      onDelta: () => {},
+    })
+
+    const last = sent[sent.length - 1]!
+    const full = last.filter((m) => m.content.startsWith('[Working memory]'))
+    expect(full).toEqual([{ role: 'user', content: '[Working memory] B' }])
+    // The 'A' copy was superseded in place; repeats of 'B' added nothing.
+    expect(last.filter((m) => m.content === WORKING_SET_SUPERSEDED_PLACEHOLDER)).toHaveLength(1)
+  })
+
+  it('a throwing debug sink does not break the turn', async () => {
+    const result = await runSharedToolLoop<Message, ProviderCall>({
+      initialMessages: [],
+      maxToolRounds: 3,
+      maxRequiredToolReprompts: 0,
+      mustCallTool: false,
+      streamRound: async () => ({ content: 'done', thinking: '', toolCalls: [] }),
+      toSharedToolCalls: () => [],
+      appendAssistantWithToolCalls: () => {},
+      appendToolResult: () => {},
+      appendToolRequiredReprompt: () => {},
+      executeToolCall: async () => 'ok',
+      onDelta: () => {},
+      onDebugEvent: () => {
+        throw new Error('disk full')
+      },
+    })
+    expect(result.content).toBe('done')
   })
 })

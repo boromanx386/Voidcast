@@ -10,6 +10,7 @@ import {
   CODING_TRIM_THRESHOLD,
   CODING_TRIM_TOOLS,
   clampExploreMaxRounds,
+  codingClearTriggerTokens,
   buildClearedToolDigest,
   clearedCodingToolResultPlaceholder,
   isClearableCodingToolResult,
@@ -456,5 +457,15 @@ describe('buildToolsList generate_tts', () => {
       expect(tools.some((t) => t.function.name === 'generate_tts')).toBe(false)
       expect(isPlanModeBlockedTool('generate_tts')).toBe(true)
     }
+  })
+})
+
+describe('codingClearTriggerTokens', () => {
+  it('starts clearing at half the window, capped at 150k, 100k when unknown', () => {
+    expect(codingClearTriggerTokens(32_768)).toBe(16_384)
+    expect(codingClearTriggerTokens(256_000)).toBe(128_000)
+    expect(codingClearTriggerTokens(1_000_000)).toBe(150_000)
+    expect(codingClearTriggerTokens(undefined)).toBe(100_000)
+    expect(codingClearTriggerTokens(0)).toBe(100_000)
   })
 })

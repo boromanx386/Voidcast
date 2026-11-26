@@ -8,6 +8,7 @@ import {
   CODING_CLEAR_MIN_CHARS,
   CODING_PIN_RECENT_BY_TOOL,
   clearedCodingToolResultPlaceholder,
+  codingClearTriggerTokens,
   isClearableCodingToolResult,
   shouldTrimCodingResult,
   trimNoisyCodingResult,
@@ -88,7 +89,6 @@ export async function runOpenRouterChatWithTools(
   if (tools.length === 0) throw new Error('runOpenRouterChatWithTools called with no tools enabled')
 
   const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
-  const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
   const implementCoding = codingToolsOn && isImplementAgentMode(params.agentMode)
   const initialMessages: OpenRouterMessage[] = ollamaMessagesToOpenRouter(params.initialMessages)
   return runSharedToolLoop<OpenRouterMessage, OpenRouterToolCall>({
@@ -154,29 +154,26 @@ export async function runOpenRouterChatWithTools(
         content: result,
       })
     },
-    trimToolResultForLlm: codingContextEnabled
-      ? (name, resultForLlm) =>
-          shouldTrimCodingResult(name, resultForLlm, true)
-            ? trimNoisyCodingResult(resultForLlm)
-            : resultForLlm
-      : undefined,
-    oldToolResultClearing: codingContextEnabled
-      ? {
-          keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
-          keepRecentRoundsByTool: CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
-          pinRecentByTool: CODING_PIN_RECENT_BY_TOOL,
-          minChars: CODING_CLEAR_MIN_CHARS,
-          shouldClear: isClearableCodingToolResult,
-          placeholder: clearedCodingToolResultPlaceholder,
-        }
-      : undefined,
-    injectWorkingSet: codingContextEnabled
-      ? (unclearedPaths) => {
-          const ref = params.codingFileCacheRef
-          if (!ref?.current) return ''
-          return buildWorkingSetHint(ref.current, unclearedPaths)
-        }
-      : undefined,
+    // Context management for the main agent. It used to hang off the coding
+    // sub-agent switch, so turning that off let one 550k-char command output in whole.
+    trimToolResultForLlm: (name, resultForLlm) =>
+      shouldTrimCodingResult(name, resultForLlm, true)
+        ? trimNoisyCodingResult(resultForLlm)
+        : resultForLlm,
+    oldToolResultClearing: {
+      keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+      keepRecentRoundsByTool: CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
+      pinRecentByTool: CODING_PIN_RECENT_BY_TOOL,
+      minChars: CODING_CLEAR_MIN_CHARS,
+      triggerPromptTokens: codingClearTriggerTokens(params.contextMaxTokens),
+      shouldClear: isClearableCodingToolResult,
+      placeholder: clearedCodingToolResultPlaceholder,
+    },
+    injectWorkingSet: (unclearedPaths) => {
+      const ref = params.codingFileCacheRef
+      if (!ref?.current) return ''
+      return buildWorkingSetHint(ref.current, unclearedPaths)
+    },
     appendToolRequiredReprompt: (messages) => {
       messages.push({
         role: 'user',
@@ -255,5 +252,6 @@ export async function runOpenRouterChatWithTools(
     toolPhaseForName: (name) => toolPhaseForAgentTool(name),
     onToolResult: params.onToolResult,
     onEscalateToPlan: params.onEscalateToPlan,
+    onDebugEvent: params.onDebugEvent,
   })
 }

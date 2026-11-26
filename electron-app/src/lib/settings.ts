@@ -1584,6 +1584,11 @@ export type AppSettings = {
    */
   agentMaxToolRounds: number
   /**
+   * Write a per-round JSONL log of every agent turn (tool calls, result sizes, cleared
+   * results, token usage) to ~/.voidcast/agent-debug/. Off by default.
+   */
+  agentDebugLog: boolean
+  /**
    * Discover Agent Skills from ~/.agents|~/.claude|~/.cursor/skills and expose
    * a catalog + read_skill tool (desktop only).
    */
@@ -1789,6 +1794,7 @@ export const defaults: AppSettings = {
     enterPlan: true,
   },
   agentMaxToolRounds: 50,
+  agentDebugLog: false,
   skillsEnabled: true,
   mcpEnabled: false,
   mcpServerEnabled: {},
@@ -2032,6 +2038,7 @@ function normalizeTools(s: AppSettings): AppSettings {
     agentMaxToolRounds: clampAgentMaxToolRounds(
       typeof s.agentMaxToolRounds === 'number' ? s.agentMaxToolRounds : defaults.agentMaxToolRounds,
     ),
+    agentDebugLog: typeof s.agentDebugLog === 'boolean' ? s.agentDebugLog : defaults.agentDebugLog,
     skillsEnabled: typeof s.skillsEnabled === 'boolean' ? s.skillsEnabled : defaults.skillsEnabled,
     mcpEnabled: typeof s.mcpEnabled === 'boolean' ? s.mcpEnabled : defaults.mcpEnabled,
     mcpServerEnabled: normalizeMcpServerEnabled(s.mcpServerEnabled),

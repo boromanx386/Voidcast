@@ -103,6 +103,69 @@ export type SharedToolCall = {
   raw: unknown
 }
 
+/**
+ * One entry of the optional per-round debug log. It exists to answer "what did the
+ * model actually have in context at round N" after the fact, which the saved chat
+ * (reply text only) cannot.
+ */
+export type AgentLoopDebugEvent =
+  | {
+      t: 'round'
+      round: number
+      promptTokens?: number
+      cachedTokens?: number
+      completionTokens?: number
+      contentChars: number
+      thinkingChars: number
+      toolCalls: string[]
+    }
+  | {
+      t: 'tool'
+      round: number
+      name: string
+      args: string
+      /** Full argument length; `args` is cut at 500 chars. */
+      argsChars: number
+      resultChars: number
+      llmChars: number
+      head: string
+    }
+  | {
+      t: 'cleared'
+      round: number
+      fromRound: number
+      name: string
+      chars: number
+      /** Prompt size that triggered the clear, when clearing is pressure-based. */
+      promptTokens?: number
+    }
+  | { t: 'image-stripped'; round: number; fromRound: number }
+  | {
+      t: 'working-set'
+      round: number
+      chars: number
+      /** Same text as the message already in context, so nothing was added. */
+      unchanged?: boolean
+    }
+  | { t: 'reprompt'; round: number; kind: 'tool-required' | 'budget-warning' | 'budget-exhausted' }
+
+const DEBUG_ARGS_CHARS = 500
+const DEBUG_HEAD_CHARS = 300
+
+function debugArgs(raw: string | Record<string, unknown> | undefined): {
+  args: string
+  argsChars: number
+} {
+  const s = typeof raw === 'string' ? raw : raw ? JSON.stringify(raw) : ''
+  return {
+    args: s.length > DEBUG_ARGS_CHARS ? `${s.slice(0, DEBUG_ARGS_CHARS)}…` : s,
+    argsChars: s.length,
+  }
+}
+
+/** Left in place of a superseded working-set message, so message indices stay put. */
+export const WORKING_SET_SUPERSEDED_PLACEHOLDER = '[Working memory moved to a newer message below.]'
+
 export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   initialMessages: TMessage[]
   maxToolRounds: number
@@ -198,6 +261,11 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
      */
     pinRecentByTool?: Record<string, number>
     minChars: number
+    /**
+     * Clear only once the prompt reaches this many tokens (the larger of last round's
+     * reported prompt size and a chars/4 estimate). Unset = clear by age alone.
+     */
+    triggerPromptTokens?: number
     shouldClear: (name: string) => boolean
     /** Replaces cleared body; `content` is the full result about to be evicted. */
     placeholder: (name: string, chars: number, content: string) => string
@@ -225,6 +293,8 @@ export type SharedToolLoopParams<TMessage, TProviderToolCall> = {
   injectWorkingSet?: (unclearedPaths: string[]) => string
   /** Called when the agent requests to escalate into Plan mode (enter_plan_mode tool). The orchestrator flips the composer to Plan mode and re-sends as a plan turn. */
   onEscalateToPlan?: (ctx: { messages: TMessage[] }) => void
+  /** Optional per-round debug log (Options → Tools → AGENT_DEBUG_LOG). Must not throw. */
+  onDebugEvent?: (event: AgentLoopDebugEvent) => void
 }
 
 function defaultParseArgs(
@@ -239,6 +309,15 @@ function defaultParseArgs(
   } catch {
     return {}
   }
+}
+
+/** Rough prompt size for providers that report no usage (~4 chars per token). */
+function estimatePromptTokens(messages: Array<{ content?: unknown }>): number {
+  let chars = 0
+  for (const m of messages) {
+    if (typeof m.content === 'string') chars += m.content.length
+  }
+  return Math.ceil(chars / 4)
 }
 
 function abortedError(): Error {
@@ -274,6 +353,15 @@ export async function runSharedToolLoop<
   params: SharedToolLoopParams<TMessage, TProviderToolCall>,
 ): Promise<{ content: string; usage?: OllamaChatUsage }> {
   const parseArgs = params.parseArgsForToolResult ?? defaultParseArgs
+  // A broken debug sink must never fail the turn it is observing.
+  const debug = (event: AgentLoopDebugEvent) => {
+    if (!params.onDebugEvent) return
+    try {
+      params.onDebugEvent(event)
+    } catch {
+      /* ignore */
+    }
+  }
   const messages = [...params.initialMessages]
   const runtimeRecalledImages: RecalledImagePayload[] = []
   let lastAssistantText = ''
@@ -286,8 +374,11 @@ export async function runSharedToolLoop<
     cachedPromptTokens: 0,
     unreportedRounds: 0,
   }
+  /** Prompt size of the last model call; undefined when that call reported no usage. */
+  let lastRoundPromptTokens: number | undefined
   const recordRoundUsage = (usage: OllamaChatUsage | undefined) => {
     turnTotals.rounds += 1
+    lastRoundPromptTokens = usage?.prompt_eval_count || undefined
     if (!usage) {
       turnTotals.unreportedRounds += 1
       return
@@ -321,6 +412,8 @@ export async function runSharedToolLoop<
     /** The model's own notes from the round that saw the pixels. */
     notes?: string
   }> = []
+  /** Position of the current working-set message, -1 when none is in context. */
+  let workingSetIndex = -1
   /** How many streamRound calls may carry raw recalled-image base64 (1 = ephemeral). */
   const keepRecalledImageRounds = params.keepRecalledImageRounds ?? 1
 
@@ -334,10 +427,20 @@ export async function runSharedToolLoop<
       params.maxToolRounds >= 3
     ) {
       params.appendToolBudgetWarningReprompt(messages)
+      debug({ t: 'reprompt', round, kind: 'budget-warning' })
     }
 
     const clearing = params.oldToolResultClearing
-    if (clearing && round > 0) {
+    const promptTokensNow =
+      clearing?.triggerPromptTokens !== undefined && round > 0
+        ? // Ollama can report only the tokens it re-evaluated past its KV cache, so take
+          // whichever of the reported and estimated sizes is larger.
+          Math.max(lastRoundPromptTokens ?? 0, estimatePromptTokens(messages))
+        : undefined
+    const underPressure =
+      clearing?.triggerPromptTokens === undefined ||
+      (promptTokensNow ?? 0) >= clearing.triggerPromptTokens
+    if (clearing && round > 0 && underPressure) {
       for (const rec of toolResultRecords) {
         if (rec.cleared) continue
         if (
@@ -356,6 +459,14 @@ export async function runSharedToolLoop<
         const msg = messages[rec.index] as { content?: unknown } | undefined
         if (!msg || typeof msg.content !== 'string') continue
         if (msg.content.length < clearing.minChars) continue
+        debug({
+          t: 'cleared',
+          round,
+          fromRound: rec.round,
+          name: rec.name,
+          chars: msg.content.length,
+          ...(promptTokensNow !== undefined ? { promptTokens: promptTokensNow } : {}),
+        })
         msg.content = clearing.placeholder(rec.name, msg.content.length, msg.content)
         rec.cleared = true
       }
@@ -375,6 +486,7 @@ export async function runSharedToolLoop<
           : rec.digest
         if (msg) stripRecalledImagePayload(msg, digest)
         rec.cleared = true
+        debug({ t: 'image-stripped', round, fromRound: rec.round })
       }
     }
 
@@ -395,8 +507,23 @@ export async function runSharedToolLoop<
         })
         .filter(Boolean)
       const hint = inject(uncleared)
-      if (hint) {
-        messages.push({ role: 'user', content: hint } as unknown as TMessage)
+      // One working-set message at a time. Appending a fresh copy every round left every
+      // older copy in history, ~1.5k chars per round that were never removed.
+      const prev =
+        workingSetIndex >= 0
+          ? (messages[workingSetIndex] as { content?: unknown } | undefined)
+          : undefined
+      if (hint && prev?.content === hint) {
+        // Already in context; editing nothing keeps the prompt cache intact.
+        debug({ t: 'working-set', round, chars: hint.length, unchanged: true })
+      } else {
+        if (prev) prev.content = WORKING_SET_SUPERSEDED_PLACEHOLDER
+        workingSetIndex = -1
+        if (hint) {
+          workingSetIndex = messages.length
+          messages.push({ role: 'user', content: hint } as unknown as TMessage)
+          debug({ t: 'working-set', round, chars: hint.length })
+        }
       }
     }
 
@@ -429,6 +556,16 @@ export async function runSharedToolLoop<
     const validCalls = sharedCalls
       .filter((x) => Boolean(x.name))
       .map((x) => ({ shared: x, provider: x.raw as TProviderToolCall }))
+    debug({
+      t: 'round',
+      round,
+      promptTokens: usage?.prompt_eval_count,
+      cachedTokens: usage?.cached_prompt_tokens,
+      completionTokens: usage?.eval_count,
+      contentChars: (content ?? '').length,
+      thinkingChars: thinking.length,
+      toolCalls: validCalls.map((v) => v.shared.name),
+    })
 
     const executeToolCallSafely = async (
       name: string,
@@ -515,6 +652,7 @@ export async function runSharedToolLoop<
       ) {
         requiredToolRepromptCount += 1
         params.appendToolRequiredReprompt(messages)
+        debug({ t: 'reprompt', round, kind: 'tool-required' })
         preserveIntermediateResponse(params, round, assistantText)
         lastAssistantText = ''
         persistedThinkingPrefix = appendThinkingRound(persistedThinkingPrefix, thinking)
@@ -623,6 +761,15 @@ export async function runSharedToolLoop<
       for (let i = beforeAppendLen; i < messages.length; i++) {
         toolResultRecords.push({ index: i, round, name: shared.name, cleared: false })
       }
+      debug({
+        t: 'tool',
+        round,
+        name: shared.name,
+        ...debugArgs(shared.argsRaw),
+        resultChars: result.length,
+        llmChars: resultForLlm.length,
+        head: resultForLlm.slice(0, DEBUG_HEAD_CHARS),
+      })
       hasExecutedToolInTurn = true
       if (isSuccessfulRepoActionTool(shared.name, result)) {
         hasExecutedRepoActionInTurn = true
@@ -708,6 +855,7 @@ export async function runSharedToolLoop<
   ) {
     if (params.signal?.aborted) throw abortedError()
     params.appendToolBudgetExhaustedReprompt(messages)
+    debug({ t: 'reprompt', round: params.maxToolRounds, kind: 'budget-exhausted' })
     params.onToolPhase?.(null)
     const wrap = await params.streamRound({
       messages,

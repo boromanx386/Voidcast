@@ -23,7 +23,17 @@ import os from 'node:os'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, watch, type FSWatcher } from 'node:fs'
-import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import {
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises'
 import { rgPath as rawBundledRgPath } from '@vscode/ripgrep'
 import { update } from './update'
 import {
@@ -1421,6 +1431,28 @@ ipcMain.handle(
         ok: false,
         detail: e instanceof Error ? e.message : String(e),
       }
+    }
+  },
+)
+
+// Opt-in per-round agent log. Lives outside the project so the agent under test never sees it.
+const AGENT_DEBUG_DIR = path.join(os.homedir(), '.voidcast', 'agent-debug')
+ipcMain.handle(
+  'voidcast:agent-debug-append',
+  async (_evt, payload: { file?: unknown; lines?: unknown }) => {
+    const file = typeof payload?.file === 'string' ? payload.file : ''
+    const lines = Array.isArray(payload?.lines)
+      ? payload.lines.filter((l): l is string => typeof l === 'string')
+      : []
+    if (!/^[\w.-]{1,120}\.jsonl$/.test(file) || lines.length === 0) {
+      return { ok: false as const, error: 'invalid file name or empty batch' }
+    }
+    try {
+      await mkdir(AGENT_DEBUG_DIR, { recursive: true })
+      await appendFile(path.join(AGENT_DEBUG_DIR, file), `${lines.join('\n')}\n`, 'utf8')
+      return { ok: true as const, path: path.join(AGENT_DEBUG_DIR, file) }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }
   },
 )

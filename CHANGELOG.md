@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Agent debug log**: Options → Tools → `AGENT_DEBUG_LOG` (off by default) writes every agent round to `~/.voidcast/agent-debug/<chat>.jsonl` — tool calls with their arguments, result sizes and the first 300 characters the model saw, which old results were cleared from context and in which round, and token usage. The saved chat keeps only reply text, so this is the way to see what the model had in front of it when it went wrong.
+
+### Changed
+
+- **The agent checks before it says "done"**: before reporting work as finished or giving a count of it, the agent checks with one tool call against the source of truth (a status endpoint, a test run, a file listing) and says "unverified" when it cannot. Near the end of a turn's tool budget it starts no new work and spends the remaining calls checking what it claims is done; a wrap-up after the budget runs out marks unconfirmed counts as unverified. Before, a long turn could report 13 of 19 submissions as 19/19 from its own notes.
+- **Old tool results are cleared only when the context gets large**: the coding agent used to replace every tool result over 2,000 characters with a short placeholder four rounds later, however small the context was. In a benchmark run that dropped the task list the agent fetched in round 0 when the whole prompt was about 20,000 tokens, and some answers then came from the task keys alone. Now nothing is cleared until the prompt reaches half of the model's context window, at most 150,000 tokens (100,000 when the window is unknown). Above that, old results are cleared as before. A small turn keeps everything, and the provider's prompt cache stays intact.
+
+### Fixed
+
+- **Turning off the coding sub-agent no longer turns off the main agent's context management**: `ENABLE_CODING_SUB_AGENT` also switched off trimming of long tool output, clearing of old tool results and the working-set copy of read files, which is not what its name says, and it is off by default. With it off, one command that printed 550,000 characters went into the context whole and stayed there for 80 rounds, about 170,000 tokens a round. Context management is now always on; the switch covers only `coding_explore` and Team workers.
+- **The coding agent's context no longer grows by a copy of its working files every round**: the "working memory" message (the files read this turn) was appended as a new message on every tool round and older copies were never removed, so a 100-round turn carried about 100 copies, roughly 80,000 tokens in one benchmark run. Now only one is in context: a changed copy replaces the old one, and an unchanged copy adds nothing.
+
 ## [2.14.0] — 2026-11-25
 
 ### Added

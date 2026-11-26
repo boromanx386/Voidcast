@@ -12,6 +12,7 @@ import {
   CODING_CLEAR_MIN_CHARS,
   CODING_PIN_RECENT_BY_TOOL,
   clearedCodingToolResultPlaceholder,
+  codingClearTriggerTokens,
   isClearableCodingToolResult,
   shouldTrimCodingResult,
   trimNoisyCodingResult,
@@ -284,7 +285,6 @@ export async function runOllamaChatWithTools(
   const rawUserText = (params.rawUserText ?? getLastUserText(params.initialMessages)).trim()
   const originalUserUrl = pickFirstHttpUrl(rawUserText)
   const originalNeedsFresh = shouldForceWebSearchOnRoundZero(rawUserText, params.toolsEnabled)
-  const codingContextEnabled = Boolean(params.subAgent?.codingEnabled)
   const implementCoding =
     params.toolsEnabled.coding &&
     params.codingProjectPath !== '' &&
@@ -339,29 +339,26 @@ export async function runOllamaChatWithTools(
         content: result,
       })
     },
-    trimToolResultForLlm: codingContextEnabled
-      ? (name, resultForLlm) =>
-          shouldTrimCodingResult(name, resultForLlm, true)
-            ? trimNoisyCodingResult(resultForLlm)
-            : resultForLlm
-      : undefined,
-    oldToolResultClearing: codingContextEnabled
-      ? {
-          keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
-          keepRecentRoundsByTool: CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
-          pinRecentByTool: CODING_PIN_RECENT_BY_TOOL,
-          minChars: CODING_CLEAR_MIN_CHARS,
-          shouldClear: isClearableCodingToolResult,
-          placeholder: clearedCodingToolResultPlaceholder,
-        }
-      : undefined,
-    injectWorkingSet: codingContextEnabled
-      ? (unclearedPaths) => {
-          const ref = params.codingFileCacheRef
-          if (!ref?.current) return ''
-          return buildWorkingSetHint(ref.current, unclearedPaths)
-        }
-      : undefined,
+    // Context management for the main agent. It used to hang off the coding
+    // sub-agent switch, so turning that off let one 550k-char command output in whole.
+    trimToolResultForLlm: (name, resultForLlm) =>
+      shouldTrimCodingResult(name, resultForLlm, true)
+        ? trimNoisyCodingResult(resultForLlm)
+        : resultForLlm,
+    oldToolResultClearing: {
+      keepRecentRounds: CODING_CLEAR_KEEP_RECENT_ROUNDS,
+      keepRecentRoundsByTool: CODING_CLEAR_KEEP_RECENT_ROUNDS_BY_TOOL,
+      pinRecentByTool: CODING_PIN_RECENT_BY_TOOL,
+      minChars: CODING_CLEAR_MIN_CHARS,
+      triggerPromptTokens: codingClearTriggerTokens(params.contextMaxTokens),
+      shouldClear: isClearableCodingToolResult,
+      placeholder: clearedCodingToolResultPlaceholder,
+    },
+    injectWorkingSet: (unclearedPaths) => {
+      const ref = params.codingFileCacheRef
+      if (!ref?.current) return ''
+      return buildWorkingSetHint(ref.current, unclearedPaths)
+    },
     appendToolRequiredReprompt: (messages) => {
       messages.push({
         role: 'user',
@@ -474,5 +471,6 @@ export async function runOllamaChatWithTools(
     toolPhaseForName: (name) => toolPhaseForAgentTool(name),
     onToolResult: params.onToolResult,
     onEscalateToPlan: params.onEscalateToPlan,
+    onDebugEvent: params.onDebugEvent,
   })
 }
