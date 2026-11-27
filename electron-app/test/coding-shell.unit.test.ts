@@ -3,6 +3,8 @@ import {
   codingShellNote,
   codingShellSpawn,
   findGitBash,
+  GIT_BASH_COMMAND_PREFIX,
+  gitBashPathToWindows,
   resolveCodingShell,
 } from '../src/lib/codingShell'
 
@@ -79,9 +81,16 @@ describe('codingShellSpawn', () => {
     const s = codingShellSpawn({ kind: 'bash', path: 'C:\\Git\\bin\\bash.exe' }, 'ls | head -3')
     expect(s).toEqual({
       file: 'C:\\Git\\bin\\bash.exe',
-      args: ['-c', 'chcp.com 65001 >/dev/null 2>&1; ls | head -3'],
+      args: ['-c', `${GIT_BASH_COMMAND_PREFIX}ls | head -3`],
       shell: false,
     })
+  })
+
+  it('switches to UTF-8 and covers a missing or Store-alias python3', () => {
+    expect(GIT_BASH_COMMAND_PREFIX).toMatch(/^chcp\.com 65001 /)
+    expect(GIT_BASH_COMMAND_PREFIX).toContain('*[Ww]indows[Aa]pps*')
+    expect(GIT_BASH_COMMAND_PREFIX).toContain('python3() { python "$@"; }')
+    expect(GIT_BASH_COMMAND_PREFIX.trimEnd().endsWith(';')).toBe(true)
   })
 
   it('keeps the cmd and sh command lines', () => {
@@ -100,5 +109,16 @@ describe('codingShellNote', () => {
     expect(codingShellNote('bash')).toContain('forward slashes')
     expect(codingShellNote('sh')).toBe('')
     expect(codingShellNote(undefined)).toBe('')
+  })
+})
+
+describe('gitBashPathToWindows', () => {
+  const tmp = 'C:\\Users\\u\\AppData\\Local\\Temp'
+  it('maps /tmp and drive mounts, leaves the rest', () => {
+    expect(gitBashPathToWindows('/tmp/acuity.png', tmp)).toBe(`${tmp}\\acuity.png`)
+    expect(gitBashPathToWindows('/tmp', tmp)).toBe(tmp)
+    expect(gitBashPathToWindows('/c/Users/u/x.png', tmp)).toBe('C:\\Users\\u\\x.png')
+    expect(gitBashPathToWindows('/usr/share/x.png', tmp)).toBe('/usr/share/x.png')
+    expect(gitBashPathToWindows('/tmpfile.png', tmp)).toBe('/tmpfile.png')
   })
 })

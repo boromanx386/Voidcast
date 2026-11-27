@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { imageCatalogId } from '../src/lib/imageVisionCache'
 import { resolveLocalImagePath } from '../src/lib/imageProjectRecall'
 import { handleShowImage, mediaHandlersRegistry } from '../src/lib/toolHandlers/mediaHandlers'
+import { resolveImageRecallRequest } from '../src/lib/toolHandlers/imageRecall'
 import { registerTurnCatalogImages } from '../src/lib/toolHandlers/helpers'
 import { buildToolsList } from '../src/lib/toolDefinitions'
 import { toolPhaseForAgentTool } from '../src/lib/agentToolPhase'
@@ -164,5 +165,40 @@ describe('registerTurnCatalogImages', () => {
     expect(ctx.userImagePaths).toEqual(['/a.png', '/b.png'])
     expect(ctx.userImages).toEqual(['QQ==', 'Qg=='])
     expect(ctx.userImageMimes).toHaveLength(2)
+  })
+})
+
+describe('image_recall paths', () => {
+  test('reads an absolute path outside the coding project', async () => {
+    stubDesktop({ '/tmp/acuity.png': 'QUJD' })
+    const res = await resolveImageRecallRequest(
+      { reference_image_paths: '/tmp/acuity.png' },
+      makeCtx({ codingProjectPath: '/work/project' }),
+      { codingEnabled: true },
+    )
+    expect(res.errors).toEqual([])
+    expect(res.recalled.map((r) => r.path)).toEqual(['/tmp/acuity.png'])
+  })
+
+  test('takes absolute paths with coding tools off, relative ones only with a project', async () => {
+    stubDesktop({ '/tmp/a.png': 'QUJD', '/work/project/b.png': 'QUJD' })
+    const res = await resolveImageRecallRequest(
+      { reference_image_paths: '/tmp/a.png, b.png' },
+      makeCtx({ codingProjectPath: '/work/project' }),
+      { codingEnabled: false },
+    )
+    expect(res.recalled.map((r) => r.path)).toEqual(['/tmp/a.png'])
+    expect(res.errors.join(' ')).toContain('b.png')
+  })
+
+  test('still refuses non-image files', async () => {
+    stubDesktop({ '/home/u/.env': 'QUJD' })
+    const res = await resolveImageRecallRequest(
+      { reference_image_paths: '/home/u/.env' },
+      makeCtx({ codingProjectPath: '/work/project' }),
+      { codingEnabled: true },
+    )
+    expect(res.recalled).toEqual([])
+    expect(res.errors.join(' ')).toContain('not a supported image')
   })
 })

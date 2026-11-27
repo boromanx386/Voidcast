@@ -26,7 +26,7 @@ export const MCP_CONFIG_HINT = `MCP servers (desktop): config is read from ~/.vo
  * Assistant Runware/saved outputs: `generatedImagePaths` after images are saved locally.
  * Coding read/write/search/git only operate inside the configured project folder; those chat paths may live elsewhere (e.g. downloads or Runware output dir). To drop an image into the repo for `read_file` / web assets / commits, use execute_command to copy from the absolute source path into a path under the project root (e.g. Windows: copy /Y "SRC" "dst\\under\\repo.png" with cwd = project). Prefer quoting paths with spaces.
  */
-export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolute file paths for attached images (user turns) and for locally saved generated images (assistant turns). Coding tools read/write only inside the coding project folder. To vision-analyze screenshots or assets already in the repo (e.g. demos/*.png), call image_recall with reference_image_paths set to the project-relative or absolute path—do not ask the user to re-attach. Chat images that live outside the project can be copied into the repo with execute_command, then recalled from the new path.`
+export const TOOLS_CODING_CHAT_IMAGE_ASSETS_HINT = `Chat history exposes absolute file paths for attached images (user turns) and for locally saved generated images (assistant turns). Coding tools read/write only inside the coding project folder. To vision-analyze an image file (a repo asset such as demos/*.png, a screenshot, a download), call image_recall with reference_image_paths set to its project-relative or absolute path—do not ask the user to re-attach or copy it into the project.`
 
 /**
  * Options has coding tools ON, but this chat has no project folder — so the

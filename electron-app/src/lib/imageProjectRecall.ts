@@ -1,4 +1,7 @@
-/** Vision recall for PNG/JPEG/WebP/GIF/BMP inside the configured coding project folder. */
+/**
+ * Vision recall for PNG/JPEG/WebP/GIF/BMP files: relative paths inside the coding project,
+ * absolute paths anywhere on this PC (as show_image takes them).
+ */
 
 import { prepareBase64ImageForUpload } from './imageAttachment'
 
@@ -79,8 +82,9 @@ export function resolveCodingProjectImagePath(
 }
 
 /**
- * Path of an image to show in chat. Unlike recall this also takes absolute paths outside the
- * project, because scripts often write charts to a temp folder. Relative paths need a project.
+ * Path of an image file to recall or show. Absolute paths may be outside the project, because
+ * scripts and the shell often write images to a temp folder; the agent could copy them into
+ * the project anyway, so refusing them only cost a round. Relative paths need a project.
  */
 export function resolveLocalImagePath(projectRoot: string, inputPath: string): string | null {
   const raw = normalizeSlashes(inputPath)
@@ -126,17 +130,21 @@ export async function loadProjectImageRecalls(
     const key = normalizeSlashes(raw).toLowerCase()
     if (!key || seen.has(key)) continue
     seen.add(key)
-    const abs = resolveCodingProjectImagePath(projectRoot, raw)
+    const abs = resolveLocalImagePath(projectRoot, raw)
     if (!abs) {
-      errors.push(`path not in coding project or not a supported image: ${raw}`)
+      errors.push(
+        projectRoot.trim()
+          ? `not a supported image (PNG/JPEG/WebP/GIF/BMP) or a relative path outside the coding project: ${raw}`
+          : `not a supported image (PNG/JPEG/WebP/GIF/BMP), or a relative path with no coding project (use an absolute path): ${raw}`,
+      )
       continue
     }
     const loaded = await readCodingProjectImageForRecall(abs)
     if (!loaded.ok) {
       errors.push(
         loaded.reason === 'too-large'
-          ? `project image still over the ${MAX_PROJECT_IMAGE_B64_CHARS / (1024 * 1024)} MB base64 limit after downscaling (unsupported format?): ${abs}`
-          : `could not read project image: ${abs}`,
+          ? `image still over the ${MAX_PROJECT_IMAGE_B64_CHARS / (1024 * 1024)} MB base64 limit after downscaling (unsupported format?): ${abs}`
+          : `could not read image file: ${abs}`,
       )
       continue
     }

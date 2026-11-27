@@ -698,7 +698,7 @@ const IMAGE_RECALL_TOOL: AgentToolDefinition = {
   function: {
     name: 'image_recall',
     description:
-      'Look at an existing image (vision): load its pixels into the current turn. Earlier turns carry images as text only, so call this whenever you need to see an older chat image; only images attached to the current message arrive with their pixels. Resolves ids, indexes and/or paths against the session image catalog in the latest user turn. When coding tools are enabled, reference_image_paths can also name PNG/JPEG/WebP/GIF/BMP files inside the coding project folder (absolute or project-relative) — use this, not read_file, to look at image files. This does not show the image to the user; show_image does.',
+      'Look at an existing image (vision): load its pixels into the current turn. Earlier turns carry images as text only, so call this whenever you need to see an older chat image; only images attached to the current message arrive with their pixels. Resolves ids, indexes and/or paths against the session image catalog in the latest user turn. reference_image_paths can also name PNG/JPEG/WebP/GIF/BMP files: absolute anywhere on this PC, or relative to the coding project root — use this, not read_file, to look at image files. This does not show the image to the user; show_image does.',
     parameters: {
       type: 'object',
       properties: {
@@ -715,7 +715,7 @@ const IMAGE_RECALL_TOOL: AgentToolDefinition = {
         reference_image_paths: {
           type: 'string',
           description:
-            'Optional image path(s): session catalog absolute paths from chat, and/or project-relative/absolute paths under the coding project root when coding tools are on (comma/newline-separated).',
+            'Optional image path(s), comma or newline separated: session catalog paths from chat, absolute paths anywhere on this PC, or paths relative to the coding project root.',
         },
         purpose: {
           type: 'string',

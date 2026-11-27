@@ -1,4 +1,4 @@
-import { loadProjectImageRecalls, resolveInsideCodingProject } from '@/lib/imageProjectRecall'
+import { loadProjectImageRecalls, resolveLocalImagePath } from '@/lib/imageProjectRecall'
 import {
   normalizePathForMatch,
   resolveCatalogImageByOneBasedIndex,
@@ -50,8 +50,10 @@ export async function resolveImageRecallRequest(
     }
     recalled.push({ ...hit, recallSource: 'catalog' })
   }
-  const projectRoot = (ctx.codingProjectPath || '').trim()
-  if (options?.codingEnabled && projectRoot && selected.missingPaths.length > 0) {
+  // Relative paths resolve against the project only while coding tools are on; absolute paths
+  // work either way.
+  const projectRoot = options?.codingEnabled ? (ctx.codingProjectPath || '').trim() : ''
+  if (selected.missingPaths.length > 0) {
     const project = await loadProjectImageRecalls(projectRoot, selected.missingPaths)
     const loadedAbs = project.recalled.map((x) => normalizePathForMatch(x.path))
     for (let i = errors.length - 1; i >= 0; i--) {
@@ -59,7 +61,7 @@ export async function resolveImageRecallRequest(
       if (!m) continue
       const req = (m[1] || '').trim()
       const reqNorm = normalizePathForMatch(req)
-      const resolved = resolveInsideCodingProject(projectRoot, req)
+      const resolved = resolveLocalImagePath(projectRoot, req)
       const resolvedNorm = resolved ? normalizePathForMatch(resolved) : ''
       if (loadedAbs.some((abs) => abs === reqNorm || (resolvedNorm && abs === resolvedNorm))) {
         errors.splice(i, 1)

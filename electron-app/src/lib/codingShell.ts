@@ -91,15 +91,24 @@ export function resolveCodingShell(
 
 export type CodingShellSpawn = { file: string; args: string[]; shell: boolean }
 
+/**
+ * Runs before every Git Bash command. The hidden console still starts on the OEM code page, so
+ * chcp switches it to UTF-8 for programs that encode piped output with it (same reason as the
+ * cmd prefix). Models write `python3`, which on Windows is usually missing or the Microsoft
+ * Store alias in WindowsApps ("Python was not found"); a function sends it to `python`.
+ * `;` keeps the command's own exit status.
+ */
+export const GIT_BASH_COMMAND_PREFIX =
+  'chcp.com 65001 >/dev/null 2>&1; ' +
+  'case "$(command -v python3)" in ""|*[Ww]indows[Aa]pps*) ' +
+  'python3() { python "$@"; }; export -f python3 ;; esac; '
+
 /** `spawn(file, args, { shell })` for one command in the resolved shell. */
 export function codingShellSpawn(shell: CodingShell, command: string): CodingShellSpawn {
   if (shell.kind === 'bash') {
-    // The hidden console still starts on the OEM code page; switch it to UTF-8 for programs
-    // that encode piped output with it (same reason as the cmd prefix). `;` keeps the
-    // command's own exit status.
     return {
       file: shell.path,
-      args: ['-c', `chcp.com 65001 >/dev/null 2>&1; ${command}`],
+      args: ['-c', `${GIT_BASH_COMMAND_PREFIX}${command}`],
       shell: false,
     }
   }
@@ -107,6 +116,20 @@ export function codingShellSpawn(shell: CodingShell, command: string): CodingShe
     return { file: codingShellCommandLine(command, 'win32'), args: [], shell: true }
   }
   return { file: command, args: [], shell: true }
+}
+
+/**
+ * Git Bash prints POSIX paths (`/tmp/x.png`, `/c/Users/...`), and models pass them on to file
+ * tools that run in Node. Maps the two mounts Git for Windows always has: `/tmp` (the user's
+ * temp folder) and drive letters. Anything else is returned unchanged.
+ */
+export function gitBashPathToWindows(p: string, tmpDir: string): string {
+  const s = p.trim()
+  const tmp = s.match(/^\/tmp(\/.*)?$/i)
+  if (tmp) return `${tmpDir.replace(/[\\/]+$/, '')}${(tmp[1] ?? '').replace(/\//g, '\\')}`
+  const drive = s.match(/^\/([a-zA-Z])(\/.*)?$/)
+  if (drive) return `${drive[1].toUpperCase()}:${(drive[2] ?? '\\').replace(/\//g, '\\')}`
+  return s
 }
 
 /** One line for the tool description; nothing where the model's bash default already holds. */
