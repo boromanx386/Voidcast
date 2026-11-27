@@ -22,7 +22,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { existsSync, watch, type FSWatcher } from 'node:fs'
+import { existsSync, statSync, watch, type FSWatcher } from 'node:fs'
 import {
   appendFile,
   mkdir,
@@ -57,11 +57,8 @@ import {
   readPersistedMcpResult,
 } from './mcpManager'
 import { buildMcpProjectServerPreviews } from '../../src/lib/mcpProjectTrust'
-import {
-  attachCodingProcessStdio,
-  codingCommandSpawnEnv,
-  codingShellCommandLine,
-} from '../../src/lib/codingProcessStdio'
+import { attachCodingProcessStdio, codingCommandSpawnEnv } from '../../src/lib/codingProcessStdio'
+import { codingShellSpawn, resolveCodingShell, type CodingShell } from '../../src/lib/codingShell'
 import {
   CODING_RIPGREP_EXCLUDE_GLOBS,
   filterCodingSearchMatches,
@@ -3106,6 +3103,27 @@ ipcMain.handle(
   },
 )
 
+let codingShellCache: CodingShell | null = null
+
+/** Resolved once: Git Bash on Windows when installed, else cmd.exe; `sh` elsewhere. */
+function getCodingShell(): CodingShell {
+  if (!codingShellCache) {
+    codingShellCache = resolveCodingShell(process.platform, process.env, (p) => {
+      try {
+        return statSync(p).isFile()
+      } catch {
+        return false
+      }
+    })
+    console.log('[voidcast] execute_command shell:', codingShellCache)
+  }
+  return codingShellCache
+}
+
+ipcMain.on('voidcast:coding-shell-sync', (event) => {
+  event.returnValue = getCodingShell().kind
+})
+
 ipcMain.handle(
   'voidcast:coding-execute-command',
   async (
@@ -3148,9 +3166,10 @@ ipcMain.handle(
     }
     type ErrResult = { ok: false; error: string; runId?: string; streamed?: boolean }
     return new Promise<OkResult | ErrResult>((resolve) => {
-      const child = spawn(codingShellCommandLine(command), {
+      const spawnSpec = codingShellSpawn(getCodingShell(), command)
+      const child = spawn(spawnSpec.file, spawnSpec.args, {
         cwd: projectPath,
-        shell: true,
+        shell: spawnSpec.shell,
         // Never detach — Windows detached children often abandon our pipes (empty output buffer).
         detached: false,
         stdio: 'pipe',

@@ -18,10 +18,26 @@ export function usesCustomWindowChrome(): boolean {
   return ua.includes('Windows') || ua.includes('Linux')
 }
 
-/** True on a Windows host, where `execute_command` runs through cmd.exe. */
+/** True on a Windows host. */
 export function isWindowsHost(): boolean {
   if (typeof navigator === 'undefined') return false
   return /Windows/i.test(navigator.userAgent ?? '')
+}
+
+let cachedCodingShellKind: 'bash' | 'cmd' | 'sh' | undefined
+
+/**
+ * Shell behind `execute_command`, from main (Git Bash when installed, else cmd.exe on
+ * Windows). Without the desktop bridge a Windows host is assumed to be on cmd.exe.
+ */
+export function codingShellKind(): 'bash' | 'cmd' | 'sh' | undefined {
+  if (cachedCodingShellKind) return cachedCodingShellKind
+  const fromMain = typeof window !== 'undefined' ? window.voidcast?.codingShellKind?.() : undefined
+  if (fromMain) {
+    cachedCodingShellKind = fromMain
+    return fromMain
+  }
+  return isWindowsHost() ? 'cmd' : undefined
 }
 
 export const DEFAULT_TTS_BASE_URL = 'http://127.0.0.1:8765'

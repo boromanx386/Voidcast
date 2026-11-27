@@ -642,6 +642,9 @@ contextBridge.exposeInMainWorld('voidcast', {
         }
       | { ok: false; error?: string }
     >,
+  /** Shell behind `execute_command`: Git Bash or cmd.exe on Windows, `sh` elsewhere. */
+  codingShellKind: () =>
+    ipcRenderer.sendSync('voidcast:coding-shell-sync') as 'bash' | 'cmd' | 'sh',
   getToolsAuth: () =>
     ipcRenderer.sendSync('voidcast:get-tools-auth') as { token: string; port: number } | null,
   showWindow: () => ipcRenderer.invoke('voidcast:show-window'),

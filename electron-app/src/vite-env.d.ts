@@ -584,6 +584,7 @@ interface VoidcastBridge {
     | { ok: false; error?: string }
   >
 
+  codingShellKind?: () => 'bash' | 'cmd' | 'sh'
   getToolsAuth: () => { token: string; port: number } | null
 
   showWindow: () => Promise<void>

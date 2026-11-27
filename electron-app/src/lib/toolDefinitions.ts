@@ -8,7 +8,8 @@ import {
   MCP_READ_RESULT_NAME,
   type McpToolInfo,
 } from '@/lib/mcpTools'
-import { isWindowsHost } from '@/lib/platform'
+import { codingShellKind } from '@/lib/platform'
+import { codingShellNote } from '@/lib/codingShell'
 
 /** Tools that mutate the system / filesystem / media — blocked in Plan and Ask (read-only) modes. */
 export const PLAN_MODE_BLOCKED_TOOLS = new Set([
@@ -1286,14 +1287,6 @@ const CODING_CHECK_TYPES_TOOL: AgentToolDefinition = {
   },
 }
 
-/**
- * Models default to bash. On Windows the command goes through cmd.exe, and without being
- * told they spent rounds on `head`/`tail` errors and passed `\n` inside arguments that
- * cmd leaves as a literal backslash-n.
- */
-export const EXECUTE_COMMAND_WINDOWS_SHELL_NOTE =
-  ' Windows host: the shell is cmd.exe, not bash. Use cmd syntax (type, findstr, dir, where, 2>nul, &&); head, tail, grep, cat, ls, pwd, /dev/null and $VAR do not exist. Wrap paths with spaces in double quotes; single quotes do not quote in cmd. A \\n inside a command-line argument stays a literal backslash-n, so write anything multi-line (code, JSON bodies) to a file with write_file and run or send that file. Prefer a small python or node script over long one-liners.'
-
 const CODING_EXECUTE_COMMAND_TOOL: AgentToolDefinition = {
   type: 'function',
   function: {
@@ -1699,13 +1692,13 @@ const MCP_READ_RESULT_TOOL: AgentToolDefinition = {
   },
 }
 
-function withWindowsShellNote(tool: AgentToolDefinition): AgentToolDefinition {
+/** Names the shell in one line where the model's bash default would be wrong or partial. */
+function withShellNote(tool: AgentToolDefinition): AgentToolDefinition {
+  const note = codingShellNote(codingShellKind())
+  if (!note) return tool
   return {
     ...tool,
-    function: {
-      ...tool.function,
-      description: `${tool.function.description}${EXECUTE_COMMAND_WINDOWS_SHELL_NOTE}`,
-    },
+    function: { ...tool.function, description: `${tool.function.description}${note}` },
   }
 }
 
@@ -1793,11 +1786,7 @@ export function buildToolsList(
     if (!readOnlyMode) {
       out.push(CODING_GIT_RESTORE_TOOL)
       out.push(CODING_GIT_STASH_TOOL)
-      out.push(
-        isWindowsHost()
-          ? withWindowsShellNote(CODING_EXECUTE_COMMAND_TOOL)
-          : CODING_EXECUTE_COMMAND_TOOL,
-      )
+      out.push(withShellNote(CODING_EXECUTE_COMMAND_TOOL))
       out.push(CODING_STOP_PROCESS_TOOL)
     }
     if (opts?.subAgentCodingEnabled) {

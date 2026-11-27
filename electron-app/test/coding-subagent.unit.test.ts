@@ -336,13 +336,23 @@ describe('buildToolsList coding_explore', () => {
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Electron',
       })
       const d = execDescription()
-      expect(d).toContain('the shell is cmd.exe, not bash')
-      expect(d).toContain('A \\n inside a command-line argument stays a literal backslash-n')
+      expect(d).toContain('Shell: cmd.exe (Windows), not bash.')
     })
 
     it('adds nothing on Linux or macOS', () => {
       vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Electron' })
-      expect(execDescription()).not.toContain('cmd.exe')
+      expect(execDescription()).not.toContain('Shell:')
+    })
+
+    // Last: the kind main reports is cached for the session.
+    it('names Git Bash when main found it', () => {
+      vi.stubGlobal('navigator', {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Electron',
+      })
+      vi.stubGlobal('window', { voidcast: { codingShellKind: () => 'bash' } })
+      const d = execDescription()
+      expect(d).toContain('Shell: Git Bash on Windows')
+      expect(d).not.toContain('cmd.exe')
     })
   })
 
