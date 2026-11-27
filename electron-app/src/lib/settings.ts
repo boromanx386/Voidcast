@@ -1955,11 +1955,11 @@ function clamp(n: number, min: number, max: number) {
 /** Clamp max tool rounds per agent turn (Tools settings). */
 export function clampAgentMaxToolRounds(n: number): number {
   if (!Number.isFinite(n)) return defaults.agentMaxToolRounds
-  return clamp(Math.round(n), 5, 120)
+  return clamp(Math.round(n), AGENT_MAX_TOOL_ROUNDS_MIN, AGENT_MAX_TOOL_ROUNDS_MAX)
 }
 
 export const AGENT_MAX_TOOL_ROUNDS_MIN = 5
-export const AGENT_MAX_TOOL_ROUNDS_MAX = 120
+export const AGENT_MAX_TOOL_ROUNDS_MAX = 300
 export const AGENT_MAX_TOOL_ROUNDS_DEFAULT = 50
 
 function normalizeTools(s: AppSettings): AppSettings {

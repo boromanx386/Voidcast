@@ -68,7 +68,7 @@ Notes:
 
 ## Max agent tool rounds (`agentMaxToolRounds`)
 
-Type: `number`, default `50`, clamped to `AGENT_MAX_TOOL_ROUNDS_MIN = 5` .. `AGENT_MAX_TOOL_ROUNDS_MAX = 120` (`clampAgentMaxToolRounds`).
+Type: `number`, default `50`, clamped to `AGENT_MAX_TOOL_ROUNDS_MIN = 5` .. `AGENT_MAX_TOOL_ROUNDS_MAX = 300` (`clampAgentMaxToolRounds`).
 
 Max agent↔tool loop rounds per assistant turn (main agent only). Nested **workers** have a separate round budget (default/max **100**); **explore** uses a lower cap (default **8** / max **12**). A soft wrap-up warning fires near the main limit and a hard wrap-up after exhaustion.
 

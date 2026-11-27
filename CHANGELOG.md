@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **The agent checks before it says "done"**: before reporting work as finished or giving a count of it, the agent checks with one tool call against the source of truth (a status endpoint, a test run, a file listing) and says "unverified" when it cannot. Near the end of a turn's tool budget it starts no new work and spends the remaining calls checking what it claims is done; a wrap-up after the budget runs out marks unconfirmed counts as unverified. Before, a long turn could report 13 of 19 submissions as 19/19 from its own notes.
+- **The agent knows it is on cmd.exe on Windows**: the `execute_command` tool description now says, on Windows only, that commands run in cmd.exe rather than bash, which bash commands do not exist (`head`, `tail`, `grep`, `cat`, `/dev/null`), and that `
+` inside an argument stays a literal backslash-n, so multi-line code or JSON goes into a file first. A local model spent its first rounds on `'head' is not recognized` errors, and a benchmark answer was submitted with literal `
+` instead of line breaks.
+- **Up to 300 tool rounds per reply**: Options → Tools → `MAX_TOOL_ROUNDS` now goes up to 300 instead of 120 (default stays 50). Long tasks such as a 49-challenge benchmark ran 350–390 rounds and stopped three times at 120 for a manual "continue"; with most of the prompt cached, a longer turn costs little extra.
 - **Old tool results are cleared only when the context gets large**: the coding agent used to replace every tool result over 2,000 characters with a short placeholder four rounds later, however small the context was. In a benchmark run that dropped the task list the agent fetched in round 0 when the whole prompt was about 20,000 tokens, and some answers then came from the task keys alone. Now nothing is cleared until the prompt reaches half of the model's context window, at most 150,000 tokens (100,000 when the window is unknown). Above that, old results are cleared as before. A small turn keeps everything, and the provider's prompt cache stays intact.
 
 ### Fixed

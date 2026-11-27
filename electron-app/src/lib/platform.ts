@@ -18,6 +18,12 @@ export function usesCustomWindowChrome(): boolean {
   return ua.includes('Windows') || ua.includes('Linux')
 }
 
+/** True on a Windows host, where `execute_command` runs through cmd.exe. */
+export function isWindowsHost(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /Windows/i.test(navigator.userAgent ?? '')
+}
+
 export const DEFAULT_TTS_BASE_URL = 'http://127.0.0.1:8765'
 export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 

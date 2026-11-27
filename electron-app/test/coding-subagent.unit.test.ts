@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CODING_CLEAR_KEEP_READ_ROUNDS,
   CODING_CLEAR_KEEP_RECENT_ROUNDS,
@@ -323,6 +323,28 @@ describe('buildToolsList coding_explore', () => {
     coding: true,
     enterPlan: false,
   }
+
+  describe('execute_command shell note', () => {
+    afterEach(() => vi.unstubAllGlobals())
+    const execDescription = () =>
+      buildToolsList(codingEnabled as never, false).find(
+        (t) => t.function.name === 'execute_command',
+      )?.function.description ?? ''
+
+    it('tells the model it is on cmd.exe on a Windows host', () => {
+      vi.stubGlobal('navigator', {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Electron',
+      })
+      const d = execDescription()
+      expect(d).toContain('the shell is cmd.exe, not bash')
+      expect(d).toContain('A \\n inside a command-line argument stays a literal backslash-n')
+    })
+
+    it('adds nothing on Linux or macOS', () => {
+      vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Electron' })
+      expect(execDescription()).not.toContain('cmd.exe')
+    })
+  })
 
   it('omits coding_explore when subAgentCodingEnabled is false', () => {
     const tools = buildToolsList(codingEnabled as never, false, {
